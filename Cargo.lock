@@ -1042,8 +1042,11 @@ name = "beui-demo"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-core",
+ "beui-renderer-wgpu",
  "beui_macros",
  "block-ui-test",
+ "pollster",
  "text-editor-core",
 ]
 
@@ -5933,6 +5936,7 @@ dependencies = [
 name = "reactive"
 version = "0.1.0"
 dependencies = [
+ "foldhash 0.2.0",
  "reactive_macros",
 ]
 

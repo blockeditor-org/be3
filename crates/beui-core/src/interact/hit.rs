@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use foldhash::HashSet;
 
 use crate::base::embed::EmbedNode;
 use crate::base::interactive::InteractiveNode;
@@ -139,7 +139,7 @@ pub fn claimant(
     pos: Pos2,
     held: Modifiers,
 ) -> Option<NodeId> {
-    let mut lines = HashSet::new();
+    let mut lines = HashSet::default();
     for claimant in doc.press_claimants.iter().copied() {
         let mut next = Some(claimant);
         while let Some(id) = next {

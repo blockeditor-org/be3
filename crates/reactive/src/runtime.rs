@@ -1,5 +1,6 @@
+use foldhash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
 use crate::computation::{Computation, no_computation};
@@ -151,7 +152,7 @@ pub(crate) fn flush() {
         return;
     }
     let _guard = Reset::set(|runtime| &runtime.flushing, true);
-    let mut runs = HashMap::new();
+    let mut runs = HashMap::default();
     loop {
         let next = RUNTIME.with(|runtime| runtime.queue.borrow_mut().pop_front());
         let Some(next) = next else { break };
@@ -162,7 +163,7 @@ pub(crate) fn flush() {
 pub(crate) fn flush_within(root: &Owner) {
     let depth = RUNTIME.with(|runtime| runtime.depth.get());
     let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
-    let mut runs = HashMap::new();
+    let mut runs = HashMap::default();
     loop {
         let next = RUNTIME.with(|runtime| {
             let mut queue = runtime.queue.borrow_mut();

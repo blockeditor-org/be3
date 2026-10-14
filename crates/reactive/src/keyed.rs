@@ -1,5 +1,5 @@
+use foldhash::{HashMap, HashSet};
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
 use crate::runtime::batch;
@@ -47,7 +47,7 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> Default for
 fn empty<K: 'static, V: 'static>() -> Inner<K, V> {
     Inner {
         keys: OwnedSignal::new(Vec::new()),
-        entries: RefCell::new(HashMap::new()),
+        entries: RefCell::new(HashMap::default()),
     }
 }
 
@@ -185,7 +185,7 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
 }
 
 pub fn numbered<K: Clone + Hash + Eq>(keys: Vec<K>) -> Vec<(K, usize)> {
-    let mut seen: HashMap<K, usize> = HashMap::new();
+    let mut seen: HashMap<K, usize> = HashMap::default();
     keys.into_iter()
         .map(|key| {
             let occurrence = seen.entry(key.clone()).or_insert(0);
@@ -205,7 +205,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
     pub fn new(build: impl Fn(K) -> V + 'static) -> Self {
         Self {
             build: Box::new(build),
-            entries: RefCell::new(HashMap::new()),
+            entries: RefCell::new(HashMap::default()),
         }
     }
 
@@ -271,7 +271,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
 
     pub fn map(&self, keys: Vec<K>) -> Mapping<K, V> {
         let mut entries = self.entries.borrow_mut();
-        let mut next = HashMap::with_capacity(keys.len());
+        let mut next = HashMap::with_capacity_and_hasher(keys.len(), Default::default());
         let mut mapped = Vec::with_capacity(keys.len());
         for numbered in numbered(keys) {
             let entry = match entries.remove(&numbered) {

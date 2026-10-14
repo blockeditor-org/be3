@@ -1,5 +1,5 @@
+use foldhash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -25,7 +25,7 @@ pub struct Selector<K> {
 pub fn create_selector<K: Clone + Eq + Hash + 'static>(
     mut source: impl FnMut() -> K + 'static,
 ) -> Selector<K> {
-    let keys: Keys<K> = Rc::new(RefCell::new(HashMap::new()));
+    let keys: Keys<K> = Rc::new(RefCell::new(HashMap::default()));
     let value = {
         let keys = keys.clone();
         let mut previous: Option<K> = None;

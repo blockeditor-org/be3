@@ -129,7 +129,7 @@ pub fn OklchColorWheel(
 #[component]
 fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     let ColorWheelHandle { point, focused, .. } = handle;
-    let hues = Rc::new(ring_colors(model));
+    let hues = ring_colors(model);
     let ring = Rc::new(RefCell::new(None::<(u32, Image)>));
     let triangle = Rc::new(RefCell::new(None::<(u32, u32, Image)>));
     let draw = Prop::dynamic(move || {
@@ -154,7 +154,9 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
             );
             let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
             let ring_image = cached(&ring, pixels, || {
-                ring_image(&hues, local, RING_GAP * scale, pixels)
+                shared_ring(model, pixels, || {
+                    ring_image(&hues, local, RING_GAP * scale, pixels)
+                })
             });
             painter.image(bounds, whole, &ring_image, Color32::WHITE, 0.0, true);
             let rim = |radius: f32| {
@@ -244,7 +246,41 @@ fn hue_index(hue: f32) -> usize {
     ((hue.rem_euclid(360.0) / 360.0 * RING_HUES as f32).round() as usize) % RING_HUES
 }
 
-fn ring_colors(model: Model) -> Vec<[u8; 3]> {
+type Hues = Rc<Vec<[u8; 3]>>;
+
+thread_local! {
+    static RING_COLORS: RefCell<Vec<(Model, Hues)>> = const { RefCell::new(Vec::new()) };
+    static RINGS: RefCell<Vec<(Model, u32, Image)>> = const { RefCell::new(Vec::new()) };
+}
+
+fn shared_ring(model: Model, pixels: u32, build: impl FnOnce() -> Image) -> Image {
+    if let Some(image) = RINGS.with_borrow(|rings| {
+        rings
+            .iter()
+            .find(|(held, size, _)| *held == model && *size == pixels)
+            .map(|(_, _, image)| image.clone())
+    }) {
+        return image;
+    }
+    let image = build();
+    RINGS.with_borrow_mut(|rings| rings.push((model, pixels, image.clone())));
+    image
+}
+
+fn ring_colors(model: Model) -> Hues {
+    if let Some(colors) = RING_COLORS.with_borrow(|held| {
+        held.iter()
+            .find(|(held, _)| *held == model)
+            .map(|(_, colors)| colors.clone())
+    }) {
+        return colors;
+    }
+    let colors = Rc::new(compute_ring_colors(model));
+    RING_COLORS.with_borrow_mut(|held| held.push((model, colors.clone())));
+    colors
+}
+
+fn compute_ring_colors(model: Model) -> Vec<[u8; 3]> {
     (0..RING_HUES)
         .map(|index| {
             let hue = index as f32 * 360.0 / RING_HUES as f32;

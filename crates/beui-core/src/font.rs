@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use foldhash::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use foldhash::fast::FixedState;
@@ -686,8 +686,8 @@ impl Fonts {
         Self {
             backend_generation: backend.generation(),
             backend,
-            galleys: HashMap::new(),
-            cooling: HashMap::new(),
+            galleys: HashMap::default(),
+            cooling: HashMap::default(),
             cached_galleys: 0,
             generation: 0,
         }

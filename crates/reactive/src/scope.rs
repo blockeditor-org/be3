@@ -1,6 +1,6 @@
+use foldhash::HashMap;
 use std::any::{Any, TypeId};
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::arena::{self, Key};
