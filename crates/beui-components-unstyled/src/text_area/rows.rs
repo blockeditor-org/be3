@@ -126,6 +126,41 @@ pub struct Row {
 }
 
 impl Row {
+    pub fn moved(&self, line: usize, start: usize) -> Row {
+        let shift = |at: usize| at + start - self.start;
+        Row {
+            line,
+            start,
+            end: shift(self.end),
+            segments: self
+                .segments
+                .iter()
+                .map(|segment| Segment {
+                    source: shift(segment.source.start)..shift(segment.source.end),
+                    ..segment.clone()
+                })
+                .collect(),
+            inline: self
+                .inline
+                .iter()
+                .map(|item| match item.inline {
+                    Inline::Checkbox {
+                        line_start,
+                        checked,
+                    } => InlineItem {
+                        inline: Inline::Checkbox {
+                            line_start: shift(line_start),
+                            checked,
+                        },
+                        ..item.clone()
+                    },
+                    _ => item.clone(),
+                })
+                .collect(),
+            ..self.clone()
+        }
+    }
+
     pub fn to_display(&self, byte: usize) -> usize {
         if self.placeholder {
             return 0;
@@ -521,6 +556,84 @@ pub fn widget_label(widget: &TextWidget) -> String {
         Some(_) => format!("   {} ", widget.label),
         None => format!(" {} ", widget.label),
     }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct RowKey {
+    bytes: Vec<u8>,
+    newline: bool,
+    styles: Vec<SynHlStyle>,
+    styled_from_start: bool,
+    code_block: bool,
+    collapsed: bool,
+    checkboxes: Vec<(Range<usize>, bool)>,
+    widgets: Vec<(usize, Range<usize>, TextWidget)>,
+    spacers: Vec<(usize, f32)>,
+    composition: Option<Range<usize>>,
+    placeholder: Option<String>,
+}
+
+impl RowKey {
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> Option<RowKey> {
+    let snapshot = inputs.snapshot;
+    if snapshot.runs.is_some() {
+        return None;
+    }
+    let bytes = &snapshot.bytes;
+    let highlight = snapshot.highlight();
+    let held = start.min(bytes.len().saturating_sub(1));
+    let relative = |range: &Range<usize>| {
+        range.start.saturating_sub(start)..range.end.saturating_sub(start)
+    };
+    Some(RowKey {
+        bytes: bytes[start..end].to_vec(),
+        newline,
+        styles: highlight.styles_in(held..(end + 1).min(bytes.len())),
+        styled_from_start: held == start,
+        code_block: highlight.in_code_block(start..end),
+        collapsed: snapshot
+            .sections
+            .iter()
+            .any(|section| section.collapsed && section.line_start == start),
+        checkboxes: snapshot
+            .checkboxes
+            .iter()
+            .filter(|checkbox| (start..=end).contains(&checkbox.marker.start))
+            .map(|checkbox| (relative(&checkbox.marker), checkbox.checked))
+            .collect(),
+        widgets: inputs
+            .widgets
+            .iter()
+            .enumerate()
+            .filter(|(_, widget)| widget.range.start <= end && widget.range.end >= start)
+            .map(|(index, widget)| {
+                let range = relative(&widget.range);
+                (
+                    index,
+                    range.clone(),
+                    TextWidget {
+                        range,
+                        ..widget.clone()
+                    },
+                )
+            })
+            .collect(),
+        spacers: inputs
+            .spacers
+            .iter()
+            .map(|(at, width)| (at.saturating_sub(start), *width))
+            .collect(),
+        composition: inputs
+            .composition
+            .filter(|composition| composition.range.start < end && composition.range.end > start)
+            .map(|composition| relative(&composition.range)),
+        placeholder: inputs.placeholder.map(str::to_owned),
+    })
 }
 
 pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newline: bool) -> Row {

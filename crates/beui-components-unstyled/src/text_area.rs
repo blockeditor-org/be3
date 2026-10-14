@@ -119,6 +119,7 @@ struct Held {
     registered: Cell<u64>,
     rects: Rc<Rects>,
     reveal_attempts: Cell<u8>,
+    row_cache: RefCell<lines::RowCache>,
 }
 
 #[derive(Clone, Copy)]
@@ -1173,6 +1174,7 @@ pub fn TextArea(
                                 registered: Cell::new(0),
                                 rects: with_document(|document| Rc::clone(&document.rects)),
                                 reveal_attempts: Cell::new(0),
+                                row_cache: RefCell::default(),
                             }),
                             starts,
                             visible,
