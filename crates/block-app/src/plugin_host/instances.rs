@@ -129,6 +129,7 @@ struct Instance {
     next_replacement: u64,
     leaving: bool,
     content: Option<ContentLink>,
+    prefetched: Vec<Uuid>,
     watched: HashMap<Uuid, ContentLink>,
     shown: std::collections::HashSet<(Uuid, Uuid)>,
     block_queries: Vec<block_plugin_api::BlockQuery>,
@@ -157,6 +158,12 @@ impl ContentLink {
             peers_sent: None,
             described: None,
         }
+    }
+
+    fn opening(block: Uuid, content_type: Uuid) -> Self {
+        let mut link = Self::new(content_type);
+        link.opened = prefetch(block, content_type);
+        link
     }
 
     fn describe(&mut self, block: Uuid) {
@@ -307,12 +314,44 @@ impl Instance {
             blocks_seen: None,
             version_sent: None,
             stale: true,
+            prefetched: match role {
+                InstanceRole::Editor(block) => prefetched_references(block),
+                InstanceRole::Creation(..) | InstanceRole::Artifact(..) => Vec::new(),
+            },
             content: match role {
-                InstanceRole::Editor(block) => own_content_type(block).map(ContentLink::new),
+                InstanceRole::Editor(block) => {
+                    own_content_type(block).map(|content_type| ContentLink::opening(block.id, content_type))
+                }
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
         }
     }
+}
+
+const PREFETCHED_REFERENCES: usize = 4;
+
+fn prefetch(block: Uuid, content_type: Uuid) -> bool {
+    let fetch = crate::be::has_head(block) && crate::be::content_revision(block).is_none();
+    if fetch {
+        crate::be::open(block, content_type);
+    }
+    fetch
+}
+
+fn prefetched_references(block: EditorBlock) -> Vec<Uuid> {
+    let Some(node) = crate::be::node(block.id) else {
+        return Vec::new();
+    };
+    if node.references.len() > PREFETCHED_REFERENCES {
+        return Vec::new();
+    }
+    node.references
+        .iter()
+        .filter_map(|reference| crate::be::node(*reference))
+        .filter(|node| node.access.can_view() && crate::be::is_known(node.content_type))
+        .filter(|node| prefetch(node.id, node.content_type))
+        .map(|node| node.id)
+        .collect()
 }
 
 fn own_content_type(block: EditorBlock) -> Option<Uuid> {
@@ -385,6 +424,7 @@ impl Instance {
     fn holds(&self, block: Uuid) -> bool {
         (self.content.is_some() && self.role.block().is_some_and(|own| own.id == block))
             || self.watched.contains_key(&block)
+            || self.prefetched.contains(&block)
     }
 
     fn follows(&self, block: Uuid) -> bool {
@@ -587,7 +627,11 @@ impl Instances {
             .block()
             .filter(|_| entry.content.is_some())
             .map(|block| block.id);
-        for block in own.into_iter().chain(entry.watched.keys().copied()) {
+        let held = own
+            .into_iter()
+            .chain(entry.watched.keys().copied())
+            .chain(entry.prefetched.iter().copied());
+        for block in held {
             if !self.holds_content(block) {
                 crate::be::close(block);
             }
