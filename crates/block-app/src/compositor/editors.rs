@@ -1,14 +1,14 @@
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, HashMap},
-    rc::{Rc, Weak},
+    rc::Rc,
 };
 
 use be_graph::Access;
 use beui::reactive::{
     Canvas, CanvasItem, Dynamic, ForEach, Frame, Interactive, Layers, Memo, PlacementBuilder,
-    Portal, Prop, ReadSignal, Show, WriteSignal, clone, component, create_effect, create_memo,
-    create_signal, on_cleanup, on_global_key, provide_context, use_context, view,
+    Callback, ClickCallback, OwnedStored, Portal, Prop, ReadSignal, Show, Stored, WriteSignal, component, create_effect, create_memo,
+    create_signal, on_cleanup, on_global_key, provide_context, store, use_context, view,
 };
 use beui::{Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
@@ -55,27 +55,36 @@ struct CreationChild {
     progress: Option<CreationProgress>,
 }
 
-#[derive(Clone)]
-pub(crate) struct Editors(Rc<State>);
+#[derive(Clone, Copy)]
+pub(crate) struct Editors(Stored<State>);
+
+pub(crate) struct OwnedEditors {
+    _state: OwnedStored<State>,
+    editors: Editors,
+}
+
+impl std::ops::Deref for OwnedEditors {
+    type Target = Editors;
+
+    fn deref(&self) -> &Editors {
+        &self.editors
+    }
+}
 
 thread_local! {
-    static EDITORS: RefCell<Weak<State>> = const { RefCell::new(Weak::new()) };
+    static EDITORS: Cell<Option<Editors>> = const { Cell::new(None) };
 }
 
 pub(crate) fn editors() -> Editors {
-    EDITORS.with(|editors| {
-        Editors(
-            editors
-                .borrow()
-                .upgrade()
-                .expect("the editors are installed before the document is built"),
-        )
-    })
+    EDITORS
+        .get()
+        .filter(|editors| editors.0.is_alive())
+        .expect("the editors are installed before the document is built")
 }
 
-impl Editors {
+impl OwnedEditors {
     pub(crate) fn install(registry: Rc<EditorRegistry>, client_id: Uuid) -> Self {
-        let editors = Self(Rc::new(State {
+        let state = OwnedStored::new(State {
             registry: RefCell::new(registry),
             client_id: Cell::new(client_id),
             open: RefCell::new(HashMap::new()),
@@ -86,50 +95,62 @@ impl Editors {
             settings_children: RefCell::new(HashMap::new()),
             settings_shown: RefCell::new(HashMap::new()),
             settings_status: RefCell::new(None),
-        }));
-        EDITORS.with(|held| *held.borrow_mut() = Rc::downgrade(&editors.0));
-        editors
+        });
+        let editors = Editors(*state);
+        EDITORS.set(Some(editors));
+        Self {
+            _state: state,
+            editors,
+        }
     }
+}
 
+impl Editors {
     pub(crate) fn reset(&self, registry: Rc<EditorRegistry>) {
-        *self.0.registry.borrow_mut() = registry;
+        let state = self.0.get();
+        *state.registry.borrow_mut() = registry;
         let closed: Vec<PluginEditor> =
             self.with(|open| open.drain().map(|(_, editor)| editor).collect());
         drop(closed);
-        self.0.parents.borrow_mut().clear();
-        self.0.creations.borrow_mut().clear();
-        self.0.commits.borrow_mut().clear();
-        self.0.settings_children.borrow_mut().clear();
-        self.0.settings_shown.borrow_mut().clear();
-        self.0.simulated.borrow_mut().clear();
+        state.parents.borrow_mut().clear();
+        state.creations.borrow_mut().clear();
+        state.commits.borrow_mut().clear();
+        state.settings_children.borrow_mut().clear();
+        state.settings_shown.borrow_mut().clear();
+        state.simulated.borrow_mut().clear();
         super::changed();
     }
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<Access> {
-        self.0.simulated.borrow().get(&id).copied()
+        let state = self.0.get();
+        state.simulated.borrow().get(&id).copied()
     }
 
     pub(crate) fn registry(&self) -> Rc<EditorRegistry> {
-        Rc::clone(&self.0.registry.borrow())
+        let state = self.0.get();
+        Rc::clone(&state.registry.borrow())
     }
 
     pub(crate) fn client_id(&self) -> Uuid {
-        self.0.client_id.get()
+        let state = self.0.get();
+        state.client_id.get()
     }
 
     pub(crate) fn with<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, PluginEditor>) -> R) -> R {
-        act(&mut self.0.open.borrow_mut())
+        let state = self.0.get();
+        act(&mut state.open.borrow_mut())
     }
 
     pub(crate) fn with_simulated<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, Access>) -> R) -> R {
-        let result = act(&mut self.0.simulated.borrow_mut());
+        let state = self.0.get();
+        let result = act(&mut state.simulated.borrow_mut());
         super::changed();
         result
     }
 
     fn access(&self, id: Uuid, above: Access) -> Access {
-        let simulated = self
-            .0
+        let state = self.0.get();
+        let simulated = state
             .simulated
             .borrow()
             .get(&id)
@@ -139,14 +160,18 @@ impl Editors {
     }
 
     pub(crate) fn parent_of(&self, id: Uuid) -> Option<Uuid> {
-        self.0.parents.borrow().get(&id).copied()
+        let state = self.0.get();
+        state.parents.borrow().get(&id).copied()
     }
 
     pub(crate) fn forget_parent(&self, id: Uuid) {
-        self.0.parents.borrow_mut().remove(&id);
+        let state = self.0.get();
+
+        state.parents.borrow_mut().remove(&id);
     }
 
     pub(crate) fn block_of(&self, plugin_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
+
         self.with(|open| {
             open.values()
                 .find(|editor| {
@@ -160,8 +185,9 @@ impl Editors {
     }
 
     fn ensure(&self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>, parent: Uuid) {
+        let state = self.0.get();
         if parent != id {
-            self.0.parents.borrow_mut().insert(id, parent);
+            state.parents.borrow_mut().insert(id, parent);
         }
         let registry = self.registry();
         self.with(|open| {
@@ -171,15 +197,16 @@ impl Editors {
     }
 
     fn ensure_creation(&self, key: CreationKey, editor: Uuid, template: &str) -> bool {
-        if self.0.creations.borrow().contains_key(&key) {
+        let state = self.0.get();
+        if state.creations.borrow().contains_key(&key) {
             return true;
         }
         let Some((_, creation)) = self.registry().create(editor, template) else {
             return false;
         };
         let (parent, _, child) = key;
-        let commit = self.0.commits.borrow_mut().remove(&(parent, child));
-        self.0.creations.borrow_mut().insert(
+        let commit = state.commits.borrow_mut().remove(&(parent, child));
+        state.creations.borrow_mut().insert(
             key,
             CreationChild {
                 creation,
@@ -191,15 +218,17 @@ impl Editors {
     }
 
     fn forget_creation(&self, key: &CreationKey) {
+        let state = self.0.get();
         let (parent, _, child) = key;
-        self.0.commits.borrow_mut().remove(&(*parent, *child));
-        let forgotten = self.0.creations.borrow_mut().remove(key);
+        state.commits.borrow_mut().remove(&(*parent, *child));
+        let forgotten = state.creations.borrow_mut().remove(key);
         drop(forgotten);
     }
 
     fn creation_region(&self, key: &CreationKey) -> Option<HostedRegion> {
+        let state = self.0.get();
         let registry = self.registry();
-        self.0
+        state
             .creations
             .borrow()
             .get(key)?
@@ -211,13 +240,15 @@ impl Editors {
         &self,
         key: &CreationKey,
     ) -> Option<(Option<CreationProgress>, Option<f32>)> {
-        let creations = self.0.creations.borrow();
+        let state = self.0.get();
+        let creations = state.creations.borrow();
         let child = creations.get(key)?;
         Some((child.progress.clone(), child.creation.height()))
     }
 
     pub(crate) fn commit_creations(&self, parent: Uuid, commits: Vec<ChildCommit>) {
-        let mut creations = self.0.creations.borrow_mut();
+        let state = self.0.get();
+        let mut creations = state.creations.borrow_mut();
         for commit in commits {
             let held = creations
                 .iter_mut()
@@ -225,7 +256,7 @@ impl Editors {
             match held {
                 Some((_, creation)) => creation.commit = Some(commit),
                 None => {
-                    self.0
+                    state
                         .commits
                         .borrow_mut()
                         .insert((parent, commit.child), commit);
@@ -235,38 +266,42 @@ impl Editors {
     }
 
     fn show_settings(&self, key: CreationKey, block: Uuid) {
+        let state = self.0.get();
         let (parent, _, child) = key;
-        self.0
+        state
             .settings_children
             .borrow_mut()
             .insert((parent, child), block);
-        self.0.settings_shown.borrow_mut().insert(key, block);
+        state.settings_shown.borrow_mut().insert(key, block);
     }
 
     fn hide_settings(&self, key: &CreationKey) {
-        self.0.settings_shown.borrow_mut().remove(key);
+        let state = self.0.get();
+        state.settings_shown.borrow_mut().remove(key);
     }
 
     pub(crate) fn forget_hidden_settings(&self) {
-        let shown: Vec<(Uuid, ChildId)> = self
-            .0
+        let state = self.0.get();
+        let shown: Vec<(Uuid, ChildId)> = state
             .settings_shown
             .borrow()
             .keys()
             .map(|(parent, _, child)| (*parent, *child))
             .collect();
-        self.0
+        state
             .settings_children
             .borrow_mut()
             .retain(|key, _| shown.contains(key));
     }
 
     pub(crate) fn requested_settings(&self) -> Option<Uuid> {
-        self.0.settings_shown.borrow().values().next().copied()
+        let state = self.0.get();
+        state.settings_shown.borrow().values().next().copied()
     }
 
     pub(crate) fn settings_block(&self, parent: Uuid, child: ChildId) -> Option<Uuid> {
-        self.0
+        let state = self.0.get();
+        state
             .settings_children
             .borrow()
             .get(&(parent, child))
@@ -274,15 +309,17 @@ impl Editors {
     }
 
     pub(crate) fn set_settings_status(&self, status: Option<(Uuid, SettingsProgress, f32)>) {
-        if *self.0.settings_status.borrow() == status {
+        let state = self.0.get();
+        if *state.settings_status.borrow() == status {
             return;
         }
-        *self.0.settings_status.borrow_mut() = status;
+        *state.settings_status.borrow_mut() = status;
         super::changed();
     }
 
     fn settings_status(&self, block: Uuid) -> Option<(SettingsProgress, f32)> {
-        self.0
+        let state = self.0.get();
+        state
             .settings_status
             .borrow()
             .as_ref()
@@ -291,7 +328,8 @@ impl Editors {
     }
 
     pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
-        self.0
+        let state = self.0.get();
+        state
             .creations
             .borrow()
             .values()
@@ -300,10 +338,11 @@ impl Editors {
     }
 
     pub(crate) fn step_creations(&self) {
+        let state = self.0.get();
         let registry = self.registry();
         let client_id = self.client_id();
         let mut changed = false;
-        for child in self.0.creations.borrow_mut().values_mut() {
+        for child in state.creations.borrow_mut().values_mut() {
             if matches!(
                 child.progress,
                 Some(CreationProgress::Created(_) | CreationProgress::Failed(_))
@@ -348,7 +387,7 @@ impl Editors {
             plugin: handle.plugin.clone()?,
             role: handle.role,
             instance: handle.instance,
-            block_types: Rc::clone(&self.registry()).plugin_block_types().clone(),
+            block_types: self.registry().plugin_block_types().clone(),
             client_id: self.client_id(),
         })
     }
@@ -386,47 +425,47 @@ impl Handle {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Nesting {
-    above: Rc<Vec<Uuid>>,
+    above: Stored<Vec<Uuid>>,
     access: Access,
 }
 
 impl Nesting {
     fn root() -> Self {
         Self {
-            above: Rc::new(Vec::new()),
+            above: store(Vec::new()),
             access: Access::Edit,
         }
     }
 
     fn within(&self, id: Uuid, access: Access) -> Self {
-        let mut above = (*self.above).clone();
+        let mut above = self.above.with(Vec::clone);
         above.push(id);
         Self {
-            above: Rc::new(above),
+            above: store(above),
             access,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct TabContext {
     stack: Memo<Vec<Uuid>>,
     top_bar: Prop<TopBar>,
     portals: WriteSignal<Vec<(Uuid, NodeId)>>,
-    exit: Rc<dyn Fn()>,
+    exit: ClickCallback,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Copy, Default)]
 pub(crate) struct ChildReporter {
-    view: Option<Rc<dyn Fn(ViewChange)>>,
-    bar: Option<Rc<dyn Fn(BarAction)>>,
+    view: Callback<ViewChange>,
+    bar: Callback<BarAction>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct ChildReports {
-    statuses: Rc<RefCell<BTreeMap<u64, HostChildStatus>>>,
+    statuses: Stored<RefCell<BTreeMap<u64, HostChildStatus>>>,
     tick: WriteSignal<u64>,
 }
 
@@ -451,14 +490,14 @@ pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
 pub(crate) fn PresentingSurface() -> NodeId {
     let editors = editors();
     let any = super::any();
-    let presenting = create_memo(clone!(editors -> move || {
+    let presenting = create_memo(move || {
         any.get();
         editors.with(|open| {
             open.values()
                 .find(|editor| editor.presenting_now())
                 .map(PluginEditor::id)
         })
-    }));
+    });
     let keys = create_memo(move || presenting.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
@@ -467,13 +506,13 @@ pub(crate) fn PresentingSurface() -> NodeId {
                     provide_context(Nesting::root());
                     crate::host::set_fullscreen(true);
                     on_cleanup(|| crate::host::set_fullscreen(false));
-                    stop_on_escape(clone!(editors -> move || {
+                    stop_on_escape(move || {
                         editors.with(|open| {
                             for editor in open.values_mut().filter(|editor| editor.presenting_now()) {
                                 editor.stop_presenting_now();
                             }
                         });
-                    }));
+                    });
                     view! {
                         <BlockFrame
                             block
@@ -513,10 +552,10 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, nesting.access));
     let any = super::any();
-    let keys = create_memo(clone!(editors -> move || {
+    let keys = create_memo(move || {
         any.get();
         region_key(&editors, block, false).into_iter().collect::<Vec<_>>()
-    }));
+    });
     let child_view = child_view(block, region);
     view! {
         <Layers>
@@ -532,7 +571,7 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
                             editor={region_editor}
                             region
                             frame={Some(FrameSpec::default())}
-                            child_view={Rc::clone(&child_view)}
+                            child_view
                         />
                     }
                 }}
@@ -545,7 +584,7 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
 fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
     let editors = editors();
     let any = super::any();
-    let stack = create_memo(clone!(editors -> move || {
+    let stack = create_memo(move || {
         any.get();
         let mut stack = Vec::new();
         let mut next = frame_child(&editors, block);
@@ -557,9 +596,9 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
             next = frame_child(&editors, id);
         }
         stack
-    }));
+    });
     let (portals, set_portals) = create_signal(Vec::<(Uuid, NodeId)>::new());
-    let exit: Rc<dyn Fn()> = Rc::new(clone!(editors -> move || {
+    let exit = ClickCallback::new(move || {
         let stack = stack.get_untracked();
         let parent = match stack.len() {
             0 | 1 => block,
@@ -567,7 +606,7 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
         };
         revoke_frame_child(&editors, parent);
         crate::host::request_repaint();
-    }));
+    });
     provide_context(TabContext {
         stack,
         top_bar,
@@ -739,10 +778,10 @@ fn BlockFrame(
 ) -> NodeId {
     let any = super::any();
     if !presented {
-        let counted = Rc::new(Cell::new(false));
-        create_effect(clone!(counted -> move || {
+        let counted = store(Cell::new(false));
+        create_effect(move || {
             any.get();
-            if counted.get() {
+            if counted.with(Cell::get) {
                 return;
             }
             let shown = editors().with(|open| match open.get_mut(&block) {
@@ -752,10 +791,10 @@ fn BlockFrame(
                 }
                 None => false,
             });
-            counted.set(shown);
-        }));
+            counted.with(|counted| counted.set(shown));
+        });
         on_cleanup(move || {
-            if counted.get() {
+            if counted.with(Cell::get) {
                 editors().with(|open| {
                     if let Some(editor) = open.get_mut(&block) {
                         editor.shown(false);
@@ -784,7 +823,7 @@ fn BlockFrame(
                             top_bar={top_bar}
                             embedded
                             passive={passive}
-                            reporter={reporter.clone()}
+                            reporter={reporter}
                         />
                     }
                 }}
@@ -842,7 +881,7 @@ fn BlockFrameBody(
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     let any = super::any();
-    let resolution = create_memo(clone!(editors nesting -> move || {
+    let resolution = create_memo(move || {
         any.get();
         let access = editors.access(block, nesting.access);
         if !access.can_view() {
@@ -858,7 +897,7 @@ fn BlockFrameBody(
             Some(region) => Resolution::Ready { region, access },
             None => Resolution::Unsupported(handle.block_type),
         }
-    }));
+    });
     view! {
         <Layers>
             <Dynamic value={resolution}>
@@ -908,7 +947,7 @@ fn BlockFrameBody(
                                     top_bar={top_bar}
                                     embedded
                                     passive={passive}
-                                    reporter={reporter.clone()}
+                                    reporter={reporter}
                                 />
                             }
                         }
@@ -938,14 +977,14 @@ fn BlockFrameView(
     } = reporter;
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, access));
-    let plugin_id = region_editor.plugin_id().to_owned();
+    let plugin_id = store(region_editor.plugin_id().to_owned());
     let instance = region_editor.instance;
     let framed = create_memo(move || content.get().is_some());
-    create_effect(clone!(plugin_id -> move || {
+    create_effect(move || {
         let _ = framed.get();
-        plugin_host::hold(&plugin_id, instance, EditorRegion::Frame);
-    }));
-    let revision = super::listen(&plugin_id);
+        plugin_host::hold(&plugin_id.get(), instance, EditorRegion::Frame);
+    });
+    let revision = super::listen(&plugin_id.get());
     view! {
         <PlacementBuilder>
             {move |rect: ReadSignal<Rect>| {
@@ -962,26 +1001,25 @@ fn BlockFrameView(
                     let state = viewport.get();
                     VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
                 });
-                let viewport_rect = create_memo(clone!(plugin_id -> move || {
+                let viewport_rect = create_memo(move || {
                     revision.get();
                     let rect = rect.get();
-                    plugin_host::frame_rects(&plugin_id, instance)
+                    plugin_host::frame_rects(&plugin_id.get(), instance)
                         .map(|rects| rects.content.translate(rect.min.to_vec2()))
                         .filter(Rect::is_positive)
                         .unwrap_or(rect)
-                }));
-                let content_size = create_memo(clone!(plugin_id -> move || {
+                });
+                let content_size = create_memo(move || {
                     revision.get();
                     let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-                    let intrinsic = plugin_host::intrinsic_size(&plugin_id, instance)
+                    let intrinsic = plugin_host::intrinsic_size(&plugin_id.get(), instance)
                         .unwrap_or(vec2(420.0, 240.0));
                     vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
-                }));
-                let command: Rc<dyn Fn(Command)> = Rc::new(
-                    clone!(on_view_change -> move |command: Command| {
+                });
+                let command = move |command: Command| {
                         if !pan_and_zoom {
-                            if let Some(report) = &on_view_change {
-                                report(match command {
+                            if !on_view_change.is_empty() {
+                                on_view_change.call(match command {
                                     Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
                                     Command::Zoom { factor, anchor } => ViewChange::Zoom {
                                         factor,
@@ -998,8 +1036,7 @@ fn BlockFrameView(
                         if state != viewport.get_untracked() {
                             set_viewport.set(state);
                         }
-                    }),
-                );
+                };
                 create_effect(
                     move || {
                         if !pan_and_zoom {
@@ -1023,10 +1060,10 @@ fn BlockFrameView(
                     },
                 );
                 create_effect(
-                    clone!(plugin_id command on_bar_action -> move || {
+                    move || {
                         revision.get();
                         let rect = rect.get_untracked();
-                        for change in plugin_host::take_view_changes(&plugin_id, instance) {
+                        for change in plugin_host::take_view_changes(&plugin_id.get(), instance) {
                             command(match change {
                                 ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
                                 ViewChange::Zoom { factor, anchor } => Command::Zoom {
@@ -1037,21 +1074,19 @@ fn BlockFrameView(
                                 ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
                             });
                         }
-                        let actions = plugin_host::take_bar_actions(&plugin_id, instance);
-                        if let Some(report) = &on_bar_action {
-                            for action in actions {
-                                report(action);
-                            }
+                        let actions = plugin_host::take_bar_actions(&plugin_id.get(), instance);
+                        for action in actions {
+                            on_bar_action.call(action);
                         }
-                    }),
+                    },
                 );
                 if let Some(tab) = use_context::<TabContext>() {
-                    create_effect(clone!(plugin_id -> move || {
+                    create_effect(move || {
                         revision.get();
-                        if plugin_host::take_leaving(&plugin_id, instance) {
-                            (tab.exit)();
+                        if plugin_host::take_leaving(&plugin_id.get(), instance) {
+                            tab.exit.call();
                         }
-                    }));
+                    });
                 }
                 let content_rect = create_memo(move || {
                     let state = viewport.get();
@@ -1061,7 +1096,7 @@ fn BlockFrameView(
                     )
                 });
                 let editor_view = create_memo(
-                    clone!(plugin_id -> move || {
+                    move || {
                         if !handle.pan_and_zoom {
                             return None;
                         }
@@ -1074,7 +1109,7 @@ fn BlockFrameView(
                         }
                         revision.get();
                         let shown = content.get().unwrap_or(rect.get());
-                        let scale = plugin_host::intrinsic_size(&plugin_id, instance)
+                        let scale = plugin_host::intrinsic_size(&plugin_id.get(), instance)
                             .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
                             .map_or(1.0, |intrinsic| {
                                 (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
@@ -1083,7 +1118,7 @@ fn BlockFrameView(
                             rect: shown.translate(-origin.to_vec2()),
                             scale,
                         })
-                    }),
+                    },
                 );
                 let frame = create_memo(move || {
                     let origin = rect.get().min;
@@ -1104,11 +1139,11 @@ fn BlockFrameView(
                         top_bar: top_bar.get(),
                     })
                 });
-                let gestures = pan_and_zoom || on_view_change.is_some() && handle.pan_and_zoom;
+                let gestures = pan_and_zoom || !on_view_change.is_empty() && handle.pan_and_zoom;
                 let steered = create_memo(move || {
                     (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
                 });
-                let scroll = clone!(command -> move |gesture: ScrollGesture| {
+                let scroll = move |gesture: ScrollGesture| {
                     if !gestures || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos)) {
                         return;
                     }
@@ -1119,20 +1154,20 @@ fn BlockFrameView(
                         }),
                         false => command(Command::Pan(gesture.delta)),
                     }
-                });
-                let zoom = clone!(command -> move |gesture: ZoomGesture| {
+                };
+                let zoom = move |gesture: ZoomGesture| {
                     if gestures {
                         command(Command::Zoom {
                             factor: gesture.factor,
                             anchor: Some(gesture.pos),
                         });
                     }
-                });
-                let pan = clone!(command -> move |delta: Vec2| {
+                };
+                let pan = move |delta: Vec2| {
                     if gestures {
                         command(Command::Pan(delta));
                     }
-                });
+                };
                 let child_view = child_view(block, EditorRegion::Frame);
                 view! {
                     <Interactive on_scroll={scroll} on_zoom={zoom} on_pan_drag={pan}>
@@ -1152,13 +1187,13 @@ fn BlockFrameView(
 }
 
 fn child_view(parent: Uuid, region: EditorRegion) -> ChildView {
-    Rc::new(
+    store(Box::new(
         move |key: ChildId, child: Memo<Option<HostChild>>, rect: Memo<Rect>| {
             view! {
                 <HostedChild parent region key child rect />
             }
         },
-    )
+    ))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1203,11 +1238,11 @@ fn HostedChild(
     })));
     let content = create_memo(move || child.get().map(|child| child.content));
     let creation_key: CreationKey = (parent, region, key);
-    on_cleanup(clone!(editors -> move || {
+    on_cleanup(move || {
         editors.forget_creation(&creation_key);
         editors.hide_settings(&creation_key);
-    }));
-    let kind = create_memo(clone!(editors tab nesting -> move || {
+    });
+    let kind = create_memo(move || {
         any.get();
         let (id, block_type, view_block) = match content.get() {
             None => return Kind::Missing,
@@ -1234,7 +1269,7 @@ fn HostedChild(
                 view_block,
             }) => (block_id, block_type, view_block),
         };
-        if nesting.above.contains(&id) {
+        if nesting.above.with(|above| above.contains(&id)) {
             return Kind::Unavailable;
         }
         editors.ensure(id, block_type, view_block, parent);
@@ -1250,8 +1285,8 @@ fn HostedChild(
             _ if child.frame_owner && in_stack => Kind::FrameChild,
             _ => Kind::Embedded,
         }
-    }));
-    create_effect(clone!(editors -> move || {
+    });
+    create_effect(move || {
         let Some(child) = child.get() else {
             return;
         };
@@ -1263,9 +1298,9 @@ fn HostedChild(
         {
             plugin_host::resized(plugin_id, handle.instance, size);
         }
-    }));
+    });
     if let Some(reports) = use_context::<ChildReports>() {
-        let status = create_memo(clone!(editors -> move || {
+        let status = create_memo(move || {
             any.get();
             let child = child.get()?;
             let available = !matches!(kind.get(), Kind::Unavailable | Kind::Missing);
@@ -1281,19 +1316,20 @@ fn HostedChild(
                 status.intrinsic = Some(vec2(0.0, height));
             }
             Some(status)
-        }));
-        create_effect(clone!(reports -> move || {
+        });
+        create_effect(move || {
             let status = status.get();
-            let mut statuses = reports.statuses.borrow_mut();
-            match status {
-                Some(status) => statuses.insert(key.0, status),
-                None => statuses.remove(&key.0),
-            };
-            drop(statuses);
+            reports.statuses.with(|statuses| {
+                let mut statuses = statuses.borrow_mut();
+                match status {
+                    Some(status) => statuses.insert(key.0, status),
+                    None => statuses.remove(&key.0),
+                };
+            });
             reports.tick.update(|tick| *tick += 1);
-        }));
+        });
         on_cleanup(move || {
-            reports.statuses.borrow_mut().remove(&key.0);
+            reports.statuses.with(|statuses| statuses.borrow_mut().remove(&key.0));
             reports.tick.update(|tick| *tick += 1);
         });
     }
@@ -1321,7 +1357,6 @@ fn HostedChild(
                     <ForEach keys={keys}>
                         {move |(id, kind): (Uuid, Kind)| {
                             let reporter = reporter_for(parent, region, key);
-                            let child = child;
                             match kind {
                                 Kind::Missing | Kind::Unavailable => view! {
                                     <Frame />
@@ -1375,12 +1410,12 @@ fn HostedChild(
                                     let content = create_memo(move || {
                                         child.get().map(|child| child.rect.intersect(child.clip))
                                     });
-                                    let chrome = create_memo(clone!(tab -> move || {
+                                    let chrome = create_memo(move || {
                                         match tab.stack.get().last() == Some(&id) {
                                             true => Chrome::Drawn,
                                             false => Chrome::None,
                                         }
-                                    }));
+                                    });
                                     let top_bar = tab.top_bar;
                                     let node = view! {
                                         <BlockFrame
@@ -1433,11 +1468,11 @@ fn HostedChild(
 
 #[component]
 fn CreationSurface(hosted: HostedRegion) -> NodeId {
-    let child_view: ChildView = Rc::new(|_, _, _| {
+    let child_view: ChildView = store(Box::new(|_, _, _| {
         view! {
             <Frame />
         }
-    });
+    }));
     view! {
         <PluginRegion
             editor={hosted.editor}
@@ -1515,31 +1550,31 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
 
 fn reporter_for(parent: Uuid, region: EditorRegion, key: ChildId) -> ChildReporter {
     let report_to = editors().handle(parent);
-    let on_view_change: Option<Rc<dyn Fn(ViewChange)>> = report_to.clone().and_then(|parent| {
+    let on_view_change = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
-        Some(Rc::new(move |change: ViewChange| {
+        Some(Callback::new(move |change: ViewChange| {
             plugin_host::report_child_views(
                 &plugin_id,
                 parent.instance,
                 region,
                 vec![(key, change)],
             );
-        }) as Rc<dyn Fn(ViewChange)>)
+        }))
     });
-    let on_bar_action: Option<Rc<dyn Fn(BarAction)>> = report_to.and_then(|parent| {
+    let on_bar_action = report_to.and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
-        Some(Rc::new(move |action: BarAction| {
+        Some(Callback::new(move |action: BarAction| {
             plugin_host::report_child_bars(
                 &plugin_id,
                 parent.instance,
                 region,
                 vec![(key, action)],
             );
-        }) as Rc<dyn Fn(BarAction)>)
+        }))
     });
     ChildReporter {
-        view: on_view_change,
-        bar: on_bar_action,
+        view: on_view_change.unwrap_or_default(),
+        bar: on_bar_action.unwrap_or_default(),
     }
 }
 
@@ -1547,12 +1582,12 @@ fn reporter_for(parent: Uuid, region: EditorRegion, key: ChildId) -> ChildReport
 fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId {
     let editors = editors();
     let any = super::any();
-    let keys = create_memo(clone!(editors -> move || {
+    let keys = create_memo(move || {
         any.get();
         region_key(&editors, block, true).into_iter().collect::<Vec<_>>()
-    }));
+    });
     let fallback = create_memo(move || keys.with(Vec::is_empty));
-    let label = create_memo(clone!(editors -> move || {
+    let label = create_memo(move || {
         any.get();
         let label = crate::be::node(block).map(|node| BlockLabel::for_node(&editors.registry(), &node));
         HostItem::Fallback {
@@ -1562,7 +1597,7 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
             automatic: label.as_ref().is_some_and(|label| label.automatic),
             icon: label.and_then(|label| label.icon).map(str::to_owned),
         }
-    }));
+    });
     let child_view = child_view(block, EditorRegion::Preview);
     view! {
         <Layers>
@@ -1583,7 +1618,7 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
                             passive=true
                             rotation={rotation}
                             opacity={opacity}
-                            child_view={Rc::clone(&child_view)}
+                            child_view
                         />
                     }
                 }}
@@ -1596,7 +1631,7 @@ pub(super) fn reports() -> (ChildReports, ReadSignal<u64>) {
     let (tick, set_tick) = create_signal(0u64);
     (
         ChildReports {
-            statuses: Rc::new(RefCell::new(BTreeMap::new())),
+            statuses: store(RefCell::new(BTreeMap::new())),
             tick: set_tick,
         },
         tick,
@@ -1608,7 +1643,7 @@ pub(super) fn provide_reports(reports: ChildReports) {
 }
 
 pub(super) fn statuses(reports: &ChildReports) -> Vec<HostChildStatus> {
-    reports.statuses.borrow().values().cloned().collect()
+    reports.statuses.with(|statuses| statuses.borrow().values().cloned().collect())
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ use beui::reactive::LayerPolicy;
 
 use beui::reactive::{
     Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Overlay, OverlayAnchor, Placement,
-    PlacementBuilder, Prop, ReadSignal, clone, component, create_effect, create_memo, draw_gpu,
+    PlacementBuilder, Prop, ReadSignal, component, create_effect, create_memo, draw_gpu,
     on_cleanup, view,
 };
 use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
@@ -29,7 +29,7 @@ pub fn WindowView(
             {move |rect: ReadSignal<Rect>| {
                 let catcher = NodeRef::new();
                 let popup_catcher = NodeRef::new();
-                create_effect(clone!(windows -> move || {
+                create_effect(move || {
                     windows.placed(id, rect.get());
                     if let Some(node) = catcher.try_get() {
                         windows.caught_by(id, node);
@@ -37,7 +37,7 @@ pub fn WindowView(
                     if let Some(node) = popup_catcher.try_get() {
                         windows.popups_caught_by(id, node);
                     }
-                }));
+                });
                 let list = windows.list();
                 let inhibits = create_memo(move || {
                     list.with(|list| {
@@ -57,11 +57,8 @@ pub fn WindowView(
                     }
                 });
                 let cursor = windows.cursor();
-                let focus = windows.clone();
-                let forward = windows.clone();
-                let placed = rect;
                 let takes = move |local: Pos2| {
-                    let position = local + placed.get_untracked().min.to_vec2();
+                    let position = local + rect.get_untracked().min.to_vec2();
                     !occluders
                         .peek()
                         .iter()
@@ -78,11 +75,10 @@ pub fn WindowView(
                 });
                 let width = create_memo(move || shown.get().map(|at| at.width()));
                 let height = create_memo(move || shown.get().map(|at| at.height()));
-                let reach = windows.clone();
                 let into_window = move |mut input: ForwardedInput| {
                     let at = shown.get_untracked().unwrap_or(Rect::ZERO);
                     input.rect = input.rect.translate(-at.min.to_vec2());
-                    reach.forward(id, input);
+                    windows.forward(id, input);
                 };
                 let popup_cursor = windows.cursor();
                 let areas = signals.popups;
@@ -101,9 +97,9 @@ pub fn WindowView(
                             focusable=true
                             @test_id={format!("wayland.window.{}", id.0)}
                             focused={signals.focused}
-                            on_focus_change={move |focused: bool| focus.focus(id, focused)}
+                            on_focus_change={move |focused: bool| windows.focus(id, focused)}
                             cursor
-                            on_forward={move |input: ForwardedInput| forward.forward(id, input)}
+                            on_forward={move |input: ForwardedInput| windows.forward(id, input)}
                             inhibits_shortcuts={inhibits}
                             hit_at={takes}
                         >
@@ -151,24 +147,22 @@ pub fn WindowView(
 
 pub const RESTORE_SHORTCUTS: Chord = Chord::logo(Key::Escape);
 
-pub fn register_restore_shortcuts(windows: &Windows) {
+pub fn register_restore_shortcuts(windows: Windows) {
     let list = windows.list();
-    let focus = windows.clone();
     let inhibiting = create_memo(move || {
         list.with(|list| {
             list.iter().any(|info| {
                 info.inhibits_shortcuts
-                    && focus
+                    && windows
                         .signals(info.id)
                         .is_some_and(|signals| signals.focused.get())
             })
         })
     });
-    let restoring = windows.clone();
     Action::new(
         "wayland.restore_shortcuts",
         "Restore keyboard shortcuts",
-        move || restoring.restore_shortcuts(),
+        move || windows.restore_shortcuts(),
     )
     .shortcut(RESTORE_SHORTCUTS)
     .at(KeyAt::Host)

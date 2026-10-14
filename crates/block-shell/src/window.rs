@@ -121,7 +121,6 @@ pub(crate) fn WindowPanel(
         }
     });
     let banner = create_memo(move || !responding.get() && !waited.get());
-    let anchor = panel;
     let host = editor.host().clone();
     view! {
         <Layers>
@@ -132,7 +131,7 @@ pub(crate) fn WindowPanel(
                 @test_id={"workspace.window"}
                 @node_ref=&panel
             />
-            <Floating anchor edge=Edge::Top open={banner}>
+            <Floating anchor={panel} edge=Edge::Top open={banner}>
                 <NotResponding
                     name
                     on_wait={move || set_waited.set(true)}

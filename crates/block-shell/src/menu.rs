@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{Memo, component, create_memo, view};
 use block_editor_beui::beui::unstyled::MenuItem;
@@ -97,7 +96,7 @@ pub(crate) fn permissions(
 }
 
 pub(crate) fn apply(
-    workspace: &Rc<Workspace>,
+    workspace: &Workspace,
     reference: &BlockInfo,
     containing: Option<Uuid>,
     action: Action,
@@ -131,13 +130,12 @@ pub(crate) fn apply(
 
 #[component]
 pub(crate) fn ReferenceMenuItem(
-    workspace: Rc<Workspace>,
+    workspace: Workspace,
     reference: Memo<Option<BlockInfo>>,
     containing: Memo<Option<Uuid>>,
 ) -> MenuItem {
-    let naming = Rc::clone(&workspace);
     let label = create_memo(move || {
-        let types = naming.types();
+        let types = workspace.types();
         reference.with(|reference| {
             reference.as_ref().map_or_else(
                 || "Untitled".to_owned(),
@@ -145,12 +143,11 @@ pub(crate) fn ReferenceMenuItem(
             )
         })
     });
-    let allowed = Rc::clone(&workspace);
     let rights = create_memo(move || {
         let containing = containing.get();
         reference.with(|reference| {
             reference.as_ref().map(|reference| {
-                let permissions = permissions(&allowed, reference, containing);
+                let permissions = permissions(&workspace, reference, containing);
                 (
                     !permissions.add,
                     !permissions.edit,
@@ -182,18 +179,16 @@ pub(crate) fn ReferenceMenuItem(
         true => "Remove link".to_owned(),
         false => "Delete".to_owned(),
     });
-    let parent_disabled = edit;
-    let share_disabled = edit;
     view! {
         <MenuItem label={label}>
             <MenuItem label="Open" />
             <MenuItem label="Add" disabled={add} />
-            <MenuItem label="Set parent" disabled={parent_disabled}>
+            <MenuItem label="Set parent" disabled={edit}>
                 <MenuItem label="Root" disabled={rooted} />
                 <MenuItem label="Orphaned" disabled={orphaned} />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} />
-            <MenuItem label="Share" disabled={share_disabled} />
+            <MenuItem label="Share" disabled={edit} />
             <MenuItem label="Unlink" disabled={unlink} />
             <MenuItem label={delete_label} disabled={delete} />
         </MenuItem>

@@ -21,7 +21,6 @@ fn Stacked(windows: Windows) -> NodeId {
         <Layers>
             <ForEach keys={order}>
                 {move |id: WindowId| {
-                    let windows = windows.clone();
                     view! {
                         <Frame width=Some(SHOWN.x) height=Some(SHOWN.y)>
                             <WindowView windows id />

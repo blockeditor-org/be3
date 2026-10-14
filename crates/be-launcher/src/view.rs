@@ -8,8 +8,8 @@ use beui::icons::{
 use beui::reactive::Portal;
 use beui::reactive::with_document;
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
-    component, create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, component,
+    create_memo, view,
 };
 #[cfg(not(target_os = "android"))]
 use beui::styled::Separator;
@@ -50,14 +50,12 @@ const CURRENT: &str = "installed";
 #[cfg(target_os = "android")]
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
-    let listing = create_memo(clone!(model -> move || model.selected.with(Option::is_none)));
+    let listing = create_memo(move || model.selected.with(Option::is_none));
     let reading = create_memo(move || !listing.get());
-    let back = clone!(model -> move || model.deselect());
-    let gesture = back.clone();
+    let back = move || model.deselect();
     let sidebar = view! {
-        <Sidebar model={model.clone()} />
+        <Sidebar model={model} />
     };
-    let viewer = model.clone();
     let page = use_theme().background;
     view! {
         <List spacing=0.0>
@@ -65,10 +63,10 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 <Portal @sizing=ItemSize::Percent(100.0) node={Some(sidebar)} />
             </Show>
             <Show condition={reading}>
-                {move || clone!(model; back -> view! {
+                {move || view! {
                     <BackSlide
                         @sizing=ItemSize::Percent(100.0)
-                        on_back={gesture.clone()}
+                        on_back={back}
                         behind={move || view! {
                             <Portal node={Some(sidebar)} />
                         }}
@@ -79,16 +77,16 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                                     <IconButton
                                         glyph=ICON_ARROW_BACK
                                         label="Back to the pull requests"
-                                        on_click={back.clone()}
+                                        on_click={back}
                                     />
                                 </Frame>
-                                <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
+                                <Detail @sizing=ItemSize::Percent(100.0) model={model} />
                             </List>
                         </Frame>
                     </BackSlide>
-                })}
+                }}
             </Show>
-            <ImageViewer model={viewer} />
+            <ImageViewer model={model} />
         </List>
     }
 }
@@ -97,18 +95,16 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
     let theme = use_theme();
-    let sidebar = model.clone();
-    let viewer = model.clone();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface}>
-                <Sidebar model={sidebar} />
+                <Sidebar model={model} />
             </Frame>
             <Separator direction=Direction::Vertical />
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <Workspace model />
             </Frame>
-            <ImageViewer model={viewer} />
+            <ImageViewer model={model} />
         </List>
     }
 }
@@ -116,24 +112,24 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 #[component]
 fn Sidebar(model: Model) -> NodeId {
     let theme = use_theme();
-    let repository = create_memo(clone!(model -> move || match model.repository.get() {
+    let repository = create_memo(move || match model.repository.get() {
         Loaded::Loading => "Connecting to GitHub".to_owned(),
         Loaded::Ready(name) => name,
         Loaded::Failed(error) => error,
-    }));
-    let tab = create_memo(clone!(model -> move || match model.filter.get() {
+    });
+    let tab = create_memo(move || match model.filter.get() {
         Filter::Open => 0,
         Filter::Closed => 1,
-    }));
-    let loading = create_memo(clone!(model -> move || model.listing.get() == Loaded::Loading));
-    let error = create_memo(clone!(model -> move || match model.listing.get() {
+    });
+    let loading = create_memo(move || model.listing.get() == Loaded::Loading);
+    let error = create_memo(move || match model.listing.get() {
         Loaded::Failed(error) => error,
         _ => String::new(),
-    }));
+    });
     let failed = create_memo(move || !error.get().is_empty());
-    let pull_requests = model.pull_requests.clone();
-    let visible = create_memo(clone!(model pull_requests -> move || {
+    let visible = create_memo(move || {
         let query = model.query.get().to_lowercase();
+        let pull_requests = model.pull_requests.get();
         pull_requests
             .keys()
             .get()
@@ -145,22 +141,21 @@ fn Sidebar(model: Model) -> NodeId {
                         .is_some_and(|pull_request| matches(&pull_request.get(), &query))
             })
             .collect::<Vec<u64>>()
-    }));
+    });
     let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
     let empty_text = create_memo(
-        clone!(model -> move || match (model.filter.get(), model.query.get().is_empty()) {
+        move || match (model.filter.get(), model.query.get().is_empty()) {
             (_, false) => "Nothing matches the filter".to_owned(),
             (Filter::Open, true) => "No open pull requests".to_owned(),
             (Filter::Closed, true) => "No closed pull requests".to_owned(),
-        }),
+        },
     );
-    let refresh = clone!(model -> move || model.refresh_list());
-    let show = clone!(model -> move |index: usize| {
+    let refresh = move || model.refresh_list();
+    let show = move |index: usize| {
         model.show(if index == 0 { Filter::Open } else { Filter::Closed });
-    });
+    };
     let set_query = model.set_query;
     let query = model.query;
-    let main = model.clone();
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
@@ -177,7 +172,7 @@ fn Sidebar(model: Model) -> NodeId {
                         />
                         <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
                     </List>
-                    <MainActions model={main} />
+                    <MainActions model={model} />
                     <Tabs
                         options={view! {
                             <ChoiceOption label="Open" />
@@ -215,10 +210,10 @@ fn Sidebar(model: Model) -> NodeId {
                     <List spacing=0.0>
                         <ForEach keys={visible}>
                             {move |number: u64| {
-                                let pull_request = pull_requests.get(&number);
+                                let pull_request = model.pull_requests.get().get(&number);
                                 let pull_request = create_memo(move || pull_request.get());
                                 view! {
-                                    <PullRequestRow model={model.clone()} pull_request />
+                                    <PullRequestRow model={model} pull_request />
                                 }
                             }}
                         </ForEach>
@@ -258,9 +253,9 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     });
     let state = create_memo(move || pull_request.get().state);
     let labels = create_memo(move || pull_request.get().labels);
-    let checked_out = create_memo(clone!(model -> move || {
+    let checked_out = create_memo(move || {
         model.current(&pull_request.get())
-    }));
+    });
     let has_tags = create_memo(move || !labels.get().is_empty() || checked_out.get());
     view! {
         <ListRow selected on_click={move || model.select(number)}>

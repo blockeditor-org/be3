@@ -5,9 +5,10 @@ use std::{
 };
 
 use beui::reactive::{
-    BackHandler, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
-    Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, try_with_document, untrack, use_context, use_screens, view,
+    BackHandler, Callback, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
+    Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, clone, component, create_effect,
+    create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack, use_context, use_screens,
+    view,
 };
 use beui::styled::CrashNotice;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
@@ -57,7 +58,7 @@ struct DrawingKey {
     placed: Option<[u32; 3]>,
 }
 
-pub(crate) type ChildView = Rc<dyn Fn(ChildId, Memo<Option<HostChild>>, Memo<Rect>) -> NodeId>;
+pub(crate) type ChildView = Stored<Box<dyn Fn(ChildId, Memo<Option<HostChild>>, Memo<Rect>) -> NodeId>>;
 
 #[derive(Clone)]
 pub(crate) struct Occlusion(pub(crate) Memo<Vec<Rect>>);
@@ -81,6 +82,7 @@ pub(crate) fn PluginRegion(
     let plugin_id = editor.plugin_id().to_owned();
     let name = editor.plugin.identity.name.clone();
     let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
+    let plugin_id = store(plugin_id);
     let block = editor.role.block().map(|block| block.id);
     plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
@@ -90,17 +92,17 @@ pub(crate) fn PluginRegion(
         instance,
         region,
     });
-    on_cleanup(clone!(plugin_id -> move || {
-        plugin_host::unmount_region(&plugin_id, instance, region)
-    }));
-    let revision = super::listen(&plugin_id);
-    let placed: Rc<Cell<Option<EmbedPlacement>>> = Rc::new(Cell::new(None));
+    on_cleanup(move || {
+        plugin_host::unmount_region(&plugin_id.get(), instance, region)
+    });
+    let revision = super::listen(&plugin_id.get());
+    let placed = store(Cell::new(None::<EmbedPlacement>));
     let screens = use_screens();
-    let place: Rc<dyn Fn(Option<EmbedPlacement>)> = Rc::new(
-        clone!(plugin_id frame -> move |placement: Option<EmbedPlacement>| {
+    let place = Callback::new(
+        clone!(frame -> move |placement: Option<EmbedPlacement>| {
             match placement {
                 Some(placement) => plugin_host::place_region(
-                    &plugin_id,
+                    &plugin_id.get(),
                     instance,
                     region,
                     RegionPlacement {
@@ -111,30 +113,30 @@ pub(crate) fn PluginRegion(
                     frame.peek(),
                     view.peek(),
                 ),
-                None => plugin_host::unplace_region(&plugin_id, instance, region),
+                None => plugin_host::unplace_region(&plugin_id.get(), instance, region),
             }
         }),
     );
     let slot = EmbedSlot::new();
-    slot.on_place(clone!(placed place -> move |placement| {
-        placed.set(placement);
-        place(placement);
-    }));
-    create_effect(clone!(placed place frame -> move || {
+    slot.on_place(move |placement| {
+        placed.with(|placed| placed.set(placement));
+        place.call(placement);
+    });
+    create_effect(clone!(frame -> move || {
         let _ = frame.get();
         let _ = view.get();
         screens.with(|_| ());
-        place(placed.get());
+        place.call(placed.with(Cell::get));
     }));
     let state = create_memo(move || {
         revision.get();
         plugin_host::region_view(&editor.plugin, instance, region)
     });
-    create_effect(clone!(plugin_id -> move || {
+    create_effect(move || {
         revision.get();
-        let actions = plugin_host::take_region_actions(&plugin_id, instance);
+        let actions = plugin_host::take_region_actions(&plugin_id.get(), instance);
         if !actions.is_empty() {
-            let from = super::editors::editors().block_of(&plugin_id, instance);
+            let from = super::editors::editors().block_of(&plugin_id.get(), instance);
             for action in actions {
                 super::act(from, action);
             }
@@ -146,19 +148,19 @@ pub(crate) fn PluginRegion(
                 .collect()
         });
         let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
-        for (child, pick) in plugin_host::take_child_menu_picks(&plugin_id, instance, &children) {
+        for (child, pick) in plugin_host::take_child_menu_picks(&plugin_id.get(), instance, &children) {
             if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
                 super::editors::pick_frame_menu(*block, pick);
             }
         }
-        for drag in plugin_host::take_block_drags(&plugin_id, instance) {
+        for drag in plugin_host::take_block_drags(&plugin_id.get(), instance) {
             carry(drag);
         }
-    }));
-    let frames = create_memo(clone!(plugin_id -> move || {
+    });
+    let frames = create_memo(move || {
         revision.get();
-        plugin_host::frames(&plugin_id)
-    }));
+        plugin_host::frames(&plugin_id.get())
+    });
     let drawing = |floating: bool| {
         let shown = create_memo(move || {
             let (pieces, loading, drawn, held, size) = state.with(|view| {
@@ -183,7 +185,7 @@ pub(crate) fn PluginRegion(
             )
         });
         let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing)>>> = Rc::new(RefCell::new(None));
-        let drawn = create_memo(clone!(plugin_id -> move || {
+        let drawn = create_memo(move || {
             let (_, rotation, opacity, pieces, _) = shown.get();
             let (drawn, held_rect, size) =
                 state.with_untracked(|view| (view.drawn, view.held, view.rect.size()));
@@ -194,12 +196,12 @@ pub(crate) fn PluginRegion(
                 drawn,
                 held: held_rect,
                 size,
-                placed: plugin_host::region_placed(&plugin_id, instance, region),
+                placed: plugin_host::region_placed(&plugin_id.get(), instance, region),
             };
             let previous = held.borrow().clone();
             if let Some((_, drawing)) = previous.filter(|(was, _)| *was == key)
                 && let Some(damage) = state.with_untracked(|view| {
-                    plugin_host::region_damage(&plugin_id, instance, region, view, &pieces, rotation)
+                    plugin_host::region_damage(&plugin_id.get(), instance, region, view, &pieces, rotation)
                 })
             {
                 if damage.is_empty() {
@@ -220,12 +222,12 @@ pub(crate) fn PluginRegion(
             }
             let drawing = state.with_untracked(|view| {
                 plugin_host::region_drawing(
-                    &plugin_id, instance, region, view, &pieces, rotation, opacity,
+                    &plugin_id.get(), instance, region, view, &pieces, rotation, opacity,
                 )
             });
             *held.borrow_mut() = drawing.clone().map(|drawing| (key, drawing));
             drawing
-        }));
+        });
         Prop::dynamic(move || draw_gpu(drawn.get()))
     };
     let base = drawing(false);
@@ -236,7 +238,7 @@ pub(crate) fn PluginRegion(
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let shell = super::shell();
     super::intercept::intercept_keys(
-        plugin_id.clone(),
+        plugin_id,
         instance,
         region,
         intercepted,
@@ -271,7 +273,7 @@ pub(crate) fn PluginRegion(
     });
     let loading =
         create_memo(move || region == EditorRegion::Frame && state.with(|view| view.loading));
-    let failure = create_memo(clone!(plugin_id -> move || {
+    let failure = create_memo(move || {
         state.with(|view| {
             view.error.as_ref().map(|(text, restart)| Failure {
                 title: match restart {
@@ -279,25 +281,25 @@ pub(crate) fn PluginRegion(
                     false => format!("{name} could not start"),
                 },
                 detail: text.clone(),
-                restart: restart.then(|| plugin_id.clone()),
+                restart: restart.then(|| plugin_id.with(String::clone)),
             })
         })
-    }));
+    });
     let rect = create_memo(move || state.with(|view| view.rect));
     let (reports, tick) = super::editors::reports();
-    super::editors::provide_reports(reports.clone());
-    create_effect(clone!(plugin_id -> move || {
+    super::editors::provide_reports(reports);
+    create_effect(move || {
         tick.get();
-        plugin_host::report_children(&plugin_id, instance, region, super::editors::statuses(&reports));
-    }));
-    let forward = clone!(plugin_id -> move |input: ForwardedInput| {
-        plugin_host::forward_region(&plugin_id, instance, region, &input);
+        plugin_host::report_children(&plugin_id.get(), instance, region, super::editors::statuses(&reports));
     });
-    let back = clone!(plugin_id -> move |gesture: beui::BackGesture| {
-        plugin_host::back_region(&plugin_id, instance, region, gesture);
-    });
+    let forward = move |input: ForwardedInput| {
+        plugin_host::forward_region(&plugin_id.get(), instance, region, &input);
+    };
+    let back = move |gesture: beui::BackGesture| {
+        plugin_host::back_region(&plugin_id.get(), instance, region, gesture);
+    };
     let occluded = occlusion();
-    let takes: Rc<dyn Fn(Pos2) -> bool> = Rc::new(move |local: Pos2| {
+    let takes = move |local: Pos2| {
         !passive.peek()
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
@@ -308,35 +310,32 @@ pub(crate) fn PluginRegion(
                         })
                     })
             })
-    });
-    let taken = clone!(takes -> move |point: DragPoint| {
+    };
+    let taken = move |point: DragPoint| {
         takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
-    });
-    let over = clone!(plugin_id; taken -> move |over: Option<(BlockDrag, DragPoint)>| {
+    };
+    let over = move |over: Option<(BlockDrag, DragPoint)>| {
         let over = over
             .filter(|(_, point)| taken(*point))
             .map(|(drag, point)| (drag, point.pos));
-        plugin_host::drag_over_region(&plugin_id, instance, region, over, false);
-    });
-    let dropped = clone!(plugin_id -> move |(drag, point): (BlockDrag, DragPoint)| {
+        plugin_host::drag_over_region(&plugin_id.get(), instance, region, over, false);
+    };
+    let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
         if taken(point) {
-            plugin_host::drag_over_region(&plugin_id, instance, region, Some((drag, point.pos)), true);
+            plugin_host::drag_over_region(&plugin_id.get(), instance, region, Some((drag, point.pos)), true);
         }
-    });
-    let pressed_outside = clone!(plugin_id -> move |_: Pos2| {
-        plugin_host::pressed_outside_region(&plugin_id, instance, region);
-    });
-    let takes = move |local: Pos2| takes(local);
+    };
+    let pressed_outside = move |_: Pos2| {
+        plugin_host::pressed_outside_region(&plugin_id.get(), instance, region);
+    };
     let claims = move |(position, held): (Pos2, beui::Modifiers)| {
         !passive.peek() && state.with_untracked(|view| view.claims(position, held))
     };
-    let below = Rc::clone(&child_view);
-    let above = child_view;
     view! {
         <DropTarget on_over={over} on_drop={dropped}>
             {move |_: DropHandle| view! {
                 <Layers>
-                    <RegionChildren state={state} rect={rect} child_view={below} below=true />
+                    <RegionChildren state={state} rect={rect} child_view below=true />
                     <BackHandler enabled={handles_back} on_gesture={back}>
                         <Interactive
                             @node_ref={&catcher}
@@ -359,7 +358,7 @@ pub(crate) fn PluginRegion(
                         </Interactive>
                     </BackHandler>
                     <Notices loading failure id={crash_id.clone()} />
-                    <RegionChildren state rect child_view={above} below=false />
+                    <RegionChildren state rect child_view below=false />
                     <Drawing draw={floating} />
                 </Layers>
             }}
@@ -494,7 +493,7 @@ fn RegionChildren(
                     let y = create_memo(move || clip.get().min.y);
                     let width = create_memo(move || clip.get().width());
                     let height = create_memo(move || clip.get().height());
-                    let built = child_view(key, child, rect);
+                    let built = child_view.with(|view| view(key, child, rect));
                     view! {
                         <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
                     }

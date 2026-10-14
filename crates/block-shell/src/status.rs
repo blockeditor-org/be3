@@ -1,9 +1,8 @@
-use std::rc::Rc;
 
 use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, ReadSignal, Show, Spacer, clone, component,
+    Align, Direction, ForEach, ItemSize, List, Memo, ReadSignal, Show, Spacer, component,
     create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, MenuButton};
@@ -18,7 +17,7 @@ use super::workspace::Workspace;
 const SPACING: f32 = 10.0;
 
 #[component]
-pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
     let type_label = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -42,8 +41,6 @@ pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
         })
     });
     let containing = create_memo(move || info.with(|info| info.as_ref().map(|info| info.item.id)));
-    let listed = Rc::clone(&workspace);
-    let access = Rc::clone(&workspace);
     let nothing_contains = create_memo(|| None);
     view! {
         <Toolbar spacing=SPACING>
@@ -52,10 +49,10 @@ pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                 <Caption content="Relationships loading…" />
             </Show>
             <Show condition={loaded}>
-                {move || clone!(listed workspace -> view! {
+                {move || view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ReferenceMenu
-                            workspace={Rc::clone(&workspace)}
+                            workspace={workspace}
                             name="Backrefs"
                             empty="No backrefs"
                             refs={backrefs}
@@ -63,7 +60,7 @@ pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                             named="workspace.backrefs"
                         />
                         <ReferenceMenu
-                            workspace={listed}
+                            workspace={workspace}
                             name="References"
                             empty="No references"
                             refs={references}
@@ -71,17 +68,17 @@ pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                             named="workspace.references"
                         />
                     </List>
-                })}
+                }}
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <AccessMode workspace={access} info={info} />
+            <AccessMode workspace={workspace} info={info} />
         </Toolbar>
     }
 }
 
 #[component]
 pub(crate) fn ReferenceMenu(
-    workspace: Rc<Workspace>,
+    workspace: Workspace,
     name: String,
     empty: String,
     refs: Memo<Refs>,
@@ -100,9 +97,7 @@ pub(crate) fn ReferenceMenu(
         true => empty.clone(),
         false => "Loading…".to_owned(),
     });
-    let items_workspace = Rc::clone(&workspace);
     let items_refs = refs;
-    let items_containing = containing;
     let chosen_refs = refs;
     view! {
         <MenuButton
@@ -119,9 +114,9 @@ pub(crate) fn ReferenceMenu(
                         });
                         view! {
                             <ReferenceMenuItem
-                                workspace={Rc::clone(&items_workspace)}
+                                workspace={workspace}
                                 reference={reference}
-                                containing={items_containing}
+                                containing={containing}
                             />
                         }
                     }}

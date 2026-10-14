@@ -2,11 +2,10 @@
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use beui::Image;
 use beui::reactive::{
-    KeyedStore, ReadSignal, Selector, WriteSignal, create_selector, create_signal,
+    KeyedStore, ReadSignal, Selector, Stored, WriteSignal, create_selector, create_signal, store,
 };
 
 #[cfg(not(target_os = "android"))]
@@ -86,7 +85,7 @@ pub(crate) enum Loaded<T> {
 }
 
 type Slot<T> = (ReadSignal<T>, WriteSignal<T>);
-pub(crate) type Cache<K, T> = Rc<RefCell<HashMap<K, Slot<Loaded<T>>>>>;
+pub(crate) type Cache<K, T> = Stored<RefCell<HashMap<K, Slot<Loaded<T>>>>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Viewer {
@@ -94,16 +93,16 @@ pub(crate) struct Viewer {
     pub(crate) index: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Model {
-    tasks: Tasks,
+    tasks: Stored<Tasks>,
     pub(crate) repository: ReadSignal<Loaded<String>>,
     set_repository: WriteSignal<Loaded<String>>,
     pub(crate) filter: ReadSignal<Filter>,
     set_filter: WriteSignal<Filter>,
     pub(crate) listing: ReadSignal<Loaded<()>>,
     set_listing: WriteSignal<Loaded<()>>,
-    pub(crate) pull_requests: KeyedStore<u64, PullRequest>,
+    pub(crate) pull_requests: Stored<KeyedStore<u64, PullRequest>>,
     pub(crate) query: ReadSignal<String>,
     pub(crate) set_query: WriteSignal<String>,
     pub(crate) selected: ReadSignal<Option<PullRequest>>,
@@ -130,7 +129,7 @@ pub(crate) struct Model {
     #[cfg(not(target_os = "android"))]
     set_tab: WriteSignal<Tab>,
     #[cfg(not(target_os = "android"))]
-    stopped: Rc<Cell<bool>>,
+    stopped: Stored<Cell<bool>>,
     #[cfg(not(target_os = "android"))]
     pub(crate) targets: ReadSignal<Option<Loaded<Vec<Target>>>>,
     #[cfg(not(target_os = "android"))]
@@ -189,21 +188,21 @@ impl Model {
         #[cfg(not(target_os = "android"))]
         let (running, set_running) = create_signal(false);
         Self {
-            tasks,
+            tasks: store(tasks),
             repository,
             set_repository,
             filter,
             set_filter,
             listing,
             set_listing,
-            pull_requests: KeyedStore::new(),
+            pull_requests: store(KeyedStore::new()),
             query,
             set_query,
             selected,
             set_selected,
             selection,
-            timelines: Rc::default(),
-            images: Rc::default(),
+            timelines: store(RefCell::default()),
+            images: store(RefCell::default()),
             #[cfg(not(target_os = "android"))]
             head,
             #[cfg(not(target_os = "android"))]
@@ -223,7 +222,7 @@ impl Model {
             #[cfg(not(target_os = "android"))]
             set_tab,
             #[cfg(not(target_os = "android"))]
-            stopped: Rc::default(),
+            stopped: store(Cell::default()),
             #[cfg(not(target_os = "android"))]
             targets,
             #[cfg(not(target_os = "android"))]
@@ -247,10 +246,10 @@ impl Model {
         #[cfg(not(target_os = "android"))]
         self.pane
             .write_line("Output from ./scripts/switch and ./scripts/buck shows here.");
-        self.tasks.connect();
-        self.tasks.list(Filter::Open);
+        self.tasks.get().connect();
+        self.tasks.get().list(Filter::Open);
         #[cfg(not(target_os = "android"))]
-        self.tasks.read_head();
+        self.tasks.get().read_head();
         #[cfg(target_os = "android")]
         self.phone.start();
     }
@@ -265,13 +264,13 @@ impl Model {
 
     pub(crate) fn refresh_list(&self) {
         self.set_listing.set(Loaded::Loading);
-        self.tasks.list(self.filter.get_untracked());
+        self.tasks.get().list(self.filter.get_untracked());
         #[cfg(target_os = "android")]
         self.phone.refresh_main();
     }
 
     pub(crate) fn select(&self, number: u64) {
-        if let Some(pull_request) = self.pull_requests.try_get(&number) {
+        if let Some(pull_request) = self.pull_requests.get().try_get(&number) {
             self.set_selected.set(Some(pull_request.get_untracked()));
         }
         #[cfg(not(target_os = "android"))]
@@ -296,27 +295,27 @@ impl Model {
     }
 
     pub(crate) fn timeline(&self, pull_request: &PullRequest) -> ReadSignal<Loaded<Vec<Entry>>> {
-        if let Some((read, _)) = self.timelines.borrow().get(&pull_request.number) {
+        if let Some((read, _)) = self.timelines.get().borrow().get(&pull_request.number) {
             return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.timelines
+        self.timelines.get()
             .borrow_mut()
             .insert(pull_request.number, (read, write));
-        self.tasks.timeline(pull_request.clone());
+        self.tasks.get().timeline(pull_request.clone());
         read
     }
 
     pub(crate) fn refresh_timeline(&self, pull_request: &PullRequest) {
         let write = self
-            .timelines
+            .timelines.get()
             .borrow()
             .get(&pull_request.number)
             .map(|(_, write)| *write);
         if let Some(write) = write {
             write.set(Loaded::Loading);
         }
-        self.tasks.timeline(pull_request.clone());
+        self.tasks.get().timeline(pull_request.clone());
         #[cfg(target_os = "android")]
         self.phone.refresh(
             crate::builds::Slot::PullRequest(pull_request.number),
@@ -329,7 +328,7 @@ impl Model {
             .selected
             .get_untracked()
             .and_then(|pull_request| {
-                let timeline = self.timelines.borrow().get(&pull_request.number)?.0;
+                let timeline = self.timelines.get().borrow().get(&pull_request.number)?.0;
                 match timeline.get_untracked() {
                     Loaded::Ready(entries) => Some(timeline_images(&entries)),
                     _ => None,
@@ -357,14 +356,14 @@ impl Model {
     }
 
     pub(crate) fn image(&self, url: &str) -> ReadSignal<Loaded<Image>> {
-        if let Some((read, _)) = self.images.borrow().get(url) {
+        if let Some((read, _)) = self.images.get().borrow().get(url) {
             return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.images
+        self.images.get()
             .borrow_mut()
             .insert(url.to_owned(), (read, write));
-        self.tasks.image(url.to_owned());
+        self.tasks.get().image(url.to_owned());
         read
     }
 
@@ -379,7 +378,7 @@ impl Model {
     #[cfg(not(target_os = "android"))]
     pub(crate) fn refresh_targets(&self) {
         self.set_targets.set(Some(Loaded::Loading));
-        self.tasks.targets();
+        self.tasks.get().targets();
     }
 
     #[cfg(not(target_os = "android"))]
@@ -388,7 +387,7 @@ impl Model {
             return;
         }
         self.set_running.set(true);
-        self.tasks.run("buck", args);
+        self.tasks.get().run("buck", args);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -398,7 +397,7 @@ impl Model {
         }
         let script = words.remove(0);
         self.set_running.set(true);
-        self.tasks.run(&script, words);
+        self.tasks.get().run(&script, words);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -424,7 +423,7 @@ impl Model {
             args.extend(words(common.1.args));
         }
         self.set_running.set(true);
-        self.tasks.run("switch", args);
+        self.tasks.get().run("switch", args);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -445,7 +444,7 @@ impl Model {
     #[cfg(not(target_os = "android"))]
     fn can_check_out(&self, pull_request: &PullRequest) -> bool {
         let deleted = self
-            .timelines
+            .timelines.get()
             .borrow()
             .get(&pull_request.number)
             .is_some_and(|(timeline, _)| match timeline.get_untracked() {
@@ -457,8 +456,8 @@ impl Model {
 
     #[cfg(not(target_os = "android"))]
     pub(crate) fn stop(&self) {
-        self.stopped.set(true);
-        self.tasks.stop();
+        self.stopped.get().set(true);
+        self.tasks.get().stop();
     }
 
     pub(crate) fn open(&self, url: &str) {
@@ -486,7 +485,7 @@ impl Model {
                         if let Some(refreshed) = refreshed {
                             self.set_selected.set(Some(refreshed));
                         }
-                        self.pull_requests.reconcile_owned(
+                        self.pull_requests.get().reconcile_owned(
                             listed
                                 .into_iter()
                                 .map(|pull_request| (pull_request.number, pull_request)),
@@ -498,7 +497,7 @@ impl Model {
             }
             Event::Timeline(number, timeline) => {
                 let write = self
-                    .timelines
+                    .timelines.get()
                     .borrow()
                     .get(&number)
                     .map(|(_, write)| *write);
@@ -510,7 +509,7 @@ impl Model {
                 }
             }
             Event::Image(url, pixels) => {
-                let write = self.images.borrow().get(&url).map(|(_, write)| *write);
+                let write = self.images.get().borrow().get(&url).map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match pixels {
                         Ok(pixels) => Loaded::Ready(Image::from_rgba(
@@ -537,7 +536,7 @@ impl Model {
             #[cfg(not(target_os = "android"))]
             Event::Started(description) => {
                 self.set_running.set(true);
-                self.stopped.set(false);
+                self.stopped.get().set(false);
                 self.pane
                     .write_line(&format!("{BOLD}$ {description}{RESET}"));
             }
@@ -553,7 +552,7 @@ impl Model {
                 let color = if success { GREEN } else { RED };
                 self.pane.write_line(&format!("{color}{summary}{RESET}\n"));
                 self.set_running.set(false);
-                if !success && !self.stopped.replace(false) {
+                if !success && !self.stopped.get().replace(false) {
                     self.set_tab.set(Tab::Log);
                 }
             }

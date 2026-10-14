@@ -19,7 +19,6 @@ fn Pane(windows: Windows) -> NodeId {
         <List spacing=0.0>
             <ForEach keys={ids}>
                 {move |id: WindowId| {
-                    let windows = windows.clone();
                     let (width, height) = (width, height);
                     view! {
                         <Frame width height>

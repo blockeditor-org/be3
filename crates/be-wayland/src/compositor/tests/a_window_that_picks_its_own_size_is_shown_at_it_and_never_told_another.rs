@@ -7,7 +7,6 @@ fn Floating(windows: Windows) -> NodeId {
         <List spacing=0.0>
             <ForEach keys={ids}>
                 {move |id: WindowId| {
-                    let windows = windows.clone();
                     let list = windows.list();
                     let size = create_memo(move || {
                         list.with(|list| {

@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 use block_editor_beui::AccessLevel;
 use block_editor_beui::beui::NodeId;
@@ -11,7 +10,7 @@ use super::panel::Info;
 use super::workspace::Workspace;
 
 #[component]
-pub(crate) fn AccessMode(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn AccessMode(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
     let debugging =
         create_memo(move || info.with(|info| info.as_ref().is_some_and(|info| info.debugging)));
     let access = create_memo(move || {
@@ -32,7 +31,6 @@ pub(crate) fn AccessMode(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>
     let viewing_off = create_memo(move || AccessLevel::View > ceiling.get());
     let knowing_off = create_memo(move || AccessLevel::KnowExists > ceiling.get());
     let debug_off = create_memo(move || !ceiling.get().can_view());
-    let chosen = info;
     view! {
         <MenuButton
             @test_id={"workspace.access"}
@@ -45,7 +43,7 @@ pub(crate) fn AccessMode(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>
                 <MenuItem label="Debug" disabled={debug_off} />
             }}
             on_select={move |path: Vec<usize>| {
-                let Some(info) = chosen.get_untracked() else {
+                let Some(info) = info.get_untracked() else {
                     return;
                 };
                 let level = match path.as_slice() {

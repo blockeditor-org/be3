@@ -421,7 +421,7 @@ struct BlockApp {
     display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
-    editors: compositor::Editors,
+    editors: compositor::OwnedEditors,
 
     watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
@@ -608,7 +608,7 @@ impl BlockApp {
             ServerLocation::Remote(remote) => remote.clone(),
         };
         let registry = Rc::new(EditorRegistry::new());
-        let editors = compositor::Editors::install(Rc::clone(&registry), client_id);
+        let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         Ok(Self {
             app_state,
             client_id,

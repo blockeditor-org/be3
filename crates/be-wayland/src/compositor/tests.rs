@@ -88,17 +88,16 @@ struct Harness {
 #[component]
 fn Shown(windows: Windows) -> NodeId {
     {
-        let toggling = windows.clone();
         beui::reactive::Action::new("test.fullscreen", "Toggle fullscreen", move || {
-            let Some(id) = toggling.focused() else {
+            let Some(id) = windows.focused() else {
                 return;
             };
-            let fullscreen = toggling
+            let fullscreen = windows
                 .list()
                 .get_untracked()
                 .iter()
                 .any(|info| info.id == id && info.fullscreen.is_some());
-            toggling.request_fullscreen(id, !fullscreen);
+            windows.request_fullscreen(id, !fullscreen);
             beui::reactive::try_with_document(|document| {
                 document.request_repaint_after(std::time::Duration::ZERO);
             });
@@ -113,7 +112,7 @@ fn Shown(windows: Windows) -> NodeId {
         .shortcut(beui::reactive::Chord::logo(Key::G))
         .at(KeyAt::Window)
         .register();
-        crate::view::register_restore_shortcuts(&windows);
+        crate::view::register_restore_shortcuts(windows);
         let (text, set_text) = create_signal(String::new());
         let (locked, set_locked) = create_signal(false);
         LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
@@ -138,7 +137,6 @@ fn Shown(windows: Windows) -> NodeId {
                     />
                     <ForEach keys={ids}>
                         {move |id: WindowId| {
-                            let windows = windows.clone();
                             let list = windows.list();
                             let size = create_memo(move || {
                                 list.with(|list| {
@@ -209,7 +207,7 @@ impl Harness {
         let mut windows = None;
         let document = build(|| {
             let store = Windows::new();
-            windows = Some(store.clone());
+            windows = Some(store);
             view(store)
         });
         let mut app = Compositor::new(

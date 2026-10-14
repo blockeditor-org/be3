@@ -1,12 +1,10 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use beui::NodeId;
 use beui::icons::ICON_PLAY_ARROW;
 use beui::reactive::{
-    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Text, WriteSignal, clone, component,
-    create_memo, create_signal, view,
+    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Stored, Text, WriteSignal, component, create_memo, create_signal, store, view,
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{ButtonVariant, Caption, Spinner, SplitButton, use_theme};
@@ -74,9 +72,9 @@ pub(crate) struct Work {
     pub(crate) fresh: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Phone {
-    tasks: Tasks,
+    tasks: Stored<Tasks>,
     builds: Cache<Slot, Found>,
     own: ReadSignal<Option<Own>>,
     set_own: WriteSignal<Option<Own>>,
@@ -86,7 +84,7 @@ pub(crate) struct Phone {
     set_work: WriteSignal<Option<Work>>,
     problem: ReadSignal<Option<(Slot, String)>>,
     set_problem: WriteSignal<Option<(Slot, String)>>,
-    pending: Rc<RefCell<Option<Installed>>>,
+    pending: Stored<RefCell<Option<Installed>>>,
 }
 
 impl Phone {
@@ -97,8 +95,8 @@ impl Phone {
         let (work, set_work) = create_signal(None);
         let (problem, set_problem) = create_signal(None);
         Self {
-            tasks,
-            builds: Rc::new(RefCell::new(HashMap::new())),
+            tasks: store(tasks),
+            builds: store(RefCell::new(HashMap::new())),
             own,
             set_own,
             installed,
@@ -107,12 +105,12 @@ impl Phone {
             set_work,
             problem,
             set_problem,
-            pending: Rc::default(),
+            pending: store(RefCell::default()),
         }
     }
 
     pub(crate) fn start(&self) {
-        self.tasks.background(|tasks| {
+        self.tasks.get().background(|tasks| {
             let files = android::files(tasks);
             let installed =
                 builds::installed(&files.join(INSTALLED)).filter(|_| android::installed());
@@ -134,21 +132,21 @@ impl Phone {
     }
 
     pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Found>> {
-        if let Some((read, _)) = self.builds.borrow().get(&slot) {
+        if let Some((read, _)) = self.builds.get().borrow().get(&slot) {
             return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.builds.borrow_mut().insert(slot, (read, write));
+        self.builds.get().borrow_mut().insert(slot, (read, write));
         self.fetch(slot, Some(commit.to_owned()));
         read
     }
 
     pub(crate) fn main_build(&self) -> ReadSignal<Loaded<Found>> {
-        if let Some((read, _)) = self.builds.borrow().get(&Slot::Main) {
+        if let Some((read, _)) = self.builds.get().borrow().get(&Slot::Main) {
             return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.builds.borrow_mut().insert(Slot::Main, (read, write));
+        self.builds.get().borrow_mut().insert(Slot::Main, (read, write));
         self.fetch(Slot::Main, None);
         read
     }
@@ -162,7 +160,7 @@ impl Phone {
     }
 
     fn refetch(&self, slot: Slot, commit: Option<String>) {
-        let write = self.builds.borrow().get(&slot).map(|(_, write)| *write);
+        let write = self.builds.get().borrow().get(&slot).map(|(_, write)| *write);
         if let Some(write) = write {
             write.set(Loaded::Loading);
             self.fetch(slot, commit);
@@ -170,7 +168,7 @@ impl Phone {
     }
 
     fn fetch(&self, slot: Slot, commit: Option<String>) {
-        self.tasks.background(move |tasks| {
+        self.tasks.get().background(move |tasks| {
             let found = commit
                 .map_or_else(
                     || tasks.github().and_then(|github| github.branch_head("main")),
@@ -188,7 +186,7 @@ impl Phone {
         if !self.begin(slot, Package::App, fresh) {
             return;
         }
-        self.tasks.background(move |tasks| {
+        self.tasks.get().background(move |tasks| {
             let files = android::files(tasks);
             let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
@@ -218,7 +216,7 @@ impl Phone {
         if !self.begin(slot, Package::Launcher, false) {
             return;
         }
-        self.tasks.background(move |tasks| {
+        self.tasks.get().background(move |tasks| {
             let files = android::files(tasks);
             let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
@@ -246,7 +244,7 @@ impl Phone {
         if self.work.with(Option::is_some) {
             return false;
         }
-        self.pending.replace(None);
+        self.pending.get().replace(None);
         self.set_problem.set(None);
         self.set_work.set(Some(Work {
             slot,
@@ -266,7 +264,7 @@ impl Phone {
     }
 
     fn fail(&self, error: String) {
-        self.pending.replace(None);
+        self.pending.get().replace(None);
         let slot = self.work.get_untracked().map(|work| work.slot);
         self.set_work.set(None);
         if let Some(slot) = slot {
@@ -284,7 +282,7 @@ impl Phone {
 
     fn install_apk(&self, name: &'static str) {
         self.stage(Stage::Installing);
-        self.tasks.background(move |tasks| {
+        self.tasks.get().background(move |tasks| {
             let apk = android::files(tasks).join(name);
             tasks::Event::Phone(Event::Committed(android::install(&apk)))
         });
@@ -292,13 +290,13 @@ impl Phone {
 
     fn remove_app(&self) {
         self.stage(Stage::Removing);
-        self.tasks
+        self.tasks.get()
             .background(|_| tasks::Event::Phone(Event::Committed(android::uninstall())));
     }
 
     fn forget(&self) -> Result<(), String> {
         self.set_installed.set(None);
-        builds::remember(&android::files(&self.tasks).join(INSTALLED), None)
+        builds::remember(&android::files(&self.tasks.get()).join(INSTALLED), None)
     }
 
     pub(crate) fn receive(&self, event: Event) {
@@ -308,7 +306,7 @@ impl Phone {
                 self.set_own.set(Some(own));
             }
             Event::Fetched(slot, build) => {
-                let write = self.builds.borrow().get(&slot).map(|(_, write)| *write);
+                let write = self.builds.get().borrow().get(&slot).map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match build {
                         Ok(build) => Loaded::Ready(build),
@@ -330,7 +328,7 @@ impl Phone {
                 Err(error) => self.fail(error),
                 Ok(Downloaded::Current) => self.open(),
                 Ok(Downloaded::App { commit, app }) => {
-                    self.pending.replace(Some(Installed {
+                    self.pending.get().replace(Some(Installed {
                         slot,
                         commit,
                         hash: app.hash,
@@ -357,9 +355,9 @@ impl Phone {
                 match (work.package, work.stage) {
                     (Package::App, Stage::Removing) => self.install_apk(APP),
                     (Package::App, Stage::Installing) => {
-                        let installed = self.pending.borrow_mut().take();
+                        let installed = self.pending.get().borrow_mut().take();
                         if let Some(installed) = installed {
-                            let record = android::files(&self.tasks).join(INSTALLED);
+                            let record = android::files(&self.tasks.get()).join(INSTALLED);
                             if let Err(error) = builds::remember(&record, Some(&installed)) {
                                 self.fail(error);
                                 return;
@@ -406,18 +404,18 @@ pub(crate) fn Actions(
     timeline: ReadSignal<Loaded<Vec<Entry>>>,
 ) -> NodeId {
     let _ = timeline;
-    let phone = model.phone.clone();
+    let phone = model.phone;
     let initial = pull_request.get_untracked();
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
-    let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
+    let busy = create_memo(move || phone.work.with(Option::is_some));
     let disabled = create_memo(move || busy.get() || !published(build));
-    let run = clone!(phone -> move || phone.run(slot, false));
-    let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
+    let run = move || phone.run(slot, false);
+    let pick = move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(slot, true),
         [1] => phone.install(slot),
         _ => {}
-    });
+    };
     view! {
         <SplitButton
             label="Run"
@@ -442,7 +440,7 @@ pub(crate) fn Notes(
     timeline: ReadSignal<Loaded<Vec<Entry>>>,
 ) -> NodeId {
     let _ = timeline;
-    let phone = model.phone.clone();
+    let phone = model.phone;
     let initial = pull_request.get_untracked();
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
@@ -462,17 +460,17 @@ pub(crate) fn Notes(
 
 #[component]
 pub(crate) fn MainActions(model: Model) -> NodeId {
-    let phone = model.phone.clone();
+    let phone = model.phone;
     let build = phone.main_build();
-    let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
+    let busy = create_memo(move || phone.work.with(Option::is_some));
     let disabled = create_memo(move || busy.get() || !published(build));
-    let run = clone!(phone -> move || phone.run(Slot::Main, false));
-    let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
+    let run = move || phone.run(Slot::Main, false);
+    let pick = move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(Slot::Main, true),
         [1] => phone.install(Slot::Main),
         _ => {}
-    });
-    let current = create_memo(clone!(phone -> move || phone.holds(Slot::Main)));
+    };
+    let current = create_memo(move || phone.holds(Slot::Main));
     let summary = create_memo(move || {
         let described = describe(build.get(), "Looking for main's Android build", "main");
         if current.get() {
@@ -481,7 +479,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
             described
         }
     });
-    let launcher = create_memo(clone!(phone -> move || {
+    let launcher = create_memo(move || {
         let main = match build.get() {
             Loaded::Ready(Found { build: Some(build), .. }) => Some(build),
             _ => None,
@@ -499,7 +497,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
                 _ => format!("This launcher, {}, is not a build be3-ci has published.", short(&hash)),
             },
         }
-    }));
+    });
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -564,11 +562,11 @@ fn slot_name(slot: Slot) -> String {
 #[component]
 fn SlotNotes(model: Model, slot: Slot) -> NodeId {
     let theme = use_theme();
-    let phone = model.phone.clone();
-    let working = create_memo(clone!(phone -> move || phone.work.with(|work| {
+    let phone = model.phone;
+    let working = create_memo(move || phone.work.with(|work| {
         work.as_ref().is_some_and(|work| work.slot == slot)
-    })));
-    let progress = create_memo(clone!(phone -> move || match phone.work.get() {
+    }));
+    let progress = create_memo(move || match phone.work.get() {
         Some(Work { stage: Stage::Downloading { total: 0, .. }, .. }) => "Looking for the build".to_owned(),
         Some(Work { stage: Stage::Downloading { done, total }, .. }) => {
             format!("Downloading {} of {}", megabytes(done), megabytes(total))
@@ -579,11 +577,11 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
             "Installing the launcher".to_owned()
         }
         None => String::new(),
-    }));
-    let problem = create_memo(clone!(phone -> move || match phone.problem.get() {
+    });
+    let problem = create_memo(move || match phone.problem.get() {
         Some((problem_slot, problem)) if problem_slot == slot => problem,
         _ => String::new(),
-    }));
+    });
     let failed = create_memo(move || !problem.get().is_empty());
     view! {
         <List spacing=8.0>

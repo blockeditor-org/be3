@@ -1,7 +1,7 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
 use beui::reactive::{
     Align, ClickCallback, Direction, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo, Prop,
-    ReadSignal, Show, clone, component, create_memo, create_signal, view,
+    ReadSignal, Show, component, create_memo, create_signal, view,
 };
 use beui::styled::{Caption, Fullscreen, IconButton, Scroll, use_theme};
 use beui::unstyled::Picture;
@@ -14,49 +14,48 @@ const HINT_HEIGHT: f32 = 18.0;
 
 #[component]
 pub(crate) fn ImageViewer(model: Model) -> NodeId {
-    let open = create_memo(clone!(model -> move || model.viewer.with(Option::is_some)));
-    let current = create_memo(clone!(model -> move || {
+    let open = create_memo(move || model.viewer.with(Option::is_some));
+    let current = create_memo(move || {
         model
             .viewer
             .get()
             .and_then(|viewer| viewer.images.get(viewer.index).cloned())
-    }));
-    let picture = create_memo(clone!(model -> move || {
+    });
+    let picture = create_memo(move || {
         let url = current.get()?;
         match model.image(&url).get() {
             Loaded::Ready(image) => Some(image),
             _ => None,
         }
-    }));
-    let position = create_memo(clone!(model -> move || match model.viewer.get() {
+    });
+    let position = create_memo(move || match model.viewer.get() {
         Some(viewer) => format!(
             "Image {} of {} · the arrow keys move between them",
             viewer.index + 1,
             viewer.images.len()
         ),
         None => String::new(),
-    }));
-    let first = create_memo(clone!(model -> move || {
+    });
+    let first = create_memo(move || {
         model.viewer.with(|viewer| viewer.as_ref().is_none_or(|viewer| viewer.index == 0))
-    }));
-    let last = create_memo(clone!(model -> move || {
+    });
+    let last = create_memo(move || {
         model.viewer.with(|viewer| {
             viewer
                 .as_ref()
                 .is_none_or(|viewer| viewer.index + 1 >= viewer.images.len())
         })
-    }));
+    });
     let theme = use_theme();
-    let close = clone!(model -> move || model.close_image());
-    let dismiss = close.clone();
-    let previous = clone!(model -> move || model.step_image(-1));
-    let next = clone!(model -> move || model.step_image(1));
-    let browse = clone!(model -> move || {
+    let close = move || model.close_image();
+    let previous = move || model.step_image(-1);
+    let next = move || model.step_image(1);
+    let browse = move || {
         if let Some(url) = current.get_untracked() {
             model.open(&url);
         }
-    });
-    let keys = clone!(model -> move |press: KeyPress| {
+    };
+    let keys = move |press: KeyPress| {
         if !press.pressed {
             return false;
         }
@@ -68,9 +67,9 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
             _ => return false,
         }
         true
-    });
+    };
     view! {
-        <Fullscreen open={open} on_dismiss={dismiss}>
+        <Fullscreen open={open} on_dismiss={close}>
             <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
                 <List spacing=PADDING>
                     <ViewerBar
@@ -172,7 +171,6 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                     }
                 };
                 let zoom_out = move || set_actual.set(false);
-                let whole = picture;
                 view! {
                     <List spacing=8.0>
                         <Show condition={fitted}>
@@ -183,7 +181,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                                     on_click={zoom_in}
                                 >
                                     <Picture
-                                        image={whole}
+                                        image={picture}
                                         fit=ImageFit::ScaleDown
                                         smooth={shrunk}
                                     />

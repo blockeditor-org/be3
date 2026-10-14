@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
@@ -53,7 +52,7 @@ fn wall_clock() -> ReadSignal<String> {
 
 #[component]
 pub(crate) fn DesktopBar(
-    workspace: Rc<Workspace>,
+    workspace: Workspace,
     notifications: DesktopNotifications,
     launcher: ProgramLauncher,
 ) -> NodeId {
@@ -64,7 +63,7 @@ pub(crate) fn DesktopBar(
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
-    let sessions = Sessions::new(&workspace);
+    let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
     let keys = create_memo(move || {
         listed.with(|sessions| {
@@ -78,7 +77,6 @@ pub(crate) fn DesktopBar(
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
     let listing = create_memo(move || !listed.with(Vec::is_empty));
-    let creating = sessions.clone();
     let chose = move |path: Vec<usize>| {
         let chosen = path
             .first()
@@ -137,7 +135,7 @@ pub(crate) fn DesktopBar(
                                 label="New session"
                                 glyph={ICON_ADD.to_owned()}
                                 separated={listing}
-                                on_click={move || creating.create()}
+                                on_click={move || sessions.create()}
                             />
                         }}
                         on_select={chose}

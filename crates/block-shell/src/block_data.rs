@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
@@ -26,14 +25,10 @@ struct Row {
 }
 
 #[component]
-pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn BlockData(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
     let (data, set_data) = create_signal(None::<String>);
-    let reading = Rc::downgrade(&workspace);
     let read_info = info;
     create_effect(move || {
-        let Some(workspace) = reading.upgrade() else {
-            return;
-        };
         let Some(id) = read_info.with(|info| info.as_ref().map(|info| info.item.id)) else {
             set_data.set(None);
             return;

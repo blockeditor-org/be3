@@ -1,9 +1,8 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use beui::reactive::{
-    ForEach, Frame, Interactive, LayoutBuilder, List, Memo, ReadSignal, Text, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, layout_text, untrack, view,
+    ForEach, Frame, Interactive, LayoutBuilder, List, Memo, ReadSignal, Stored, Text, WriteSignal,
+    component, create_effect, create_memo, create_signal, layout_text, store, untrack, view,
 };
 use beui::{Color32, Direction, FontId, KeyPress, NodeId, ScrollGesture, TextLayout, Vec2};
 use ghostty_vt::{Renderer, Rgb, Terminal};
@@ -47,10 +46,10 @@ pub(crate) struct Session {
     rows: u16,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Pane {
-    session: Rc<RefCell<Session>>,
-    tasks: Tasks,
+    session: Stored<RefCell<Session>>,
+    tasks: Stored<Tasks>,
     rows: ReadSignal<Vec<Row>>,
     set_rows: WriteSignal<Vec<Row>>,
     background: ReadSignal<Color32>,
@@ -80,8 +79,8 @@ impl Pane {
         let (rows, set_rows) = create_signal(Vec::new());
         let (background, set_background) = create_signal(Color32::BLACK);
         Self {
-            session: Rc::new(RefCell::new(session)),
-            tasks,
+            session: store(RefCell::new(session)),
+            tasks: store(tasks),
             rows,
             set_rows,
             background,
@@ -90,7 +89,7 @@ impl Pane {
     }
 
     pub(crate) fn write(&self, bytes: &[u8]) {
-        self.session.borrow_mut().terminal.write(bytes);
+        self.session.get().borrow_mut().terminal.write(bytes);
     }
 
     pub(crate) fn write_line(&self, text: &str) {
@@ -98,7 +97,8 @@ impl Pane {
     }
 
     pub(crate) fn refresh(&self) {
-        let mut session = self.session.borrow_mut();
+        let session = self.session.get();
+        let mut session = session.borrow_mut();
         let Session {
             terminal, renderer, ..
         } = &mut *session;
@@ -139,7 +139,8 @@ impl Pane {
 
     fn resize(&self, cols: u16, rows: u16, cell_width: u32, cell_height: u32) {
         {
-            let mut session = self.session.borrow_mut();
+            let session = self.session.get();
+        let mut session = session.borrow_mut();
             if session.cols == cols && session.rows == rows {
                 return;
             }
@@ -147,13 +148,13 @@ impl Pane {
             session.rows = rows;
             let _ = session.terminal.resize(cols, rows, cell_width, cell_height);
         }
-        self.tasks.resize(cols, rows);
+        self.tasks.get().resize(cols, rows);
         self.refresh();
     }
 
     fn type_text(&self, text: &str) {
-        self.session.borrow_mut().terminal.scroll_to_bottom();
-        self.tasks.input(text.as_bytes());
+        self.session.get().borrow_mut().terminal.scroll_to_bottom();
+        self.tasks.get().input(text.as_bytes());
     }
 
     fn press(&self, press: KeyPress) -> bool {
@@ -163,13 +164,13 @@ impl Pane {
         let Some(bytes) = key_bytes(press.key, press.modifiers) else {
             return false;
         };
-        self.session.borrow_mut().terminal.scroll_to_bottom();
-        self.tasks.input(&bytes);
+        self.session.get().borrow_mut().terminal.scroll_to_bottom();
+        self.tasks.get().input(&bytes);
         true
     }
 
     fn scroll(&self, rows: isize) {
-        self.session.borrow_mut().terminal.scroll_by(rows);
+        self.session.get().borrow_mut().terminal.scroll_by(rows);
         self.refresh();
     }
 }
@@ -183,7 +184,7 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                create_effect(clone!(pane -> move || {
+                create_effect(move || {
                     let size = size.get();
                     let Some(cell) = layout_text("M", FontId::monospace(FONT_SIZE), TextLayout::DEFAULT)
                         .map(|galley| galley.size())
@@ -196,17 +197,15 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
                     let cols = ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16;
                     let rows = ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16;
                     untrack(|| pane.resize(cols, rows, cell.x as u32, cell.y as u32));
-                }));
+                });
                 let rows = pane.rows;
                 let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
                 let background = pane.background;
-                let typed = pane.clone();
-                let pressed = pane.clone();
                 view! {
                     <Interactive
                         focusable=true
-                        on_text={move |text: String| typed.type_text(&text)}
-                        on_key={move |press: KeyPress| pressed.press(press)}
+                        on_text={move |text: String| pane.type_text(&text)}
+                        on_key={move |press: KeyPress| pane.press(press)}
                         on_scroll={move |gesture: ScrollGesture| {
                             let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
                             if rows != 0 {
@@ -222,7 +221,6 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
                             <List spacing=0.0>
                                 <ForEach keys>
                                     {move |index: usize| {
-                                        let rows = rows;
                                         let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
                                         view! {
                                             <TerminalLine row />
@@ -245,7 +243,6 @@ fn TerminalLine(row: Memo<Row>) -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys>
                 {move |index: usize| {
-                    let row = row;
                     let span = create_memo(move || row.with(|row| row.get(index).cloned()));
                     view! {
                         <TerminalSpan span />

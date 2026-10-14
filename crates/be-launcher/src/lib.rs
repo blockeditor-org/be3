@@ -81,7 +81,7 @@ impl LauncherApp {
         let document = build(|| {
             let theme = use_theme();
             let model = model(tasks.clone());
-            exported = Some(model.clone());
+            exported = Some(model);
             view! {
                 <Frame color={theme.background} radius=0>
                     <Launcher model />
@@ -103,7 +103,7 @@ impl LauncherApp {
         if events.is_empty() {
             return;
         }
-        let model = self.model.clone();
+        let model = self.model;
         with_reactive_scope(&mut self.document, || {
             for event in events {
                 model.receive(event);

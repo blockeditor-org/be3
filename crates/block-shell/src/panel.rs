@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::profile::VIEW_EDITORS;
 use block_editor_beui::beui::NodeId;
@@ -141,14 +140,10 @@ pub(crate) fn read_info(
 }
 
 #[component]
-pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
+pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
     let (info, set_info) = create_signal(None::<Info>);
-    let reading = Rc::downgrade(&workspace);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
-        let Some(workspace) = reading.upgrade() else {
-            return;
-        };
         set_info.set(read_info(&workspace, tab, &watched));
     });
     let content = create_memo(move || match info.get() {
@@ -157,8 +152,6 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         Some(_) | None => Content::Block,
     });
     let editor = workspace.editor();
-    let branch = Rc::clone(&workspace);
-    let branch_info = info;
     let phone = workspace.phone;
     let top_bar = create_memo(move || match phone.get() {
         true => TopBar::Phone,
@@ -168,23 +161,17 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         .tab(tab)
         .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
     let desktop = create_memo(move || !phone.get() && !session);
-    let details = Rc::clone(&workspace);
-    let (artifact, artifact_info) = (Rc::clone(&workspace), info);
-    let (linked, linked_info) = (Rc::clone(&workspace), info);
     view! {
         <Frame>
             <List spacing=0.0>
                 <Show condition={!session}>
-                    <ArtifactBar workspace={Rc::clone(&artifact)} info={artifact_info} />
+                    <ArtifactBar workspace={workspace} info={info} />
                 </Show>
                 <Show condition={!session}>
-                    <LinkedBar workspace={Rc::clone(&linked)} info={linked_info} />
+                    <LinkedBar workspace={workspace} info={info} />
                 </Show>
                 <Dynamic value={content}>
                     {move |content: Content| {
-                        let workspace = Rc::clone(&branch);
-                        let info = branch_info;
-                        let top_bar = top_bar;
                         match content {
                             Content::Debug => view! {
                                 <BlockData
@@ -213,9 +200,9 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                     }}
                 </Dynamic>
                 <Show condition={desktop}>
-                    <StatusBar workspace={workspace.clone()} info={info} />
+                    <StatusBar workspace={workspace} info={info} />
                 </Show>
-                <DetailsSheet workspace={details} tab={tab} />
+                <DetailsSheet workspace={workspace} tab={tab} />
             </List>
         </Frame>
     }
