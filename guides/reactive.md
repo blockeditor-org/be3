@@ -439,8 +439,9 @@ let document = build(|| view! { <App /> });
 `#[component]` turns a function named `Name` into a `<Name>` usable from `view!`.
 That exact function name is also the constructor that returns the builder `view!`
 fills in. A prop typed `Prop<T>` accepts
-either a plain `T` or a signal or memo of `T`; the reactive forms create an
-effect that keeps that property in sync. Components return their base node
+either a plain `T` or a signal or memo of `T`; the base components bind each
+prop with `create_binding`, which keeps a reactive form in sync and costs a
+plain value nothing after it is set. Components return their base node
 directly. Every tag also accepts the framework slots `@test_id`, `@node_ref`,
 and `@sizing`, which live in their own `@` namespace so a component is free to
 name its own props whatever it likes.

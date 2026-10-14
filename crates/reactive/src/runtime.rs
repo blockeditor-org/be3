@@ -154,7 +154,16 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
                 owner: None,
             }))
         });
-        let value = f();
+        let value = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+            Ok(value) => value,
+            Err(panic) => {
+                let owner = RUNTIME.with(|runtime| runtime.probe.take()?.owner);
+                if let Some(owner) = owner {
+                    owner.dispose();
+                }
+                std::panic::resume_unwind(panic);
+            }
+        };
         let probe = RUNTIME
             .with(|runtime| runtime.probe.take())
             .expect("the probe is still running");
