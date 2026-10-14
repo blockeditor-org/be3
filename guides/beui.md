@@ -2510,9 +2510,13 @@ from the place it was last given, rather than every node around it.
 What a node records is a tree (`display.rs`): its own shapes, its children by
 id and translation, and group nodes around them - `Group::Clip`,
 `Group::Scroll`, `Group::Mask` (a fade), `Group::Transform` and
-`Group::Filter` - which a painter opens (`with_clip_rect` for the children it
-paints, `shifted`, `faded`, `in_document`) rather than writing them onto each
-child. When a node paints again its new tree is set against its old one by
+`Group::Filter` - which a painter opens (`with_clip_rect`, `shifted`, `faded`
+with the space of the fade that opened it, `in_document`) rather than writing
+them onto each shape or child: a recorded shape's own `clip` is always
+everything, and `FrameOutput::shapes` folds the groups into it.
+`PainterState::within` is what each group does to the painter inside it, so a
+node visited without painting again hands its children the painters its tree
+says they had. When a node paints again its new tree is set against its old one by
 identity, never by comparing what it painted: its own shapes damage where
 they were and where they are, except a `Drawing` that is the same drawing in the
 same place, which damages only what it says it redrew; a child, matched by id, damages its old and

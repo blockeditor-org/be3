@@ -791,13 +791,12 @@ impl Context {
         }
     }
 
-    pub fn paint_child(&self, scope: &Option<Rc<Scope>>, clip: Rect, id: NodeId, at: Vec2) {
+    pub fn paint_child(&self, scope: &Option<Rc<Scope>>, id: NodeId, at: Vec2) {
         if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut()
             && frame.id.is_some()
         {
             frame.items.push(Item {
                 scope: scope.clone(),
-                clip,
                 recording: Recording::Child(id, at),
             });
         }
@@ -1091,7 +1090,6 @@ impl Context {
             if damage::bounds(&shape).is_positive() || matches!(shape, Shape::Drawing { .. }) {
                 frame.items.push(Item {
                     scope: scope.clone(),
-                    clip: Rect::EVERYTHING,
                     recording: Recording::Shape(shape),
                 });
             }

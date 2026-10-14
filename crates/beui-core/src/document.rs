@@ -23,7 +23,7 @@ use crate::node::{
     ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
 };
 use crate::paint::{self, PaintCache, verify};
-use crate::painter::{Local, Painter, PainterState};
+use crate::painter::{Painter, PainterState};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -1240,17 +1240,9 @@ impl Document {
         let cache = self.paint_cache.borrow();
         let mut damaged: Vec<Rect> = region.rects().to_vec();
         for stale in &stale {
-            let moved = stale.rect.intersect(source).translate(only.by);
-            match (
-                cache.scrolls_within(stale.scroll, only.space),
-                stale.settled,
-            ) {
-                (true, true) => damaged.push(stale.rect),
-                (true, false) => {
-                    damaged.extend(paint::uncovered(stale.rect, source));
-                    damaged.push(moved);
-                }
-                (false, _) => damaged.extend([stale.rect, moved]),
+            damaged.push(stale.rect);
+            if !cache.scrolls_within(stale.scroll, only.space) {
+                damaged.push(stale.rect.intersect(source).translate(only.by));
             }
         }
         damaged.extend(fixed.rects().iter().copied());
@@ -1567,7 +1559,6 @@ impl Document {
         self.painters.remove(&id);
         if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
-            self.paint_cache.get_mut().unplace(id);
         }
         dropped.push(id);
         for child in self.placed_children.remove(&id).unwrap_or_default() {
@@ -2023,7 +2014,6 @@ impl Document {
             let state = PainterState {
                 origin: rects.offset(held.given.space),
                 space_clip: rects.space_clip(held.given.space),
-                local: Local::NONE,
                 ..held.given
             };
             let painter = Painter::resumed(ctx.clone(), state);
