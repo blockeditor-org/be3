@@ -356,6 +356,7 @@ mod an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was;
 mod an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app;
 mod an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
+mod an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout;
 mod an_overlay_reports_a_dismiss_only_when_the_user_closes_it;
@@ -1823,8 +1824,7 @@ pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Opti
 }
 
 pub(crate) fn icon_within(document: &Document, root: NodeId, glyph: &str) -> Option<NodeId> {
-    if let Some(text) = document.arena.kind_of(root)
-        && document.text_icons(text).iter().any(|shown| shown == glyph)
+    if document.text_icons(root).iter().any(|shown| shown == glyph)
         && document.node_rect(root).is_some()
     {
         return Some(root);

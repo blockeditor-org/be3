@@ -14,6 +14,7 @@ Guides:
 - guides/hosting.md
 - guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
+- guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
 - guides/plugin_sdk.md: the shared module every plugin is linked against, and how hosts link them
 - guides/reactive.md: the reactive graph under beui
 - guides/running/drive.md: how to run and test any app; read this first

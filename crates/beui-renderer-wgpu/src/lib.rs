@@ -1555,11 +1555,12 @@ impl Renderer {
                 glyph,
                 turn: rotation,
             } => {
-                let (atlas, colored) = match glyph.image.color {
+                let image = glyph.image()?;
+                let (atlas, colored) = match image.color {
                     true => (&mut self.colors, 1.0),
                     false => (&mut self.atlas, 0.0),
                 };
-                let uv = atlas.insert(queue, glyph.id, &glyph.image)?;
+                let uv = atlas.insert(queue, glyph.id, image)?;
                 plain(Instance {
                     rect,
                     clip,

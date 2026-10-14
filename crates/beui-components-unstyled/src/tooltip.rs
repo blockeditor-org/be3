@@ -50,7 +50,6 @@ pub fn Tooltip(
         dwell.stop();
         set_shown.set(false);
     };
-    let bubble = content.call(TooltipHandle { label, shown });
 
     view! {
         <Interactive on_hover_change={hover} on_press={press}>
@@ -62,9 +61,8 @@ pub fn Tooltip(
                     policy=LayerPolicy::Inert
                     traps_focus=false
                     open={open}
-                >
-                    {bubble}
-                </Overlay>
+                    content={move || content.call(TooltipHandle { label, shown })}
+                />
             </List>
         </Interactive>
     }

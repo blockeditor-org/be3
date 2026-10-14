@@ -41,7 +41,7 @@ fn dragging_across_an_icon_and_its_label_copies_only_the_label() {
         .expect("the node is a text");
     assert_eq!(harness.document().text(node), "Save");
     assert_eq!(
-        harness.document().text_icons(node),
+        harness.document().text_icons(text.get()),
         [ICON_SAVE, ICON_FOLDER]
     );
     let layout = harness

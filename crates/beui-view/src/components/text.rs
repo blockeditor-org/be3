@@ -5,7 +5,9 @@ use crate::reactive::{
     IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId, create_binding,
     create_effect, with_document,
 };
-use beui_core::base::text::{FontPatch, IconSpan, SpanContent, SpanHandle, TextNode, TextPart};
+use beui_core::base::text::{
+    FontPatch, IconSpan, SpanContent, SpanHandle, TextNode, TextPart, TextStyle,
+};
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId};
 use beui_core::node::{NodeId, NodeOf};
@@ -37,32 +39,24 @@ pub fn Text(
     });
     create_binding(move || {
         let horizontal = align.get();
-        let vertical = vertical_align.get().unwrap_or(match horizontal {
-            Some(_) => TextAlign::Center,
-            None => TextAlign::Start,
-        });
-        with_document(|document| {
-            document.set_text_horizontal_align(node, horizontal.unwrap_or(TextAlign::Start));
-            document.set_text_vertical_align(node, vertical);
-        })
-    });
-    create_binding(move || with_document(|document| document.set_text_wrap(node, wrap.get())));
-    create_binding(move || with_document(|document| document.set_text_clip(node, clip.get())));
-    create_binding(move || {
-        with_document(|document| document.set_text_underline(node, underline.get()))
-    });
-    create_binding(move || {
-        with_document(|document| document.set_text_ellipsis(node, ellipsis.get()))
+        let style = TextStyle {
+            font: font.get(),
+            line_height: line_height.get(),
+            color: color.get(),
+            horizontal: horizontal.unwrap_or(TextAlign::Start),
+            vertical: vertical_align.get().unwrap_or(match horizontal {
+                Some(_) => TextAlign::Center,
+                None => TextAlign::Start,
+            }),
+            wrap: wrap.get(),
+            clip: clip.get(),
+            underline: underline.get(),
+            ellipsis: ellipsis.get(),
+            padding: line_padding.get(),
+        };
+        with_document(|document| document.set_text_style(node, style));
     });
     create_binding(move || with_document(|document| document.set_text(node, string.get())));
-    create_binding(move || with_document(|document| document.set_text_font(node, font.get())));
-    create_binding(move || {
-        with_document(|document| document.set_text_line_height(node, line_height.get()))
-    });
-    create_binding(move || with_document(|document| document.set_text_color(node, color.get())));
-    create_binding(move || {
-        with_document(|document| document.set_text_line_padding(node, line_padding.get()))
-    });
     create_binding(move || with_document(|document| document.set_text_marks(node, marks.get())));
     create_binding(move || with_document(|document| document.set_text_carets(node, carets.get())));
     children.mount(node);

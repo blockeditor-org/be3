@@ -40,19 +40,15 @@ pub fn Overlay(
         with_document(|document| document.set_overlay_anchor(overlay, anchor.get()))
     });
     create_binding(move || {
-        with_document(|document| document.set_overlay_placement(overlay, placement.get()))
-    });
-    create_binding(move || {
-        with_document(|document| document.set_overlay_scrim(overlay, scrim.get()))
-    });
-    create_binding(move || {
-        with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
-    });
-    create_binding(move || {
-        with_document(|document| document.set_overlay_policy(overlay, policy.get()))
-    });
-    create_binding(move || {
-        with_document(|document| document.set_overlay_level(overlay, level.get()))
+        let (placement, scrim, traps_focus) = (placement.get(), scrim.get(), traps_focus.get());
+        let (policy, level) = (policy.get(), level.get());
+        with_document(|document| {
+            document.set_overlay_placement(overlay, placement);
+            document.set_overlay_scrim(overlay, scrim);
+            document.set_overlay_traps_focus(overlay, traps_focus);
+            document.set_overlay_policy(overlay, policy);
+            document.set_overlay_level(overlay, level);
+        })
     });
     create_effect(move || {
         let open = open.get();

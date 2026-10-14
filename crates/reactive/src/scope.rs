@@ -56,8 +56,13 @@ impl Default for Owner {
     }
 }
 
+pub trait Release {
+    fn release(&self, key: u64);
+}
+
 pub(crate) enum Cleanup {
     Run(Box<dyn FnOnce()>),
+    Release(Rc<dyn Release>, u64),
     Free(Key),
     Dispose(Rc<Computation>),
     Close(Rc<Owner>),
@@ -67,6 +72,7 @@ impl Cleanup {
     fn run(self) {
         match self {
             Cleanup::Run(cleanup) => cleanup(),
+            Cleanup::Release(target, key) => target.release(key),
             Cleanup::Free(key) => arena::remove(key),
             Cleanup::Dispose(computation) => computation.dispose(),
             Cleanup::Close(owner) => owner.dispose(),
@@ -335,6 +341,10 @@ impl Drop for Scope {
 
 pub fn on_cleanup(cleanup: impl FnOnce() + 'static) {
     current_owner().add(Cleanup::Run(Box::new(cleanup)));
+}
+
+pub fn on_release(target: Rc<dyn Release>, key: u64) {
+    current_owner().add(Cleanup::Release(target, key));
 }
 
 pub fn provide_context<T: 'static>(value: T) {

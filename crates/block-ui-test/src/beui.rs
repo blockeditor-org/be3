@@ -1145,6 +1145,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         collected.join(" ")
     }
 
+    pub fn accessible_label(&self, test_id: &str) -> Option<String> {
+        let document = self.document();
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document
+            .accessibility
+            .get(&node)?
+            .label()
+            .map(str::to_owned)
+    }
+
     pub fn rect_of(&self, test_id: &str) -> Rect {
         self.output
             .as_ref()
@@ -1340,6 +1352,7 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     if document.node_kind(node) == "text" {
         let detail = document.node_detail(node).unwrap_or_default();
         let text = detail.trim_matches('"');
+        collected.extend(document.text_icons(node));
         if !text.is_empty() {
             collected.push(text.to_owned());
         }

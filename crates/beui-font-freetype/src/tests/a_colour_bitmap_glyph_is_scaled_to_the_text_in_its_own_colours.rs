@@ -20,7 +20,7 @@ fn a_colour_bitmap_glyph_is_scaled_to_the_text_in_its_own_colours() {
     let [glyph] = galley.glyphs() else {
         panic!("the emoji is drawn as one glyph");
     };
-    let image = &glyph.image;
+    let image = glyph.image().expect("the glyph rasterizes");
     assert!(
         image.color,
         "a glyph from a colour bitmap is drawn in colour"

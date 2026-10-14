@@ -3,6 +3,7 @@ mod library;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod system;
 
+use std::cell::{Cell, RefCell};
 use std::ptr;
 use std::rc::Rc;
 
@@ -12,7 +13,8 @@ use harfbuzz_rs::{Blob, Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffe
 use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{
-    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
+    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, GlyphRaster,
+    GlyphRasterizer, Shaping,
 };
 use beui_core::geometry::vec2;
 
@@ -27,7 +29,8 @@ pub struct FreetypeFonts {
     proportional: Vec<usize>,
     monospace: Vec<usize>,
     icons: Vec<usize>,
-    glyphs: HashMap<GlyphId, Rc<GlyphImage>>,
+    glyphs: HashMap<GlyphId, Rc<GlyphRaster>>,
+    rasterizer: Rc<Rasterizer>,
     shaped: ShapedLines,
 }
 
@@ -45,6 +48,7 @@ impl FreetypeFonts {
             monospace: Vec::new(),
             icons: Vec::new(),
             glyphs: HashMap::default(),
+            rasterizer: Rc::default(),
             shaped: ShapedLines::default(),
         };
         backend.load_families();
@@ -72,7 +76,6 @@ impl FreetypeFonts {
         }
         self.generation = generation;
         self.close_faces();
-        self.glyphs.clear();
         self.shaped = ShapedLines::default();
         self.load_families();
     }
@@ -123,6 +126,10 @@ impl FreetypeFonts {
         }
         let blob = Blob::with_bytes_owned(source.bytes.clone(), |bytes| bytes);
         let hb_face = HbFace::new(blob, source.index);
+        self.rasterizer.faces.borrow_mut().push(RasterFace {
+            face,
+            size: Cell::new(None),
+        });
         self.faces.push(FaceData {
             data: source.clone(),
             face,
@@ -132,11 +139,9 @@ impl FreetypeFonts {
     }
 
     fn close_faces(&mut self) {
-        for face in self.faces.drain(..) {
-            unsafe {
-                ft::FT_Done_Face(face.face);
-            }
-        }
+        self.faces.clear();
+        self.glyphs.clear();
+        self.rasterizer = Rc::default();
         self.proportional.clear();
         self.monospace.clear();
         self.icons.clear();
@@ -218,63 +223,21 @@ impl FreetypeFonts {
             bold: shape.bold,
             italic: shape.italic,
         };
-        let image = self.image(id)?;
-        if image.width == 0 || image.height == 0 {
-            return None;
-        }
-        let x = whole + image.left as f32;
-        let y = (baseline - glyph.y_offset).round() - image.top as f32;
+        let raster = match self.glyphs.get(&id) {
+            Some(raster) => raster.clone(),
+            None => {
+                let bounds = ink_bounds(glyph.extents?, pixel_size, shape);
+                let rasterizer: Rc<dyn GlyphRasterizer> = self.rasterizer.clone();
+                let raster = Rc::new(GlyphRaster::lazy(bounds, Rc::downgrade(&rasterizer)));
+                self.glyphs.insert(id, raster.clone());
+                raster
+            }
+        };
         Some(Glyph {
             id,
-            image,
-            offset: vec2(x, y),
+            origin: vec2(whole, (baseline - glyph.y_offset).round()),
+            raster,
         })
-    }
-
-    fn image(&mut self, key: GlyphId) -> Option<Rc<GlyphImage>> {
-        if let Some(image) = self.glyphs.get(&key) {
-            return Some(image.clone());
-        }
-        let image = Rc::new(self.rasterize(key)?);
-        self.glyphs.insert(key, image.clone());
-        Some(image)
-    }
-
-    fn rasterize(&self, key: GlyphId) -> Option<GlyphImage> {
-        let face = self.faces.get(key.face)?.face;
-        unsafe {
-            let scale = color::set_size(face, key.pixel_size)?;
-            if ft::FT_Load_Glyph(face, key.glyph, ft::FT_LOAD_COLOR as i32) != 0 {
-                return None;
-            }
-            let slot = (*face).glyph;
-            if (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE {
-                let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
-                ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
-            }
-            if key.bold {
-                FT_GlyphSlot_Embolden(slot);
-            }
-            if key.italic {
-                FT_GlyphSlot_Oblique(slot);
-            }
-            if ft::FT_Render_Glyph(slot, ft::FT_Render_Mode::FT_RENDER_MODE_NORMAL) != 0 {
-                return None;
-            }
-            let bitmap = &(*slot).bitmap;
-            let (left, top) = ((*slot).bitmap_left, (*slot).bitmap_top);
-            if bitmap.pixel_mode == ft::FT_Pixel_Mode::FT_PIXEL_MODE_BGRA as u8 {
-                return Some(color::image(bitmap, left, top, scale));
-            }
-            Some(GlyphImage {
-                width: bitmap.width,
-                height: bitmap.rows,
-                left,
-                top,
-                pixels: pixels(bitmap),
-                color: false,
-            })
-        }
     }
 
     fn metrics(&self, family: FontFamily, pixel_size: u32) -> (f32, f32) {
@@ -282,11 +245,11 @@ impl FreetypeFonts {
         let Some(&index) = self.family(family).first() else {
             return fallback;
         };
+        if self.rasterizer.sized(index, pixel_size) != Some(1.0) {
+            return fallback;
+        }
         let face = self.faces[index].face;
         unsafe {
-            if ft::FT_Set_Pixel_Sizes(face, 0, pixel_size) != 0 {
-                return fallback;
-            }
             let size = (*face).size;
             if size.is_null() {
                 return fallback;
@@ -338,6 +301,7 @@ impl FreetypeFonts {
                     .map(|(info, position)| ShapedGlyph {
                         face: run.face,
                         glyph: info.codepoint,
+                        extents: extents(&face.font, info.codepoint, pixel_size),
                         cluster: offset + info.cluster as usize,
                         x_advance: position.x_advance as f32 / 64.0,
                         x_offset: position.x_offset as f32 / 64.0,
@@ -488,14 +452,122 @@ struct FaceData {
     font: Owned<HbFont<'static>>,
 }
 
+struct RasterFace {
+    face: ft::FT_Face,
+    size: Cell<Option<(u32, Option<f32>)>>,
+}
+
+#[derive(Default)]
+struct Rasterizer {
+    faces: RefCell<Vec<RasterFace>>,
+}
+
+impl Rasterizer {
+    fn sized(&self, index: usize, pixel_size: u32) -> Option<f32> {
+        let faces = self.faces.borrow();
+        let face = faces.get(index)?;
+        if let Some((size, scale)) = face.size.get()
+            && size == pixel_size
+        {
+            return scale;
+        }
+        let scale = unsafe { color::set_size(face.face, pixel_size) };
+        face.size.set(Some((pixel_size, scale)));
+        scale
+    }
+}
+
+impl GlyphRasterizer for Rasterizer {
+    fn rasterize(&self, key: GlyphId) -> Option<GlyphImage> {
+        let scale = self.sized(key.face, key.pixel_size)?;
+        let face = self.faces.borrow().get(key.face)?.face;
+        unsafe {
+            if ft::FT_Load_Glyph(face, key.glyph, ft::FT_LOAD_COLOR as i32) != 0 {
+                return None;
+            }
+            let slot = (*face).glyph;
+            if (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE {
+                let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
+                ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
+            }
+            if key.bold {
+                FT_GlyphSlot_Embolden(slot);
+            }
+            if key.italic {
+                FT_GlyphSlot_Oblique(slot);
+            }
+            if ft::FT_Render_Glyph(slot, ft::FT_Render_Mode::FT_RENDER_MODE_NORMAL) != 0 {
+                return None;
+            }
+            let bitmap = &(*slot).bitmap;
+            let (left, top) = ((*slot).bitmap_left, (*slot).bitmap_top);
+            if bitmap.pixel_mode == ft::FT_Pixel_Mode::FT_PIXEL_MODE_BGRA as u8 {
+                return Some(color::image(bitmap, left, top, scale));
+            }
+            Some(GlyphImage {
+                width: bitmap.width,
+                height: bitmap.rows,
+                left,
+                top,
+                pixels: pixels(bitmap),
+                color: false,
+            })
+        }
+    }
+}
+
+impl Drop for Rasterizer {
+    fn drop(&mut self) {
+        for face in self.faces.get_mut().drain(..) {
+            unsafe {
+                ft::FT_Done_Face(face.face);
+            }
+        }
+    }
+}
+
+fn ink_bounds(extents: [f32; 4], pixel_size: u32, shape: Shaping) -> [f32; 4] {
+    let [left, top, right, bottom] = extents;
+    let size = pixel_size as f32;
+    let bold = if shape.bold { size / 16.0 } else { 0.0 };
+    let lean = if shape.italic {
+        0.25 * top.abs().max(bottom.abs())
+    } else {
+        0.0
+    };
+    let hinting = 2.0 + size / 16.0;
+    let x = hinting + bold + lean;
+    let y = hinting + bold;
+    [left - x, top - y, right + x, bottom + y]
+}
+
 #[derive(Clone, Copy)]
 struct ShapedGlyph {
     face: usize,
     glyph: u32,
+    extents: Option<[f32; 4]>,
     cluster: usize,
     x_advance: f32,
     x_offset: f32,
     y_offset: f32,
+}
+
+fn extents(font: &HbFont<'static>, glyph: u32, pixel_size: u32) -> Option<[f32; 4]> {
+    let Some(extents) = font.get_glyph_extents(glyph) else {
+        let size = pixel_size as f32;
+        return Some([-size, -2.0 * size, 2.0 * size, size]);
+    };
+    if extents.width == 0 || extents.height == 0 {
+        return None;
+    }
+    let left = extents.x_bearing as f32 / 64.0;
+    let top = -extents.y_bearing as f32 / 64.0;
+    Some([
+        left,
+        top,
+        left + extents.width as f32 / 64.0,
+        top - extents.height as f32 / 64.0,
+    ])
 }
 
 impl Drop for FreetypeFonts {

@@ -102,9 +102,10 @@ pub fn LevelOsd(
                             level=LayerLevel::Top
                             traps_focus=false
                             open={open}
-                        >
-                            <OsdCard level opacity id />
-                        </Overlay>
+                            content={move || view! {
+                                <OsdCard level opacity id />
+                            }}
+                        />
                     }
                 }}
             </ForEach>

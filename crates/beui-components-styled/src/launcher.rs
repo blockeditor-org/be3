@@ -264,49 +264,50 @@ pub fn Launcher(
             scrim=SCRIM
             open
             on_dismiss={move |_: Dismiss| on_close.call()}
-        >
-            <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
-                <Frame
-                    max_width=WIDTH
-                    color={theme.surface_raised}
-                    outline={theme.border}
-                    outline_width=BORDER_WIDTH
-                    outline_visible=true
-                    radius=CARD_RADIUS
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                    @test_id={"launcher"}
-                >
-                    <List spacing=PADDING>
-                        <unstyled::TextInput
-                            @node_ref=&search
-                            @test_id={"launcher.search"}
-                            value={query}
-                            focused={searching}
-                            placeholder
-                            style={text_input_style()}
-                            accessibility
-                            content={|handle| view! {
-                                <LauncherSearch handle />
-                            }}
-                            on_change={move |text: String| state.set_query.set(text)}
-                            on_submit={move |_: String| state.submit()}
-                        />
-                        <unstyled::Scroll
-                            @sizing=ItemSize::Fixed(LIST_HEIGHT)
-                            reveal
-                            scrollbar={scrollbar_style()}
-                        >
-                            <ForEach keys={rows}>
-                                {move |row: Row| view! {
-                                    <LauncherRow state={state} items={items.clone()} row />
+            content={move || view! {
+                <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+                    <Frame
+                        max_width=WIDTH
+                        color={theme.surface_raised}
+                        outline={theme.border}
+                        outline_width=BORDER_WIDTH
+                        outline_visible=true
+                        radius=CARD_RADIUS
+                        padding_horizontal=PADDING
+                        padding_vertical=PADDING
+                        @test_id={"launcher"}
+                    >
+                        <List spacing=PADDING>
+                            <unstyled::TextInput
+                                @node_ref=&search
+                                @test_id={"launcher.search"}
+                                value={query}
+                                focused={searching}
+                                placeholder
+                                style={text_input_style()}
+                                accessibility
+                                content={|handle| view! {
+                                    <LauncherSearch handle />
                                 }}
-                            </ForEach>
-                        </unstyled::Scroll>
-                    </List>
+                                on_change={move |text: String| state.set_query.set(text)}
+                                on_submit={move |_: String| state.submit()}
+                            />
+                            <unstyled::Scroll
+                                @sizing=ItemSize::Fixed(LIST_HEIGHT)
+                                reveal
+                                scrollbar={scrollbar_style()}
+                            >
+                                <ForEach keys={rows}>
+                                    {move |row: Row| view! {
+                                        <LauncherRow state={state} items={items.clone()} row />
+                                    }}
+                                </ForEach>
+                            </unstyled::Scroll>
+                        </List>
+                    </Frame>
                 </Frame>
-            </Frame>
-        </Overlay>
+            }}
+        />
     }
 }
 
