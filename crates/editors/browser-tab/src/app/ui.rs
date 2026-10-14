@@ -1,7 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
 use block_editor_beui::beui::reactive::{
-    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, clone, component, create_memo,
+    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, component, create_memo,
     view,
 };
 use block_editor_beui::beui::styled::{
@@ -25,25 +25,25 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let reason = create_memo(move || error.get().unwrap_or_default());
     let page = create_memo(move || (!failed.get()).then_some(SubregionContent::WebView(PAGE)));
 
-    let go_back = clone!(session -> move || {
+    let go_back = move || {
         if let Some(index) = back.get_untracked() {
             session.go(index);
         }
-    });
-    let go_forward = clone!(session -> move || {
+    };
+    let go_forward = move || {
         if let Some(index) = forward.get_untracked() {
             session.go(index);
         }
-    });
-    let reload = clone!(session -> move || session.reload());
-    let typed = clone!(session -> move |value: String| session.set_address(value));
-    let submit = clone!(session -> move |value: String| session.navigate(&value));
-    let navigate = clone!(session -> move || session.navigate(&address.get_untracked()));
-    let focus_app = clone!(session -> move |focused: bool| {
+    };
+    let reload = move || session.reload();
+    let typed = move |value: String| session.set_address(value);
+    let submit = move |value: String| session.navigate(&value);
+    let navigate = move || session.navigate(&address.get_untracked());
+    let focus_app = move |focused: bool| {
         if focused {
             session.focus_app();
         }
-    });
+    };
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
