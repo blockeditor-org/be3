@@ -1,15 +1,13 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::database::DatabaseContent;
 use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_beui::beui::reactive::{
-    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone, component,
-    create_effect, create_memo, view,
+    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, component,
+    create_effect, create_memo, store, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, Scroll, use_theme};
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockInfo, BlockQuery};
+use block_editor_beui::{BlockInfo, BlockList, BlockQuery};
 use block_editor_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
 use uuid::Uuid;
 
@@ -142,11 +140,11 @@ fn watch_views(editor: Editor) -> Views {
     let references = editor
         .blocks()
         .watch(BlockQuery::Backrefs(editor.block_id()));
-    let references = Rc::new(references);
-    let loaded = create_memo(clone!(references -> move || references.is_loaded()));
+    let references = store(references);
+    let loaded = create_memo(move || references.with(BlockList::is_loaded));
     let rows = create_memo(move || {
         references
-            .read()
+            .with(BlockList::read)
             .into_iter()
             .filter(|reference| reference.block_type == DatabaseViewContent::CONTENT_TYPE)
             .collect()

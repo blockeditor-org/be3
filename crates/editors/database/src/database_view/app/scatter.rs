@@ -2,7 +2,7 @@ use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
 use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo,
-    ReadSignal, Show, clone, component, create_memo, view,
+    ReadSignal, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::{NodeId, Pos2, TextAlign, Vec2};
@@ -29,7 +29,7 @@ struct Point {
 
 #[component]
 pub fn Scatter(data: Data) -> NodeId {
-    let axes = axis_fields(&data);
+    let axes = axis_fields(data);
     let missing = create_memo(move || axes.get().is_none());
     let ready = create_memo(move || axes.get().is_some());
     let theme = use_theme();
@@ -42,7 +42,7 @@ pub fn Scatter(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Plot @sizing=ItemSize::Percent(100.0) data={data.clone()} axes={axes} />
+                    <Plot @sizing=ItemSize::Percent(100.0) data={data} axes={axes} />
                 </Show>
             </List>
         </Frame>
@@ -54,17 +54,17 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let bounds = create_memo(clone!(data -> move || {
+                let bounds = create_memo(move || {
                     let (x_field, y_field) = axes.get()?;
-                    plot_bounds(&shown_rows(&data), x_field.id, y_field.id)
-                }));
-                let placed = create_memo(clone!(data -> move || {
+                    plot_bounds(&shown_rows(data), x_field.id, y_field.id)
+                });
+                let placed = create_memo(move || {
                     let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
                         return Vec::new();
                     };
                     let area = size.get();
-                    place_points(&shown_rows(&data), x_field.id, y_field.id, bounds, plot_area(area))
-                }));
+                    place_points(&shown_rows(data), x_field.id, y_field.id, bounds, plot_area(area))
+                });
                 let keys = create_memo(move || {
                     placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
                 });
@@ -96,13 +96,13 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                 let x_label_y = create_memo(move || rule_top.get() + LABEL_HEIGHT);
                 let value_y = create_memo(move || rule_top.get() + 2.0);
                 let y_low_y = create_memo(move || rule_top.get() - LABEL_HEIGHT);
-                let pick = clone!(data -> move |at: Pos2| {
+                let pick = move |at: Pos2| {
                     let chosen = placed.with_untracked(|placed| nearest(placed, at));
                     match chosen {
                         Some(row) => data.select(row, None),
                         None => data.deselect(),
                     }
-                });
+                };
                 let theme = use_theme();
                 let axis_color = theme.border;
                 let rule_color = theme.border;
@@ -149,7 +149,6 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                             <ForEach keys={keys}>
                                 {move |row: usize| {
                                     let placed = placed;
-                                    let data = data.clone();
                                     view! {
                                         <Dot placed={placed} data={data} row={row} />
                                     }
@@ -173,9 +172,9 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     let point = create_memo(move || {
         placed.with(|placed| placed.iter().find(|point| point.row == row).copied())
     });
-    let selected = create_memo(clone!(data -> move || {
+    let selected = create_memo(move || {
         data.selected.get().is_some_and(|selection| selection.row == row)
-    }));
+    });
     let side = create_memo(move || match selected.get() {
         true => SELECTED_POINT,
         false => POINT,
@@ -196,7 +195,7 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     }
 }
 
-pub fn axis_fields(data: &Data) -> Memo<Option<(DatabaseField, DatabaseField)>> {
+pub fn axis_fields(data: Data) -> Memo<Option<(DatabaseField, DatabaseField)>> {
     let fields = data.fields;
     let x = data.scatter_x;
     let y = data.scatter_y;
@@ -300,7 +299,7 @@ fn format_axis_value(value: f64) -> String {
     }
 }
 
-fn shown_rows(data: &Data) -> Vec<DatabaseRow> {
+fn shown_rows(data: Data) -> Vec<DatabaseRow> {
     data.rows.with(|rows| {
         rows.iter()
             .map(|row| match data.shows(row) {

@@ -9,7 +9,7 @@ use block_editor_beui::be_block::database_view::{DatabaseView, FilterCondition, 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CLOSE, ICON_FILTER_LIST};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::popover::PopoverPanel;
@@ -194,16 +194,14 @@ fn values_of(condition: &FilterCondition) -> Vec<DatabaseValue> {
 
 #[component]
 pub fn FilterBar(data: Data) -> NodeId {
-    let keys = create_memo(clone!(data -> move || {
+    let keys = create_memo(move || {
         data.filter_items
             .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
-    }));
-    let chips = data.clone();
+    });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
             <ForEach keys={keys}>
                 {move |id: ObjectId| {
-                    let data = chips.clone();
                     view! {
                         <FilterChip data={data} id={id} />
                     }
@@ -216,7 +214,7 @@ pub fn FilterBar(data: Data) -> NodeId {
 
 #[component]
 fn FilterChip(data: Data, id: ObjectId) -> NodeId {
-    let text = create_memo(clone!(data -> move || {
+    let text = create_memo(move || {
         let filter = data.filter_items.with(|items| {
             items.iter().find(|(held, _)| *held == id).map(|(_, filter)| filter.clone())
         });
@@ -225,9 +223,8 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
         };
         data.fields
             .with(|fields| data.labels.with(|labels| summary(&filter, fields, labels)))
-    }));
-    let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
-    let editor = data.clone();
+    });
+    let remove = move || data.operate_view(DatabaseView::remove_filter(id));
     let read_only = data.read_only;
     let theme = use_theme();
     let label = text;
@@ -253,7 +250,6 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                     }}
                 >
                     {move |_: PopoverHandle| {
-                        let data = editor.clone();
                         view! {
                             <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
                                 <FilterEditor data={data} id={id} />
@@ -286,8 +282,6 @@ fn AddFilter(data: Data) -> NodeId {
             set_adding.set(None);
         }
     };
-    let picks = data.clone();
-    let edits = data.clone();
     let read_only = data.read_only;
     view! {
         <unstyled::Popover
@@ -309,25 +303,22 @@ fn AddFilter(data: Data) -> NodeId {
             }}
         >
             {move |_: PopoverHandle| {
-                let picks = picks.clone();
-                let edits = edits.clone();
                 let set_adding = set_adding;
                 let editing = editing;
                 view! {
                     <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
                         <List spacing=0.0>
                             <Show condition={choosing}>
-                                {move || clone!(picks -> view! {
+                                {move || view! {
                                     <FieldChoices
-                                        data={picks}
+                                        data={data}
                                         on_pick={move |id: ObjectId| set_adding.set(Some(id))}
                                     />
-                                })}
+                                }}
                             </Show>
                             <Show condition={has_editing}>
                                 {move || {
                                     let id = editing.get_untracked();
-                                    let data = edits.clone();
                                     match id {
                                         Some(id) => view! {
                                             <FilterEditor data={data} id={id} />
@@ -351,7 +342,7 @@ fn FieldChoices(
     data: Data,
     on_pick: block_editor_beui::beui::reactive::Callback<ObjectId>,
 ) -> NodeId {
-    let keys = create_memo(clone!(data -> move || {
+    let keys = create_memo(move || {
         data.fields.with(|fields| {
             fields
                 .iter()
@@ -359,22 +350,21 @@ fn FieldChoices(
                 .map(|field| field.id)
                 .collect::<Vec<Uuid>>()
         })
-    }));
+    });
     view! {
         <List spacing=2.0>
             <Caption content="Filter by" />
             <ForEach keys={keys}>
                 {move |field: Uuid| {
-                    let data = data.clone();
                     let on_pick = on_pick;
-                    let name = create_memo(clone!(data -> move || {
+                    let name = create_memo(move || {
                         data.fields.with(|fields| {
                             fields
                                 .iter()
                                 .find(|known| known.id == field)
                                 .map_or_else(String::new, |known| known.name.clone())
                         })
-                    }));
+                    });
                     let pick = move || {
                         let Some(known) = data.fields.with_untracked(|fields| {
                             fields.iter().find(|known| known.id == field).cloned()
@@ -409,7 +399,7 @@ fn FieldChoices(
 
 #[component]
 pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
-    let filter = create_memo(clone!(data -> move || {
+    let filter = create_memo(move || {
         data.filter_items.with(|items| {
             items
                 .iter()
@@ -417,12 +407,12 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                 .map(|(_, filter)| filter.clone())
                 .unwrap_or_default()
         })
-    }));
-    let field = create_memo(clone!(data -> move || {
+    });
+    let field = create_memo(move || {
         let chosen = filter.with(|filter| filter.field)?;
         data.fields
             .with(|fields| fields.iter().find(|field| field.id == chosen).cloned())
-    }));
+    });
     let name = create_memo(move || {
         field.with(|field| {
             field
@@ -439,7 +429,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         kinds.with(|kinds| kinds.iter().position(|held| *held == kind))
     });
     let kind_keys = create_memo(move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>());
-    let recondition = clone!(data -> move |index: Option<usize>| {
+    let recondition = move |index: Option<usize>| {
         let Some(kind) = index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied())) else {
             return;
         };
@@ -449,7 +439,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         let current = filter.get_untracked().condition;
         let next = data.labels.with_untracked(|labels| converted(kind, &current, &field, labels));
         data.operate_view(DatabaseView::set_filter_condition(id, &next));
-    });
+    };
     let choosing = create_memo(move || matches!(kind.get(), Kind::AnyOf | Kind::NoneOf));
     let comparing = create_memo(move || matches!(kind.get(), Kind::Is | Kind::IsNot));
     let searching = create_memo(move || kind.get() == Kind::Contains);
@@ -457,9 +447,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         FilterCondition::Contains(text) => text,
         _ => String::new(),
     });
-    let searched_for = clone!(data -> move |text: String| {
+    let searched_for = move |text: String| {
         data.operate_view(DatabaseView::set_filter_condition(id, &FilterCondition::Contains(text)));
-    });
+    };
     let value_fields = create_memo(move || field.get().into_iter().collect::<Vec<_>>());
     let values = create_memo(move || {
         let filter = filter.get();
@@ -470,7 +460,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
             _ => BTreeMap::new(),
         }
     });
-    let revalue = clone!(data -> move |change: DatabaseValueChange| {
+    let revalue = move |change: DatabaseValueChange| {
         let Some(value) = change.value else {
             return;
         };
@@ -479,11 +469,10 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
             _ => FilterCondition::Is(value),
         };
         data.operate_view(DatabaseView::set_filter_condition(id, &next));
-    });
+    };
     let picked = |_: DatabaseBlockPickRequest| {};
     let (condition_off, value_off, text_off) = (data.read_only, data.read_only, data.read_only);
     let labels = data.labels;
-    let choices = data.clone();
     let choice_filter = filter;
     let choice_field = field;
     let condition_names = kinds;
@@ -517,14 +506,14 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                     </Frame>
                 </List>
                 <Show condition={choosing}>
-                    {move || clone!(choices -> view! {
+                    {move || view! {
                         <ValueChoices
-                            data={choices}
+                            data={data}
                             id={id}
                             filter={choice_filter}
                             field={choice_field}
                         />
-                    })}
+                    }}
                 </Show>
                 <Show condition={comparing}>
                     <DatabaseValueEditor
@@ -534,7 +523,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         disabled={value_off}
                         prefix={format!("database-view.filter.{}", id.as_uuid())}
                         headings=false
-                        on_change={revalue.clone()}
+                        on_change={revalue}
                         on_pick={picked}
                     />
                 </Show>
@@ -545,7 +534,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         disabled={text_off}
                         focused=true
                         @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
-                        on_change={searched_for.clone()}
+                        on_change={searched_for}
                     />
                 </Show>
             </List>
@@ -569,7 +558,7 @@ fn ValueChoices(
     field: Memo<Option<DatabaseField>>,
 ) -> NodeId {
     let (query, set_query) = create_signal(String::new());
-    let choices = create_memo(clone!(data -> move || {
+    let choices = create_memo(move || {
         let Some(field) = field.get() else {
             return Vec::new();
         };
@@ -631,7 +620,7 @@ fn ValueChoices(
                 })
             })
         })
-    }));
+    });
     let many = create_memo(move || {
         field.with(|field| {
             field
@@ -657,7 +646,6 @@ fn ValueChoices(
                 <List spacing=2.0>
                     <ForEach keys={keys}>
                         {move |index: usize| {
-                            let data = data.clone();
                             let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
                             let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
                             let count = create_memo(move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string());
@@ -717,21 +705,20 @@ fn ValueChoices(
 
 #[component]
 pub fn FilterList(data: Data) -> NodeId {
-    let keys = create_memo(clone!(data -> move || {
+    let keys = create_memo(move || {
         data.filter_items
             .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
-    }));
+    });
     let none = create_memo(move || keys.with(Vec::is_empty));
     let names = data.fields;
     let field_keys =
         create_memo(move || names.with(|fields| (0..fields.len()).collect::<Vec<usize>>()));
-    let add = clone!(data -> move |index: Option<usize>| {
+    let add = move |index: Option<usize>| {
         let Some(field) = index.and_then(|index| data.fields.with_untracked(|fields| fields.get(index).cloned())) else {
             return;
         };
         data.operate_view(DatabaseView::add_filter(Some(field.id), starting_condition(&field)).1);
-    });
-    let editors = data.clone();
+    };
     let read_only = data.read_only;
     view! {
         <List spacing={SPACING * 2.0}>
@@ -740,8 +727,7 @@ pub fn FilterList(data: Data) -> NodeId {
             </Show>
             <ForEach keys={keys}>
                 {move |id: ObjectId| {
-                    let data = editors.clone();
-                    let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
+                    let remove = move || data.operate_view(DatabaseView::remove_filter(id));
                     let read_only = data.read_only;
                     view! {
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>

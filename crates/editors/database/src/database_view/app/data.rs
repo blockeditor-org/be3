@@ -18,7 +18,7 @@ use block_editor_beui::be_block::database_view::{
 };
 use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::beui::reactive::{
-    Memo, WriteSignal, create_effect, create_memo, create_signal,
+    Memo, Stored, WriteSignal, create_effect, create_memo, create_signal, store,
 };
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
@@ -29,7 +29,7 @@ use uuid::Uuid;
 use crate::database_view::groups::{Group, GroupKey, group_rows, matches_search};
 use crate::database_view::sort::BlockLabels;
 
-pub type Data = Rc<ViewData>;
+pub type Data = ViewData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Selection {
@@ -37,9 +37,10 @@ pub struct Selection {
     pub field: Option<Uuid>,
 }
 
+#[derive(Clone, Copy)]
 pub struct ViewData {
     editor: Editor,
-    view: Rc<ContentProjection<DatabaseViewContent>>,
+    view: Stored<Rc<ContentProjection<DatabaseViewContent>>>,
     database: RelatedContent<DatabaseContent>,
     set_selected: WriteSignal<Option<Selection>>,
     set_error: WriteSignal<Option<String>>,
@@ -204,9 +205,9 @@ impl ViewData {
             })
         });
 
-        Rc::new(Self {
+        Self {
             editor,
-            view,
+            view: store(view),
             database,
             set_selected,
             set_error,
@@ -239,7 +240,7 @@ impl ViewData {
             selected: create_memo(move || selected.get()),
             error: create_memo(move || error.get()),
             read_only: editor.read_only(),
-        })
+        }
     }
 
     pub fn editor(&self) -> Editor {
@@ -290,7 +291,7 @@ impl ViewData {
     }
 
     pub fn operate_view(&self, edit: Edit) {
-        self.view.operate(edit);
+        self.view.with(|view| view.operate(edit));
     }
 
     pub fn shows(&self, row: &DatabaseRow) -> bool {
