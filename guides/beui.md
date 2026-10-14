@@ -306,8 +306,8 @@ hooks the higher crates fill in:
   The focus says what it takes: an `Interactive`'s `pastes` lists the
   `PasteKind`s (text, image) in the order it prefers them, and one with only
   `on_text` takes text. `request_paste` (a Paste menu) and Ctrl+V, which the
-  document turns into a paste whether the focus handles the key or forwards
-  it, ask `Platform::paste` once a frame for the first of those kinds the
+  document turns into a paste when nothing on the key's way took it or the
+  focus forwards it, ask `Platform::paste` once a frame for the first of those kinds the
   clipboard holds, and its answer arrives at the focus as `Event::Paste`
   (`Pasted::Text`, or `Pasted::Image` as a PNG `PickedFile`), handed to
   `on_paste`, or a text paste to `on_text` without one. A platform that

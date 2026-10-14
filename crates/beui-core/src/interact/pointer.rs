@@ -435,12 +435,14 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         }
         _ => None,
     };
-    let sink = kind.held_sink(doc, event.pointer).or_else(|| match claimant {
-        Some(claimant) => interactive(doc, claimant)
-            .is_some_and(InteractiveNode::forwards)
-            .then_some(claimant),
-        None => hit::sink(doc, frame.rects, &hit.path, pos),
-    });
+    let sink = kind
+        .held_sink(doc, event.pointer)
+        .or_else(|| match claimant {
+            Some(claimant) => interactive(doc, claimant)
+                .is_some_and(InteractiveNode::forwards)
+                .then_some(claimant),
+            None => hit::sink(doc, frame.rects, &hit.path, pos),
+        });
     doc.pointers.route(sink);
     let mut session = Session {
         pointer: event.pointer,

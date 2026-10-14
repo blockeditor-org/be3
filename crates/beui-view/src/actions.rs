@@ -434,7 +434,10 @@ pub fn action_scope(node: &NodeRef) -> ActionScope {
         crate::reactive::on_key(KeyAt::Node(*node), phase, move |event| {
             listening.upgrade().is_some_and(|scope| {
                 let actions = scope.actions.borrow().clone();
-                run_matching(actions.iter().filter(|action| action.rooted(event.phase)), event)
+                run_matching(
+                    actions.iter().filter(|action| action.rooted(event.phase)),
+                    event,
+                )
             })
         });
     }
@@ -538,7 +541,10 @@ impl Registry {
                 actions.extend(scope.actions.borrow().iter().cloned());
             }
         }
-        run_matching(actions.iter().filter(|action| action.rooted(event.phase)), event)
+        run_matching(
+            actions.iter().filter(|action| action.rooted(event.phase)),
+            event,
+        )
     }
 
     fn outer_key(&self, at: &KeyAt, event: KeyEvent) -> bool {
