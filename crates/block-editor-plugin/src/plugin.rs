@@ -103,11 +103,13 @@ pub struct Frame {
     pub claims: Vec<Claim>,
     pub window: WindowRequests,
     pub description: Option<Description>,
+    pub stopped: Option<block_plugin_api::Stopped>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowRequests {
     pub cursor: CursorIcon,
+    pub pointer_locked: bool,
     pub ime: Option<Ime>,
     pub handles_back: bool,
     pub wants_keyboard: bool,

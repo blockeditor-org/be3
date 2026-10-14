@@ -984,13 +984,13 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     character: jint,
 ) -> jboolean {
     let key = key(code);
-    let text = u32::try_from(character)
+    let character = u32::try_from(character)
         .ok()
         .filter(|character| *character > 0)
-        .and_then(char::from_u32)
-        .filter(|character| !character.is_control())
-        .map(String::from);
-    let handled = key.is_some() || text.is_some() || is_modifier(code);
+        .and_then(char::from_u32);
+    let types = character.is_some_and(|character| !character.is_control());
+    let handled = key.is_some() || types || is_modifier(code);
+    let text = character.map(String::from);
     if handled {
         send(Message::Key {
             key,

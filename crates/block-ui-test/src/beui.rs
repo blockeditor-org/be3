@@ -1033,20 +1033,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         .pop()
     }
 
-    pub fn take_cursor_grab(&mut self) -> Option<bool> {
-        self.take_where(|message| match message {
-            EditorMessage::GrabCursor { grabbed, .. } => Some(*grabbed),
-            _ => None,
-        })
-        .pop()
-    }
-
     pub fn pointer_locked(&self) -> bool {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .window
-            .pointer_locked
+        self.window.pointer_locked
     }
 
     pub fn pointer_motion(&mut self, delta: Vec2) {

@@ -433,8 +433,6 @@ pub struct EditorHost {
     audio_status: Rc<RefCell<AudioStatus>>,
     web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
-    cursor_grabbed: Rc<Cell<bool>>,
-    cursor_grab_changed: Rc<Cell<bool>>,
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
@@ -1305,22 +1303,6 @@ impl EditorHost {
 
     pub fn take_frame_request(&self) -> Option<Duration> {
         self.next_frame.take()
-    }
-
-    pub fn grab_cursor(&self, grabbed: bool) {
-        if self.cursor_grabbed.replace(grabbed) != grabbed {
-            self.cursor_grab_changed.set(true);
-        }
-    }
-
-    pub fn cursor_grabbed(&self) -> bool {
-        self.cursor_grabbed.get()
-    }
-
-    pub fn take_cursor_grab(&self) -> Option<bool> {
-        self.cursor_grab_changed
-            .replace(false)
-            .then(|| self.cursor_grabbed.get())
     }
 
     pub fn chrome_shown(&self) -> bool {

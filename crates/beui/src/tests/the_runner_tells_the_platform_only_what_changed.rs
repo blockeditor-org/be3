@@ -51,12 +51,8 @@ impl Platform for Recording {
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         if window.cursor != shown.cursor {
-            self.0.update(|log| {
-                log.push(format!(
-                    "cursor {:?} {}",
-                    window.cursor, window.touch_emulation
-                ))
-            });
+            self.0
+                .update(|log| log.push(format!("cursor {:?}", window.cursor)));
         }
     }
 }
@@ -113,7 +109,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
         .expect("a loaded runner draws");
     assert_eq!(
         log.update(std::mem::take),
-        ["copy copied", "paste [Text]", "cursor Text false"]
+        ["copy copied", "paste [Text]", "cursor Text"]
     );
     assert!(frame.deferred, "the pasted text waits for the next frame");
 

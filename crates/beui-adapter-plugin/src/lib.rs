@@ -176,7 +176,13 @@ impl PluginSurface {
             self.runner.context().set_automated(true);
         }
         let Some(frame) = self.runner.frame(&mut self.platform, area) else {
-            return Frame::default();
+            return Frame {
+                stopped: self.runner.exited().then(|| match self.runner.failure() {
+                    Some(failure) => block_plugin_api::Stopped::Failed(failure.to_owned()),
+                    None => block_plugin_api::Stopped::Closed,
+                }),
+                ..Frame::default()
+            };
         };
         let description = region.describe.then(|| self.describe(region));
         frame_for(self.runner.window(), &frame, description)
@@ -256,10 +262,6 @@ impl PluginSurface {
         rect.scaled(context.pixels_per_point() / region.scale_factor)
     }
 
-    pub fn pointer_locked(&self) -> bool {
-        self.runner.window().pointer_locked
-    }
-
     pub fn take_output(&mut self) -> Option<FrameOutput> {
         self.runner.take_output()
     }
@@ -285,10 +287,8 @@ fn frame_for(
         floating: Vec::new(),
         claims: Vec::new(),
         window: block_editor_plugin::WindowRequests {
-            cursor: match window.touch_emulation {
-                true => block_plugin_api::CursorIcon::Crosshair,
-                false => beui_plugin_input::protocol_cursor(window.cursor),
-            },
+            cursor: beui_plugin_input::protocol_cursor(window.cursor),
+            pointer_locked: window.pointer_locked,
             ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
                 rect: area.rect,
                 cursor: area.cursor,
@@ -312,6 +312,7 @@ fn frame_for(
                 .collect(),
         },
         description,
+        stopped: None,
     }
 }
 

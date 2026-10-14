@@ -1695,7 +1695,6 @@ pub(crate) struct RegionView {
     pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) pastes: Vec<beui::PasteKind>,
-    pub(crate) grabbed: bool,
 }
 
 impl RegionView {
@@ -1719,7 +1718,6 @@ impl RegionView {
             wants_keyboard: false,
             intercepted_keys: Vec::new(),
             pastes: Vec::new(),
-            grabbed: false,
         }
     }
 
@@ -1800,6 +1798,15 @@ fn placed_view(
     region: EditorRegion,
 ) -> RegionView {
     {
+        if let Some(stopped) = runtime.instances.stopped(instance, region) {
+            let error = match stopped {
+                block_plugin_api::Stopped::Closed => "The editor closed".to_owned(),
+                block_plugin_api::Stopped::Failed(failure) => {
+                    format!("The editor stopped after a panic: {failure}")
+                }
+            };
+            return RegionView::failed(error, true);
+        }
         let Some(placement) = runtime.instances.placement(instance, region) else {
             return RegionView::waiting();
         };
@@ -1911,7 +1918,6 @@ fn placed_view(
                         .collect()
                 })
                 .unwrap_or_default(),
-            grabbed: runtime.instances.grabbing(),
         }
     }
 }

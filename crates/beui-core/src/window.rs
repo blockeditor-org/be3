@@ -4,20 +4,20 @@ use crate::input::{CursorIcon, ImeArea, KeyChord};
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowState {
     pub cursor: CursorIcon,
-    pub touch_emulation: bool,
     pub pointer_locked: bool,
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub paste_kinds: Vec<PasteKind>,
     pub ime: Option<ImeArea>,
+    pub typed: u64,
 }
 
 impl WindowState {
-    pub(crate) fn begin_frame(&mut self) {
+    pub(crate) fn begin_frame(&mut self, typed: bool) {
         *self = Self {
             pointer_locked: self.pointer_locked,
-            touch_emulation: self.touch_emulation,
+            typed: self.typed.wrapping_add(u64::from(typed)),
             ..Self::default()
         };
     }

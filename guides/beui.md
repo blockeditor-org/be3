@@ -268,18 +268,21 @@ hooks the higher crates fill in:
   `beui_core::runner::Runner::frame`, shared by all of them: it runs the
   app, publishes accessibility, and tells the adapter's `Platform` (another
   trait object) what the app asked of the window. Everything the window
-  shows for the app is one `beui_core::window::WindowState` (the cursor and
-  touch emulation, pointer lock, back handling, wanting the keyboard,
-  intercepted keys, the paste kinds the focus takes, and the IME area), which
-  the `Context` fills during a frame and `FrameOutput::window` carries. The
-  runner hands it to `Platform::show_window` with the state it showed before,
-  only when they differ or the app was just given IME or text input, so an
-  adapter compares just the fields it uses; a new field is one more field
-  there and in the adapters that act on it. Typing moves the platform's own
-  copy of the field (the web's hidden textarea, Android's editable) even
-  when the app turns the text away or a composition ends with the field
-  unchanged, so that is when the web and Android adapters bring that copy
-  back to the app's text, comparing against what they last sent. The IME
+  shows for the app is one `beui_core::window::WindowState` (the cursor,
+  pointer lock, back handling, wanting the keyboard, intercepted keys, the
+  paste kinds the focus takes, the IME area, and `typed`), which the
+  `Context` fills during a frame and `FrameOutput::window` carries. While
+  `Context::touch_emulation` is on its cursor is `CursorIcon::Crosshair`
+  whatever the app asked, so every adapter shows the emulated finger the same
+  way. The runner hands it to `Platform::show_window` with the state it
+  showed before, only when they differ, so an adapter compares just the
+  fields it uses; a new field is one more field there and in the adapters
+  that act on it. Typing moves the platform's own copy of the field (the
+  web's hidden textarea, Android's editable) even when the app turns the
+  text away or a composition ends with the field unchanged, so `typed`
+  counts the frames that delivered IME or text input, and the change is
+  when the web and Android adapters bring that copy back to the app's
+  text, comparing against what they last sent. The IME
   area it hands over is in the window's own units (winit's logical pixels,
   CSS pixels, a plugin region's points: physical pixels over the platform's
   scale, so points times the zoom), and `Runner::window` is the state last
@@ -322,9 +325,15 @@ hooks the higher crates fill in:
   to the renderer loader the facade gives it.
 - An adapter only translates: it hands `Runner::push` a `runner::Input`, which
   is an `Event` with its positions and deltas in physical pixels, a
-  `Keystroke` (the key, its text and scancode, with no modifiers), or a
+  `Keystroke` (the key, its text and scancode, with no modifiers), a
   `ScrollDelta` in pixels, lines (`SCROLL_LINE` points) or pages
-  (`SCROLL_PAGE`). It may send `Event::Modifiers` on every event; the runner
+  (`SCROLL_PAGE`), or a `Pinch` (a Ctrl-wheel, as a `ScrollDelta`, which
+  becomes `Event::Zoom` at `PINCH_SPEED` per point). `Input::logical` wraps
+  any of them whose pixels are the window's logical ones (physical pixels
+  over the scale it last reported: the browser's CSS pixels), so the runner
+  converts them with the same scale the frame lays out at and no adapter
+  reads its scale at event time. Text is passed as the platform gives it;
+  the runner drops control characters. It may send `Event::Modifiers` on every event; the runner
   passes it on only when it changes. At the start of each frame the runner
   turns its input into points. It stamps keys, pointer buttons and
   intercepted keys with the modifiers held, and drops a held modifier's
@@ -342,10 +351,13 @@ hooks the higher crates fill in:
   Closing is the runner's: when the app calls `close_window` (or a driver's
   close is accepted) the runner exits after that frame and `frame` returns
   `None` with `Runner::exited` set, which every adapter answers by stopping
-  its loop (Android also finishes its activity; the web and plugin adapters
-  have nothing to close). An adapter whose window is closed from outside
-  calls `Runner::os_close`, which asks the app's `close_requested` and exits
-  if it agrees.
+  its loop (Android also finishes its activity, the web adapter closes the
+  tab where the browser lets a script, and a plugin region's `Frame` says
+  `stopped` from then on, `Stopped::Closed` or `Stopped::Failed`, which the
+  host shows in the region's place). An adapter whose window is closed from
+  outside calls `Runner::os_close`, which asks the app's `close_requested`
+  and exits if it agrees; the web adapter asks on `beforeunload`, and a
+  refusal is the browser's leave-the-page prompt.
   A panic out of the app's `update` stops the runner rather than unwinding
   through the event loop: the app hears `exiting`, `frame` returns `None` from
   then on, `Runner::failure` says why, and the adapter ends its loop and
@@ -1577,9 +1589,11 @@ itself go on to `on_key`, which is what a control that also walks with the
 keyboard binds.
 
 Beui does not hold the pointer itself - it asks. `Document::show` publishes the
-wish as `FrameOutput::pointer_locked`, and whoever is showing the document does
-it: the winit runner locks the cursor and hides it, and the plugin framework
-asks the host to (guides/adding_a_plugin_editor.md). What comes back is
+wish as `WindowState::pointer_locked`, and whoever is showing the document does
+it: the winit runner locks the cursor and hides it, and a plugin region passes
+it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). An
+adapter reads raw motion only while `Runner::window()`, the state it was
+shown, holds the pointer. What comes back is
 `Event::PointerMotion`, a delta with no position, which the document delivers to
 the focused node while the pointer is held and nowhere at all while it is not.
 So a control that is not the one holding the pointer never sees motion, and a

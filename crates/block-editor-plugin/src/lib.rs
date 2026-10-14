@@ -34,7 +34,7 @@ pub use block_plugin_api::{
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, Occluder, PlayerCommand, PointerButton,
     Power, PowerAction, PowerAvailability, ProgramAction, Programs, ResizeMode, ScreenLocked,
-    ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
+    ScreenPlacement, SettingsProgress, ShellDialog, Stopped, SurfaceRect, TemplateCategory,
     TemplateDescriptor, Toggled, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
     TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
     VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
