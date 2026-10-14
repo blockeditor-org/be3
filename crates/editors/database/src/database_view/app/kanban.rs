@@ -4,7 +4,8 @@ use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldT
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, VirtualList, component,
+    create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
@@ -25,6 +26,7 @@ const COLUMN_SPACING: f32 = 12.0;
 const CARD_SPACING: f32 = 8.0;
 const PADDING: f32 = 12.0;
 const DRAG_THRESHOLD: f32 = 6.0;
+const CARD_HEIGHT: f32 = 104.0;
 
 #[component]
 pub fn Kanban(data: Data) -> NodeId {
@@ -229,13 +231,21 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                     />
                                 </List>
                             </Frame>
-                            <ForEach keys={keys}>
-                                {move |row: usize| {
-                                    view! {
-                                        <KanbanCard data={data} row={row} />
-                                    }
-                                }}
-                            </ForEach>
+                            <Scroll @sizing=ItemSize::Percent(100.0)>
+                                <VirtualList
+                                    keys={keys}
+                                    item_size=CARD_HEIGHT
+                                    overscan=CARD_HEIGHT
+                                >
+                                    {move |row: usize| {
+                                        view! {
+                                            <Frame padding_bottom={Some(CARD_SPACING)}>
+                                                <KanbanCard data={data} row={row} />
+                                            </Frame>
+                                        }
+                                    }}
+                                </VirtualList>
+                            </Scroll>
                         </List>
                     </Frame>
                 }
@@ -333,9 +343,7 @@ fn CardLines(data: Data, row: usize) -> NodeId {
         <List spacing=6.0>
             <Text style=TextStyle::CAPTION string={code} />
             <Text string={title} wrap=true />
-            <List direction=Direction::Horizontal spacing=0.0 wrap=true>
-                <Parts parts={parts} keys={keys} />
-            </List>
+            <Parts parts={parts} keys={keys} wrap=true />
         </List>
     }
 }
