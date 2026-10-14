@@ -190,15 +190,28 @@ pub fn push_quads(
                 return;
             }
             for glyph in galley.glyphs() {
-                if glyph.image.width == 0 || glyph.image.height == 0 {
+                let [left, top, right, bottom] = glyph.bounds();
+                let near = [
+                    origin.x + left,
+                    origin.y + top,
+                    origin.x + right,
+                    origin.y + bottom,
+                ];
+                if skipped(damaged, turn.swept(near), clip) {
                     continue;
                 }
-                let min = origin + glyph.offset;
+                let (Some(image), Some(offset)) = (glyph.image(), glyph.offset()) else {
+                    continue;
+                };
+                if image.width == 0 || image.height == 0 {
+                    continue;
+                }
+                let min = origin + offset;
                 let rect = [
                     min.x,
                     min.y,
-                    min.x + glyph.image.width as f32,
-                    min.y + glyph.image.height as f32,
+                    min.x + image.width as f32,
+                    min.y + image.height as f32,
                 ];
                 if skipped(damaged, turn.swept(rect), clip) {
                     continue;

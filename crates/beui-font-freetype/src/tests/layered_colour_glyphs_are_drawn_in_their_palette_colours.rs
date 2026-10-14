@@ -20,7 +20,7 @@ fn layered_colour_glyphs_are_drawn_in_their_palette_colours() {
     let [glyph] = galley.glyphs() else {
         panic!("the emoji is drawn as one glyph");
     };
-    let image = &glyph.image;
+    let image = glyph.image().expect("the glyph rasterizes");
     assert!(
         image.color,
         "a glyph made of coloured layers is drawn in colour"
