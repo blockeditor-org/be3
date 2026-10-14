@@ -209,7 +209,7 @@ pub fn Select(
                 on_key={move |press: KeyPress| trigger_key(state, press)}
             />
             <Overlay
-                anchor={&state.trigger}
+                anchor={state.trigger}
                 placement=Placement::BelowStart
                 open={is_open}
                 on_dismiss={move |_: Dismiss| dismiss(state)}

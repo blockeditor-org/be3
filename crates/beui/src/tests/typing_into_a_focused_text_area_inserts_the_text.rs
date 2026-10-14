@@ -12,14 +12,14 @@ fn typing_into_a_focused_text_area_inserts_the_text() {
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"one")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
 
     harness.click(pos2(300.0, 16.0));
     harness.type_text(" two");

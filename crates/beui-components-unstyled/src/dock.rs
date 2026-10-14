@@ -1329,7 +1329,7 @@ fn DockStack(dock: State) -> NodeId {
             enabled={away}
             behind={move || {
                 let (dock, tabs, set_switching) =
-                    (homeward.clone(), tabs, set_switching);
+                    (homeward, tabs, set_switching);
                 view! {
                     <HomePreview dock tabs set_switching />
                 }
@@ -1452,10 +1452,10 @@ fn switcher_handle(
         tabs,
         card: Func::new(move |tab: TabId| {
             let (titled, pictured, picked, closed) = (
-                carded.clone(),
-                carded.clone(),
-                carded.clone(),
-                carded.clone(),
+                carded,
+                carded,
+                carded,
+                carded,
             );
             let set_switching = set_switching;
             DockSwitcherCardHandle {
@@ -1501,7 +1501,7 @@ fn DockTiles(dock: State) -> NodeId {
                 <List spacing=0.0>
                     <Dynamic value={main}>
                         {move |surface: SurfaceId| {
-                            let dock = panes.clone();
+                            let dock = panes;
                             view! {
                                 <DockTreeView
                                     dock
@@ -1513,7 +1513,7 @@ fn DockTiles(dock: State) -> NodeId {
                     </Dynamic>
                     <ForEach keys={windows}>
                         {move |surface: SurfaceId| {
-                            let dock = floating.clone();
+                            let dock = floating;
                             view! {
                                 <DockWindowView dock surface />
                             }
@@ -1636,7 +1636,7 @@ fn DockTreeView(
                             <Canvas @node_ref=&canvas>
                                 <ForEach keys={leaves}>
                                     {move |leaf: LeafId| {
-                                        let dock = panels.clone();
+                                        let dock = panels;
                                         let layout = panel_layout;
                                         let rect = create_memo(move || {
                                             layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
@@ -1655,7 +1655,7 @@ fn DockTreeView(
                                 </ForEach>
                                 <ForEach keys={splits}>
                                     {move |split: SplitId| {
-                                        let dock = splitters.clone();
+                                        let dock = splitters;
                                         let layout = splitter_layout;
                                         let rect = create_memo(move || {
                                             layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
@@ -1675,7 +1675,7 @@ fn DockTreeView(
                                 </ForEach>
                                 <Show condition={marked_surface.is_some()}>
                                     <DockDropMarker
-                                        dock={marked.clone()}
+                                        dock={marked}
                                         surface={marked_surface.unwrap_or_else(|| unreachable!())}
                                         origin={pane_origin}
                                     />
@@ -1769,7 +1769,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
             <List spacing=0.0>
                 <Dynamic value={vertical}>
                     {move |vertical: bool| {
-                        let dock = built.clone();
+                        let dock = built;
                         let bar = (!hoisted).then(|| DockBarHandle {
                             floating,
                             vertical,
@@ -1935,7 +1935,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 options={view! {
                     <ForEach keys={entries}>
                         {move |entry: Entry| {
-                            let dock = labels.clone();
+                            let dock = labels;
                             let label = create_memo(move || dock.entry_title(entry));
                             view! {
                                 <ChoiceOption label={label} />
@@ -1958,7 +1958,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 }}
             >
                 {move |handle: ChoiceOptionHandle| {
-                    let dock = faces.clone();
+                    let dock = faces;
                     let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
                     match entry {
                         Some(entry) => view! {
@@ -2575,7 +2575,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         <List spacing=0.0>
                                             <Dynamic value={vertical}>
                                                 {move |vertical: bool| {
-                                                    let dock = built.clone();
+                                                    let dock = built;
                                                     let toggled = dock;
                                                     let grip_face = dock.grip.call(DockGripHandle {
                                                         floating: true,
@@ -2661,7 +2661,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                     </CanvasItem>
                     <ForEach keys={GRIPS.to_vec()}>
                         {move |grip: Grip| {
-                            let dock = grips.clone();
+                            let dock = grips;
                             let size = size;
                             let rect = grip_rect;
                             let handle = create_memo(move || grip.rect(size.get()));

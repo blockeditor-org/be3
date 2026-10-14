@@ -1270,7 +1270,7 @@ pub fn TextArea(
                             }
                         });
                         set_component_state(Parts {
-                            cx: cx,
+                            cx,
                             shown,
                         });
                         let revealing = create_timer(move || {
@@ -1299,7 +1299,7 @@ pub fn TextArea(
                             inner,
                             surface_color,
                             set_field_rect,
-                            cx: cx,
+                            cx,
                             cursor,
                             set_cursor,
                             autoscroll,
@@ -1396,7 +1396,6 @@ pub fn TextArea(
                                     <Show condition={menu}>
                                         {move || {
                                             let menu = menu_render
-                                                .clone()
                                                 .expect("a completion menu is only shown when the area was given one");
                                             view! {
                                                 <Completions cx menu />

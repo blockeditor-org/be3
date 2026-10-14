@@ -12,14 +12,14 @@ fn escape_closes_the_emoji_menu_until_the_colon_is_typed_again() {
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let offered = |harness: &Harness| {
         harness
             .document()

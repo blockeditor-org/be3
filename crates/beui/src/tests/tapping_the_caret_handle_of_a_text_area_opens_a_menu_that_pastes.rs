@@ -14,14 +14,14 @@ fn tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes() {
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"Hello")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea @node_ref=&slot state={state} />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let root = area.get();
     let surface = text_area_surface(harness.document(), root);
     let canvas = harness.rect(state.canvas().get());

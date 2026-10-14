@@ -12,14 +12,14 @@ fn arrows_pick_which_emoji_the_menu_inserts() {
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let offered = search_emoji("smile");
     assert!(offered.len() > 2, "several emoji match \"smile\"");
     assert_eq!(offered[0].label, ":smile:", "an exact name comes first");

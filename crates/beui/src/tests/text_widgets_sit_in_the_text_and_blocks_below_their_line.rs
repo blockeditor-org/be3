@@ -20,7 +20,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
             let document =
                 Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
             let state = TextAreaState::new(document);
-            sink.replace(Some(state.clone()));
+            sink.replace(Some(state));
             let widgets = vec![
                 TextWidget {
                     range: 4..7,
@@ -52,7 +52,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let canvas = harness.rect(state.canvas().get());
     let layout = state.layout().get_untracked();
     let caret = |byte: usize| {

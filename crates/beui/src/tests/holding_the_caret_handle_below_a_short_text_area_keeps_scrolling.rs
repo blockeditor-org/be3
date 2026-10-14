@@ -19,7 +19,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
         let document =
             Arc::new(TextBuffer::new(lines.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <Frame height=120.0>
                 <TextArea @node_ref=&slot state={state} />
@@ -28,7 +28,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let surface = text_area_surface(harness.document(), area.get());
     let visible = harness.rect(surface);
     let start = pos2(visible.center().x, visible.top() + 16.0);

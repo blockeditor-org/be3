@@ -32,7 +32,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
             let document =
                 Arc::new(TextBuffer::new(text.as_bytes())) as Arc<dyn text_editor_core::Document>;
             let state = TextAreaState::new(document);
-            sink.replace(Some(state.clone()));
+            sink.replace(Some(state));
             view! {
                 <Frame @node_ref=&area width=500.0 height=300.0>
                     <TextArea state={state} />
@@ -42,7 +42,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let root = harness.document().root().expect("the document has a root");
     let built = built_lines(harness.document(), root).expect("the lines are a virtual list");
     assert!(

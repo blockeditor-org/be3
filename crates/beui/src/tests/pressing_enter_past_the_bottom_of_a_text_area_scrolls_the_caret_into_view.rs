@@ -15,7 +15,7 @@ fn pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view() {
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"top")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <Frame height=120.0>
                 <TextArea @node_ref=&slot state={state} />
@@ -24,7 +24,7 @@ fn pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let visible = harness.rect(area.get());
 
     harness.click(pos2(300.0, 16.0));

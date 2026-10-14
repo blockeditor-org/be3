@@ -38,9 +38,8 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     };
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
-    let control = control
-        .borrow()
-        .clone()
+    let control = (*control
+        .borrow())
         .expect("the tab's content has its control");
     let left = Rect::from_min_size(
         Pos2::ZERO,
@@ -48,7 +47,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     );
     let bar = harness.rect(harness.find("bar"));
 
-    let entering = control.clone();
+    let entering = control;
     with_reactive_scope(harness.document_mut(), move || {
         entering.enter_fullscreen(Some(left))
     });
@@ -72,7 +71,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     harness.frame(vec![Event::PointerMoved(pos2(10.0, bar.center().y))]);
     assert!(!hovered.get(), "inside it, nothing under the tab does");
 
-    let leaving = control.clone();
+    let leaving = control;
     with_reactive_scope(harness.document_mut(), move || leaving.leave_fullscreen());
     harness.settle();
     assert!(!control.fullscreen());

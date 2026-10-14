@@ -490,7 +490,7 @@ impl<K: DockKey> DockingLayout<K> {
                 }
                 let parent = self.mint(parent);
                 found.dialogs.push((dialog, parent));
-                found.parts.insert(dialog, parts.clone());
+                found.parts.insert(dialog, *parts);
             }
         }
         for node in nodes {

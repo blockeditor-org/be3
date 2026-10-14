@@ -12,14 +12,14 @@ fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile(
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"ab")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea state={state} single_line=true />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::End, Modifiers::NONE);
 

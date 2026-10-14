@@ -107,14 +107,14 @@ fn clicking_and_dragging_in_a_text_area_moves_the_caret_and_selects() {
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let second = TEXT.find("second").expect("the text has a second line");
     let third = TEXT.find("third").expect("the text has a third line");
 

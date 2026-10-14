@@ -298,7 +298,7 @@ fn FullscreenTab() -> NodeId {
         true => "Leave fullscreen".to_owned(),
         false => "Show this tab fullscreen".to_owned(),
     });
-    let leaving = control.clone();
+    let leaving = control;
     let escaping = shown;
     on_shortcut(move |press: beui::KeyPress| {
         let leave = press.pressed && press.key == beui::Key::Escape && escaping.get_untracked();

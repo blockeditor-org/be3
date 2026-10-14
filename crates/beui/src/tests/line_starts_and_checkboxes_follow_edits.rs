@@ -31,7 +31,7 @@ fn line_starts_and_checkboxes_follow_edits() {
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(text)) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <Frame width=400.0 height=300.0>
                 <TextArea state={state} />
@@ -40,7 +40,7 @@ fn line_starts_and_checkboxes_follow_edits() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
 
     let edits: [(usize, usize, &[u8]); 6] = [
         (6, 0, b"- [ ] new\n"),

@@ -22,7 +22,7 @@ fn measuring_after_an_edit_matches_measuring_afresh() {
         let document =
             Arc::new(TextBuffer::new(text().as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <Frame width=500.0 height=300.0>
                 <TextArea state={state} />
@@ -31,7 +31,7 @@ fn measuring_after_an_edit_matches_measuring_afresh() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         let before = state.measure(&[], 300.0).expect("the text was measured");

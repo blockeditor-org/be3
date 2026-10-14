@@ -13,16 +13,16 @@ fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
         let document = Arc::new(TextBuffer::new(b"one two one two one"))
             as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let status = |harness: &mut Harness| {
-        let state = state.clone();
+        let state = state;
         with_reactive_scope(harness.document_mut(), move || state.find_status())
     };
 

@@ -41,14 +41,14 @@ fn clicking_a_markdown_checkbox_in_a_text_area_toggles_it_without_moving_the_car
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
-        sink.replace(Some(state.clone()));
+        sink.replace(Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = (*held.borrow()).expect("the text area was built");
     let plain = TEXT.find("plain").expect("the text has a plain line") + 3;
     let marker = TEXT.find('[').expect("the text has a checkbox");
 
