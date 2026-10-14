@@ -228,7 +228,7 @@ fn route(doc: &Document, key: Key) -> Route {
             app,
         },
         nodes,
-        window: !layers.locks_window() || key.is_media(),
+        window: !layers.locked() || key.is_media(),
         inhibited,
     }
 }
@@ -477,7 +477,7 @@ fn from_app(doc: &mut Document, input: KeyInput) {
             app: true,
         },
         nodes: Vec::new(),
-        window: !doc.layers().locks_window() || media,
+        window: !doc.layers().locked() || media,
         inhibited: false,
     };
     let event = event_for(input, &route);

@@ -202,8 +202,8 @@ chord goes the same way as `InputEvent::InterceptedTap`, but only while the
 region does not have the keyboard itself, since it then hears the key and
 counts the tap on its own; the release still reaches whatever had the focus.
 
-A document with a layer open that traps focus or blocks everything
-(`Document::modal_open`, such as a dialog or the launcher) reports `WindowState::wants_keyboard`, which the
+A document with a layer open that traps focus
+(`Layers::takes_keyboard`, such as a dialog, a popover or the launcher) reports `WindowState::wants_keyboard`, which the
 runner hands to `Platform::show_window`. A plugin passes it on as
 `WindowRequests::wants_keyboard` (guides/adding_a_plugin_editor.md), and block-app's region then takes the focus from
 whatever had it (a program's window, another editor) and gives it back when

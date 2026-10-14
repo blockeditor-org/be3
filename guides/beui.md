@@ -590,7 +590,10 @@ is how a block editor puts an embedded block inside the text and drives the
 same document from a toolbar of its own. A `completer` names a trigger
 character and a search: typing it after a space opens the menu
 `completion_menu` draws under the caret, filtered by what follows it, with
-arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The state republishes
+arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The
+menu is a passing layer with an `on_dismiss`, so Escape, back and a press
+outside it all close it the same way, and the styled find bar holds a
+`BackHandler` while it is open, so back closes it as Escape does. The state republishes
 what it shows whenever one of its own commands runs; code that changes the
 document behind it - adopting an edit that arrived from someone else - calls
 `sync()`, or `external_edit()` when the edit should also break the undo group,
@@ -635,7 +638,8 @@ catcher that only watches presses over a whole region - a dock pane focusing
 itself - sets `claims_touch=false`, so landing on it is not a direct hit and the
 controls inside it keep their reach. A quick
 tap with two or more fingers that did not move is a finger tap, which
-`on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
+`on_finger_tap` hears the way `on_shortcut` hears keys, unless a layer that
+blocks everything is open; the editor frame's top
 bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
 bottom of a narrow screen. It scrolls what it holds itself, so what goes in it
 is not wrapped in a vertical `Scroll` (one inside would measure nothing tall): a
@@ -983,9 +987,14 @@ those that do not, and otherwise are ordered by when they were opened or raised
 (`Document::raise_overlay`), so raising a window never lifts it over a dialog;
 children sit above their parent and rise with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
 every layer of a lower level: `Top` for things that must float over every
-window, such as a drag preview or a volume OSD, and `Lock` for the lock screen.
+window and dialog, such as a drag preview, a volume OSD or `styled::Toasts` (so
+a toast stays readable and pressable while a dialog is open), and `Lock` for
+the lock screen.
 Opening a layer raises it and every layer it hangs in, so a menu opened in a
-window that was covered comes up with its window.
+window that was covered comes up with its window; an inert layer rises alone,
+so a tooltip shown over a covered window leaves the window where it was.
+`Document::layers()` is worked out once for each change to the tree or the
+layers and shared until the next, so asking for it again costs nothing.
 
 Each layer has one `policy` (`LayerPolicy`):
 
@@ -1027,7 +1036,9 @@ dismissed. There is one request for each reason, sent to one layer:
   outside a submenu closes the whole menu). A layer that blocks everything
   still lets the pointer reach the blocking layers it is nested in, so the
   rows of a menu stay hovered and pressable under its open submenu, and a
-  press on one closes the submenu. A mouse asks on the press; a finger
+  press on one closes the submenu. Which layers the pointer can reach is one
+  rule (`Layers::reachable`) that the hit test and the forwarding of input to
+  a forwarding catcher share. A mouse asks on the press; a finger
   on the tap, so a scroll that starts outside a layer leaves it open.
 
 Inside the layer it is sent to, a request goes to the most recently made
@@ -1082,7 +1093,7 @@ afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
 in both places. The stacked dock shows its home tab behind the tab it leaves
 this way. A back with no gesture before it (a key, Escape, a press outside)
-goes back at once. `styled::Dialog` and
+carries the page off from where it rests in the same slide-away. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
@@ -1133,7 +1144,9 @@ forwarding catcher like a plugin's region, so a press claimed over it never
 reaches the program. `on_press_outside` hears every primary press outside the
 `Interactive`'s visible rectangle, wherever it goes and whatever takes it, at
 the same moment and from the same place a press outside asks layers to close
-(a mouse's press, a finger's tap), which is how the host hands an embedded editor's active
+(a mouse's press, a finger's tap; one call, `Document::pressed_outside`, does
+both, and a long press counts as a secondary press, which asks the layers but
+not these), which is how the host hands an embedded editor's active
 child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
@@ -1316,9 +1329,15 @@ lasts, the dock opens an overlay in the middle of the document listing the
 tabs, each with its icon and title and the chosen one highlighted, drawn by the
 `switch` render prop (`DockSwitchHandle`, a row per tab whose `pick` commits
 that tab); nothing is shown until the switch is committed. A switch is not part
-of the saved layout. The dock binds no key to it: whoever binds it decides the
+of the saved layout. Escape cancels it, with whatever modifiers are held and
+wherever the focus is (a program's window included): the overlay holds no focus
+for Escape to find it by, so the dock listens for Escape at the window while it
+is open and asks the overlay to close (`Document::dismiss_overlay`), as a press
+outside or back does. A dock in a plugin only hears a key a program has the
+keyboard for when it intercepts the chord, so linux-desktop also registers
+Alt+Escape as an intercepting action that cancels. The dock binds no other key: whoever binds it decides the
 keys, usually a chord that begins or steps the switch while a modifier is held,
-`held_modifiers()` letting go of that modifier to commit, and Escape to cancel,
+and `held_modifiers()` letting go of that modifier to commit,
 as linux-desktop does with Alt+Tab and the demo with Alt+Q.
 
 Each surface - the main one and one per window - lays its tree out over the
@@ -1328,6 +1347,13 @@ calculation on its own, which is what the drop targets and the tests are
 resolved against. A window is a floating overlay, so it paints above the dock
 and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
+
+How the windows stack is the document's layer order alone (`Document::layers()`),
+not anything in `DockState`: a press on a window and the focus moving into one
+raise its layer, a fullscreen tab is raised again over it each time, and a drop
+target is looked for in the window whose layer is on top at the pointer, never
+in one covered there by a layer that is not the dock's (a menu, a dialog, the
+fullscreen tab).
 
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
 inserts it between the tabs there, the middle of a pane joins that pane, and an
@@ -1449,8 +1475,8 @@ One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `leave_fullscreen` from outside, or the `DockTabControl` that `use_dock_tab()`
 hands the tab's own content. The panel moves into a floating overlay over that
 area, wrapped in Docking's `fullscreen` render prop (styled: the theme's
-background), so it covers the tab bars, the other panes and anything else in the
-document there, and nothing under it hears the pointer, while the rest of the
+background), so it covers the tab bars, the other panes, the dock's windows
+(even one the focus moves into) and anything else in the document there, and nothing under it hears the pointer, while the rest of the
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.

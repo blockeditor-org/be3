@@ -2,6 +2,7 @@ use std::any::Any;
 
 use crate::base::focus::Focus;
 use crate::base::list::Direction;
+use crate::base::overlay::OverlayNode;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{
     AutoscrollGesture, CursorIcon, DragGesture, Modifiers, PointerPress, ScrollGesture,
@@ -497,7 +498,17 @@ impl Document {
             .on_press_outside = on_press_outside;
     }
 
-    pub(crate) fn pressed_outside(&mut self, rects: &Rects, pos: Pos2) {
+    pub(crate) fn pressed_outside(
+        &mut self,
+        rects: &Rects,
+        layers: &[NodeOf<OverlayNode>],
+        pos: Pos2,
+        primary: bool,
+    ) {
+        self.press_outside(layers);
+        if !primary {
+            return;
+        }
         let outside: Vec<Callback<Pos2>> = self
             .outside_watchers
             .iter()

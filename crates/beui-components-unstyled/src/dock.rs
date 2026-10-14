@@ -43,7 +43,7 @@ use beui_view::reactive::{
     Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
     ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, StoredCell, WriteSignal,
     component_accessibility, create_effect, create_memo, create_signal, create_timer, on_cleanup,
-    on_shortcut, owner_scope, provide_context, set_component_state, store, try_with_document,
+    on_shortcut, owner_scope, provide_context, set_component_state, store, try_with_document, untrack,
     use_context, with_document,
 };
 
@@ -382,6 +382,7 @@ struct State {
     rect: ReadSignal<Rect>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
+    fullscreen_layer: NodeRef,
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
     panels: Stored<RefCell<HashMap<TabId, (NodeId, Scope)>>>,
     owner: Stored<Option<ScopeContext>>,
@@ -538,6 +539,62 @@ impl State {
     fn pane_rect(&self, tree: Tree) -> Option<Rect> {
         let node = self.panes.get().borrow().get(&tree)?.try_get()?;
         with_document(|document| document.node_rect(node))
+    }
+
+    fn raise_window(&self, window: NodeRef) {
+        let Some(window) = window.try_get() else {
+            return;
+        };
+        let fullscreen = self.fullscreen_layer.try_get();
+        with_document(|document| {
+            document.raise_overlay(window);
+            if let Some(fullscreen) = fullscreen {
+                document.raise_overlay(fullscreen);
+            }
+        });
+    }
+
+    fn surface_node(&self, surface: SurfaceId) -> Option<NodeId> {
+        let window = self
+            .windows
+            .get()
+            .borrow()
+            .get(&surface)
+            .and_then(NodeRef::try_get);
+        window.or_else(|| {
+            self.panes
+                .get()
+                .borrow()
+                .get(&Tree::Surface(surface))?
+                .try_get()
+        })
+    }
+
+    fn surfaces_at(&self, state: &DockState, pos: Pos2) -> Vec<SurfaceId> {
+        with_document(|document| {
+            let layers = document.layers();
+            let mut placed: Vec<(usize, SurfaceId)> = state
+                .surfaces()
+                .into_iter()
+                .filter_map(|surface| {
+                    let node = self.surface_node(surface)?;
+                    Some((document.layer_of(&layers, node)?, surface))
+                })
+                .collect();
+            placed.sort_by_key(|(layer, _)| std::cmp::Reverse(*layer));
+            let foreign = (1..layers.len()).rev().find(|index| {
+                layers[*index].policy != LayerPolicy::Inert
+                    && !placed.iter().any(|(layer, _)| layer == index)
+                    && document
+                        .layer_cover(&layers[*index])
+                        .is_some_and(|cover| cover.contains(pos))
+            });
+            placed
+                .into_iter()
+                .filter(|(layer, _)| foreign.is_none_or(|foreign| *layer > foreign))
+                .map(|(_, surface)| surface)
+                .collect()
+        })
     }
 
     fn surface_rect(&self, surface: SurfaceId) -> Option<Rect> {
@@ -735,7 +792,7 @@ impl State {
     ) -> (Option<DockDrop>, Option<Rect>) {
         let state = self.state.get_untracked();
         if !float {
-            for surface in state.surfaces().into_iter().rev() {
+            for surface in self.surfaces_at(&state, pos) {
                 let Some(within) = self.surface_rect(surface) else {
                     continue;
                 };
@@ -1129,6 +1186,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 let dock = State {
                     state: current,
                     windows: store(RefCell::default()),
+                    fullscreen_layer: NodeRef::new(),
                     panels: store(RefCell::default()),
                     owner: store(owner_scope()),
                     set_state: set_current,
@@ -1281,7 +1339,14 @@ fn DockFullscreenView(dock: State) -> NodeId {
         <Portal node={panel} />
     });
     view! {
-        <Overlay anchor placement policy=LayerPolicy::Pass traps_focus=false open>
+        <Overlay
+            @node_ref={&dock.fullscreen_layer}
+            anchor
+            placement
+            policy=LayerPolicy::Pass
+            traps_focus=false
+            open
+        >
             <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
         </Overlay>
     }
@@ -2480,15 +2545,13 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let marker = dock;
     let grip_rect = placed;
     let overlay = NodeRef::new();
+    let raising = dock;
     create_effect(move || {
-        if !focused.get() {
-            return;
+        if focused.get() {
+            untrack(|| raising.raise_window(overlay));
         }
-        let Some(overlay) = overlay.try_get() else {
-            return;
-        };
-        with_document(|document| document.raise_overlay(overlay));
     });
+    let lifted = overlay;
     let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
     let bar_rect = placed;
     let pressed = dock;
@@ -2497,7 +2560,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let set_stretch = set_overshoot;
     let claimed = dock.drag_modifier;
     let resized = modifier_resize(dock, Resized::Window(surface));
-    view! {
+    let view = view! {
         <Overlay
             @node_ref=&overlay
             anchor={anchor}
@@ -2538,13 +2601,13 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     .and_then(|leaf| state.surface_of(leaf))
                                                     == Some(surface);
                                                 if inside && !titled {
-                                                    state.raise(surface);
                                                     return;
                                                 }
                                                 if let Some(leaf) = state.leaves(surface).first().copied() {
                                                     state.focus(leaf);
                                                 }
                                             });
+                                            pressed.raise_window(lifted);
                                             pressed.release_dialog_focus();
                                         }}
                                         on_drag={move |press: PointerPress| {
@@ -2687,7 +2750,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                 </Canvas>
             </Frame>
         </Overlay>
-    }
+    };
+    let opened = dock;
+    create_effect(move || untrack(|| opened.raise_window(overlay)));
+    view
 }
 
 fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {

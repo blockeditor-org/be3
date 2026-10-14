@@ -37,7 +37,6 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
     let layers = doc.layers();
     let mut outside = Vec::new();
     let mut blocking = false;
-    let mut chain: Option<usize> = None;
     let settle =
         |doc: &Document, at: usize, mut hit: Hit, mut outside: Vec<NodeOf<OverlayNode>>| {
             if let Some(blocker) = doc.in_blocked(&layers, at, hit.path.first().copied(), pos) {
@@ -57,24 +56,24 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
             continue;
         }
         if blocking {
-            if chain == Some(index) {
-                if index == 0 {
-                    break;
-                }
-                let inside = layer
-                    .content
-                    .and_then(|content| rects.visible(&content))
-                    .is_some_and(|rect| rect.contains_half_open(pos));
-                if inside && let Some(content) = layer.content {
-                    let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
-                    return settle(doc, index, hit, outside);
-                }
-                if !layer.blocks_all() {
-                    break;
-                }
-                outside.extend(layer.overlay.filter(|_| layer.dismissable));
-                chain = layer.parent;
+            if index == 0 {
+                break;
             }
+            if !layers.reachable(index) {
+                continue;
+            }
+            let inside = layer
+                .content
+                .and_then(|content| rects.visible(&content))
+                .is_some_and(|rect| rect.contains_half_open(pos));
+            if inside && let Some(content) = layer.content {
+                let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
+                return settle(doc, index, hit, outside);
+            }
+            if !layer.blocks_all() {
+                break;
+            }
+            outside.extend(layer.overlay.filter(|_| layer.dismissable));
             continue;
         }
         let Some(content) = (match index {
@@ -99,7 +98,6 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
             }
             outside.extend(layer.overlay.filter(|_| layer.dismissable));
             blocking = true;
-            chain = layer.parent;
             continue;
         }
         let walked = walk(doc, rects, content, pos);

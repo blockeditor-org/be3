@@ -60,7 +60,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
     );
 
     harness.key(Key::Escape, Modifiers::NONE);
-    harness.frame(Vec::new());
+    harness.settle();
     assert!(
         harness.document().focus_is_within(opener.get()),
         "closing it gives the focus back to the button that opened it"

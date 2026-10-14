@@ -68,10 +68,14 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     assert_eq!(harness.rect(page.get()), resting);
 
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(Vec::new());
     assert_eq!(
         depth.get_untracked(),
-        0,
-        "back with no gesture before it goes back at once"
+        1,
+        "back with no gesture before it plays the same slide-away"
     );
+    assert!(harness.rect(page.get()).left() > resting.left());
+    harness.settle();
+    assert_eq!(depth.get_untracked(), 0, "and goes back once it is gone");
     assert!(!harness.frame(Vec::new()).window.handles_back);
 }

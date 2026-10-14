@@ -1110,7 +1110,7 @@ impl Document {
         if self.handles_back() {
             ctx.handle_back();
         }
-        if self.modal_open() {
+        if self.layers().takes_keyboard() {
             ctx.want_keyboard();
         }
         self.intercepted_keys

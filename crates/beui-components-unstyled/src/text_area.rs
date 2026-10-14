@@ -32,6 +32,7 @@ use beui_core::file_picker::PickedFile;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
+use beui_core::layer::Dismiss;
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
@@ -163,6 +164,7 @@ struct Surface {
     highlighted: ReadSignal<usize>,
     set_highlighted: WriteSignal<usize>,
     set_dismissed: WriteSignal<Option<usize>>,
+    completion_layer: NodeRef,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_submit: ClickCallback,
@@ -386,7 +388,12 @@ impl Surface {
             Key::ArrowDown => self.set_highlighted.set((highlighted + 1) % count),
             Key::ArrowUp => self.set_highlighted.set((highlighted + count - 1) % count),
             Key::Enter | Key::Tab => self.complete(highlighted),
-            _ => self.dismiss(),
+            _ => match self.completion_layer.try_get() {
+                Some(layer) => {
+                    with_document(|document| document.dismiss_overlay(layer, Dismiss::Escape));
+                }
+                None => self.dismiss(),
+            },
         }
         true
     }
@@ -1211,6 +1218,7 @@ pub fn TextArea(
                             highlighted,
                             set_highlighted,
                             set_dismissed,
+                            completion_layer: NodeRef::new(),
                             on_widget_press,
                             on_menu,
                             on_submit,
