@@ -61,10 +61,25 @@ pub struct TemplateEntry {
     pub dialog: bool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct EditorEntry {
+    pub editor: Uuid,
+    pub block_type: Option<Uuid>,
+    pub name: String,
+    pub icon: Option<&'static str>,
+}
+
+impl EditorEntry {
+    pub fn edits(&self, block_type: Uuid) -> bool {
+        self.block_type.is_none_or(|edited| edited == block_type)
+    }
+}
+
 #[derive(Default)]
 pub struct BlockCatalog {
     types: HashMap<Uuid, BlockTypeEntry>,
     templates: Vec<TemplateEntry>,
+    editors: Vec<EditorEntry>,
 }
 
 impl BlockCatalog {
@@ -72,7 +87,36 @@ impl BlockCatalog {
         Self {
             types: types.into_iter().collect(),
             templates: Vec::new(),
+            editors: Vec::new(),
         }
+    }
+
+    pub fn with_editors(mut self, editors: impl IntoIterator<Item = EditorEntry>) -> Self {
+        self.editors = editors.into_iter().collect();
+        self
+    }
+
+    pub fn editors_for(&self, block_type: Uuid) -> Vec<&EditorEntry> {
+        let specific = self
+            .editors
+            .iter()
+            .filter(|editor| editor.block_type == Some(block_type));
+        let any = self
+            .editors
+            .iter()
+            .filter(|editor| editor.block_type.is_none());
+        specific.chain(any).collect()
+    }
+
+    pub fn editor(&self, editor: Uuid) -> Option<&EditorEntry> {
+        self.editors.iter().find(|entry| entry.editor == editor)
+    }
+
+    pub fn built_in_editor(&self, block_type: Uuid) -> Option<Uuid> {
+        self.editors
+            .iter()
+            .find(|editor| editor.block_type == Some(block_type))
+            .map(|editor| editor.editor)
     }
 
     pub fn with_templates(mut self, templates: impl IntoIterator<Item = TemplateEntry>) -> Self {

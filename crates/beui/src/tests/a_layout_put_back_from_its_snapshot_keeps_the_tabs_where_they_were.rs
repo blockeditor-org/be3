@@ -19,10 +19,9 @@ fn TwoTabs(layout: DockingLayout<u64>) -> NodeId {
 
 fn docked(layout: DockingLayout<u64>) -> (Harness, NodeId) {
     let dock = NodeRef::new();
-    let built = dock.clone();
     let document = build(move || {
         view! {
-            <TwoTabs @node_ref=&built layout={layout.clone()} />
+            <TwoTabs @node_ref=&dock layout={layout} />
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
@@ -32,8 +31,9 @@ fn docked(layout: DockingLayout<u64>) -> (Harness, NodeId) {
 
 #[test]
 fn a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were() {
+    let _root = crate::reactive::RootScope::new();
     let first = DockingLayout::new();
-    let (mut harness, dock) = docked(first.clone());
+    let (mut harness, dock) = docked(first);
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     harness.drag(tab, pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y / 2.0));
     harness.frame(Vec::new());

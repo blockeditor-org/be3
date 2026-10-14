@@ -2,8 +2,8 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::text::IconSized;
-use crate::theme::{FOCUS_RING_WIDTH, FONT_HEADING, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
@@ -11,8 +11,7 @@ use beui_core::document::Document;
 use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone, create_memo,
-    focus_ring,
+    Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, create_memo, focus_ring,
 };
 
 const SPACING: f32 = 8.0;
@@ -30,7 +29,7 @@ pub fn Accordion(
     view! {
         <unstyled::Disclosure
             spacing=SPACING
-            on_toggle={move |open| on_toggle.call(open)}
+            on_toggle={on_toggle}
             header={move |handle| view! {
                 <AccordionHeader handle title={title_text} />
             }}
@@ -50,14 +49,14 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let header_color = create_memo(clone!(theme -> move || header_fill(&theme, hovered.get())));
+    let header_color = create_memo(move || header_fill(&theme, hovered.get()));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
-    let marker_color = theme.text_muted.clone();
-    let title_color = theme.text.clone();
+    let marker_color = TextColor::Muted;
+    let title_color = TextColor::Default;
     view! {
         <Frame
             color={header_color}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=2.0
@@ -69,11 +68,13 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
                 <Text
                     @sizing=ItemSize::Percent(100.0)
                     string={title}
-                    font_size=FONT_HEADING
+                    size=TextSize::Lg
                     color={title_color}
                     align=TextAlign::Start
                 />
-                <IconSized glyph={marker_glyph} font_size=FONT_HEADING color={marker_color} />
+                <Text size=TextSize::Sm color={marker_color} align=TextAlign::Center>
+                    <Icon glyph={marker_glyph} />
+                </Text>
             </List>
         </Frame>
     }

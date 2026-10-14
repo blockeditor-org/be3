@@ -3,10 +3,8 @@ use beui_macros::{component, view};
 use crate::action_row::ActionRowFace;
 use crate::border::Separator;
 use crate::sheet::ModalSheet;
-use crate::text::IconSized;
-use crate::theme::{
-    BORDER_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, SCROLL_FADE, ThemeStore, use_theme,
-};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{BORDER_WIDTH, RADIUS, SCROLL_FADE, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     MenuItem, MenuRowHandle, MenuSheetHandle, MenuStyle, ScrollbarStyle,
@@ -18,7 +16,7 @@ use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Callback, Child, Children, ClickCallback, Direction, Frame, ItemSize, List, Prop, Show,
-    Text, clone, create_memo,
+    create_memo,
 };
 
 const PADDING_HORIZONTAL: f32 = 14.0;
@@ -26,8 +24,6 @@ const PADDING_VERTICAL: f32 = 6.0;
 const MENU_PADDING: f32 = 4.0;
 const MENU_WIDTH: f32 = 200.0;
 const SUBMENU_SPACING: f32 = 8.0;
-const SUBMENU_ICON_SIZE: f32 = 16.0;
-const ROW_ICON_SIZE: f32 = 18.0;
 const SHEET_PADDING: f32 = 8.0;
 const SHEET_STOPS: [f32; 2] = [0.5, 0.9];
 const SHEET_SEPARATOR_SPACING: f32 = 4.0;
@@ -55,8 +51,8 @@ pub fn ContextMenu(
             open_at_focuses
             open_at_pointer
             selection
-            on_close={move || on_close.call()}
-            on_select={move |path| on_select.call(path)}
+            on_close={on_close}
+            on_select={on_select}
         >
             {children}
         </unstyled::ContextMenu>
@@ -107,26 +103,21 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
     let theme = use_theme();
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
-    let color = create_memo(clone!(theme disabled danger -> move || {
-        match (disabled.get(), danger.get()) {
-            (true, _) => theme.text_muted.get(),
-            (false, true) => theme.danger.get(),
-            (false, false) => theme.text.get(),
-        }
-    }));
-    let icon_color = create_memo(clone!(theme disabled danger -> move || {
-        match (disabled.get(), danger.get()) {
-            (false, true) => theme.danger.get(),
-            _ => theme.text_muted.get(),
-        }
-    }));
+    let color = create_memo(move || match (disabled.get(), danger.get()) {
+        (true, _) => TextColor::Muted,
+        (false, true) => TextColor::Danger,
+        (false, false) => TextColor::Default,
+    });
+    let icon_color = create_memo(move || match (disabled.get(), danger.get()) {
+        (false, true) => TextColor::Danger,
+        _ => TextColor::Muted,
+    });
     let glyph = create_memo(move || glyph.get());
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let detail = create_memo(move || detail.get());
-    let has_detail = create_memo(clone!(detail -> move || !detail.get().is_empty()));
-    let chevron_color = theme.text_muted.clone();
-    let fill_color =
-        create_memo(clone!(theme -> move || row_background(&theme, focused.get(), hovered.get())));
+    let has_detail = create_memo(move || !detail.get().is_empty());
+    let chevron_color = TextColor::Muted;
+    let fill_color = create_memo(move || row_background(&theme, focused.get(), hovered.get()));
     view! {
         <List spacing=MENU_PADDING>
             <Show condition={separated}>
@@ -140,36 +131,26 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <Show condition={has_glyph}>
-                        <IconSized
-                            glyph={glyph.clone()}
-                            font_size=ROW_ICON_SIZE
-                            color={icon_color.clone()}
-                        />
+                        <Text color={icon_color} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
                     </Show>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                        <Text
-                            string={label}
-                            font_size=FONT_BODY
-                            color
-                            align=TextAlign::Start
-                            ellipsis=true
-                        />
+                        <Text string={label} color align=TextAlign::Start ellipsis=true />
                         <Show condition={has_detail}>
                             <Text
-                                string={detail.clone()}
-                                font_size=FONT_SMALL
-                                color={theme.text_muted.clone()}
+                                string={detail}
+                                size=TextSize::Sm
+                                color=TextColor::Muted
                                 align=TextAlign::Start
                                 ellipsis=true
                             />
                         </Show>
                     </List>
                     <Frame visible={has_submenu}>
-                        <IconSized
-                            glyph=ICON_CHEVRON_RIGHT
-                            font_size=SUBMENU_ICON_SIZE
-                            color={chevron_color}
-                        />
+                        <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
+                            <Icon glyph=ICON_CHEVRON_RIGHT />
+                        </Text>
                     </Frame>
                 </List>
             </Frame>
@@ -223,7 +204,7 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
             open={open}
             rest={SHEET_STOPS[0]}
             stops={SHEET_STOPS.to_vec()}
-            on_close={move || on_close.call()}
+            on_close={on_close}
         >
             <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>{menu}</Frame>
         </ModalSheet>
@@ -236,8 +217,8 @@ fn MenuPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=MENU_WIDTH
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true

@@ -5,8 +5,8 @@ use beui::{
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
-    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorHost,
-    EditorInstanceId, EditorRegion, HostReply, HostRequest, Occluder, PeerPresence, SeededContent,
+    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
+    EditorRegion, HostReply, HostRequest, Occluder, OwnedEditor, PeerPresence, SeededContent,
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
@@ -101,7 +101,7 @@ enum Kind {
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
-    pub fn new(editor: Editor) -> Self {
+    pub fn new(editor: OwnedEditor) -> Self {
         let block = editor.block_id();
         Self::open(
             Kind::Frame(block),
@@ -110,7 +110,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
-    pub fn with_view(editor: Editor, view: impl FnOnce() -> beui::NodeId + 'static) -> Self {
+    pub fn with_view(editor: OwnedEditor, view: impl FnOnce() -> beui::NodeId + 'static) -> Self {
         let block = editor.block_id();
         Self::open(
             Kind::Frame(block),
@@ -119,7 +119,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
-    pub fn preview(editor: Editor) -> Self {
+    pub fn preview(editor: OwnedEditor) -> Self {
         let block = editor.block_id();
         Self::open(Kind::Preview(block), Adopted::Preview(editor), Vec::new())
     }
@@ -136,7 +136,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         beui::verify_paint(true);
         block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
-            Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
+            Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),
             Adopted::Creation(creation) => creation.host().clone(),
             Adopted::Artifacts(artifacts) => artifacts.host().clone(),
         };
@@ -276,7 +276,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 instance: INSTANCE,
                 region,
                 metrics,
-                frame: self.frame.clone(),
+                frame: self.frame,
             }],
         }));
     }
@@ -463,6 +463,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.catalog(Catalog {
             types: descriptors,
             templates: Vec::new(),
+            editors: Vec::new(),
         });
     }
 
@@ -958,18 +959,20 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn take_opens(&mut self) -> Vec<(Uuid, Uuid, Option<Uuid>)> {
+    pub fn take_opens(&mut self) -> Vec<block_editor_beui::OpenRequest> {
         self.take_where(|message| match message {
             EditorMessage::OpenBlock {
                 block_id,
                 block_type,
                 via,
+                editor,
                 ..
-            } => Some((
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*block_type),
-                via.map(Uuid::from_bytes),
-            )),
+            } => Some(block_editor_beui::OpenRequest {
+                block_id: Uuid::from_bytes(*block_id),
+                block_type: Uuid::from_bytes(*block_type),
+                via: via.map(Uuid::from_bytes),
+                editor: editor.map(Uuid::from_bytes),
+            }),
             _ => None,
         })
     }
@@ -1033,20 +1036,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         .pop()
     }
 
-    pub fn take_cursor_grab(&mut self) -> Option<bool> {
-        self.take_where(|message| match message {
-            EditorMessage::GrabCursor { grabbed, .. } => Some(*grabbed),
-            _ => None,
-        })
-        .pop()
-    }
-
     pub fn pointer_locked(&self) -> bool {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .window
-            .pointer_locked
+        self.window.pointer_locked
     }
 
     pub fn pointer_motion(&mut self, delta: Vec2) {
@@ -1155,6 +1146,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         let mut collected = Vec::new();
         collect_text(self.document(), node, &mut collected);
         collected.join(" ")
+    }
+
+    pub fn accessible_label(&self, test_id: &str) -> Option<String> {
+        let document = self.document();
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document
+            .accessibility
+            .get(&node)?
+            .label()
+            .map(str::to_owned)
     }
 
     pub fn rect_of(&self, test_id: &str) -> Rect {
@@ -1352,6 +1355,7 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     if document.node_kind(node) == "text" {
         let detail = document.node_detail(node).unwrap_or_default();
         let text = detail.trim_matches('"');
+        collected.extend(document.text_icons(node));
         if !text.is_empty() {
             collected.push(text.to_owned());
         }

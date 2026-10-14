@@ -147,6 +147,10 @@ impl Element for CanvasNode {
         self.items.nodes()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
+    }
+
     fn kind(&self) -> &'static str {
         "canvas"
     }
@@ -175,6 +179,10 @@ pub struct CanvasItemNode {
 }
 
 impl Element for CanvasItemNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         self.rect.size()
     }
@@ -197,6 +205,12 @@ impl Element for CanvasItemNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {

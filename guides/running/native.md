@@ -14,7 +14,7 @@ guide is for what that does not cover.
 - `--install-session [PREFIX]` (Linux): install the app as a login session
   (guides/linux_desktop.md).
 
-`./scripts/buck run //crates/block-app:app` runs it in a window, with every plugin beside it.
+`./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
 
 ## In a window
 
@@ -26,7 +26,7 @@ display driven with xdotool. Install them first (`sudo apt-get install xvfb xdot
     Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
     export DISPLAY=:99
     BEUI_AUTOMATION=/tmp/block.sock XDG_DATA_HOME=/tmp/block-data \
-        ./scripts/buck run //crates/block-app:app -- --dev-workspace > /tmp/block.log 2>&1 &
+        ./scripts/buck run //crates/block-app:native -- --dev-workspace > /tmp/block.log 2>&1 &
     WINDOW=$(xdotool search --sync --onlyvisible --name '^Block$' | head -n 1)
     xdotool windowfocus --sync $WINDOW
 
@@ -44,3 +44,24 @@ xdotool's coordinates are the window's pixels, the same as the tree's, and with
 `BEUI_AUTOMATION` set `drive --socket=/tmp/block.sock tree` reads the tree and
 `drive --socket=/tmp/block.sock settle` waits for the app to settle in between. xdotool
 returns before the app has drawn, so settle before reading anything.
+
+## Profiling
+
+Profile a release build: `./scripts/buck run //crates/beui-demo:dev -m release` (or block-app's
+`:dev`) runs it headless with debug info, ready for `drive`. The inspector's Perf tab
+(guides/beui.md, The inspector) times each frame of the document: open it with
+`drive key ctrl+shift+i` and `drive click '"Perf"'`, act, then read the Peak column from
+`drive tree`; Reset samples starts over. Interaction covers whatever the input ran, so a
+component built in response to a click is counted there, not in Layout. Take the median of
+several runs: the headless renderer draws on the CPU and competes for the same cores.
+
+For where the time goes, `sudo apt-get install linux-tools-generic` installs `perf` as
+`/usr/lib/linux-tools-*/perf`. The VM has no hardware counters, so it samples the software
+clock, and the binary has no frame pointers, so it unwinds with DWARF:
+
+    perf record -F 10000 --call-graph dwarf,16384 -p "$(pgrep -x demo)" -o out.data
+
+To record only some of the time, start it paused with `-D -1 --control=fifo:ctl,ack` and
+write `enable` and `disable` to the `ctl` fifo around the drive commands to measure.
+`perf report` and `perf script` need `--no-inline`, or they spend minutes resolving inlined
+frames. The headless renderer's shaders show up as `[JIT]`; leave them out of a beui profile.

@@ -6,15 +6,15 @@ use crate::unstyled::DateTimeParts;
 
 #[test]
 fn a_time_field_picks_from_a_grid_of_times() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <DateTimeField
                 value={Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0)))}
                 parts=DateTimeParts::Time
                 on_change={move |value: Option<DateTime>| {
-                    sink.borrow_mut().push(value.map(|value| value.time))
+                    set_reported.update(|reported| reported.push(value.map(|value| value.time)))
                 }}
             />
         }
@@ -31,5 +31,5 @@ fn a_time_field_picks_from_a_grid_of_times() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(*reported.borrow(), [Some(Time::new(11, 15))]);
+    assert_eq!(reported.get_untracked(), [Some(Time::new(11, 15))]);
 }

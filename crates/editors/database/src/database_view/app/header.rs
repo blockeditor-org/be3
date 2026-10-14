@@ -2,12 +2,12 @@ use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_SEARCH, ICON_TUNE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, create_memo,
-    create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, create_signal,
+    view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, IconButton, ModalSheet, Popover, Scroll,
-    Separator, TextInput, ToggleButton, use_theme,
+    Button, ButtonVariant, IconButton, ModalSheet, Popover, Scroll, Separator, TextInput,
+    ToggleButton,
 };
 use block_editor_beui::narrow_chrome;
 use uuid::Uuid;
@@ -15,6 +15,7 @@ use uuid::Uuid;
 use crate::database_view::app::data::Data;
 use crate::database_view::app::display::DisplayOptions;
 use crate::database_view::app::filters::{FilterBar, FilterList};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const GUTTER: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -24,32 +25,30 @@ const DISPLAY_WIDTH: f32 = 380.0;
 #[component]
 pub fn ViewHeader(data: Data) -> NodeId {
     let narrow = narrow_chrome();
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
-    let (wide_data, narrow_data) = (data.clone(), data.clone());
-    let failed = create_memo(clone!(data -> move || data.error.with(Option::is_some)));
-    let message = create_memo(clone!(data -> move || data.error.get().unwrap_or_default()));
-    let dismiss = clone!(data -> move || data.dismiss_error());
-    let theme = use_theme();
+    let wide = create_memo(move || !narrow.get());
+    let failed = create_memo(move || data.error.with(Option::is_some));
+    let message = create_memo(move || data.error.get().unwrap_or_default());
+    let dismiss = move || data.dismiss_error();
     view! {
         <List spacing=0.0>
             <Show condition={wide}>
-                {move || clone!(wide_data -> view! {
-                    <WideHeader data={wide_data} />
-                })}
+                {move || view! {
+                    <WideHeader data={data} />
+                }}
             </Show>
             <Show condition={narrow}>
-                {move || clone!(narrow_data -> view! {
-                    <NarrowHeader data={narrow_data} />
-                })}
+                {move || view! {
+                    <NarrowHeader data={data} />
+                }}
             </Show>
             <Show condition={failed}>
-                {move || clone!(message dismiss theme -> view! {
+                {move || view! {
                     <Frame padding_horizontal=GUTTER padding_vertical=6.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Body
+                            <Text
                                 @sizing=ItemSize::Percent(100.0)
-                                content={message}
-                                color={theme.danger.clone()}
+                                string={message}
+                                color=TextColor::Danger
                                 wrap=true
                             />
                             <Button
@@ -60,7 +59,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
                             />
                         </List>
                     </Frame>
-                })}
+                }}
             </Show>
             <Separator />
         </List>
@@ -69,37 +68,27 @@ pub fn ViewHeader(data: Data) -> NodeId {
 
 #[component]
 fn WideHeader(data: Data) -> NodeId {
-    let count = row_count(&data);
-    let (tabs, search, add, filters, display) = (
-        data.clone(),
-        data.clone(),
-        data.clone(),
-        data.clone(),
-        data.clone(),
-    );
+    let count = row_count(data);
     view! {
         <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(6.0)}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Heading content={data.name.clone()} />
-                    <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={tabs} />
-                    <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={search} />
-                    <NewRow data={add} compact=false />
+                    <Text style=TextStyle::HEADING string={data.name} />
+                    <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
+                    <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={data} />
+                    <NewRow data={data} compact=false />
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <FilterBar @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={filters} />
-                    <Caption content={count} />
+                    <FilterBar @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
+                    <Text style=TextStyle::CAPTION string={count} />
                     <Popover
                         label="Display"
                         glyph={ICON_TUNE.to_owned()}
                         max_width=DISPLAY_WIDTH
                         @test_id={"database-view.display"}
                     >
-                        {move |_| {
-                            let data = display.clone();
-                            view! {
-                                <DisplayOptions data={data} />
-                            }
+                        {move |_| view! {
+                            <DisplayOptions data={data} />
                         }}
                     </Popover>
                 </List>
@@ -111,30 +100,31 @@ fn WideHeader(data: Data) -> NodeId {
 #[component]
 fn NarrowHeader(data: Data) -> NodeId {
     let (sheet, set_sheet) = create_signal(false);
-    let filtered = create_memo(clone!(data -> move || {
-        match data.filter_items.with(Vec::len) {
-            0 => "Filter and display".to_owned(),
-            count => format!("Filter and display · {count}"),
-        }
-    }));
-    let count = row_count(&data);
-    let (tabs, search, add, sheet_data) = (data.clone(), data.clone(), data.clone(), data.clone());
-    let open = clone!(set_sheet -> move || set_sheet.set(true));
-    let close = clone!(set_sheet -> move || set_sheet.set(false));
-    let done = close.clone();
+    let filtered = create_memo(move || match data.filter_items.with(Vec::len) {
+        0 => "Filter and display".to_owned(),
+        count => format!("Filter and display · {count}"),
+    });
+    let count = row_count(data);
+    let open = move || set_sheet.set(true);
+    let close = move || set_sheet.set(false);
+    let done = close;
     view! {
         <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(8.0)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Heading @sizing=ItemSize::Percent(100.0) content={data.name.clone()} />
-                    <Caption content={count} />
-                    <NewRow data={add} compact=true />
+                    <Text
+                        style=TextStyle::HEADING
+                        @sizing=ItemSize::Percent(100.0)
+                        string={data.name}
+                    />
+                    <Text style=TextStyle::CAPTION string={count} />
+                    <NewRow data={data} compact=true />
                 </List>
                 <Scroll direction=Direction::Horizontal>
-                    <ViewTabs data={tabs} />
+                    <ViewTabs data={data} />
                 </Scroll>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <SearchField @sizing=ItemSize::Percent(100.0) data={search} />
+                    <SearchField @sizing=ItemSize::Percent(100.0) data={data} />
                     <Button
                         label={filtered}
                         glyph={ICON_TUNE.to_owned()}
@@ -151,9 +141,10 @@ fn NarrowHeader(data: Data) -> NodeId {
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Heading
+                                <Text
+                                    style=TextStyle::HEADING
                                     @sizing=ItemSize::Percent(100.0)
-                                    content="Filter and display"
+                                    string="Filter and display"
                                 />
                                 <Button
                                     label="Done"
@@ -162,10 +153,10 @@ fn NarrowHeader(data: Data) -> NodeId {
                                     on_click={done}
                                 />
                             </List>
-                            <Caption content="Filters" />
-                            <FilterList data={sheet_data.clone()} />
+                            <Text style=TextStyle::CAPTION string="Filters" />
+                            <FilterList data={data} />
                             <Separator />
-                            <DisplayOptions data={sheet_data} />
+                            <DisplayOptions data={data} />
                         </List>
                     </Frame>
                 </ModalSheet>
@@ -174,8 +165,8 @@ fn NarrowHeader(data: Data) -> NodeId {
     }
 }
 
-fn row_count(data: &Data) -> block_editor_beui::beui::reactive::Memo<String> {
-    let groups = data.groups.clone();
+fn row_count(data: Data) -> block_editor_beui::beui::reactive::Memo<String> {
+    let groups = data.groups;
     create_memo(move || {
         let count: usize = groups.with(|groups| groups.iter().map(|group| group.rows.len()).sum());
         match count {
@@ -187,23 +178,23 @@ fn row_count(data: &Data) -> block_editor_beui::beui::reactive::Memo<String> {
 
 #[component]
 fn ViewTabs(data: Data) -> NodeId {
-    let keys = create_memo(clone!(data -> move || {
-        data.views.with(|views| views.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
-    }));
+    let keys = create_memo(move || {
+        data.views
+            .with(|views| views.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
+    });
     let own = data.editor().block_id();
-    let create = clone!(data -> move || data.new_view());
-    let read_only = data.read_only.clone();
+    let create = move || data.new_view();
+    let read_only = data.read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <ForEach keys={keys}>
                 {move |view: Uuid| {
-                    let data = data.clone();
-                    let name = create_memo(clone!(data -> move || {
+                    let name = create_memo(move || {
                         data.views.with(|views| {
                             views.iter().find(|(id, _)| *id == view).map(|(_, name)| name.clone()).unwrap_or_default()
                         })
-                    }));
-                    let open = clone!(data -> move |_: bool| data.open_view(view));
+                    });
+                    let open = move |_: bool| data.open_view(view);
                     view! {
                         <ToggleButton
                             label={name}
@@ -228,8 +219,8 @@ fn ViewTabs(data: Data) -> NodeId {
 
 #[component]
 fn SearchField(data: Data) -> NodeId {
-    let query = data.search.clone();
-    let typed = clone!(data -> move |text: String| data.set_search(text));
+    let query = data.search;
+    let typed = move |text: String| data.set_search(text);
     view! {
         <TextInput
             value={query}
@@ -244,16 +235,14 @@ fn SearchField(data: Data) -> NodeId {
 
 #[component]
 fn NewRow(data: Data, compact: bool) -> NodeId {
-    let add = clone!(data -> move || {
+    let add = move || {
         let mut values = Vec::new();
         if let Some(title) = data.title_field.get_untracked() {
             values.push((title, DatabaseValue::String(String::new())));
         }
         data.new_row(values);
-    });
-    let disabled = create_memo(clone!(data -> move || {
-        data.read_only.get() || data.title_field.get().is_none()
-    }));
+    };
+    let disabled = create_memo(move || data.read_only.get() || data.title_field.get().is_none());
     match compact {
         true => view! {
             <IconButton

@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::cell::Cell;
 
 use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
@@ -43,14 +42,14 @@ struct OffsetAnchor {
 
 pub struct OffsetNode {
     pub direction: Direction,
-    pub child: NodeId,
+    pub child: Option<NodeId>,
     pub offset: f32,
     pub overscroll: f32,
     pub fits: bool,
     pub position: Option<ScrollPosition>,
-    steered: Cell<bool>,
     anchored: bool,
     pub on_change: Callback<ScrollPosition>,
+    pub on_steer: Callback<()>,
     pub reported: Option<ScrollPosition>,
     translation: Vec2,
     host: Option<NodeId>,
@@ -60,14 +59,14 @@ impl OffsetNode {
     pub fn new(child: NodeId) -> Self {
         Self {
             direction: Direction::Vertical,
-            child,
+            child: Some(child),
             offset: 0.0,
             overscroll: 0.0,
             fits: false,
             position: None,
-            steered: Cell::new(false),
             anchored: false,
             on_change: Callback::empty(),
+            on_steer: Callback::empty(),
             reported: None,
             translation: Vec2::ZERO,
             host: None,
@@ -75,10 +74,13 @@ impl OffsetNode {
     }
 
     fn content_length(&self, doc: &mut Document, painter: &Painter, cross: f32) -> f32 {
+        let Some(child) = self.child else {
+            return 0.0;
+        };
         self.direction.main(crate::layout::measure(
             doc,
             painter,
-            self.child,
+            child,
             self.direction.axes(f32::INFINITY, cross),
         ))
     }
@@ -107,16 +109,16 @@ impl OffsetNode {
         self.translation = self.direction.axes(-offset, 0.0);
         self.host = Some(host);
         let entered = doc.enter_space(host, 1, painter, self.translation, rect, out);
-        doc.enter_scroll_host(host);
         let start = self.direction.main(rect.min.to_vec2());
-        crate::layout::layout(
-            doc,
-            &entered,
-            self.child,
-            item_rect(self.direction, rect, start, position.content),
-            out,
-        );
-        doc.leave_scroll_host();
+        if let Some(child) = self.child {
+            crate::layout::layout(
+                doc,
+                &entered,
+                child,
+                item_rect(self.direction, rect, start, position.content),
+                out,
+            );
+        }
     }
 
     fn content_start(&self, out: &Rects, host: NodeId, id: NodeId) -> Option<f32> {
@@ -161,7 +163,10 @@ impl OffsetNode {
         let Some(revealed) = revealed_offset(start, end, self.offset, main) else {
             return 0.0;
         };
-        self.steered.set(true);
+        if !self.on_steer.is_empty() {
+            let on_steer = self.on_steer;
+            doc.report_after_layout(move || on_steer.call(()));
+        }
         revealed - self.offset
     }
 
@@ -169,7 +174,7 @@ impl OffsetNode {
         if !self.anchored {
             return None;
         }
-        let mut anchor = self.child;
+        let mut anchor = self.child?;
         for _ in 0..ANCHOR_DEPTH {
             if doc.is_culled(anchor) || !doc.arena.get(anchor).passes_scroll_anchor() {
                 break;
@@ -209,12 +214,14 @@ fn revealed_offset(start: f32, end: f32, offset: f32, length: f32) -> Option<f32
 impl Element for OffsetNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (_, cross) = self.direction.main_and_cross(available);
-        let size = crate::layout::measure(
-            doc,
-            painter,
-            self.child,
-            self.direction.axes(f32::INFINITY, cross),
-        );
+        let size = self.child.map_or(Vec2::ZERO, |child| {
+            crate::layout::measure(
+                doc,
+                painter,
+                child,
+                self.direction.axes(f32::INFINITY, cross),
+            )
+        });
         let (length, content) = self.direction.main_and_cross(size);
         let length = match self.fits {
             true => length,
@@ -226,29 +233,25 @@ impl Element for OffsetNode {
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let host = doc.laying_out().expect("an offset is laid out as itself");
         let (main, cross) = self.direction.main_and_cross(rect.size());
-        let carried = doc.take_scroll_shift(host);
         let anchor = self.anchor(doc, out, host);
         self.anchored = true;
         let content = self.content_length(doc, painter, cross);
-        self.offset = (self.offset + carried).max(0.0);
-        let mut position = self.settled(main, content);
-        let base = doc.placing_len();
+        let position = self.settled(main, content);
+        let outer = doc.take_anchor_shift();
         self.place(doc, painter, rect, out, position, host);
-        let shift = doc.take_scroll_shift(host)
+        let shift = doc.take_anchor_shift()
             + self.drift(doc, out, host, anchor)
             + self.revealed(doc, out, host, main);
-        let measured = self.content_length(doc, painter, cross);
-        if shift != 0.0 || measured != content || doc.arena.unplaced(self.child) {
+        doc.report_anchor_shift(outer);
+        if shift != 0.0 {
             self.offset = (self.offset + shift).max(0.0);
-            position = self.settled(main, measured);
-            doc.rewind_placing(base);
-            self.place(doc, painter, rect, out, position, host);
-            doc.take_scroll_shift(host);
+            self.anchored = false;
+            doc.invalidate_after_layout(host);
         }
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
             self.reported = Some(position);
-            let on_change = self.on_change.clone();
+            let on_change = self.on_change;
             doc.report_after_layout(move || on_change.call(position));
         }
     }
@@ -257,15 +260,21 @@ impl Element for OffsetNode {
         let Some(host) = self.host else {
             return;
         };
-        if !rects.contains_key(&self.child) {
+        let Some(child) = self.child.filter(|child| rects.contains_key(child)) else {
             return;
-        }
+        };
         let entered = painter.shifted(SpaceId::inside(host, 1), self.translation, rect);
-        crate::paint::paint(doc, &entered, rects, self.child);
+        crate::paint::paint(doc, &entered, rects, child);
     }
 
     fn children(&self) -> Vec<NodeId> {
-        vec![self.child]
+        self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {
@@ -340,36 +349,45 @@ impl Document {
 
     pub fn set_offset_value(&mut self, offset: NodeOf<OffsetNode>, value: f32) {
         let node = self.arena.get_as::<OffsetNode>(offset);
-        node.steered.set(true);
-        if node.offset == value && !node.anchored {
+        let on_steer = node.on_steer;
+        if node.offset != value || node.anchored {
+            let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
+            node.offset = value;
+            node.anchored = false;
+        }
+        if on_steer.is_empty() {
             return;
         }
-        let node = self.arena.get_mut_as::<OffsetNode>(offset);
-        node.offset = value;
-        node.anchored = false;
+        match self.laying_out() {
+            Some(_) => self.report_after_layout(move || on_steer.call(())),
+            None => crate::current::enter(self, || on_steer.call(())),
+        }
     }
 
     pub fn drive_offset(&mut self, offset: NodeOf<OffsetNode>, value: f32) {
         if self.arena.get_as::<OffsetNode>(offset).offset == value {
             return;
         }
-        let node = self.arena.get_mut_as::<OffsetNode>(offset);
+        let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
         node.offset = value;
         node.anchored = false;
     }
 
-    pub fn take_offset_steered(&self, offset: NodeOf<OffsetNode>) -> bool {
-        self.arena
-            .get_as::<OffsetNode>(offset)
-            .steered
-            .replace(false)
+    pub fn set_offset_on_steer(
+        &mut self,
+        offset: NodeOf<OffsetNode>,
+        handler: impl FnMut(()) + 'static,
+    ) {
+        self.arena.touch_mut_as::<OffsetNode>(offset).on_steer = Callback::new(handler);
     }
 
     pub fn set_offset_overscroll(&mut self, offset: NodeOf<OffsetNode>, overscroll: f32) {
         if self.arena.get_as::<OffsetNode>(offset).overscroll == overscroll {
             return;
         }
-        self.arena.get_mut_as::<OffsetNode>(offset).overscroll = overscroll;
+        self.arena
+            .relayout_alone_mut_as::<OffsetNode>(offset)
+            .overscroll = overscroll;
     }
 
     pub fn first_offset_within(&self, id: NodeId) -> Option<NodeOf<OffsetNode>> {
@@ -408,10 +426,7 @@ impl Document {
         offset: NodeOf<OffsetNode>,
         handler: impl FnMut(ScrollPosition) + 'static,
     ) {
-        self.arena
-            .touch_mut_as::<OffsetNode>(offset)
-            .on_change
-            .set(handler);
+        self.arena.touch_mut_as::<OffsetNode>(offset).on_change = Callback::new(handler);
     }
 }
 

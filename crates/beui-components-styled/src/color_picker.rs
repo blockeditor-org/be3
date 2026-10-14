@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use crate::number_input::NumberInput;
-use crate::text::Caption;
+use crate::text::{Text, TextStyle};
 use crate::text_input::TextInput;
 use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FOCUS_RING_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled::{
@@ -18,7 +18,7 @@ use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_view::reactive::{
-    Callback, Draw, Drawing, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track, clone,
+    Callback, Draw, Drawing, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track,
     create_memo, focus_ring,
 };
 
@@ -64,15 +64,13 @@ pub fn ColorPicker(
     let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
     let has_swatches = !swatches.is_empty();
-    let (hue_picker, alpha_picker, swatch_picker) =
-        (picker.clone(), picker.clone(), picker.clone());
     let shown = picker.shown();
     view! {
         <Frame width=PICKER_WIDTH>
             <List spacing=SPACING>
                 <ColorPickerArea
                     @sizing=ItemSize::Fixed(AREA_HEIGHT)
-                    picker={picker.clone()}
+                    picker={picker}
                     thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
                     focused
                 >
@@ -82,32 +80,32 @@ pub fn ColorPicker(
                 </ColorPickerArea>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <List @sizing=ItemSize::Percent(100.0) spacing=8.0>
-                        <HueSlider picker={hue_picker} thumb=SLIDER_HEIGHT>
+                        <HueSlider picker={picker} thumb=SLIDER_HEIGHT>
                             {move |handle: SliderHandle| view! {
                                 <StripFace handle strip=Strip::Hue />
                             }}
                         </HueSlider>
                         <Show condition=alpha>
-                            {move || clone!(color -> view! {
-                                <AlphaSlider picker={alpha_picker.clone()} thumb=SLIDER_HEIGHT>
+                            {move || view! {
+                                <AlphaSlider picker={picker} thumb=SLIDER_HEIGHT>
                                     {move |handle: SliderHandle| view! {
                                         <StripFace handle strip={Strip::Alpha(color)} />
                                     }}
                                 </AlphaSlider>
-                            })}
+                            }}
                         </Show>
                     </List>
                     <ColorSwatch color={shown} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
-                <ColorFields picker={picker.clone()} alpha />
+                <ColorFields picker={picker} alpha />
                 <Show condition=has_swatches>
-                    {move || clone!(swatches -> view! {
-                        <Swatches picker={swatch_picker.clone()} swatches>
+                    {move || { let swatches = swatches.clone(); view! {
+                        <Swatches picker={picker} swatches>
                             {|handle: SwatchHandle| view! {
                                 <SwatchFace handle />
                             }}
                         </Swatches>
-                    })}
+                    } }}
                 </Show>
             </List>
         </Frame>
@@ -116,17 +114,12 @@ pub fn ColorPicker(
 
 #[component]
 fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
-    let typed = picker.clone();
     let hex = HexText::new(
         picker.shown(),
         alpha,
-        Callback::new(move |color: Color32| typed.pick(color)),
+        Callback::new(move |color: Color32| picker.pick(color)),
     );
-    let (edit, submit) = (hex.clone(), hex.clone());
-    let setter = |set: fn(&ColorPickerState, f64)| {
-        let picker = picker.clone();
-        move |typed: f64| set(&picker, typed)
-    };
+    let setter = |set: fn(&ColorPickerState, f64)| move |typed: f64| set(&picker, typed);
     let set_hue = setter(|picker, typed| picker.set_hue(typed as f32));
     let set_saturation = setter(ColorPickerState::set_saturation_percent);
     let set_value = setter(ColorPickerState::set_value_percent);
@@ -144,20 +137,20 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     label="Hex"
                     placeholder={hex.placeholder()}
                     select_on_focus=true
-                    on_change={move |typed: String| edit.edit(typed)}
-                    on_submit={move |typed: String| submit.submit(typed)}
+                    on_change={move |typed: String| hex.edit(typed)}
+                    on_submit={move |typed: String| hex.submit(typed)}
                 />
                 <Show condition=alpha>
-                    {move || clone!(set_opacity -> view! {
+                    {move || view! {
                         <NumberInput
                             @sizing=ItemSize::Fixed(ALPHA_WIDTH)
-                            value={opacity.clone()}
+                            value={opacity}
                             min=0.0
                             max=100.0
                             label="Opacity percent"
                             on_change={set_opacity}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
             <Grid
@@ -222,7 +215,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
 fn ChannelLabel(content: Prop<String>) -> NodeId {
     view! {
         <Frame align_vertical=Align::Center>
-            <Caption content />
+            <Text style=TextStyle::CAPTION string={content} />
         </Frame>
     }
 }
@@ -230,7 +223,7 @@ fn ChannelLabel(content: Prop<String>) -> NodeId {
 #[component]
 fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
     let ColorAreaHandle { color, focused, .. } = handle;
-    let hue = create_memo(clone!(color -> move || color.get().hue));
+    let hue = create_memo(move || color.get().hue);
     let plane = create_memo(move || plane_image(hue.get()));
     let place = create_memo(move || {
         let color = color.get();
@@ -240,7 +233,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
             color.opaque().to_color(),
         )
     });
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let image = plane.get();
         let (x, y, fill) = place.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
@@ -258,7 +251,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
             );
             thumb(painter, centre, THUMB_RADIUS, fill);
         }) as Draw
-    }));
+    });
     view! {
         <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
             <Frame height=AREA_HEIGHT>
@@ -279,16 +272,22 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
     let SliderHandle {
         fraction, focused, ..
     } = handle;
-    let knob = create_memo(clone!(strip fraction -> move || match &strip {
-        Strip::Hue => Hsva::new(fraction.get() * 360.0, 1.0, 1.0, 1.0).to_color(),
-        Strip::Alpha(color) => color.get().to_color(),
-    }));
-    let image = create_memo(clone!(strip -> move || match &strip {
-        Strip::Hue => hue_image(),
-        Strip::Alpha(color) => alpha_image(color.get().opaque().to_color()),
-    }));
+    let knob = create_memo({
+        let strip = strip.clone();
+        move || match &strip {
+            Strip::Hue => Hsva::new(fraction.get() * 360.0, 1.0, 1.0, 1.0).to_color(),
+            Strip::Alpha(color) => color.get().to_color(),
+        }
+    });
+    let image = create_memo({
+        let strip = strip.clone();
+        move || match &strip {
+            Strip::Hue => hue_image(),
+            Strip::Alpha(color) => alpha_image(color.get().opaque().to_color()),
+        }
+    });
     let checkered = matches!(strip, Strip::Alpha(_));
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let image = image.get();
         let knob = knob.get();
         let fraction = fraction.get();
@@ -310,7 +309,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
             let centre = pos2(rect.left() + radius + fraction * travel, rect.center().y);
             thumb(painter, centre, KNOB_RADIUS, knob);
         }) as Draw
-    }));
+    });
     view! {
         <FocusRing focused radius=10 offset=FOCUS_RING_OFFSET>
             <Frame height=SLIDER_HEIGHT>
@@ -322,7 +321,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
 
 #[component]
 pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let color = color.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             let radius = RADIUS as f32;
@@ -332,7 +331,7 @@ pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
             painter.rect_filled(rect, radius, color);
             painter.rect_stroke(rect, radius, BORDER_WIDTH, OUTLINE_DARK);
         }) as Draw
-    }));
+    });
     view! {
         <Frame width height>
             <Drawing draw />
@@ -350,11 +349,11 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let keyboard = focus_ring(focused);
-    let ring = create_memo(clone!(selected keyboard -> move || selected.get() || keyboard.get()));
-    let ring_color = create_memo(clone!(theme -> move || match keyboard.get() {
+    let ring = create_memo(move || selected.get() || keyboard.get());
+    let ring_color = create_memo(move || match keyboard.get() {
         true => theme.accent.get(),
         false => theme.text.get(),
-    }));
+    });
     view! {
         <Frame
             outline={ring_color}

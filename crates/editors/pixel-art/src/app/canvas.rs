@@ -1,13 +1,11 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    PlacementBuilder, ReadSignal, WriteSignal, clone, component, create_effect, create_memo,
+    PlacementBuilder, ReadSignal, WriteSignal, component, create_effect, create_memo,
     held_modifiers, untrack, view,
 };
-use block_editor_beui::beui::styled::{Code, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     Color32, CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
@@ -20,6 +18,7 @@ use crate::drawing::{ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing
 
 use super::pane::{Pane, Shown};
 use super::state::Tools;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const GRID_MIN_CELL: f32 = 6.0;
 const GRID_ALPHA: u8 = 60;
@@ -29,21 +28,21 @@ const HOVER_LABEL_HEIGHT: f32 = 24.0;
 
 #[component]
 pub(crate) fn ArtworkCanvas(
-    tools: Rc<Tools>,
-    pane: Rc<Pane>,
+    tools: Tools,
+    pane: Pane,
     shown: Memo<Shown>,
     size: Memo<(u16, u16)>,
     hovered: ReadSignal<Option<(u16, u16)>>,
     set_hovered: WriteSignal<Option<(u16, u16)>>,
 ) -> NodeId {
-    let editor = tools.editor().clone();
+    let editor = tools.editor();
     let view = editor.canvas();
     let scale = editor.scale();
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let world = editor.world();
-                let artwork = create_memo(clone!(size world placed -> move || {
+                let artwork = create_memo(move || {
                     let (width, height) = size.get();
                     if width == 0 || height == 0 {
                         return Rect::ZERO;
@@ -54,95 +53,86 @@ pub(crate) fn ArtworkCanvas(
                         width,
                         height,
                     )
-                }));
-
-                let held = held_modifiers();
-                let constraining = Rc::clone(&tools);
-                create_effect(move || {
-                    let shift = held.get().shift;
-                    untrack(|| constraining.set_constrained.set(shift));
                 });
 
-                let pressing = Rc::clone(&tools);
-                let press_size = size.clone();
-                let press_view = view.clone();
-                let press_artwork = artwork.clone();
-                let press_editor = editor.clone();
+                let held = held_modifiers();
+                create_effect(move || {
+                    let shift = held.get().shift;
+                    untrack(|| tools.set_constrained.set(shift));
+                });
+
+                let press_size = size;
+                let press_view = view;
+                let press_artwork = artwork;
                 let on_press = move |press: PointerPress| {
                     let (width, height) = press_size.get_untracked();
-                    if width == 0 || pressing.busy() || !pressing.editable() {
+                    if width == 0 || tools.busy() || !tools.editable() {
                         return;
                     }
-                    pressing.set_constrained.set(press.modifiers.shift);
+                    tools.set_constrained.set(press.modifiers.shift);
                     let Some(pixel) = pixel_of(
                         press.pos,
                         press_view.get_untracked(),
-                        press_editor.content_rect(),
+                        editor.content_rect(),
                         press_artwork.get_untracked(),
                         width,
                         height,
                     ) else {
                         return;
                     };
-                    begin(&pressing, pixel);
+                    begin(tools, pixel);
                 };
 
-                let dragging = Rc::clone(&tools);
-                let drag_size = size.clone();
-                let drag_view = view.clone();
-                let drag_artwork = artwork.clone();
-                let drag_editor = editor.clone();
+                let drag_size = size;
+                let drag_view = view;
+                let drag_artwork = artwork;
                 let on_drag = move |press: PointerPress| {
                     let (width, height) = drag_size.get_untracked();
-                    if width == 0 || dragging.busy() || !dragging.editable() {
+                    if width == 0 || tools.busy() || !tools.editable() {
                         return;
                     }
-                    dragging.set_constrained.set(press.modifiers.shift);
+                    tools.set_constrained.set(press.modifiers.shift);
                     let Some(pixel) = pixel_of(
                         press.pos,
                         drag_view.get_untracked(),
-                        drag_editor.content_rect(),
+                        editor.content_rect(),
                         drag_artwork.get_untracked(),
                         width,
                         height,
                     ) else {
                         return;
                     };
-                    dragging.draw(|drawing| {
+                    tools.draw(|drawing| {
                         if let Some(drawing) = drawing.as_mut() {
                             drawing.extend(pixel);
                         }
                     });
                 };
 
-                let releasing = Rc::clone(&tools);
-                let release_size = size.clone();
-                let release_view = view.clone();
-                let release_artwork = artwork.clone();
-                let release_editor = editor.clone();
+                let release_size = size;
+                let release_view = view;
+                let release_artwork = artwork;
                 let on_click_at = move |press: PointerPress| {
                     let (width, height) = release_size.get_untracked();
-                    if width == 0 || releasing.busy() || !releasing.editable() {
+                    if width == 0 || tools.busy() || !tools.editable() {
                         return;
                     }
-                    releasing.set_constrained.set(press.modifiers.shift);
+                    tools.set_constrained.set(press.modifiers.shift);
                     if let Some(pixel) = pixel_of(
                         press.pos,
                         release_view.get_untracked(),
-                        release_editor.content_rect(),
+                        editor.content_rect(),
                         release_artwork.get_untracked(),
                         width,
                         height,
                     ) {
-                        finish(&releasing, pixel, width, height);
+                        finish(tools, pixel, width, height);
                     }
                 };
 
-                let sampling = Rc::clone(&tools);
-                let sample_size = size.clone();
-                let sample_view = view.clone();
-                let sample_artwork = artwork.clone();
-                let sample_editor = editor.clone();
+                let sample_size = size;
+                let sample_view = view;
+                let sample_artwork = artwork;
                 let on_secondary = move |press: PointerPress| {
                     let (width, height) = sample_size.get_untracked();
                     if width == 0 {
@@ -151,62 +141,56 @@ pub(crate) fn ArtworkCanvas(
                     if let Some(pixel) = pixel_of(
                         press.pos,
                         sample_view.get_untracked(),
-                        sample_editor.content_rect(),
+                        editor.content_rect(),
                         sample_artwork.get_untracked(),
                         width,
                         height,
                     ) {
-                        sample(&sampling, pixel);
+                        sample(tools, pixel);
                     }
                 };
 
-                let moving = Rc::clone(&tools);
-                let hover_size = size.clone();
-                let hover_view = view.clone();
-                let hover_artwork = artwork.clone();
-                let hover_editor = editor.clone();
-                let set_hover = set_hovered.clone();
+                let hover_size = size;
+                let hover_view = view;
+                let hover_artwork = artwork;
+                let set_hover = set_hovered;
                 let on_hover_move = move |press: PointerPress| {
                     let (width, height) = hover_size.get_untracked();
                     if width == 0 {
                         return;
                     }
-                    moving.set_constrained.set(press.modifiers.shift);
+                    tools.set_constrained.set(press.modifiers.shift);
                     set_hover.set(pixel_of(
                         press.pos,
                         hover_view.get_untracked(),
-                        hover_editor.content_rect(),
+                        editor.content_rect(),
                         hover_artwork.get_untracked(),
                         width,
                         height,
                     ));
                 };
-                let left = set_hovered.clone();
+                let left = set_hovered;
                 let on_hover_change = move |hovered: bool| {
                     if !hovered {
                         left.set(None);
                     }
                 };
 
-                let refreshing = Rc::clone(&tools);
-                let refreshed = Rc::clone(&pane);
-                let hover = hovered.clone();
-                let frame_size = size.clone();
+                let hover = hovered;
+                let frame_size = size;
                 let theme = use_theme();
-                let background = theme.background.clone();
+                let background = theme.background;
                 create_effect(move || {
                     let (width, height) = frame_size.get();
                     if width == 0 {
                         return;
                     }
-                    let (pixels, color) = pending(&refreshing, hover.get(), width, height);
+                    let (pixels, color) = pending(tools, hover.get(), width, height);
                     let dark = is_dark(background.get());
-                    refreshed.refresh(refreshing.block(), dark, &pixels, color);
+                    pane.refresh(&tools.block(), dark, &pixels, color);
                 });
 
-                let keys = Rc::clone(&tools);
-                let key_editor = editor.clone();
-                let on_key = move |press: KeyPress| shortcut(&keys, &key_editor, press);
+                let on_key = move |press: KeyPress| shortcut(tools, editor, press);
 
                 let content = NodeRef::new();
                 editor.content(&content);
@@ -230,7 +214,7 @@ pub(crate) fn ArtworkCanvas(
                                     view={view}
                                     scale={scale}
                                     artwork={artwork}
-                                    show_grid={tools.show_grid.clone()}
+                                    show_grid={tools.show_grid}
                                     hovered={hovered}
                                 />
                             </List>
@@ -242,7 +226,7 @@ pub(crate) fn ArtworkCanvas(
     }
 }
 
-fn shortcut(tools: &Rc<Tools>, editor: &block_editor_beui::Editor, press: KeyPress) -> bool {
+fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt || !press.pressed {
         return !matches!(shortcut_kind(press.key), Shortcut::None);
     }
@@ -330,38 +314,50 @@ fn Artwork(
     show_grid: ReadSignal<bool>,
     hovered: ReadSignal<Option<(u16, u16)>>,
 ) -> NodeId {
-    let cell = create_memo(clone!(shown artwork -> move || {
+    let cell = create_memo(move || {
         let width = shown.get().width;
         match width {
             0 => 0.0,
             width => artwork.get().width() / f32::from(width),
         }
-    }));
-    let left = create_memo(clone!(artwork -> move || artwork.get().left()));
-    let top = create_memo(clone!(artwork -> move || artwork.get().top()));
-    let width = create_memo(clone!(artwork -> move || artwork.get().width()));
-    let height = create_memo(clone!(artwork -> move || artwork.get().height()));
-    let image = create_memo(clone!(shown -> move || shown.get().artwork));
-    let preview = create_memo(clone!(shown -> move || shown.get().preview));
-    let has_preview = create_memo(clone!(preview -> move || preview.get().is_some()));
-    let preview_image = create_memo(clone!(preview -> move || {
-        preview.get().map(|(_, _, _, _, image)| image)
-    }));
-    let preview_x = create_memo(clone!(preview left cell -> move || {
-        left.get() + preview.get().map_or(0.0, |(edge, _, _, _, _)| f32::from(edge)) * cell.get()
-    }));
-    let preview_y = create_memo(clone!(preview top cell -> move || {
-        top.get() + preview.get().map_or(0.0, |(_, edge, _, _, _)| f32::from(edge)) * cell.get()
-    }));
-    let preview_width = create_memo(clone!(preview cell -> move || {
-        preview.get().map_or(0.0, |(edge, _, far, _, _)| f32::from(far - edge + 1)) * cell.get()
-    }));
-    let preview_height = create_memo(clone!(preview cell -> move || {
-        preview.get().map_or(0.0, |(_, edge, _, far, _)| f32::from(far - edge + 1)) * cell.get()
-    }));
-    let thin = create_memo(clone!(scale -> move || 1.0 / scale.get().max(f32::EPSILON)));
-    let border = thin.clone();
-    let lines = create_memo(clone!(shown scale cell show_grid -> move || {
+    });
+    let left = create_memo(move || artwork.get().left());
+    let top = create_memo(move || artwork.get().top());
+    let width = create_memo(move || artwork.get().width());
+    let height = create_memo(move || artwork.get().height());
+    let image = create_memo(move || shown.get().artwork);
+    let preview = create_memo(move || shown.get().preview);
+    let has_preview = create_memo(move || preview.get().is_some());
+    let preview_image = create_memo(move || preview.get().map(|(_, _, _, _, image)| image));
+    let preview_x = create_memo(move || {
+        left.get()
+            + preview
+                .get()
+                .map_or(0.0, |(edge, _, _, _, _)| f32::from(edge))
+                * cell.get()
+    });
+    let preview_y = create_memo(move || {
+        top.get()
+            + preview
+                .get()
+                .map_or(0.0, |(_, edge, _, _, _)| f32::from(edge))
+                * cell.get()
+    });
+    let preview_width = create_memo(move || {
+        preview
+            .get()
+            .map_or(0.0, |(edge, _, far, _, _)| f32::from(far - edge + 1))
+            * cell.get()
+    });
+    let preview_height = create_memo(move || {
+        preview
+            .get()
+            .map_or(0.0, |(_, edge, _, far, _)| f32::from(far - edge + 1))
+            * cell.get()
+    });
+    let thin = create_memo(move || 1.0 / scale.get().max(f32::EPSILON));
+    let border = thin;
+    let lines = create_memo(move || {
         let shown = shown.get();
         if !show_grid.get() || cell.get() * scale.get() < GRID_MIN_CELL {
             return Vec::new();
@@ -370,35 +366,30 @@ fn Artwork(
             .map(Line::Vertical)
             .chain((1..shown.height).map(Line::Horizontal))
             .collect::<Vec<Line>>()
-    }));
-    let hover_x = create_memo(clone!(hovered left cell -> move || {
+    });
+    let hover_x = create_memo(move || {
         left.get() + hovered.get().map_or(0.0, |(x, _)| f32::from(x)) * cell.get()
-    }));
-    let hover_y = create_memo(clone!(hovered top cell -> move || {
+    });
+    let hover_y = create_memo(move || {
         top.get() + hovered.get().map_or(0.0, |(_, y)| f32::from(y)) * cell.get()
-    }));
-    let over = create_memo(clone!(hovered -> move || hovered.get().is_some()));
-    let hover_size = create_memo(clone!(over cell -> move || match over.get() {
+    });
+    let over = create_memo(move || hovered.get().is_some());
+    let hover_size = create_memo(move || match over.get() {
         true => cell.get(),
         false => 0.0,
-    }));
+    });
     view! {
         <Canvas view={view}>
             <CanvasItem
-                x={left.clone()}
-                y={top.clone()}
-                width={width.clone()}
-                height={height.clone()}
+                x={left}
+                y={top}
+                width={width}
+                height={height}
                 @test_id={"pixel-art.artwork"}
             >
                 <Picture image={image} fit=ImageFit::Fill smooth=false />
             </CanvasItem>
-            <CanvasItem
-                x={left.clone()}
-                y={top.clone()}
-                width={width.clone()}
-                height={height.clone()}
-            >
+            <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
                     outline={Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA)}
                     outline_width={border}
@@ -412,24 +403,24 @@ fn Artwork(
             </CanvasItem>
             <ForEach keys={lines}>
                 {move |line: Line| {
-                    let thin = thin.clone();
-                    let cell = cell.clone();
-                    let (left, top) = (left.clone(), top.clone());
-                    let (width, height) = (width.clone(), height.clone());
+                    let thin = thin;
+                    let cell = cell;
+                    let (left, top) = (left, top);
+                    let (width, height) = (width, height);
                     let (x, y, line_width, line_height) = match line {
                         Line::Vertical(at) => (
-                            create_memo(clone!(left cell -> move || {
+                            create_memo(move || {
                                 left.get() + f32::from(at) * cell.get()
-                            })),
+                            }),
                             top,
                             thin,
                             height,
                         ),
                         Line::Horizontal(at) => (
                             left,
-                            create_memo(clone!(top cell -> move || {
+                            create_memo(move || {
                                 top.get() + f32::from(at) * cell.get()
-                            })),
+                            }),
                             width,
                             thin,
                         ),
@@ -441,7 +432,7 @@ fn Artwork(
                     }
                 }}
             </ForEach>
-            <CanvasItem x={hover_x} y={hover_y} width={hover_size.clone()} height={hover_size}>
+            <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
                 <Frame
                     visible={over}
                     outline=Color32::WHITE
@@ -460,18 +451,17 @@ enum Line {
 }
 
 #[component]
-pub(crate) fn HoverLabel(tools: Rc<Tools>, hovered: ReadSignal<Option<(u16, u16)>>) -> NodeId {
-    let color = tools.color.clone();
-    let tool = tools.tool.clone();
-    let sampled = Rc::clone(&tools);
-    let source = create_memo(clone!(hovered tool -> move || {
+pub(crate) fn HoverLabel(tools: Tools, hovered: ReadSignal<Option<(u16, u16)>>) -> NodeId {
+    let color = tools.color;
+    let tool = tools.tool;
+    let source = create_memo(move || {
         if tool.get() != PixelTool::ReplaceColor {
             return None;
         }
         let (x, y) = hovered.get()?;
-        sampled.pixel(x, y)
-    }));
-    let label = create_memo(clone!(hovered source color -> move || {
+        tools.pixel(x, y)
+    });
+    let label = create_memo(move || {
         let Some((x, y)) = hovered.get() else {
             return String::new();
         };
@@ -483,14 +473,14 @@ pub(crate) fn HoverLabel(tools: Rc<Tools>, hovered: ReadSignal<Option<(u16, u16)
             ),
             None => format!("{x}, {y}"),
         }
-    }));
+    });
     view! {
         <Frame
             height=HOVER_LABEL_HEIGHT
             padding_horizontal=HOVER_LABEL_PADDING
             padding_vertical=HOVER_LABEL_PADDING
         >
-            <Code @test_id={"pixel-art.hover"} content={label} />
+            <Text style=TextStyle::CODE @test_id={"pixel-art.hover"} string={label} />
         </Frame>
     }
 }
@@ -515,7 +505,7 @@ fn is_dark(color: Color32) -> bool {
     u16::from(red) + u16::from(green) + u16::from(blue) < 384
 }
 
-fn begin(tools: &Rc<Tools>, pixel: (u16, u16)) {
+fn begin(tools: Tools, pixel: (u16, u16)) {
     let tool = tools.tool.get_untracked();
     match tool {
         tool if tool.is_drawing() => {
@@ -525,7 +515,7 @@ fn begin(tools: &Rc<Tools>, pixel: (u16, u16)) {
     }
 }
 
-fn finish(tools: &Rc<Tools>, pixel: (u16, u16), width: u16, height: u16) {
+fn finish(tools: Tools, pixel: (u16, u16), width: u16, height: u16) {
     let tool = tools.tool.get_untracked();
     match tool {
         tool if tool.is_drawing() => commit(tools, width, height),
@@ -555,7 +545,7 @@ fn finish(tools: &Rc<Tools>, pixel: (u16, u16), width: u16, height: u16) {
     }
 }
 
-fn commit(tools: &Rc<Tools>, width: u16, height: u16) {
+fn commit(tools: Tools, width: u16, height: u16) {
     let Some(drawing) = tools.draw(|drawing| drawing.take()) else {
         return;
     };
@@ -575,7 +565,7 @@ fn commit(tools: &Rc<Tools>, width: u16, height: u16) {
     });
 }
 
-fn sample(tools: &Rc<Tools>, pixel: (u16, u16)) {
+fn sample(tools: Tools, pixel: (u16, u16)) {
     let Some(color) = tools.pixel(pixel.0, pixel.1) else {
         return;
     };
@@ -585,7 +575,7 @@ fn sample(tools: &Rc<Tools>, pixel: (u16, u16)) {
     }
 }
 
-fn stroke_color(tools: &Rc<Tools>, tool: PixelTool) -> PixelColor {
+fn stroke_color(tools: Tools, tool: PixelTool) -> PixelColor {
     match tool == PixelTool::Eraser {
         true => PixelColor::TRANSPARENT,
         false => tools.color.get_untracked(),
@@ -593,7 +583,7 @@ fn stroke_color(tools: &Rc<Tools>, tool: PixelTool) -> PixelColor {
 }
 
 fn pending(
-    tools: &Rc<Tools>,
+    tools: Tools,
     hovered: Option<(u16, u16)>,
     width: u16,
     height: u16,

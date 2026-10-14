@@ -8,7 +8,7 @@ use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, Interactive, List, NodeRef, Prop, ReadSignal, Render, clone, create_memo, create_signal,
+    Child, Interactive, List, NodeRef, Prop, ReadSignal, Render, create_memo, create_signal,
     create_timer,
 };
 
@@ -29,43 +29,40 @@ pub fn Tooltip(
 ) -> NodeId {
     let anchor = NodeRef::new();
     let (shown, set_shown) = create_signal(false);
-    let wanted = create_memo(clone!(label disabled -> move || {
-        !disabled.get() && !label.get().is_empty()
-    }));
-    let open = create_memo(clone!(shown wanted -> move || shown.get() && wanted.get()));
+    let wanted = create_memo({
+        let label = label.clone();
+        move || !disabled.get() && !label.get().is_empty()
+    });
+    let open = create_memo(move || shown.get() && wanted.get());
 
-    let dwell = create_timer(clone!(set_shown -> move || {
+    let dwell = create_timer(move || {
         set_shown.set(true);
         None
-    }));
-    let hover = clone!(dwell set_shown -> move |hovered: bool| {
-        match hovered {
-            true => dwell.restart(delay),
-            false => {
-                dwell.stop();
-                set_shown.set(false);
-            }
-        }
     });
-    let press = clone!(dwell set_shown -> move |_: PointerPress| {
+    let hover = move |hovered: bool| match hovered {
+        true => dwell.restart(delay),
+        false => {
+            dwell.stop();
+            set_shown.set(false);
+        }
+    };
+    let press = move |_: PointerPress| {
         dwell.stop();
         set_shown.set(false);
-    });
-    let bubble = content.call(TooltipHandle { label, shown });
+    };
 
     view! {
         <Interactive on_hover_change={hover} on_press={press}>
             <List @node_ref=&anchor spacing=0.0>
                 {children}
                 <Overlay
-                    anchor=&anchor
+                    anchor=anchor
                     placement=Placement::BelowStart
                     policy=LayerPolicy::Inert
                     traps_focus=false
                     open={open}
-                >
-                    {bubble}
-                </Overlay>
+                    content={move || content.call(TooltipHandle { label, shown })}
+                />
             </List>
         </Interactive>
     }

@@ -3,6 +3,7 @@ use crate::reactive::{Keyed, List, ReadSignal, build, create_signal, view};
 
 #[test]
 fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
+    let _root = crate::reactive::RootScope::new();
     crate::detect_over_repaint(true);
     let (key, set_key) = create_signal(0u32);
     let (color, set_color) = create_signal(Color32::WHITE);

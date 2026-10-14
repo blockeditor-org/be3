@@ -4,25 +4,24 @@ use crate::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
 
 #[test]
 fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
+    let _root = crate::reactive::RootScope::new();
     let first = EmbedSlot::new();
     let second = EmbedSlot::new();
-    let slots = (first.clone(), second.clone());
+    let slots = (first, second);
     let layout = DockingLayout::new();
-    let showing = layout.clone();
-    let returning = layout.clone();
-    let inside = layout.clone();
+    let inside = layout;
     let document = build(move || {
-        let (first, second) = slots.clone();
+        let (first, second) = slots;
         view! {
             <styled::Docking layout focus=1u64>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
-                        <Embed slot={first.clone()} />
+                        <Embed slot={first} />
                     </DockTab>
                     <DockGroup id="group">
                         <DockPane id="grouped" active=3u64>
                             <DockTab id=2u64 title="Tab 2">
-                                <Embed slot={second.clone()} />
+                                <Embed slot={second} />
                             </DockTab>
                             <DockTab id=3u64 title="Tab 3">
                                 <Embed slot={EmbedSlot::new()} />
@@ -38,7 +37,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     assert!(first.placement().is_some(), "the tab on show is placed");
 
     with_reactive_scope(harness.document_mut(), move || {
-        showing.show(&2);
+        layout.show(&2);
     });
     harness.frame(Vec::new());
     harness.frame(Vec::new());
@@ -50,7 +49,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     );
 
     with_reactive_scope(harness.document_mut(), move || {
-        returning.show(&1);
+        layout.show(&1);
     });
     harness.frame(Vec::new());
     harness.frame(Vec::new());

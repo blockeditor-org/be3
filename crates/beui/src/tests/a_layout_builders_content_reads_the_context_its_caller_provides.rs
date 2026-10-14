@@ -7,7 +7,7 @@ use crate::reactive::{
 struct Accent(Color32);
 
 #[component]
-fn Provider(seen: Rc<Cell<Option<Color32>>>) -> NodeId {
+fn Provider(seen: WriteSignal<Option<Color32>>) -> NodeId {
     provide_context(Accent(Color32::WHITE));
     view! {
         <LayoutBuilder>
@@ -23,16 +23,16 @@ fn Provider(seen: Rc<Cell<Option<Color32>>>) -> NodeId {
 
 #[test]
 fn a_layout_builders_content_reads_the_context_its_caller_provides() {
-    let seen = Rc::new(Cell::new(None));
+    let _root = crate::reactive::RootScope::new();
+    let (seen, set_seen) = create_signal(None);
     let document = build({
-        let seen = Rc::clone(&seen);
         move || {
             view! {
-                <Provider seen />
+                <Provider seen={set_seen} />
             }
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert_eq!(seen.get(), Some(Color32::WHITE));
+    assert_eq!(seen.get_untracked(), Some(Color32::WHITE));
 }

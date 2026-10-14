@@ -3,13 +3,13 @@ use crate::reactive::{Embed, EmbedSlot, ItemSize, List, build, view};
 
 #[test]
 fn an_embed_reports_a_rect_on_the_pixel_grid() {
+    let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
-    let embedded = slot.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) aspect_ratio=1.0>
-                    <Embed slot={embedded} />
+                    <Embed slot={slot} />
                 </Frame>
             </List>
         }

@@ -19,5 +19,13 @@ beui = { path = "../beui" }
 [dev-dependencies]
 block-ui-test = { path = "../block-ui-test" }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+beui-core = { path = "../beui-core" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+pollster = "0.4"
+
 [lints]
 workspace = true
+
+[[example]]
+name = "open-bench"

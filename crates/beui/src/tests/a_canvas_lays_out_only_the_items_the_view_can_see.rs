@@ -3,8 +3,8 @@ use crate::reactive::{Canvas, CanvasItem, CanvasView, build, view, with_document
 
 #[test]
 fn a_canvas_lays_out_only_the_items_the_view_can_see() {
-    let items = Rc::new(RefCell::new(Vec::new()));
-    let sink = items.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (items, set_items) = create_signal(Vec::new());
 
     let document = build(move || {
         let canvas = view! {
@@ -13,14 +13,14 @@ fn a_canvas_lays_out_only_the_items_the_view_can_see() {
                 <CanvasItem x=5000.0 y=10.0 width=20.0 height=20.0 />
             </Canvas>
         };
-        sink.replace(with_document(|document| document.children(canvas)));
+        set_items.set(with_document(|document| document.children(canvas)));
         canvas
     });
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let items = items.borrow();
+    let items = items.get_untracked();
     assert!(harness.document().node_rect(items[0]).is_some());
     assert!(harness.document().node_rect(items[1]).is_none());
 }

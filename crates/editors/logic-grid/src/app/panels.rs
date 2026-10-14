@@ -2,16 +2,16 @@ use std::cell::Cell;
 
 use beui::reactive::{
     Align, Direction, Draw, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo, Prop, Show,
-    Spacer, clone, component, create_memo, create_signal, view,
+    Spacer, component, create_memo, create_signal, store, view,
 };
 use beui::styled::{
-    Accordion, Body, Button, ButtonVariant, Caption, Code, Dialog, ListRow, Scroll, Separator,
-    use_theme,
+    Accordion, Button, ButtonVariant, Dialog, ListRow, Scroll, Separator, use_theme,
 };
 use beui::{FontId, NodeId, Painter, PointerPress};
 
 use super::session::Session;
 use super::*;
+use beui::styled::{Text, TextColor, TextStyle};
 
 const SPACING: f32 = 8.0;
 const LABEL_WIDTH: f32 = 110.0;
@@ -22,60 +22,53 @@ const GRAPH_OUTLINE_COLOR: Color32 = Color32::from_rgb(70, 78, 96);
 const GRAPH_DETAIL_COLOR: Color32 = Color32::from_rgb(225, 225, 225);
 
 #[component]
-pub(super) fn Panels(session: Rc<Session>) -> NodeId {
+pub(super) fn Panels(session: Session) -> NodeId {
     let (challenge_open, set_challenge_open) = create_signal(true);
     let (simulation_open, set_simulation_open) = create_signal(true);
     let (metrics_open, set_metrics_open) = create_signal(true);
     let (debugger_open, set_debugger_open) = create_signal(false);
     let (graph_open, set_graph_open) = create_signal(false);
-    let challenged = create_memo(clone!(session -> move || {
-        session.read(|model| model.challenge.is_some())
-    }));
-    let challenge_session = Rc::clone(&session);
-    let simulation_session = Rc::clone(&session);
-    let metrics_session = Rc::clone(&session);
-    let debugger_session = Rc::clone(&session);
-    let graph_session = Rc::clone(&session);
+    let challenged = create_memo(move || session.read(|model| model.challenge.is_some()));
     view! {
         <List spacing=SPACING>
             <Show condition={challenged}>
-                {move || clone!(challenge_session set_challenge_open -> view! {
+                {move || view! {
                     <Accordion
                         title="Challenge"
-                        open={challenge_open.clone()}
+                        open={challenge_open}
                         on_toggle={move |open| set_challenge_open.set(open)}
                     >
-                        <ChallengePanel session={challenge_session} />
+                        <ChallengePanel session={session} />
                     </Accordion>
-                })}
+                }}
             </Show>
             <Accordion
                 title="Simulation"
                 open={simulation_open}
                 on_toggle={move |open| set_simulation_open.set(open)}
             >
-                <SimulationPanel session={simulation_session} />
+                <SimulationPanel session={session} />
             </Accordion>
             <Accordion
                 title="Metrics"
                 open={metrics_open}
                 on_toggle={move |open| set_metrics_open.set(open)}
             >
-                <MetricsPanel session={metrics_session} />
+                <MetricsPanel session={session} />
             </Accordion>
             <Accordion
                 title="Grid debugger"
                 open={debugger_open}
                 on_toggle={move |open| set_debugger_open.set(open)}
             >
-                <DebuggerPanel session={debugger_session} />
+                <DebuggerPanel session={session} />
             </Accordion>
             <Accordion
                 title="Generated graph"
                 open={graph_open}
                 on_toggle={move |open| set_graph_open.set(open)}
             >
-                <GraphPanel session={graph_session} />
+                <GraphPanel session={session} />
             </Accordion>
             <StorageDialog session={session} />
         </List>
@@ -86,37 +79,36 @@ pub(super) fn Panels(session: Rc<Session>) -> NodeId {
 fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Caption @sizing=ItemSize::Fixed(LABEL_WIDTH) content={label} />
-            <Code @sizing=ItemSize::Percent(100.0) content={value} wrap=true />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(LABEL_WIDTH) string={label} />
+            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={value} wrap=true />
         </List>
     }
 }
 
 #[component]
 fn Problem(content: Prop<String>) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Caption content={content} color={theme.danger.clone()} wrap=true />
+        <Text style=TextStyle::CAPTION string={content} color=TextColor::Danger wrap=true />
     }
 }
 
 #[component]
 fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
-    let keys = create_memo(clone!(rows -> move || (0..rows.with(Vec::len)).collect::<Vec<_>>()));
-    let empty = create_memo(clone!(keys -> move || keys.with(Vec::is_empty)));
+    let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
+    let empty = create_memo(move || keys.with(Vec::is_empty));
     view! {
         <List spacing=4.0>
             <Show condition={empty}>
-                <Caption content="None" />
+                <Text style=TextStyle::CAPTION string="None" />
             </Show>
             <ForEach keys={keys}>
                 {move |index: usize| {
-                    let label = create_memo(clone!(rows -> move || {
+                    let label = create_memo(move || {
                         rows.with(|rows| rows.get(index).map(|row| row.0.clone()).unwrap_or_default())
-                    }));
-                    let value = create_memo(clone!(rows -> move || {
+                    });
+                    let value = create_memo(move || {
                         rows.with(|rows| rows.get(index).map(|row| row.1.clone()).unwrap_or_default())
-                    }));
+                    });
                     view! {
                         <Field label={label} value={value} />
                     }
@@ -131,15 +123,12 @@ fn or_none(value: Option<String>) -> String {
 }
 
 #[component]
-fn MetricsPanel(session: Rc<Session>) -> NodeId {
-    let error = create_memo(clone!(session -> move || {
-        session.read(|model| model.simulation.error.clone())
-    }));
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let problem = create_memo(clone!(error -> move || {
-        format!("Cannot compile: {}", error.get().unwrap_or_default())
-    }));
-    let rows = create_memo(clone!(session -> move || {
+fn MetricsPanel(session: Session) -> NodeId {
+    let error = create_memo(move || session.read(|model| model.simulation.error.clone()));
+    let failed = create_memo(move || error.get().is_some());
+    let problem =
+        create_memo(move || format!("Cannot compile: {}", error.get().unwrap_or_default()));
+    let rows = create_memo(move || {
         session.read(|model| {
             let vm = model.simulation.vm.as_ref();
             vec![
@@ -164,11 +153,11 @@ fn MetricsPanel(session: Rc<Session>) -> NodeId {
                 ),
             ]
         })
-    }));
+    });
     view! {
         <List spacing=SPACING>
             <Show condition={failed}>
-                <Problem content={problem.clone()} />
+                <Problem content={problem} />
             </Show>
             <Rows rows={rows} />
         </List>
@@ -381,40 +370,30 @@ impl LogicGridEditor {
 }
 
 #[component]
-fn SimulationPanel(session: Rc<Session>) -> NodeId {
-    let shown =
-        create_memo(clone!(session -> move || session.read(LogicGridEditor::simulation_view)));
-    let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
-    let problem = create_memo(clone!(shown -> move || {
-        format!("Cannot run: {}", shown.get().error.unwrap_or_default())
-    }));
-    let idle = create_memo(clone!(shown -> move || {
+fn SimulationPanel(session: Session) -> NodeId {
+    let shown = create_memo(move || session.read(LogicGridEditor::simulation_view));
+    let failed = create_memo(move || shown.get().error.is_some());
+    let problem =
+        create_memo(move || format!("Cannot run: {}", shown.get().error.unwrap_or_default()));
+    let idle = create_memo(move || {
         let shown = shown.get();
         shown.error.is_none() && !shown.compiled
-    }));
-    let compiled = create_memo(clone!(shown -> move || shown.get().compiled));
-    let summary = create_memo(clone!(shown -> move || shown.get().summary));
-    let frames =
-        create_memo(clone!(shown -> move || (0..shown.get().frames.len()).collect::<Vec<_>>()));
-    let instructions = create_memo(clone!(shown -> move || {
-        (0..shown.get().instructions.len()).collect::<Vec<_>>()
-    }));
-    let no_instructions =
-        create_memo(clone!(instructions -> move || instructions.get().is_empty()));
-    let inputs =
-        create_memo(clone!(shown -> move || (0..shown.get().inputs.len()).collect::<Vec<_>>()));
-    let no_inputs = create_memo(clone!(inputs -> move || inputs.with(Vec::is_empty)));
-    let outputs = create_memo(clone!(shown -> move || shown.get().outputs));
-    let wires = create_memo(clone!(shown -> move || shown.get().wires));
-    let storage = create_memo(clone!(shown -> move || shown.get().storage));
-    let tick = clone!(session -> move || session.update(LogicGridEditor::run_simulation_tick));
-    let step =
-        clone!(session -> move || session.update(LogicGridEditor::run_simulation_instruction));
-    let frame_session = Rc::clone(&session);
-    let frame_shown = shown.clone();
-    let instruction_session = Rc::clone(&session);
-    let instruction_shown = shown.clone();
-    let input_shown = shown.clone();
+    });
+    let compiled = create_memo(move || shown.get().compiled);
+    let summary = create_memo(move || shown.get().summary);
+    let frames = create_memo(move || (0..shown.get().frames.len()).collect::<Vec<_>>());
+    let instructions = create_memo(move || (0..shown.get().instructions.len()).collect::<Vec<_>>());
+    let no_instructions = create_memo(move || instructions.get().is_empty());
+    let inputs = create_memo(move || (0..shown.get().inputs.len()).collect::<Vec<_>>());
+    let no_inputs = create_memo(move || inputs.with(Vec::is_empty));
+    let outputs = create_memo(move || shown.get().outputs);
+    let wires = create_memo(move || shown.get().wires);
+    let storage = create_memo(move || shown.get().storage);
+    let tick = move || session.update(LogicGridEditor::run_simulation_tick);
+    let step = move || session.update(LogicGridEditor::run_simulation_instruction);
+    let frame_shown = shown;
+    let instruction_shown = shown;
+    let input_shown = shown;
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -433,30 +412,33 @@ fn SimulationPanel(session: Rc<Session>) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <Show condition={failed}>
-                <Problem content={problem.clone()} />
+                <Problem content={problem} />
             </Show>
             <Show condition={idle}>
-                <Caption content="Run a step to compile and execute the circuit." wrap=true />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Run a step to compile and execute the circuit."
+                    wrap=true
+                />
             </Show>
             <Show condition={compiled}>
-                {move || clone!(frame_session frame_shown frames input_shown inputs instruction_session instruction_shown instructions no_inputs no_instructions outputs session storage summary wires -> view! {
+                {move || view! {
                     <List spacing=SPACING>
                         <Rows rows={summary} />
                         <Separator />
-                        <Body content="Call stack" />
+                        <Text string="Call stack" />
                         <List spacing=2.0>
                             <ForEach keys={frames}>
                                 {move |index: usize| {
-                                    let session = Rc::clone(&frame_session);
-                                    let row = create_memo(clone!(frame_shown -> move || {
+                                    let row = create_memo(move || {
                                         frame_shown.get().frames.get(index).cloned()
-                                    }));
-                                    let label = create_memo(clone!(row -> move || {
+                                    });
+                                    let label = create_memo(move || {
                                         row.get().map(|row| row.0).unwrap_or_default()
-                                    }));
-                                    let selected = create_memo(clone!(row -> move || {
+                                    });
+                                    let selected = create_memo(move || {
                                         row.get().is_some_and(|row| row.1)
-                                    }));
+                                    });
                                     let chose = move || {
                                         if let Some((_, _, frame)) = row.get_untracked() {
                                             session.update(|model| model.select_simulation_frame(frame));
@@ -464,24 +446,23 @@ fn SimulationPanel(session: Rc<Session>) -> NodeId {
                                     };
                                     view! {
                                         <ListRow selected={selected} on_click={chose}>
-                                            <Body content={label} />
+                                            <Text string={label} />
                                         </ListRow>
                                     }
                                 }}
                             </ForEach>
                         </List>
                         <Separator />
-                        <Body content="Instructions" />
+                        <Text string="Instructions" />
                         <Show condition={no_instructions}>
-                            <Caption content="No instructions" />
+                            <Text style=TextStyle::CAPTION string="No instructions" />
                         </Show>
                         <List spacing=2.0>
                             <ForEach keys={instructions}>
                                 {move |index: usize| {
-                                    let session = Rc::clone(&instruction_session);
-                                    let row = create_memo(clone!(instruction_shown -> move || {
+                                    let row = create_memo(move || {
                                         instruction_shown.get().instructions.get(index).cloned()
-                                    }));
+                                    });
                                     view! {
                                         <InstructionRow session={session} row={row} index={index} />
                                     }
@@ -489,17 +470,16 @@ fn SimulationPanel(session: Rc<Session>) -> NodeId {
                             </ForEach>
                         </List>
                         <Separator />
-                        <Body content="Inputs" />
+                        <Text string="Inputs" />
                         <Show condition={no_inputs}>
-                            <Caption content="None" />
+                            <Text style=TextStyle::CAPTION string="None" />
                         </Show>
                         <List spacing=4.0>
                             <ForEach keys={inputs}>
                                 {move |index: usize| {
-                                    let session = Rc::clone(&session);
-                                    let row = create_memo(clone!(input_shown -> move || {
+                                    let row = create_memo(move || {
                                         input_shown.get().inputs.get(index).cloned()
-                                    }));
+                                    });
                                     view! {
                                         <InputRow session={session} row={row} index={index} />
                                     }
@@ -507,16 +487,16 @@ fn SimulationPanel(session: Rc<Session>) -> NodeId {
                             </ForEach>
                         </List>
                         <Separator />
-                        <Body content="Outputs" />
+                        <Text string="Outputs" />
                         <Rows rows={outputs} />
                         <Separator />
-                        <Body content="Wire groups" />
+                        <Text string="Wire groups" />
                         <Rows rows={wires} />
                         <Separator />
-                        <Body content="Storage" />
+                        <Text string="Storage" />
                         <Rows rows={storage} />
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }
@@ -524,32 +504,29 @@ fn SimulationPanel(session: Rc<Session>) -> NodeId {
 
 #[component]
 fn InstructionRow(
-    session: Rc<Session>,
+    session: Session,
     row: Memo<Option<(String, bool, Option<bool>)>>,
     index: usize,
 ) -> NodeId {
-    let text = create_memo(clone!(row -> move || row.get().map(|row| row.0).unwrap_or_default()));
+    let text = create_memo(move || row.get().map(|row| row.0).unwrap_or_default());
     let theme = use_theme();
-    let fill = create_memo(
-        clone!(row theme -> move || match row.get().is_some_and(|row| row.1) {
-            true => theme.accent_soft.get(),
-            false => Color32::TRANSPARENT,
-        }),
-    );
-    let calls = create_memo(clone!(row -> move || row.get().is_some_and(|row| row.2.is_some())));
-    let unresolved =
-        create_memo(clone!(row -> move || row.get().is_none_or(|row| row.2 != Some(true))));
+    let fill = create_memo(move || match row.get().is_some_and(|row| row.1) {
+        true => theme.accent_soft.get(),
+        false => Color32::TRANSPARENT,
+    });
+    let calls = create_memo(move || row.get().is_some_and(|row| row.2.is_some()));
+    let unresolved = create_memo(move || row.get().is_none_or(|row| row.2 != Some(true)));
     let target = move || session.update(|model| model.select_instruction_target(index));
     view! {
         <Frame color={fill} radius=3 padding_horizontal=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Code @sizing=ItemSize::Percent(100.0) content={text} />
+                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={text} />
                 <Show condition={calls}>
                     <Button
                         label="Target"
                         variant=ButtonVariant::Secondary
-                        disabled={unresolved.clone()}
-                        on_click={target.clone()}
+                        disabled={unresolved}
+                        on_click={target}
                     />
                 </Show>
             </List>
@@ -558,30 +535,29 @@ fn InstructionRow(
 }
 
 #[component]
-fn InputRow(session: Rc<Session>, row: Memo<Option<InputView>>, index: usize) -> NodeId {
-    let label = create_memo(clone!(row -> move || row.get().map(|row| row.0).unwrap_or_default()));
-    let deleted = create_memo(clone!(row -> move || row.get().is_none_or(|row| row.1.is_none())));
-    let bits = create_memo(clone!(row -> move || {
+fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> NodeId {
+    let label = create_memo(move || row.get().map(|row| row.0).unwrap_or_default());
+    let deleted = create_memo(move || row.get().is_none_or(|row| row.1.is_none()));
+    let bits = create_memo(move || {
         row.get()
             .and_then(|row| row.1)
             .map(|bits| bits.into_iter().map(|(bit, _)| bit).collect::<Vec<_>>())
             .unwrap_or_default()
-    }));
+    });
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=4.0>
-            <Caption content={label} />
+            <Text style=TextStyle::CAPTION string={label} />
             <Show condition={deleted}>
-                <Caption content="deleted" />
+                <Text style=TextStyle::CAPTION string="deleted" />
             </Show>
             <ForEach keys={bits}>
                 {move |bit: u32| {
-                    let session = Rc::clone(&session);
-                    let state = create_memo(clone!(row -> move || {
+                    let state = create_memo(move || {
                         row.get()
                             .and_then(|row| row.1)
                             .and_then(|bits| bits.into_iter().find(|(held, _)| *held == bit))
                             .map_or(0, |(_, state)| state)
-                    }));
+                    });
                     let text = create_memo(move || format!("{bit}:{}", state.get()));
                     let toggle = move || {
                         session.update(|model| model.toggle_simulation_input_bit(index, bit));
@@ -661,34 +637,25 @@ impl LogicGridEditor {
 }
 
 #[component]
-fn ChallengePanel(session: Rc<Session>) -> NodeId {
-    let shown =
-        create_memo(clone!(session -> move || session.read(LogicGridEditor::challenge_view)));
-    let goal = create_memo(
-        clone!(shown -> move || shown.get().map(|shown| shown.goal).unwrap_or_default()),
-    );
-    let status = create_memo(
-        clone!(shown -> move || shown.get().map(|shown| shown.status).unwrap_or_default()),
-    );
-    let error = create_memo(clone!(shown -> move || shown.get().and_then(|shown| shown.error)));
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let working = create_memo(clone!(error -> move || error.get().is_none()));
-    let problem = create_memo(
-        clone!(error -> move || format!("Cannot run: {}", error.get().unwrap_or_default())),
-    );
-    let header = create_memo(clone!(shown -> move || {
-        shown.get().map(|shown| shown.header).unwrap_or_default()
-    }));
-    let ticks = create_memo(clone!(shown -> move || {
+fn ChallengePanel(session: Session) -> NodeId {
+    let shown = create_memo(move || session.read(LogicGridEditor::challenge_view));
+    let goal = create_memo(move || shown.get().map(|shown| shown.goal).unwrap_or_default());
+    let status = create_memo(move || shown.get().map(|shown| shown.status).unwrap_or_default());
+    let error = create_memo(move || shown.get().and_then(|shown| shown.error));
+    let failed = create_memo(move || error.get().is_some());
+    let working = create_memo(move || error.get().is_none());
+    let problem = create_memo(move || format!("Cannot run: {}", error.get().unwrap_or_default()));
+    let header = create_memo(move || shown.get().map(|shown| shown.header).unwrap_or_default());
+    let ticks = create_memo(move || {
         (0..shown.get().map_or(0, |shown| shown.rows.len())).collect::<Vec<_>>()
-    }));
-    let step = clone!(session -> move || session.update(LogicGridEditor::challenge_test_step));
-    let run = clone!(session -> move || session.update(LogicGridEditor::challenge_test_run_all));
-    let reset = clone!(session -> move || session.update(LogicGridEditor::challenge_test_reset));
-    let rows_shown = shown.clone();
+    });
+    let step = move || session.update(LogicGridEditor::challenge_test_step);
+    let run = move || session.update(LogicGridEditor::challenge_test_run_all);
+    let reset = move || session.update(LogicGridEditor::challenge_test_reset);
+    let rows_shown = shown;
     view! {
         <List spacing=SPACING>
-            <Body content={goal} />
+            <Text string={goal} />
             <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=SPACING>
                 <Button
                     label="Step test"
@@ -705,23 +672,26 @@ fn ChallengePanel(session: Rc<Session>) -> NodeId {
                 <Button label="Reset" variant=ButtonVariant::Secondary on_click={reset} />
             </List>
             <Show condition={failed}>
-                <Problem content={problem.clone()} />
+                <Problem content={problem} />
             </Show>
             <Show condition={working}>
-                {move || clone!(header rows_shown session status ticks -> view! {
+                {move || view! {
                     <List spacing=2.0>
-                        <Caption content={status} @test_id={"logic-grid.challenge-status"} />
+                        <Text
+                            style=TextStyle::CAPTION
+                            string={status}
+                            @test_id={"logic-grid.challenge-status"}
+                        />
                         <Scroll direction=Direction::Horizontal>
                             <List spacing=2.0>
-                                <TableRow cells={header.clone()} />
+                                <TableRow cells={header} />
                                 <ForEach keys={ticks}>
                                     {move |tick: usize| {
-                                        let session = Rc::clone(&session);
-                                        let row = create_memo(clone!(rows_shown -> move || {
+                                        let row = create_memo(move || {
                                             rows_shown
                                                 .get()
                                                 .and_then(|shown| shown.rows.get(tick).cloned())
-                                        }));
+                                        });
                                         view! {
                                             <TickRow session={session} row={row} tick={tick} />
                                         }
@@ -730,7 +700,7 @@ fn ChallengePanel(session: Rc<Session>) -> NodeId {
                             </List>
                         </Scroll>
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }
@@ -738,17 +708,17 @@ fn ChallengePanel(session: Rc<Session>) -> NodeId {
 
 #[component]
 fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
-    let keys = create_memo(clone!(cells -> move || (0..cells.with(Vec::len)).collect::<Vec<_>>()));
+    let keys = create_memo(move || (0..cells.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys={keys}>
                 {move |index: usize| {
-                    let text = create_memo(clone!(cells -> move || {
+                    let text = create_memo(move || {
                         cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
-                    }));
+                    });
                     view! {
                         <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding_horizontal=2.0>
-                            <Body content={text} />
+                            <Text string={text} />
                         </Frame>
                     }
                 }}
@@ -758,20 +728,18 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
 }
 
 #[component]
-fn TickRow(session: Rc<Session>, row: Memo<Option<TickView>>, tick: usize) -> NodeId {
-    let active = create_memo(clone!(row -> move || row.get().is_some_and(|row| row.1)));
-    let keys = create_memo(clone!(row -> move || {
-        (0..row.get().map_or(0, |row| row.0.len())).collect::<Vec<_>>()
-    }));
+fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId {
+    let active = create_memo(move || row.get().is_some_and(|row| row.1));
+    let keys = create_memo(move || (0..row.get().map_or(0, |row| row.0.len())).collect::<Vec<_>>());
     let seek = move || session.update(|model| model.challenge_test_seek(tick));
     view! {
         <ListRow selected={active} on_click={seek}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <ForEach keys={keys}>
                     {move |index: usize| {
-                        let cell = create_memo(clone!(row -> move || {
+                        let cell = create_memo(move || {
                             row.get().and_then(|row| row.0.get(index).cloned())
-                        }));
+                        });
                         view! {
                             <TickCell cell={cell} />
                         }
@@ -784,19 +752,15 @@ fn TickRow(session: Rc<Session>, row: Memo<Option<TickView>>, tick: usize) -> No
 
 #[component]
 fn TickCell(cell: Memo<Option<(String, Option<bool>)>>) -> NodeId {
-    let text =
-        create_memo(clone!(cell -> move || cell.get().map(|cell| cell.0).unwrap_or_default()));
-    let theme = use_theme();
-    let color = create_memo(
-        clone!(cell theme -> move || match cell.get().and_then(|cell| cell.1) {
-            Some(true) => theme.text.get(),
-            Some(false) => theme.danger.get(),
-            None => theme.text_muted.get(),
-        }),
-    );
+    let text = create_memo(move || cell.get().map(|cell| cell.0).unwrap_or_default());
+    let color = create_memo(move || match cell.get().and_then(|cell| cell.1) {
+        Some(true) => TextColor::Default,
+        Some(false) => TextColor::Danger,
+        None => TextColor::Muted,
+    });
     view! {
         <Frame width=CELL_WIDTH padding_horizontal=2.0>
-            <Code content={text} color={color} />
+            <Text style=TextStyle::CODE string={text} color={color} />
         </Frame>
     }
 }
@@ -863,9 +827,9 @@ impl LogicGridEditor {
 }
 
 #[component]
-fn DebuggerPanel(session: Rc<Session>) -> NodeId {
-    let pointer = session.pointer.clone();
-    let summary = create_memo(clone!(session pointer -> move || {
+fn DebuggerPanel(session: Session) -> NodeId {
+    let pointer = session.pointer;
+    let summary = create_memo(move || {
         let hovered = pointer.get();
         session.read(|model| {
             let square = hovered.map(|pointer| snap_point(pointer, model.tool.snap()));
@@ -894,8 +858,8 @@ fn DebuggerPanel(session: Rc<Session>) -> NodeId {
                 ),
             ]
         })
-    }));
-    let errors = create_memo(clone!(session -> move || {
+    });
+    let errors = create_memo(move || {
         session.read(|model| {
             model
                 .grid
@@ -905,45 +869,42 @@ fn DebuggerPanel(session: Rc<Session>) -> NodeId {
                 .map(|(index, error)| format!("#{index} {error:?}"))
                 .collect::<Vec<_>>()
         })
-    }));
-    let valid = create_memo(clone!(errors -> move || errors.with(Vec::is_empty)));
-    let error_keys =
-        create_memo(clone!(errors -> move || (0..errors.with(Vec::len)).collect::<Vec<_>>()));
-    let entities =
-        create_memo(clone!(session -> move || session.read(LogicGridEditor::entity_rows)));
-    let entity_keys = create_memo(clone!(entities -> move || {
+    });
+    let valid = create_memo(move || errors.with(Vec::is_empty));
+    let error_keys = create_memo(move || (0..errors.with(Vec::len)).collect::<Vec<_>>());
+    let entities = create_memo(move || session.read(LogicGridEditor::entity_rows));
+    let entity_keys = create_memo(move || {
         entities.with(|rows| rows.iter().map(|row| row.entity).collect::<Vec<_>>())
-    }));
-    let empty = create_memo(clone!(entity_keys -> move || entity_keys.with(Vec::is_empty)));
+    });
+    let empty = create_memo(move || entity_keys.with(Vec::is_empty));
     view! {
         <List spacing=SPACING>
             <Rows rows={summary} />
             <Separator />
-            <Body content="Validation errors" />
+            <Text string="Validation errors" />
             <Show condition={valid}>
-                <Caption content="No validation errors" />
+                <Text style=TextStyle::CAPTION string="No validation errors" />
             </Show>
             <ForEach keys={error_keys}>
                 {move |index: usize| {
-                    let text = create_memo(clone!(errors -> move || {
+                    let text = create_memo(move || {
                         errors.with(|errors| errors.get(index).cloned().unwrap_or_default())
-                    }));
+                    });
                     view! {
                         <Problem content={text} />
                     }
                 }}
             </ForEach>
             <Separator />
-            <Body content="Entities" />
+            <Text string="Entities" />
             <Show condition={empty}>
-                <Caption content="No entities" />
+                <Text style=TextStyle::CAPTION string="No entities" />
             </Show>
             <ForEach keys={entity_keys}>
                 {move |entity: DebugEntity| {
-                    let session = Rc::clone(&session);
-                    let row = create_memo(clone!(entities -> move || {
+                    let row = create_memo(move || {
                         entities.with(|rows| rows.iter().find(|row| row.entity == entity).cloned())
-                    }));
+                    });
                     view! {
                         <EntityPanel session={session} row={row} entity={entity} />
                     }
@@ -954,20 +915,18 @@ fn DebuggerPanel(session: Rc<Session>) -> NodeId {
 }
 
 #[component]
-fn EntityPanel(session: Rc<Session>, row: Memo<Option<EntityRow>>, entity: DebugEntity) -> NodeId {
+fn EntityPanel(session: Session, row: Memo<Option<EntityRow>>, entity: DebugEntity) -> NodeId {
     let (open, set_open) = create_signal(false);
-    let title =
-        create_memo(clone!(row -> move || row.get().map(|row| row.title).unwrap_or_default()));
-    let details =
-        create_memo(clone!(row -> move || row.get().map(|row| row.details).unwrap_or_default()));
-    let hovered = clone!(session -> move |over: bool| {
+    let title = create_memo(move || row.get().map(|row| row.title).unwrap_or_default());
+    let details = create_memo(move || row.get().map(|row| row.details).unwrap_or_default());
+    let hovered = move |over: bool| {
         let current = session.debug_hover.get_untracked();
         if over {
             session.set_debug_hover.set(Some(entity));
         } else if current == Some(entity) {
             session.set_debug_hover.set(None);
         }
-    });
+    };
     view! {
         <Interactive on_hover_change={hovered}>
             <Accordion title={title} open={open} on_toggle={move |open| set_open.set(open)}>
@@ -1028,8 +987,8 @@ fn paint_graph(painter: &Painter, rect: Rect, shape: &GraphShape) {
 }
 
 #[component]
-fn GraphPanel(session: Rc<Session>) -> NodeId {
-    let shape = create_memo(clone!(session -> move || {
+fn GraphPanel(session: Session) -> NodeId {
+    let shape = create_memo(move || {
         session.read(|model| {
             let graph = model.grid.generate_graph();
             let (positions, size) = graph_layout(&graph);
@@ -1039,31 +998,31 @@ fn GraphPanel(session: Rc<Session>) -> NodeId {
                 size,
             })
         })
-    }));
-    let counts = create_memo(clone!(shape -> move || {
+    });
+    let counts = create_memo(move || {
         let shape = shape.get();
         vec![
             ("Nodes".to_owned(), shape.graph.nodes.len().to_string()),
             ("Edges".to_owned(), shape.graph.edges.len().to_string()),
         ]
-    }));
-    let empty = create_memo(clone!(shape -> move || shape.get().graph.nodes.is_empty()));
-    let drawn = create_memo(clone!(empty -> move || !empty.get()));
-    let width = create_memo(clone!(shape -> move || Some(shape.get().size.x)));
-    let height = create_memo(clone!(shape -> move || Some(shape.get().size.y)));
-    let painted = shape.clone();
-    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
+    });
+    let empty = create_memo(move || shape.get().graph.nodes.is_empty());
+    let drawn = create_memo(move || !empty.get());
+    let width = create_memo(move || Some(shape.get().size.x));
+    let height = create_memo(move || Some(shape.get().size.y));
+    let painted = shape;
+    let draw: Prop<Draw> = Prop::dynamic(move || {
         let shape = painted.get();
         Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw
-    }));
+    });
     view! {
         <List spacing=SPACING>
             <Rows rows={counts} />
             <Show condition={empty}>
-                <Caption content="The generated graph is empty." />
+                <Text style=TextStyle::CAPTION string="The generated graph is empty." />
             </Show>
             <Show condition={drawn}>
-                {move || clone!(draw height session shape width -> view! {
+                {move || { let draw = draw.clone(); view! {
                     <Scroll direction=Direction::Horizontal>
                         <GraphCanvas
                             session={session}
@@ -1073,7 +1032,7 @@ fn GraphPanel(session: Rc<Session>) -> NodeId {
                             draw={draw}
                         />
                     </Scroll>
-                })}
+                } }}
             </Show>
         </List>
     }
@@ -1081,21 +1040,21 @@ fn GraphPanel(session: Rc<Session>) -> NodeId {
 
 #[component]
 fn GraphCanvas(
-    session: Rc<Session>,
+    session: Session,
     shape: Memo<Rc<GraphShape>>,
     width: Memo<Option<f32>>,
     height: Memo<Option<f32>>,
     draw: Prop<Draw>,
 ) -> NodeId {
-    let hovered = Rc::new(Cell::new(None::<usize>));
-    let over = clone!(session hovered -> move |press: PointerPress| {
+    let hovered = store(Cell::new(None::<usize>));
+    let over = move |press: PointerPress| {
         let local = press.local;
         let shape = shape.get_untracked();
         let node = shape.positions.iter().position(|center| {
             (local.x - center.x).abs() <= GRAPH_NODE_SIZE.x * 0.5
                 && (local.y - center.y).abs() <= GRAPH_NODE_SIZE.y * 0.5
         });
-        if hovered.replace(node) == node {
+        if hovered.get().replace(node) == node {
             return;
         }
         let mut hover = GraphHover::default();
@@ -1103,13 +1062,13 @@ fn GraphCanvas(
             hover.include_node(node);
         }
         session.set_graph_hover.set(hover);
-    });
-    let left = clone!(session hovered -> move |inside: bool| {
+    };
+    let left = move |inside: bool| {
         if !inside {
-            hovered.set(None);
+            hovered.get().set(None);
             session.set_graph_hover.set(GraphHover::default());
         }
-    });
+    };
     view! {
         <Interactive on_hover_move={over} on_hover_change={left}>
             <Frame width={width} height={height}>
@@ -1120,8 +1079,8 @@ fn GraphCanvas(
 }
 
 #[component]
-fn StorageDialog(session: Rc<Session>) -> NodeId {
-    let configured = create_memo(clone!(session -> move || {
+fn StorageDialog(session: Session) -> NodeId {
+    let configured = create_memo(move || {
         session.read(|model| {
             let id = model.configured_storage?;
             match &model.grid.component(id)?.kind {
@@ -1129,37 +1088,35 @@ fn StorageDialog(session: Rc<Session>) -> NodeId {
                 _ => None,
             }
         })
-    }));
-    let open = create_memo(clone!(configured -> move || configured.get().is_some()));
-    let title = create_memo(clone!(configured -> move || {
+    });
+    let open = create_memo(move || configured.get().is_some());
+    let title = create_memo(move || {
         configured
             .get()
             .map(|(id, _, _)| format!("Configure storage #{}", id.0))
             .unwrap_or_default()
-    }));
-    let bits = create_memo(clone!(configured -> move || {
+    });
+    let bits = create_memo(move || {
         configured
             .get()
             .map(|(_, scale, _)| storage_bit_indices(scale))
             .unwrap_or_default()
-    }));
-    let dismiss =
-        clone!(session -> move || session.update(|model| model.configured_storage = None));
+    });
+    let dismiss = move || session.update(|model| model.configured_storage = None);
     view! {
         <Dialog open={open} title={title} width=DIALOG_WIDTH on_dismiss={dismiss}>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={bits}>
                     {move |bit: u32| {
-                        let session = Rc::clone(&session);
-                        let label = create_memo(clone!(configured -> move || {
+                        let label = create_memo(move || {
                             let state = configured.get().map_or(0, |(_, _, value)| (value >> bit) & 1);
                             format!("Bit {bit}: {state}")
-                        }));
-                        let toggle = clone!(configured -> move || {
+                        });
+                        let toggle = move || {
                             if let Some((id, _, _)) = configured.get_untracked() {
                                 session.edit(|model| model.toggle_storage_bit(id, bit));
                             }
-                        });
+                        };
                         view! {
                             <Button
                                 label={label}

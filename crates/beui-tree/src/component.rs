@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use reactive::Scope;
+use reactive::{ScopeContext, Stored, child_scope, store};
 
 use crate::children::IntoChild;
 
@@ -66,13 +66,11 @@ pub fn try_current_component() -> Option<Rc<ComponentContext>> {
 }
 
 #[diagnostic::on_unimplemented(
-    message = "a `#[component]` function returns a node, a value built around one, or a value that keeps a `ChildScope`",
+    message = "a `#[component]` function returns a node, a value built around one, or a child value",
     label = "implement `ChildValue` for this component's return type"
 )]
 pub trait ChildValue {
-    fn adopt_scope(&mut self, scope: Scope);
-
-    fn finish_component(&mut self, component: &ComponentContext, _scope: &Scope) {
+    fn finish_component(&mut self, component: &ComponentContext, _scope: &ScopeContext) {
         assert!(
             !component.has_extensions(),
             "component `{}` returns a value that is no node, so the bindings its body made \
@@ -82,25 +80,10 @@ pub trait ChildValue {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct ChildScope(Vec<Rc<Scope>>);
-
-impl ChildScope {
-    pub fn adopt(&mut self, scope: Scope) {
-        self.0.push(Rc::new(scope));
-    }
-
-    pub fn is_alive(&self) -> bool {
-        self.0.last().is_some_and(|scope| !scope.is_disposed())
-    }
-}
-
 pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T {
-    let scope = Scope::new();
     let context = Rc::new(ComponentContext::new(name));
-    let mut value = in_component(Some(context.clone()), || scope.run(f));
+    let (mut value, scope) = child_scope(|| in_component(Some(context.clone()), f));
     value.finish_component(&context, &scope);
-    value.adopt_scope(scope);
     value
 }
 
@@ -144,32 +127,28 @@ impl<H, C> Render<H, C> {
     }
 }
 
-pub struct RenderFn<H, C> {
-    owner: Option<Rc<ComponentContext>>,
-    render: Rc<dyn Fn(H) -> C>,
-}
+type RenderFnSlot<H, C> = (Option<Rc<ComponentContext>>, Box<dyn Fn(H) -> C>);
 
-impl<H, C> RenderFn<H, C> {
+pub struct RenderFn<H, C>(Stored<RenderFnSlot<H, C>>);
+
+impl<H: 'static, C: 'static> RenderFn<H, C> {
     pub fn new(render: impl Fn(H) -> C + 'static) -> Self {
-        Self {
-            owner: try_current_component(),
-            render: Rc::new(render),
-        }
+        Self(store((try_current_component(), Box::new(render))))
     }
 
     pub fn call(&self, handle: H) -> C {
-        in_component(self.owner.clone(), || (self.render)(handle))
+        let slot = self.0.get();
+        in_component(slot.0.clone(), || (slot.1)(handle))
     }
 }
 
 impl<H, C> Clone for RenderFn<H, C> {
     fn clone(&self) -> Self {
-        Self {
-            owner: self.owner.clone(),
-            render: self.render.clone(),
-        }
+        *self
     }
 }
+
+impl<H, C> Copy for RenderFn<H, C> {}
 
 pub trait IntoRender<H, C> {
     fn into_render(self) -> Render<H, C>;
@@ -191,7 +170,7 @@ pub trait IntoRenderFn<H, C> {
     fn into_render_fn(self) -> RenderFn<H, C>;
 }
 
-impl<H, C, R: IntoChild<C>, F: Fn(H) -> R + 'static> IntoRenderFn<H, C> for F {
+impl<H: 'static, C: 'static, R: IntoChild<C>, F: Fn(H) -> R + 'static> IntoRenderFn<H, C> for F {
     fn into_render_fn(self) -> RenderFn<H, C> {
         RenderFn::new(move |handle| self(handle).into_child())
     }

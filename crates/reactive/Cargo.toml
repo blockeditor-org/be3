@@ -6,6 +6,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+foldhash = "0.2"
 reactive_macros = { path = "../reactive-macros" }
 
 [lints]

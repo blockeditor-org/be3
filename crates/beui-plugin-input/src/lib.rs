@@ -435,6 +435,7 @@ pub fn protocol_cursor(cursor: beui::CursorIcon) -> CursorIcon {
         beui::CursorIcon::ResizeNorthWest => CursorIcon::ResizeNorthWest,
         beui::CursorIcon::ResizeSouthEast => CursorIcon::ResizeSouthEast,
         beui::CursorIcon::ResizeSouthWest => CursorIcon::ResizeSouthWest,
+        beui::CursorIcon::Touch => CursorIcon::Touch,
     }
 }
 

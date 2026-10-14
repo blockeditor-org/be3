@@ -17,12 +17,16 @@ pub struct FocusReport {
     pub via: Vec<Uuid>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockOpen {
+    pub id: Uuid,
+    pub block_type: Uuid,
+    pub via: Option<Uuid>,
+    pub editor: Option<Uuid>,
+}
+
 pub enum EditorAction {
-    OpenBlock {
-        id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
-    },
+    OpenBlock(BlockOpen),
     Command {
         id: Uuid,
         command: block_plugin_api::BlockCommand,
@@ -139,8 +143,17 @@ pub(crate) struct BlockTypeEntry {
     pub(crate) replace: bool,
 }
 
+struct EditorChoice {
+    editor: Uuid,
+    block_type: Option<Uuid>,
+    manifest: Arc<PluginManifest>,
+    name: String,
+    icon: String,
+}
+
 pub struct EditorRegistry {
     registrations: HashMap<Uuid, EditorRegistration>,
+    editors: Vec<EditorChoice>,
     templates: Vec<TemplateEntry>,
     plugin_block_types: Arc<block_plugin_api::Catalog>,
 }
@@ -153,6 +166,7 @@ impl EditorRegistry {
     pub(crate) fn from_manifests(manifests: Vec<Arc<PluginManifest>>) -> Self {
         let mut registry = Self {
             registrations: HashMap::new(),
+            editors: Vec::new(),
             templates: Vec::new(),
             plugin_block_types: Arc::default(),
         };
@@ -172,6 +186,18 @@ impl EditorRegistry {
                     icon_codepoint: entry.icon.to_owned(),
                     category: entry.category,
                     dialog: entry.target.dialog,
+                })
+                .collect(),
+            editors: registry
+                .editors
+                .iter()
+                .map(|choice| block_plugin_api::EditorDescriptor {
+                    editor: choice.editor.into_bytes(),
+                    block_type: choice
+                        .block_type
+                        .map_or(block_plugin_api::ANY_BLOCK_TYPE, Uuid::into_bytes),
+                    name: choice.name.clone(),
+                    icon_codepoint: choice.icon.clone(),
                 })
                 .collect(),
         });
@@ -210,7 +236,18 @@ impl EditorRegistry {
     }
 
     fn register_editor(&mut self, manifest: &Arc<PluginManifest>, editor: &EditorManifest) {
+        let any = editor.block_type == block_plugin_api::ANY_BLOCK_TYPE;
         let block_type = Uuid::from_bytes(editor.block_type);
+        self.editors.push(EditorChoice {
+            editor: Uuid::from_bytes(manifest.editor_id()),
+            block_type: (!any).then_some(block_type),
+            manifest: Arc::clone(manifest),
+            name: editor.display_name.clone(),
+            icon: editor.icon.clone(),
+        });
+        if any || self.registrations.contains_key(&block_type) {
+            return;
+        }
         let display_name: &'static str = Box::leak(editor.display_name.clone().into_boxed_str());
         let icon: &'static str = Box::leak(editor.icon.clone().into_boxed_str());
         for template in &editor.templates {
@@ -307,5 +344,27 @@ impl EditorRegistry {
             || PluginEditor::unsupported(id, block_type),
             |registration| (registration.open)(id),
         )
+    }
+
+    fn choice(&self, editor: Uuid, block_type: Uuid) -> Option<&EditorChoice> {
+        self.editors.iter().find(|choice| {
+            choice.editor == editor && choice.block_type.is_none_or(|edits| edits == block_type)
+        })
+    }
+
+    pub(crate) fn edits(&self, editor: Uuid, block_type: Uuid) -> bool {
+        self.choice(editor, block_type).is_some()
+    }
+
+    pub(crate) fn open_with(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        editor: Option<Uuid>,
+    ) -> PluginEditor {
+        match editor.and_then(|editor| self.choice(editor, block_type)) {
+            Some(choice) => PluginEditor::new(Arc::clone(&choice.manifest), id, block_type),
+            None => self.open(id, block_type),
+        }
     }
 }

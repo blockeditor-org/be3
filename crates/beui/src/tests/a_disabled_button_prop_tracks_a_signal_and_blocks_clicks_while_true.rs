@@ -4,12 +4,10 @@ use crate::unstyled::Button;
 
 #[test]
 fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
-    let clicks = std::rc::Rc::new(std::cell::Cell::new(0));
-    let sink = clicks.clone();
-    let go_id = std::rc::Rc::new(std::cell::Cell::new(None));
-    let sink_go = go_id.clone();
-    let toggle_id = std::rc::Rc::new(std::cell::Cell::new(None));
-    let sink_toggle = toggle_id.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
+    let (go_id, set_go_id) = create_signal(None);
+    let (toggle_id, set_toggle_id) = create_signal(None);
 
     let document = build(move || {
         let (disabled, set_disabled) = create_signal(true);
@@ -23,35 +21,41 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
                 <Text string="toggle" />
             </Button>
         };
-        sink_toggle.set(Some(toggle));
+        set_toggle_id.set(Some(toggle));
 
         let go = view! {
-            <Button disabled on_click={move || sink.set(sink.get() + 1)}>
+            <Button disabled on_click={move || set_clicks.update(|clicks| *clicks += 1)}>
                 <Text string="go" />
             </Button>
         };
-        sink_go.set(Some(go));
+        set_go_id.set(Some(go));
 
         view! {
             <List spacing=0.0>{toggle}{go}</List>
         }
     });
 
-    let toggle = toggle_id.get().expect("toggle button was created");
-    let go = go_id.get().expect("go button was created");
+    let toggle = toggle_id
+        .get_untracked()
+        .expect("toggle button was created");
+    let go = go_id.get_untracked().expect("go button was created");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(go));
     harness.frame(Vec::new());
-    assert_eq!(clicks.get(), 0, "a disabled button must not fire on_click");
+    assert_eq!(
+        clicks.get_untracked(),
+        0,
+        "a disabled button must not fire on_click"
+    );
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     harness.click(harness.center(go));
     harness.frame(Vec::new());
     assert_eq!(
-        clicks.get(),
+        clicks.get_untracked(),
         1,
         "the button must become clickable once its disabled prop turns false"
     );

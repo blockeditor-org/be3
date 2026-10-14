@@ -1,62 +1,64 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
 use beui::reactive::{
     Align, ClickCallback, Direction, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo, Prop,
-    ReadSignal, Show, clone, component, create_memo, create_signal, view,
+    ReadSignal, Show, component, create_memo, create_signal, view,
 };
-use beui::styled::{Caption, Fullscreen, IconButton, Scroll, use_theme};
+use beui::styled::{Fullscreen, IconButton, Scroll, use_theme};
 use beui::unstyled::Picture;
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
+use beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 16.0;
 const HINT_HEIGHT: f32 = 18.0;
 
 #[component]
 pub(crate) fn ImageViewer(model: Model) -> NodeId {
-    let open = create_memo(clone!(model -> move || model.viewer.with(Option::is_some)));
-    let current = create_memo(clone!(model -> move || {
+    let open = create_memo(move || model.viewer.with(Option::is_some));
+    let current = create_memo(move || {
         model
             .viewer
             .get()
             .and_then(|viewer| viewer.images.get(viewer.index).cloned())
-    }));
-    let picture = create_memo(clone!(model current -> move || {
+    });
+    let picture = create_memo(move || {
         let url = current.get()?;
         match model.image(&url).get() {
             Loaded::Ready(image) => Some(image),
             _ => None,
         }
-    }));
-    let position = create_memo(clone!(model -> move || match model.viewer.get() {
+    });
+    let position = create_memo(move || match model.viewer.get() {
         Some(viewer) => format!(
             "Image {} of {} · the arrow keys move between them",
             viewer.index + 1,
             viewer.images.len()
         ),
         None => String::new(),
-    }));
-    let first = create_memo(clone!(model -> move || {
-        model.viewer.with(|viewer| viewer.as_ref().is_none_or(|viewer| viewer.index == 0))
-    }));
-    let last = create_memo(clone!(model -> move || {
+    });
+    let first = create_memo(move || {
+        model
+            .viewer
+            .with(|viewer| viewer.as_ref().is_none_or(|viewer| viewer.index == 0))
+    });
+    let last = create_memo(move || {
         model.viewer.with(|viewer| {
             viewer
                 .as_ref()
                 .is_none_or(|viewer| viewer.index + 1 >= viewer.images.len())
         })
-    }));
+    });
     let theme = use_theme();
-    let close = clone!(model -> move || model.close_image());
-    let dismiss = close.clone();
-    let previous = clone!(model -> move || model.step_image(-1));
-    let next = clone!(model -> move || model.step_image(1));
-    let browse = clone!(model current -> move || {
+    let close = move || model.close_image();
+    let previous = move || model.step_image(-1);
+    let next = move || model.step_image(1);
+    let browse = move || {
         if let Some(url) = current.get_untracked() {
             model.open(&url);
         }
-    });
-    let keys = clone!(model -> move |press: KeyPress| {
+    };
+    let keys = move |press: KeyPress| {
         if !press.pressed {
             return false;
         }
@@ -68,14 +70,10 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
             _ => return false,
         }
         true
-    });
+    };
     view! {
-        <Fullscreen open={open.clone()} on_dismiss={dismiss}>
-            <Frame
-                color={theme.background.clone()}
-                padding_horizontal=PADDING
-                padding_vertical=PADDING
-            >
+        <Fullscreen open={open} on_dismiss={close}>
+            <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
                 <List spacing=PADDING>
                     <ViewerBar
                         position
@@ -112,29 +110,30 @@ pub(crate) fn ViewerBar(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Caption @sizing=ItemSize::Percent(100.0) content={position} wrap=true />
+            <Text
+                style=TextStyle::CAPTION
+                @sizing=ItemSize::Percent(100.0)
+                string={position}
+                wrap=true
+            />
             <IconButton
                 glyph=ICON_CHEVRON_LEFT
                 label="Previous image"
                 disabled={first}
-                on_click={move || on_previous.call()}
+                on_click={on_previous}
             />
             <IconButton
                 glyph=ICON_CHEVRON_RIGHT
                 label="Next image"
                 disabled={last}
-                on_click={move || on_next.call()}
+                on_click={on_next}
             />
-            <IconButton
-                glyph=ICON_OPEN_IN_NEW
-                label="Open in the browser"
-                on_click={move || on_browse.call()}
-            />
+            <IconButton glyph=ICON_OPEN_IN_NEW label="Open in the browser" on_click={on_browse} />
             <IconButton
                 @test_id={"viewer.close"}
                 glyph=ICON_CLOSE
                 label="Close"
-                on_click={move || on_close.call()}
+                on_click={on_close}
             />
         </List>
     }
@@ -145,57 +144,56 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let natural = create_memo(clone!(picture -> move || {
+                let natural = create_memo(move || {
                     picture.get().map_or(Vec2::ZERO, |image| image.size())
-                }));
-                let shrunk = create_memo(clone!(natural -> move || {
+                });
+                let shrunk = create_memo(move || {
                     let natural = natural.get();
                     let room = size.get() - Vec2::new(0.0, HINT_HEIGHT);
                     natural.x > room.x || natural.y > room.y
-                }));
+                });
                 let (actual, set_actual) = create_signal(false);
-                let zoomed = create_memo(clone!(actual shrunk -> move || actual.get() && shrunk.get()));
-                let fitted = create_memo(clone!(zoomed -> move || !zoomed.get()));
-                let cursor = create_memo(clone!(shrunk -> move || match shrunk.get() {
+                let zoomed = create_memo(move || actual.get() && shrunk.get());
+                let fitted = create_memo(move || !zoomed.get());
+                let cursor = create_memo(move || match shrunk.get() {
                     true => CursorIcon::PointingHand,
                     false => CursorIcon::Default,
-                }));
-                let hint = create_memo(clone!(zoomed shrunk -> move || {
+                });
+                let hint = create_memo(move || {
                     match (zoomed.get(), shrunk.get()) {
                         (true, _) => "100% · click to fit it to the window",
                         (false, true) => "Scaled down to fit · click for 100%",
                         (false, false) => "100%",
                     }
                     .to_owned()
-                }));
-                let width = create_memo(clone!(natural -> move || Some(natural.get().x)));
-                let height = create_memo(clone!(natural -> move || Some(natural.get().y)));
-                let zoom_in = clone!(set_actual shrunk -> move || {
+                });
+                let width = create_memo(move || Some(natural.get().x));
+                let height = create_memo(move || Some(natural.get().y));
+                let zoom_in = move || {
                     if shrunk.get_untracked() {
                         set_actual.set(true);
                     }
-                });
+                };
                 let zoom_out = move || set_actual.set(false);
-                let whole = picture.clone();
                 view! {
                     <List spacing=8.0>
                         <Show condition={fitted}>
-                            {move || clone!(shrunk whole -> view! {
+                            {move || view! {
                                 <Interactive
                                     @sizing=ItemSize::Percent(100.0)
-                                    cursor={cursor.clone()}
-                                    on_click={zoom_in.clone()}
+                                    cursor={cursor}
+                                    on_click={zoom_in}
                                 >
                                     <Picture
-                                        image={whole}
+                                        image={picture}
                                         fit=ImageFit::ScaleDown
-                                        smooth={shrunk.clone()}
+                                        smooth={shrunk}
                                     />
                                 </Interactive>
-                            })}
+                            }}
                         </Show>
                         <Show condition={zoomed}>
-                            {move || clone!(height picture width zoom_out -> view! {
+                            {move || view! {
                                 <Scroll @sizing=ItemSize::Percent(100.0)>
                                     <Scroll direction=Direction::Horizontal>
                                         <Interactive
@@ -212,11 +210,12 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                                         </Interactive>
                                     </Scroll>
                                 </Scroll>
-                            })}
+                            }}
                         </Show>
-                        <Caption
+                        <Text
+                            style=TextStyle::CAPTION
                             @sizing=ItemSize::Fixed(HINT_HEIGHT)
-                            content={hint}
+                            string={hint}
                             align=TextAlign::Center
                         />
                     </List>

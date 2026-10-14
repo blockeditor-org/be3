@@ -7,7 +7,10 @@ use std::{
 
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
-use reactive::{KeyedStore, ReadSignal, WriteSignal, batch, create_signal, on_cleanup};
+use reactive::{
+    KeyedStore, OwnedSignal, OwnedStored, ReadSignal, Stored, WriteSignal, batch, create_signal,
+    on_cleanup,
+};
 
 use crate::{EditorHost, host::ContentUpdate};
 
@@ -55,7 +58,7 @@ pub enum Projected<Op> {
     Rebuilt,
 }
 
-pub struct ContentProjection<C: LiveEdit> {
+struct Projection<C: LiveEdit> {
     host: EditorHost,
     block: Option<uuid::Uuid>,
     confirmed: RefCell<C>,
@@ -68,16 +71,14 @@ pub struct ContentProjection<C: LiveEdit> {
     next_watcher: Cell<u64>,
     touched: RefCell<Vec<Touched>>,
     revision: Cell<u64>,
-    announced: ReadSignal<u64>,
-    announce: WriteSignal<u64>,
+    announced: OwnedSignal<u64>,
     loaded_signals: RefCell<Vec<WriteSignal<bool>>>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
     projected: RefCell<Option<Vec<Projected<C::Op>>>>,
 }
 
-impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
-    pub fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
-        let (announced, announce) = create_signal(0);
+impl<C: LiveEdit + Clone + Default> Projection<C> {
+    fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
         Self {
             host,
             block,
@@ -91,19 +92,18 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             next_watcher: Cell::new(0),
             touched: RefCell::new(Vec::new()),
             revision: Cell::new(0),
-            announced,
-            announce,
+            announced: OwnedSignal::new(0),
             loaded_signals: RefCell::new(Vec::new()),
             due: RefCell::new(None),
             projected: RefCell::new(None),
         }
     }
 
-    pub fn record(&self) {
+    fn record(&self) {
         self.projected.borrow_mut().get_or_insert_with(Vec::new);
     }
 
-    pub fn take_projected(&self) -> Vec<Projected<C::Op>> {
+    fn take_projected(&self) -> Vec<Projected<C::Op>> {
         self.adopt_lazily();
         self.projected
             .borrow_mut()
@@ -118,48 +118,26 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         }
     }
 
-    pub fn on_due(&self, due: impl Fn() + 'static) {
+    fn on_due(&self, due: impl Fn() + 'static) {
         *self.due.borrow_mut() = Some(Rc::new(due));
     }
 
-    pub fn content_type(&self) -> uuid::Uuid {
-        C::CONTENT_TYPE
-    }
-
-    pub fn block(&self) -> Option<uuid::Uuid> {
-        self.block
-    }
-
-    pub fn loaded(&self) -> ReadSignal<bool> {
+    fn loaded(&self) -> ReadSignal<bool> {
         let (loaded, set_loaded) = create_signal(self.loaded.get());
         self.loaded_signals.borrow_mut().push(set_loaded);
         loaded
     }
 
-    pub fn revision(&self) -> Option<u64> {
-        self.announced.get();
+    fn revision(&self) -> Option<u64> {
+        self.announced.read().get();
         self.adopt_lazily();
         self.loaded.get().then(|| self.revision.get())
     }
 
-    pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
-        self.announced.get();
+    fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
+        self.announced.read().get();
         self.adopt_lazily();
         self.loaded.get().then(|| read(&self.visible.borrow()))
-    }
-
-    pub fn project<T>(&self, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
-    where
-        T: Clone + PartialEq + 'static,
-    {
-        self.watch(None, project)
-    }
-
-    pub fn project_on<T>(&self, key: Touched, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
-    where
-        T: Clone + PartialEq + 'static,
-    {
-        self.watch(Some(key), project)
     }
 
     fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
@@ -197,7 +175,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         });
     }
 
-    pub fn project_keyed<K, V>(
+    fn project_keyed<K, V>(
         &self,
         project: impl Fn(&C, &KeyedStore<K, V>) + 'static,
     ) -> KeyedStore<K, V>
@@ -207,19 +185,18 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
     {
         let store: KeyedStore<K, V> = KeyedStore::new();
         project(&self.visible.borrow(), &store);
-        let target = store.clone();
-        self.register(None, Rc::new(move |content| project(content, &target)));
+        self.register(None, Rc::new(move |content| project(content, &store)));
         store
     }
 
-    pub fn operate(&self, operation: C::Op) {
-        if !self.host.editable() {
+    fn operate(&self, operation: C::Op) {
+        if !self.host.editable() || !self.loaded.get() {
             return;
         }
         self.operate_anyway(operation);
     }
 
-    pub fn operate_anyway(&self, operation: C::Op) {
+    fn operate_anyway(&self, operation: C::Op) {
         self.visible
             .borrow_mut()
             .apply_touching(&operation, &mut self.touched.borrow_mut());
@@ -228,13 +205,13 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             .operate_content_at(self.block, C::encode_operation(&operation));
         self.pending.borrow_mut().push_back(operation);
         self.notify();
-        self.announce.set(self.revision.get());
+        self.announced.write().set(self.revision.get());
     }
 
-    pub fn pump(&self) {
+    fn pump(&self) {
         self.adopt();
         self.notify();
-        self.announce.set(self.revision.get());
+        self.announced.write().set(self.revision.get());
     }
 
     fn notify(&self) {
@@ -337,7 +314,136 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
     }
 }
 
-impl<R: Root + 'static> ContentProjection<Document<R>> {
+pub struct ContentProjection<C: LiveEdit>(Stored<Projection<C>>);
+
+impl<C: LiveEdit> Clone for ContentProjection<C> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<C: LiveEdit> Copy for ContentProjection<C> {}
+
+impl<C: LiveEdit> PartialEq for ContentProjection<C> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<C: LiveEdit> Eq for ContentProjection<C> {}
+
+pub struct OwnedContentProjection<C: LiveEdit + 'static> {
+    handle: ContentProjection<C>,
+    _state: OwnedStored<Projection<C>>,
+}
+
+impl<C: LiveEdit + Clone + Default + 'static> OwnedContentProjection<C> {
+    pub fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
+        let state = OwnedStored::new(Projection::new(host, block));
+        Self {
+            handle: ContentProjection(state.handle()),
+            _state: state,
+        }
+    }
+}
+
+impl<C: LiveEdit + 'static> OwnedContentProjection<C> {
+    pub fn handle(&self) -> ContentProjection<C> {
+        self.handle
+    }
+}
+
+impl<C: LiveEdit + 'static> std::ops::Deref for OwnedContentProjection<C> {
+    type Target = ContentProjection<C>;
+
+    fn deref(&self) -> &ContentProjection<C> {
+        &self.handle
+    }
+}
+
+impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
+    fn inner(&self) -> Rc<Projection<C>> {
+        self.0.get()
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.0.is_alive()
+    }
+
+    pub fn record(&self) {
+        self.inner().record();
+    }
+
+    pub fn take_projected(&self) -> Vec<Projected<C::Op>> {
+        self.inner().take_projected()
+    }
+
+    pub fn on_due(&self, due: impl Fn() + 'static) {
+        self.inner().on_due(due);
+    }
+
+    pub fn content_type(&self) -> uuid::Uuid {
+        C::CONTENT_TYPE
+    }
+
+    pub fn block(&self) -> Option<uuid::Uuid> {
+        self.inner().block
+    }
+
+    pub fn loaded(&self) -> ReadSignal<bool> {
+        self.inner().loaded()
+    }
+
+    pub fn revision(&self) -> Option<u64> {
+        self.inner().revision()
+    }
+
+    pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
+        self.inner().read(read)
+    }
+
+    pub fn project<T>(&self, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    where
+        T: Clone + PartialEq + 'static,
+    {
+        self.inner().watch(None, project)
+    }
+
+    pub fn project_on<T>(&self, key: Touched, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    where
+        T: Clone + PartialEq + 'static,
+    {
+        self.inner().watch(Some(key), project)
+    }
+
+    pub fn project_keyed<K, V>(
+        &self,
+        project: impl Fn(&C, &KeyedStore<K, V>) + 'static,
+    ) -> KeyedStore<K, V>
+    where
+        K: Clone + Eq + Hash + 'static,
+        V: Clone + PartialEq + 'static,
+    {
+        self.inner().project_keyed(project)
+    }
+
+    pub fn operate(&self, operation: C::Op) {
+        self.inner().operate(operation);
+    }
+
+    pub fn operate_anyway(&self, operation: C::Op) {
+        self.inner().operate_anyway(operation);
+    }
+
+    pub fn pump(&self) {
+        self.inner().pump();
+    }
+}
+
+impl<R: Root + 'static> ContentProjection<Document<R>>
+where
+    Document<R>: LiveEdit + Clone + Default,
+{
     pub fn field<M: 'static, F>(&self, object: ObjectId, field: FieldRef<M, F>) -> ReadSignal<F>
     where
         F: Field + Clone + PartialEq + 'static,

@@ -10,6 +10,7 @@ use beui_core::painter::Shape;
 use beui_font_browser::css_font;
 
 const REACH: f64 = 1_000_000.0;
+const UNDRAWABLE: Color32 = Color32::from_rgb(255, 0, 255);
 
 #[derive(Debug, PartialEq)]
 pub enum Look {
@@ -127,7 +128,12 @@ pub fn look(shape: &Shape, factor: f32, image: Option<&str>) -> Option<Look> {
                 rgba(*color),
             ))
         }
-        Shape::Punch { .. } | Shape::Drawing { .. } => return None,
+        Shape::Drawing { rect, clip, .. } => {
+            let mut css = placed(snapped(*rect, factor), *clip, Rotation::NONE)?;
+            let _ = write!(css, "background:{};", rgba(UNDRAWABLE));
+            Look::Box(css)
+        }
+        Shape::Punch { .. } => return None,
     };
     Some(look)
 }
@@ -241,7 +247,7 @@ pub fn group(group: Group, factor: f32) -> (String, String) {
             let (x, y) = shown(viewport);
             (clipped(x, y), within(x, y, offset))
         }
-        Group::Mask(fade) => {
+        Group::Mask { fade, .. } => {
             let (x, y) = shown(fade.rect);
             let mut outer = clipped(x, y);
             outer.push_str(&masked(

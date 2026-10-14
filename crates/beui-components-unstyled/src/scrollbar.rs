@@ -11,8 +11,8 @@ use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_view::reactive::{
-    Callback, Drawing, Interactive, Memo, Prop, ReadSignal, Render, clone, create_memo,
-    create_signal, untrack,
+    Callback, Drawing, Interactive, Memo, Prop, ReadSignal, Render, create_memo, create_signal,
+    untrack,
 };
 
 const MINIMUM_THUMB: f32 = 0.08;
@@ -64,7 +64,7 @@ pub fn ScrollbarThumb(
     color: Prop<Color32>,
     #[prop(default = 0.0)] radius: f32,
 ) -> NodeId {
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let (position, direction, color) = (position.get(), direction.get(), color.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             let thumb = painter
@@ -72,7 +72,7 @@ pub fn ScrollbarThumb(
                 .snap_rect(thumb_rect(rect, direction, position));
             painter.rect_filled(thumb, radius, color);
         }) as Draw
-    }));
+    });
     view! {
         <Drawing draw />
     }
@@ -128,16 +128,15 @@ pub fn Scrollbar(
     let grab = Rc::new(Cell::new(None::<f32>));
 
     let content_node = content.call(ScrollbarHandle {
-        position: position.clone(),
-        direction: direction.clone(),
-        hovered: hovered.clone(),
-        dragging: dragging.clone(),
+        position,
+        direction,
+        hovered,
+        dragging,
     });
 
-    let paged = on_scroll_to.clone();
-    let (pressed_axis, dragged_axis, hovered_axis) =
-        (direction.clone(), direction.clone(), direction.clone());
-    let (pressed_at, dragged_at, hovered_at) = (position.clone(), position.clone(), position);
+    let paged = on_scroll_to;
+    let (pressed_axis, dragged_axis, hovered_axis) = (direction, direction, direction);
+    let (pressed_at, dragged_at, hovered_at) = (position, position, position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {
         <Interactive
@@ -168,11 +167,11 @@ pub fn Scrollbar(
                 }
                 on_scroll_to.call(offset_at(position, along(&dragged_axis, press) - grab));
             }}
-            on_hover_move={clone!(set_hovered -> move |press: PointerPress| {
+            on_hover_move={move |press: PointerPress| {
                 let position = untrack(|| hovered_at.get());
                 let at = along(&hovered_axis, press);
                 set_hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
-            })}
+            }}
             on_hover_change={move |inside: bool| {
                 if !inside {
                     set_hovered.set(false);

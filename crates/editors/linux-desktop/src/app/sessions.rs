@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{
     EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
@@ -15,22 +13,20 @@ pub(crate) struct Session {
     pub(crate) name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Sessions {
-    workspace: Rc<Workspace>,
+    workspace: Workspace,
     pub(crate) settings: Memo<Option<Uuid>>,
     pub(crate) listed: Memo<Vec<Session>>,
 }
 
 impl Sessions {
-    pub(crate) fn new(workspace: &Rc<Workspace>) -> Self {
+    pub(crate) fn new(workspace: Workspace) -> Self {
         let found = RootSettings::default();
-        let finding = Rc::clone(workspace);
-        let settings = create_memo(move || found.find(finding.editor()));
-        let listing = Rc::clone(workspace);
-        let listed = create_memo(move || listed(&listing));
+        let settings = create_memo(move || found.find(&workspace.editor()));
+        let listed = create_memo(move || listed(&workspace));
         Self {
-            workspace: Rc::clone(workspace),
+            workspace,
             settings,
             listed,
         }
@@ -60,7 +56,7 @@ impl Sessions {
 
 fn listed(workspace: &Workspace) -> Vec<Session> {
     let editor = workspace.editor();
-    let Some(held) = RootSettings::default().read(editor) else {
+    let Some(held) = RootSettings::default().read(&editor) else {
         return Vec::new();
     };
     let mut sessions: Vec<Session> = held

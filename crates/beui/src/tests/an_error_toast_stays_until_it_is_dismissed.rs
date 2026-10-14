@@ -15,7 +15,7 @@ fn an_error_toast_stays_until_it_is_dismissed() {
         view! {
             <Frame @node_ref=&area width={VIEWPORT.x} height={VIEWPORT.y}>
                 <Toasts
-                    anchor={area.clone()}
+                    anchor={area}
                     toasts={toasts}
                     on_dismiss={move |id: u64| {
                         set_toasts.update(|toasts| toasts.retain(|toast| toast.id != id))
@@ -25,7 +25,6 @@ fn an_error_toast_stays_until_it_is_dismissed() {
         }
     });
     let mut harness = Harness::new(document);
-    harness.context.set_test_ids_published(true);
     harness.frame(Vec::new());
 
     harness.advance(TOAST_DURATION * 4);

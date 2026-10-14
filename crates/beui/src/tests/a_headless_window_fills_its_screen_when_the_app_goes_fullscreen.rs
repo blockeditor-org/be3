@@ -1,21 +1,22 @@
 use super::*;
 
-struct Fullscreen(Rc<Cell<bool>>);
+struct Fullscreen(ReadSignal<bool>);
 
 impl App for Fullscreen {
     fn update(&mut self, context: &Context, _rect: Rect) {
-        context.set_fullscreen(self.0.get());
+        context.set_fullscreen(self.0.get_untracked());
     }
 }
 
 #[test]
 fn a_headless_window_fills_its_screen_when_the_app_goes_fullscreen() {
-    let fullscreen = Rc::new(Cell::new(false));
-    let mut driven = Driven::with_app(Fullscreen(fullscreen.clone()), true);
+    let _root = crate::reactive::RootScope::new();
+    let (fullscreen, set_fullscreen) = create_signal(false);
+    let mut driven = Driven::with_app(Fullscreen(fullscreen), true);
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.starts_with("window 400x300 "), "{state}");
 
-    fullscreen.set(true);
+    set_fullscreen.set(true);
     driven.ask(&["settle"]).expect("the app settles");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(
@@ -23,7 +24,7 @@ fn a_headless_window_fills_its_screen_when_the_app_goes_fullscreen() {
         "the window grows to the screen:\n{state}"
     );
 
-    fullscreen.set(false);
+    set_fullscreen.set(false);
     driven.ask(&["settle"]).expect("the app settles");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(

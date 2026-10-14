@@ -25,8 +25,9 @@ it an icon, or moving it to a sidebar then leaves the tests alone.
 
     <Button label="Add task" @test_id={"checklist.add"} on_click={add} />
 
-@test_id names the node the component builds, and the frame reports the rectangle every
-named node was laid out at, which is what block-ui-test clicks. Name them
+@test_id names the node the component builds. The node's accessibility node carries the id,
+so the frame reports the rectangle of every named node the accessibility tree shows, which is
+what block-ui-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
 block itself keys them by (`checklist.item.{id}.done`, where `id` is the item's `ObjectId`,
 the same id the edit names), never by the order they happen to be drawn in. An id names one node in the tree:
@@ -37,8 +38,9 @@ places (a toolbar and a dock, say) gives each copy its own id.
 3. Write the test
 
 Tests live inside the editor's crate, one test per file under src/tests/, like every other
-test in the repository. block-ui-test's BeuiTest is built from the same Editor the view is
-handed and runs it headless through the plugin's own session (block_editor_plugin::headless):
+test in the repository. block-ui-test's BeuiTest is built from an OwnedEditor, which owns the
+state behind the Copy Editor the view is handed (it derefs to one, so `let editor = *owner;`
+keeps a handle after the BeuiTest takes the owner), and runs it headless through the plugin's own session (block_editor_plugin::headless):
 the Screens and EditorSession the shipped plugin runs, fed the protocol messages the app's
 host would send, with every message in both directions encoded and decoded as it would be on
 the wire. Gestures are turned into the protocol's input events the way block-app turns
@@ -48,7 +50,7 @@ either, and a message the plugin refuses fails the test.
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, block);
+    let editor = OwnedEditor::new(host, block);
     let mut test = BeuiTest::<ChecklistApp>::new(editor);
     test.hold(None, ChecklistContent::default());
     test.run();
@@ -134,7 +136,10 @@ race with a wider margin, which is how one of these hid.
 The date and the time of day come from the harness too: an editor reads them from
 `block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
 `SystemTime::now()`, and the harness pins that clock to one fixed moment plus its frame clock, so
-a clock or a calendar paints the same on every run.
+a clock or a calendar paints the same on every run. beui's own date and time components (a
+calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the plugin runner
+pins to that clock each frame; a beui test without a plugin pins it with
+`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main
@@ -197,7 +202,7 @@ way for the test to fail.
   row of controls - and text drawn outside its own box. Each line names the node, its nearest
   ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the text,
   let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it - rather than the test.
-- ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/paint-snapshot:example-rasterize -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.
 - Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so
@@ -205,7 +210,7 @@ way for the test to fail.
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
-  ./scripts/buck run //crates/paint-snapshot:changed-example says, for every painting in
+  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every painting in
   snapshots/ that differs from HEAD, which frame changed and what moved in it. With
   -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
   and a changes image for every frame that differs, where magenta marks every pixel that
@@ -266,7 +271,7 @@ next, and anything that starts afresh with each harness must be reset when it do
 (HeadlessPlugin::new restarts the frame clock). A test that fails only after others ran passes
 alone, and in the runner's rerun too; reproduce it by running the whole module, with no filter,
 through ./scripts/buck test, which runs it again every time where ./scripts/verify's cached
-:test_run does not. A single test is a filter handed through to the
+:test-run does not. A single test is a filter handed through to the
 test binary: ./scripts/test some_test_name finds the crate and runs it, and
 ./scripts/buck test //crates/editors/checklist:test -- --test-arg=some_test_name is the same by hand.
 

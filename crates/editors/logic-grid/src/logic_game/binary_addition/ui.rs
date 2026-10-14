@@ -1,18 +1,15 @@
-use std::rc::Rc;
-
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::logic_game::QuizRow;
 use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
 use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
-    Show, Spacer, clone, component, create_memo, create_signal, view,
+    Show, Spacer, Stored, component, create_memo, create_signal, store, view,
 };
-use block_editor_beui::beui::styled::{
-    Body, Bordered, Button, ButtonVariant, Caption, Code, Icon, use_theme,
-};
+use block_editor_beui::beui::styled::{Bordered, Button, ButtonVariant, use_theme};
 use block_editor_beui::beui::{NodeId, TextAlign};
 
 use super::{BinaryAdditionQuiz, next_answer};
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 type Answers = (Vec<Option<bool>>, Vec<Option<bool>>);
 
@@ -25,8 +22,8 @@ const PADDING: f32 = 8.0;
 
 #[component]
 pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::GameBlock) -> NodeId {
-    let quiz = Rc::new(BinaryAdditionQuiz::default());
-    let count = quiz.problems().len();
+    let quiz = store(BinaryAdditionQuiz::default());
+    let count = quiz.get().problems().len();
     let (page, set_page) = create_signal(0usize);
     let (checked, set_checked) = create_signal(false);
     let stored = block.project(move |game| {
@@ -40,67 +37,63 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
             })
             .collect::<Vec<Answers>>()
     });
-    let answers = create_memo(clone!(quiz stored page -> move || {
+    let answers = create_memo(move || {
         let problem = page.get();
         let (carries, sums) = stored.with(|stored| stored[problem].clone());
-        quiz.fit(problem, carries, sums)
-    }));
-    let correct = create_memo(clone!(quiz answers page -> move || {
-        answers.with(|(carries, sums)| quiz.is_correct(carries, sums, page.get()))
-    }));
-    let finished = create_memo(clone!(quiz stored -> move || {
+        quiz.get().fit(problem, carries, sums)
+    });
+    let correct = create_memo(move || {
+        answers.with(|(carries, sums)| quiz.get().is_correct(carries, sums, page.get()))
+    });
+    let finished = create_memo(move || {
         stored.with(|stored| {
             stored.iter().enumerate().all(|(problem, (carries, sums))| {
-                let (carries, sums) = quiz.fit(problem, carries.clone(), sums.clone());
-                quiz.is_correct(&carries, &sums, problem)
+                let (carries, sums) = quiz.get().fit(problem, carries.clone(), sums.clone());
+                quiz.get().is_correct(&carries, &sums, problem)
             })
         })
-    }));
+    });
 
     let read_only = editor.read_only();
-    let grid_read_only = read_only.clone();
-    let title = create_memo(clone!(page -> move || {
-        format!("Problem {} of {count}", page.get() + 1)
-    }));
-    let first = create_memo(clone!(page -> move || page.get() == 0));
-    let last = create_memo(clone!(page -> move || page.get() + 1 >= count));
-    let not_last = create_memo(clone!(last -> move || !last.get()));
-    let blocked = create_memo(clone!(correct -> move || !correct.get()));
-    let passed = create_memo(clone!(checked correct -> move || checked.get() && correct.get()));
-    let failed = create_memo(clone!(checked correct -> move || checked.get() && !correct.get()));
-    let done = create_memo(clone!(last correct finished -> move || {
-        last.get() && correct.get() && finished.get()
-    }));
+    let grid_read_only = read_only;
+    let title = create_memo(move || format!("Problem {} of {count}", page.get() + 1));
+    let first = create_memo(move || page.get() == 0);
+    let last = create_memo(move || page.get() + 1 >= count);
+    let not_last = create_memo(move || !last.get());
+    let blocked = create_memo(move || !correct.get());
+    let passed = create_memo(move || checked.get() && correct.get());
+    let failed = create_memo(move || checked.get() && !correct.get());
+    let done = create_memo(move || last.get() && correct.get() && finished.get());
 
-    let check = clone!(set_checked -> move || set_checked.set(true));
-    let reset = clone!(quiz block page set_checked -> move || {
+    let check = move || set_checked.set(true);
+    let reset = move || {
         let problem = page.get_untracked();
-        quiz.write_row(&block, problem, QuizRow::Carries, Vec::new());
-        quiz.write_row(&block, problem, QuizRow::Sums, Vec::new());
+        quiz.get()
+            .write_row(&block, problem, QuizRow::Carries, Vec::new());
+        quiz.get()
+            .write_row(&block, problem, QuizRow::Sums, Vec::new());
         set_checked.set(false);
-    });
-    let back = clone!(page set_page set_checked -> move || {
+    };
+    let back = move || {
         set_page.set(page.get_untracked().saturating_sub(1));
         set_checked.set(false);
-    });
-    let forward = clone!(page set_page set_checked -> move || {
+    };
+    let forward = move || {
         set_page.set((page.get_untracked() + 1).min(count - 1));
         set_checked.set(false);
-    });
+    };
 
-    let theme = use_theme();
-    let success = theme.success.clone();
     view! {
         <List spacing=ROW_SPACING>
-            <Body content={title} />
+            <Text string={title} />
             <Bordered corner_radius=8>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <ProblemGrid
-                        quiz={Rc::clone(&quiz)}
+                        quiz={quiz}
                         block={block}
-                        page={page.clone()}
+                        page={page}
                         answers={answers}
-                        checked={checked.clone()}
+                        checked={checked}
                         read_only={grid_read_only}
                     />
                 </Frame>
@@ -120,10 +113,18 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     on_click={reset}
                 />
                 <Show condition={passed}>
-                    <Caption content="This page is correct." color={theme.success.clone()} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="This page is correct."
+                        color=TextColor::Success
+                    />
                 </Show>
                 <Show condition={failed}>
-                    <Caption content="Some blanks still need work." color={theme.danger.clone()} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Some blanks still need work."
+                        color=TextColor::Danger
+                    />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -139,18 +140,18 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     <Button
                         label="Next"
                         variant=ButtonVariant::Primary
-                        disabled={blocked.clone()}
+                        disabled={blocked}
                         @test_id={"quiz.next"}
-                        on_click={forward.clone()}
+                        on_click={forward}
                     />
                 </Show>
                 <Show condition={done}>
-                    {move || clone!(success -> view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={success.clone()} />
-                            <Caption content="Every problem is correct." color={success} />
-                        </List>
-                    })}
+                    {move || view! {
+                        <Text style=TextStyle::CAPTION color=TextColor::Success>
+                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                            "Every problem is correct."
+                        </Text>
+                    }}
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -160,29 +161,23 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
 
 #[component]
 fn ProblemGrid(
-    quiz: Rc<BinaryAdditionQuiz>,
+    quiz: Stored<BinaryAdditionQuiz>,
     block: crate::logic_game::app::GameBlock,
     page: ReadSignal<usize>,
     answers: Memo<Answers>,
     checked: ReadSignal<bool>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let operands = create_memo(clone!(quiz page -> move || {
-        quiz.problems()[page.get()].operands().to_vec()
-    }));
-    let write = clone!(quiz block page -> move |row: QuizRow, values: Vec<Option<bool>>| {
-        quiz.write_row(&block, page.get_untracked(), row, values);
-    });
-    let carry_write = write.clone();
-    let carries =
-        create_memo(clone!(answers -> move || answers.with(|(carries, _)| carries.clone())));
-    let sums = create_memo(clone!(answers -> move || answers.with(|(_, sums)| sums.clone())));
-    let carry_expected = create_memo(clone!(quiz page -> move || {
-        quiz.problems()[page.get()].carry_bits().to_vec()
-    }));
-    let sum_expected = create_memo(clone!(quiz page -> move || {
-        quiz.problems()[page.get()].sum_bits().to_vec()
-    }));
+    let operands = create_memo(move || quiz.get().problems()[page.get()].operands().to_vec());
+    let write = move |row: QuizRow, values: Vec<Option<bool>>| {
+        quiz.get()
+            .write_row(&block, page.get_untracked(), row, values);
+    };
+    let carries = create_memo(move || answers.with(|(carries, _)| carries.clone()));
+    let sums = create_memo(move || answers.with(|(_, sums)| sums.clone()));
+    let carry_expected =
+        create_memo(move || quiz.get().problems()[page.get()].carry_bits().to_vec());
+    let sum_expected = create_memo(move || quiz.get().problems()[page.get()].sum_bits().to_vec());
     let theme = use_theme();
     view! {
         <List spacing=ROW_SPACING>
@@ -190,10 +185,10 @@ fn ProblemGrid(
                 label="carry"
                 answers={carries}
                 expected={carry_expected}
-                checked={checked.clone()}
-                read_only={read_only.clone()}
+                checked={checked}
+                read_only={read_only}
                 prefix="quiz.carry"
-                on_change={move |values| carry_write(QuizRow::Carries, values)}
+                on_change={move |values| write(QuizRow::Carries, values)}
             />
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
@@ -201,7 +196,7 @@ fn ProblemGrid(
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     height=RULE_HEIGHT
-                    color={theme.border.clone()}
+                    color={theme.border}
                     radius=0
                 />
             </List>
@@ -220,22 +215,20 @@ fn ProblemGrid(
 
 #[component]
 fn OperandRows(operands: Memo<Vec<String>>) -> NodeId {
-    let rows = create_memo(
-        clone!(operands -> move || (0..operands.with(Vec::len)).collect::<Vec<usize>>()),
-    );
+    let rows = create_memo(move || (0..operands.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
             <ForEach keys={rows}>
                 {move |index: usize| {
-                    let operand = create_memo(clone!(operands -> move || {
+                    let operand = create_memo(move || {
                         operands.with(|operands| operands.get(index).cloned().unwrap_or_default())
-                    }));
-                    let sign = create_memo(clone!(operands -> move || {
+                    });
+                    let sign = create_memo(move || {
                         match index + 1 == operands.with(Vec::len) {
                             true => "+".to_owned(),
                             false => String::new(),
                         }
-                    }));
+                    });
                     view! {
                         <OperandRow sign={sign} operand={operand} />
                     }
@@ -247,24 +240,22 @@ fn OperandRows(operands: Memo<Vec<String>>) -> NodeId {
 
 #[component]
 fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
-    let bits = create_memo(
-        clone!(operand -> move || (0..operand.with(String::len)).collect::<Vec<usize>>()),
-    );
+    let bits = create_memo(move || (0..operand.with(String::len)).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Caption content={sign} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION string={sign} align=TextAlign::End />
             </Frame>
             <ForEach keys={bits}>
                 {move |column: usize| {
-                    let bit = create_memo(clone!(operand -> move || {
+                    let bit = create_memo(move || {
                         operand.with(|operand| {
                             operand.chars().nth(column).map(String::from).unwrap_or_default()
                         })
-                    }));
+                    });
                     view! {
                         <Frame width=CELL>
-                            <Code content={bit} align=TextAlign::Center />
+                            <Text style=TextStyle::CODE string={bit} align=TextAlign::Center />
                         </Frame>
                     }
                 }}
@@ -284,25 +275,22 @@ fn BitRow(
     prefix: &'static str,
     on_change: Callback<Vec<Option<bool>>>,
 ) -> NodeId {
-    let columns =
-        create_memo(clone!(answers -> move || (0..answers.with(Vec::len)).collect::<Vec<usize>>()));
+    let columns = create_memo(move || (0..answers.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Caption content={label} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION string={label} align=TextAlign::End />
             </Frame>
             <ForEach keys={columns}>
                 {move |column: usize| {
-                    let answer = create_memo(clone!(answers -> move || {
+                    let answer = create_memo(move || {
                         answers.with(|answers| answers.get(column).copied().flatten())
-                    }));
-                    let wrong = create_memo(clone!(answers expected checked -> move || {
+                    });
+                    let wrong = create_memo(move || {
                         checked.get()
                             && answers.with(|answers| answers.get(column).copied().flatten())
                                 != expected.with(|expected| expected.get(column).copied())
-                    }));
-                    let on_change = on_change.clone();
-                    let answers = answers.clone();
+                    });
                     let cycle = move || {
                         let mut values = answers.get_untracked();
                         if let Some(value) = values.get_mut(column) {
@@ -314,7 +302,7 @@ fn BitRow(
                         <BitCell
                             answer={answer}
                             wrong={wrong}
-                            read_only={read_only.clone()}
+                            read_only={read_only}
                             @test_id={format!("{prefix}.{column}")}
                             on_click={cycle}
                         />
@@ -338,7 +326,7 @@ fn BitCell(
         None => " ".to_owned(),
     });
     let theme = use_theme();
-    let outline = create_memo(clone!(theme -> move || theme.danger.get()));
+    let outline = create_memo(move || theme.danger.get());
     view! {
         <Frame
             width=CELL
@@ -352,7 +340,7 @@ fn BitCell(
                 label={label}
                 variant=ButtonVariant::Secondary
                 disabled={read_only}
-                on_click={move || on_click.call()}
+                on_click={on_click}
             />
         </Frame>
     }

@@ -78,6 +78,8 @@ struct RegionState {
     reported_frame: Option<FrameReport>,
     window: block_plugin_api::WindowRequests,
     reported_window: Option<block_plugin_api::WindowRequests>,
+    stopped: Option<block_plugin_api::Stopped>,
+    reported_stopped: bool,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
     laid_out: Size,
@@ -193,8 +195,8 @@ impl EditorSession {
         self.host.receive_host_value(key, value);
     }
 
-    pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.host.show_block(block_id, block_type, via);
+    pub(crate) fn show_block(&self, request: crate::ShowRequest) {
+        self.host.show_block(request);
     }
 
     pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
@@ -317,7 +319,7 @@ impl EditorSession {
             let state = self.regions.entry(placement.region).or_default();
             state.placement = Some(*placement);
             state.metrics = Some(request.metrics.clone());
-            state.frame = request.frame.clone();
+            state.frame = request.frame;
         }
     }
 
@@ -600,12 +602,6 @@ impl EditorSession {
                 command,
             }));
         }
-        if let Some(grabbed) = self.host.take_cursor_grab() {
-            messages.push(Message::Editor(EditorMessage::GrabCursor {
-                instance,
-                grabbed,
-            }));
-        }
         for placements in self.children() {
             messages.push(Message::Children(placements));
         }
@@ -622,12 +618,13 @@ impl EditorSession {
                 change,
             }));
         }
-        for (block_id, block_type, via) in self.host.take_opens() {
+        for open in self.host.take_opens() {
             messages.push(Message::Editor(EditorMessage::OpenBlock {
                 instance,
-                block_id: block_id.into_bytes(),
-                block_type: block_type.into_bytes(),
-                via: via.map(Uuid::into_bytes),
+                block_id: open.block_id.into_bytes(),
+                block_type: open.block_type.into_bytes(),
+                via: open.via.map(Uuid::into_bytes),
+                editor: open.editor.map(Uuid::into_bytes),
             }));
         }
         for (block_id, block_type) in self.host.take_block_drags() {
@@ -690,6 +687,15 @@ impl EditorSession {
                     instance,
                     region: *region,
                     window: state.window.clone(),
+                });
+            }
+            if let Some(stopped) = &state.stopped
+                && !std::mem::replace(&mut state.reported_stopped, true)
+            {
+                messages.push(EditorMessage::Stopped {
+                    instance,
+                    region: *region,
+                    stopped: stopped.clone(),
                 });
             }
         }
@@ -852,7 +858,7 @@ impl EditorSession {
             spec: self
                 .regions
                 .get(&region)
-                .and_then(|state| state.frame.clone())
+                .and_then(|state| state.frame)
                 .unwrap_or_default(),
             monitors: self.monitors(region),
             describe: crate::screens::describing(),
@@ -893,6 +899,11 @@ impl EditorSession {
         self.host.set_files(files);
 
         let mut frame = self.app.update(&context, draft.as_mut());
+        if let Some(state) = self.regions.get_mut(&region)
+            && state.stopped.is_none()
+        {
+            state.stopped = frame.stopped.take();
+        }
 
         if let Some(delay) = self.host.take_frame_request() {
             frame.repaint_after = Some(frame.repaint_after.map_or(delay, |held| held.min(delay)));
@@ -930,6 +941,7 @@ impl EditorSession {
             let window = &frame.window;
             state.window = block_plugin_api::WindowRequests {
                 cursor: window.cursor,
+                pointer_locked: window.pointer_locked,
                 ime: window.ime.as_ref().map(|ime| ImeArea {
                     rect: reported(ime.rect),
                     cursor: reported(ime.cursor),
@@ -970,14 +982,7 @@ impl EditorSession {
                                 focused: node.focused,
                                 rect: node.rect.map(reported),
                                 actions: node.actions.clone(),
-                            })
-                            .collect(),
-                        test_ids: description
-                            .test_ids
-                            .iter()
-                            .map(|(id, rect)| block_plugin_api::TestIdRect {
-                                id: id.clone(),
-                                rect: reported(*rect),
+                                test_ids: node.test_ids.clone(),
                             })
                             .collect(),
                         actions: description.actions.clone(),

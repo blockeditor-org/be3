@@ -3,6 +3,7 @@ use crate::unstyled::dock_state;
 
 #[test]
 fn dragging_a_window_by_its_bar_moves_it() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

@@ -6,8 +6,8 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
-    let clicks = Rc::new(Cell::new(0));
-    let click_sink = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -18,12 +18,11 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
                 >
                     <ForEach keys={indices(40)}>
                         {move |index: usize| {
-                            let click_sink = click_sink.clone();
                             view! {
                                 <Frame width=120.0>
                                     <LabelledButton
                                         label={format!("Card {index}")}
-                                        on_click={move || click_sink.set(click_sink.get() + 1)}
+                                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                                     />
                                 </Frame>
                             }
@@ -46,5 +45,5 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
     assert!(
         (harness.document().scroll_offset(strip) - (100.0 - TOUCH_DRAG_THRESHOLD)).abs() < 0.01
     );
-    assert_eq!(clicks.get(), 0);
+    assert_eq!(clicks.get_untracked(), 0);
 }

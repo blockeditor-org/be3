@@ -1,12 +1,9 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, Platform, RunOptions, Runner};
 
-type Log = Rc<RefCell<Vec<&'static str>>>;
+type Log = WriteSignal<Vec<&'static str>>;
 
 struct Screen(Log);
 
@@ -30,14 +27,14 @@ impl Renderer for Screen {
     }
 
     fn present(&mut self, _background: Color32) -> bool {
-        self.0.borrow_mut().push("presented");
+        self.0.update(|log| log.push("presented"));
         false
     }
 }
 
 impl Drop for Screen {
     fn drop(&mut self) {
-        self.0.borrow_mut().push("renderer dropped");
+        self.0.update(|log| log.push("renderer dropped"));
     }
 }
 
@@ -49,30 +46,31 @@ struct Holding(Log);
 
 impl App for Holding {
     fn update(&mut self, _context: &Context, _rect: Rect) {
-        self.0.borrow_mut().push("updated");
+        self.0.update(|log| log.push("updated"));
     }
 
     fn exiting(&mut self) {
-        self.0.borrow_mut().push("exiting");
+        self.0.update(|log| log.push("exiting"));
     }
 }
 
 impl Drop for Holding {
     fn drop(&mut self) {
-        self.0.borrow_mut().push("app dropped");
+        self.0.update(|log| log.push("app dropped"));
     }
 }
 
 #[test]
 fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
-    let log = Log::default();
+    let _root = crate::reactive::RootScope::new();
+    let (_, log) = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),
-        app: Box::new(Holding(log.clone())),
+        app: Box::new(Holding(log)),
     });
     let loaded = vec![Loaded {
-        renderer: Box::new(Screen(log.clone())),
+        renderer: Box::new(Screen(log)),
         fonts: None,
     }];
     runner
@@ -85,12 +83,12 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
 
     runner.exit();
     assert_eq!(
-        log.take(),
+        log.update(std::mem::take),
         ["updated", "presented", "exiting", "app dropped"]
     );
     runner.present();
     assert!(
-        log.take().is_empty(),
+        log.update(std::mem::take).is_empty(),
         "an exited runner presents nothing more"
     );
     assert!(
@@ -98,8 +96,11 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
         "an exited runner draws nothing more"
     );
     runner.exit();
-    assert!(log.take().is_empty(), "the app hears that it exits once");
+    assert!(
+        log.update(std::mem::take).is_empty(),
+        "the app hears that it exits once"
+    );
 
     drop(runner);
-    assert_eq!(log.take(), ["renderer dropped"]);
+    assert_eq!(log.update(std::mem::take), ["renderer dropped"]);
 }

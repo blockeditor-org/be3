@@ -8,8 +8,8 @@ use crate::unstyled::DateTimeParts;
 
 #[test]
 fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <DateTimeField
@@ -17,7 +17,7 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
                 today={Some(Date::new(2026, 1, 1))}
                 parts=DateTimeParts::Date
                 label="Due"
-                on_change={move |value| sink.borrow_mut().push(value)}
+                on_change={move |value| set_reported.update(|reported| reported.push(value))}
             />
         }
     });
@@ -44,7 +44,7 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        *reported.borrow(),
+        reported.get_untracked(),
         [Some(DateTime::new(Date::new(2026, 3, 6), Time::new(8, 45)))]
     );
     assert!(!open(&harness), "picking a day closes the calendar");

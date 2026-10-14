@@ -12,7 +12,7 @@ use block_editor_beui::be_block::database_view::{
 };
 use block_editor_beui::beui::Key;
 use block_editor_beui::{
-    BeuiApp, Creation, Editor, EditorHost,
+    BeuiApp, Creation, EditorHost, OwnedEditor,
     block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };
 use block_ui_test::BeuiTest;
@@ -25,6 +25,7 @@ mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
 mod a_filter_hides_the_rows_it_rejects;
 mod a_list_groups_rows_by_status_and_folds_the_closed_ones;
 mod a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list;
+mod a_list_waits_for_the_rows_its_relations_name;
 mod a_new_row_takes_each_choices_default;
 mod a_new_view_starts_as_a_spreadsheet;
 mod a_phone_opens_a_row_over_the_list_and_back_returns_to_it;
@@ -104,7 +105,7 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
     let view = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), view);
+    let editor = OwnedEditor::new(host.clone(), view);
     let mut harness = BeuiTest::new(editor);
     harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
     harness.hold(

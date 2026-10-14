@@ -103,11 +103,13 @@ pub struct Frame {
     pub claims: Vec<Claim>,
     pub window: WindowRequests,
     pub description: Option<Description>,
+    pub stopped: Option<block_plugin_api::Stopped>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowRequests {
     pub cursor: CursorIcon,
+    pub pointer_locked: bool,
     pub ime: Option<Ime>,
     pub handles_back: bool,
     pub wants_keyboard: bool,
@@ -118,7 +120,6 @@ pub struct WindowRequests {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
-    pub test_ids: Vec<(String, Rect)>,
     pub actions: Vec<block_plugin_api::DescribedAction>,
 }
 
@@ -133,6 +134,7 @@ pub struct DescribedNode {
     pub focused: bool,
     pub rect: Option<Rect>,
     pub actions: Vec<String>,
+    pub test_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

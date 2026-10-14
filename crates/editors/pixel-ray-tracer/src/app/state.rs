@@ -11,7 +11,7 @@ use block_editor_beui::be_block::pixel_ray_tracer::{
 use block_editor_beui::beui::Image;
 use block_editor_beui::beui::reactive::Draw;
 use block_editor_beui::beui::reactive::{
-    ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+    ReadSignal, Stored, WriteSignal, create_effect, create_signal, store, untrack,
 };
 use block_editor_beui::{ContentProjection, Editor, PerformanceReporter, Waker};
 
@@ -98,8 +98,7 @@ struct TracedRays {
     settings: RaySettings,
 }
 
-pub(crate) struct RayState {
-    editor: Editor,
+struct RayInner {
     block: Scenes,
     performance: PerformanceReporter,
     interaction: RefCell<Option<Interaction>>,
@@ -110,6 +109,13 @@ pub(crate) struct RayState {
     ray_job: RefCell<Option<Receiver<RayResult>>>,
     ray_state: RefCell<Option<TracedRays>>,
     shown_overlay: RefCell<Option<Overlay>>,
+    pointer: Cell<Option<Point>>,
+    waker: RefCell<Waker>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct RayState {
+    editor: Editor,
     pub(crate) entities: ReadSignal<Vec<RayEntity>>,
     pub(crate) lighting: ReadSignal<Option<Image>>,
     set_lighting: WriteSignal<Option<Image>>,
@@ -127,10 +133,9 @@ pub(crate) struct RayState {
     set_new_light_intensity: WriteSignal<f32>,
     pub(crate) new_surface: ReadSignal<Surface>,
     set_new_surface: WriteSignal<Surface>,
-    pointer: Cell<Option<Point>>,
     poked: ReadSignal<u64>,
     set_poked: WriteSignal<u64>,
-    waker: RefCell<Waker>,
+    inner: Stored<RayInner>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -153,7 +158,7 @@ impl Default for Surface {
 }
 
 impl RayState {
-    pub(crate) fn new(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor) -> Self {
         let block = Scenes::new(editor.block_content::<PixelRayTracerContent>());
         let performance = editor
             .host()
@@ -175,18 +180,8 @@ impl RayState {
         let (new_light_intensity, set_new_light_intensity) = create_signal(2.0);
         let (new_surface, set_new_surface) = create_signal(Surface::default());
         let (poked, set_poked) = create_signal(0);
-        Rc::new(Self {
-            editor: editor.clone(),
-            block,
-            performance,
-            interaction: RefCell::new(None),
-            interaction_revision: Cell::new(0),
-            lighting_job: RefCell::new(None),
-            lighting_key: Cell::new(None),
-            rendered: RefCell::new(Vec::new()),
-            ray_job: RefCell::new(None),
-            ray_state: RefCell::new(None),
-            shown_overlay: RefCell::new(None),
+        Self {
+            editor,
             entities,
             lighting,
             set_lighting,
@@ -204,19 +199,33 @@ impl RayState {
             set_new_light_intensity,
             new_surface,
             set_new_surface,
-            pointer: Cell::new(None),
             poked,
             set_poked,
-            waker: RefCell::new(Waker::default()),
-        })
+            inner: store(RayInner {
+                block,
+                performance,
+                interaction: RefCell::new(None),
+                interaction_revision: Cell::new(0),
+                lighting_job: RefCell::new(None),
+                lighting_key: Cell::new(None),
+                rendered: RefCell::new(Vec::new()),
+                ray_job: RefCell::new(None),
+                ray_state: RefCell::new(None),
+                shown_overlay: RefCell::new(None),
+                pointer: Cell::new(None),
+                waker: RefCell::new(Waker::default()),
+            }),
+        }
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn settings(&self, view: bool) -> RaySettings {
-        self.block
+        let inner = self.inner.get();
+        inner
+            .block
             .read()
             .map_or_else(RaySettings::default, |scene| match view {
                 true => scene.view_ray_settings(),
@@ -225,21 +234,24 @@ impl RayState {
     }
 
     pub(crate) fn set_settings(&self, view: bool, settings: RaySettings) {
+        let inner = self.inner.get();
         match view {
             true => {
-                self.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::SetViewRaySettings { settings });
-                self.ray_state.borrow_mut().take();
+                inner.ray_state.borrow_mut().take();
             }
-            false => self
+            false => inner
                 .block
                 .operate(PixelRayTracerOperation::SetLightingRaySettings { settings }),
         }
     }
 
     pub(crate) fn choose_tool(&self, tool: Tool) {
+        let inner = self.inner.get();
         self.set_tool.set(tool);
-        self.interaction.borrow_mut().take();
+        inner.interaction.borrow_mut().take();
         if tool != Tool::Select {
             self.set_selected.set(None);
         }
@@ -252,6 +264,7 @@ impl RayState {
     }
 
     pub(crate) fn choose_color(&self, index: u8) {
+        let inner = self.inner.get();
         self.set_color_index.set(index);
         let Some(mut entity) = self.selected_entity() else {
             return;
@@ -259,7 +272,8 @@ impl RayState {
         match &mut entity {
             RayEntity::Surface { color_index, .. } | RayEntity::Light { color_index, .. } => {
                 *color_index = index;
-                self.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::UpdateEntity { entity });
             }
             RayEntity::Water { .. } => {}
@@ -275,21 +289,26 @@ impl RayState {
     }
 
     pub(crate) fn update_entity(&self, entity: RayEntity) {
-        self.block
+        let inner = self.inner.get();
+        inner
+            .block
             .operate(PixelRayTracerOperation::UpdateEntity { entity });
     }
 
     pub(crate) fn delete_selected(&self) {
+        let inner = self.inner.get();
         let Some(id) = self.selected.get_untracked() else {
             return;
         };
         self.set_selected.set(None);
-        self.block
+        inner
+            .block
             .operate(PixelRayTracerOperation::DeleteEntity { id });
     }
 
     pub(crate) fn reset(&self) {
-        self.block.operate(PixelRayTracerOperation::Reset);
+        let inner = self.inner.get();
+        inner.block.operate(PixelRayTracerOperation::Reset);
         self.set_selected.set(None);
     }
 
@@ -302,18 +321,20 @@ impl RayState {
     }
 
     pub(crate) fn hover(&self, at: Option<Point>) {
-        if self.pointer.replace(at) != at {
+        let inner = self.inner.get();
+        if inner.pointer.replace(at) != at {
             self.poke();
         }
     }
 
     pub(crate) fn press(&self, at: Point) {
+        let inner = self.inner.get();
         let tool = self.tool.get_untracked();
         let snapped = snap(at);
         match tool {
             Tool::Pencil | Tool::PixelLine => {
                 if let Some(pixel) = pixel_at(at, false) {
-                    *self.interaction.borrow_mut() = Some(Interaction::Pixels {
+                    *inner.interaction.borrow_mut() = Some(Interaction::Pixels {
                         start: pixel,
                         current: pixel,
                         path: vec![pixel],
@@ -321,15 +342,15 @@ impl RayState {
                 }
             }
             Tool::Surface | Tool::Water => {
-                *self.interaction.borrow_mut() = Some(Interaction::Entity {
+                *inner.interaction.borrow_mut() = Some(Interaction::Entity {
                     start: snapped,
                     current: snapped,
                 });
             }
             Tool::Light => {
                 if inside(at) {
-                    let id = self.block.read().map_or(1, |scene| scene.next_entity_id());
-                    self.block.operate(PixelRayTracerOperation::AddEntity {
+                    let id = inner.block.read().map_or(1, |scene| scene.next_entity_id());
+                    inner.block.operate(PixelRayTracerOperation::AddEntity {
                         entity: RayEntity::Light {
                             id,
                             position: snapped,
@@ -352,8 +373,9 @@ impl RayState {
     }
 
     fn follow(&self, at: Point) {
+        let inner = self.inner.get();
         let tool = self.tool.get_untracked();
-        let mut held = self.interaction.borrow_mut();
+        let mut held = inner.interaction.borrow_mut();
         let Some(interaction) = held.as_mut() else {
             return;
         };
@@ -370,15 +392,17 @@ impl RayState {
                 let next = snap(at);
                 if *current != next {
                     *current = next;
-                    self.interaction_revision
-                        .set(self.interaction_revision.get().wrapping_add(1));
+                    inner
+                        .interaction_revision
+                        .set(inner.interaction_revision.get().wrapping_add(1));
                 }
             }
         }
     }
 
     pub(crate) fn release(&self) {
-        let Some(interaction) = self.interaction.borrow_mut().take() else {
+        let inner = self.inner.get();
+        let Some(interaction) = inner.interaction.borrow_mut().take() else {
             return;
         };
         let tool = self.tool.get_untracked();
@@ -397,11 +421,12 @@ impl RayState {
                     .into_iter()
                     .map(|(x, y)| PixelUpdate { x, y, color_index })
                     .collect();
-                self.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::Paint { pixels });
             }
             Interaction::Entity { start, current } if start != current => {
-                let id = self.block.read().map_or(1, |scene| scene.next_entity_id());
+                let id = inner.block.read().map_or(1, |scene| scene.next_entity_id());
                 let surface = self.new_surface.get_untracked();
                 let entity = match tool {
                     Tool::Surface => RayEntity::Surface {
@@ -420,7 +445,8 @@ impl RayState {
                         end: current,
                     },
                 };
-                self.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::AddEntity { entity });
                 self.set_selected.set(Some(id));
             }
@@ -442,6 +468,7 @@ impl RayState {
     }
 
     fn select_or_drag(&self, at: Point) {
+        let inner = self.inner.get();
         let entities = self.entities.get_untracked();
         if let Some(id) = self.selected.get_untracked()
             && let Some(entity) = entities.iter().find(|entity| entity.id() == id).cloned()
@@ -449,7 +476,7 @@ impl RayState {
             let tolerance = 3.0;
             match entity {
                 RayEntity::Light { position, .. } if distance(at, position) <= tolerance => {
-                    *self.interaction.borrow_mut() = Some(Interaction::Light {
+                    *inner.interaction.borrow_mut() = Some(Interaction::Light {
                         id,
                         current: position,
                     });
@@ -458,7 +485,7 @@ impl RayState {
                 RayEntity::Surface { start, .. } | RayEntity::Water { start, .. }
                     if distance(at, start) <= tolerance =>
                 {
-                    *self.interaction.borrow_mut() = Some(Interaction::Endpoint {
+                    *inner.interaction.borrow_mut() = Some(Interaction::Endpoint {
                         id,
                         start: true,
                         current: start,
@@ -468,7 +495,7 @@ impl RayState {
                 RayEntity::Surface { end, .. } | RayEntity::Water { end, .. }
                     if distance(at, end) <= tolerance =>
                 {
-                    *self.interaction.borrow_mut() = Some(Interaction::Endpoint {
+                    *inner.interaction.borrow_mut() = Some(Interaction::Endpoint {
                         id,
                         start: false,
                         current: end,
@@ -483,7 +510,8 @@ impl RayState {
     }
 
     fn drafted(&self) -> Option<RayEntity> {
-        let held = self.interaction.borrow();
+        let inner = self.inner.get();
+        let held = inner.interaction.borrow();
         let entities = self.entities.get_untracked();
         match held.as_ref()? {
             Interaction::Endpoint { id, start, current } => {
@@ -495,7 +523,8 @@ impl RayState {
     }
 
     fn preview(&self) -> Preview {
-        let held = self.interaction.borrow();
+        let inner = self.inner.get();
+        let held = inner.interaction.borrow();
         let tool = self.tool.get_untracked();
         let color_index = self.color_index.get_untracked();
         match held.as_ref() {
@@ -518,19 +547,19 @@ impl RayState {
         }
     }
 
-    pub(crate) fn watch(self: &Rc<Self>) {
+    pub(crate) fn watch(self) {
+        let inner = self.inner.get();
         let (waker, woken) = self.editor.woken();
-        *self.waker.borrow_mut() = waker;
-        let state = Rc::clone(self);
+        *inner.waker.borrow_mut() = waker;
         create_effect(move || {
             woken.with(|_| ());
-            state.poked.with(|_| ());
-            state.entities.with(|_| ());
-            state.tool.with(|_| ());
-            state.selected.with(|_| ());
-            state.color_index.with(|_| ());
-            state.block.content.revision();
-            untrack(|| state.settle());
+            self.poked.with(|_| ());
+            self.entities.with(|_| ());
+            self.tool.with(|_| ());
+            self.selected.with(|_| ());
+            self.color_index.with(|_| ());
+            self.inner.with(|inner| inner.block.content.revision());
+            untrack(|| self.settle());
         });
     }
 
@@ -541,6 +570,7 @@ impl RayState {
     }
 
     fn settle_overlay(&self) {
+        let inner = self.inner.get();
         let mut entities = self.entities.get_untracked();
         if let Some(draft) = self.drafted() {
             for entity in &mut entities {
@@ -554,7 +584,7 @@ impl RayState {
             selected: self.selected.get_untracked(),
             preview: self.preview(),
         };
-        if self.shown_overlay.borrow().as_ref() == Some(&shown) {
+        if inner.shown_overlay.borrow().as_ref() == Some(&shown) {
             return;
         }
         self.set_overlay.set_unconditionally(overlay::draw(
@@ -562,26 +592,27 @@ impl RayState {
             shown.selected,
             shown.preview.clone(),
         ));
-        *self.shown_overlay.borrow_mut() = Some(shown);
+        *inner.shown_overlay.borrow_mut() = Some(shown);
     }
 
     fn settle_lighting(&self) {
-        let Some(scene) = self.block.read() else {
+        let inner = self.inner.get();
+        let Some(scene) = inner.block.read() else {
             return;
         };
         let key = LightingKey {
             block_revision: scene.lighting_revision(),
             preview_revision: match self.drafted().is_some() {
-                true => self.interaction_revision.get(),
+                true => inner.interaction_revision.get(),
                 false => 0,
             },
         };
         self.land_lighting();
-        if self.lighting_key.get() == Some(key) {
-            self.performance.record_count("Lighting cache hits", 1);
+        if inner.lighting_key.get() == Some(key) {
+            inner.performance.record_count("Lighting cache hits", 1);
             return;
         }
-        if self.lighting_job.borrow().is_some() {
+        if inner.lighting_job.borrow().is_some() {
             return;
         }
         let pixels = scene.pixels().to_vec();
@@ -599,7 +630,7 @@ impl RayState {
             .collect::<Vec<_>>();
         let settings = scene.lighting_ray_settings();
         drop(scene);
-        let waker = self.waker.borrow().clone();
+        let waker = inner.waker.borrow().clone();
         let (sender, receiver) = mpsc::channel();
         run_job("pixel-ray-tracer-lighting", move || {
             let started = Instant::now();
@@ -607,14 +638,16 @@ impl RayState {
             let _ = sender.send((key, result, started.elapsed()));
             waker.wake();
         });
-        *self.lighting_job.borrow_mut() = Some(receiver);
-        self.performance.record_count("Lighting cache misses", 1);
+        *inner.lighting_job.borrow_mut() = Some(receiver);
+        inner.performance.record_count("Lighting cache misses", 1);
         self.land_lighting();
     }
 
     fn land_lighting(&self) {
+        let inner = self.inner.get();
         let landed =
-            self.lighting_job
+            inner
+                .lighting_job
                 .borrow()
                 .as_ref()
                 .and_then(|receiver| match receiver.try_recv() {
@@ -623,53 +656,56 @@ impl RayState {
                     Err(TryRecvError::Empty) => None,
                 });
         if let Some(landed) = landed {
-            self.lighting_job.borrow_mut().take();
+            inner.lighting_job.borrow_mut().take();
             if let Ok((landed_key, pixels, duration)) = landed {
-                self.performance.record_duration("Lighting trace", duration);
+                inner
+                    .performance
+                    .record_duration("Lighting trace", duration);
                 self.set_lighting.set(Some(image_of(&pixels)));
-                *self.rendered.borrow_mut() = pixels;
-                self.ray_state.borrow_mut().take();
+                *inner.rendered.borrow_mut() = pixels;
+                inner.ray_state.borrow_mut().take();
                 self.set_rays.set(None);
-                self.lighting_key.set(Some(landed_key));
+                inner.lighting_key.set(Some(landed_key));
             }
         }
     }
 
     fn settle_rays(&self) {
+        let inner = self.inner.get();
         if self.tool.get_untracked() != Tool::RayTrace {
             return;
         }
-        let Some(origin) = self.pointer.get() else {
+        let Some(origin) = inner.pointer.get() else {
             return;
         };
         self.land_rays();
-        let Some(scene) = self.block.read() else {
+        let Some(scene) = inner.block.read() else {
             return;
         };
         let settings = scene.view_ray_settings();
         let revision = scene.revision();
-        let ready = self.lighting_key.get()
+        let ready = inner.lighting_key.get()
             == Some(LightingKey {
                 block_revision: scene.lighting_revision(),
                 preview_revision: 0,
             });
         let hit = ready
-            && self.ray_state.borrow().as_ref().is_some_and(|held| {
+            && inner.ray_state.borrow().as_ref().is_some_and(|held| {
                 distance(held.origin, origin) <= 0.25
                     && held.revision == revision
                     && held.settings == settings
             });
         if hit {
-            self.performance.record_count("View-ray cache hits", 1);
+            inner.performance.record_count("View-ray cache hits", 1);
             return;
         }
-        if !ready || self.ray_job.borrow().is_some() {
+        if !ready || inner.ray_job.borrow().is_some() {
             return;
         }
-        let source = self.rendered.borrow().clone();
+        let source = inner.rendered.borrow().clone();
         let entities = scene.entities().to_vec();
         drop(scene);
-        let waker = self.waker.borrow().clone();
+        let waker = inner.waker.borrow().clone();
         let (sender, receiver) = mpsc::channel();
         run_job("pixel-ray-tracer-view-rays", move || {
             let started = Instant::now();
@@ -677,14 +713,16 @@ impl RayState {
             let _ = sender.send((origin, pixels, revision, settings, started.elapsed()));
             waker.wake();
         });
-        *self.ray_job.borrow_mut() = Some(receiver);
-        self.performance.record_count("View-ray cache misses", 1);
+        *inner.ray_job.borrow_mut() = Some(receiver);
+        inner.performance.record_count("View-ray cache misses", 1);
         self.land_rays();
     }
 
     fn land_rays(&self) {
+        let inner = self.inner.get();
         let landed =
-            self.ray_job
+            inner
+                .ray_job
                 .borrow()
                 .as_ref()
                 .and_then(|receiver| match receiver.try_recv() {
@@ -693,11 +731,13 @@ impl RayState {
                     Err(TryRecvError::Empty) => None,
                 });
         if let Some(landed) = landed {
-            self.ray_job.borrow_mut().take();
+            inner.ray_job.borrow_mut().take();
             if let Ok((origin, pixels, revision, settings, duration)) = landed {
-                self.performance.record_duration("View-ray trace", duration);
+                inner
+                    .performance
+                    .record_duration("View-ray trace", duration);
                 self.set_rays.set(Some(image_of(&pixels)));
-                *self.ray_state.borrow_mut() = Some(TracedRays {
+                *inner.ray_state.borrow_mut() = Some(TracedRays {
                     origin,
                     revision,
                     settings,
@@ -774,7 +814,7 @@ fn closest(entities: &[RayEntity], point: Point) -> Option<RayEntity> {
 }
 
 struct Scenes {
-    content: Rc<ContentProjection<PixelRayTracerContent>>,
+    content: ContentProjection<PixelRayTracerContent>,
     cached: RefCell<Option<Snapshot>>,
 }
 
@@ -804,7 +844,7 @@ impl Snapshot {
 }
 
 impl Scenes {
-    fn new(content: Rc<ContentProjection<PixelRayTracerContent>>) -> Self {
+    fn new(content: ContentProjection<PixelRayTracerContent>) -> Self {
         Self {
             content,
             cached: RefCell::new(None),

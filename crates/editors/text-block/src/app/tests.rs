@@ -3,7 +3,7 @@ use block_editor_beui::PeerPresence;
 use block_editor_beui::be_block::block_url::block_url;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
 use block_editor_beui::be_block::{TextBlock, TextContent};
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -27,6 +27,7 @@ mod switching_to_hex_view_shows_the_bytes;
 mod the_caret_is_shown_to_peers_in_a_color_they_are_not_using;
 mod the_intrinsic_size_follows_the_width_it_was_given;
 mod the_palette_and_the_shortcuts_run_the_format_actions;
+mod the_text_waits_for_its_content_and_typing_before_it_is_dropped;
 mod typing_continues_at_the_caret_after_a_peer_edits_around_it;
 mod typing_continues_where_a_peer_deleted_the_text_around_the_caret;
 mod typing_inserts_text_into_the_document;
@@ -35,7 +36,7 @@ fn editor(text: &str) -> BeuiTest<TextApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, TextBlock::of(text));
     editor.run();

@@ -3,6 +3,7 @@ use crate::unstyled::dock_state;
 
 #[test]
 fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);

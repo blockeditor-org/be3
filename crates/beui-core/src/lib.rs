@@ -38,6 +38,7 @@ pub mod screen_simulation;
 pub mod screens;
 pub mod sight;
 pub mod timer;
+pub mod touch_cursor;
 pub mod tree;
 pub mod window;
 

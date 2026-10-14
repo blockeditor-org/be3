@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_tree::reactive::{
     ChildSegment, ChildValue, Children, ComponentContext, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Prop, ReadSignal, Scope, SlotChild, SlotHost, SlotId, WriteSignal,
+    IntoSlotHost, Memo, Prop, ReadSignal, ScopeContext, SlotChild, SlotHost, SlotId, WriteSignal,
     create_effect, create_signal, current_component,
 };
 
@@ -13,7 +13,7 @@ use crate::base::child_list::ChildHost;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
-use crate::base::text::TextNode;
+use crate::base::text::{TextNode, TextPart};
 use crate::base::{ItemSize, Sizing};
 use crate::current::with_document;
 use crate::document::Document;
@@ -35,13 +35,13 @@ fn bindings() -> Rc<NodeBindings> {
 pub fn component_node() -> crate::callback::NodeRef {
     let bindings = bindings();
     if let Some(node) = bindings.node.borrow().as_ref() {
-        return node.clone();
+        return *node;
     }
     let node = crate::callback::NodeRef::new();
     if let Some(target) = bindings.target.get() {
         node.fill(target);
     }
-    bindings.node.replace(Some(node.clone()));
+    bindings.node.replace(Some(node));
     node
 }
 
@@ -51,10 +51,10 @@ pub fn component_placed() -> ReadSignal<bool> {
         return with_document(|document| document.watch_placed(target));
     }
     if let Some((read, _)) = bindings.placed.borrow().as_ref() {
-        return read.clone();
+        return *read;
     }
     let (read, write) = create_signal(false);
-    bindings.placed.replace(Some((read.clone(), write)));
+    bindings.placed.replace(Some((read, write)));
     read
 }
 
@@ -83,13 +83,12 @@ pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
 }
 
 impl ChildValue for NodeId {
-    fn adopt_scope(&mut self, scope: Scope) {
-        scope.into_parent();
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
+    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         let root = *self;
-        let bindings = component.extension::<NodeBindings>();
+        let Some(bindings) = component.find_extension::<NodeBindings>() else {
+            with_document(|document| document.name_component(root, component.name()));
+            return;
+        };
         bindings.target.set(Some(root));
         let states = bindings.states.take();
         let accessibility = bindings.accessibility.take();
@@ -189,7 +188,7 @@ impl<P: ParentKind> Placed<P> {
         let initial = data.peek();
         if let Prop::Dynamic(read) = data {
             create_effect(move || {
-                let data = read();
+                let data = read.get();
                 with_document(|document| {
                     if let Some(parent) = document.arena.kind_of::<P>(parent) {
                         P::update(document, parent, node, data);
@@ -208,11 +207,7 @@ impl<P: ParentKind> BuildsNode for Placed<P> {
 }
 
 impl<P: ParentKind> ChildValue for Placed<P> {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.node.adopt_scope(scope);
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
+    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         self.node.finish_component(component, scope);
     }
 }
@@ -377,10 +372,13 @@ impl ParentKind for CanvasNode {
 }
 
 impl ParentKind for TextNode {
-    type Data = ();
+    type Data = bool;
 
-    fn item(node: NodeId, _: ()) -> NodeId {
-        node
+    fn item(node: NodeId, anchored: bool) -> TextPart {
+        match anchored {
+            true => TextPart::Anchored(node),
+            false => TextPart::Inline(node),
+        }
     }
 }
 
@@ -428,12 +426,12 @@ impl IntoProp<Sizing> for Prop<ItemSize> {
 
 impl IntoProp<Sizing> for ReadSignal<ItemSize> {
     fn into_prop(self) -> Prop<Sizing> {
-        Prop::Dynamic(Rc::new(move || self.get().into()))
+        Prop::dynamic(move || self.get().into())
     }
 }
 
 impl IntoProp<Sizing> for Memo<ItemSize> {
     fn into_prop(self) -> Prop<Sizing> {
-        Prop::Dynamic(Rc::new(move || self.get().into()))
+        Prop::dynamic(move || self.get().into())
     }
 }

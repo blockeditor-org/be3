@@ -5,9 +5,9 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <ForEach keys={(0..40).collect::<Vec<usize>>()}>

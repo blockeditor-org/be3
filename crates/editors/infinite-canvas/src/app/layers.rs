@@ -1,13 +1,11 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, create_memo,
-    create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, create_signal,
+    view,
 };
 use block_editor_beui::beui::styled::{
-    Accordion, Body, ButtonVariant, Caption, IconButton, IconButtonSize, use_theme,
+    Accordion, ButtonVariant, IconButton, IconButtonSize, TextColor, use_theme,
 };
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, NodeId};
@@ -16,6 +14,7 @@ use uuid::Uuid;
 use crate::geometry::entity_kind_label;
 
 use super::state::CanvasState;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const ROW_PADDING: f32 = 4.0;
 const ROW_RADIUS: u8 = 4;
@@ -24,9 +23,9 @@ const ROW_RADIUS: u8 = 4;
 struct Layer(Uuid);
 
 #[component]
-pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
+pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
     let (open, set_open) = create_signal(true);
-    let ids = create_memo(clone!(state -> move || {
+    let ids = create_memo(move || {
         state
             .entities
             .get()
@@ -34,17 +33,16 @@ pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
             .rev()
             .map(|entity| entity.id)
             .collect::<Vec<Uuid>>()
-    }));
-    let empty = create_memo(clone!(ids -> move || ids.with(Vec::is_empty)));
+    });
+    let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
         <Accordion title="Layers" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
                 <Show condition={empty}>
-                    <Caption content="Nothing on the canvas yet." wrap=true />
+                    <Text style=TextStyle::CAPTION string="Nothing on the canvas yet." wrap=true />
                 </Show>
                 <ForEach keys={ids}>
                     {move |id: Uuid| {
-                        let state = Rc::clone(&state);
                         view! {
                             <LayerRow state id />
                         }
@@ -56,78 +54,82 @@ pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
 }
 
 #[component]
-fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
-    let entity = create_memo(clone!(state -> move || {
-        state.entities.get().into_iter().find(|entity| entity.id == id)
-    }));
-    let label = create_memo(clone!(state entity -> move || {
+fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
+    let entity = create_memo(move || {
+        state
+            .entities
+            .get()
+            .into_iter()
+            .find(|entity| entity.id == id)
+    });
+    let label = create_memo(move || {
         entity
             .get()
             .map(|entity| layer_label(&state, &entity))
             .unwrap_or_default()
-    }));
-    let selected = create_memo(clone!(state -> move || state.selection.get().contains(&id)));
-    let hidden = create_memo(clone!(entity -> move || {
-        entity.get().is_some_and(|entity| entity.style.hidden)
-    }));
-    let glyph = create_memo(clone!(hidden -> move || match hidden.get() {
+    });
+    let selected = create_memo(move || state.selection.get().contains(&id));
+    let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.style.hidden));
+    let glyph = create_memo(move || match hidden.get() {
         true => ICON_VISIBILITY_OFF.to_owned(),
         false => ICON_VISIBILITY.to_owned(),
-    }));
-    let toggle_label = create_memo(clone!(hidden -> move || match hidden.get() {
+    });
+    let toggle_label = create_memo(move || match hidden.get() {
         true => "Show".to_owned(),
         false => "Hide".to_owned(),
-    }));
+    });
     let theme = use_theme();
-    let text = create_memo(clone!(theme hidden -> move || match hidden.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
-    }));
-    let toggle = clone!(state hidden -> move || state.set_hidden(id, !hidden.get_untracked()));
-    let select = clone!(state -> move || state.select(id, false));
-    let dropped = clone!(state -> move |(Layer(moved), point): (Layer, DragPoint)| {
+    let text = create_memo(move || match hidden.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
+    let toggle = move || state.set_hidden(id, !hidden.get_untracked());
+    let select = move || state.select(id, false);
+    let dropped = move |(Layer(moved), point): (Layer, DragPoint)| {
         let in_front = point.fraction.y < 0.5;
         state.move_layer(moved, id, in_front);
-    });
-    let ghost = clone!(label -> move |_: Layer| view! {
-        <LayerGhost label={label.clone()} />
-    });
+    };
+    let ghost = move |_: Layer| {
+        view! {
+            <LayerGhost label={label} />
+        }
+    };
     view! {
         <DropTarget on_drop={dropped}>
             {move |handle: DropHandle| {
-                let fill = create_memo(clone!(theme selected -> move || match selected.get() {
+                let fill = create_memo(move || match selected.get() {
                     true => theme.accent_soft.get(),
                     false => Color32::TRANSPARENT,
-                }));
+                });
                 view! {
                     <Frame
                         color={fill}
                         radius=ROW_RADIUS
-                        outline={theme.accent.clone()}
+                        outline={theme.accent}
                         outline_width=1.0
                         outline_visible={handle.over}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                             <IconButton
-                                glyph={glyph.clone()}
-                                label={toggle_label.clone()}
+                                glyph={glyph}
+                                label={toggle_label}
                                 size=IconButtonSize::Compact
                                 variant=ButtonVariant::Ghost
                                 capture_presses=true
                                 @test_id={format!("infinite-canvas.layer.{id}.visibility")}
-                                on_click={toggle.clone()}
+                                on_click={toggle}
                             />
                             <Draggable
                                 @sizing=ItemSize::Percent(100.0)
                                 payload={Some(Layer(id))}
                                 cursor=CursorIcon::PointingHand
-                                preview={ghost.clone()}
-                                on_click={select.clone()}
+                                preview={ghost}
+                                on_click={select}
                                 @test_id={format!("infinite-canvas.layer.{id}")}
                             >
                                 {move |_: DragHandle| view! {
                                     <Frame padding_vertical=ROW_PADDING>
-                                        <Body content={label.clone()} color={text.clone()} />
+                                        <Text string={label} color={text} />
                                     </Frame>
                                 }}
                             </Draggable>
@@ -144,12 +146,12 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised.clone()}
+            color={theme.surface_raised}
             radius=ROW_RADIUS
             padding_horizontal=8.0
             padding_vertical=ROW_PADDING
         >
-            <Body content={label} />
+            <Text string={label} />
         </Frame>
     }
 }

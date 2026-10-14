@@ -5,7 +5,7 @@ use beui_core::geometry::Vec2;
 use beui_core::input::{CursorIcon, Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Prop, ReadSignal, Render, clone, component_accessibility, create_effect,
+    Callback, Interactive, Prop, ReadSignal, Render, component_accessibility, create_effect,
     create_signal, on_cleanup, try_with_document, untrack, with_document,
 };
 
@@ -26,37 +26,37 @@ pub fn PointerLock(
     #[prop(children)] content: Option<Render<PointerLockHandle>>,
 ) -> NodeId {
     let (locked_read, set_locked) = create_signal(locked.peek());
-    create_effect(clone!(set_locked -> move || set_locked.set(locked.get())));
+    create_effect(move || set_locked.set(locked.get()));
     let (hovered, set_hovered) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
 
     let attached = with_document(|document| document.watch_context());
-    create_effect(clone!(locked_read -> move || {
+    create_effect(move || {
         attached.get();
         publish(locked_read.get());
-    }));
+    });
     on_cleanup(|| publish(false));
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
     component_accessibility(accessibility);
 
-    let change = clone!(locked_read set_locked -> move |next: bool| {
+    let change = move |next: bool| {
         if untrack(|| locked_read.get()) == next {
             return;
         }
         set_locked.set(next);
         on_change.call(next);
-    });
+    };
 
-    let engage = clone!(change -> move || change(true));
-    let release = clone!(change -> move || change(false));
-    let blurred = clone!(release -> move |focused: bool| {
+    let engage = move || change(true);
+    let release = move || change(false);
+    let blurred = move |focused: bool| {
         set_focused.set(focused);
         if !focused {
             release();
         }
-    });
-    let key = clone!(locked_read release -> move |press: KeyPress| {
+    };
+    let key = move |press: KeyPress| {
         if untrack(|| locked_read.get()) && press.key == Key::Escape {
             if press.pressed {
                 release();
@@ -64,13 +64,13 @@ pub fn PointerLock(
             return true;
         }
         on_key.call(press)
-    });
+    };
 
     let content_node = content.map(|build| {
         build.call(PointerLockHandle {
-            locked: locked_read.clone(),
-            hovered: hovered.clone(),
-            focused: focused.clone(),
+            locked: locked_read,
+            hovered,
+            focused,
         })
     });
 
@@ -78,7 +78,7 @@ pub fn PointerLock(
         <Interactive
             focusable=true
             on_focus_change={blurred}
-            on_activate={engage.clone()}
+            on_activate={engage}
             on_key={key}
             on_motion={move |motion: Vec2| on_motion.call(motion)}
             cursor={cursor}

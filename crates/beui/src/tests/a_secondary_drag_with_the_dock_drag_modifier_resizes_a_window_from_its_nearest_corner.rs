@@ -3,10 +3,12 @@ use crate::unstyled::dock_state;
 
 #[test]
 fn a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document,
         dock,
         presses,
+        ..
     } = split_dock(Some(Modifiers::LOGO));
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
@@ -43,5 +45,5 @@ fn a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_neares
         before.size() - vec2(60.0, 30.0),
         "the corner nearest the pointer follows it"
     );
-    assert_eq!(presses.get(), 0);
+    assert_eq!(presses.get_untracked(), 0);
 }

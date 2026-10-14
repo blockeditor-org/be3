@@ -26,8 +26,7 @@ fn letters_land_where_their_advances_put_them() {
             let mut pen = 0.0;
 
             for (shaped, placed) in shaped.iter().zip(galley.glyphs()) {
-                let x =
-                    placed.offset.x - placed.image.left as f32 + placed.id.subpixel as f32 * phase;
+                let x = placed.origin.x + placed.id.subpixel as f32 * phase;
                 assert!(
                     (x - pen - shaped.x_offset).abs() <= phase / 2.0 + 1.0 / 1024.0,
                     "{text:?} at {size} put a letter at {x} rather than {pen}"

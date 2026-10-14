@@ -3,9 +3,9 @@ use crate::reactive::{Direction, Frame, ItemSize, List, NodeRef, view};
 
 #[test]
 fn a_gap_before_one_child_replaces_the_rows_spacing() {
+    let _root = crate::reactive::RootScope::new();
     let (second, third) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (second, third) = (second.clone(), third.clone());
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=4.0>

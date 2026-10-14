@@ -1,13 +1,14 @@
 use super::*;
 use crate::reactive::view;
-use crate::styled::{Caption, Card, Theme};
+use crate::styled::{Card, Theme};
+use crate::styled::{Text, TextStyle};
 
 #[test]
 fn choosing_the_e_ink_theme_in_the_inspector_restyles_the_document() {
     let (document, [_card]) = toolbar_of(|| {
         [view! {
             <Card>
-                <Caption content="Themed" />
+                <Text style=TextStyle::CAPTION string="Themed" />
             </Card>
         }]
     });

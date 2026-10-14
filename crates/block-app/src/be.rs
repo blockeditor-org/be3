@@ -257,6 +257,7 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::TextContent>(),
     kind_with_history::<be_block::VideoContent>(),
     kind::<be_block::UiSettingsContent>(),
+    kind::<be_block::EditorSettingsContent>(),
     kind::<be_block::InputSettingsContent>(),
     kind::<be_block::DisplaySettingsContent>(),
     kind::<be_block::BrowserTabContent>(),

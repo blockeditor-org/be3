@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn ctrl_shift_i_opens_and_closes_the_inspector() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 

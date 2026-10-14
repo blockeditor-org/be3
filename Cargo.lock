@@ -762,6 +762,7 @@ name = "be-launcher"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "block-ui-test",
  "comrak",
  "ghostty-vt",
  "image",
@@ -1001,10 +1002,13 @@ dependencies = [
  "accesskit",
  "beui-components-unstyled",
  "beui-core",
+ "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
+ "bytemuck",
  "reactive",
  "text-editor-core",
+ "wgpu",
 ]
 
 [[package]]
@@ -1042,8 +1046,11 @@ name = "beui-demo"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-core",
+ "beui-renderer-wgpu",
  "beui_macros",
  "block-ui-test",
+ "pollster",
  "text-editor-core",
 ]
 
@@ -1478,6 +1485,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5"
 dependencies = [
  "objc2 0.6.4",
+]
+
+[[package]]
+name = "block_debug"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-ui-test",
+ "uuid",
 ]
 
 [[package]]
@@ -5933,6 +5950,7 @@ dependencies = [
 name = "reactive"
 version = "0.1.0"
 dependencies = [
+ "foldhash 0.2.0",
  "reactive_macros",
 ]
 

@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::cell::Ref;
 use std::error::Error;
 use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -22,7 +23,7 @@ use crate::window::{WindowReports, WindowState};
 mod intake;
 
 use intake::{Drain, Intake};
-pub use intake::{Input, Keystroke, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
+pub use intake::{Input, Keystroke, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
 
 type Answered = (FilePickId, FilePick);
 
@@ -131,11 +132,9 @@ pub struct Runner {
     intake: Intake,
     picks: (Sender<Answered>, Receiver<Answered>),
     pastes: (Sender<Pasted>, Receiver<Pasted>),
-    accessibility: Option<AccessibilityDump>,
     publishing_accessibility: bool,
     automation: Option<Automation>,
     actions: Vec<ActionGroup>,
-    test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
     unpresented: bool,
     closing: bool,
     asked: WindowState,
@@ -156,12 +155,10 @@ impl Runner {
             app,
         } = launch;
         let automation = options.automation.map(Automation::new);
-        context.set_test_ids_published(automation.is_some());
+        context.keep_accessibility(options.accessibility_tree || automation.is_some());
         if automation.is_some() {
             context.set_automated(true);
         }
-        let accessibility =
-            (options.accessibility_tree || automation.is_some()).then(AccessibilityDump::new);
         Self {
             app,
             context,
@@ -172,11 +169,9 @@ impl Runner {
             intake: Intake::default(),
             picks: mpsc::channel(),
             pastes: mpsc::channel(),
-            accessibility,
             publishing_accessibility: false,
             automation,
             actions: Vec::new(),
-            test_ids: std::collections::HashMap::new(),
             unpresented: false,
             closing: false,
             asked: WindowState::default(),
@@ -257,10 +252,7 @@ impl Runner {
     }
 
     pub fn keep_accessibility(&mut self) {
-        if self.accessibility.is_none() {
-            self.accessibility = Some(AccessibilityDump::new());
-            self.context.reset_accessibility();
-        }
+        self.context.keep_accessibility(true);
     }
 
     pub fn accessibility_requested(&mut self) {
@@ -276,16 +268,16 @@ impl Runner {
         self.context.accessibility_action(request);
     }
 
-    pub fn accessibility(&self) -> Option<&AccessibilityDump> {
-        self.accessibility.as_ref()
+    pub fn accessibility(&self) -> Option<Ref<'_, AccessibilityDump>> {
+        self.context.kept_accessibility()
     }
 
     pub fn output(&self) -> Option<&FrameOutput> {
         self.output.as_ref()
     }
 
-    pub fn accessibility_text(&self) -> Option<&str> {
-        self.accessibility.as_ref().map(AccessibilityDump::text)
+    pub fn accessibility_text(&self) -> Option<String> {
+        self.accessibility().map(|dump| dump.text().to_owned())
     }
 
     pub fn os_close(&mut self) -> bool {
@@ -365,12 +357,11 @@ impl Runner {
             eprintln!("beui: could not switch renderers: {error}");
         }
         if let Some(automation) = &mut self.automation
-            && let Some(dump) = &self.accessibility
+            && let Some(dump) = self.context.kept_accessibility()
         {
             let view = View {
                 lines: dump.lines(),
                 tree: dump.text(),
-                test_ids: &self.test_ids,
                 pixels_per_point: self.context.pixels_per_point(),
                 now: self.context.now(),
                 size: renderers.physical().map_or(Vec2::ZERO, |physical| {
@@ -415,6 +406,7 @@ impl Runner {
         self.intake.drain(
             &mut Drain {
                 pixels_per_point: scale,
+                native_pixels_per_point: self.native,
                 touch_emulation: self.context.touch_emulation(),
             },
             &mut self.events,
@@ -438,10 +430,7 @@ impl Runner {
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
-        let typed = raw
-            .events
-            .iter()
-            .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
+        self.context.set_accessibility_window(&self.title, screen);
         let app = &mut self.app;
         let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
@@ -449,9 +438,6 @@ impl Runner {
         let title = &self.title;
         if self.publishing_accessibility {
             platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
-        }
-        if let Some(dump) = &mut self.accessibility {
-            dump.update(output.accessibility_tree(title, screen));
         }
 
         if let Some(text) = &output.copied_text {
@@ -475,7 +461,7 @@ impl Runner {
         }
         let window_units = scale / self.context.native_pixels_per_point();
         let window = output.window.clone().scaled(window_units);
-        if typed || window != self.shown {
+        if window != self.shown {
             platform.show_window(&window, &self.shown);
             self.shown = window;
         }
@@ -496,14 +482,12 @@ impl Runner {
         let closing = output.close_requested || self.closing;
         self.unpresented |= pending;
         if let Some(automation) = &mut self.automation
-            && let Some(dump) = &self.accessibility
+            && let Some(dump) = self.context.kept_accessibility()
         {
-            self.test_ids.clone_from(output.test_ids());
             self.actions = std::mem::take(&mut output.actions);
             let view = View {
                 lines: dump.lines(),
                 tree: dump.text(),
-                test_ids: &self.test_ids,
                 pixels_per_point: scale,
                 now: self.context.now(),
                 size: screen,
@@ -518,7 +502,12 @@ impl Runner {
                     false => frame.again(),
                 },
             };
-            automation.end(&view, settled, &output.unran_actions);
+            automation.end(
+                &view,
+                settled,
+                &output.unran_actions,
+                output.hits.as_deref(),
+            );
             if let Some(after) = automation.wants_frame(self.context.now()) {
                 frame.repaint |= after.is_zero();
                 frame.repaint_after = frame.repaint_after.min(after);

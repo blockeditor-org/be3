@@ -1,6 +1,6 @@
+use foldhash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
 use std::rc::{Rc, Weak};
 use std::time::Instant;
 
@@ -22,8 +22,8 @@ use crate::layout;
 use crate::node::{
     ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
 };
-use crate::paint::{self, PaintCache};
-use crate::painter::{Local, Painter, PainterState, Shape};
+use crate::paint::{self, PaintCache, verify};
+use crate::painter::{Painter, PainterState};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -68,20 +68,19 @@ pub struct Document {
     pub last_pointer: Option<crate::input::PointerSample>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
-    pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
+    pub portal_holders: foldhash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
+    pub(crate) focus_scopes: crate::base::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
+    pub(crate) focus_wanted: Option<NodeId>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: RefCell<crate::timer::Timers>,
-    scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
-    attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
-    focus_visible: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
-    fullscreen: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
-    screens: (
-        ::reactive::ReadSignal<Vec<Screen>>,
-        ::reactive::WriteSignal<Vec<Screen>>,
-    ),
+    scale: ::reactive::OwnedSignal<f32>,
+    attached: ::reactive::OwnedSignal<u64>,
+    focus_visible: ::reactive::OwnedSignal<bool>,
+    fullscreen: ::reactive::OwnedSignal<bool>,
+    screens: ::reactive::OwnedSignal<Vec<Screen>>,
     offered_screens: Option<Vec<Screen>>,
     rescreened: RefCell<Option<Vec<Screen>>>,
     reattached: Cell<bool>,
@@ -91,14 +90,8 @@ pub struct Document {
     pub(crate) tapping: Option<Key>,
     pub(crate) keyboard: bool,
     input_frames: u64,
-    modifiers: (
-        ::reactive::ReadSignal<Modifiers>,
-        ::reactive::WriteSignal<Modifiers>,
-    ),
-    intercepted_keys: (
-        ::reactive::ReadSignal<Vec<KeyChord>>,
-        ::reactive::WriteSignal<Vec<KeyChord>>,
-    ),
+    modifiers: ::reactive::OwnedSignal<Modifiers>,
+    intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub(crate) press_claimants: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
@@ -116,7 +109,8 @@ pub struct Document {
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
-    measurements: NodeMap<Vec<(Vec2, Vec2)>>,
+    measurements: NodeMap<Vec<Measurement>>,
+    offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
@@ -126,14 +120,13 @@ pub struct Document {
     pub placed_pass: NodeMap<u64>,
     pub reached_pass: NodeMap<u64>,
     layout_pass: u64,
-    scroll_hosts: Vec<NodeId>,
-    scroll_shifts: NodeMap<f32>,
+    focus_line: FocusLine,
+    anchor_shift: f32,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
-    pub verifies_paint: bool,
     pub copied_text: Option<String>,
     next_paint: Option<Instant>,
     now: Instant,
@@ -141,10 +134,10 @@ pub struct Document {
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    placements: NodeMap<Vec<PlacementWatcher>>,
-    placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
+    placements: NodeMap<::reactive::OwnedSignal<Rect>>,
+    placed: NodeMap<::reactive::OwnedSignal<bool>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
-    component_names: HashMap<NodeId, Vec<&'static str>>,
+    component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
     pub accessibility: NodeMap<Node>,
     pub accessibility_tree: RefCell<AccessibilityTree>,
@@ -166,6 +159,21 @@ struct Placing {
 }
 
 const REMEMBERED_MEASUREMENTS: usize = 4;
+
+#[derive(Default)]
+struct FocusLine {
+    key: Option<(u64, NodeId)>,
+    epoch: u64,
+    ancestors: NodeMap<u64>,
+    within: NodeMap<(u64, bool)>,
+}
+
+#[derive(Clone, Copy)]
+struct Measurement {
+    offered: Vec2,
+    size: Vec2,
+    offer_dependent: bool,
+}
 
 fn same_size(left: Vec2, right: Vec2) -> bool {
     left.x.to_bits() == right.x.to_bits() && left.y.to_bits() == right.y.to_bits()
@@ -236,11 +244,6 @@ impl LayoutFrame {
     }
 }
 
-struct PlacementWatcher {
-    read: ::reactive::ReadSignal<Rect>,
-    write: ::reactive::WriteSignal<Rect>,
-}
-
 static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 impl Document {
@@ -265,17 +268,19 @@ impl Document {
             last_pointer: None,
             acted: Acted::Nothing,
             placement: None,
-            portal_holders: std::collections::HashMap::new(),
+            portal_holders: foldhash::HashMap::default(),
             layer_state: Default::default(),
+            focus_scopes: Default::default(),
             focus_dirty: false,
+            focus_wanted: None,
             back_handlers: Vec::new(),
             back_gesture: None,
             timers: RefCell::new(Vec::new()),
-            scale: ::reactive::create_signal(1.0),
-            attached: ::reactive::create_signal(0),
-            focus_visible: ::reactive::create_signal(false),
-            fullscreen: ::reactive::create_signal(false),
-            screens: ::reactive::create_signal(Vec::new()),
+            scale: ::reactive::OwnedSignal::new(1.0),
+            attached: ::reactive::OwnedSignal::new(0),
+            focus_visible: ::reactive::OwnedSignal::new(false),
+            fullscreen: ::reactive::OwnedSignal::new(false),
+            screens: ::reactive::OwnedSignal::new(Vec::new()),
             offered_screens: None,
             rescreened: RefCell::new(None),
             reattached: Cell::new(false),
@@ -285,18 +290,18 @@ impl Document {
             tapping: None,
             keyboard: true,
             input_frames: 0,
-            modifiers: ::reactive::create_signal(Modifiers::NONE),
-            intercepted_keys: ::reactive::create_signal(Vec::new()),
+            modifiers: ::reactive::OwnedSignal::new(Modifiers::NONE),
+            intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
             autoscroll: None,
-            press_claimants: HashSet::new(),
-            outside_watchers: HashSet::new(),
+            press_claimants: HashSet::default(),
+            outside_watchers: HashSet::default(),
             forward: Default::default(),
             pointers: Default::default(),
             paste_requested: false,
             unsent_file_picks: Vec::new(),
             waiting_file_picks: Vec::new(),
-            test_ids: HashMap::new(),
-            node_test_ids: HashMap::new(),
+            test_ids: HashMap::default(),
+            node_test_ids: HashMap::default(),
             layout_revision: 0,
             paint_revision: 0,
             reports: Vec::new(),
@@ -304,6 +309,7 @@ impl Document {
             interaction_done: None,
             laid_out: None,
             measurements: NodeMap::default(),
+            offer_dependent: false,
             baselines: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
@@ -313,25 +319,24 @@ impl Document {
             placed_pass: NodeMap::default(),
             reached_pass: NodeMap::default(),
             layout_pass: 0,
-            scroll_hosts: Vec::new(),
-            scroll_shifts: NodeMap::default(),
+            focus_line: FocusLine::default(),
+            anchor_shift: 0.0,
             reveals: NodeMap::default(),
             viewport: None,
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
-            verifies_paint: true,
             copied_text: None,
             next_paint: None,
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
             zone,
-            extensions: HashMap::new(),
-            node_refs: HashMap::new(),
+            extensions: HashMap::default(),
+            node_refs: HashMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
-            component_states: HashMap::new(),
-            component_names: HashMap::new(),
+            component_states: HashMap::default(),
+            component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
             accessibility_tree: RefCell::default(),
@@ -413,49 +418,49 @@ impl Document {
     }
 
     pub fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
-        self.attached.0.clone()
+        self.attached.read()
     }
 
     pub fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
-        self.scale.0.clone()
+        self.scale.read()
     }
 
     pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
-        self.fullscreen.0.clone()
+        self.fullscreen.read()
     }
 
     pub fn watch_screens(&self) -> ::reactive::ReadSignal<Vec<Screen>> {
-        self.screens.0.clone()
+        self.screens.read()
     }
 
     pub fn screens(&self) -> Vec<Screen> {
-        self.screens.0.get_untracked()
+        self.screens.read().get_untracked()
     }
 
     pub fn screen_at(&self, pos: Pos2) -> Option<Screen> {
         self.screens
-            .0
+            .read()
             .with_untracked(|screens| crate::screens::at(screens, pos).cloned())
     }
 
     pub fn screen_under(&self, rect: Rect) -> Option<Screen> {
         self.screens
-            .0
+            .read()
             .with_untracked(|screens| crate::screens::under(screens, rect).cloned())
     }
 
     pub fn screen_named(&self, id: &str) -> Option<Screen> {
         self.screens
-            .0
+            .read()
             .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
     }
 
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
-        self.focus_visible.0.clone()
+        self.focus_visible.read()
     }
 
     pub fn set_focus_visible(&self, visible: bool) {
-        self.focus_visible.1.set(visible);
+        self.focus_visible.write().set(visible);
     }
 
     pub fn register_finger_tap(&self, tap: Weak<FingerTap>) {
@@ -514,41 +519,41 @@ impl Document {
     }
 
     pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {
-        self.modifiers.0.clone()
+        self.modifiers.read()
     }
 
     pub fn intercepted_keys_writer(&self) -> ::reactive::WriteSignal<Vec<KeyChord>> {
-        self.intercepted_keys.1.clone()
+        self.intercepted_keys.write()
     }
 
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
-        self.intercepted_keys.0.get_untracked()
+        self.intercepted_keys.read().get_untracked()
     }
 
     pub fn set_modifiers(&self, modifiers: Modifiers) {
-        if self.modifiers.0.get_untracked() != modifiers {
-            self.modifiers.1.set(modifiers);
+        if self.modifiers.read().get_untracked() != modifiers {
+            self.modifiers.write().set(modifiers);
         }
     }
 
     fn run_timers(&self) {
         let scale = self.pixels_per_point();
-        if self.scale.0.get_untracked() != scale {
-            self.scale.1.set(scale);
+        if self.scale.read().get_untracked() != scale {
+            self.scale.write().set(scale);
         }
         let fullscreen = self
             .viewport
             .as_ref()
             .is_some_and(|(ctx, _, _)| ctx.fullscreen());
-        if self.fullscreen.0.get_untracked() != fullscreen {
-            self.fullscreen.1.set(fullscreen);
+        if self.fullscreen.read().get_untracked() != fullscreen {
+            self.fullscreen.write().set(fullscreen);
         }
         let rescreened = self.rescreened.borrow_mut().take();
         if let Some(screens) = rescreened {
-            self.screens.1.set(screens);
+            self.screens.write().set(screens);
         }
         if self.reattached.replace(false) {
-            self.attached.1.update(|attached| *attached += 1);
+            self.attached.write().update(|attached| *attached += 1);
         }
         let now = self.now;
         let mut timers = self.timers.borrow_mut();
@@ -599,7 +604,9 @@ impl Document {
     }
 
     pub fn append_child_item<H: ChildHost>(&mut self, node: NodeOf<H>, item: H::Stored) {
-        self.arena.get_mut_as::<H>(node).children().push(item);
+        let host = self.arena.get_mut_as::<H>(node);
+        host.children().push(item);
+        host.children_changed();
     }
 
     pub fn node_kind(&self, id: NodeId) -> &'static str {
@@ -639,12 +646,16 @@ impl Document {
         let owned = self.node_test_ids.entry(id).or_default();
         if !owned.iter().any(|existing| existing == &test_id) {
             owned.push(test_id);
+            self.arena.touch(id);
         }
     }
 
     pub fn clear_test_id(&mut self, id: NodeId, test_id: &str) {
         self.forget_test_id(id, test_id);
         self.drop_test_id(id, test_id);
+        if self.arena.contains(id) {
+            self.arena.touch(id);
+        }
     }
 
     fn drop_test_id(&mut self, id: NodeId, test_id: &str) {
@@ -657,7 +668,7 @@ impl Document {
     }
 
     fn live_nodes(&self) -> HashSet<NodeId> {
-        let mut live = HashSet::new();
+        let mut live = HashSet::default();
         let mut pending: Vec<NodeId> = self.root.into_iter().collect();
         while let Some(id) = pending.pop() {
             if self.arena.contains(id) && live.insert(id) {
@@ -753,6 +764,10 @@ impl Document {
         self.paste_requested = true;
     }
 
+    pub(crate) fn paste_requested(&self) -> bool {
+        self.paste_requested
+    }
+
     pub fn pick_file(&mut self, filter: FileFilter, picked: impl FnOnce(FilePick) + 'static) {
         self.unsent_file_picks.push((filter, Box::new(picked)));
     }
@@ -794,24 +809,65 @@ impl Document {
             let guard = crate::current::install(self);
             let installed = matches!(guard, crate::current::DocumentGuard::Installed(..));
             match installed {
-                true => context.run(|| {
-                    crate::current::with_document(|document| {
-                        for id in removals {
-                            document.remove_node(id);
-                        }
-                    })
-                }),
+                true => {
+                    context.run(|| {
+                        crate::current::with_document(|document| document.remove_nodes(&removals))
+                    });
+                    drop(guard);
+                }
                 false => {
                     drop(guard);
-                    for id in removals {
-                        self.remove_node(id);
-                    }
+                    self.remove_nodes(&removals);
                 }
             }
+            self.arena.give_back_removals(removals);
         }
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
+        self.remove_nodes(&[id]);
+    }
+
+    fn remove_nodes(&mut self, ids: &[NodeId]) {
+        let leaving: HashSet<NodeId> = ids.iter().copied().collect();
+        let mut parents: HashMap<NodeId, Vec<NodeId>> = HashMap::default();
+        for &id in ids {
+            if let Some(parent) = self
+                .arena
+                .parent(id)
+                .filter(|parent| !leaving.contains(parent))
+            {
+                parents.entry(parent).or_default().push(id);
+            }
+        }
+        for &id in ids {
+            self.remove_subtree(id);
+        }
+        for (parent, children) in parents {
+            self.unlink_children(parent, &children);
+        }
+    }
+
+    fn unlink_children(&mut self, parent: NodeId, children: &[NodeId]) {
+        if !self.arena.contains(parent) {
+            return;
+        }
+        let held: HashSet<NodeId> = self.arena.get(parent).children().into_iter().collect();
+        let children: Vec<NodeId> = children
+            .iter()
+            .copied()
+            .filter(|child| held.contains(child))
+            .collect();
+        if children.is_empty() {
+            return;
+        }
+        let element = self.arena.get_mut(parent);
+        for child in children {
+            element.remove_child(child);
+        }
+    }
+
+    fn remove_subtree(&mut self, id: NodeId) {
         if !self.arena.contains(id) {
             return;
         }
@@ -863,6 +919,7 @@ impl Document {
         self.arena.put_back(id, element);
         removed.extend(self.arena.remove(id));
         self.forget_layer(id);
+        self.forget_focus_scope(id);
         self.forget_back_gesture(id);
         self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
@@ -877,7 +934,6 @@ impl Document {
         self.press_claimants.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
-        self.scroll_shifts.remove(&id);
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
@@ -899,6 +955,9 @@ impl Document {
         }
         if self.focus_before == Some(id) {
             self.focus_before = None;
+        }
+        if self.focus_wanted == Some(id) {
+            self.focus_wanted = None;
         }
         if self.activated == Some(id) {
             self.activated = None;
@@ -1017,7 +1076,10 @@ impl Document {
             .offered_screens
             .take()
             .unwrap_or_else(|| vec![Screen::window(rect)]);
-        let rescreened = self.screens.0.with_untracked(|shown| *shown != screens);
+        let rescreened = self
+            .screens
+            .read()
+            .with_untracked(|shown| *shown != screens);
         if rescreened {
             self.arena.invalidate();
             *self.rescreened.borrow_mut() = Some(screens);
@@ -1070,11 +1132,11 @@ impl Document {
         if self.handles_back() {
             ctx.handle_back();
         }
-        if self.modal_open() {
+        if self.layers().takes_keyboard() {
             ctx.want_keyboard();
         }
         self.intercepted_keys
-            .0
+            .read()
             .with_untracked(|chords| ctx.intercept_keys(chords));
 
         if let Some(text) = self.copied_text.take() {
@@ -1096,28 +1158,6 @@ impl Document {
         {
             ctx.set_ime_area(Some(area));
         }
-        if ctx.test_ids_published() {
-            let mut live = None;
-            for (test_id, nodes) in &self.test_ids {
-                let shown = match nodes.as_slice() {
-                    [node] => Some(*node),
-                    _ => {
-                        let live = live.get_or_insert_with(|| self.live_nodes());
-                        match self.named_live(test_id, live).as_slice() {
-                            [] => None,
-                            [node] => Some(*node),
-                            _ => {
-                                ctx.publish_ambiguous_test_id(test_id);
-                                None
-                            }
-                        }
-                    }
-                };
-                if let Some(node_rect) = shown.and_then(|id| self.rects.get(&id)) {
-                    ctx.publish_test_id(test_id, node_rect);
-                }
-            }
-        }
         let now = self.now;
         self.changes.prune(now);
         self.damage_flashes.prune(now);
@@ -1137,8 +1177,8 @@ impl Document {
         self.arena.recycle(released);
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
-            let verifying = self.verifies_paint && verifying_paint();
-            let previous = verifying.then(|| flatten(&self.painting));
+            let verifying = verifying_paint();
+            let previous = verifying.then(|| self.painting.clone());
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let cache = self.paint_cache.get_mut();
@@ -1251,17 +1291,9 @@ impl Document {
         let cache = self.paint_cache.borrow();
         let mut damaged: Vec<Rect> = region.rects().to_vec();
         for stale in &stale {
-            let moved = stale.rect.intersect(source).translate(only.by);
-            match (
-                cache.scrolls_within(stale.scroll, only.space),
-                stale.settled,
-            ) {
-                (true, true) => damaged.push(stale.rect),
-                (true, false) => {
-                    damaged.extend(paint::uncovered(stale.rect, source));
-                    damaged.push(moved);
-                }
-                (false, _) => damaged.extend([stale.rect, moved]),
+            damaged.push(stale.rect);
+            if !cache.scrolls_within(stale.scroll, only.space) {
+                damaged.push(stale.rect.intersect(source).translate(only.by));
             }
         }
         damaged.extend(fixed.rects().iter().copied());
@@ -1298,8 +1330,8 @@ impl Document {
         &mut self,
         ctx: &Context,
         viewport: Rect,
-        previous: &[Shape],
-        region: &crate::damage::Region,
+        previous: &[(Rc<Display>, Vec2)],
+        region: &Region,
         moved: Option<Moved>,
         everything: bool,
     ) {
@@ -1310,13 +1342,14 @@ impl Document {
         let retained = self.paint_cache.replace(PaintCache::default());
         let painting = std::mem::take(&mut self.painting);
         let damage = std::mem::take(&mut self.damage);
+        ctx.verifying_paint(true);
         self.paint(ctx);
+        ctx.verifying_paint(false);
         let fresh = std::mem::replace(&mut self.painting, painting);
         self.paint_cache.replace(retained);
         self.damage = damage;
         self.work.painted_nodes.set(counted.0);
         self.work.replayed_nodes.set(counted.1);
-        let shapes = flatten(&self.painting);
         assert!(
             fresh.len() == self.painting.len()
                 && fresh
@@ -1324,53 +1357,28 @@ impl Document {
                     .zip(&self.painting)
                     .all(|((fresh, at), (retained, held))| at == held && fresh.same_tree(retained)),
             "the retained painting differs from painting from scratch: {:?} against {:?}",
-            flatten(&fresh)
+            fresh
                 .iter()
-                .zip(&shapes)
-                .position(|(fresh, retained)| !fresh.same_look(retained))
-                .map(|at| crate::damage::bounds(&shapes[at])),
+                .zip(&self.painting)
+                .find(|((fresh, at), (retained, held))| at != held || !fresh.same_tree(retained))
+                .map(|((fresh, _), _)| fresh.node),
             fresh
                 .iter()
                 .map(|(display, at)| display.bounds.translate(*at))
                 .collect::<Vec<_>>(),
         );
-        let kept = |old: &Shape, new: &Shape| {
-            old.same_look(new) || paint::redrawn_in_place(old, new).is_some()
-        };
-        let prefix = previous
-            .iter()
-            .zip(&shapes)
-            .take_while(|(old, new)| kept(old, new))
-            .count();
-        let suffix = previous[prefix..]
-            .iter()
-            .rev()
-            .zip(shapes[prefix..].iter().rev())
-            .take_while(|(old, new)| kept(old, new))
-            .count();
-        let old = &previous[prefix..previous.len() - suffix];
-        let new = &shapes[prefix..shapes.len() - suffix];
-        let landed = moved.map_or(Rect::NOTHING, |moved| moved.from.translate(moved.by));
-        let changed: Vec<&Shape> = old
-            .iter()
-            .filter(|shape| !new.iter().any(|new| kept(shape, new)))
-            .chain(
-                new.iter()
-                    .filter(|shape| !old.iter().any(|old| kept(old, shape))),
-            )
-            .collect();
-        let mut needed = crate::damage::Region::NOTHING;
-        for shape in &changed {
-            needed.add(crate::damage::bounds(shape).intersect(viewport));
-        }
+        let old = verify::Seen::of(previous, moved.map(|moved| moved.from));
+        let new = verify::Seen::of(&self.painting, moved.map(|moved| moved.to()));
+        let changes = verify::changes(&old, &new, moved);
         if !everything && moved.is_none() && detecting_over_repaint() {
-            let area = |region: &crate::damage::Region| {
+            let area = |region: &Region| {
                 region
                     .rects()
                     .iter()
                     .map(|rect| rect.width() * rect.height())
                     .sum::<f32>()
             };
+            let needed = verify::changed_area(&old, &new).clipped(viewport);
             let (damaged, changed_area) = (area(region), area(&needed));
             if damaged > changed_area * OVER_REPAINT_FACTOR + OVER_REPAINT_SLACK {
                 let report = OverRepaint {
@@ -1381,55 +1389,57 @@ impl Document {
                 OVER_REPAINTS.with_borrow_mut(|reports| reports.push(report));
             }
         }
-        for shape in changed {
-            let bounds = crate::damage::bounds(shape).intersect(viewport);
+        let scale = ctx.pixels_per_point();
+        for (rect, why) in changes.needed {
+            let rect = rect.intersect(viewport);
             assert!(
-                paint::uncovered(bounds, landed)
-                    .into_iter()
-                    .all(|rect| covered(rect, region)),
-                "a shape changed outside the damaged region: {bounds:?} is not within {:?}",
+                verify::covered(rect, region, scale),
+                "the painting changed outside the damaged region: {rect:?} ({why:?}) is not within {:?}{}",
                 region.rects(),
+                match moved {
+                    Some(moved) => format!(" (with {moved:?} copied)"),
+                    None => String::new(),
+                },
             );
-        }
-        if let Some(moved) = moved {
-            verify_move(previous, &shapes, region, moved);
         }
     }
 
     pub fn watch_placement(&mut self, id: NodeId) -> ::reactive::ReadSignal<Rect> {
-        if let Some(watcher) = self
-            .placements
-            .get(&id)
-            .and_then(|watchers| watchers.first())
-        {
-            return watcher.read.clone();
+        if let Some(watched) = self.placements.get(&id) {
+            return watched.read();
         }
-        let rect = self.rects.get(&id).unwrap_or(Rect::ZERO);
-        let (read, write) = ::reactive::create_signal(rect);
-        self.placements.get_or_default(id).push(PlacementWatcher {
-            read: read.clone(),
-            write,
-        });
+        let watched = ::reactive::OwnedSignal::new(self.rects.get(&id).unwrap_or(Rect::ZERO));
+        let read = watched.read();
+        self.placements.insert(id, watched);
         read
     }
 
-    pub(crate) fn follow_placement(
+    pub(crate) fn watch_placement_with(
         &mut self,
         id: NodeId,
-        read: ::reactive::ReadSignal<Rect>,
-        write: ::reactive::WriteSignal<Rect>,
+        watched: ::reactive::OwnedSignal<Rect>,
     ) {
-        self.placements
-            .get_or_default(id)
-            .push(PlacementWatcher { read, write });
+        self.placements.insert(id, watched);
     }
 
     pub fn name_component(&mut self, id: NodeId, name: &'static str) {
-        self.component_names.entry(id).or_default().push(name);
+        let names = match self.component_names.remove(&id) {
+            None => ComponentNames::One(name),
+            Some(ComponentNames::One(first)) => ComponentNames::Many(vec![first, name]),
+            Some(ComponentNames::Many(mut names)) => {
+                names.push(name);
+                ComponentNames::Many(names)
+            }
+        };
+        self.component_names.insert(id, names);
     }
 
     pub fn component_names(&self, id: NodeId) -> &[&'static str] {
-        self.component_names.get(&id).map_or(&[], Vec::as_slice)
+        match self.component_names.get(&id) {
+            None => &[],
+            Some(ComponentNames::One(name)) => std::slice::from_ref(name),
+            Some(ComponentNames::Many(names)) => names,
+        }
     }
 
     pub fn set_component_state_dyn(&mut self, id: NodeId, state: Box<dyn Any>) {
@@ -1468,20 +1478,39 @@ impl Document {
             return None;
         }
         let held = self.measurements.get(&id)?;
-        held.iter()
-            .find(|(offered, _)| same_size(*offered, available))
+        let found = held
+            .iter()
+            .find(|held| same_size(held.offered, available))
             .or_else(|| {
-                held.iter()
-                    .find(|(offered, size)| still_fits(*offered, *size, available))
+                held.iter().find(|held| {
+                    !held.offer_dependent && still_fits(held.offered, held.size, available)
+                })
             })
-            .map(|(_, size)| *size)
+            .copied()?;
+        self.offer_dependent |= found.offer_dependent;
+        Some(found.size)
     }
 
-    pub fn remember_measurement(
+    pub fn note_offer_dependent(&mut self) {
+        self.offer_dependent = true;
+    }
+
+    pub(crate) fn enter_offer(&mut self) -> bool {
+        std::mem::take(&mut self.offer_dependent)
+    }
+
+    pub(crate) fn leave_offer(&mut self, outer: bool) -> bool {
+        let dependent = self.offer_dependent;
+        self.offer_dependent |= outer;
+        dependent
+    }
+
+    pub(crate) fn remember_measurement(
         &mut self,
         id: NodeId,
         available: Vec2,
         size: Vec2,
+        offer_dependent: bool,
         watermark: u64,
     ) {
         if self.arena.layout_revision != watermark {
@@ -1489,11 +1518,15 @@ impl Document {
         }
         self.arena.clear_stale(id);
         let held = self.measurements.get_or_default(id);
-        held.retain(|(offered, _)| !same_size(*offered, available));
+        held.retain(|held| !same_size(held.offered, available));
         if held.len() >= REMEMBERED_MEASUREMENTS {
             held.remove(0);
         }
-        held.push((available, size));
+        held.push(Measurement {
+            offered: available,
+            size,
+            offer_dependent,
+        });
     }
 
     pub fn measured_baseline(&self, id: NodeId, available: Vec2) -> Option<Option<f32>> {
@@ -1612,7 +1645,6 @@ impl Document {
         self.painters.remove(&id);
         if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
-            self.paint_cache.get_mut().unplace(id);
         }
         dropped.push(id);
         for child in self.placed_children.remove(&id).unwrap_or_default() {
@@ -1642,31 +1674,16 @@ impl Document {
         self.layout_parent
     }
 
-    pub fn enter_scroll_host(&mut self, id: NodeId) {
-        self.scroll_hosts.push(id);
+    pub fn report_anchor_shift(&mut self, shift: f32) {
+        self.anchor_shift += shift;
     }
 
-    pub fn leave_scroll_host(&mut self) {
-        self.scroll_hosts.pop();
+    pub(crate) fn take_anchor_shift(&mut self) -> f32 {
+        std::mem::take(&mut self.anchor_shift)
     }
 
-    pub fn record_scroll_shift(&mut self, shift: f32) {
-        let Some(&host) = self.scroll_hosts.last() else {
-            return;
-        };
-        *self.scroll_shifts.get_or_default(host) += shift;
-    }
-
-    pub fn take_scroll_shift(&mut self, id: NodeId) -> f32 {
-        self.scroll_shifts.remove(&id).unwrap_or(0.0)
-    }
-
-    pub fn placing_len(&self) -> usize {
-        self.placing.len()
-    }
-
-    pub fn rewind_placing(&mut self, len: usize) {
-        self.placing.truncate(len);
+    pub(crate) fn forget_placing(&mut self) {
+        self.placing.clear();
     }
 
     pub fn note_placed(&mut self, id: NodeId) {
@@ -1675,11 +1692,12 @@ impl Document {
     }
 
     pub fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
-        if let Some((read, _)) = self.placed.get(&id) {
-            return read.clone();
+        if let Some(watched) = self.placed.get(&id) {
+            return watched.read();
         }
-        let (read, write) = ::reactive::create_signal(self.rects.contains_key(&id));
-        self.placed.insert(id, (read.clone(), write));
+        let watched = ::reactive::OwnedSignal::new(self.rects.contains_key(&id));
+        let read = watched.read();
+        self.placed.insert(id, watched);
         read
     }
 
@@ -1716,7 +1734,16 @@ impl Document {
         if moved || space {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
+        if moved {
+            self.repaint_painter_of(id);
+        }
         true
+    }
+
+    fn repaint_painter_of(&mut self, id: NodeId) {
+        if let Some(parent) = self.arena.parent(id) {
+            self.arena.note_relaid(parent);
+        }
     }
 
     pub fn record_placement(
@@ -1735,7 +1762,9 @@ impl Document {
         let previous = out.insert(id, placed);
         out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
         self.arena.clear_unplaced(id);
-        self.arena.note_relaid(id);
+        if self.arena.get(id).paints_from_layout() {
+            self.arena.note_relaid(id);
+        }
         self.placed_pass.insert(id, self.layout_pass);
         let held = Placing {
             given,
@@ -1752,6 +1781,11 @@ impl Document {
             .map(|held| (held.given.clip, held.culled));
         if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
+        }
+        if previous.map(|previous| previous.rect.min) != Some(rect.min)
+            || previous_held.map(|(_, was)| was) != Some(culled)
+        {
+            self.repaint_painter_of(id);
         }
         if culled {
             let mut dropped = Vec::new();
@@ -1775,15 +1809,52 @@ impl Document {
         self.painters.get(&id).is_some_and(|held| held.culled)
     }
 
-    pub fn culls(&self, id: NodeId, size: Vec2, own: PainterState) -> bool {
+    pub fn culls(&mut self, id: NodeId, size: Vec2, own: PainterState) -> bool {
         !Sight::shows(size, own) && !self.holds_focus(id)
     }
 
-    fn holds_focus(&self, id: NodeId) -> bool {
+    fn holds_focus(&mut self, id: NodeId) -> bool {
         let Some(focused) = self.focused else {
             return false;
         };
-        self.descends(focused, id) || self.descends(id, focused)
+        let key = (self.layout_pass, focused);
+        let line = &mut self.focus_line;
+        if line.key != Some(key) {
+            line.key = Some(key);
+            line.epoch += 1;
+            let mut current = Some(focused);
+            for _ in 0..ANCESTOR_LIMIT {
+                let Some(node) = current else { break };
+                line.ancestors.insert(node, line.epoch);
+                current = self.arena.parent(node);
+            }
+        }
+        let epoch = line.epoch;
+        if line.ancestors.get(&id) == Some(&epoch) {
+            return true;
+        }
+        let mut walked = Vec::new();
+        let mut current = Some(id);
+        let mut within = false;
+        for _ in 0..ANCESTOR_LIMIT {
+            let Some(node) = current else { break };
+            if let Some(&(stamp, known)) = line.within.get(&node)
+                && stamp == epoch
+            {
+                within = known;
+                break;
+            }
+            if node == focused {
+                within = true;
+                break;
+            }
+            walked.push(node);
+            current = self.arena.parent(node);
+        }
+        for node in walked {
+            line.within.insert(node, (epoch, within));
+        }
+        within
     }
 
     pub fn culled_ancestor(&self, id: NodeId) -> Option<NodeId> {
@@ -1796,18 +1867,6 @@ impl Document {
             current = self.arena.parent(node);
         }
         None
-    }
-
-    fn descends(&self, node: NodeId, from: NodeId) -> bool {
-        let mut current = Some(node);
-        for _ in 0..ANCESTOR_LIMIT {
-            match current {
-                Some(node) if node == from => return true,
-                Some(node) => current = self.arena.parent(node),
-                None => return false,
-            }
-        }
-        false
     }
 
     pub fn note_space_reads(&mut self, id: NodeId, reads: bool, base: usize) {
@@ -1856,20 +1915,16 @@ impl Document {
         let moved: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
             .placements
             .iter()
-            .filter_map(|(id, watchers)| Some((rects.get(&id)?, watchers)))
-            .flat_map(|(rect, watchers)| {
-                watchers
-                    .iter()
-                    .filter(move |watcher| watcher.read.get_untracked() != rect)
-                    .map(move |watcher| (watcher.write.clone(), rect))
-            })
+            .filter_map(|(id, watched)| Some((rects.get(&id)?, watched)))
+            .filter(|(rect, watched)| watched.read().get_untracked() != *rect)
+            .map(|(rect, watched)| (watched.write(), rect))
             .collect();
         let placed: Vec<(::reactive::WriteSignal<bool>, bool)> = self
             .placed
             .iter()
-            .map(|(id, (read, write))| (rects.contains_key(&id), read, write))
-            .filter(|(placed, read, _)| read.get_untracked() != *placed)
-            .map(|(placed, _, write)| (write.clone(), placed))
+            .map(|(id, watched)| (rects.contains_key(&id), watched))
+            .filter(|(placed, watched)| watched.read().get_untracked() != *placed)
+            .map(|(placed, watched)| (watched.write(), placed))
             .collect();
         if reports.is_empty() && moved.is_empty() && placed.is_empty() {
             return;
@@ -1931,6 +1986,15 @@ impl Document {
         Some(ctx.painter().layout_text(text, font, layout))
     }
 
+    pub fn rich_layout(
+        &self,
+        pieces: &[crate::rich::Piece],
+        options: crate::rich::RichOptions,
+    ) -> Option<crate::rich::RichLayout> {
+        let (ctx, _, _) = self.viewport.as_ref()?;
+        Some(ctx.painter().rich_layout(pieces, options))
+    }
+
     pub fn pixel_grid(&self) -> PixelGrid {
         PixelGrid::new(self.pixels_per_point())
     }
@@ -1966,7 +2030,7 @@ impl Document {
         self.report_laid_out();
         self.run_laid_out();
         while self.needs_layout() {
-            if passes == LAYOUTS_PER_FRAME {
+            if passes + 1 >= LAYOUTS_PER_FRAME {
                 self.log_unsettled(watermark);
                 self.lay_out_tree(ctx, rect);
                 ctx.request_repaint();
@@ -1991,117 +2055,14 @@ impl Document {
             crate::current::run_in(self, |document| {
                 layout::layout(document, &painter, root, rect, placed);
                 document.lay_out_boundaries(ctx, placed);
+                document.place_moved_overlays(ctx, placed);
             });
         }
         self.placing.clear();
+        self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
         self.layout_pass = self.layout_pass.wrapping_add(1);
     }
-}
-
-fn covered(rect: Rect, region: &Region) -> bool {
-    let mut left = vec![rect];
-    for damaged in region.rects() {
-        left = left
-            .into_iter()
-            .flat_map(|rect| paint::uncovered(rect, damaged.expand(0.01)))
-            .collect();
-    }
-    left.iter().all(|rect| !rect.is_positive())
-}
-
-fn verify_move(previous: &[Shape], shapes: &[Shape], region: &Region, moved: Moved) {
-    let landed = moved.from.translate(moved.by);
-    let within = |shape: &Shape, area: Rect| crate::damage::bounds(shape).intersects(area);
-    let shown = |shapes: &[Shape], area: Rect| {
-        shapes
-            .iter()
-            .rposition(|shape| {
-                paint::covers(shape, area)
-                    && matches!(shape, Shape::Rect { color, .. } if color.alpha() == u8::MAX)
-            })
-            .unwrap_or(0)
-    };
-    let (previous, shapes) = (
-        &previous[shown(previous, moved.from)..],
-        &shapes[shown(shapes, landed)..],
-    );
-    let before: Vec<Shape> = previous
-        .iter()
-        .filter(|shape| within(shape, moved.from))
-        .map(|shape| crate::painter::placed_shape(shape, moved.by, Rect::EVERYTHING))
-        .collect();
-    let after: Vec<&Shape> = shapes
-        .iter()
-        .filter(|shape| within(shape, landed))
-        .collect();
-    let even = |shape: &Shape| {
-        paint::uneven(shape, landed).is_some_and(|parts| {
-            parts
-                .into_iter()
-                .all(|rect| covered(rect.intersect(landed), region))
-        })
-    };
-    let matches = |old: &Shape, new: &Shape| {
-        (paint::covers(old, landed) && paint::covers(new, landed) && same_fill(old, new))
-            || (even(old) && even(new) && same_paint(old, new))
-            || (unclipped(old) == unclipped(new)
-                && clip_of(old).intersect(landed) == clip_of(new).intersect(landed))
-    };
-    let damaged = |shape: &Shape| {
-        paint::painted(shape, crate::damage::bounds(shape))
-            .into_iter()
-            .all(|rect| covered(rect.intersect(landed), region))
-    };
-    for new in &after {
-        assert!(
-            damaged(new) || before.iter().any(|old| matches(old, new)),
-            "a shape the copy moved into {:?} was not there to be moved",
-            crate::damage::bounds(new).intersect(landed),
-        );
-    }
-    for old in &before {
-        assert!(
-            damaged(old) || after.iter().any(|new| matches(old, new)),
-            "the copy moved a shape into {:?} that is no longer painted there",
-            crate::damage::bounds(old).intersect(landed),
-        );
-    }
-}
-
-fn unclipped(shape: &Shape) -> Shape {
-    let mut shape = shape.clone();
-    *crate::context::shape_clip(&mut shape) = Rect::EVERYTHING;
-    shape
-}
-
-fn clip_of(shape: &Shape) -> Rect {
-    *crate::context::shape_clip(&mut shape.clone())
-}
-
-fn same_fill(left: &Shape, right: &Shape) -> bool {
-    matches!(
-        (left, right),
-        (Shape::Rect { color, .. }, Shape::Rect { color: other, .. }) if color == other
-    )
-}
-
-fn same_paint(left: &Shape, right: &Shape) -> bool {
-    matches!(
-        (left, right),
-        (
-            Shape::Rect { corner_radius, stroke_width, color, .. },
-            Shape::Rect { corner_radius: other_radius, stroke_width: other_width, color: other, .. },
-        ) if color == other && corner_radius == other_radius && stroke_width == other_width
-    )
-}
-
-fn flatten(painting: &[(Rc<Display>, Vec2)]) -> Vec<Shape> {
-    let mut shapes = Vec::new();
-    for (display, at) in painting {
-        display.flatten(*at, &mut shapes);
-    }
-    shapes
 }
 
 const OVER_REPAINT_FACTOR: f32 = 4.0;
@@ -2160,7 +2121,6 @@ impl Document {
             let state = PainterState {
                 origin: rects.offset(held.given.space),
                 space_clip: rects.space_clip(held.given.space),
-                local: Local::NONE,
                 ..held.given
             };
             let painter = Painter::resumed(ctx.clone(), state);
@@ -2185,4 +2145,9 @@ impl Default for Document {
     fn default() -> Self {
         Self::new()
     }
+}
+
+enum ComponentNames {
+    One(&'static str),
+    Many(Vec<&'static str>),
 }

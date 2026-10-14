@@ -5,11 +5,11 @@ use crate::{Rect, vec2};
 
 #[test]
 fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
+    let _root = crate::reactive::RootScope::new();
     let layout = DockingLayout::<u64>::new();
-    let built = layout.clone();
     let document = build(move || {
         view! {
-            <styled::Docking layout={built.clone()}>
+            <styled::Docking layout={layout}>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="One">
@@ -40,10 +40,9 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let shown = layout.clone();
     with_reactive_scope(harness.document_mut(), move || {
         for tab in [2, 4, 3, 1] {
-            shown.show(&tab);
+            layout.show(&tab);
         }
     });
     harness.frame(Vec::new());
@@ -52,10 +51,9 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
         "the switcher is closed until a switch begins"
     );
 
-    let switching = layout.clone();
     with_reactive_scope(harness.document_mut(), move || {
-        switching.begin_switch(false);
-        switching.step_switch(false);
+        layout.begin_switch(false);
+        layout.step_switch(false);
     });
     harness.frame(Vec::new());
     for tab in 1..=4 {
@@ -70,14 +68,12 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
     assert_eq!(layout.switch_choice(), Some(4));
     assert_eq!(layout.focused(), Some(1), "switching shows nothing yet");
 
-    let cancelling = layout.clone();
-    with_reactive_scope(harness.document_mut(), move || cancelling.cancel_switch());
+    with_reactive_scope(harness.document_mut(), move || layout.cancel_switch());
     harness.frame(Vec::new());
     assert!(harness.document().find_test_id("dock.switch.1").is_none());
     assert_eq!(layout.focused(), Some(1), "cancelling leaves the tab shown");
 
-    let switching = layout.clone();
-    with_reactive_scope(harness.document_mut(), move || switching.begin_switch(true));
+    with_reactive_scope(harness.document_mut(), move || layout.begin_switch(true));
     harness.frame(Vec::new());
     harness.click(harness.center(harness.find("dock.switch.4")));
     harness.frame(Vec::new());

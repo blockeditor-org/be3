@@ -1,24 +1,21 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
     ICON_UNDO,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, Prop, Show, Spacer, clone,
-    component, create_memo, use_context, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, Prop, Show, Spacer, component,
+    create_memo, use_context, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, IconButton, ToggleButton, use_theme,
-};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, ToggleButton, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{BottomDock, sheet_open};
 
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
+use block_editor_beui::beui::styled::{Text, TextColor};
 
 const TOOLS: [(Tool, &str, &str); 6] = [
     (Tool::Select, ICON_SELECT, "Select"),
@@ -36,27 +33,26 @@ const PILL_PADDING: f32 = 4.0;
 const DIVIDER_HEIGHT: f32 = 24.0;
 
 #[component]
-pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
+pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
     let previewing = state.previewing();
     let open = create_memo(move || shown.get() && !previewing);
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let tools = actions.clone();
-    let chosen = create_memo(clone!(state -> move || !state.selection.get().is_empty()));
-    let selection = clone!(state -> move || {
-        let state = Rc::clone(&state);
+    let chosen = create_memo(move || !state.selection.get().is_empty());
+    let selection = move || {
         view! {
             <List align=Align::Center spacing=0.0>
                 <SelectionTools state />
                 <Frame height=PILL_MARGIN />
             </List>
         }
-    });
+    };
     let history = state.editor().history(state.editor().block_id());
     let stuck = create_memo(move || !history.get().can_undo);
-    let undo = clone!(state -> move || {
+    let undo = move || {
         let editor = state.editor();
         editor.host().undo(editor.block_id());
-    });
+    };
     let theme = use_theme();
     view! {
         <BottomDock
@@ -82,7 +78,7 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
                 @test_id={"infinite-canvas.dock.block"}
                 action={actions.add_block}
             />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT color={theme.border.clone()} />
+            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT color={theme.border} />
             <IconButton
                 glyph={ICON_UNDO.to_owned()}
                 label="Undo"
@@ -95,21 +91,21 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
 }
 
 #[component]
-pub(crate) fn ZoomPill(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
+pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let sheet = sheet_open();
     let previewing = state.previewing();
     let open = create_memo(move || shown.get() && !sheet.get() && !previewing);
     let scale = state.editor().scale();
-    let readout = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
+    let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
     let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::TopEnd open={open}>
             <Frame padding_vertical=PILL_MARGIN padding_horizontal=PILL_MARGIN>
                 <Frame
-                    color={theme.surface_raised.clone()}
-                    outline={theme.border.clone()}
+                    color={theme.surface_raised}
+                    outline={theme.border}
                     outline_width=BORDER_WIDTH
                     outline_visible=true
                     radius=PILL_RADIUS
@@ -160,18 +156,16 @@ fn ToolChoice(actions: CanvasActions, index: usize) -> NodeId {
 }
 
 #[component]
-pub(crate) fn ImportError(state: Rc<CanvasState>) -> NodeId {
-    let failed = create_memo(clone!(state -> move || state.import_error.get().is_some()));
-    let message =
-        create_memo(clone!(state -> move || state.import_error.get().unwrap_or_default()));
-    let dismiss = clone!(state -> move || state.dismiss_import_error());
-    let theme = use_theme();
+pub(crate) fn ImportError(state: CanvasState) -> NodeId {
+    let failed = create_memo(move || state.import_error.get().is_some());
+    let message = create_memo(move || state.import_error.get().unwrap_or_default());
+    let dismiss = move || state.dismiss_import_error();
     view! {
         <List spacing=0.0>
             <Show condition={failed}>
-                {move || clone!(dismiss message theme -> view! {
+                {move || view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Body content={message} color={theme.danger.clone()} />
+                        <Text string={message} color=TextColor::Danger />
                         <Button
                             label="Dismiss"
                             variant=ButtonVariant::Secondary
@@ -180,7 +174,7 @@ pub(crate) fn ImportError(state: Rc<CanvasState>) -> NodeId {
                         />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }

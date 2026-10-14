@@ -1,11 +1,9 @@
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
-use crate::text::Icon;
+use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
-use crate::theme::{
-    BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme,
-};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -16,8 +14,8 @@ use beui_core::document::Document;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone,
-    create_memo, focus_ring,
+    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, create_memo,
+    focus_ring,
 };
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
@@ -46,7 +44,7 @@ pub fn Select(
             selected
             disabled
             label
-            on_change={move |selected| on_change.call(selected)}
+            on_change={on_change}
             search_placeholder="Search"
             search_content={|handle| view! {
                 <SearchField handle />
@@ -54,7 +52,7 @@ pub fn Select(
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
-                <SelectTrigger handle placeholder={placeholder.clone()} />
+                <SelectTrigger handle placeholder={placeholder} />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -77,34 +75,31 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
         ..
     } = handle;
     let theme = use_theme();
-    let empty = create_memo(clone!(label -> move || label.with(Option::is_none)));
+    let empty = create_memo(move || label.with(Option::is_none));
     let label_text = create_memo(move || {
         label.get().unwrap_or_else(|| match placeholder.get() {
             placeholder if placeholder.is_empty() => "Select...".to_owned(),
             placeholder => placeholder,
         })
     });
-    let border = create_memo(clone!(focused theme disabled -> move || {
-        field_border(&theme, disabled.get(), focused.get(), hovered.get())
-    }));
-    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    let border =
+        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let fill = create_memo(move || match disabled.get() {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
-    }));
-    let text_color = create_memo(
-        clone!(theme disabled -> move || match disabled.get() || empty.get() {
-            true => theme.text_muted.get(),
-            false => theme.text.get(),
-        }),
-    );
-    let arrow_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
-    }));
+    });
+    let text_color = create_memo(move || match disabled.get() || empty.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
+    let arrow_color = create_memo(move || match disabled.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
     view! {
         <Frame
             max_width=TRIGGER_MAX_WIDTH
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -122,13 +117,14 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
                     <Text
                         string={label_text}
-                        font_size=FONT_BODY
                         color={text_color}
                         align=TextAlign::Start
                         ellipsis=true
                         @sizing=ItemSize::Percent(100.0)
                     />
-                    <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} color={arrow_color} />
+                    <Text color={arrow_color} align=TextAlign::Center>
+                        <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} />
+                    </Text>
                 </List>
             </Frame>
         </Frame>
@@ -144,13 +140,11 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let border = create_memo(clone!(theme -> move || {
-        field_border(&theme, false, focused.get(), hovered.get())
-    }));
+    let border = create_memo(move || field_border(&theme, false, focused.get(), hovered.get()));
     view! {
         <Frame
             height=HEIGHT
-            color={theme.surface.clone()}
+            color={theme.surface}
             outline={border}
             outline_width=BORDER_WIDTH
             radius=RADIUS
@@ -170,9 +164,8 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(
-        clone!(theme -> move || option_background(&theme, highlighted.get(), hovered.get())),
-    );
+    let fill_color =
+        create_memo(move || option_background(&theme, highlighted.get(), hovered.get()));
     view! {
         <Frame
             color={fill_color}
@@ -180,12 +173,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=OPTION_PADDING_VERTICAL
         >
-            <Text
-                string={label}
-                font_size=FONT_BODY
-                color={theme.text.clone()}
-                align=TextAlign::Start
-            />
+            <Text string={label} align=TextAlign::Start />
         </Frame>
     }
 }
@@ -196,8 +184,8 @@ fn SelectPopup(children: Child) -> NodeId {
     view! {
         <Frame
             width=POPUP_WIDTH
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true

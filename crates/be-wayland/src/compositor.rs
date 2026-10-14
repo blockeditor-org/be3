@@ -198,7 +198,7 @@ impl Compositor {
             (std::mem::take(&mut self.relist) || self.fullscreen.is_some()).then(|| self.list());
         let raise = self.raise.take().or_else(|| self.windows.take_activation());
         let raise = raise.filter(|_| !self.locked);
-        let windows = self.windows.clone();
+        let windows = self.windows;
         with_reactive_scope(document, || {
             if let Some(list) = list {
                 windows.set_list(list);
@@ -210,7 +210,7 @@ impl Compositor {
     }
 
     pub fn windows(&self) -> Windows {
-        self.windows.clone()
+        self.windows
     }
 
     pub fn socket(&self) -> Option<String> {
@@ -325,7 +325,7 @@ impl Compositor {
         let mut changed = false;
         let mut fullscreen = Vec::new();
         let mut activated = None;
-        let windows = self.windows.clone();
+        let windows = self.windows;
         with_reactive_scope(document, || {
             for event in events {
                 match event {
@@ -358,7 +358,7 @@ impl Compositor {
         self.configured.retain(|id, _| open.contains(id));
         if changed {
             let list = self.list();
-            let windows = self.windows.clone();
+            let windows = self.windows;
             with_reactive_scope(document, || windows.set_list(list));
         }
         if !redraw.is_empty() {
@@ -440,7 +440,7 @@ impl Compositor {
             let callbacks = self.server.state.take_feedback(*id);
             self.server.state.presentation.drawn(*id, callbacks);
         }
-        let store = self.windows.clone();
+        let store = self.windows;
         with_reactive_scope(document, || {
             for (id, (drawing, popups)) in drawings {
                 store.draw(id, drawing, popups);
@@ -715,7 +715,7 @@ impl Compositor {
             CursorImageStatus::Named(icon) => cursor_icon(*icon),
             CursorImageStatus::Surface(_) => CursorIcon::Default,
         };
-        let windows = self.windows.clone();
+        let windows = self.windows;
         with_reactive_scope(document, || windows.set_cursor(cursor));
         self.reap();
     }
@@ -863,7 +863,7 @@ impl Compositor {
         }
         let idle = self.server.state.idle.blanked();
         if self.windows.idle().get_untracked() != idle {
-            let windows = self.windows.clone();
+            let windows = self.windows;
             with_reactive_scope(document, || windows.set_idle(idle));
         }
     }

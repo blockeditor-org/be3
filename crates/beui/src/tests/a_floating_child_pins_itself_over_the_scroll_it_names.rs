@@ -1,6 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::create_effect;
 use crate::reactive::{ForEach, Interactive, List, NodeRef, Text, build, create_signal, view};
@@ -9,29 +6,21 @@ use crate::unstyled::{Edge, Floating, Scroll};
 
 #[test]
 fn a_floating_child_pins_itself_over_the_scroll_it_names() {
-    let pressed = Rc::new(Cell::new(0u32));
+    let _root = crate::reactive::RootScope::new();
+    let (pressed, set_pressed) = create_signal(0u32);
     let scroll = NodeRef::new();
     let button = NodeRef::new();
-    let rows = Rc::new(Cell::new(0u32));
-    let hovered = Rc::new(Cell::new(0usize));
+    let (rows, set_rows) = create_signal(0u32);
+    let (hovered, set_hovered) = create_signal(0usize);
     let document = build({
-        let (pressed, scroll, button, rows, hovered) = (
-            Rc::clone(&pressed),
-            scroll.clone(),
-            button.clone(),
-            Rc::clone(&rows),
-            Rc::clone(&hovered),
-        );
         move || {
             let (over, set_over) = create_signal(0usize);
-            create_effect(move || hovered.set(over.get()));
+            create_effect(move || set_hovered.set(over.get()));
             view! {
                 <List spacing=0.0>
                     <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                         <ForEach keys={(0..20).collect::<Vec<i64>>()}>
                             {move |row: i64| {
-                                let rows = Rc::clone(&rows);
-                                let set_over = set_over.clone();
                                 view! {
                                     <Interactive
                                         on_hover_change={move |over: bool| {
@@ -41,7 +30,9 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                                             });
                                         }}
                                     >
-                                        <Button on_click={move || rows.set(rows.get() + 1)}>
+                                        <Button
+                                            on_click={move || set_rows.update(|rows| *rows += 1)}
+                                        >
                                             <Text string={format!("row {row}")} />
                                         </Button>
                                     </Interactive>
@@ -49,8 +40,11 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                             }}
                         </ForEach>
                     </Scroll>
-                    <Floating anchor={scroll.clone()} edge=Edge::Bottom>
-                        <Button @node_ref=&button on_click={move || pressed.set(pressed.get() + 1)}>
+                    <Floating anchor={scroll} edge=Edge::Bottom>
+                        <Button
+                            @node_ref=&button
+                            on_click={move || set_pressed.update(|pressed| *pressed += 1)}
+                        >
                             <Text string="reveal" />
                         </Button>
                     </Floating>
@@ -75,13 +69,17 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     );
     assert!(viewport.contains_rect(floating));
 
-    let before = rows.get();
+    let before = rows.get_untracked();
     harness.click(floating.center());
     harness.frame(Vec::new());
 
-    assert_eq!(pressed.get(), 1, "the floating child answers the pointer");
     assert_eq!(
-        rows.get(),
+        pressed.get_untracked(),
+        1,
+        "the floating child answers the pointer"
+    );
+    assert_eq!(
+        rows.get_untracked(),
         before,
         "a press the floating child took must not reach the rows under it"
     );
@@ -90,7 +88,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        rows.get(),
+        rows.get_untracked(),
         before + 1,
         "the rest of the scroll must go on answering the pointer"
     );
@@ -99,12 +97,16 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
         viewport.center().x,
         viewport.top() + 4.0,
     ))]);
-    assert_eq!(hovered.get(), 1, "the row under the pointer is hovered");
+    assert_eq!(
+        hovered.get_untracked(),
+        1,
+        "the row under the pointer is hovered"
+    );
 
     harness.frame(vec![Event::PointerMoved(floating.center())]);
 
     assert_eq!(
-        hovered.get(),
+        hovered.get_untracked(),
         0,
         "moving onto the floating child must take the hover off what it covers"
     );

@@ -3,6 +3,7 @@ use beui_core::display::{Group, Layer};
 
 #[test]
 fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
+    let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, TALL_VIEWPORT);
     harness.enable_screen_reader();
     harness.drag_simulation_slider("blur", 1.0);

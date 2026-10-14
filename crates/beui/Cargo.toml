@@ -6,7 +6,7 @@ license.workspace = true
 
 [features]
 default = ["window"]
-render = ["dep:beui-renderer-wgpu"]
+render = ["dep:beui-renderer-wgpu", "beui-components-styled/gpu"]
 window = [
     "render",
     "dep:beui-adapter-android",
@@ -76,3 +76,6 @@ workspace = true
 [[example]]
 name = "survey"
 required-features = ["window"]
+
+[[example]]
+name = "text-bench"

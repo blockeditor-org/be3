@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn the_inspector_keeps_the_rows_of_nodes_that_survive_an_update() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 

@@ -109,7 +109,7 @@ impl LogicGridEditor {
     }
 
     pub(super) fn sync_hotbar(&mut self, live: bool, client_id: Uuid) -> bool {
-        if let (true, Some(editor)) = (live, self.store.editor().cloned()) {
+        if let (true, Some(editor)) = (live, self.store.editor()) {
             let pending = self.hotbar_needs_write;
             let root = &mut self.hotbar_block;
             if pending {
@@ -153,7 +153,7 @@ impl LogicGridEditor {
         true
     }
 
-    fn hotbar_content(&self) -> Option<Rc<ContentProjection<HotbarContent>>> {
+    fn hotbar_content(&self) -> Option<ContentProjection<HotbarContent>> {
         let id = self.hotbar_block.block()?;
         Some(self.store.editor()?.content_of::<HotbarContent>(id))
     }

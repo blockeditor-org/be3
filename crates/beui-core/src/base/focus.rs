@@ -203,7 +203,9 @@ impl Document {
     }
 
     pub fn set_focusable_ime(&mut self, focusable: NodeOf<InteractiveNode>, ime: bool) {
-        if self.contains(focusable) {
+        if self.contains(focusable)
+            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.ime != ime)
+        {
             self.focus_mut(focusable).ime = ime;
         }
     }
@@ -213,7 +215,10 @@ impl Document {
         focusable: NodeOf<InteractiveNode>,
         keyboard: bool,
     ) {
-        if self.contains(focusable) {
+        if self.contains(focusable)
+            && focus_of(self.arena.get(focusable))
+                .is_some_and(|focus| focus.ime_keyboard != keyboard)
+        {
             self.focus_mut(focusable).ime_keyboard = keyboard;
         }
     }
@@ -223,7 +228,9 @@ impl Document {
         focusable: NodeOf<InteractiveNode>,
         asks: Option<u32>,
     ) {
-        if self.contains(focusable) {
+        if self.contains(focusable)
+            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.keyboard_asks != asks)
+        {
             self.focus_mut(focusable).keyboard_asks = asks;
         }
     }
@@ -296,7 +303,7 @@ impl Document {
         let Some(focused) = self.focused else {
             return false;
         };
-        let Some(on_key) = focus_of(self.arena.get(focused)).map(|node| node.on_key.clone()) else {
+        let Some(on_key) = focus_of(self.arena.get(focused)).map(|node| node.on_key) else {
             return false;
         };
         on_key.call(press)
@@ -374,7 +381,7 @@ impl Document {
 
     pub fn focus_is_within(&self, root: NodeId) -> bool {
         self.focused
-            .is_some_and(|focused| self.focusables_within(root).contains(&focused))
+            .is_some_and(|focused| self.is_within(focused, root))
     }
 
     pub fn focus_next(&mut self) {
@@ -453,6 +460,11 @@ impl Document {
         if !dirty {
             return;
         }
+        if let Some(wanted) = self.focus_wanted.take()
+            && self.focus_valid(wanted)
+        {
+            self.update_focus(Some(wanted));
+        }
         if let Some(focused) = self.focused
             && !self.focus_valid(focused)
         {
@@ -482,7 +494,7 @@ impl Document {
                 break;
             }
             let Some(parent) = self.arena.parent(current) else {
-                return self.focusables().contains(&node);
+                return false;
             };
             if !self.arena.get(parent).children().contains(&current) {
                 return false;
@@ -493,7 +505,7 @@ impl Document {
         let Some(layer) = self.layer_of(&layers, node) else {
             return false;
         };
-        layer >= layers.keyboard() && self.blocked_focus_redirect(&layers, node).is_none()
+        layer >= layers.keyboard() && !self.focus_blocked(&layers, node)
     }
 
     pub fn update_focus(&mut self, new_focus: Option<NodeId>) {
@@ -508,10 +520,11 @@ impl Document {
                     .layer_of(&layers, new)
                     .is_some_and(|layer| layer < keyboard)
                 {
-                    if layers[keyboard].level == crate::layer::LayerLevel::Lock {
-                        return;
+                    if !layers.locked() {
+                        self.focus_wanted = Some(new);
+                        self.focus_dirty = true;
                     }
-                    self.focus_dirty = true;
+                    return;
                 }
                 if let Some(redirect) = self.blocked_focus_redirect(&layers, new) {
                     if redirect.is_some() && redirect != self.focused {
@@ -521,7 +534,7 @@ impl Document {
                 }
             }
             None => {
-                let held = layers[keyboard].level == crate::layer::LayerLevel::Lock
+                let held = layers.locked()
                     && self.focused.is_some_and(|old| {
                         self.layer_of(&layers, old)
                             .is_some_and(|layer| layers.within(layer, keyboard))
@@ -538,7 +551,7 @@ impl Document {
         self.focused = new_focus;
         self.focus_before = old;
         if let Some(new) = new_focus {
-            self.note_focus_outside_layers(new);
+            self.note_focus_outside_scopes(new);
         }
         self.keyboard_held = new_focus.is_some_and(|focused| {
             self.contains(focused)
@@ -605,7 +618,7 @@ impl Document {
         if !activate || !self.contains(id) {
             return;
         }
-        let on_activate = focus_of(self.arena.get(id)).map(|node| node.on_activate.clone());
+        let on_activate = focus_of(self.arena.get(id)).map(|node| node.on_activate);
         if let Some(on_activate) = on_activate {
             on_activate.call();
         }
@@ -619,7 +632,7 @@ impl Document {
         self.call_focusable_handler(id, focused, |node| &node.on_focus_change);
     }
 
-    fn call_focusable_handler<V>(
+    fn call_focusable_handler<V: 'static>(
         &mut self,
         id: NodeId,
         value: V,
@@ -628,7 +641,7 @@ impl Document {
         if !self.contains(id) {
             return;
         }
-        let handler = focus_of(self.arena.get(id)).map(|node| select(node).clone());
+        let handler = focus_of(self.arena.get(id)).map(|node| *select(node));
         if let Some(handler) = handler {
             handler.call(value);
         }

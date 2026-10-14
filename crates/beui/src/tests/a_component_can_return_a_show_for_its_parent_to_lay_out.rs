@@ -5,6 +5,7 @@ use crate::reactive::{
 
 #[test]
 fn a_component_can_return_a_show_for_its_parent_to_lay_out() {
+    let _root = crate::reactive::RootScope::new();
     let (shown, set_shown) = create_signal(false);
     let document = build(move || {
         view! {

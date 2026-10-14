@@ -3,8 +3,8 @@ pub mod keyboard;
 use std::array;
 use std::time::{Duration, Instant};
 
-use beui_components_styled::Theme;
-use beui_components_styled::theme::{CARD_RADIUS, ICON_SIZE};
+use beui_components_styled::theme::CARD_RADIUS;
+use beui_components_styled::{TextSize, Theme};
 use beui_core::color::Color32;
 use beui_core::context::{Context, InputSimulation};
 use beui_core::font::FontId;
@@ -629,7 +629,7 @@ impl MouseSimulation {
                 painter,
                 bounds.center(),
                 BUTTON_ICONS[index],
-                ICON_SIZE,
+                TextSize::Base.icon_px(),
                 color,
             );
         }
@@ -659,6 +659,9 @@ impl MouseSimulation {
         let shadow = vec2(CURSOR_SHADOW, CURSOR_SHADOW);
         match icon {
             CursorIcon::None => {}
+            CursorIcon::Touch => {
+                beui_core::touch_cursor::paint(painter, at);
+            }
             CursorIcon::Text => {
                 ibeam(painter, at + shadow, SHADOW);
                 ibeam(painter, at, color);
@@ -684,7 +687,7 @@ fn cursor_glyph(icon: CursorIcon) -> (&'static str, Vec2, f32) {
             (icons::ICON_ARROW_SELECTOR_TOOL, vec2(0.23, 0.19), 0.0)
         }
         CursorIcon::PointingHand => (icons::ICON_PAN_TOOL_ALT, vec2(0.29, 0.15), 0.0),
-        CursorIcon::Crosshair => (icons::ICON_ADD, center, 0.0),
+        CursorIcon::Crosshair | CursorIcon::Touch => (icons::ICON_ADD, center, 0.0),
         CursorIcon::Grab => (icons::ICON_PAN_TOOL, center, 0.0),
         CursorIcon::Grabbing => (icons::ICON_BACK_HAND, center, 0.0),
         CursorIcon::NotAllowed => (icons::ICON_BLOCK, center, 0.0),

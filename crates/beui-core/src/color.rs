@@ -147,7 +147,7 @@ impl Hsva {
 
 const OKLCH_CHROMA_LIMIT: f32 = 0.5;
 const OKLCH_SEARCH_STEPS: u32 = 24;
-const CUSP_SEARCH_STEPS: u32 = 32;
+const CUSP_REFINEMENTS: u32 = 2;
 const GAMUT_SLACK: f32 = 1e-4;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -197,10 +197,11 @@ impl Oklch {
     }
 
     pub fn max_chroma(lightness: f32, hue: f32) -> f32 {
+        let direction = hue_direction(hue);
         let (mut inside, mut outside) = (0.0, OKLCH_CHROMA_LIMIT);
         for _ in 0..OKLCH_SEARCH_STEPS {
             let middle = (inside + outside) / 2.0;
-            match Self::new(lightness, middle, hue, 1.0).in_gamut() {
+            match in_gamut(linear_rgb(lightness, middle, direction)) {
                 true => inside = middle,
                 false => outside = middle,
             }
@@ -209,23 +210,15 @@ impl Oklch {
     }
 
     pub fn cusp(hue: f32) -> Self {
-        let (mut darker, mut lighter) = (0.0, 1.0);
-        for _ in 0..CUSP_SEARCH_STEPS {
-            let third = (lighter - darker) / 3.0;
-            let (low, high) = (darker + third, lighter - third);
-            match Self::max_chroma(low, hue) < Self::max_chroma(high, hue) {
-                true => darker = low,
-                false => lighter = high,
-            }
-        }
-        let lightness = (darker + lighter) / 2.0;
-        Self::new(lightness, Self::max_chroma(lightness, hue), hue, 1.0)
+        let direction = hue_direction(hue);
+        let saturation = max_saturation(direction);
+        let [red, green, blue] = linear_rgb(1.0, saturation, direction);
+        let lightness = red.max(green).max(blue).recip().cbrt();
+        Self::new(lightness, lightness * saturation, hue, 1.0)
     }
 
     pub fn in_gamut(self) -> bool {
-        self.linear_rgb()
-            .iter()
-            .all(|channel| (-GAMUT_SLACK..=1.0 + GAMUT_SLACK).contains(channel))
+        in_gamut(self.linear_rgb())
     }
 
     pub fn clamped(self) -> Self {
@@ -254,17 +247,87 @@ impl Oklch {
     }
 
     pub fn linear_rgb(self) -> [f32; 3] {
-        let (sine, cosine) = self.hue.to_radians().sin_cos();
-        let (a, b) = (self.chroma * cosine, self.chroma * sine);
-        let long = (self.lightness + 0.396_337_78 * a + 0.215_803_76 * b).powi(3);
-        let medium = (self.lightness - 0.105_561_346 * a - 0.063_854_17 * b).powi(3);
-        let short = (self.lightness - 0.089_484_18 * a - 1.291_485_5 * b).powi(3);
-        [
-            4.076_741_7 * long - 3.307_711_6 * medium + 0.230_969_94 * short,
-            -1.268_438 * long + 2.609_757_4 * medium - 0.341_319_38 * short,
-            -0.004_196_086_3 * long - 0.703_418_6 * medium + 1.707_614_7 * short,
-        ]
+        linear_rgb(self.lightness, self.chroma, hue_direction(self.hue))
     }
+}
+
+fn hue_direction(hue: f32) -> (f32, f32) {
+    let (sine, cosine) = hue.to_radians().sin_cos();
+    (cosine, sine)
+}
+
+fn in_gamut(rgb: [f32; 3]) -> bool {
+    rgb.iter()
+        .all(|channel| (-GAMUT_SLACK..=1.0 + GAMUT_SLACK).contains(channel))
+}
+
+fn cone_weights((a, b): (f32, f32)) -> [f32; 3] {
+    [
+        0.396_337_78 * a + 0.215_803_76 * b,
+        -0.105_561_346 * a - 0.063_854_17 * b,
+        -0.089_484_18 * a - 1.291_485_5 * b,
+    ]
+}
+
+fn linear_rgb(lightness: f32, chroma: f32, direction: (f32, f32)) -> [f32; 3] {
+    let [long, medium, short] =
+        cone_weights(direction).map(|weight| (lightness + chroma * weight).powi(3));
+    [
+        4.076_741_7 * long - 3.307_711_6 * medium + 0.230_969_94 * short,
+        -1.268_438 * long + 2.609_757_4 * medium - 0.341_319_38 * short,
+        -0.004_196_086_3 * long - 0.703_418_6 * medium + 1.707_614_7 * short,
+    ]
+}
+
+fn max_saturation(direction: (f32, f32)) -> f32 {
+    let (a, b) = direction;
+    let (fit, row) = if -1.881_703_3 * a - 0.809_364_9 * b > 1.0 {
+        (
+            [
+                1.190_862_8,
+                1.765_767_3,
+                0.596_626_4,
+                0.755_152,
+                0.567_712_4,
+            ],
+            [4.076_741_7, -3.307_711_6, 0.230_969_94],
+        )
+    } else if 1.814_441 * a - 1.194_452_8 * b > 1.0 {
+        (
+            [
+                0.739_565_15,
+                -0.459_544_04,
+                0.082_854_27,
+                0.125_410_7,
+                0.145_032_04,
+            ],
+            [-1.268_438, 2.609_757_4, -0.341_319_38],
+        )
+    } else {
+        (
+            [
+                1.357_336_5,
+                -0.009_157_99,
+                -1.151_302_1,
+                -0.505_596_06,
+                0.006_921_67,
+            ],
+            [-0.004_196_086_3, -0.703_418_6, 1.707_614_7],
+        )
+    };
+    let mut saturation = fit[0] + fit[1] * a + fit[2] * b + fit[3] * a * a + fit[4] * a * b;
+    let weights = cone_weights(direction);
+    for _ in 0..CUSP_REFINEMENTS {
+        let (mut value, mut slope, mut bend) = (0.0, 0.0, 0.0);
+        for (weight, factor) in weights.into_iter().zip(row) {
+            let cone = 1.0 + saturation * weight;
+            value += factor * cone * cone * cone;
+            slope += factor * 3.0 * weight * cone * cone;
+            bend += factor * 6.0 * weight * weight * cone;
+        }
+        saturation -= value * slope / (slope * slope - 0.5 * value * bend);
+    }
+    saturation
 }
 
 pub fn gamma_from_linear(value: f32) -> u8 {

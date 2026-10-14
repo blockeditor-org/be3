@@ -5,9 +5,9 @@ use crate::reactive::{Frame, NodeRef, Overlay, build, view};
 
 #[test]
 fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
+    let _root = crate::reactive::RootScope::new();
     let overlay = NodeRef::new();
     let document = build({
-        let overlay = overlay.clone();
         move || {
             view! {
                 <Frame>

@@ -1,16 +1,15 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
-    create_effect, create_memo, create_timer, set_component_state, untrack, view,
+    Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Show, component, create_effect,
+    create_memo, create_timer, set_component_state, untrack, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
 
 use crate::render::Rendered;
 
 use super::state::{Review, Shown};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[derive(Clone)]
 struct StageState {
@@ -21,104 +20,94 @@ struct StageState {
 }
 
 #[component]
-pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
-    let shown = Rc::clone(&review);
-    let frame = review.frame.clone();
-    let revision = review.revision.clone();
-    let painting = create_memo(clone!(shown frame revision -> move || {
+pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
+    let frame = review.frame;
+    let revision = review.revision;
+    let painting = create_memo(move || {
         let _ = revision.get();
-        let Some(path) = shown.selected.get() else {
+        let Some(path) = review.selected.get() else {
             return Shown::Waiting(Some("Choose a painting to review it".to_owned()));
         };
-        let Some(status) = shown.status(&path) else {
+        let Some(status) = review.status(&path) else {
             return Shown::Waiting(None);
         };
-        if shown.pending.get().is_some() {
+        if review.pending.get().is_some() {
             return Shown::Waiting(Some(
                 "Waiting for the painting you approved before to arrive".to_owned(),
             ));
         }
-        shown.shown(&path, shown.shown_as(status), frame.get())
-    }));
+        review.shown(&path, review.shown_as(status), frame.get())
+    });
 
-    let clamped = Rc::clone(&review);
-    let clamping = count.clone();
+    let clamping = count;
     create_effect(move || {
         let count = clamping.get();
-        clamped.frame.with(|_| ());
-        untrack(|| clamped.clamp_frame(count));
+        review.frame.with(|_| ());
+        untrack(|| review.clamp_frame(count));
     });
 
-    let advanced = Rc::clone(&review);
-    let advancing = painting.clone();
-    let advancing_count = count.clone();
+    let advancing = painting;
+    let advancing_count = count;
     let stepper = create_timer(move || {
         let ready = !matches!(advancing.get_untracked(), Shown::Waiting(_));
-        advanced.advance(advancing_count.get_untracked(), ready)
+        review.advance(advancing_count.get_untracked(), ready)
     });
-    let scheduled = Rc::clone(&review);
-    let scheduling = painting.clone();
-    let scheduling_count = count.clone();
+    let scheduling = painting;
+    let scheduling_count = count;
     create_effect(move || {
-        scheduled.playing.with(|_| ());
-        scheduled.frame.with(|_| ());
+        review.playing.with(|_| ());
+        review.frame.with(|_| ());
         let ready = !matches!(scheduling.get(), Shown::Waiting(_));
         let count = scheduling_count.get();
-        untrack(|| match scheduled.next_advance(count, ready) {
+        untrack(|| match review.next_advance(count, ready) {
             Some(delay) => stepper.start(delay),
             None => stepper.stop(),
         });
     });
 
-    let panels = create_memo(clone!(painting -> move || match painting.get() {
+    let panels = create_memo(move || match painting.get() {
         Shown::Ready(panels, _) => panels,
         _ => Vec::new(),
-    }));
-    let description = create_memo(clone!(painting -> move || match painting.get() {
+    });
+    let description = create_memo(move || match painting.get() {
         Shown::Ready(_, description) => Some(description),
         _ => None,
-    }));
-    let message = create_memo(clone!(painting -> move || match painting.get() {
+    });
+    let message = create_memo(move || match painting.get() {
         Shown::Failed(error) => Some((error, true)),
         Shown::Waiting(error) => Some((
             error.unwrap_or_else(|| "Rastering the painting".to_owned()),
             false,
         )),
         Shown::Ready(..) => None,
-    }));
-    let stalled = create_memo(clone!(message -> move || message.get().is_some()));
-    let note = create_memo(clone!(message -> move || {
-        message.get().map(|(text, _)| text).unwrap_or_default()
-    }));
-    let broken = create_memo(clone!(message -> move || {
-        message.get().is_some_and(|(_, failed)| failed)
-    }));
+    });
+    let stalled = create_memo(move || message.get().is_some());
+    let note = create_memo(move || message.get().map(|(text, _)| text).unwrap_or_default());
+    let broken = create_memo(move || message.get().is_some_and(|(_, failed)| failed));
 
-    let counted = Rc::clone(&review);
-    let at = review.frame.clone();
-    let zoom = review.scale.clone();
-    let working = Rc::clone(&review);
+    let at = review.frame;
+    let zoom = review.scale;
     set_component_state(StageState {
-        rastered: create_memo(clone!(revision -> move || {
+        rastered: create_memo(move || {
             let _ = revision.get();
-            counted.rastered()
-        })),
-        frame: create_memo(clone!(at -> move || at.get())),
-        scale: create_memo(clone!(zoom -> move || zoom.get().unwrap_or_default())),
-        busy: create_memo(clone!(revision working -> move || {
+            review.rastered()
+        }),
+        frame: create_memo(move || at.get()),
+        scale: create_memo(move || zoom.get().unwrap_or_default()),
+        busy: create_memo(move || {
             let _ = revision.get();
-            working.downloading.get()
-                || working.pending.get().is_some()
-                || working.loading().is_some()
-                || working.rastering()
-        })),
+            review.downloading.get()
+                || review.pending.get().is_some()
+                || review.loading().is_some()
+                || review.rastering()
+        }),
     });
 
     let view = review.editor().canvas();
-    let placed = review.editor().clone();
-    let laid_out = panels.clone();
+    let placed = review.editor();
+    let laid_out = panels;
     let world = review.editor().world();
-    let laid = create_memo(clone!(laid_out world -> move || {
+    let laid = create_memo(move || {
         let panels = laid_out.get();
         if panels.is_empty() {
             return None;
@@ -136,40 +125,32 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
                 .map(|panel| panel.rect)
                 .collect::<Vec<Rect>>(),
         ))
-    }));
-    let layout = create_memo(clone!(laid -> move || {
-        laid.get().map(|(_, panels)| panels).unwrap_or_default()
-    }));
-    let reported = Rc::clone(&review);
+    });
+    let layout = create_memo(move || laid.get().map(|(_, panels)| panels).unwrap_or_default());
     let camera = review.editor().scale();
-    create_effect(clone!(laid description camera -> move || {
+    create_effect(move || {
         let zoom = camera.get();
-        reported.report(
-            laid.get().map(|(scale, _)| scale * zoom),
-            description.get(),
-        );
-    }));
+        review.report(laid.get().map(|(scale, _)| scale * zoom), description.get());
+    });
 
-    let places =
-        create_memo(clone!(layout -> move || (0..layout.get().len()).collect::<Vec<usize>>()));
+    let places = create_memo(move || (0..layout.get().len()).collect::<Vec<usize>>());
     let theme = use_theme();
-    let loading = Rc::clone(&review);
-    let progress = create_memo(clone!(loading revision -> move || {
+    let progress = create_memo(move || {
         let _ = revision.get();
-        match loading.loading() {
+        match review.loading() {
             Some((done, total)) => format!("Rastering frame {} of {total}", done + 1),
             None => String::new(),
         }
-    }));
+    });
 
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={places}>
                         {move |index: usize| {
-                            let panels = panels.clone();
-                            let layout = layout.clone();
+                            let panels = panels;
+                            let layout = layout;
                             let image = create_memo(move || {
                                 panels.get().get(index).map(|panel: &Rendered| {
                                     panel.image.clone()
@@ -178,10 +159,10 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
                             let rect = create_memo(move || {
                                 layout.get().get(index).copied().unwrap_or(Rect::ZERO)
                             });
-                            let x = create_memo(clone!(rect -> move || rect.get().min.x));
-                            let y = create_memo(clone!(rect -> move || rect.get().min.y));
-                            let width = create_memo(clone!(rect -> move || rect.get().width()));
-                            let height = create_memo(clone!(rect -> move || rect.get().height()));
+                            let x = create_memo(move || rect.get().min.x);
+                            let y = create_memo(move || rect.get().min.y);
+                            let width = create_memo(move || rect.get().width());
+                            let height = create_memo(move || rect.get().height());
                             view! {
                                 <CanvasItem x={x} y={y} width={width} height={height}>
                                     <Picture image={image} fit=ImageFit::Fill smooth=false />
@@ -203,23 +184,18 @@ fn Notice(
     failed: Memo<bool>,
     progress: Memo<String>,
 ) -> NodeId {
-    let theme = use_theme();
-    let color = create_memo(clone!(theme failed -> move || match failed.get() {
-        true => theme.danger.get(),
-        false => theme.text_muted.get(),
-    }));
-    let telling = create_memo(clone!(progress -> move || !progress.get().is_empty()));
+    let color = create_memo(move || match failed.get() {
+        true => TextColor::Danger,
+        false => TextColor::Muted,
+    });
+    let telling = create_memo(move || !progress.get().is_empty());
     view! {
         <List spacing=4.0>
             <Show condition={shown}>
-                <Body
-                    content={note.clone()}
-                    color={color.clone()}
-                    @test_id={"paint_review.notice"}
-                />
+                <Text string={note} color={color} @test_id={"paint_review.notice"} />
             </Show>
             <Show condition={telling}>
-                <Caption content={progress.clone()} color={theme.text_muted.clone()} />
+                <Text style=TextStyle::CAPTION string={progress} />
             </Show>
         </List>
     }

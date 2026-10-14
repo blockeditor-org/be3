@@ -417,7 +417,7 @@ command_alias(
 command_alias(
     name = "wasm-ld",
     args = [
-        "$(exe //crates/wasm-link:wasm-link-bin)",
+        "$(exe //crates/wasm-link:bin)",
         "$(location :rust)/lib/rustlib/{}/bin/rust-lld".format(rust_host),
     ],
     visibility = ["PUBLIC"],
@@ -432,7 +432,7 @@ script(
     visibility = ["PUBLIC"],
 )
 
-# Caddy, which //crates/block-app:web-serve runs on this machine, so the release
+# Caddy, which //crates/block-app:web runs on this machine, so the release
 # is this machine's. The same bytes as upstream's GitHub releases, mirrored.
 caddy_version = "2.11.4"
 

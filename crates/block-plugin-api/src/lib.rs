@@ -56,7 +56,7 @@ pub enum FrameChrome {
     None,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct FrameSpec {
     pub chrome: FrameChrome,
     pub content: Option<ChildRect>,
@@ -107,6 +107,7 @@ pub struct FrameReport {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct WindowRequests {
     pub cursor: CursorIcon,
+    pub pointer_locked: bool,
     pub ime: Option<ImeArea>,
     pub handles_back: bool,
     pub wants_keyboard: bool,
@@ -133,7 +134,6 @@ pub enum Pasted {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
-    pub test_ids: Vec<TestIdRect>,
     pub actions: Vec<DescribedAction>,
 }
 
@@ -158,6 +158,7 @@ pub struct DescribedNode {
     pub focused: bool,
     pub rect: Option<ChildRect>,
     pub actions: Vec<String>,
+    pub test_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -171,12 +172,6 @@ pub enum Toggled {
     Off,
     On,
     Mixed,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TestIdRect {
-    pub id: String,
-    pub rect: ChildRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -309,6 +304,7 @@ pub enum ChildContent {
         block_id: [u8; 16],
         block_type: [u8; 16],
         view_block: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
     WebView(WebViewId),
     Host(HostPanel),
@@ -536,6 +532,15 @@ impl PluginManifest {
         self.editors
             .iter()
             .find(|editor| editor.block_type == block_type)
+            .or_else(|| {
+                self.editors
+                    .iter()
+                    .find(|editor| editor.block_type == ANY_BLOCK_TYPE)
+            })
+    }
+
+    pub fn editor_id(&self) -> [u8; 16] {
+        editor_id(&self.identity.id)
     }
 }
 
@@ -615,6 +620,30 @@ pub struct TemplateDescriptor {
 pub struct Catalog {
     pub types: Vec<BlockTypeDescriptor>,
     pub templates: Vec<TemplateDescriptor>,
+    pub editors: Vec<EditorDescriptor>,
+}
+
+pub const ANY_BLOCK_TYPE: [u8; 16] = [0; 16];
+
+pub const ANY_BLOCK_TYPE_NAME: &str = "any";
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorDescriptor {
+    pub editor: [u8; 16],
+    pub block_type: [u8; 16],
+    pub name: String,
+    pub icon_codepoint: String,
+}
+
+pub fn editor_id(plugin_id: &str) -> [u8; 16] {
+    const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
+    const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
+    plugin_id
+        .bytes()
+        .fold(OFFSET, |hash, byte| {
+            (hash ^ u128::from(byte)).wrapping_mul(PRIME)
+        })
+        .to_be_bytes()
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -841,6 +870,11 @@ pub enum EditorMessage {
     LeaveFrame {
         instance: EditorInstanceId,
     },
+    Stopped {
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        stopped: Stopped,
+    },
     BarAction {
         instance: EditorInstanceId,
         action: BarAction,
@@ -867,6 +901,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowBlock {
@@ -874,6 +909,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowPanel {
@@ -988,10 +1024,6 @@ pub enum EditorMessage {
     AudioStatus {
         instance: EditorInstanceId,
         status: AudioStatus,
-    },
-    GrabCursor {
-        instance: EditorInstanceId,
-        grabbed: bool,
     },
     WebViewCommand {
         instance: EditorInstanceId,
@@ -1202,6 +1234,7 @@ impl EditorMessage {
             | Self::PresentingChanged { instance, .. }
             | Self::Resized { instance, .. }
             | Self::LeaveFrame { instance, .. }
+            | Self::Stopped { instance, .. }
             | Self::BarAction { instance, .. }
             | Self::Menu { instance, .. }
             | Self::MenuPick { instance, .. }
@@ -1228,7 +1261,6 @@ impl EditorMessage {
             | Self::Replied { instance, .. }
             | Self::PlayAudio { instance, .. }
             | Self::AudioStatus { instance, .. }
-            | Self::GrabCursor { instance, .. }
             | Self::WebViewCommand { instance, .. }
             | Self::WebViewEvent { instance, .. }
             | Self::OpenCreation { instance, .. }
@@ -1321,6 +1353,7 @@ pub enum CursorIcon {
     ResizeNorthWest,
     ResizeSouthEast,
     ResizeSouthWest,
+    Touch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1828,13 +1861,13 @@ impl EditorMessage {
             | Self::ChangeView { .. }
             | Self::Present { .. }
             | Self::LeaveFrame { .. }
+            | Self::Stopped { .. }
             | Self::BarAction { .. }
             | Self::Menu { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
-            | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::CreationReady { .. }
             | Self::CreationBlock { .. }
@@ -2413,6 +2446,12 @@ pub struct ProtocolError {
     pub message: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Stopped {
+    Closed,
+    Failed(String),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     InvalidMessage,
@@ -2530,6 +2569,11 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 string(&template.template)?;
                 string(&template.name)?;
                 string(&template.icon_codepoint)?;
+            }
+            collection(value.editors.len())?;
+            for editor in &value.editors {
+                string(&editor.name)?;
+                string(&editor.icon_codepoint)?;
             }
             Ok(())
         }

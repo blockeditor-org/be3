@@ -4,10 +4,10 @@ use crate::reactive::{Embed, EmbedSlot, Frame, List, build, view};
 
 #[test]
 fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
+    let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
-    let embed = slot.clone();
+    let embed = slot;
     let solid = EmbedSlot::new();
-    let covered = solid.clone();
 
     let document = build(move || {
         view! {
@@ -17,7 +17,7 @@ fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
                         <Embed slot={embed} />
                     </Frame>
                     <Frame width=120.0 height=80.0>
-                        <Embed slot={covered} punch=false />
+                        <Embed slot={solid} punch=false />
                     </Frame>
                 </List>
             </Frame>

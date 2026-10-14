@@ -5,23 +5,22 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
-    let clicks = Rc::new(Cell::new(0));
-    let cancels = Rc::new(Cell::new(0));
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
+    let (cancels, set_cancels) = create_signal(0);
     let scroll = NodeRef::new();
     let document = build({
-        let (clicks, cancels, scroll) = (clicks.clone(), cancels.clone(), scroll.clone());
         move || {
             view! {
                 <List spacing=0.0>
                     <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <ForEach keys={indices(100)}>
                             {move |_: usize| {
-                                let (clicks, cancels) = (clicks.clone(), cancels.clone());
                                 view! {
                                     <Interactive
                                         capture_presses=true
-                                        on_click={move || clicks.set(clicks.get() + 1)}
-                                        on_cancel={move || cancels.set(cancels.get() + 1)}
+                                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                                        on_cancel={move || set_cancels.update(|cancels| *cancels += 1)}
                                     >
                                         <Frame height=30.0 />
                                     </Interactive>
@@ -48,6 +47,10 @@ fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
         (harness.document().scroll_offset(scroll) - (100.0 - TOUCH_DRAG_THRESHOLD)).abs() < 0.01,
         "the scroll around the row takes the drag"
     );
-    assert_eq!(cancels.get(), 1, "the row that took the press lets it go");
-    assert_eq!(clicks.get(), 0);
+    assert_eq!(
+        cancels.get_untracked(),
+        1,
+        "the row that took the press lets it go"
+    );
+    assert_eq!(clicks.get_untracked(), 0);
 }

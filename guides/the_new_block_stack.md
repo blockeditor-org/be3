@@ -591,8 +591,8 @@ store of its own: history is be-store objects and be-commit commits.
 ## Running it
 
 ```
-./scripts/buck run //crates/be-server:be-server-bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
-./scripts/buck run //crates/be-server:be-server-bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
+./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
+./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
 ```
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
@@ -601,7 +601,7 @@ account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
 instead, and the web build always does (`./scripts/buck run
-//crates/block-app:web-serve` starts be-server beside it, closed to new
+//crates/block-app:web` starts be-server beside it, closed to new
 accounts).
 
 Tests start their own server on an ephemeral port; see `Harness` in
@@ -758,8 +758,9 @@ the confirmed state and the pending edits. Applying an operation reports what it
 touched (`LiveEdit::apply_touching`), and a projection only runs when something
 it watches was touched; `guides/reactive.md` says how `project`, `field`, `ids`
 and `object` narrow that. `ContentProjection::read` answers `None` until the
-host has sent the content once, `loaded()` is a signal that turns true when it
-has, and `revision()` counts the changes an editor has seen, for code like the
+host has sent the content once, `operate` drops an edit made before then,
+`loaded()` is a signal that turns true when it has (`guides/reactive.md` says
+what an editor shows until it does), and `revision()` counts the changes an editor has seen, for code like the
 PDF pane that re-renders on a change rather than projecting.
 
 `block_editor_beui` re-exports `be_block`, so an editor names its content type
@@ -883,8 +884,8 @@ each made one before seeing the other's, both are read as one
 lowest. The settings editor shows someone else's `Settings` or settings profile
 with a notice, and makes and changes nothing in it.
 
-Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`, the
-logic hotbar) is a block of its own, and is read through layers:
+Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
+`EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
 
 - The `Settings` block's `kinds` map a kind's content type to the block that
   holds it for every device.
@@ -899,7 +900,11 @@ the profile sets wins field by field, and what it leaves unset falls through to
 the settings for every device, then to the built-in default. Every field of a
 layered kind is an `Option` for this. `Editor::inherited_settings` gives a
 kind's editor what the layers below its block resolve to, which the UI, input
-and display settings editors show for what is unset. The hotbar is not merged:
+and display settings editors show for what is unset, and
+`Editor::effective_settings` what every layer resolves to, which is how the
+workspace reads `EditorSettings`: the default editor of each block type, keyed
+by the editor ids the host's catalog lists (see guides/adding_a_plugin_editor.md).
+The hotbar is not merged:
 the logic editors use the topmost layer that has one, and make one for every
 device when there is none yet (`RootSetting::ensure`).
 

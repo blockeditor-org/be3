@@ -22,6 +22,12 @@ fn block_types_round_trip() {
             category: TemplateCategory::Important,
             dialog: false,
         }],
+        editors: vec![EditorDescriptor {
+            editor: editor_id("be3.folder"),
+            block_type: ANY_BLOCK_TYPE,
+            name: "Debug view".into(),
+            icon_codepoint: "\u{e86f}".into(),
+        }],
     });
     assert_eq!(
         decode_frame(&encode_frame(&message).unwrap()).unwrap(),
@@ -36,6 +42,7 @@ fn block_types_round_trip() {
             children: ChildOperations::default(),
         }],
         templates: Vec::new(),
+        editors: Vec::new(),
     });
     assert_eq!(
         encode_frame(&oversized),

@@ -3,6 +3,7 @@ use crate::input::{Event, Key, KeyPress, Modifiers, PointerButton, TouchId, Touc
 
 pub const SCROLL_LINE: f32 = 40.0;
 pub const SCROLL_PAGE: f32 = 800.0;
+pub const PINCH_SPEED: f32 = 0.01;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Keystroke {
@@ -25,6 +26,14 @@ pub enum Input {
     Event(Event),
     Key(Keystroke),
     Scroll(ScrollDelta),
+    Pinch(ScrollDelta),
+    Logical(Box<Input>),
+}
+
+impl Input {
+    pub fn logical(input: impl Into<Input>) -> Self {
+        Self::Logical(Box::new(input.into()))
+    }
 }
 
 impl From<Event> for Input {
@@ -69,6 +78,7 @@ impl Default for Intake {
 
 pub(crate) struct Drain {
     pub pixels_per_point: f32,
+    pub native_pixels_per_point: f32,
     pub touch_emulation: bool,
 }
 
@@ -82,16 +92,34 @@ impl Intake {
             events.push(self.touch(TouchPhase::Cancel));
         }
         for incoming in std::mem::take(&mut self.incoming) {
-            match incoming {
-                Input::Event(event) => self.event(event, drain, events),
-                Input::Key(stroke) => self.key(stroke, events),
-                Input::Scroll(delta) => self.incoming_scroll(delta, drain, events),
+            self.input(incoming, drain.pixels_per_point, drain, events);
+        }
+    }
+
+    fn input(&mut self, input: Input, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
+        match input {
+            Input::Event(event) => self.event(event, scale, drain, events),
+            Input::Key(stroke) => self.key(stroke, events),
+            Input::Scroll(delta) => {
+                let delta = points(delta, scale);
+                if delta != Vec2::ZERO {
+                    events.push(Event::Scroll(delta));
+                }
+            }
+            Input::Pinch(delta) => {
+                let pinched = points(delta, scale).y;
+                if pinched != 0.0 {
+                    events.push(Event::Zoom((pinched * PINCH_SPEED).exp()));
+                }
+            }
+            Input::Logical(input) => {
+                let logical = drain.pixels_per_point / drain.native_pixels_per_point;
+                self.input(*input, logical, drain, events);
             }
         }
     }
 
-    fn event(&mut self, event: Event, drain: &mut Drain, events: &mut Vec<Event>) {
-        let scale = drain.pixels_per_point;
+    fn event(&mut self, event: Event, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
         let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
         match event {
             Event::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
@@ -141,10 +169,15 @@ impl Intake {
                 true => self.left = true,
                 false => events.push(Event::PointerGone),
             },
-            Event::PointerMotion(delta) => {
-                events.push(Event::PointerMotion(delta / drain.pixels_per_point));
+            Event::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
+            Event::Scroll(delta) => {
+                self.input(
+                    Input::Scroll(ScrollDelta::Pixels(delta)),
+                    scale,
+                    drain,
+                    events,
+                );
             }
-            Event::Scroll(delta) => self.incoming_scroll(ScrollDelta::Pixels(delta), drain, events),
             Event::Touch {
                 id,
                 phase,
@@ -170,17 +203,6 @@ impl Intake {
                 ..press
             })),
             event => events.push(event),
-        }
-    }
-
-    fn incoming_scroll(&self, delta: ScrollDelta, drain: &Drain, events: &mut Vec<Event>) {
-        let delta = match delta {
-            ScrollDelta::Pixels(delta) => delta / drain.pixels_per_point,
-            ScrollDelta::Lines(delta) => delta * SCROLL_LINE,
-            ScrollDelta::Pages(delta) => delta * SCROLL_PAGE,
-        };
-        if delta != Vec2::ZERO {
-            events.push(Event::Scroll(delta));
         }
     }
 
@@ -235,6 +257,14 @@ impl Intake {
             pos: self.pointer,
             force: None,
         }
+    }
+}
+
+fn points(delta: ScrollDelta, scale: f32) -> Vec2 {
+    match delta {
+        ScrollDelta::Pixels(delta) => delta / scale,
+        ScrollDelta::Lines(delta) => delta * SCROLL_LINE,
+        ScrollDelta::Pages(delta) => delta * SCROLL_PAGE,
     }
 }
 

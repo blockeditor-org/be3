@@ -3,8 +3,8 @@ use std::rc::{Rc, Weak};
 
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, IntoSlotHost, Prop, Scope, Show, ShowKeepAlive,
-    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal, on_cleanup,
-    view,
+    SlotChild, SlotHost, SlotId, WriteSignal, component, create_effect, create_memo, create_signal,
+    on_cleanup, store, view,
 };
 
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
@@ -48,11 +48,7 @@ impl DomNode {
     }
 }
 
-impl ChildValue for DomNode {
-    fn adopt_scope(&mut self, scope: Scope) {
-        scope.into_parent();
-    }
-}
+impl ChildValue for DomNode {}
 
 crate::child_type!(DomNode);
 
@@ -102,15 +98,15 @@ impl IntoSlotHost<DomNode> for &DomNode {
 fn Element(
     tag: &'static str,
     #[prop(default = String::new())] text: Prop<String>,
-    texts: Option<Rc<Cell<usize>>>,
+    texts: Option<WriteSignal<usize>>,
     children: Children<DomNode>,
 ) -> DomNode {
     let element = DomNode::new(tag);
     let shown = Rc::downgrade(&element.0);
     create_effect(move || {
         let text = text.get();
-        if let Some(texts) = &texts {
-            texts.set(texts.get() + 1);
+        if let Some(texts) = texts {
+            texts.update(|texts| *texts += 1);
         }
         if let Some(shown) = shown.upgrade() {
             *shown.text.borrow_mut() = text;

@@ -6,7 +6,6 @@ use beui_core::app::Setup;
 use beui_core::color::Color32;
 use beui_core::context::{FrameOutput, RendererInfo};
 use beui_core::damage::Region;
-use beui_core::filter::Filter;
 use beui_core::geometry::{Rect, Vec2, vec2};
 use beui_core::renderer::Renderer;
 use beui_core::screens::Screen;
@@ -41,7 +40,7 @@ pub(crate) struct Surface {
     pub(crate) age: u32,
     pub(crate) laid: Rect,
     pub(crate) screens: Vec<Screen>,
-    look: Option<(Vec<Filter>, f32, Rect)>,
+    look: Option<(f32, Rect)>,
     pending: Option<Damage>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     history: VecDeque<Option<Damage>>,
@@ -91,7 +90,7 @@ impl Default for Surface {
 
 impl Surface {
     fn note(&mut self, output: &FrameOutput, scale: f32) {
-        let look = (output.filters(), scale, self.laid);
+        let look = (scale, self.laid);
         let moved = self.look.as_ref() != Some(&look);
         self.look = Some(look);
         let damage = match output.damaged() {

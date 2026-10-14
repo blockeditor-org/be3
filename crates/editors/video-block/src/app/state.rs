@@ -9,7 +9,7 @@ use block_editor_beui::be_block::video::{
     DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
 };
 use block_editor_beui::beui::reactive::{
-    ReadSignal, WriteSignal, clone, create_effect, create_signal, create_timer,
+    ReadSignal, Stored, WriteSignal, create_effect, create_signal, create_timer, store,
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::{BlockFilter, BlockPicker, ChildTarget, ContentProjection, Editor};
@@ -27,14 +27,9 @@ pub(crate) struct ClipDrag {
     pub(crate) grab: u64,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct VideoState {
     editor: Editor,
-    block: Rc<ContentProjection<VideoContent>>,
-    dependencies: BlockList,
-    picker: RefCell<BlockPicker>,
-    picker_attachment: Cell<Option<Uuid>>,
-    play_origin: Cell<Option<(Instant, u64)>>,
-    aspect_ratios: RefCell<HashMap<Uuid, f32>>,
     fit_requested: ReadSignal<bool>,
     set_fit_requested: WriteSignal<bool>,
     pub(crate) clips: ReadSignal<Vec<VideoClip>>,
@@ -52,10 +47,20 @@ pub(crate) struct VideoState {
     set_drag: WriteSignal<Option<ClipDrag>>,
     pub(crate) labels: ReadSignal<HashMap<Uuid, BlockLabel>>,
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
+    inner: Stored<Inner>,
+}
+
+struct Inner {
+    block: ContentProjection<VideoContent>,
+    dependencies: BlockList,
+    picker: RefCell<BlockPicker>,
+    picker_attachment: Cell<Option<Uuid>>,
+    play_origin: Cell<Option<(Instant, u64)>>,
+    aspect_ratios: RefCell<HashMap<Uuid, f32>>,
 }
 
 impl VideoState {
-    pub(crate) fn new(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor) -> Self {
         let block = editor.block_content::<VideoContent>();
         let clips = block.project(|video| video.root().video().clips().to_vec());
         let duration = block.project(|video| video.root().video().duration());
@@ -67,16 +72,8 @@ impl VideoState {
         let (drag, set_drag) = create_signal(None);
         let (labels, set_labels) = create_signal(HashMap::new());
         let (fit_requested, set_fit_requested) = create_signal(false);
-        let state = Rc::new(Self {
-            dependencies: editor
-                .blocks()
-                .watch(BlockQuery::References(editor.block_id())),
-            editor: editor.clone(),
-            block,
-            picker: RefCell::new(BlockPicker::default()),
-            picker_attachment: Cell::new(None),
-            play_origin: Cell::new(None),
-            aspect_ratios: RefCell::new(HashMap::new()),
+        let state = Self {
+            editor,
             fit_requested,
             set_fit_requested,
             clips,
@@ -94,13 +91,26 @@ impl VideoState {
             set_drag,
             labels,
             set_labels,
+            inner: store(Inner {
+                dependencies: editor
+                    .blocks()
+                    .watch(BlockQuery::References(editor.block_id())),
+                block,
+                picker: RefCell::new(BlockPicker::default()),
+                picker_attachment: Cell::new(None),
+                play_origin: Cell::new(None),
+                aspect_ratios: RefCell::new(HashMap::new()),
+            }),
+        };
+        editor.on_reply(move || {
+            if state.inner.is_alive() {
+                state.take_pick();
+            }
         });
-        let picking = Rc::clone(&state);
-        editor.on_reply(move || picking.take_pick());
-        create_effect(clone!(state -> move || state.publish_references()));
-        create_effect(clone!(state -> move || state.synchronize()));
-        let playback = create_timer(clone!(state -> move || state.advance_playback()));
-        let playing = state.playing.clone();
+        create_effect(move || state.publish_references());
+        create_effect(move || state.synchronize());
+        let playback = create_timer(move || state.advance_playback());
+        let playing = state.playing;
         create_effect(move || {
             if playing.get() {
                 playback.start(Duration::ZERO);
@@ -109,8 +119,8 @@ impl VideoState {
         state
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -118,12 +128,14 @@ impl VideoState {
     }
 
     pub(crate) fn video(&self) -> Option<Video> {
-        self.block.read(|video| video.root().video())
+        let inner = self.inner.get();
+        inner.block.read(|video| video.root().video())
     }
 
     pub(crate) fn operate(&self, operation: VideoOperation) {
-        if let Some(edit) = self.block.read(|video| video.root().edit_for(&operation)) {
-            self.block.operate(edit);
+        let inner = self.inner.get();
+        if let Some(edit) = inner.block.read(|video| video.root().edit_for(&operation)) {
+            inner.block.operate(edit);
         }
     }
 
@@ -157,24 +169,28 @@ impl VideoState {
     }
 
     pub(crate) fn report_aspect_ratio(&self, id: Uuid, ratio: f32) {
-        self.aspect_ratios.borrow_mut().insert(id, ratio);
+        let inner = self.inner.get();
+        inner.aspect_ratios.borrow_mut().insert(id, ratio);
     }
 
     pub(crate) fn aspect_ratio(&self, id: Uuid) -> Option<f32> {
-        self.aspect_ratios.borrow().get(&id).copied()
+        let inner = self.inner.get();
+        inner.aspect_ratios.borrow().get(&id).copied()
     }
 
     pub(crate) fn seek(&self, frame: u64) {
+        let inner = self.inner.get();
         self.set_playhead
             .set(frame.min(self.duration.get_untracked()));
-        self.play_origin.set(None);
+        inner.play_origin.set(None);
     }
 
     pub(crate) fn toggle_playback(&self) {
+        let inner = self.inner.get();
         let duration = self.duration.get_untracked();
         let playing = !self.playing.get_untracked();
         self.set_playing.set(playing);
-        self.play_origin.set(None);
+        inner.play_origin.set(None);
         if playing && self.playhead.get_untracked() >= duration {
             self.set_playhead.set(0);
         }
@@ -205,10 +221,12 @@ impl VideoState {
     }
 
     pub(crate) fn open_picker(&self, attachment: Option<Uuid>) {
-        self.picker_attachment.set(attachment);
-        self.picker
+        let inner = self.inner.get();
+        inner.picker_attachment.set(attachment);
+        inner
+            .picker
             .borrow_mut()
-            .open(self.editor.host(), BlockFilter::default());
+            .open(&self.editor.host(), BlockFilter::default());
     }
 
     pub(crate) fn split_selected(&self) {
@@ -308,6 +326,7 @@ impl VideoState {
     }
 
     fn advance_playback(&self) -> Option<Duration> {
+        let inner = self.inner.get();
         if !self.playing.get_untracked() {
             return None;
         }
@@ -317,17 +336,17 @@ impl VideoState {
             return None;
         }
         let now = Instant::now();
-        let (origin_time, origin_frame) = self
+        let (origin_time, origin_frame) = inner
             .play_origin
             .get()
             .unwrap_or((now, self.playhead.get_untracked()));
-        self.play_origin.set(Some((origin_time, origin_frame)));
+        inner.play_origin.set(Some((origin_time, origin_frame)));
         let elapsed = now.duration_since(origin_time).as_secs_f64();
         let frame = origin_frame.saturating_add(self.frame_rate.get_untracked().frames(elapsed));
         if frame >= duration {
             self.set_playhead.set(duration);
             self.set_playing.set(false);
-            self.play_origin.set(None);
+            inner.play_origin.set(None);
             return None;
         }
         self.set_playhead.set(frame);
@@ -335,18 +354,20 @@ impl VideoState {
     }
 
     fn take_pick(&self) {
-        let picked = self.picker.borrow_mut().poll(self.editor.host());
+        let inner = self.inner.get();
+        let picked = inner.picker.borrow_mut().poll(&self.editor.host());
         let Some(Ok(picked)) = picked else {
             return;
         };
-        let attachment = self.picker_attachment.take();
+        let attachment = inner.picker_attachment.take();
         self.adopt(picked.id);
         self.insert_clip(picked.id, attachment, self.playhead.get_untracked(), None);
     }
 
     fn publish_references(&self) {
+        let inner = self.inner.get();
         let types: Rc<BlockCatalog> = self.editor.block_types();
-        let labels: HashMap<Uuid, BlockLabel> = self
+        let labels: HashMap<Uuid, BlockLabel> = inner
             .dependencies
             .read()
             .into_iter()

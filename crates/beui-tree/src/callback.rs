@@ -1,37 +1,40 @@
 use std::cell::RefCell;
-use std::rc::Rc;
+
+use reactive::{Stored, store};
 
 type Handler<V, R> = Box<dyn FnMut(V) -> R>;
 type ClickHandler = Box<dyn FnMut()>;
+type Slot<H> = Option<Stored<RefCell<Option<H>>>>;
 
-pub struct Callback<V, R = ()>(Rc<RefCell<Option<Handler<V, R>>>>);
+pub struct Callback<V, R = ()>(Slot<Handler<V, R>>);
 
-impl<V, R> Callback<V, R> {
+impl<V: 'static, R: 'static> Callback<V, R> {
     pub fn new(handler: impl FnMut(V) -> R + 'static) -> Self {
-        Self(Rc::new(RefCell::new(Some(Box::new(handler)))))
+        Self(Some(store(RefCell::new(Some(Box::new(handler))))))
     }
 
     pub fn empty() -> Self {
-        Self(Rc::new(RefCell::new(None)))
+        Self(None)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.borrow().is_none()
-    }
-
-    pub fn set(&self, handler: impl FnMut(V) -> R + 'static) {
-        *self.0.borrow_mut() = Some(Box::new(handler));
+        self.0
+            .and_then(|slot| slot.try_with(|slot| slot.borrow().is_none()))
+            .unwrap_or(true)
     }
 
     pub fn call(&self, value: V) -> R
     where
         R: Default,
     {
-        let Some(mut handler) = self.0.borrow_mut().take() else {
+        let Some(slot) = self.0.and_then(|slot| slot.try_get()) else {
+            return R::default();
+        };
+        let Some(mut handler) = slot.borrow_mut().take() else {
             return R::default();
         };
         let result = handler(value);
-        let mut slot = self.0.borrow_mut();
+        let mut slot = slot.borrow_mut();
         if slot.is_none() {
             *slot = Some(handler);
         }
@@ -41,22 +44,24 @@ impl<V, R> Callback<V, R> {
 
 impl<V, R> Clone for Callback<V, R> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        *self
     }
 }
+
+impl<V, R> Copy for Callback<V, R> {}
 
 impl<V, R> Default for Callback<V, R> {
     fn default() -> Self {
-        Self::empty()
+        Self(None)
     }
 }
 
-#[derive(Clone, Default)]
-pub struct ClickCallback(Rc<RefCell<Option<ClickHandler>>>);
+#[derive(Clone, Copy, Default)]
+pub struct ClickCallback(Slot<ClickHandler>);
 
 impl ClickCallback {
     pub fn new(handler: impl FnMut() + 'static) -> Self {
-        Self(Rc::new(RefCell::new(Some(Box::new(handler)))))
+        Self(Some(store(RefCell::new(Some(Box::new(handler))))))
     }
 
     pub fn empty() -> Self {
@@ -64,21 +69,54 @@ impl ClickCallback {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.borrow().is_none()
-    }
-
-    pub fn set(&self, handler: impl FnMut() + 'static) {
-        *self.0.borrow_mut() = Some(Box::new(handler));
+        self.0
+            .and_then(|slot| slot.try_with(|slot| slot.borrow().is_none()))
+            .unwrap_or(true)
     }
 
     pub fn call(&self) {
-        let Some(mut handler) = self.0.borrow_mut().take() else {
+        let Some(slot) = self.0.and_then(|slot| slot.try_get()) else {
+            return;
+        };
+        let Some(mut handler) = slot.borrow_mut().take() else {
             return;
         };
         handler();
-        let mut slot = self.0.borrow_mut();
+        let mut slot = slot.borrow_mut();
         if slot.is_none() {
             *slot = Some(handler);
         }
+    }
+}
+
+pub trait IntoCallback<V, R> {
+    fn into_callback(self) -> Callback<V, R>;
+}
+
+impl<V: 'static, R: 'static, F: FnMut(V) -> R + 'static> IntoCallback<V, R> for F {
+    fn into_callback(self) -> Callback<V, R> {
+        Callback::new(self)
+    }
+}
+
+impl<V, R> IntoCallback<V, R> for Callback<V, R> {
+    fn into_callback(self) -> Callback<V, R> {
+        self
+    }
+}
+
+pub trait IntoClickCallback {
+    fn into_click_callback(self) -> ClickCallback;
+}
+
+impl<F: FnMut() + 'static> IntoClickCallback for F {
+    fn into_click_callback(self) -> ClickCallback {
+        ClickCallback::new(self)
+    }
+}
+
+impl IntoClickCallback for ClickCallback {
+    fn into_click_callback(self) -> ClickCallback {
+        self
     }
 }

@@ -1,9 +1,8 @@
 use block_editor_beui::be_block::PixelRayTracerContent;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
 use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
-use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant};
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Side, Sidebar, Toolbar};
@@ -13,6 +12,7 @@ pub(crate) mod canvas;
 pub(crate) mod panels;
 pub(crate) mod state;
 
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use canvas::Artwork;
 use panels::{PropertiesPanel, ToolsPanel};
 use state::RayState;
@@ -49,21 +49,18 @@ impl block_editor_beui::BeuiApp for PixelRayTracerApp {
 
 #[component]
 fn PixelRayTracerEditor(editor: Editor) -> NodeId {
-    let state = RayState::new(&editor);
+    let state = RayState::new(editor);
     state.watch();
 
     let chrome = editor.chrome_shown();
-    let bar = Rc::clone(&state);
-    let tools = Rc::clone(&state);
-    let artwork = Rc::clone(&state);
     view! {
         <List spacing=0.0>
-            <RayToolbar state={bar} shown={chrome.clone()} />
+            <RayToolbar state={state} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
-                <Sidebar side=Side::Left shown={chrome.clone()} width=TOOLS_WIDTH>
-                    <ToolsPanel state={tools} />
+                <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
+                    <ToolsPanel state={state} />
                 </Sidebar>
-                <Artwork @sizing=ItemSize::Percent(100.0) state={artwork} />
+                <Artwork @sizing=ItemSize::Percent(100.0) state={state} />
                 <Sidebar shown={chrome}>
                     <PropertiesPanel state={state} />
                 </Sidebar>
@@ -74,24 +71,22 @@ fn PixelRayTracerEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn PixelRayTracerPreview(editor: Editor) -> NodeId {
-    let state = RayState::new(&editor);
+    let state = RayState::new(editor);
     state.watch();
-    let image = state.lighting.clone();
+    let image = state.lighting;
     view! {
         <Picture image={image} fit=ImageFit::Contain smooth=false />
     }
 }
 
 #[component]
-fn RayToolbar(state: Rc<RayState>, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
-    let fit = state.editor().clone();
-    let reset = Rc::clone(&state);
-    let theme = use_theme();
+fn RayToolbar(state: RayState, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
+    let fit = state.editor();
     let size = format!("{PIXEL_RAY_TRACER_SIZE} × {PIXEL_RAY_TRACER_SIZE}");
     view! {
         <Toolbar shown={shown}>
-            <Body content="Pixel Ray Tracer" />
-            <Caption content={size} color={theme.text_muted.clone()} />
+            <Text string="Pixel Ray Tracer" />
+            <Text style=TextStyle::CAPTION string={size} />
             <Button
                 label="Fit view"
                 variant=ButtonVariant::Secondary
@@ -102,7 +97,7 @@ fn RayToolbar(state: Rc<RayState>, shown: block_editor_beui::beui::reactive::Pro
                 label="Reset artwork"
                 variant=ButtonVariant::Secondary
                 @test_id={"pixel_ray_tracer.reset"}
-                on_click={move || reset.reset()}
+                on_click={move || state.reset()}
             />
         </Toolbar>
     }

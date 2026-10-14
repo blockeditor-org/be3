@@ -2,13 +2,13 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
-    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, clone, component,
-    create_memo, view,
+    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, ListRow, use_theme};
+use block_editor_beui::beui::styled::{ListRow, use_theme};
 use block_ui::datetime::{civil_from_days, days_from_civil};
 
 use super::model::{Shown, WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const CELL_HEIGHT: f32 = 92.0;
 const CELL_SPACING: f32 = 2.0;
@@ -22,21 +22,23 @@ pub(crate) fn MonthGrid(
     on_pick_day: Callback<i64>,
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
-    let weeks = create_memo(clone!(anchor -> move || {
+    let weeks = create_memo(move || {
         let (year, month, _) = civil_from_days(anchor.get());
         let first = days_from_civil(year, month, 1);
         let start = first - i64::from(weekday_from_days(first));
-        (0..WEEKS).map(|week| start + week * 7).collect::<Vec<i64>>()
-    }));
+        (0..WEEKS)
+            .map(|week| start + week * 7)
+            .collect::<Vec<i64>>()
+    });
     view! {
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
                 <ForEach keys={weekday_names()}>
                     {move |name: &'static str| {
                         view! {
-                            <Body
+                            <Text
                                 @sizing=ItemSize::Percent(100.0)
-                                content={name}
+                                string={name}
                                 align=TextAlign::Center
                             />
                         }
@@ -49,10 +51,10 @@ pub(crate) fn MonthGrid(
                         <MonthWeek
                             @sizing=ItemSize::Fixed(CELL_HEIGHT)
                             start={start}
-                            anchor={anchor.clone()}
-                            events={events.clone()}
-                            on_pick_day={forward(on_pick_day.clone())}
-                            on_pick_event={forward(on_pick_event.clone())}
+                            anchor={anchor}
+                            events={events}
+                            on_pick_day={forward(on_pick_day)}
+                            on_pick_event={forward(on_pick_event)}
                         />
                     }
                 }}
@@ -78,10 +80,10 @@ fn MonthWeek(
                         <MonthCell
                             @sizing=ItemSize::Percent(100.0)
                             day={day}
-                            anchor={anchor.clone()}
-                            events={events.clone()}
-                            on_pick_day={forward(on_pick_day.clone())}
-                            on_pick_event={forward(on_pick_event.clone())}
+                            anchor={anchor}
+                            events={events}
+                            on_pick_day={forward(on_pick_day)}
+                            on_pick_event={forward(on_pick_event)}
                         />
                     }
                 }}
@@ -99,43 +101,44 @@ fn MonthCell(
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let (_, _, day_number) = civil_from_days(day);
-    let in_month = create_memo(clone!(anchor -> move || {
+    let in_month = create_memo(move || {
         let (year, month, _) = civil_from_days(anchor.get());
         let (day_year, day_month, _) = civil_from_days(day);
         day_year == year && day_month == month
-    }));
+    });
     let today = day == today_days_since_epoch();
-    let day_events =
-        create_memo(clone!(events -> move || events.with(|events| events_on(events, day))));
-    let shown = create_memo(clone!(day_events -> move || {
+    let day_events = create_memo(move || events.with(|events| events_on(events, day)));
+    let shown = create_memo(move || {
         day_events.with(|events| {
-            events.iter().take(MAX_VISIBLE).map(|event| event.id).collect::<Vec<_>>()
+            events
+                .iter()
+                .take(MAX_VISIBLE)
+                .map(|event| event.id)
+                .collect::<Vec<_>>()
         })
-    }));
-    let overflow = create_memo(clone!(day_events -> move || {
+    });
+    let overflow = create_memo(move || {
         let count = day_events.with(Vec::len);
         match count > MAX_VISIBLE {
             true => format!("+{} more", count - MAX_VISIBLE),
             false => String::new(),
         }
-    }));
+    });
     let theme = use_theme();
-    let fill = create_memo(
-        clone!(theme in_month -> move || match (today, in_month.get()) {
-            (true, _) => theme.accent_soft.get(),
-            (false, true) => theme.surface.get(),
-            (false, false) => theme.background.get(),
-        }),
-    );
-    let number_color = create_memo(clone!(theme in_month -> move || match in_month.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
-    }));
-    let pick = clone!(on_pick_day -> move || on_pick_day.call(day));
+    let fill = create_memo(move || match (today, in_month.get()) {
+        (true, _) => theme.accent_soft.get(),
+        (false, true) => theme.surface.get(),
+        (false, false) => theme.background.get(),
+    });
+    let number_color = create_memo(move || match in_month.get() {
+        true => TextColor::Default,
+        false => TextColor::Muted,
+    });
+    let pick = move || on_pick_day.call(day);
     view! {
         <Frame
             color={fill}
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=4
@@ -145,22 +148,26 @@ fn MonthCell(
             <List spacing=2.0>
                 <ListRow
                     @test_id={format!("calendar.day.{day}")}
-                    on_click={pick.clone()}
+                    on_click={pick}
                     on_activate={pick}
                 >
-                    <Caption content={day_number.to_string()} color={number_color} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={day_number.to_string()}
+                        color={number_color}
+                    />
                 </ListRow>
                 <ForEach keys={shown}>
                     {move |id: ObjectId| {
-                        let event = event_of(day_events.clone(), id);
-                        let title = create_memo(clone!(event -> move || {
+                        let event = event_of(day_events, id);
+                        let title = create_memo(move || {
                             event.get().map(|event| event.value.title).unwrap_or_default()
-                        }));
-                        let open = clone!(on_pick_event event -> move || {
+                        });
+                        let open = move || {
                             if let Some(event) = event.get_untracked() {
                                 on_pick_event.call(event);
                             }
-                        });
+                        };
                         view! {
                             <EventChip
                                 title={title}
@@ -170,7 +177,7 @@ fn MonthCell(
                         }
                     }}
                 </ForEach>
-                <Caption content={overflow} />
+                <Text style=TextStyle::CAPTION string={overflow} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>
@@ -183,11 +190,11 @@ fn EventChip(
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let click = on_click.clone();
+    let click = on_click;
     view! {
-        <Frame color={theme.accent.clone()} radius=3>
-            <ListRow on_click={move || click.call()} on_activate={move || on_click.call()}>
-                <Caption content={title} color={theme.on_accent.clone()} />
+        <Frame color={theme.accent} radius=3>
+            <ListRow on_click={click} on_activate={on_click}>
+                <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
             </ListRow>
         </Frame>
     }

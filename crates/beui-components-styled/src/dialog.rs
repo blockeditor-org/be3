@@ -2,7 +2,7 @@ use accesskit::{Node, Role};
 use beui_core::layer::Dismiss;
 use beui_macros::{component, view};
 
-use crate::text::Title;
+use crate::text::{Text, TextStyle};
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_components_unstyled::BackSlide;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -11,7 +11,7 @@ use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, ClickCallback, Frame, List, Prop, Show, clone, component_accessibility, create_memo,
+    Child, ClickCallback, Frame, List, Prop, Render, Show, component_accessibility, create_memo,
     create_signal,
 };
 
@@ -27,9 +27,9 @@ pub fn Dialog(
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = 360.0)] width: Prop<f32>,
     on_dismiss: ClickCallback,
-    children: Child,
+    #[prop(children)] content: Render,
 ) -> NodeId {
-    let closing = on_dismiss.clone();
+    let closing = on_dismiss;
     let (presence, set_presence) = create_signal(1.0_f32);
     let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
     view! {
@@ -39,37 +39,38 @@ pub fn Dialog(
             placement=Placement::Center
             scrim={scrim}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
-        >
-            <BackSlide
-                enters=false
-                on_back={move || closing.call()}
-                on_presence={move |presence: f32| set_presence.set(presence)}
-            >
-                <DialogSurface width={width} title={title}>{children}</DialogSurface>
-            </BackSlide>
-        </Overlay>
+            content={move || view! {
+                <BackSlide
+                    enters=false
+                    on_back={closing}
+                    on_presence={move |presence: f32| set_presence.set(presence)}
+                >
+                    <DialogSurface width={width} title={title}>{content.call(())}</DialogSurface>
+                </BackSlide>
+            }}
+        />
     }
 }
 
 #[component]
 fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> NodeId {
     let label = create_memo(move || title.get());
-    let titled = create_memo(clone!(label -> move || !label.get().is_empty()));
-    component_accessibility(create_memo(clone!(label -> move || {
+    let titled = create_memo(move || !label.get().is_empty());
+    component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Dialog);
         let title = label.get();
         if !title.is_empty() {
             node.set_label(title);
         }
         node
-    })));
+    }));
     let theme = use_theme();
     view! {
         <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
             <Frame
                 max_width={width.map(Some)}
-                color={theme.surface_raised.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface_raised}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 outline_visible=true
                 radius=CARD_RADIUS
@@ -78,7 +79,7 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
             >
                 <List spacing=SPACING>
                     <Show condition={titled}>
-                        <Title content={label.clone()} />
+                        <Text style=TextStyle::TITLE string={label} />
                     </Show>
                     {children}
                 </List>

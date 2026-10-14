@@ -4,13 +4,12 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (label, set_label) = create_signal("Paste".to_owned());
     let (blocked, set_blocked) = create_signal(true);
-    let selected = Rc::new(RefCell::new(Vec::new()));
-    let sink = selected.clone();
+    let (selected, set_selected) = create_signal(Vec::new());
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label disabled={blocked} />
@@ -19,7 +18,7 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
                 <ContextMenu
                     items
                     on_select={move |path| {
-                        sink.borrow_mut().push(path);
+                        set_selected.update(|selected| selected.push(path));
                     }}
                 >
                     <MenuRegion @node_ref=&region />
@@ -51,7 +50,7 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
     harness.click(harness.center(row));
     harness.frame(Vec::new());
     assert!(
-        selected.borrow().is_empty(),
+        selected.with_untracked(|selected| selected.is_empty()),
         "an item whose disabled prop reads true must not report a selection"
     );
 
@@ -69,7 +68,7 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
     harness.click(harness.center(row));
     harness.frame(Vec::new());
     assert_eq!(
-        selected.borrow().as_slice(),
+        selected.get_untracked().as_slice(),
         &[vec![0usize]],
         "the same item must become selectable once its disabled signal turns false"
     );

@@ -21,8 +21,8 @@ pub struct GridItem {
 }
 
 impl ChildItem for GridItem {
-    fn node(&self) -> NodeId {
-        self.child
+    fn node(&self) -> Option<NodeId> {
+        Some(self.child)
     }
 }
 
@@ -186,6 +186,10 @@ impl GridNode {
 }
 
 impl Element for GridNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         self.plan(doc, painter, available.x).size()
     }
@@ -224,6 +228,10 @@ impl Element for GridNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {

@@ -79,7 +79,13 @@ pub struct FileDrop {
     pub dropped: bool,
 }
 
-pub type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OpenRequest {
+    pub block_id: Uuid,
+    pub block_type: Uuid,
+    pub via: Option<Uuid>,
+    pub editor: Option<Uuid>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ChildCommit {
@@ -100,6 +106,7 @@ pub struct ShowRequest {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub via: Option<Uuid>,
+    pub editor: Option<Uuid>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -433,8 +440,6 @@ pub struct EditorHost {
     audio_status: Rc<RefCell<AudioStatus>>,
     web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
-    cursor_grabbed: Rc<Cell<bool>>,
-    cursor_grab_changed: Rc<Cell<bool>>,
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
@@ -509,13 +514,24 @@ impl EditorHost {
     }
 
     pub fn open_block(&self, block_id: Uuid, block_type: Uuid) {
-        self.opens.borrow_mut().push((block_id, block_type, None));
+        self.push_open(block_id, block_type, None, None);
+    }
+
+    pub fn open_block_with(&self, block_id: Uuid, block_type: Uuid, editor: Uuid) {
+        self.push_open(block_id, block_type, None, Some(editor));
     }
 
     pub fn open_block_via(&self, block_id: Uuid, block_type: Uuid, container: Uuid) {
-        self.opens
-            .borrow_mut()
-            .push((block_id, block_type, Some(container)));
+        self.push_open(block_id, block_type, Some(container), None);
+    }
+
+    fn push_open(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>, editor: Option<Uuid>) {
+        self.opens.borrow_mut().push(OpenRequest {
+            block_id,
+            block_type,
+            via,
+            editor,
+        });
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
@@ -624,12 +640,8 @@ impl EditorHost {
         std::mem::take(&mut self.host_values.borrow_mut().actions)
     }
 
-    pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.shows.borrow_mut().push(ShowRequest {
-            block_id,
-            block_type,
-            via,
-        });
+    pub fn show_block(&self, request: ShowRequest) {
+        self.shows.borrow_mut().push(request);
         self.push(Pushed::Shows);
     }
 
@@ -906,7 +918,7 @@ impl EditorHost {
         self.content_updates.borrow().keys().copied().collect()
     }
 
-    pub(crate) fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
+    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
         self.content_updates
             .borrow_mut()
             .remove(&block)
@@ -944,7 +956,7 @@ impl EditorHost {
         std::mem::take(&mut self.content_operations.borrow_mut())
     }
 
-    pub(crate) fn request_content_resend(&self, block: Option<Uuid>) {
+    pub fn request_content_resend(&self, block: Option<Uuid>) {
         let mut requests = self.resend_requests.borrow_mut();
         if !requests.contains(&block) {
             requests.push(block);
@@ -963,12 +975,12 @@ impl EditorHost {
             .insert(block, content_type);
     }
 
-    pub fn content_of<C>(&self, block: Uuid) -> crate::ContentProjection<C>
+    pub fn content_of<C>(&self, block: Uuid) -> crate::OwnedContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
         self.watch_content(block, C::CONTENT_TYPE);
-        crate::ContentProjection::new(self.clone(), Some(block))
+        crate::OwnedContentProjection::new(self.clone(), Some(block))
     }
 
     pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
@@ -1305,22 +1317,6 @@ impl EditorHost {
 
     pub fn take_frame_request(&self) -> Option<Duration> {
         self.next_frame.take()
-    }
-
-    pub fn grab_cursor(&self, grabbed: bool) {
-        if self.cursor_grabbed.replace(grabbed) != grabbed {
-            self.cursor_grab_changed.set(true);
-        }
-    }
-
-    pub fn cursor_grabbed(&self) -> bool {
-        self.cursor_grabbed.get()
-    }
-
-    pub fn take_cursor_grab(&self) -> Option<bool> {
-        self.cursor_grab_changed
-            .replace(false)
-            .then(|| self.cursor_grabbed.get())
     }
 
     pub fn chrome_shown(&self) -> bool {

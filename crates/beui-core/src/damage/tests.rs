@@ -1,5 +1,6 @@
 use super::*;
 
+mod damage_close_together_is_drawn_as_one_region;
 mod damage_far_apart_stays_in_separate_regions;
 mod damage_that_lines_up_with_what_is_held_joins_it;
 mod damage_that_overlaps_what_is_held_adds_only_what_it_does_not_cover;

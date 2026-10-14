@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn reordering_a_keyed_store_keeps_the_item_signals() {
     let scope = Scope::new();
-    let store: KeyedStore<u32, u32> = KeyedStore::new();
+    let store = OwnedKeyedStore::<u32, u32>::new();
     store.reconcile_owned([(0u32, 7u32), (1, 8)]);
     let first = store.get(&0);
     let item_runs = Rc::new(Cell::new(0));
@@ -11,7 +11,6 @@ fn reordering_a_keyed_store_keeps_the_item_signals() {
     let keys = store.keys();
     scope.run(|| {
         let runs = item_runs.clone();
-        let first = first.clone();
         create_effect(move || {
             first.with(|_| ());
             runs.set(runs.get() + 1);

@@ -13,7 +13,7 @@ use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 
 pub use beui_core::callback::NodeRef;
-pub use beui_core::timer::{Timer, create_timer, now};
+pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
 pub use beui_core::current::enter;
 pub use beui_core::current::{try_with_document, with_document, with_reactive_scope};
@@ -36,7 +36,7 @@ pub fn with_node_ref<B: ComponentBuilder>(builder: B, value: &NodeRef) -> B
 where
     B::Output: BuildsNode,
 {
-    let node_ref = value.clone();
+    let node_ref = *value;
     builder.with_built(move |built| node_ref.fill(built.built_node()))
 }
 
@@ -63,6 +63,13 @@ pub fn layout_text(
     try_with_document(|document| document.layout_text(text, font, layout)).flatten()
 }
 
+pub fn rich_layout(
+    pieces: &[beui_core::rich::Piece],
+    options: beui_core::rich::RichOptions,
+) -> Option<beui_core::rich::RichLayout> {
+    try_with_document(|document| document.rich_layout(pieces, options)).flatten()
+}
+
 pub fn copy_text(text: impl Into<String>) {
     let text = text.into();
     with_document(|document| document.copy_text(text));
@@ -72,13 +79,6 @@ pub use beui_core::clipboard::{PasteKind, Pasted};
 
 pub fn request_paste() {
     with_document(Document::request_paste);
-}
-
-pub fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Scope {
-    owner
-        .or_else(owner_scope)
-        .and_then(|owner| owner.child())
-        .unwrap_or_else(|| document.reactive_scope().context().run(Scope::new))
 }
 
 pub fn pixels_per_point() -> ReadSignal<f32> {
@@ -185,7 +185,7 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     };
     let published: Cell<Option<String>> = Cell::new(None);
     bind(node, move || {
-        let next = reading();
+        let next = reading.get();
         let previous = published.replace(Some(next.clone()));
         with_document(|document| {
             if let Some(previous) = previous
@@ -217,7 +217,7 @@ pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
 pub use crate::components::shift::Shift;
-pub use crate::components::text::{Text, TextItem};
+pub use crate::components::text::{Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
 pub use crate::components::virtual_list::VirtualList;
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
@@ -228,7 +228,7 @@ pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::rich::{
-    CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
+    CaretHandle, Piece, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark,
 };
 
 #[component]
@@ -241,13 +241,17 @@ pub fn List(
     children: Children<ListChild>,
 ) -> NodeId {
     let list = with_document(|document| document.create_list(direction.peek(), 0.0));
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_list_direction(list, direction.get()))
     });
-    create_effect(move || with_document(|document| document.set_list_align(list, align.get())));
-    create_effect(move || with_document(|document| document.set_list_justify(list, justify.get())));
-    create_effect(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
-    create_effect(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
+    create_binding(move || with_document(|document| document.set_list_align(list, align.get())));
+    create_binding(move || {
+        with_document(|document| document.set_list_justify(list, justify.get()))
+    });
+    create_binding(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
+    create_binding(move || {
+        with_document(|document| document.set_list_spacing(list, spacing.get()))
+    });
     children.mount(list);
     list.id()
 }

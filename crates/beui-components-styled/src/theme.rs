@@ -170,29 +170,29 @@ impl Default for Theme {
 #[component]
 pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> NodeId {
     let store = ThemeStore::new(theme.peek());
-    let provided = store.clone();
+    let provided = store;
     create_effect(move || store.set(theme.get()));
     provide_context(provided);
     content.call(())
 }
 
 pub fn control_outline(theme: &ThemeStore) -> Memo<Color32> {
-    let outline = theme.control_outline.clone();
+    let outline = theme.control_outline;
     create_memo(move || outline.get().unwrap_or(Color32::TRANSPARENT))
 }
 
 pub fn control_outline_visible(theme: &ThemeStore) -> Memo<bool> {
-    let outline = theme.control_outline.clone();
+    let outline = theme.control_outline;
     create_memo(move || outline.get().is_some())
 }
 
 pub fn knob_outline(theme: &ThemeStore) -> Memo<Color32> {
-    let outline = theme.knob_outline.clone();
+    let outline = theme.knob_outline;
     create_memo(move || outline.get().unwrap_or(Color32::TRANSPARENT))
 }
 
 pub fn knob_outline_visible(theme: &ThemeStore) -> Memo<bool> {
-    let outline = theme.knob_outline.clone();
+    let outline = theme.knob_outline;
     create_memo(move || outline.get().is_some())
 }
 
@@ -231,21 +231,6 @@ impl DocumentTheme for Document {
         let store = document_theme_store(self);
         with_reactive_scope(self, move || store.set(theme));
     }
-}
-
-pub const FONT_SMALL: f32 = 12.0;
-pub const FONT_BODY: f32 = 14.0;
-pub const FONT_HEADING: f32 = 16.0;
-pub const FONT_TITLE: f32 = 21.0;
-pub const FONT_DISPLAY: f32 = 46.0;
-pub const ICON_SIZE: f32 = 18.0;
-
-pub fn icon_glyph_size(text_size: f32) -> f32 {
-    text_size * ICON_SIZE / FONT_BODY
-}
-
-pub fn icon_text_size(glyph_size: f32) -> f32 {
-    glyph_size * FONT_BODY / ICON_SIZE
 }
 
 pub const RADIUS: u8 = 6;

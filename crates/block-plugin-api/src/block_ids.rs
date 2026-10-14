@@ -248,6 +248,7 @@ impl EditorMessage {
             | Self::PresentingChanged { .. }
             | Self::Resized { .. }
             | Self::LeaveFrame { .. }
+            | Self::Stopped { .. }
             | Self::BarAction { .. }
             | Self::Close { .. }
             | Self::DragLeft { .. }
@@ -255,7 +256,6 @@ impl EditorMessage {
             | Self::FileDropLeft { .. }
             | Self::DragAccepted { .. }
             | Self::AudioStatus { .. }
-            | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
             | Self::WatchHostValue { .. }

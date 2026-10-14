@@ -1,6 +1,5 @@
 use beui_core::layer::LayerPolicy;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 use accesskit::{Action, Node, Role};
@@ -26,9 +25,9 @@ use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Children, Fade, Frame, Interactive, List, ListChild, Memo, NodeRef, Offset, Prop,
-    ReadSignal, Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, focus_ring, on_cleanup, on_scroll_key,
-    set_component_state, untrack, with_document,
+    ReadSignal, Render, RenderFn, ShowKeepAlive, Stored, Timer, component_accessibility,
+    create_effect, create_memo, create_signal, create_timer, focus_ring, on_scroll_key,
+    set_component_state, store, untrack, with_document,
 };
 
 const FOCUS_RING_WIDTH: f32 = 2.0;
@@ -43,7 +42,7 @@ pub struct ScrollHandle {
     pub scroll_to: Callback<f32>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct ScrollbarStyle {
     bar: Option<(f32, RenderFn<ScrollHandle, ListChild>)>,
     fade: f32,
@@ -219,13 +218,12 @@ fn rubber_banding() -> bool {
     with_document(|document| document.rubber_banding())
 }
 
-#[derive(Clone)]
 struct Motion {
     node: Option<NodeOf<OffsetNode>>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
-    momentum: Rc<RefCell<Momentum>>,
-    animation: Rc<RefCell<Option<Timer>>>,
+    momentum: RefCell<Momentum>,
+    animation: Cell<Option<Timer>>,
 }
 
 impl Motion {
@@ -269,7 +267,6 @@ impl Motion {
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
         if fling != 0.0 {
-            self.take_steered();
             momentum.release(-fling);
             self.animate(&mut momentum);
         }
@@ -282,7 +279,6 @@ impl Motion {
         let mut momentum = self.momentum.borrow_mut();
         momentum.dragging = !gesture.ended && !gesture.cancelled;
         if momentum.drag.is_none() {
-            self.take_steered();
             momentum.grab(&position);
         }
         let dragged = self.axis().main(gesture.delta);
@@ -318,7 +314,7 @@ impl Motion {
     }
 
     fn animate(&self, momentum: &mut Momentum) {
-        let Some(animation) = self.animation.borrow().clone() else {
+        let Some(animation) = self.animation.get() else {
             return;
         };
         if !animation.running() {
@@ -366,10 +362,18 @@ impl Motion {
         true
     }
 
-    fn take_steered(&self) -> bool {
-        self.node.is_some_and(|node| {
-            with_document(|document| document.contains(node) && document.take_offset_steered(node))
-        })
+    fn steer(&self) {
+        let Some(node) = self.node else {
+            return;
+        };
+        if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
+            momentum.rest();
+        }
+        with_document(|document| {
+            if document.contains(node) {
+                document.set_offset_overscroll(node, 0.0);
+            }
+        });
     }
 
     fn step(&self) -> Option<Duration> {
@@ -377,15 +381,10 @@ impl Motion {
         if !with_document(|document| document.contains(node)) {
             return None;
         }
-        let steered = self.take_steered();
         let mut momentum = self.momentum.borrow_mut();
         let now = beui_core::timer::now();
         let elapsed = now.duration_since(momentum.stepped).as_secs_f32();
         momentum.stepped = now;
-        if steered {
-            momentum.rest();
-            with_document(|document| document.set_offset_overscroll(node, 0.0));
-        }
         if std::mem::take(&mut momentum.dragging) {
             return Some(Duration::ZERO);
         }
@@ -416,49 +415,41 @@ fn Scrolling(
         set_reported.set(Some(position));
         on_change.call(position);
     }));
-    let motion = Motion {
+    let motion = store(Motion {
         node: with_document(|document| document.first_offset_within(node)),
-        reported: reported.clone(),
-        direction: direction.clone(),
-        momentum: Rc::new(RefCell::new(Momentum::new())),
-        animation: Rc::default(),
-    };
-    let animation = create_timer(clone!(motion -> move || motion.step()));
-    motion.animation.replace(Some(animation));
-    on_cleanup(clone!(motion -> move || drop(motion.animation.take())));
-    set_component_state(motion.clone());
+        reported,
+        direction,
+        momentum: RefCell::new(Momentum::new()),
+        animation: Cell::default(),
+    });
+    let animation = create_timer(move || motion.get().step());
+    motion.with(|motion| motion.animation.set(Some(animation)));
+    if let Some(offset) = motion.with(|motion| motion.node) {
+        with_document(|document| {
+            document.set_offset_on_steer(offset, move |()| motion.get().steer());
+        });
+    }
+    set_component_state(motion);
 
-    let position = create_memo(clone!(reported -> move || reported.get().unwrap_or_default()));
-    component_accessibility(create_memo(
-        clone!(reported -> move || scroll_view(reported.get())),
-    ));
+    let position = create_memo(move || reported.get().unwrap_or_default());
+    component_accessibility(create_memo(move || scroll_view(reported.get())));
 
     let (focused, set_focused) = create_signal(false);
     let across = across(&direction);
-    let axis = create_memo(clone!(direction -> move || Some(direction.get())));
-    let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
-    let (wheeled, dragged) = (motion.clone(), motion.clone());
-    let autoscrolled = motion.clone();
-    let (tapped, stopped) = (motion.clone(), motion.clone());
+    let axis = create_memo(move || Some(direction.get()));
     let catcher = NodeRef::new();
-    let catcher_rect = catcher.clone();
+    let catcher_rect = catcher;
     let (origin, set_origin) = create_signal(None::<Pos2>);
-    let marked = create_memo(clone!(origin -> move || origin.get().is_some()));
-    let anchor = create_memo(clone!(origin -> move || {
-        OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO))
-    }));
-    let marker_axis = create_memo(clone!(direction -> move || direction.get()));
-    let content_axis = marker_axis.clone();
-    let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
-    on_scroll_key(
-        KeyAt::Node(catcher.clone()),
-        KeyPhase::Bubble,
-        move |event| {
-            event
-                .press()
-                .is_some_and(|press| navigates(press.key) && ancestor_keyed.key(press))
-        },
-    );
+    let marked = create_memo(move || origin.get().is_some());
+    let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
+    let marker_axis = create_memo(move || direction.get());
+    let content_axis = marker_axis;
+    let scroll_to = Callback::new(move |offset: f32| motion.get().scroll_to(offset));
+    on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
+        event
+            .press()
+            .is_some_and(|press| navigates(press.key) && motion.get().key(press))
+    });
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
             <Interactive
@@ -466,21 +457,21 @@ fn Scrolling(
                 tab_stop
                 @sizing=ItemSize::Percent(100.0)
                 on_focus_change={move |focused: bool| set_focused.set(focused)}
-                on_key={move |press: KeyPress| keyed.key(press)}
+                on_key={move |press: KeyPress| motion.get().key(press)}
                 scroll_axis={axis}
                 @node_ref=&catcher
                 claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                    tapped.flinging() && under(&catcher_rect, pos)
+                    motion.get().flinging() && under(&catcher_rect, pos)
                 }}
-                on_press={move |_: PointerPress| stopped.stop_fling()}
-                on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
-                on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                on_press={move |_: PointerPress| motion.get().stop_fling()}
+                on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
+                on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
                 on_autoscroll={move |gesture: AutoscrollGesture| {
                         let marking = (!gesture.ended).then_some(gesture.origin);
                         if untrack(|| origin.get()) != marking {
                             set_origin.set(marking);
                         }
-                        autoscrolled.autoscroll(gesture);
+                        motion.get().autoscroll(gesture);
                     }}
             >
                 <Frame
@@ -491,7 +482,7 @@ fn Scrolling(
                 >
                     <List direction={content_axis} spacing=0.0>
                         {node} @sizing={content_sizing(fit)}
-                        <ShowKeepAlive condition={marked.clone()}>
+                        <ShowKeepAlive condition={marked}>
                             <Overlay
                                 anchor
                                 placement=Placement::Around
@@ -523,15 +514,13 @@ pub fn Scroll(
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
-    let content_direction = direction.clone();
-    let rows_direction = direction.clone();
+    let content_direction = direction;
+    let rows_direction = direction;
     let fade = scrollbar.fade();
     let (faded, set_faded) = create_signal(None::<ScrollPosition>);
-    let edges = create_memo(clone!(direction -> move || {
-        fade_edges(direction.get(), faded.get(), fade)
-    }));
+    let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
     let rows = NodeRef::new();
-    let revealed = rows.clone();
+    let revealed = rows;
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -540,15 +529,7 @@ pub fn Scroll(
         })
     });
     let scroll = view! {
-        <Scrolling
-            direction
-            fit
-            tab_stop
-            focus_color
-            scrollbar
-            marker
-            on_change={move |position: ScrollPosition| on_change.call(position)}
-        >
+        <Scrolling direction fit tab_stop focus_color scrollbar marker on_change={on_change}>
             {move |report: Callback<ScrollPosition>| {
                 view! {
                     <Fade edges>
@@ -617,10 +598,8 @@ fn fade_edges(direction: Direction, position: Option<ScrollPosition>, fade: f32)
 
 pub fn scroll_animating(document: &Document, scroll: NodeId) -> bool {
     document
-        .component_state::<Motion>(scroll)
-        .momentum
-        .borrow()
-        .moving()
+        .component_state::<Stored<Motion>>(scroll)
+        .with(|motion| motion.momentum.borrow().moving())
 }
 
 fn scroll_view(position: Option<ScrollPosition>) -> Node {
@@ -638,7 +617,7 @@ fn scroll_view(position: Option<ScrollPosition>) -> Node {
 }
 
 fn across(direction: &Prop<Direction>) -> Memo<Direction> {
-    let direction = direction.clone();
+    let direction = *direction;
     create_memo(move || match direction.get() {
         Direction::Horizontal => Direction::Vertical,
         Direction::Vertical => Direction::Horizontal,

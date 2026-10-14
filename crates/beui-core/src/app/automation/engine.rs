@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -29,6 +29,8 @@ pub const USAGE: &str = "Reading:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
+  hit TARGET                what a press at TARGET would reach: the Interactives along its path,
+                            the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
   actions [all]             the actions the command palette would list (all: every one)
   shot [TARGET]             a screenshot, of TARGET only when given
@@ -86,7 +88,6 @@ pub const PANE: char = '\u{1f}';
 pub struct View<'a> {
     pub lines: &'a [Line],
     pub tree: &'a str,
-    pub test_ids: &'a HashMap<String, Rect>,
     pub pixels_per_point: f32,
     pub now: Instant,
     pub size: Vec2,
@@ -127,6 +128,7 @@ enum Phase {
         id: String,
         before: String,
     },
+    Hitting,
     Uploading {
         file: PathBuf,
         before: String,
@@ -306,7 +308,13 @@ impl Automation {
         }
     }
 
-    pub fn end(&mut self, view: &View<'_>, settled: Settled, unran: &[String]) {
+    pub fn end(
+        &mut self,
+        view: &View<'_>,
+        settled: Settled,
+        unran: &[String],
+        hits: Option<&[String]>,
+    ) {
         let quiet = !settled.again && !settled.busy;
         let Some(active) = &mut self.active else {
             return;
@@ -377,6 +385,12 @@ impl Automation {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
+                Phase::Hitting => hits.map(|hits| {
+                    Reply::Text(match hits.is_empty() {
+                        true => "nothing in the window is there\n".to_owned(),
+                        false => hits.join("\n"),
+                    })
+                }),
                 Phase::Reading { pasted, until } => match clipboard_text(pasted) {
                     Some(text) => Some(Reply::Text(text)),
                     None if view.now >= *until => Some(Reply::Error(
@@ -438,7 +452,7 @@ impl Automation {
                 .map(String::as_str)
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
-        let at = |target: &str| point(target, view.lines, view.test_ids, view.pixels_per_point);
+        let at = |target: &str| point(target, view.lines, view.pixels_per_point);
         let input = |steps: Vec<Vec<Event>>| {
             Ok(Started::Phase(Phase::Input {
                 steps: steps.into(),
@@ -450,24 +464,29 @@ impl Automation {
             "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "tree" => Ok(Started::Done(Reply::Text(view.tree.to_owned()))),
             "ids" => {
-                let mut ids: Vec<_> = view.test_ids.iter().collect();
+                let mut ids: Vec<(&str, &Line)> = view
+                    .lines
+                    .iter()
+                    .flat_map(|line| line.test_ids.iter().map(move |id| (id.as_str(), line)))
+                    .collect();
                 ids.sort_by(|a, b| a.0.cmp(b.0));
                 let text = ids
                     .into_iter()
-                    .map(|(id, rect)| {
-                        format!("#{id} {}\n", describe(scaled(*rect, view.pixels_per_point)))
+                    .map(|(id, line)| {
+                        let place = line.bounds.map(describe).unwrap_or_default();
+                        let hidden = if line.visible { "" } else { " offscreen" };
+                        format!("#{id} {place}{hidden}\n")
                     })
                     .collect();
                 Ok(Started::Done(Reply::Text(text)))
             }
             "find" => {
-                let rect = locate(
-                    argument(0)?,
-                    view.lines,
-                    view.test_ids,
-                    view.pixels_per_point,
-                )?;
+                let rect = locate(argument(0)?, view.lines)?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
+            }
+            "hit" => {
+                world.context.request_hit(at(argument(0)?)?);
+                Ok(Started::Phase(Phase::Hitting))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(view)))),
             "actions" => Ok(Started::Done(Reply::Text(actions(
@@ -959,12 +978,7 @@ impl Automation {
                 }))
             }
             "a11y" => {
-                let line = node(
-                    argument(0)?,
-                    view.lines,
-                    view.test_ids,
-                    view.pixels_per_point,
-                )?;
+                let line = node(argument(0)?, view.lines)?;
                 let offered = || {
                     line.actions
                         .iter()
@@ -1037,12 +1051,7 @@ impl Automation {
             }
             "shot" => {
                 let crop = match arguments.first() {
-                    Some(target) => Some(locate(
-                        target,
-                        view.lines,
-                        view.test_ids,
-                        view.pixels_per_point,
-                    )?),
+                    Some(target) => Some(locate(target, view.lines)?),
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing { crop }))
@@ -1232,7 +1241,10 @@ fn finger_target(spec: &str) -> (u64, Option<&str>) {
 
 fn shown(view: &View<'_>, text: &str) -> bool {
     match text.strip_prefix('#') {
-        Some(id) => view.test_ids.contains_key(id),
+        Some(id) => view
+            .lines
+            .iter()
+            .any(|line| line.test_ids.iter().any(|named| named == id)),
         None => view.lines.iter().any(|line| line.text.contains(text)),
     }
 }

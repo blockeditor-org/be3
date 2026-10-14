@@ -22,26 +22,27 @@ mod theme;
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioOutput, AudioStatus, BarAction,
-    BlockCommand, BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId,
-    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ConflictSide, CreationProgress, CursorIcon,
-    DataListing, DescribedAction, Displays, EditorCapabilities, EditorInstanceId, EditorRegion,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay, HostDisplayMode,
-    HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram, HostReply,
-    HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
+    ANY_BLOCK_TYPE, AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioOutput,
+    AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick,
+    BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
+    ChildPlacement, ChildStatus, ConflictSide, CreationProgress, CursorIcon, DataListing,
+    DescribedAction, Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId,
+    EditorRegion, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay,
+    HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
+    HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
     IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, LinkBase,
     Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, Occluder, PlayerCommand, PointerButton,
     Power, PowerAction, PowerAvailability, ProgramAction, Programs, ResizeMode, ScreenLocked,
-    ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
+    ScreenPlacement, SettingsProgress, ShellDialog, Stopped, SurfaceRect, TemplateCategory,
     TemplateDescriptor, Toggled, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
     TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
     VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
-pub use content::{ContentProjection, Projected};
+pub use content::{ContentProjection, OwnedContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
@@ -85,20 +86,23 @@ pub mod __private {
                 editors.len()
             );
         };
-        let block_type = uuid::Uuid::parse_str(&editor.block_type)
-            .unwrap_or_else(|error| panic!("this plugin's block type is invalid: {error}"));
-        vec![app::<P>(block_type)]
+        vec![app::<P>(declared_block_type(&editor.block_type))]
     }
 
     pub fn declared_block_types(manifest: &str) -> Vec<uuid::Uuid> {
         document(manifest)
             .editors
             .iter()
-            .map(|editor| {
-                uuid::Uuid::parse_str(&editor.block_type)
-                    .unwrap_or_else(|error| panic!("this plugin's block type is invalid: {error}"))
-            })
+            .map(|editor| declared_block_type(&editor.block_type))
             .collect()
+    }
+
+    fn declared_block_type(source: &str) -> uuid::Uuid {
+        if source == block_plugin_api::ANY_BLOCK_TYPE_NAME {
+            return uuid::Uuid::from_bytes(block_plugin_api::ANY_BLOCK_TYPE);
+        }
+        uuid::Uuid::parse_str(source)
+            .unwrap_or_else(|error| panic!("this plugin's block type is invalid: {error}"))
     }
 
     #[cfg(target_arch = "wasm32")]

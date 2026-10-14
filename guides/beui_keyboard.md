@@ -40,15 +40,25 @@ or the root. Listeners sit at positions on it (`KeyAt`):
   topmost trapping layer hears the key, as if the focus could be anywhere in it.
 
 and each listens in the capture phase, on the way down before the target, or the
-bubble phase, on the way back up after it (`on_key(at, phase, handler)`). The
-trip is: host and window capture listeners, F6, tree capture listeners from the
+bubble phase, on the way back up after it (`on_key(at, phase, handler)`). A key
+one of them holds (below) skips the trip and goes straight to its holder. The
+trip is: host and window capture listeners, tree capture listeners from the
 root down to the target, the target itself (its `on_key`, then its own
-activation and arrow stepping), tree bubble listeners from the target up, the
-layers (Escape asks the innermost dismissable layer around the focus to close,
-see the beui guide), the window and host bubble listeners, and last the
-built-in keys: Tab, Escape (which cancels a held activation) and Back. The
-first listener to answer `true` ends the trip. So a window listener for Escape
-hears it only when no layer took it.
+activation and arrow stepping), tree bubble listeners from the target up, and
+the window and host bubble listeners. The first listener to answer `true` ends
+the trip. The document's own keys are listeners on it too (`builtin` in
+interact.rs), which the lock never cuts unless noted: the first host capture
+listener ends autoscroll on any press and takes Escape doing it; the last
+window capture listener is F6 and Shift+F6 (cut with the window); the first
+window bubble listener asks the innermost dismissable layer around the focus to
+close on Escape (see the beui guide; a key bound for an app never gets that
+far, so a window capture listener that wants Escape over an app asks
+`Document::escape_layer` and `dismiss_overlay` itself, as block-app's
+presentation mode does); and the last host bubble listener is Tab,
+Escape (which cancels a held activation) and Back. So a window listener for
+Escape hears it only when no layer took it. Ctrl+V asks the host for a paste
+once the trip is over, only if nothing took the key (an app counts as nothing),
+or if what took it asked for a paste itself.
 
 A listener at the focused node itself is on the path in both phases, which is
 how a compound control steers keys before the control inside it handles them:
@@ -81,8 +91,11 @@ a text input in a panel, and why it does not while a dialog is open.
 `target` (`node`, and whether it `typing`s text or is an `app`). A listener
 that takes a press in the capture phase holds its key: the physical key, the
 text it typed, its repeats and its release go to that listener alone, with
-`phase` `Held`, wherever the focus has gone since, and nowhere else. That is
-the one record of taken keys; nothing else keeps its own.
+`phase` `Held`, wherever the focus has gone since, and nowhere else. Whatever
+takes a press later on the trip - the target or a bubble listener - holds its
+release the same way, while its repeats take the trip again, so the release of
+an Escape that closed a menu never reaches the app the focus went back to.
+That is the one record of taken keys; nothing else keeps its own.
 `held_modifiers()` is a signal of the modifiers held now, which changes on
 modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
 switcher, are built from those two.
@@ -145,7 +158,9 @@ An action is a listener too. `action_scope(&node_ref)` makes a scope that
 listens in the bubble phase at that node, so an action registered under it - an
 editor's, or a text area's - only answers while the focus is inside the node,
 and a key the focused control does not handle reaches the innermost scope
-first. An action registered under no scope listens at the root. With the focus
+first. An action registered under no scope listens at the root. `.capture()`
+moves an action, at the root or in a scope, to the capture phase, so it answers
+before the focused control does. With the focus
 on a node no scope holds, every scope is live; with nothing focused, every
 scope in the topmost trapping layer is. A chord without Ctrl, Alt or Super (and
 not on a media key) does not reach actions while the target types text or is
@@ -193,8 +208,8 @@ chord goes the same way as `InputEvent::InterceptedTap`, but only while the
 region does not have the keyboard itself, since it then hears the key and
 counts the tap on its own; the release still reaches whatever had the focus.
 
-A document with a layer open that traps focus or blocks everything
-(`Document::modal_open`, such as a dialog or the launcher) reports `WindowState::wants_keyboard`, which the
+A document with a layer open that traps focus
+(`Layers::takes_keyboard`, such as a dialog, a popover or the launcher) reports `WindowState::wants_keyboard`, which the
 runner hands to `Platform::show_window`. A plugin passes it on as
 `WindowRequests::wants_keyboard` (guides/adding_a_plugin_editor.md), and block-app's region then takes the focus from
 whatever had it (a program's window, another editor) and gives it back when

@@ -58,8 +58,8 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
 };
 use editors::{
-    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
-    plugin::PickSource,
+    ArtifactSession, ArtifactStatus, BlockOpen, EditorAction, EditorRegistry, PluginEditor,
+    SidebarDragSource, plugin::PickSource,
 };
 use local_settings::SettingsSync;
 use root_settings::RootSettings;
@@ -248,7 +248,7 @@ impl Shell {
             wayland::create();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
-            view = Some(store.clone());
+            view = Some(store);
             let view = store;
             beui::reactive::view! {
                 <ui::Root view />
@@ -317,7 +317,7 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        let store = self.view.clone();
+        let store = self.view;
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
             store.set(view);
@@ -421,7 +421,7 @@ struct BlockApp {
     display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
-    editors: compositor::Editors,
+    editors: compositor::OwnedEditors,
 
     watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
@@ -608,7 +608,7 @@ impl BlockApp {
             ServerLocation::Remote(remote) => remote.clone(),
         };
         let registry = Rc::new(EditorRegistry::new());
-        let editors = compositor::Editors::install(Rc::clone(&registry), client_id);
+        let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         Ok(Self {
             app_state,
             client_id,
@@ -1589,9 +1589,12 @@ impl BlockApp {
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));
             self.show_block(
                 Some(copy.container),
-                copy_id,
-                block_type,
-                Some(copy.container),
+                BlockOpen {
+                    id: copy_id,
+                    block_type,
+                    via: Some(copy.container),
+                    editor: None,
+                },
             );
         }
     }
@@ -1662,10 +1665,10 @@ impl BlockApp {
         }
     }
 
-    fn show_block(&mut self, from: Option<Uuid>, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.block_types.insert(id, block_type);
+    fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
+        self.block_types.insert(open.id, open.block_type);
         if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
-            self.with_editor(handler, |handler| handler.show_block(id, block_type, via));
+            self.with_editor(handler, |handler| handler.show_block(open));
         }
     }
 
@@ -2042,11 +2045,7 @@ impl BlockApp {
 
     fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
-            EditorAction::OpenBlock {
-                id,
-                block_type,
-                via,
-            } => self.show_block(from, id, block_type, via),
+            EditorAction::OpenBlock(open) => self.show_block(from, open),
             EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
         }
     }

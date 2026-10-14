@@ -1,4 +1,4 @@
-load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/app:defs.bzl", "app", "smoke_test")
 load("@root//buck/app:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages", "test_run")
@@ -39,11 +39,11 @@ cargo_test(
 
 cargo_binary(srcs = app_srcs)
 
-# The app with every plugin beside it: `./scripts/buck run //crates/block-app:app`
+# The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.
 app(
-    name = "app",
-    binary = ":block-app-bin",
+    name = "native",
+    binary = ":bin",
     data = ["//{}:data".format(package) for package in editor_packages()],
     executable_name = "block-app",
     files = ["//buck/app:build-id"],
@@ -67,20 +67,21 @@ app(
     sdk = "//crates/block-plugin-sdk:module",
 )
 
-# What CI ships per platform: the app and server under cargo's names; the
-# plugins ship once, from :plugins.
+# What CI ships per platform: the app under cargo's name; the plugins ship
+# once, from :plugins, and the server from //crates/be-server:dist.
 app(
-    name = "dist",
-    binary = ":block-app-bin",
+    name = "native-dist",
+    binary = ":bin",
     executable_name = "block-app",
-    extra_binaries = {"be-server": "//crates/be-server:be-server-bin"},
     files = ["//buck/app:build-id"],
     manifests = [],
     modules = [],
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
-# wasm-bindgen, the page and shims in web/, and the plugins. :web-dist is CI's, without them.
+# wasm-bindgen, the page and shims in web/, and the plugins. :web-dist is CI's,
+# without them. `./scripts/buck run //crates/block-app:web` serves it here with
+# Caddy, with be-server behind it (web/serve.sh).
 wasi_app_module(
     name = "web-module",
     library = ":block-app",
@@ -108,6 +109,13 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
+    run_with = [
+        "sh",
+        "$(location :serve.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+        "$(location //crates/be-server:bin)",
+    ],
     sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/local-tools:"],
@@ -126,19 +134,6 @@ app(
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 
-# The bundle served here by Caddy, with be-server behind it (web/serve.sh).
-command_alias(
-    name = "web-serve",
-    args = [
-        "sh",
-        "$(location :serve.sh)",
-        "$(location //buck/tools:caddy)",
-        "$(location :Caddyfile)",
-        "$(location :web)",
-        "$(location //crates/be-server:be-server-bin)",
-    ],
-)
-
 # The web app served here and open in a headless Chromium for an agent to
 # drive, signed in with a workspace open: guides/running/web.md.
 command_alias(
@@ -149,7 +144,7 @@ command_alias(
         "$(location //buck/tools:caddy)",
         "$(location :Caddyfile)",
         "$(location :web)",
-        "$(location //crates/be-server:be-server-bin)",
+        "$(location //crates/be-server:bin)",
         "$(location //buck/app:web-drive.mjs)",
     ],
 )
@@ -165,8 +160,8 @@ export_file(
 )
 
 # The Android app: the APK is built unsigned on a worker, with the plugins
-# precompiled for the device, and :android signs it here into
-# target/android/block-app.apk (`-- --install` installs and starts it).
+# precompiled for the device, and `./scripts/buck run :android` signs it here
+# into target/android/block-app.apk (`-- --install` installs and starts it).
 # CI's APK carries the same plugins, since an APK has nowhere else to find
 # them, and has an id and label of its own, so that it installs beside a local
 # build rather than colliding with it: sharing the package name, it would
@@ -185,11 +180,15 @@ app(
     sdk = "//crates/block-plugin-sdk:module",
 )
 
+# What CI ships is :android-dist, signed on a worker with CI's keystore, so the
+# runner downloads only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
 [
     android_apk(
         name = name,
+        activity = "com.be3.block.MainActivity",
         application_id = application_id,
-        assets = assets,
+        assets = ":android-assets",
+        ci_signed = ci_signed,
         java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
         label = label,
         library = ":block-app",
@@ -201,32 +200,11 @@ app(
         version_code = 1,
         version_name = "0.1.0",
     )
-    for name, assets, application_id, label in [
-        ("apk", ":android-assets", "com.be3.block", "Block"),
-        ("apk-dist", ":android-assets", "com.be3.block.ci", "Block (CI)"),
+    for name, application_id, label, ci_signed in [
+        ("android", "com.be3.block", "Block", False),
+        ("android-dist", "com.be3.block.ci", "Block (CI)", True),
     ]
 ]
-
-command_alias(
-    name = "android",
-    args = [
-        "sh",
-        "$(location //buck/android:sign.sh)",
-        "$(location //buck/android:jdk)",
-        "$(location //buck/android:build-tools)",
-        "$(location //buck/android:platform-tools)",
-        "$(location :apk)",
-        "block-app",
-        "com.be3.block.MainActivity",
-    ],
-)
-
-# What CI ships, signed on a worker with CI's keystore, so the runner downloads
-# only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
-signed_apk(
-    name = "android-dist",
-    apk = ":apk-dist",
-)
 
 export_file(
     name = "android-res",
@@ -234,7 +212,7 @@ export_file(
     visibility = ["//crates/be-launcher:"],
 )
 
-# The native smoke test, which ./scripts/verify runs through :smoke_run: the
+# The native smoke test, which ./scripts/verify runs through :smoke-run: the
 # app headless on a worker with the dev workspace open, closed once its shell's
 # plugins have drawn; it fails unless the app exits cleanly. :smoke-desktop is
 # the same with the desktop shell. It draws through lavapipe from the test
@@ -243,9 +221,9 @@ export_file(
     (
         smoke_test(
             name = name,
-            app = ":app",
+            app = ":native",
             args = args,
-            drive = "//crates/be-drive:be-drive-bin",
+            drive = "//crates/be-drive:bin",
             env = {
                 "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
                 "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
@@ -256,7 +234,7 @@ export_file(
             wait = wait,
         ),
         test_run(
-            name = name + "_run",
+            name = name + "-run",
             test = ":" + name,
         ),
     )
@@ -272,7 +250,7 @@ export_file(
 command_alias(
     name = "install-session",
     args = [
-        "$(location :app)/block-app",
+        "$(location :native)/block-app",
         "--install-session",
     ],
 )
@@ -284,5 +262,5 @@ headless(
     app_name = "dev",
     args = ["--dev-workspace"],
     data = True,
-    program = "$(location :app)/block-app",
+    program = "$(location :native)/block-app",
 )

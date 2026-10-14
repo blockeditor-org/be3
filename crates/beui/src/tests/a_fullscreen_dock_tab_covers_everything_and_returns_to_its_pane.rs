@@ -10,21 +10,20 @@ struct Heard {
 
 #[test]
 fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
-    let bar = Rc::new(RefCell::new(Heard::default()));
-    let tab = Rc::new(RefCell::new(Heard::default()));
+    let _root = crate::reactive::RootScope::new();
+    let (bar, set_bar) = create_signal(Heard::default());
+    let (tab, set_tab) = create_signal(Heard::default());
     let layout = DockingLayout::<u64>::new();
     let document = {
-        let (bar, tab, layout) = (bar.clone(), tab.clone(), layout.clone());
         build(move || {
-            let hovered = bar.clone();
             view! {
                 <List spacing=0.0>
                     <Frame height=40.0>
                         <Interactive
                             @test_id="bar"
-                            on_hover_change={move |on: bool| hovered.borrow_mut().hovered = on}
+                            on_hover_change={move |on: bool| set_bar.update(|bar| bar.hovered = on)}
                             on_scroll={move |scroll: ScrollGesture| {
-                                bar.borrow_mut().scrolled += scroll.delta;
+                                set_bar.update(|bar| bar.scrolled += scroll.delta);
                             }}
                         />
                     </Frame>
@@ -37,16 +36,14 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                                 id=2u64
                                 title="Tab 2"
                                 content={move || {
-                                    let hovered = tab.clone();
-                                    let scrolled = tab.clone();
                                     view! {
                                         <Interactive
                                             @test_id="content.2"
                                             on_hover_change={move |on: bool| {
-                                                hovered.borrow_mut().hovered = on;
+                                                set_tab.update(|tab| tab.hovered = on);
                                             }}
                                             on_scroll={move |scroll: ScrollGesture| {
-                                                scrolled.borrow_mut().scrolled += scroll.delta;
+                                                set_tab.update(|tab| tab.scrolled += scroll.delta);
                                             }}
                                         />
                                     }
@@ -63,9 +60,8 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let docked = harness.rect(harness.find("content.2"));
     let over_bar = harness.center(harness.find("bar"));
 
-    let entering = layout.clone();
     with_reactive_scope(harness.document_mut(), move || {
-        entering.enter_fullscreen(&2, None)
+        layout.enter_fullscreen(&2, None)
     });
     harness.settle();
     assert_eq!(layout.fullscreen(), Some(2));
@@ -78,17 +74,26 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     harness.frame(vec![Event::PointerMoved(over_bar)]);
     harness.scroll(over_bar, Vec2::new(0.0, -30.0), Modifiers::NONE);
     harness.settle();
-    assert!(!bar.borrow().hovered, "what the tab covers is not hovered");
+    assert!(
+        !bar.with_untracked(|bar| bar.hovered),
+        "what the tab covers is not hovered"
+    );
     assert_eq!(
-        bar.borrow().scrolled,
+        bar.with_untracked(|bar| bar.scrolled),
         Vec2::ZERO,
         "and the wheel does not reach it"
     );
-    assert!(tab.borrow().hovered, "the fullscreen tab hears the pointer");
-    assert_ne!(tab.borrow().scrolled, Vec2::ZERO, "and the wheel");
+    assert!(
+        tab.with_untracked(|tab| tab.hovered),
+        "the fullscreen tab hears the pointer"
+    );
+    assert_ne!(
+        tab.with_untracked(|tab| tab.scrolled),
+        Vec2::ZERO,
+        "and the wheel"
+    );
 
-    let leaving = layout.clone();
-    with_reactive_scope(harness.document_mut(), move || leaving.leave_fullscreen());
+    with_reactive_scope(harness.document_mut(), move || layout.leave_fullscreen());
     harness.settle();
     assert_eq!(layout.fullscreen(), None);
     assert_eq!(
@@ -98,7 +103,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     );
     harness.frame(vec![Event::PointerMoved(over_bar)]);
     assert!(
-        bar.borrow().hovered,
+        bar.with_untracked(|bar| bar.hovered),
         "and what it covered hears the pointer again"
     );
 }

@@ -4,6 +4,8 @@ use crate::painter::Shape;
 
 const REGIONS: usize = 8;
 
+const MERGE_WASTE: f32 = 2.0;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Region {
     rects: [Rect; REGIONS],
@@ -38,6 +40,11 @@ impl Region {
     }
 
     pub fn add(&mut self, rect: Rect) {
+        self.insert(rect);
+        self.merge_close();
+    }
+
+    fn insert(&mut self, rect: Rect) {
         if !rect.is_positive() {
             return;
         }
@@ -45,12 +52,12 @@ impl Region {
             let union = self.rects[index].union(rect);
             self.rects[index] = self.rects[self.count - 1];
             self.count -= 1;
-            self.add(union);
+            self.insert(union);
             return;
         }
         if let Some(overlapped) = self.rects().iter().find(|region| region.intersects(rect)) {
             for piece in uncovered(rect, *overlapped) {
-                self.add(piece);
+                self.insert(piece);
             }
             return;
         }
@@ -76,8 +83,29 @@ impl Region {
             }
         }
         let (_, merged, absorbed) = cheapest.expect("a full region has a pair to merge");
+        self.replace(all, merged, &absorbed);
+    }
+
+    fn merge_close(&mut self) {
+        'merged: loop {
+            let rects = self.rects().to_vec();
+            for first in 0..rects.len() {
+                for second in first + 1..rects.len() {
+                    let (merged, absorbed) = cascade(&rects, first, second);
+                    let covered: f32 = absorbed.iter().map(|index| area(rects[*index])).sum();
+                    if area(merged) <= MERGE_WASTE * covered {
+                        self.replace(rects, merged, &absorbed);
+                        continue 'merged;
+                    }
+                }
+            }
+            return;
+        }
+    }
+
+    fn replace(&mut self, rects: Vec<Rect>, merged: Rect, absorbed: &[usize]) {
         *self = Self::NOTHING;
-        for (index, region) in all.into_iter().enumerate() {
+        for (index, region) in rects.into_iter().enumerate() {
             if !absorbed.contains(&index) {
                 self.rects[self.count] = region;
                 self.count += 1;
