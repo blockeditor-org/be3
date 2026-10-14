@@ -13,7 +13,7 @@ use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 
 pub use beui_core::callback::NodeRef;
-pub use beui_core::timer::{Timer, create_timer, now};
+pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
 pub use beui_core::current::enter;
 pub use beui_core::current::{try_with_document, with_document, with_reactive_scope};
@@ -61,6 +61,13 @@ pub fn layout_text(
     layout: beui_core::font::TextLayout,
 ) -> Option<beui_core::font::Galley> {
     try_with_document(|document| document.layout_text(text, font, layout)).flatten()
+}
+
+pub fn rich_layout(
+    pieces: &[beui_core::rich::Piece],
+    options: beui_core::rich::RichOptions,
+) -> Option<beui_core::rich::RichLayout> {
+    try_with_document(|document| document.rich_layout(pieces, options)).flatten()
 }
 
 pub fn copy_text(text: impl Into<String>) {

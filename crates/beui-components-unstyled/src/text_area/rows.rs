@@ -7,7 +7,7 @@ use text_editor_core::{
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
-use beui_core::font::{FontId, Galley, TextLayout, Wraps};
+use beui_core::font::{FontId, Galley, TextLayout};
 use beui_core::geometry::Vec2;
 use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::layout_text;
@@ -106,6 +106,7 @@ pub struct RowSpan {
     pub style: SpanStyle,
     pub kind: SpanKind,
     pub break_after: bool,
+    pub invisible: Option<usize>,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -242,7 +243,6 @@ pub struct RowInputs<'a> {
     pub widgets: &'a [TextWidget],
     pub client_colors: &'a [(u64, Color32)],
     pub composition: Option<&'a Composition>,
-    pub selection: &'a [Range<usize>],
     pub colors: &'a TextAreaColors,
     pub options: RowOptions,
     pub spacers: &'a [(usize, f32)],
@@ -370,6 +370,7 @@ impl Builder<'_> {
                     && last.kind == SpanKind::Text
                     && last.style == style
                     && last.break_after == break_after
+                    && last.invisible.is_none()
                     && last.range.end == start =>
             {
                 last.range.end = display.end;
@@ -379,6 +380,7 @@ impl Builder<'_> {
                 style,
                 kind,
                 break_after,
+                invisible: None,
             }),
         }
         match self.row.segments.last_mut() {
@@ -396,6 +398,14 @@ impl Builder<'_> {
                 display,
                 mapped,
             }),
+        }
+    }
+
+    fn invisible(&mut self, byte: usize, trailing: bool) {
+        if let Some(last) = self.row.spans.last_mut()
+            && !trailing
+        {
+            last.invisible = Some(byte);
         }
     }
 
@@ -524,12 +534,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .filter(|composition| composition.range.start < end && composition.range.end > start);
     let composed =
         |index: usize| composition.is_some_and(|composition| composition.range.contains(&index));
-    let selected = |byte: usize| {
-        inputs
-            .selection
-            .iter()
-            .any(|range| range.start < range.end && range.contains(&byte))
-    };
     let held = start.min(bytes.len().saturating_sub(1));
     let held_styles = highlight.styles_in(held..(end + 1).min(bytes.len()));
     let style_at = |index: usize| {
@@ -633,12 +637,14 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         }
         let byte = bytes[index];
         if invisibles && let Some(marker) = invisible_marker(byte) {
-            let color = match index >= trailing_from || selected(index) {
+            let trailing = index >= trailing_from;
+            let color = match trailing {
                 true => invisible,
                 false => Color32::TRANSPARENT,
             };
             let style = SpanStyle { color, ..base };
             builder.push_breaking(marker, index..index + 1, false, style, SpanKind::Text, true);
+            builder.invisible(index, trailing);
             index += 1;
             continue;
         }
@@ -683,17 +689,14 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     builder.spacers(end, body);
     builder.runs(runs, end, builder.span_style(style_at(end)));
     if newline && invisibles {
-        let color = match selected(end) {
-            true => invisible,
-            false => Color32::TRANSPARENT,
-        };
         let style = SpanStyle {
-            color,
+            color: Color32::TRANSPARENT,
             underline: false,
             strikethrough: false,
             ..builder.span_style(style_at(end))
         };
         builder.push(NEWLINE_MARKER, end..end + 1, false, style, SpanKind::Text);
+        builder.invisible(end, false);
     }
     if snapshot
         .sections
@@ -755,28 +758,12 @@ pub fn rich_layout(
     padding: (f32, f32),
     wrap_width: f32,
 ) -> Option<RichLayout> {
-    galley("", FontId::proportional(body_size))?;
     let options = RichOptions {
         wrap_width,
         padding,
         style: SpanStyle::new(FontId::proportional(body_size), Color32::WHITE),
     };
-    let mut shaper =
-        |text: &str, font: FontId| galley(text, font).unwrap_or_else(|| empty_galley(font));
-    Some(RichLayout::new(&row.pieces(), options, &mut shaper))
-}
-
-fn empty_galley(font: FontId) -> Galley {
-    Galley::new(
-        "",
-        font,
-        Vec2::ZERO,
-        0.0,
-        0.0,
-        Vec::new(),
-        Vec::new(),
-        Wraps::ANY,
-    )
+    beui_view::reactive::rich_layout(&row.pieces(), options)
 }
 
 pub type TableSpacers = HashMap<usize, Vec<(usize, f32)>>;
@@ -808,7 +795,6 @@ pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
                         widgets: inputs.widgets,
                         client_colors: &[],
                         composition: None,
-                        selection: &[],
                         colors: inputs.colors,
                         options: inputs.options,
                         spacers: &[],

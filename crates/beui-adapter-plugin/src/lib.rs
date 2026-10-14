@@ -161,6 +161,7 @@ impl PluginSurface {
         self.runner.reports().scaled(region.scale_factor);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
+            beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
         }
         self.platform.deliver_picks();
         let scale = region.scale_factor;

@@ -2,7 +2,7 @@ use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::ops::Range;
 
 use crate::color::Color32;
-use crate::font::{FontId, Galley, TextAlign};
+use crate::font::{FontId, Galley, TextAlign, Wraps};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Corners;
 
@@ -285,7 +285,8 @@ struct Builder<'a> {
     text: &'a str,
     spans: &'a [TextSpan],
     shaper: &'a mut dyn Shaper,
-    whole: Vec<Option<Galley>>,
+    paragraph: Range<usize>,
+    whole: Vec<Option<(Range<usize>, Galley)>>,
 }
 
 impl Builder<'_> {
@@ -319,14 +320,16 @@ impl Builder<'_> {
         } = self.spans[span].clone();
         match kind {
             SpanKind::Text => {
-                let whole = self.spans[span].range.clone();
+                let spanned = &self.spans[span].range;
+                let whole =
+                    spanned.start.max(self.paragraph.start)..spanned.end.min(self.paragraph.end);
                 let shaped = match &self.whole[span] {
-                    Some(shaped) => shaped.clone(),
-                    None => {
+                    Some((shaped, galley)) if *shaped == whole => galley.clone(),
+                    _ => {
                         let shaped = self
                             .shaper
                             .galley(self.text.get(whole.clone()).unwrap_or(""), style.font);
-                        self.whole[span] = Some(shaped.clone());
+                        self.whole[span] = Some((whole.clone(), shaped.clone()));
                         shaped
                     }
                 };
@@ -405,7 +408,10 @@ impl Builder<'_> {
             .iter()
             .take_while(|(next, _)| *next <= to)
             .find(|(next, _)| *next > byte && (good.is_none() || *next == to || self.good(*next)))
-            .map_or(f32::INFINITY, |(_, x)| x - origin);
+            .map_or(f32::INFINITY, |(next, x)| match *next == to {
+                true => stops[stops.partition_point(|(byte, _)| *byte <= to) - 1].1 - origin,
+                false => x - origin,
+            });
         if good.is_none() {
             limit = limit.min(reach / (1.0 - WRAP_FALLBACK_REMAINING_WIDTH));
         }
@@ -496,6 +502,7 @@ impl RichLayout {
             text,
             spans: &spans,
             shaper,
+            paragraph: 0..0,
             whole: vec![None; spans.len()],
         };
         let kept = previous.map_or(0, |(previous, changed)| {
@@ -514,6 +521,7 @@ impl RichLayout {
         loop {
             let end = text[start..].find('\n').map_or(text.len(), |at| start + at);
             let mut from = resume.take().unwrap_or(start);
+            builder.paragraph = start..end;
             let whole = builder.runs(start, end);
             let total = whole.last().map_or(0.0, |run| run.x + run.width);
             let stops = match total > options.wrap_width || from != start {
@@ -566,6 +574,10 @@ impl RichLayout {
             reach,
             limit,
         }
+    }
+
+    pub fn wraps(&self) -> Wraps {
+        Wraps::between(self.reach, self.limit)
     }
 
     pub fn fits(&self, wrap_width: f32) -> bool {

@@ -173,6 +173,7 @@ struct Inner {
     cursors: ReadSignal<u64>,
     set_cursors: WriteSignal<u64>,
     cursor_counter: Cell<u64>,
+    rows_built: Cell<u64>,
     layout: ReadSignal<TextAreaLayout>,
     set_layout: WriteSignal<TextAreaLayout>,
 }
@@ -223,6 +224,7 @@ impl TextAreaState {
             cursors,
             set_cursors,
             cursor_counter: Cell::new(0),
+            rows_built: Cell::new(0),
             layout,
             set_layout,
         }));
@@ -271,6 +273,15 @@ impl TextAreaState {
     pub fn content(&self) -> ReadSignal<u64> {
         let inner = self.0.get();
         inner.content
+    }
+
+    pub fn rows_built(&self) -> u64 {
+        self.0.with(|inner| inner.rows_built.get())
+    }
+
+    pub(super) fn count_row_built(&self) {
+        self.0
+            .with(|inner| inner.rows_built.set(inner.rows_built.get() + 1));
     }
 
     pub fn cursors(&self) -> ReadSignal<u64> {
@@ -507,7 +518,6 @@ impl TextAreaState {
                 widgets,
                 client_colors: &[],
                 composition: None,
-                selection: &[],
                 colors: &colors,
                 options,
                 spacers: &[],
