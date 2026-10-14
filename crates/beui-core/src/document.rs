@@ -364,6 +364,16 @@ impl Document {
         self.root
     }
 
+    fn relay_for_viewport(&mut self) {
+        let Some(root) = self.root else {
+            return;
+        };
+        self.arena.invalidate_node(root);
+        for overlay in self.open_overlays() {
+            self.arena.invalidate_node(overlay);
+        }
+    }
+
     pub fn reactive_scope(&self) -> &::reactive::Scope {
         &self.reactive_scope
     }
@@ -1081,7 +1091,7 @@ impl Document {
             .read()
             .with_untracked(|shown| *shown != screens);
         if rescreened {
-            self.arena.invalidate();
+            self.relay_for_viewport();
             *self.rescreened.borrow_mut() = Some(screens);
         }
         if refonted
@@ -1098,7 +1108,15 @@ impl Document {
                     .as_ref()
                     .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
             self.reattached.set(self.reattached.get() || reattached);
-            self.arena.invalidate();
+            let only_moved = !reattached
+                && self
+                    .viewport
+                    .as_ref()
+                    .is_some_and(|(_, _, old_scale)| *old_scale == scale);
+            match only_moved {
+                true => self.relay_for_viewport(),
+                false => self.arena.invalidate(),
+            }
             self.viewport = Some((ctx.clone(), rect, scale));
         }
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {

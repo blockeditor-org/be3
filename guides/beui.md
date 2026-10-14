@@ -2229,8 +2229,11 @@ and the scopes under it; a write the build makes to a signal outside its
 subtree wakes that signal's effects once the walk has finished, which is what
 keeps a build confined to its node.
 
-Layout is a function of the tree and the constraints it is offered. Two nodes
-build during it:
+Layout is a function of the tree and the constraints it is offered, so a new
+window size or set of screens lays the tree out again from its root and every
+node offered the space it had keeps its measurements, placement and paint; only
+a new scale, new fonts or a new context lay out everything. Two nodes build
+during it:
 
 - `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the size it is
   laid out at, on each axis its parent bounds (an axis the parent measured it
