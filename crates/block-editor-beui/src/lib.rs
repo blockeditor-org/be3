@@ -14,6 +14,7 @@ mod file_chooser;
 pub mod fonts;
 pub mod headless;
 mod instance;
+mod loading;
 mod related_content;
 pub mod version_control;
 
@@ -32,7 +33,8 @@ pub use editor::{
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use instance::BeuiPlugin;
-pub use related_content::RelatedContent;
+pub use loading::Loading;
+pub use related_content::{RelatedContent, content_settled};
 pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {

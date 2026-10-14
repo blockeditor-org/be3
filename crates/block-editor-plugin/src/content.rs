@@ -190,7 +190,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     }
 
     fn operate(&self, operation: C::Op) {
-        if !self.host.editable() {
+        if !self.host.editable() || !self.loaded.get() {
             return;
         }
         self.operate_anyway(operation);
