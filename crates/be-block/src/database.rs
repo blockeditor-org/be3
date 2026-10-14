@@ -575,6 +575,15 @@ impl Root for Database {
         metadata.insert(&crate::metadata::ROW_PREFIX, &self.prefix.trim().to_owned());
     }
 
+    fn name_in(_document: &Document<Self>) -> Option<String> {
+        None
+    }
+
+    fn describe_in(document: &Document<Self>, metadata: &mut crate::BlockMetadata) {
+        let prefix = document.field(ObjectId::ROOT, Self::PREFIX);
+        metadata.insert(&crate::metadata::ROW_PREFIX, &prefix.trim().to_owned());
+    }
+
     fn references(&self) -> Vec<Uuid> {
         let mut seen = HashSet::new();
         self.schema
