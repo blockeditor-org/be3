@@ -1,9 +1,7 @@
 use std::ops::Range;
-use std::rc::Rc;
 
 use beui::reactive::{
-    Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, NodeRef, Prop, ReadSignal, clone,
-    component, copy_text, create_memo, layout_text, pixels_per_point, view, with_document,
+    Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, NodeRef, Prop, ReadSignal, component, copy_text, create_memo, layout_text, pixels_per_point, view, with_document,
 };
 use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;
@@ -13,7 +11,7 @@ use beui::{
 };
 use text_editor_core::{CursorLeftRightStop, EditorCommand, LRDirection};
 
-use crate::app::state::Shared;
+use crate::app::state::State;
 
 const BYTES_PER_ROW: usize = 16;
 const GROUP_SIZE: usize = 8;
@@ -90,11 +88,11 @@ fn nearest_column(centers: &[f32; BYTES_PER_ROW], center_offset: f32, x: f32) ->
     best
 }
 
-fn document_len(state: &Shared) -> usize {
+fn document_len(state: State) -> usize {
     state.text.bytes().len()
 }
 
-fn cursor_range(state: &Shared) -> Range<usize> {
+fn cursor_range(state: State) -> Range<usize> {
     state.text.with_core(|core| {
         core.cursor_positions()
             .first()
@@ -104,7 +102,7 @@ fn cursor_range(state: &Shared) -> Range<usize> {
     })
 }
 
-fn select_byte(state: &Shared, index: usize) {
+fn select_byte(state: State, index: usize) {
     let len = document_len(state);
     let index = index.min(len);
     let insert = state.hex_insert_mode.get_untracked();
@@ -120,7 +118,7 @@ fn select_byte(state: &Shared, index: usize) {
         .execute(EditorCommand::SetSelection { anchor, focus });
 }
 
-fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
+fn set_range(state: State, anchor_byte: usize, target_byte: usize) {
     let len = document_len(state);
     let anchor_byte = anchor_byte.min(len);
     let target_byte = target_byte.min(len);
@@ -141,7 +139,7 @@ fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
         .execute(EditorCommand::SetSelection { anchor, focus });
 }
 
-fn commit_byte(state: &Shared, byte_index: usize, byte: u8) {
+fn commit_byte(state: State, byte_index: usize, byte: u8) {
     let len = document_len(state);
     let insert = state.hex_insert_mode.get_untracked();
     let overwrite_end = match !insert && byte_index < len {
@@ -159,21 +157,21 @@ fn commit_byte(state: &Shared, byte_index: usize, byte: u8) {
         .execute(EditorCommand::SetSelection { anchor, focus });
     state.text.execute(EditorCommand::InsertText(&[byte]));
     let next = byte_index + 1;
-    state.hex_selection_anchor.set(Some(next));
+    state.inner().hex_selection_anchor.set(Some(next));
     if !insert {
         select_byte(state, next);
     }
 }
 
-fn type_nibble(state: &Shared, digit: u8) {
+fn type_nibble(state: State, digit: u8) {
     let byte_index = cursor_range(state).start;
-    match state.hex_pending_nibble.take() {
-        None => state.hex_pending_nibble.set(Some(digit)),
+    match state.inner().hex_pending_nibble.take() {
+        None => state.inner().hex_pending_nibble.set(Some(digit)),
         Some(high) => commit_byte(state, byte_index, (high << 4) | digit),
     }
 }
 
-pub(crate) fn type_text(state: &Shared, text: &str) {
+pub(crate) fn type_text(state: State, text: &str) {
     for character in text.chars() {
         if let Some(digit) = character.to_digit(16) {
             type_nibble(state, digit as u8);
@@ -181,20 +179,20 @@ pub(crate) fn type_text(state: &Shared, text: &str) {
     }
 }
 
-fn delete(state: &Shared, direction: LRDirection) {
-    state.hex_pending_nibble.set(None);
+fn delete(state: State, direction: LRDirection) {
+    state.inner().hex_pending_nibble.set(None);
     state.text.execute(EditorCommand::Delete {
         direction,
         stop: CursorLeftRightStop::Byte,
     });
     let index = cursor_range(state).start;
-    state.hex_selection_anchor.set(Some(index));
+    state.inner().hex_selection_anchor.set(Some(index));
     if !state.hex_insert_mode.get_untracked() {
         select_byte(state, index);
     }
 }
 
-fn copy(state: &Shared, cut: bool) {
+fn copy(state: State, cut: bool) {
     let range = cursor_range(state);
     if range.is_empty() {
         return;
@@ -219,7 +217,7 @@ fn copy(state: &Shared, cut: bool) {
     }
 }
 
-fn navigate(state: &Shared, press: KeyPress) -> bool {
+fn navigate(state: State, press: KeyPress) -> bool {
     let len = document_len(state);
     let current = cursor_range(state).start;
     let modifiers = press.modifiers;
@@ -236,19 +234,19 @@ fn navigate(state: &Shared, press: KeyPress) -> bool {
         Key::PageDown => (current + BYTES_PER_ROW * PAGE_ROWS).min(len),
         _ => return false,
     };
-    state.hex_pending_nibble.set(None);
+    state.inner().hex_pending_nibble.set(None);
     if modifiers.shift {
-        let anchor = state.hex_selection_anchor.get().unwrap_or(current);
-        state.hex_selection_anchor.set(Some(anchor));
+        let anchor = state.inner().hex_selection_anchor.get().unwrap_or(current);
+        state.inner().hex_selection_anchor.set(Some(anchor));
         set_range(state, anchor, target);
     } else {
-        state.hex_selection_anchor.set(Some(target));
+        state.inner().hex_selection_anchor.set(Some(target));
         select_byte(state, target);
     }
     true
 }
 
-fn key(state: &Shared, press: KeyPress) -> bool {
+fn key(state: State, press: KeyPress) -> bool {
     if !press.pressed {
         return false;
     }
@@ -259,18 +257,18 @@ fn key(state: &Shared, press: KeyPress) -> bool {
         Key::Backspace => delete(state, LRDirection::Left),
         Key::Delete => delete(state, LRDirection::Right),
         Key::A if modifiers.ctrl => {
-            state.hex_pending_nibble.set(None);
+            state.inner().hex_pending_nibble.set(None);
             state.text.execute(EditorCommand::SelectAll);
         }
         Key::Z if modifiers.ctrl => {
-            state.hex_pending_nibble.set(None);
+            state.inner().hex_pending_nibble.set(None);
             state.text.execute(match modifiers.shift {
                 true => EditorCommand::Redo,
                 false => EditorCommand::Undo,
             });
         }
         Key::Y if modifiers.ctrl => {
-            state.hex_pending_nibble.set(None);
+            state.inner().hex_pending_nibble.set(None);
             state.text.execute(EditorCommand::Redo);
         }
         _ => return navigate(state, press),
@@ -278,7 +276,7 @@ fn key(state: &Shared, press: KeyPress) -> bool {
     true
 }
 
-fn page(state: &Shared, geometry: &HexGeometry, size: Vec2) -> Page {
+fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
     let bytes = state.text.bytes();
     let len = bytes.len();
     let rows = len.div_ceil(BYTES_PER_ROW).max(1);
@@ -363,7 +361,7 @@ fn page(state: &Shared, geometry: &HexGeometry, size: Vec2) -> Page {
 }
 
 #[component]
-pub(crate) fn HexView(state: Shared) -> NodeId {
+pub(crate) fn HexView(state: State) -> NodeId {
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
@@ -377,10 +375,10 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
                     HexGeometry::new(char_width)
                 });
                 let content = state.text.content();
-                let rows = create_memo(clone!(state -> move || {
+                let rows = create_memo(move || {
                     content.get();
                     state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
-                }));
+                });
                 let content_size = create_memo(move || {
                     let available = size.get();
                     Vec2::new(
@@ -390,37 +388,32 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
                 });
                 let width = create_memo(move || content_size.get().x);
                 let height = create_memo(move || content_size.get().y);
-                let drawn = create_memo(clone!(state -> move || {
+                let drawn = create_memo(move || {
                     content.get();
                     state.text.cursors().get();
-                    page(&state, &geometry.get(), content_size.get())
-                }));
+                    page(state, &geometry.get(), content_size.get())
+                });
                 let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
 
-                let cx = Rc::new(HexSurface {
-                    state: state.clone(),
+                let cx = HexSurface {
+                    state,
                     geometry,
                     rows,
                     canvas,
-                });
-                let press_cx = cx.clone();
-                let drag_cx = cx.clone();
-                let release_state = state.clone();
-                let key_state = state.clone();
-                let text_state = state.clone();
+                };
                 view! {
                     <Frame color={COLORS.surface}>
                         <Scroll focus_color={Color32::TRANSPARENT}>
                             <Interactive
                                 focusable=true
-                                on_key={move |press: KeyPress| key(&key_state, press)}
-                                on_text={move |typed: String| type_text(&text_state, &typed)}
+                                on_key={move |press: KeyPress| key(state, press)}
+                                on_text={move |typed: String| type_text(state, &typed)}
                                 cursor=CursorIcon::Text
-                                on_press={move |event: PointerPress| hex_press(&press_cx, event)}
-                                on_drag={move |event: PointerPress| hex_drag(&drag_cx, event)}
+                                on_press={move |event: PointerPress| hex_press(cx, event)}
+                                on_drag={move |event: PointerPress| hex_drag(cx, event)}
                                 on_active_change={move |active: bool| {
                                     if !active {
-                                        release_state.hex_selection_anchor.set(None);
+                                        state.inner().hex_selection_anchor.set(None);
                                     }
                                 }}
                             >
@@ -436,8 +429,9 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
     }
 }
 
+#[derive(Clone, Copy)]
 struct HexSurface {
-    state: Shared,
+    state: State,
     geometry: Memo<HexGeometry>,
     rows: Memo<usize>,
     canvas: NodeRef,
@@ -455,7 +449,7 @@ impl HexSurface {
 
     fn target(&self, pos: Pos2) -> Option<usize> {
         let local = self.local(pos)?;
-        let len = document_len(&self.state);
+        let len = document_len(self.state);
         Some(
             self.geometry
                 .get_untracked()
@@ -465,21 +459,21 @@ impl HexSurface {
     }
 }
 
-fn hex_press(cx: &Rc<HexSurface>, press: PointerPress) {
+fn hex_press(cx: HexSurface, press: PointerPress) {
     let Some(target) = cx.target(press.pos) else {
         return;
     };
-    cx.state.hex_pending_nibble.set(None);
-    cx.state.hex_selection_anchor.set(Some(target));
-    select_byte(&cx.state, target);
+    cx.state.inner().hex_pending_nibble.set(None);
+    cx.state.inner().hex_selection_anchor.set(Some(target));
+    select_byte(cx.state, target);
 }
 
-fn hex_drag(cx: &Rc<HexSurface>, press: PointerPress) {
-    let Some(anchor) = cx.state.hex_selection_anchor.get() else {
+fn hex_drag(cx: HexSurface, press: PointerPress) {
+    let Some(anchor) = cx.state.inner().hex_selection_anchor.get() else {
         return;
     };
     let Some(target) = cx.target(press.pos) else {
         return;
     };
-    set_range(&cx.state, anchor, target);
+    set_range(cx.state, anchor, target);
 }

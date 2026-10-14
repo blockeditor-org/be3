@@ -6,8 +6,7 @@ use beui::icons::{
     ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
 };
 use beui::reactive::{
-    Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone,
-    component, create_memo, create_signal, view, with_document,
+    Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component, create_memo, create_signal, view, with_document,
 };
 use beui::styled::{Body, Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
 use beui::unstyled::{ChoiceOption, Scroll};
@@ -15,7 +14,7 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
-use super::state::Shared;
+use super::state::State;
 
 const TOOLBAR_SPACING: f32 = 6.0;
 const SETTINGS_SPACING: f32 = 10.0;
@@ -24,24 +23,23 @@ const NUMBER_WIDTH: f32 = 70.0;
 const FORMAT_PADDING: f32 = 6.0;
 
 #[component]
-pub(crate) fn EditorMenu(state: Shared) -> NodeId {
+pub(crate) fn EditorMenu(state: State) -> NodeId {
     let (settings, set_settings) = create_signal(false);
-    menu_actions(&state, set_settings);
+    menu_actions(state, set_settings);
     let hex = state.hex_view;
     let text_view = create_memo(move || !hex.get());
     let hex_view = create_memo(move || hex.get());
-    let text_state = state.clone();
     view! {
         <Dialog open={settings} title="Text settings" on_dismiss={move || set_settings.set(false)}>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={text_view}>
                     {move || view! {
-                        <TextSettings state={text_state.clone()} />
+                        <TextSettings state={state} />
                     }}
                 </Show>
                 <Show condition={hex_view}>
                     {move || view! {
-                        <HexSettings state={state.clone()} />
+                        <HexSettings state={state} />
                     }}
                 </Show>
             </List>
@@ -49,13 +47,13 @@ pub(crate) fn EditorMenu(state: Shared) -> NodeId {
     }
 }
 
-fn menu_actions(state: &Shared, set_settings: WriteSignal<bool>) {
+fn menu_actions(state: State, set_settings: WriteSignal<bool>) {
     let hex = state.hex_view;
     let in_text = create_memo(move || !hex.get());
     Action::new(
         "text.hex",
         "Toggle hex view",
-        clone!(state -> move || state.toggle_hex_view()),
+        move || state.toggle_hex_view(),
     )
     .glyph(ICON_DATA_ARRAY)
     .checked(create_memo(move || hex.get()))
@@ -64,7 +62,7 @@ fn menu_actions(state: &Shared, set_settings: WriteSignal<bool>) {
     Action::new(
         "text.insert-block",
         "Insert a block",
-        clone!(state -> move || pick_block(&state)),
+        move || pick_block(state),
     )
     .glyph(ICON_ADD_BOX)
     .enabled(in_text)
@@ -151,13 +149,13 @@ const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
     ),
 ];
 
-pub(crate) fn format_actions(state: &Shared) -> Vec<Action> {
+pub(crate) fn format_actions(state: State) -> Vec<Action> {
     let content = state.text.content();
     let hex = state.hex_view;
-    let markdown = create_memo(clone!(state -> move || {
+    let markdown = create_memo(move || {
         content.get();
         !hex.get() && state.text.language() == TextLanguage::Markdown
-    }));
+    });
     FORMATS
         .iter()
         .map(|(id, label, glyph, command, chord)| {
@@ -165,7 +163,7 @@ pub(crate) fn format_actions(state: &Shared) -> Vec<Action> {
             let mut action = Action::new(
                 *id,
                 *label,
-                clone!(state -> move || state.text.execute(EditorCommand::Markdown(command))),
+                move || state.text.execute(EditorCommand::Markdown(command)),
             )
             .glyph(glyph)
             .enabled(markdown);
@@ -178,7 +176,7 @@ pub(crate) fn format_actions(state: &Shared) -> Vec<Action> {
 }
 
 #[component]
-pub(crate) fn FormatBar(state: Shared, formats: Vec<Action>) -> NodeId {
+pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
     let theme = use_theme();
     let typing = state.typing;
     let hex = state.hex_view;
@@ -186,10 +184,10 @@ pub(crate) fn FormatBar(state: Shared, formats: Vec<Action>) -> NodeId {
     let touch = state.text.touch_mode();
     let keyboard = create_memo(move || touch.get());
     let content = state.text.content();
-    let markdown = create_memo(clone!(state -> move || {
+    let markdown = create_memo(move || {
         content.get();
         state.text.language() == TextLanguage::Markdown
-    }));
+    });
     let controls = move || {
         let formats = formats.clone();
         view! {
@@ -259,7 +257,7 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
 }
 
 #[component]
-fn HexSettings(state: Shared) -> NodeId {
+fn HexSettings(state: State) -> NodeId {
     let insert = state.hex_insert_mode;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
@@ -270,7 +268,7 @@ fn HexSettings(state: Shared) -> NodeId {
                 @test_id={"text.hex-insert"}
                 on_change={move |pressed: bool| {
                     state.set_hex_insert_mode.set(pressed);
-                    state.hex_pending_nibble.set(None);
+                    state.inner().hex_pending_nibble.set(None);
                 }}
             />
         </List>
@@ -278,16 +276,16 @@ fn HexSettings(state: Shared) -> NodeId {
 }
 
 #[component]
-fn TextSettings(state: Shared) -> NodeId {
+fn TextSettings(state: State) -> NodeId {
     let content = state.text.content();
-    let language = create_memo(clone!(state -> move || {
+    let language = create_memo(move || {
         content.get();
         state.text.language()
-    }));
-    let indentation = create_memo(clone!(state -> move || {
+    });
+    let indentation = create_memo(move || {
         content.get();
         state.text.indentation()
-    }));
+    });
     let language_index = create_memo(move || {
         TextLanguage::ALL
             .iter()
@@ -304,9 +302,6 @@ fn TextSettings(state: Shared) -> NodeId {
         TextIndentation::Spaces { width } => f64::from(width),
         TextIndentation::Tabs => 2.0,
     });
-    let language_state = state.clone();
-    let indentation_state = state.clone();
-    let width_state = state;
     view! {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
@@ -329,7 +324,7 @@ fn TextSettings(state: Shared) -> NodeId {
                             let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
                                 return;
                             };
-                            language_state.text.execute(EditorCommand::SetLanguage(*choice));
+                            state.text.execute(EditorCommand::SetLanguage(*choice));
                         }}
                     />
                 </Frame>
@@ -350,13 +345,13 @@ fn TextSettings(state: Shared) -> NodeId {
                                 Some(1) => TextIndentation::Spaces { width: 2 },
                                 _ => TextIndentation::Tabs,
                             };
-                            indentation_state.text.execute(EditorCommand::SetIndentation(indentation));
+                            state.text.execute(EditorCommand::SetIndentation(indentation));
                         }}
                     />
                 </Frame>
             </List>
             <Show condition={spaces}>
-                {move || clone!(width_state -> view! {
+                {move || view! {
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
@@ -370,23 +365,22 @@ fn TextSettings(state: Shared) -> NodeId {
                                 min=1.0
                                 max=8.0
                                 @test_id={"text.indentation-width"}
-                                on_change={clone!(width_state -> move |value: f64| {
+                                on_change={move |value: f64| {
                                     let width = value.round().clamp(1.0, 8.0) as u8;
-                                    width_state.text.execute(EditorCommand::SetIndentation(
+                                    state.text.execute(EditorCommand::SetIndentation(
                                         TextIndentation::Spaces { width },
                                     ));
-                                })}
+                                }}
                             />
                         </Frame>
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }
 }
 
-fn pick_block(state: &Shared) {
-    let picked = state.clone();
+fn pick_block(state: State) {
     state.editor.pick_block(
         BlockFilter {
             name: "Insert".to_owned(),
@@ -399,15 +393,19 @@ fn pick_block(state: &Shared) {
             let Ok(block) = result else {
                 return;
             };
-            picked
+            if !state.is_alive() {
+                return;
+            }
+            state
+                .inner()
                 .client
-                .set_parent(block.id, BlockParent::Block(picked.block_id));
-            let types = picked.host().block_types();
-            let name = match picked.client.info(block.id) {
+                .set_parent(block.id, BlockParent::Block(state.block_id));
+            let types = state.host().block_types();
+            let name = match state.inner().client.info(block.id) {
                 Some(info) => info.label(types.as_ref()).name,
                 None => BlockLabel::new(types.as_ref(), block.block_type, None, false).name,
             };
-            picked.insert_image_embed(block.id, &name);
+            state.insert_image_embed(block.id, &name);
         },
     );
 }
