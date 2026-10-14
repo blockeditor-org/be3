@@ -11,6 +11,7 @@ use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::image::Image;
 use crate::node::{NodeId, SpaceId};
 use crate::pixel_grid::PixelGrid;
+use crate::rich::{Piece, RichLayout, RichOptions, Shaper};
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Corners {
@@ -396,6 +397,10 @@ impl Painter {
         self.context.layout(text, font, layout)
     }
 
+    pub fn rich_layout(&self, pieces: &[Piece], options: RichOptions) -> RichLayout {
+        RichLayout::new(pieces, options, &mut PainterShaper(self))
+    }
+
     pub fn rect_filled(&self, rect: Rect, corner_radius: impl Into<Corners>, color: Color32) {
         if color.alpha() == 0 {
             return;
@@ -555,4 +560,16 @@ pub fn placed_shape(shape: &Shape, offset: Vec2, space_clip: Rect) -> Shape {
         }
     }
     shape
+}
+
+struct PainterShaper<'a>(&'a Painter);
+
+impl Shaper for PainterShaper<'_> {
+    fn galley(&mut self, text: &str, font: FontId) -> Galley {
+        self.0.layout_text(text, font, TextLayout::DEFAULT)
+    }
+
+    fn slice(&mut self, galley: &Galley, range: std::ops::Range<usize>, _font: FontId) -> Galley {
+        galley.slice(range, self.0.ctx().pixels_per_point())
+    }
 }

@@ -758,27 +758,12 @@ pub fn rich_layout(
     padding: (f32, f32),
     wrap_width: f32,
 ) -> Option<RichLayout> {
-    galley("", FontId::proportional(body_size))?;
     let options = RichOptions {
         wrap_width,
         padding,
         style: SpanStyle::new(FontId::proportional(body_size), Color32::WHITE),
     };
-    let mut shaper =
-        |text: &str, font: FontId| galley(text, font).unwrap_or_else(|| empty_galley(font));
-    Some(RichLayout::new(&row.pieces(), options, &mut shaper))
-}
-
-fn empty_galley(font: FontId) -> Galley {
-    Galley::new(
-        "",
-        font,
-        Vec2::ZERO,
-        0.0,
-        0.0,
-        Vec::new(),
-        Vec::new(),
-    )
+    beui_view::reactive::rich_layout(&row.pieces(), options)
 }
 
 pub type TableSpacers = HashMap<usize, Vec<(usize, f32)>>;

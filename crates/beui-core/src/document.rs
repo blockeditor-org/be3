@@ -1909,6 +1909,15 @@ impl Document {
         Some(ctx.painter().layout_text(text, font, layout))
     }
 
+    pub fn rich_layout(
+        &self,
+        pieces: &[crate::rich::Piece],
+        options: crate::rich::RichOptions,
+    ) -> Option<crate::rich::RichLayout> {
+        let (ctx, _, _) = self.viewport.as_ref()?;
+        Some(ctx.painter().rich_layout(pieces, options))
+    }
+
     pub fn pixel_grid(&self) -> PixelGrid {
         PixelGrid::new(self.pixels_per_point())
     }
