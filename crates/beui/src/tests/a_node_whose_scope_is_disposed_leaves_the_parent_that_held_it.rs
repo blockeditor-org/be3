@@ -12,8 +12,12 @@ fn a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it() {
             let scope = Scope::new();
             let (listed, framed) = scope.run(|| {
                 (
-                    view! { <Frame width=10.0 height=10.0 /> },
-                    view! { <Frame width=10.0 height=10.0 /> },
+                    view! {
+                        <Frame width=10.0 height=10.0 />
+                    },
+                    view! {
+                        <Frame width=10.0 height=10.0 />
+                    },
                 )
             });
             set_held.update(|held| *held = Some((scope, listed, framed)));

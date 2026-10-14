@@ -801,7 +801,10 @@ impl Document {
         let leaving: HashSet<NodeId> = ids.iter().copied().collect();
         let mut parents: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
         for &id in ids {
-            if let Some(parent) = self.arena.parent(id).filter(|parent| !leaving.contains(parent))
+            if let Some(parent) = self
+                .arena
+                .parent(id)
+                .filter(|parent| !leaving.contains(parent))
             {
                 parents.entry(parent).or_default().push(id);
             }

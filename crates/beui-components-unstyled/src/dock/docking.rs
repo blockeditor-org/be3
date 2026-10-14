@@ -13,10 +13,9 @@ use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
-    Callback, Children, ClickCallback, Frame, Func,
-    IntoProp, Memo, OwnedStored, Prop, ReadSignal, RenderFn, RootScope,
-    Run, Scope, Stored, WriteSignal, create_effect, create_memo, create_signal, store,
-    untrack,
+    Callback, Children, ClickCallback, Frame, Func, IntoProp, Memo, OwnedStored, Prop, ReadSignal,
+    RenderFn, RootScope, Run, Scope, Stored, WriteSignal, create_effect, create_memo,
+    create_signal, store, untrack,
 };
 use serde::{Deserialize, Serialize};
 

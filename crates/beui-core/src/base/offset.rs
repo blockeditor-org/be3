@@ -215,7 +215,12 @@ impl Element for OffsetNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (_, cross) = self.direction.main_and_cross(available);
         let size = self.child.map_or(Vec2::ZERO, |child| {
-            crate::layout::measure(doc, painter, child, self.direction.axes(f32::INFINITY, cross))
+            crate::layout::measure(
+                doc,
+                painter,
+                child,
+                self.direction.axes(f32::INFINITY, cross),
+            )
         });
         let (length, content) = self.direction.main_and_cross(size);
         let length = match self.fits {
@@ -240,7 +245,10 @@ impl Element for OffsetNode {
             + self.drift(doc, out, host, anchor)
             + self.revealed(doc, out, host, main);
         let measured = self.content_length(doc, painter, cross);
-        if shift != 0.0 || measured != content || self.child.is_some_and(|child| doc.arena.unplaced(child)) {
+        if shift != 0.0
+            || measured != content
+            || self.child.is_some_and(|child| doc.arena.unplaced(child))
+        {
             self.offset = (self.offset + shift).max(0.0);
             position = self.settled(main, measured);
             doc.rewind_placing(base);

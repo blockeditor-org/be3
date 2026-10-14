@@ -47,5 +47,9 @@ fn a_scope_opened_inside_an_effect_lives_until_its_handle_drops() {
     );
 
     opened.borrow_mut().clear();
-    assert_eq!(cleanups.get(), 2, "dropping the handles disposes the scopes");
+    assert_eq!(
+        cleanups.get(),
+        2,
+        "dropping the handles disposes the scopes"
+    );
 }

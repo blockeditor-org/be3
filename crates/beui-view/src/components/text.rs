@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use crate::reactive::{
-    Child, ChildSegment, ChildValue, Children, FromPlaced, IntoChild, IntoProp,
-    IntoSegment, IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId,
-    create_effect, with_document,
+    Child, ChildSegment, ChildValue, Children, FromPlaced, IntoChild, IntoProp, IntoSegment,
+    IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId, create_effect,
+    with_document,
 };
 use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart};
 use beui_core::color::Color32;
