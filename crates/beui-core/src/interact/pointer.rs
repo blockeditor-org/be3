@@ -83,6 +83,50 @@ pub(crate) fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, to
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Kind {
+    finger: bool,
+    reaches: bool,
+    settles: bool,
+    holds_sink: bool,
+    buttons: bool,
+    shows_cursor: bool,
+}
+
+impl Kind {
+    const MOUSE: Kind = Kind {
+        finger: false,
+        reaches: false,
+        settles: false,
+        holds_sink: true,
+        buttons: true,
+        shows_cursor: true,
+    };
+
+    const FINGER: Kind = Kind {
+        finger: true,
+        reaches: true,
+        settles: true,
+        holds_sink: false,
+        buttons: false,
+        shows_cursor: false,
+    };
+
+    fn of(pointer: PointerId) -> Kind {
+        match pointer {
+            PointerId::Mouse => Kind::MOUSE,
+            PointerId::Touch(_) => Kind::FINGER,
+        }
+    }
+
+    fn held_sink(self, doc: &Document, pointer: PointerId) -> Option<NodeId> {
+        match self.holds_sink {
+            true => doc.pointers.sink_of(pointer),
+            false => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Role {
     Press,
     Secondary,
@@ -93,6 +137,7 @@ enum Role {
 
 struct Session {
     pointer: PointerId,
+    kind: Kind,
     button: PointerButton,
     role: Role,
     origin: Pos2,
@@ -121,12 +166,8 @@ struct Session {
 }
 
 impl Session {
-    fn touch(&self) -> bool {
-        self.pointer.is_touch()
-    }
-
     fn press(&self, rect: Rect, pos: Pos2) -> PointerPress {
-        press_at(rect, pos, self.clicks, self.modifiers, self.touch())
+        press_at(rect, pos, self.clicks, self.modifiers, self.kind.finger)
     }
 
     fn secondary(&self, pos: Pos2) -> SecondaryDrag {
@@ -342,13 +383,12 @@ fn down(
         let stale = doc.pointers.sessions.remove(index);
         end(doc, frame, stale, true);
     }
-    let touch = event.pointer.is_touch();
-    let finger = touch && primary_touch(doc).is_some();
-    let role = match (touch, finger, button) {
-        (true, true, _) => Role::Finger,
-        (_, _, PointerButton::Primary) => Role::Press,
-        (false, _, PointerButton::Secondary) => Role::Secondary,
-        (false, _, PointerButton::Middle) => Role::Middle,
+    let kind = Kind::of(event.pointer);
+    let role = match button {
+        _ if kind.finger && primary_touch(doc).is_some() => Role::Finger,
+        PointerButton::Primary => Role::Press,
+        PointerButton::Secondary if kind.buttons => Role::Secondary,
+        PointerButton::Middle if kind.buttons => Role::Middle,
         _ => Role::Other,
     };
     let hit = hit(
@@ -356,7 +396,7 @@ fn down(
         frame.rects,
         frame.root,
         event.pos,
-        touch && role == Role::Press,
+        kind.reaches && role == Role::Press,
     );
     let down = Down {
         event,
@@ -369,7 +409,7 @@ fn down(
         return None;
     }
     doc.acted = Acted::Pointer(event.pos + down.hit.shift);
-    if touch {
+    if kind.settles {
         press_down(doc, frame, down);
         return None;
     }
@@ -387,7 +427,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         role,
         hit,
     } = down;
-    let touch = event.pointer.is_touch();
+    let kind = Kind::of(event.pointer);
     let pos = event.pos + hit.shift;
     let claimant = match role {
         Role::Press | Role::Secondary => {
@@ -395,11 +435,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         }
         _ => None,
     };
-    let captor = match event.pointer {
-        PointerId::Mouse => doc.pointers.sink_of(PointerId::Mouse),
-        PointerId::Touch(_) => None,
-    };
-    let sink = captor.or_else(|| match claimant {
+    let sink = kind.held_sink(doc, event.pointer).or_else(|| match claimant {
         Some(claimant) => interactive(doc, claimant)
             .is_some_and(InteractiveNode::forwards)
             .then_some(claimant),
@@ -408,6 +444,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
     doc.pointers.route(sink);
     let mut session = Session {
         pointer: event.pointer,
+        kind,
         button,
         role,
         origin: pos,
@@ -432,7 +469,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         dragged_this_frame: false,
         samples: VecDeque::from([(frame.now, pos)]),
         velocity: Vec2::ZERO,
-        outside: match touch && role == Role::Press {
+        outside: match kind.settles && role == Role::Press {
             true => Some(hit.outside.clone()),
             false => None,
         },
@@ -508,7 +545,7 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
             on_active_change.call(active);
         }
     }
-    if session.touch() {
+    if session.kind.settles {
         session.long_press = Some(frame.now + frame.long_press);
         frame.ctx.request_repaint_after(frame.long_press);
     } else if doc.focused_node() == focused {
@@ -648,8 +685,8 @@ fn with_session(
 fn follow(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2, releasing: bool) {
     match session.role {
         Role::Press => {
-            if session.touch() {
-                track_touch(doc, frame, session, pos);
+            if session.kind.settles {
+                settle(doc, frame, session, pos);
             }
             session.pos = pos;
             let last = match releasing {
@@ -681,7 +718,7 @@ fn follow(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2, r
     }
 }
 
-fn track_touch(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2) {
+fn settle(doc: &mut Document, frame: &Frame, session: &mut Session, pos: Pos2) {
     sample(session, frame.now, pos);
     if session.cancelled {
         return;
@@ -801,19 +838,14 @@ fn sample(session: &mut Session, now: Instant, pos: Pos2) {
 
 fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerButton) {
     let primary = is_primary(doc, event.pointer);
+    let kind = Kind::of(event.pointer);
     let Some(index) = find(doc, event.pointer, Some(button)) else {
-        let sink = match event.pointer {
-            PointerId::Mouse => doc.pointers.sink_of(PointerId::Mouse),
-            PointerId::Touch(_) => None,
-        };
+        let sink = kind.held_sink(doc, event.pointer);
         doc.pointers.route(sink);
         return;
     };
     let mut session = doc.pointers.sessions.remove(index);
-    let sink = match event.pointer {
-        PointerId::Mouse => doc.pointers.sink_of(PointerId::Mouse).or(session.sink),
-        PointerId::Touch(_) => session.sink,
-    };
+    let sink = kind.held_sink(doc, event.pointer).or(session.sink);
     doc.pointers.route(sink);
     let pos = event.pos + session.shift;
     follow(doc, frame, &mut session, pos, true);
@@ -835,7 +867,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                     let Some(rect) = rect_of(doc, frame.rects, *owner) else {
                         continue;
                     };
-                    let clicked = match session.touch() {
+                    let clicked = match session.kind.settles {
                         true => !session.dragged,
                         false => over(frame.rects, *owner, pos),
                     };
@@ -857,7 +889,11 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                 }
             }
             scroll_drag(doc, &mut session, Vec2::ZERO, !cancelled, cancelled);
-            if session.touch() && !session.dragged && !cancelled && doc.focused_node() == focused {
+            if session.kind.settles
+                && !session.dragged
+                && !cancelled
+                && doc.focused_node() == focused
+            {
                 doc.press_focus(session.focus);
             }
             if let Some(outside) = session.outside.take()
@@ -986,7 +1022,7 @@ fn primary_touch(doc: &Document) -> Option<usize> {
     doc.pointers
         .sessions
         .iter()
-        .position(|session| session.touch() && session.role == Role::Press)
+        .position(|session| session.kind.finger && session.role == Role::Press)
 }
 
 fn finger_down(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
@@ -1386,7 +1422,7 @@ fn cursor(doc: &Document, frame: &Frame) {
         .pointers
         .sessions
         .iter()
-        .filter(|session| session.pointer == PointerId::Mouse && session.role == Role::Press)
+        .filter(|session| session.kind.shows_cursor && session.role == Role::Press)
         .flat_map(|session| session.owners.iter())
         .chain(doc.pointers.hovered.iter())
         .find_map(|id| interactive(doc, *id).and_then(|node| node.cursor));
@@ -1400,7 +1436,7 @@ fn track(doc: &mut Document, frame: &Frame) {
         .pointers
         .sessions
         .iter()
-        .find(|session| session.touch() && session.role == Role::Press)
+        .find(|session| session.kind.finger && session.role == Role::Press)
         .map_or(Vec2::ZERO, |session| session.shift);
     doc.pointers.shift = shift;
     let (pointer, touch, modifiers) = frame.ctx.input(|input| {
