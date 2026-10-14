@@ -422,6 +422,7 @@ impl Document {
         on_dismiss: Callback<Dismiss>,
     ) {
         self.arena.touch_mut_as::<OverlayNode>(overlay).on_dismiss = on_dismiss;
+        self.layer_state.changed();
     }
 
     pub fn is_overlay(&self, node: NodeId) -> bool {

@@ -222,7 +222,7 @@ fn route(doc: &Document, key: Key) -> Route {
             app,
         },
         nodes,
-        window: !layers.locks_window() || key.is_media(),
+        window: !layers.locked() || key.is_media(),
         inhibited,
     }
 }
@@ -426,7 +426,7 @@ fn scattered(doc: &Document, route: &Route) -> impl Fn(NodeId) -> bool {
 
 fn offer_from_app(doc: &mut Document, input: KeyInput) {
     let layers = doc.layers();
-    if layers.locks_window() && !matches!(input, KeyInput::Press(press) if press.key.is_media()) {
+    if layers.locked() && !matches!(input, KeyInput::Press(press) if press.key.is_media()) {
         return;
     }
     let event = KeyEvent {

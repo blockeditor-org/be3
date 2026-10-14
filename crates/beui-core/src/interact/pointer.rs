@@ -246,7 +246,7 @@ pub(crate) fn end_frame(doc: &mut Document, frame: &Frame) {
         .input(|input| input.pointer.pos.filter(|_| !input.pointer.from_touch()));
     hover(doc, frame, mouse);
     if let Some(fingers) = doc.pointers.fingers.tap
-        && !doc.modal_open()
+        && doc.layers().blocking() == 0
     {
         doc.finger_tap(fingers);
     }

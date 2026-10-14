@@ -1,0 +1,66 @@
+use super::*;
+use crate::base::overlay::{OverlayAnchor, Placement};
+use crate::LayerPolicy;
+use crate::reactive::{Frame, Overlay, build, on_finger_tap, view, with_reactive_scope};
+
+#[test]
+fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
+    let _root = crate::reactive::RootScope::new();
+    let (taps, set_taps) = create_signal(0);
+    let (policy, set_policy) = create_signal(LayerPolicy::Pass);
+    let (traps, set_traps) = create_signal(false);
+    let document = build({
+        move || {
+            on_finger_tap(move |_: usize| {
+                set_taps.update(|taps| *taps += 1);
+                true
+            });
+            view! {
+                <Frame width=400.0 height=300.0>
+                    <Overlay
+                        anchor=OverlayAnchor::Point(pos2(300.0, 200.0))
+                        placement=Placement::At
+                        policy={policy}
+                        traps_focus={traps}
+                        open=true
+                    >
+                        <Frame width=40.0 height=30.0 />
+                    </Overlay>
+                </Frame>
+            }
+        }
+    });
+    let mut harness = Harness::new(document);
+    let tap = |harness: &mut Harness| {
+        let before = taps.get_untracked();
+        harness.finger(1, TouchPhase::Start, pos2(50.0, 50.0));
+        harness.finger(2, TouchPhase::Start, pos2(120.0, 50.0));
+        harness.finger(2, TouchPhase::End, pos2(120.0, 50.0));
+        harness.finger(1, TouchPhase::End, pos2(50.0, 50.0));
+        let wants = harness.frame(Vec::new()).window.wants_keyboard;
+        (taps.get_untracked() > before, wants)
+    };
+
+    assert_eq!(
+        tap(&mut harness),
+        (true, false),
+        "a layer that passes and traps nothing changes neither"
+    );
+
+    with_reactive_scope(harness.document_mut(), move || set_traps.set(true));
+    assert_eq!(
+        tap(&mut harness),
+        (true, true),
+        "one that traps the focus wants the keyboard, and the fingers still tap the document"
+    );
+
+    with_reactive_scope(harness.document_mut(), move || {
+        set_traps.set(false);
+        set_policy.set(LayerPolicy::BlocksAll);
+    });
+    assert_eq!(
+        tap(&mut harness),
+        (false, false),
+        "one that blocks everything shuts out the tap, and leaves the keyboard where it was"
+    );
+}

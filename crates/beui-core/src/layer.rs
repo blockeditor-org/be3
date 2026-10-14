@@ -37,6 +37,16 @@ pub enum Dismiss {
 pub struct OpenLayers {
     open: Vec<Opened>,
     next: u64,
+    generation: u64,
+    cache: std::cell::RefCell<Option<(LayersKey, Layers)>>,
+}
+
+type LayersKey = (u64, u64, Option<NodeId>);
+
+impl OpenLayers {
+    pub(crate) fn changed(&mut self) {
+        self.generation += 1;
+    }
 }
 
 struct Opened {
@@ -55,6 +65,7 @@ pub struct Layer {
     pub level: LayerLevel,
     pub traps: bool,
     pub dismissable: bool,
+    pub locks: bool,
 }
 
 impl Layer {
@@ -86,7 +97,8 @@ type Hanging = (
     Option<NodeId>,
 );
 
-pub struct Layers(Vec<Layer>);
+#[derive(Clone)]
+pub struct Layers(std::rc::Rc<[Layer]>);
 
 impl std::ops::Deref for Layers {
     type Target = [Layer];
@@ -112,13 +124,29 @@ impl Layers {
     }
 
     pub fn locked(&self) -> bool {
-        self.0
-            .iter()
-            .any(|layer| layer.blocks_all() && layer.level == LayerLevel::Lock)
+        self.0.iter().any(|layer| layer.locks)
     }
 
-    pub fn locks_window(&self) -> bool {
-        self.0[self.blocking()].level == LayerLevel::Lock && self.blocking() > 0
+    pub fn reachable(&self, index: usize) -> bool {
+        let blocking = self.blocking();
+        if index >= blocking {
+            return true;
+        }
+        let mut chain = self.0[blocking].parent;
+        while let Some(at) = chain.filter(|at| *at > 0) {
+            if at == index {
+                return true;
+            }
+            if !self.0[at].blocks_all() {
+                return false;
+            }
+            chain = self.0[at].parent;
+        }
+        false
+    }
+
+    pub fn takes_keyboard(&self) -> bool {
+        self.keyboard() > 0
     }
 
     pub fn within(&self, index: usize, ancestor: usize) -> bool {
@@ -144,6 +172,7 @@ impl Document {
     }
 
     pub(crate) fn layers_changed(&mut self) {
+        self.layer_state.generation += 1;
         self.focus_dirty = true;
         for overlay in self.open_overlays() {
             self.arena.invalidate_node(overlay);
@@ -200,6 +229,26 @@ impl Document {
     }
 
     pub fn layers(&self) -> Layers {
+        let key = (
+            self.arena.revision,
+            self.layer_state.generation,
+            self.root,
+        );
+        if let Some((cached, layers)) = &*self.layer_state.cache.borrow()
+            && *cached == key
+            && layers.iter().skip(1).all(|layer| {
+                layer.overlay.is_some_and(|overlay| self.contains(overlay))
+                    && layer.hangs_from.is_none_or(|from| self.contains(from))
+            })
+        {
+            return layers.clone();
+        }
+        let layers = self.build_layers();
+        *self.layer_state.cache.borrow_mut() = Some((key, layers.clone()));
+        layers
+    }
+
+    fn build_layers(&self) -> Layers {
         let open = self.open_overlays();
         let mut entries: Vec<Hanging> = Vec::with_capacity(open.len());
         for overlay in &open {
@@ -262,10 +311,12 @@ impl Document {
             level: LayerLevel::Normal,
             traps: false,
             dismissable: false,
+            locks: false,
         });
         for ((level, _), index) in &keyed {
             let (overlay, _, hangs_from) = entries[*index];
             let node = self.arena.get_as::<OverlayNode>(overlay);
+            let locks = node.policy == LayerPolicy::BlocksAll && node.level == LayerLevel::Lock;
             layers.push(Layer {
                 overlay: Some(overlay),
                 parent: None,
@@ -274,7 +325,8 @@ impl Document {
                 policy: node.policy,
                 level: *level,
                 traps: node.traps_focus && node.policy != LayerPolicy::Inert,
-                dismissable: !node.on_dismiss.is_empty() && node.level != LayerLevel::Lock,
+                dismissable: !node.on_dismiss.is_empty() && !locks,
+                locks,
             });
         }
         for at in 1..layers.len() {
@@ -291,7 +343,7 @@ impl Document {
                     .unwrap_or(0),
             );
         }
-        Layers(layers)
+        Layers(layers.into())
     }
 
     pub fn layer_of(&self, layers: &Layers, node: NodeId) -> Option<usize> {
@@ -313,12 +365,6 @@ impl Document {
         self.layers().locked()
     }
 
-    pub fn modal_open(&self) -> bool {
-        self.layers()
-            .iter()
-            .skip(1)
-            .any(|layer| layer.traps || layer.blocks_all())
-    }
 
     pub fn open_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
         if self.arena.get_as::<OverlayNode>(overlay).open {
@@ -362,12 +408,10 @@ impl Document {
         };
         let mut chain = vec![];
         let mut current = Some(index);
+        let alone = layers[index].policy == LayerPolicy::Inert;
         while let Some(at) = current.filter(|at| *at > 0) {
             chain.push(layers[at].overlay.expect("not the root layer"));
-            if layers[index].policy == LayerPolicy::Inert {
-                break;
-            }
-            current = layers[at].parent;
+            current = layers[at].parent.filter(|_| !alone);
         }
         for raised in chain.into_iter().rev() {
             let next = self.layer_state.next;
@@ -380,6 +424,7 @@ impl Document {
                 && opened.seq != next
             {
                 opened.seq = next;
+                self.layer_state.generation += 1;
                 self.arena.invalidate_node(raised);
             }
         }
@@ -442,6 +487,7 @@ impl Document {
     }
 
     pub(crate) fn forget_layer(&mut self, id: NodeId) {
+        self.layer_state.changed();
         self.layer_state
             .open
             .retain(|opened| opened.overlay.id() != id);
@@ -591,11 +637,7 @@ impl Document {
         if !layers[index].dismissable {
             return;
         }
-        let target = match reason {
-            Dismiss::OutsidePress => layers[index].overlay.map(DismissTarget::Overlay),
-            _ => self.deliver_to(&layers, index),
-        };
-        if let Some(target) = target {
+        if let Some(target) = self.deliver_to(&layers, index) {
             self.deliver_dismiss(target, reason);
         }
     }

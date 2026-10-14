@@ -508,7 +508,7 @@ impl Document {
                     .layer_of(&layers, new)
                     .is_some_and(|layer| layer < keyboard)
                 {
-                    if layers[keyboard].level == crate::layer::LayerLevel::Lock {
+                    if layers.locked() {
                         return;
                     }
                     self.focus_dirty = true;
@@ -521,7 +521,7 @@ impl Document {
                 }
             }
             None => {
-                let held = layers[keyboard].level == crate::layer::LayerLevel::Lock
+                let held = layers.locked()
                     && self.focused.is_some_and(|old| {
                         self.layer_of(&layers, old)
                             .is_some_and(|layer| layers.within(layer, keyboard))
