@@ -3,7 +3,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    KeyedItems, KeyedStore, OwnedStored, RootScope, Scope, Store, batch, create_effect,
+    KeyedItems, OwnedKeyedStore, OwnedStored, RootScope, Scope, Store, batch, create_effect,
     create_memo, create_selector, create_signal, on_cleanup, owner_scope, store, untrack,
 };
 

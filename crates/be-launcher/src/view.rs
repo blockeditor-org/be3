@@ -129,7 +129,7 @@ fn Sidebar(model: Model) -> NodeId {
     let failed = create_memo(move || !error.get().is_empty());
     let visible = create_memo(move || {
         let query = model.query.get().to_lowercase();
-        let pull_requests = model.pull_requests.get();
+        let pull_requests = model.pull_requests;
         pull_requests
             .keys()
             .get()
@@ -215,7 +215,7 @@ fn Sidebar(model: Model) -> NodeId {
                     <List spacing=0.0>
                         <ForEach keys={visible}>
                             {move |number: u64| {
-                                let pull_request = model.pull_requests.get().get(&number);
+                                let pull_request = model.pull_requests.get(&number);
                                 let pull_request = create_memo(move || pull_request.get());
                                 view! {
                                     <PullRequestRow model={model} pull_request />

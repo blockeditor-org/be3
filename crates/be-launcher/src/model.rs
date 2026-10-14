@@ -102,7 +102,7 @@ pub(crate) struct Model {
     set_filter: WriteSignal<Filter>,
     pub(crate) listing: ReadSignal<Loaded<()>>,
     set_listing: WriteSignal<Loaded<()>>,
-    pub(crate) pull_requests: Stored<KeyedStore<u64, PullRequest>>,
+    pub(crate) pull_requests: KeyedStore<u64, PullRequest>,
     pub(crate) query: ReadSignal<String>,
     pub(crate) set_query: WriteSignal<String>,
     pub(crate) selected: ReadSignal<Option<PullRequest>>,
@@ -195,7 +195,7 @@ impl Model {
             set_filter,
             listing,
             set_listing,
-            pull_requests: store(KeyedStore::new()),
+            pull_requests: KeyedStore::new(),
             query,
             set_query,
             selected,
@@ -270,7 +270,7 @@ impl Model {
     }
 
     pub(crate) fn select(&self, number: u64) {
-        if let Some(pull_request) = self.pull_requests.get().try_get(&number) {
+        if let Some(pull_request) = self.pull_requests.try_get(&number) {
             self.set_selected.set(Some(pull_request.get_untracked()));
         }
         #[cfg(not(target_os = "android"))]
@@ -489,7 +489,7 @@ impl Model {
                         if let Some(refreshed) = refreshed {
                             self.set_selected.set(Some(refreshed));
                         }
-                        self.pull_requests.get().reconcile_owned(
+                        self.pull_requests.reconcile_owned(
                             listed
                                 .into_iter()
                                 .map(|pull_request| (pull_request.number, pull_request)),

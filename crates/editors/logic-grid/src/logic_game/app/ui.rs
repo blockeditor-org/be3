@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use uuid::Uuid;
 
 use block_editor_beui::Editor;
@@ -30,7 +29,7 @@ const INTRINSIC_WIDTH: f32 = 720.0;
 #[component]
 pub fn LogicGameEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<block_editor_beui::be_block::LogicGameContent>();
-    let game = Game::watch(editor, Rc::clone(&block));
+    let game = Game::watch(editor, block);
     let levels = game.levels();
     let hotbar = game.hotbar();
     let (expanded, set_expanded) = create_signal(None::<ChallengeId>);
@@ -99,7 +98,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                                     view! {
                                         <LevelRow
                                             editor={editor}
-                                            block={Rc::clone(&block)}
+                                            block={block}
                                             game={game}
                                             challenge={challenge}
                                             level={level}
@@ -155,12 +154,12 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                {move || clone!(block goal -> view! {
+                {move || clone!(goal -> view! {
                     <Frame padding_left=INDENT>
                         <List spacing=ROW_SPACING>
                             <Caption content={goal} wrap=true />
                             <Show condition={shows_quiz}>
-                                <BinaryAddition editor={editor} block={block.clone()} />
+                                <BinaryAddition editor={editor} block={block} />
                             </Show>
                             <Show condition={shows_solutions}>
                                 <Solutions

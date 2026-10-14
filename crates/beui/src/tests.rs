@@ -2198,7 +2198,6 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let layout = unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
     let (listed, set_dialogs) = (owned_dialogs.read(), owned_dialogs.write());
-    let laid = layout.clone();
     let document = build(move || {
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
@@ -2208,7 +2207,6 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                     .collect::<Vec<_>>()
             })
         });
-        let layout = laid.clone();
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">

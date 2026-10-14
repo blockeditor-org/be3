@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
@@ -51,11 +49,11 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let block = editor.block_id();
     let own = create_memo(move || is_own_settings(&editor, block));
     let others = create_memo(move || !own.get());
-    let blocked = blocked(editor, &settings, own);
+    let blocked = blocked(editor, settings, own);
     let profiles = settings.project(|settings| settings.root().profiles());
     let client = editor.host().client_id();
     let used = settings.project(move |settings| settings.root().profile(client));
-    let adding = settings.clone();
+    let adding = settings;
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -69,7 +67,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                         <Caption
                             content="Settings for every device. A settings profile can change any of them for the devices that use it."
                         />
-                        <Kinds editor={editor} layer={settings.clone()} blocked={blocked} />
+                        <Kinds editor={editor} layer={settings} blocked={blocked} />
                         <Heading content="Settings profiles" />
                         <Caption content="Each device uses one, and starts with one of its own." />
                         <ForEach keys={profiles}>
@@ -148,7 +146,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             .is_some_and(|parent| is_own_settings(&editor, parent))
     });
     let others = create_memo(move || !own.get());
-    let blocked = blocked(editor, &profile, own);
+    let blocked = blocked(editor, profile, own);
     let client = editor.host().client_id();
     let used = create_memo(move || {
         parent.get().and_then(|parent| {
@@ -198,7 +196,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
 
 fn blocked<C: Layer>(
     editor: Editor,
-    layer: &Rc<ContentProjection<C>>,
+    layer: ContentProjection<C>,
     own: Memo<bool>,
 ) -> Memo<bool> {
     let loaded = layer.project(|_| true);
@@ -207,10 +205,10 @@ fn blocked<C: Layer>(
 }
 
 #[component]
-fn Kinds<C: Layer>(editor: Editor, layer: Rc<ContentProjection<C>>, blocked: Memo<bool>) -> NodeId {
-    let open_ui = opener::<C, UiSettingsContent>(editor, &layer);
-    let open_input = opener::<C, InputSettingsContent>(editor, &layer);
-    let open_display = opener::<C, DisplaySettingsContent>(editor, &layer);
+fn Kinds<C: Layer>(editor: Editor, layer: ContentProjection<C>, blocked: Memo<bool>) -> NodeId {
+    let open_ui = opener::<C, UiSettingsContent>(editor, layer);
+    let open_input = opener::<C, InputSettingsContent>(editor, layer);
+    let open_display = opener::<C, DisplaySettingsContent>(editor, layer);
     let (ui_blocked, input_blocked) = (blocked, blocked);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -241,11 +239,10 @@ fn Kinds<C: Layer>(editor: Editor, layer: Rc<ContentProjection<C>>, blocked: Mem
 
 fn opener<C: Layer, K: BlockContent + Default>(
     editor: Editor,
-    layer: &Rc<ContentProjection<C>>,
+    layer: ContentProjection<C>,
 ) -> impl Fn() + Clone + use<C, K> {
     let resolved = layer.project(|layer| layer.kind(K::CONTENT_TYPE));
     let host = editor.host().clone();
-    let layer = layer.clone();
     move || {
         let id = resolved.get_untracked().unwrap_or_else(|| {
             let block = editor.create_child(&K::default());

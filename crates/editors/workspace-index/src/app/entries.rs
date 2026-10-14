@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::FolderContent;
@@ -43,13 +42,13 @@ pub(crate) struct Entry {
 
 pub(crate) struct Folder {
     entries: Memo<Vec<Entry>>,
-    index: Rc<ContentProjection<FolderContent>>,
+    index: ContentProjection<FolderContent>,
 }
 
 impl Folder {
     pub(crate) fn watch(
         editor: Editor,
-        index: &Rc<ContentProjection<FolderContent>>,
+        index: ContentProjection<FolderContent>,
         sort: ReadSignal<FolderSort>,
         descending: ReadSignal<bool>,
     ) -> Self {
@@ -96,7 +95,7 @@ impl Folder {
         });
         Self {
             entries,
-            index: Rc::clone(index),
+            index,
         }
     }
 

@@ -13,14 +13,13 @@ fn an_embed_reports_its_placement_when_it_moves() {
     });
     let (moved, set_moved) = create_signal(None);
     let document = build({
-        let slot = slot.clone();
         move || {
             let (x, set_x) = create_signal(10.0);
             set_moved.update(|moved| *moved = Some(set_x));
             view! {
                 <Canvas>
                     <CanvasItem x={x} y=20.0 width=30.0 height=40.0>
-                        <Embed slot={slot.clone()} />
+                        <Embed slot={slot} />
                     </CanvasItem>
                 </Canvas>
             }

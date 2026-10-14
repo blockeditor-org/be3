@@ -19,7 +19,7 @@ use block_ui::BlockCatalog;
 use uuid::Uuid;
 
 use crate::{
-    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
+    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection, OwnedContentProjection,
     EditorHost, PickedBlock, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
@@ -458,7 +458,7 @@ struct EditorState {
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<(NodeRef, u64)>>,
-    projections: RefCell<std::collections::HashMap<Option<Uuid>, Rc<dyn std::any::Any>>>,
+    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
@@ -509,14 +509,14 @@ impl Editor {
         create_memo(move || !editable.get())
     }
 
-    pub fn block_content<C>(&self) -> Rc<ContentProjection<C>>
+    pub fn block_content<C>(&self) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
         self.projection(None)
     }
 
-    pub fn content_of<C>(&self, block: Uuid) -> Rc<ContentProjection<C>>
+    pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
@@ -531,7 +531,7 @@ impl Editor {
         self.state().host.view_block()
     }
 
-    pub fn view_content(&self) -> Option<Rc<ContentProjection<be_block::EditorViewContent>>> {
+    pub fn view_content(&self) -> Option<ContentProjection<be_block::EditorViewContent>> {
         self.view_block()
             .map(|block| self.content_of::<be_block::EditorViewContent>(block))
     }
@@ -579,7 +579,7 @@ impl Editor {
             .create(content, BlockParent::Block(self.state().block))
     }
 
-    fn projection<C>(&self, block: Option<Uuid>) -> Rc<ContentProjection<C>>
+    fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
@@ -588,28 +588,25 @@ impl Editor {
             .projections
             .borrow()
             .get(&block)
-            .cloned()
-            .and_then(|held| held.downcast::<ContentProjection<C>>().ok());
+            .and_then(|held| held.downcast_ref::<OwnedContentProjection<C>>())
+            .map(OwnedContentProjection::handle);
         if let Some(source) = cached {
             return source;
         }
-        let source = Rc::new(ContentProjection::<C>::new(state.host.clone(), block));
+        let owned = OwnedContentProjection::<C>::new(state.host.clone(), block);
+        let source = owned.handle();
         let due = Rc::downgrade(&state.due);
         source.on_due(move || {
             if let Some(due) = due.upgrade() {
                 due.borrow_mut().push(block);
             }
         });
-        let pumped = Rc::clone(&source);
         state
             .pumps
             .borrow_mut()
-            .insert(block, Rc::new(move || pumped.pump()));
+            .insert(block, Rc::new(move || source.pump()));
         state.due.borrow_mut().push(block);
-        state
-            .projections
-            .borrow_mut()
-            .insert(block, Rc::clone(&source) as Rc<dyn std::any::Any>);
+        state.projections.borrow_mut().insert(block, Box::new(owned));
         source
     }
 

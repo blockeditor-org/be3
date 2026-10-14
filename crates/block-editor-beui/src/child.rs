@@ -127,7 +127,7 @@ fn SubregionView(
     let punch = create_memo(move || below.get() && punch.get());
     let turn = create_memo(move || rotation.get());
     let state = editor.register_child(
-        slot.clone(),
+        slot,
         placed,
         mode,
         layer.into_prop(),

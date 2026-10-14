@@ -93,7 +93,7 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
 #[component]
 fn PixelArtEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<PixelArtContent>();
-    let tools = Tools::new(editor, Rc::clone(&block));
+    let tools = Tools::new(editor, block);
     let pane = Pane::new();
     let shown = pane.shown();
     let size = block.project(size_of);
@@ -154,8 +154,7 @@ fn PixelArtPreview(editor: Editor) -> NodeId {
     let block = editor.block_content::<PixelArtContent>();
     let pane = Pane::new();
     let shown = pane.shown();
-    let watched = Rc::clone(&block);
-    create_effect(move || pane.refresh(&watched, true, &[], PixelColor::TRANSPARENT));
+    create_effect(move || pane.refresh(&block, true, &[], PixelColor::TRANSPARENT));
     let image = create_memo(move || shown.get().artwork);
     view! {
         <Picture image={image} fit=ImageFit::Contain smooth=false />

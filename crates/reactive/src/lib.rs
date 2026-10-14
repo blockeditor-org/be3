@@ -11,7 +11,7 @@ mod signal;
 mod stored;
 
 pub use computation::{Effect, create_effect};
-pub use keyed::{KeyedItems, KeyedStore, Mapping, numbered};
+pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
 pub use memo::{Memo, create_memo};
 pub use reactive_macros::Store;
 pub use runtime::{ZoneGuard, batch, enter_zone, forget_zone, untrack, zone_pending};

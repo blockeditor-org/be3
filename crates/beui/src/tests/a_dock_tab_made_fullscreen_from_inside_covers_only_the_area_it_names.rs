@@ -9,7 +9,6 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     let (control, set_control) = create_signal::<Option<DockTabControl>>(None);
     let layout = DockingLayout::<u64>::new();
     let document = {
-        let layout = layout.clone();
         build(move || {
             view! {
                 <List spacing=0.0>

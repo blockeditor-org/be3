@@ -86,7 +86,7 @@ pub use dock::{
     DockNode, DockPane, DockPreviewHandle, DockSplit, DockSplitter, DockSplitterHandle,
     DockStackHandle, DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle,
     DockSwitcherCardHandle, DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle,
-    DockTabMenu, DockTree, DockTreeEntry, DockWindow, Docking, DockingLayout, DockingSnapshot,
+    DockTabMenu, DockTree, DockTreeEntry, DockWindow, Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
     Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS,
     Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items,
     dock_state, layout_surface, layout_tree, sidebar_size, use_dock_tab,

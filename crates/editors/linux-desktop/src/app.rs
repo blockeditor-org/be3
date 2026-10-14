@@ -65,7 +65,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
-    switcher::bind_window_switcher(&layout);
+    switcher::bind_window_switcher(layout);
     fullscreen::bind_fullscreen(workspace.editor());
     let failure = workspace.error();
     let failed = create_memo(move || failure.get().is_some());

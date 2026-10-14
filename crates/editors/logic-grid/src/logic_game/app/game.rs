@@ -6,7 +6,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::logic_game::LogicGameOperation;
 use block_editor_beui::be_block::{LogicGridContent, LogicGridDocument, ObjectId};
 use block_editor_beui::beui::reactive::{
-    Memo, Stored, create_effect, create_memo, create_signal, store,
+    Memo, create_effect, create_memo, create_signal,
 };
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{BlockList, BlockParent, BlockQuery, ContentProjection, Editor};
@@ -31,14 +31,14 @@ pub(crate) struct Level {
 
 #[derive(Default)]
 struct Work {
-    grids: HashMap<Uuid, (BlockList, Rc<ContentProjection<LogicGridContent>>)>,
+    grids: HashMap<Uuid, (BlockList, ContentProjection<LogicGridContent>)>,
     hotbar: RootSetting<HotbarContent>,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct Game {
     editor: Editor,
-    block: Stored<crate::logic_game::app::GameBlock>,
+    block: crate::logic_game::app::GameBlock,
     levels: Memo<Vec<Level>>,
     hotbar: Memo<Option<Uuid>>,
 }
@@ -59,7 +59,6 @@ impl Game {
         let working = Rc::clone(&work);
         let blocks = editor.blocks();
         let host = editor.host().clone();
-        let game = Rc::clone(&block);
         create_effect(move || {
             let mut work = working.borrow_mut();
             let Work { grids, hotbar } = &mut *work;
@@ -122,7 +121,7 @@ impl Game {
             for level in &rows {
                 if level.solutions.iter().any(|solution| solution.completed) && !level.completed {
                     crate::logic_game::app::operate(
-                        &game,
+                        &block,
                         LogicGameOperation::SetCompleted {
                             challenge: level.challenge,
                             completed: true,
@@ -134,7 +133,7 @@ impl Game {
         });
         Self {
             editor,
-            block: store(block),
+            block,
             levels: create_memo(move || levels.get()),
             hotbar: create_memo(move || hotbar.get()),
         }
@@ -164,7 +163,7 @@ impl Game {
 
     pub(crate) fn remove(&self, challenge: ChallengeId, solution: Uuid) {
         crate::logic_game::app::operate(
-            &self.block.get(),
+            &self.block,
             LogicGameOperation::RemoveSolution {
                 challenge,
                 solution,
@@ -179,7 +178,7 @@ impl Game {
             format!("{} {}", challenge.name(), index + 1),
         );
         crate::logic_game::app::operate(
-            &self.block.get(),
+            &self.block,
             LogicGameOperation::InsertSolution {
                 challenge,
                 solution: id,

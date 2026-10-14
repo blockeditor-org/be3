@@ -814,7 +814,7 @@ fn closest(entities: &[RayEntity], point: Point) -> Option<RayEntity> {
 }
 
 struct Scenes {
-    content: Rc<ContentProjection<PixelRayTracerContent>>,
+    content: ContentProjection<PixelRayTracerContent>,
     cached: RefCell<Option<Snapshot>>,
 }
 
@@ -844,7 +844,7 @@ impl Snapshot {
 }
 
 impl Scenes {
-    fn new(content: Rc<ContentProjection<PixelRayTracerContent>>) -> Self {
+    fn new(content: ContentProjection<PixelRayTracerContent>) -> Self {
         Self {
             content,
             cached: RefCell::new(None),

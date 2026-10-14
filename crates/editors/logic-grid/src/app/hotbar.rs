@@ -153,7 +153,7 @@ impl LogicGridEditor {
         true
     }
 
-    fn hotbar_content(&self) -> Option<Rc<ContentProjection<HotbarContent>>> {
+    fn hotbar_content(&self) -> Option<ContentProjection<HotbarContent>> {
         let id = self.hotbar_block.block()?;
         Some(self.store.editor()?.content_of::<HotbarContent>(id))
     }

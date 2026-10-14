@@ -537,7 +537,7 @@ impl Selection {
 pub(super) enum GridStore {
     Live {
         editor: block_editor_beui::Editor,
-        content: Rc<ContentProjection<LogicGridContent>>,
+        content: ContentProjection<LogicGridContent>,
     },
     #[cfg(test)]
     Local {
@@ -590,7 +590,7 @@ impl GridStore {
 }
 
 struct CompiledSource {
-    content: Rc<ContentProjection<CompiledLogicContent>>,
+    content: ContentProjection<CompiledLogicContent>,
     revision: Option<u64>,
     program: Option<CompiledLogic>,
 }

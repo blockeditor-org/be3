@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::rc::Rc;
 
 use crate::runtime::batch;
 use crate::scope::Scope;
 use crate::signal::{OwnedSignal, ReadSignal, WriteSignal};
+use crate::stored::{OwnedStored, Stored, store};
 
 enum Target<V> {
     Unchanged,
@@ -19,22 +19,24 @@ struct Inner<K: 'static, V: 'static> {
 }
 
 pub struct KeyedStore<K: 'static, V: 'static> {
-    inner: Rc<Inner<K, V>>,
+    inner: Stored<Inner<K, V>>,
 }
 
 impl<K: 'static, V: 'static> Clone for KeyedStore<K, V> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
+        *self
     }
 }
 
+impl<K: 'static, V: 'static> Copy for KeyedStore<K, V> {}
+
 impl<K: 'static, V: 'static> PartialEq for KeyedStore<K, V> {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.inner, &other.inner)
+        self.inner == other.inner
     }
 }
+
+impl<K: 'static, V: 'static> Eq for KeyedStore<K, V> {}
 
 impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> Default for KeyedStore<K, V> {
     fn default() -> Self {
@@ -42,22 +44,66 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> Default for
     }
 }
 
+fn empty<K: 'static, V: 'static>() -> Inner<K, V> {
+    Inner {
+        keys: OwnedSignal::new(Vec::new()),
+        entries: RefCell::new(HashMap::new()),
+    }
+}
+
+pub struct OwnedKeyedStore<K: 'static, V: 'static> {
+    store: KeyedStore<K, V>,
+    _inner: OwnedStored<Inner<K, V>>,
+}
+
+impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> Default
+    for OwnedKeyedStore<K, V>
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> OwnedKeyedStore<K, V> {
+    pub fn new() -> Self {
+        let inner = OwnedStored::new(empty());
+        Self {
+            store: KeyedStore {
+                inner: inner.handle(),
+            },
+            _inner: inner,
+        }
+    }
+}
+
+impl<K: 'static, V: 'static> OwnedKeyedStore<K, V> {
+    pub fn handle(&self) -> KeyedStore<K, V> {
+        self.store
+    }
+}
+
+impl<K: 'static, V: 'static> std::ops::Deref for OwnedKeyedStore<K, V> {
+    type Target = KeyedStore<K, V>;
+
+    fn deref(&self) -> &KeyedStore<K, V> {
+        &self.store
+    }
+}
+
 impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<K, V> {
     pub fn new() -> Self {
         Self {
-            inner: Rc::new(Inner {
-                keys: OwnedSignal::new(Vec::new()),
-                entries: RefCell::new(HashMap::new()),
-            }),
+            inner: store(empty()),
         }
     }
 
     pub fn keys(&self) -> ReadSignal<Vec<K>> {
-        self.inner.keys.read()
+        self.inner.with(|inner| inner.keys.read())
     }
 
     pub fn try_get(&self, key: &K) -> Option<ReadSignal<V>> {
-        self.inner.entries.borrow().get(key).map(OwnedSignal::read)
+        self.inner
+            .with(|inner| inner.entries.borrow().get(key).map(OwnedSignal::read))
     }
 
     pub fn get(&self, key: &K) -> ReadSignal<V> {
@@ -66,11 +112,11 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 
     pub fn contains(&self, key: &K) -> bool {
-        self.inner.entries.borrow().contains_key(key)
+        self.inner.with(|inner| inner.entries.borrow().contains_key(key))
     }
 
     pub fn tracked_keys(&self) -> usize {
-        self.inner.entries.borrow().len()
+        self.inner.with(|inner| inner.entries.borrow().len())
     }
 
     pub fn reconcile<'a>(&self, items: impl IntoIterator<Item = (K, &'a V)>)
@@ -99,8 +145,9 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 
     fn write(&self, key: &K, value: &V) {
+        let inner = self.inner.get();
         let target = {
-            let entries = self.inner.entries.borrow();
+            let entries = inner.entries.borrow();
             match entries.get(key) {
                 None => Target::Missing,
                 Some(entry) if entry.read().with_untracked(|current| current == value) => {
@@ -113,7 +160,7 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
             Target::Unchanged => {}
             Target::Changed(write) => write.set_unconditionally(value.clone()),
             Target::Missing => {
-                self.inner
+                inner
                     .entries
                     .borrow_mut()
                     .insert(key.clone(), OwnedSignal::new(value.clone()));
@@ -122,8 +169,8 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 
     fn set_keys(&self, keys: Vec<K>) {
-        if self
-            .inner
+        let inner = self.inner.get();
+        if inner
             .keys
             .read()
             .with_untracked(|current| *current == keys)
@@ -131,12 +178,12 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
             return;
         }
         let retained: HashSet<&K> = keys.iter().collect();
-        self.inner
+        inner
             .entries
             .borrow_mut()
             .retain(|key, _| retained.contains(key));
         drop(retained);
-        self.inner.keys.write().set_unconditionally(keys);
+        inner.keys.write().set_unconditionally(keys);
     }
 }
 

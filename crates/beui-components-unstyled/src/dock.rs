@@ -51,7 +51,7 @@ pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
 pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
-    Docking, DockingLayout, DockingSnapshot,
+    Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
 };
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
@@ -1449,7 +1449,6 @@ fn switcher_handle(
         tabs,
         card: Func::new(move |tab: TabId| {
             let (titled, pictured, picked, closed) = (carded, carded, carded, carded);
-            let set_switching = set_switching;
             DockSwitcherCardHandle {
                 tab,
                 title: create_memo(move || titled.title(tab)),
@@ -2653,7 +2652,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                     <ForEach keys={GRIPS.to_vec()}>
                         {move |grip: Grip| {
                             let dock = grips;
-                            let size = size;
                             let rect = grip_rect;
                             let handle = create_memo(move || grip.rect(size.get()));
                             let x = create_memo(move || handle.get().min.x);

@@ -15,7 +15,6 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let (tab, set_tab) = create_signal(Heard::default());
     let layout = DockingLayout::<u64>::new();
     let document = {
-        let layout = layout.clone();
         build(move || {
             view! {
                 <List spacing=0.0>
@@ -61,9 +60,8 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let docked = harness.rect(harness.find("content.2"));
     let over_bar = harness.center(harness.find("bar"));
 
-    let entering = layout.clone();
     with_reactive_scope(harness.document_mut(), move || {
-        entering.enter_fullscreen(&2, None)
+        layout.enter_fullscreen(&2, None)
     });
     harness.settle();
     assert_eq!(layout.fullscreen(), Some(2));
@@ -95,8 +93,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
         "and the wheel"
     );
 
-    let leaving = layout.clone();
-    with_reactive_scope(harness.document_mut(), move || leaving.leave_fullscreen());
+    with_reactive_scope(harness.document_mut(), move || layout.leave_fullscreen());
     harness.settle();
     assert_eq!(layout.fullscreen(), None);
     assert_eq!(

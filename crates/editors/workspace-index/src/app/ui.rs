@@ -90,7 +90,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let (descending, set_descending) = create_signal(false);
     let (selected, set_selected) = create_signal(None::<Uuid>);
 
-    let folder = Folder::watch(editor, &index, sort, descending);
+    let folder = Folder::watch(editor, index, sort, descending);
     let entries = folder.entries();
     let drop = super::drop::watch(editor, folder);
 

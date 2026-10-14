@@ -9,7 +9,7 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::{ContentProjection, Editor};
 
-pub(crate) type ArtBlock = Rc<ContentProjection<PixelArtContent>>;
+pub(crate) type ArtBlock = ContentProjection<PixelArtContent>;
 
 use crate::color::format_hex_color;
 use crate::drawing::{ActiveDrawing, Brush, BrushShape, PixelTool};
@@ -141,7 +141,7 @@ impl Tools {
     }
 
     pub(crate) fn block(&self) -> ArtBlock {
-        Rc::clone(&self.cells.get().block)
+        self.cells.get().block
     }
 
     pub(crate) fn artwork(&self) -> Option<Rc<Artwork>> {

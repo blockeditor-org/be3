@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 
 use block_editor_beui::BlockList;
 use block_editor_beui::BlockParent;
@@ -18,7 +17,7 @@ use block_editor_beui::be_block::database_view::{
 };
 use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::beui::reactive::{
-    Memo, Stored, WriteSignal, create_effect, create_memo, create_signal, store,
+    Memo, WriteSignal, create_effect, create_memo, create_signal,
 };
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
@@ -40,7 +39,7 @@ pub struct Selection {
 #[derive(Clone, Copy)]
 pub struct ViewData {
     editor: Editor,
-    view: Stored<Rc<ContentProjection<DatabaseViewContent>>>,
+    view: ContentProjection<DatabaseViewContent>,
     database: RelatedContent<DatabaseContent>,
     set_selected: WriteSignal<Option<Selection>>,
     set_error: WriteSignal<Option<String>>,
@@ -207,7 +206,7 @@ impl ViewData {
 
         Self {
             editor,
-            view: store(view),
+            view,
             database,
             set_selected,
             set_error,
@@ -291,7 +290,7 @@ impl ViewData {
     }
 
     pub fn operate_view(&self, edit: Edit) {
-        self.view.with(|view| view.operate(edit));
+        self.view.operate(edit);
     }
 
     pub fn shows(&self, row: &DatabaseRow) -> bool {

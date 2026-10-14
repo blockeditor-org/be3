@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::database::DatabaseContent;
@@ -22,8 +20,8 @@ use block_editor_beui::beui::icons::{
     ICON_SHORT_TEXT, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, Stored,
-    component, create_effect, create_memo, store, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer,
+    component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Checkbox, Heading, IconButton, IconSized, NumberInput, Scroll,
@@ -37,18 +35,18 @@ use uuid::Uuid;
 use super::field_line_count;
 
 #[derive(Clone, Copy)]
-struct Schema(Stored<Rc<ContentProjection<DatabaseSchemaContent>>>);
+struct Schema(ContentProjection<DatabaseSchemaContent>);
 
 impl Schema {
     fn operate(self, edit: Edit) {
-        self.0.with(|schema| schema.operate(edit));
+        self.0.operate(edit);
     }
 
     fn project<T: Clone + PartialEq + 'static>(
         self,
         project: impl Fn(&DatabaseSchemaContent) -> T + 'static,
     ) -> ReadSignal<T> {
-        self.0.with(|schema| schema.project(project))
+        self.0.project(project)
     }
 }
 
@@ -89,7 +87,7 @@ const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
 pub fn SchemaView(editor: Editor) -> NodeId {
     let schema = editor.block_content::<DatabaseSchemaContent>();
     let fields = schema.project(|schema| schema.root().fields());
-    let schema = Schema(store(schema));
+    let schema = Schema(schema);
     let rows = create_memo(move || fields.get());
     let keys = create_memo(move || {
         rows.with(|rows| rows.iter().map(|field| field.id).collect::<Vec<Uuid>>())
@@ -643,7 +641,6 @@ fn EnumOptionRow(
                     </ForEach>
                 }}
                 trigger={move |handle: MenuButtonHandle| {
-                    let option = option;
                     view! {
                         <ControlFace handle={handle.button}>
                             <ChoiceMark option={option} size=18.0 />

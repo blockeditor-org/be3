@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::{BrowserTab, BrowserTabContent, Edit, HistoryItem};
 use block_editor_beui::beui::reactive::{
@@ -30,7 +29,7 @@ pub(crate) struct Session {
 }
 
 struct Inner {
-    tab: Rc<ContentProjection<BrowserTabContent>>,
+    tab: ContentProjection<BrowserTabContent>,
     navigation: RefCell<Navigation>,
 }
 

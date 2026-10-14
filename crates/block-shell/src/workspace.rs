@@ -231,7 +231,7 @@ impl Workspace {
 
     pub fn layout(&self) -> DockingLayout<TabId> {
         let inner = self.state.get();
-        inner.layout.clone()
+        inner.layout
     }
 
     pub fn phone(&self) -> ReadSignal<bool> {

@@ -46,7 +46,7 @@ impl TileState {
 }
 
 struct MapInner {
-    block: Rc<ContentProjection<MapContent>>,
+    block: ContentProjection<MapContent>,
     dependencies: BlockList,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,

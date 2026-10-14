@@ -36,14 +36,14 @@ struct Loaded {
 
 struct BlockGame {
     editor: Editor,
-    block: Rc<ContentProjection<DeterministicGameContent>>,
+    block: ContentProjection<DeterministicGameContent>,
     account: Uuid,
     player: ReadSignal<Uuid>,
     set_player: WriteSignal<Uuid>,
     shown: ReadSignal<Option<usize>>,
     set_shown: WriteSignal<Option<usize>>,
     seats: RefCell<Vec<Uuid>>,
-    module: RefCell<Option<(Uuid, Rc<ContentProjection<GameModuleContent>>)>>,
+    module: RefCell<Option<(Uuid, ContentProjection<GameModuleContent>)>>,
     loaded: RefCell<Option<Loaded>>,
 }
 
@@ -101,11 +101,7 @@ impl BlockGame {
         };
 
         self.follow(module);
-        let (_, projection) = self
-            .module
-            .borrow()
-            .clone()
-            .expect("the module was followed");
+        let (_, projection) = self.module.borrow().expect("the module was followed");
         let Some(revision) = projection.revision() else {
             return GameSnapshot::Loading;
         };

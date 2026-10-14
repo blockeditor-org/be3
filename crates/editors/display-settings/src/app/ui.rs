@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
@@ -25,7 +23,7 @@ const ROW_SPACING: f32 = 8.0;
 const LABEL_SPACING: f32 = 4.0;
 const COLUMN_SPACING: f32 = 12.0;
 
-type Settings = Rc<ContentProjection<DisplaySettingsContent>>;
+type Settings = ContentProjection<DisplaySettingsContent>;
 
 #[component]
 pub fn DisplaySettingsView(editor: Editor) -> NodeId {
@@ -60,13 +58,12 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <ScreenOffSection
-                            settings={settings.clone()}
+                            settings={settings}
                             merged={merged}
                             read_only={read_only}
                         />
                         <ForEach keys={ids}>
                             {move |id: String| {
-                                let (settings, root, merged) = (settings.clone(), root, merged);
                                 let (displays, read_only) = (displays, read_only);
                                 view! {
                                     <DisplaySection
@@ -155,7 +152,7 @@ fn DisplaySection(
     });
     let resolution_id = format!("display-settings.{connector}.resolution");
     let refresh_id = format!("display-settings.{connector}.refresh");
-    let set = Callback::new(clone!(settings id -> move |mode: Option<HostDisplayMode>| {
+    let set = Callback::new(clone!(id -> move |mode: Option<HostDisplayMode>| {
         settings.operate(DisplaySettings::set_mode(&id, mode.map(saved)));
     }));
     let (size_off, rate_off) = (read_only, read_only);
@@ -236,7 +233,6 @@ fn ScreenOffSection(
         let chosen = merged.get().lock_after();
         LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
-    let locking = settings.clone();
     let lock_off = read_only;
     view! {
         <List spacing=ROW_SPACING>
@@ -274,7 +270,7 @@ fn ScreenOffSection(
                 @test_id={"display-settings.lock-after"}
                 on_change={move |index: Option<usize>| {
                     if let Some(lock_after) = index.and_then(|index| LOCK_AFTER.get(index)) {
-                        locking.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
+                        settings.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
                     }
                 }}
             />

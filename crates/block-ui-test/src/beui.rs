@@ -276,7 +276,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 instance: INSTANCE,
                 region,
                 metrics,
-                frame: self.frame.clone(),
+                frame: self.frame,
             }],
         }));
     }

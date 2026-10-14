@@ -35,7 +35,7 @@ where
         self.id.get_untracked()
     }
 
-    pub fn projection(&self) -> Option<Rc<ContentProjection<C>>> {
+    pub fn projection(&self) -> Option<ContentProjection<C>> {
         self.id().map(|id| self.editor.content_of::<C>(id))
     }
 
@@ -66,7 +66,6 @@ where
             let inner = editor
                 .content_of::<C>(block)
                 .project(move |content| project(content));
-            let write = write;
             create_effect(move || write.set(inner.get()));
         });
         read

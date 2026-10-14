@@ -6,7 +6,7 @@ use std::{
 
 use beui::reactive::{
     BackHandler, Callback, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach,
-    Frame, Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, clone, component,
+    Frame, Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, component,
     create_effect, create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack,
     use_context, use_screens, view,
 };
@@ -97,7 +97,7 @@ pub(crate) fn PluginRegion(
     let revision = super::listen(&plugin_id.get());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let screens = use_screens();
-    let place = Callback::new(clone!(frame -> move |placement: Option<EmbedPlacement>| {
+    let place = Callback::new(move |placement: Option<EmbedPlacement>| {
         match placement {
             Some(placement) => plugin_host::place_region(
                 &plugin_id.get(),
@@ -113,18 +113,18 @@ pub(crate) fn PluginRegion(
             ),
             None => plugin_host::unplace_region(&plugin_id.get(), instance, region),
         }
-    }));
+    });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
         placed.with(|placed| placed.set(placement));
         place.call(placement);
     });
-    create_effect(clone!(frame -> move || {
+    create_effect(move || {
         let _ = frame.get();
         let _ = view.get();
         screens.with(|_| ());
         place.call(placed.with(Cell::get));
-    }));
+    });
     let state = create_memo(move || {
         revision.get();
         plugin_host::region_view(&editor.plugin, instance, region)

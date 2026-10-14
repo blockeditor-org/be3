@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn reconciling_an_unchanged_list_wakes_nothing() {
     let scope = Scope::new();
-    let store: KeyedStore<u32, String> = KeyedStore::new();
+    let store = OwnedKeyedStore::<u32, String>::new();
     let items: Vec<(u32, String)> = (0..3).map(|index| (index, index.to_string())).collect();
     store.reconcile(items.iter().map(|(key, value)| (*key, value)));
     let runs = Cell::new(0);

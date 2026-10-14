@@ -59,7 +59,7 @@ pub(crate) struct State {
 
 pub(crate) struct Inner {
     pub client: Blocks,
-    content: Rc<ContentProjection<TextContent>>,
+    content: ContentProjection<TextContent>,
     adopted: Cell<bool>,
     pub document: Arc<BlockDocument>,
     pub dependencies: BlockList,

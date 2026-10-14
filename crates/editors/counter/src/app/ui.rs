@@ -2,7 +2,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::be_block::{Counter as CounterModel, CounterContent, ObjectId};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
+    Align, Direction, Frame, ItemSize, List, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Display, use_theme};
 
@@ -14,13 +14,13 @@ pub fn Counter(editor: Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
     let shown = create_memo(move || count.get().get().to_string());
-    let decrement = clone!(counter -> move || counter.operate(CounterModel::add(-1)));
-    let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
-    let reset = clone!(counter -> move || {
+    let decrement = move || counter.operate(CounterModel::add(-1));
+    let increment = move || counter.operate(CounterModel::add(1));
+    let reset = move || {
         if let Some(edit) = counter.read(|content| content.root().reset()) {
             counter.operate(edit);
         }
-    });
+    };
     let theme = use_theme();
     view! {
         <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>

@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::{Calendar, CalendarContent};
 use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::icons::{
@@ -72,22 +70,19 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     };
 
     let editable = editor.editable();
-    let operate = {
-        let calendar = Rc::clone(&calendar);
-        move |action: FormAction| {
-            if !editable.get_untracked() {
-                return;
-            }
-            let edit = match action {
-                FormAction::Save(Some(id), event) => calendar
-                    .read(|content| content.root().update(id, &event))
-                    .unwrap_or_default(),
-                FormAction::Save(None, event) => Calendar::add(&event).1,
-                FormAction::Delete(id) => Calendar::remove(id),
-            };
-            if !edit.0.is_empty() {
-                calendar.operate(edit);
-            }
+    let operate = move |action: FormAction| {
+        if !editable.get_untracked() {
+            return;
+        }
+        let edit = match action {
+            FormAction::Save(Some(id), event) => calendar
+                .read(|content| content.root().update(id, &event))
+                .unwrap_or_default(),
+            FormAction::Save(None, event) => Calendar::add(&event).1,
+            FormAction::Delete(id) => Calendar::remove(id),
+        };
+        if !edit.0.is_empty() {
+            calendar.operate(edit);
         }
     };
     let pick_day = move |day: i64| {
@@ -163,11 +158,6 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     <List spacing=0.0>
                         <Dynamic value={mode}>
                             {move |shown: CalendarView| {
-                                let anchor = anchor;
-                                let events = events;
-                                let pick_day = pick_day;
-                                let pick_slot = pick_slot;
-                                let pick_event = pick_event;
                                 match shown {
                                     CalendarView::Month => view! {
                                         <MonthGrid

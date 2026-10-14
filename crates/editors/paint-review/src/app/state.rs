@@ -1,5 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use block_editor_beui::BlockParent;
@@ -111,7 +110,7 @@ pub(crate) struct Review {
 }
 
 struct Inner {
-    block: Rc<ContentProjection<PaintReviewContent>>,
+    block: ContentProjection<PaintReviewContent>,
     source: Source,
     download: RefCell<Option<Download>>,
     waker: RefCell<Waker>,

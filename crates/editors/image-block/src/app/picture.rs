@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
 
 use block_editor_beui::be_block::{ImageContent, ImageHeader, ImageOp};
 use block_editor_beui::beui::reactive::{Memo, create_effect, create_memo, create_signal};
@@ -20,11 +19,10 @@ fn digest(data: &[u8]) -> u64 {
     hasher.finish()
 }
 
-pub(crate) fn watch(editor: Editor, block: &Rc<ContentProjection<ImageContent>>) -> Memo<Shown> {
+pub(crate) fn watch(editor: Editor, block: ContentProjection<ImageContent>) -> Memo<Shown> {
     let (shown, set_shown) = create_signal(Shown::default());
     let key = block.project(|image| (image.header().clone(), digest(image.data())));
     let decoded: RefCell<Option<(u64, Shown)>> = RefCell::new(None);
-    let reading = Rc::clone(block);
     let editable = editor.editable();
     create_effect(move || {
         let (header, fingerprint) = key.get();
@@ -42,7 +40,7 @@ pub(crate) fn watch(editor: Editor, block: &Rc<ContentProjection<ImageContent>>)
             set_shown.set(shown.clone());
             return;
         }
-        let Some(result) = reading.read(|image| crate::decode::decode(image.data())) else {
+        let Some(result) = block.read(|image| crate::decode::decode(image.data())) else {
             return;
         };
         let (found, shown) = match result {
@@ -78,7 +76,7 @@ pub(crate) fn watch(editor: Editor, block: &Rc<ContentProjection<ImageContent>>)
         drop(decoded);
         set_shown.set(shown);
         if editable.get_untracked() && found != header {
-            reading.operate(ImageOp::SetHeader(found));
+            block.operate(ImageOp::SetHeader(found));
         }
     });
     create_memo(move || shown.get())

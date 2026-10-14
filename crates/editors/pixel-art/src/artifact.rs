@@ -4,7 +4,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{Frame, List, Show, component, create_memo, view};
 use block_editor_beui::beui::styled::{Caption, NumberInput, use_theme};
 use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
-use block_editor_beui::{BlockList, BlockQuery, ContentProjection};
+use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -170,7 +170,7 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
 
 pub struct Regeneration {
     host: EditorHost,
-    source: ContentProjection<PixelArtContent>,
+    source: OwnedContentProjection<PixelArtContent>,
     named: BlockList,
     target: Uuid,
     settings: ImageSettings,

@@ -535,7 +535,7 @@ a given node - claiming it takes it from the portal that had it - and the
 subtree lives as long as the scope that built it. `Embed` reserves a rectangle
 for something outside the document — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
-`EmbedSlot` it was given and cutting that rectangle out of the surface so what
+`EmbedSlot` it was given (a `Copy` handle owned by the scope that made it) and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Offset` takes exactly one child, lays it out at its full length along a
@@ -1225,6 +1225,10 @@ declared it in, and failing both it floats in a window of its own. A pane with a
 onto another pane moves its tabs and leaves it behind. A split follows the
 `fraction` in the code until the user moves it. A pane, split or window the
 code adds is placed beside its declared sibling when the saved layout lacks it.
+
+`DockingLayout` is a `Copy` handle owned by the scope that made it;
+`OwnedDockingLayout::new()` makes one outside a scope (a host, or a test before
+it builds) and derefs to it.
 
 `DockingLayout::snapshot` is the `DockingSnapshot` to save, and `restore` puts
 one back; restore it in the same `batch` that declares its tabs, since a tab not

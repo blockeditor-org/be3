@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_keyed_store_only_wakes_the_item_that_changed() {
     let scope = Scope::new();
-    let store: KeyedStore<u32, String> = KeyedStore::new();
+    let store = OwnedKeyedStore::<u32, String>::new();
     store.reconcile_owned((0..4).map(|index| (index, format!("item {index}"))));
     let runs = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {

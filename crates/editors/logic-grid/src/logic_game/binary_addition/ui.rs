@@ -3,7 +3,7 @@ use block_editor_beui::be_block::logic_game::QuizRow;
 use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
 use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
-    Show, Spacer, Stored, clone, component, create_memo, create_signal, store, view,
+    Show, Spacer, Stored, component, create_memo, create_signal, store, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Bordered, Button, ButtonVariant, Caption, Code, Icon, use_theme,
@@ -67,12 +67,12 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     let done = create_memo(move || last.get() && correct.get() && finished.get());
 
     let check = move || set_checked.set(true);
-    let reset = clone!(block -> move || {
+    let reset = move || {
         let problem = page.get_untracked();
         quiz.get().write_row(&block, problem, QuizRow::Carries, Vec::new());
         quiz.get().write_row(&block, problem, QuizRow::Sums, Vec::new());
         set_checked.set(false);
-    });
+    };
     let back = move || {
         set_page.set(page.get_untracked().saturating_sub(1));
         set_checked.set(false);
@@ -162,10 +162,9 @@ fn ProblemGrid(
     read_only: Memo<bool>,
 ) -> NodeId {
     let operands = create_memo(move || quiz.get().problems()[page.get()].operands().to_vec());
-    let write = clone!(block -> move |row: QuizRow, values: Vec<Option<bool>>| {
+    let write = move |row: QuizRow, values: Vec<Option<bool>>| {
         quiz.get().write_row(&block, page.get_untracked(), row, values);
-    });
-    let carry_write = write.clone();
+    };
     let carries = create_memo(move || answers.with(|(carries, _)| carries.clone()));
     let sums = create_memo(move || answers.with(|(_, sums)| sums.clone()));
     let carry_expected =
@@ -181,7 +180,7 @@ fn ProblemGrid(
                 checked={checked}
                 read_only={read_only}
                 prefix="quiz.carry"
-                on_change={move |values| carry_write(QuizRow::Carries, values)}
+                on_change={move |values| write(QuizRow::Carries, values)}
             />
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
@@ -284,8 +283,6 @@ fn BitRow(
                             && answers.with(|answers| answers.get(column).copied().flatten())
                                 != expected.with(|expected| expected.get(column).copied())
                     });
-                    let on_change = on_change;
-                    let answers = answers;
                     let cycle = move || {
                         let mut values = answers.get_untracked();
                         if let Some(value) = values.get_mut(column) {

@@ -1,10 +1,8 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Show, Spacer, clone, component, create_effect, create_memo, view,
+    NodeRef, Show, Spacer, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_beui::beui::unstyled::Picture;
@@ -35,14 +33,13 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let placed = editor.placed();
     let canvas = editor.canvas();
     let device = editor.pixels_per_point();
-    let block_for_pump = Rc::clone(&block);
     let (waker, rendered) = editor.woken();
     create_effect(move || {
         rendered.get();
         let _measure = performance.measure("Editor pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(
-            &block_for_pump,
+            &block,
             &performance,
             waker.clone(),
             viewport(placed.get(), canvas.get(), size, device.get()),
@@ -79,7 +76,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let failure = chooser.error();
     let refused = create_memo(move || failure.get().is_some());
     let refusal = create_memo(move || failure.get().unwrap_or_default());
-    let choose = clone!(chooser -> move || chooser.open());
+    let choose = move || chooser.open();
     let source = block.project(|pdf| pdf.header().source_name.clone());
     let name = create_memo(move || source.get());
 
@@ -206,14 +203,13 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
         .performance(format!("PDF preview ({})", editor.block_id()));
     let placed = editor.placed();
     let device = editor.pixels_per_point();
-    let watched = Rc::clone(&block);
     let (waker, rendered) = editor.woken();
     create_effect(move || {
         rendered.get();
         let _measure = performance.measure("Preview pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(
-            &watched,
+            &block,
             &performance,
             waker.clone(),
             viewport(placed.get(), None, size, device.get()),

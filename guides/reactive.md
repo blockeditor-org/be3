@@ -214,6 +214,10 @@ let items: KeyedStore<Uuid, Item> = KeyedStore::new();
 items.reconcile(list.iter().map(|item| (item.id, item)));
 ```
 
+A `KeyedStore` is a `Copy` handle owned by the scope that made it, like a
+signal; `OwnedKeyedStore::new()` is the one for a store made outside a scope,
+which frees it when it drops and derefs to the handle.
+
 Values that are already owned go through `reconcile_owned`; `reconcile` takes
 them by reference and clones only the ones it is about to write. `keys()` is the
 order signal — read it with `with` rather than `get` so the list is not cloned —
@@ -251,7 +255,11 @@ A plugin editor reads its block's content through a `ContentProjection`
 (`block_editor_beui`). `editor.block_content::<C>()` is the one for the
 editor's own block, `editor.content_of::<C>(block)` the one for another block it
 follows; both are pumped by the plugin framework once at the top of every frame,
-inside the document's reactive scope, so an editor never pumps by hand.
+inside the document's reactive scope, so an editor never pumps by hand. A
+projection is a `Copy` handle that the `Editor` owns and frees with itself, so
+closures take it with `move`. One made outside an editor, as
+`EditorHost::content_of` makes one for an artifact's regeneration, is an
+`OwnedContentProjection`, which frees it when it drops and derefs to the handle.
 
 ```rust
 let checklist = editor.block_content::<ChecklistContent>();

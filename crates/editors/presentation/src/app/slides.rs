@@ -1,10 +1,9 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::presentation::{Presentation, PresentationContent};
 use block_editor_beui::beui::reactive::{
-    KeyedStore, ReadSignal, Stored, WriteSignal, create_effect, create_signal, store,
+    KeyedStore, ReadSignal, WriteSignal, create_effect, create_signal,
 };
 use block_editor_beui::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
@@ -15,15 +14,11 @@ pub struct Slide {
     pub name: String,
 }
 
-struct SlidesInner {
-    block: Rc<ContentProjection<PresentationContent>>,
-    store: KeyedStore<Uuid, Slide>,
-}
-
 #[derive(Clone, Copy)]
 pub struct Slides {
     editor: Editor,
-    inner: Stored<SlidesInner>,
+    block: ContentProjection<PresentationContent>,
+    store: KeyedStore<Uuid, Slide>,
     selected: ReadSignal<Option<Uuid>>,
     set_selected: WriteSignal<Option<Uuid>>,
 }
@@ -34,10 +29,8 @@ impl Slides {
         let (selected, set_selected) = create_signal(None::<Uuid>);
         let slides = Self {
             editor,
-            inner: store(SlidesInner {
-                block,
-                store: KeyedStore::new(),
-            }),
+            block,
+            store: KeyedStore::new(),
             selected,
             set_selected,
         };
@@ -49,7 +42,7 @@ impl Slides {
     }
 
     pub fn keys(&self) -> ReadSignal<Vec<Uuid>> {
-        self.inner.get().store.keys()
+        self.store.keys()
     }
 
     pub fn selected(&self) -> ReadSignal<Option<Uuid>> {
@@ -61,23 +54,17 @@ impl Slides {
     }
 
     pub fn slide(&self, id: Uuid) -> Option<Slide> {
-        let known = self
-            .inner
-            .get()
-            .store
+        let known = self.store
             .keys()
             .with(|keys| keys.contains(&id));
-        known.then(|| self.inner.get().store.get(&id).get())
+        known.then(|| self.store.get(&id).get())
     }
 
     fn known(&self, id: Uuid) -> Option<Slide> {
-        let known = self
-            .inner
-            .get()
-            .store
+        let known = self.store
             .keys()
             .with_untracked(|keys| keys.contains(&id));
-        known.then(|| self.inner.get().store.get(&id).get_untracked())
+        known.then(|| self.store.get(&id).get_untracked())
     }
 
     pub fn target(&self, id: Option<Uuid>) -> Option<ChildTarget> {
@@ -85,19 +72,17 @@ impl Slides {
     }
 
     pub fn index_of(&self, id: Uuid) -> Option<usize> {
-        self.inner
-            .get()
-            .store
+        self.store
             .keys()
             .with(|keys| keys.iter().position(|key| *key == id))
     }
 
     pub fn count(&self) -> usize {
-        self.inner.get().store.keys().with(Vec::len)
+        self.store.keys().with(Vec::len)
     }
 
     pub fn step(&self, offset: isize) {
-        let keys = self.inner.get().store.keys().get_untracked();
+        let keys = self.store.keys().get_untracked();
         if keys.is_empty() {
             return;
         }
@@ -113,7 +98,7 @@ impl Slides {
     }
 
     pub fn go_to(&self, index: usize) {
-        let keys = self.inner.get().store.keys().get_untracked();
+        let keys = self.store.keys().get_untracked();
         if let Some(id) = keys.get(index.min(keys.len().saturating_sub(1))) {
             self.set_selected.set(Some(*id));
         }
@@ -121,12 +106,10 @@ impl Slides {
 
     pub fn remove(&self, id: Uuid) {
         let index = self.index_of(id);
-        self.inner
-            .get()
-            .block
+        self.block
             .operate(Presentation::remove(ObjectId::from_uuid(id)));
         if self.selected.get_untracked() == Some(id) {
-            let keys = self.inner.get().store.keys().get_untracked();
+            let keys = self.store.keys().get_untracked();
             let next = index.and_then(|index| {
                 keys.get(index + 1)
                     .or_else(|| keys.get(index.wrapping_sub(1)))
@@ -136,18 +119,15 @@ impl Slides {
     }
 
     pub fn move_to(&self, id: Uuid, index: usize) {
-        if let Some(edit) = self
-            .inner
-            .get()
-            .block
+        if let Some(edit) = self.block
             .read(|presentation| presentation.root().move_to(ObjectId::from_uuid(id), index))
         {
-            self.inner.get().block.operate(edit);
+            self.block.operate(edit);
         }
     }
 
     pub fn add(&self, index: usize) {
-        let block = Rc::clone(&self.inner.get().block);
+        let block = self.block;
         let set_selected = self.set_selected;
         self.editor.pick_block(
             block_editor_beui::BlockFilter {
@@ -175,7 +155,7 @@ impl Slides {
     }
 
     fn refresh(&self, dependencies: &BlockList) {
-        let Some(entries) = self.inner.get().block.read(|presentation| {
+        let Some(entries) = self.block.read(|presentation| {
             presentation
                 .root()
                 .slides
@@ -216,8 +196,8 @@ impl Slides {
                 (id, slide)
             })
             .collect();
-        self.inner.get().store.reconcile_owned(items);
-        let keys = self.inner.get().store.keys().get_untracked();
+        self.store.reconcile_owned(items);
+        let keys = self.store.keys().get_untracked();
         let selected = self.selected.get_untracked();
         if selected.is_none_or(|selected| !keys.contains(&selected)) {
             self.set_selected.set(keys.first().copied());

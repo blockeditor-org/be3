@@ -164,10 +164,6 @@ fn DatabaseValueControl(
         <List spacing=0.0>
             <Dynamic value={kind}>
                 {move |kind: Option<Option<DatabaseFieldType>>| {
-                    let field = field;
-                    let value = value;
-                    let labels = labels;
-                    let disabled = disabled;
                     let test_id = id.clone();
                     let on_change = forward(on_change);
                     let on_pick = forward(on_pick);
@@ -695,7 +691,6 @@ fn LinksValue(
         <List spacing=SPACING>
             <ForEach keys={linked}>
                 {move |link: RowRef| {
-                    let disabled = disabled;
                     let remove_id = format!("{id}.remove.{}", link.row);
                     let label = create_memo(move || {
                         chip_labels.with(|labels| labels.row(&link))
@@ -785,7 +780,6 @@ pub fn watch_inverses(editor: crate::Editor, database: Memo<Option<Uuid>>) -> Me
             .into_iter()
             .map(|source| source_inverses(editor, target, source))
             .collect();
-        let set_found = set_found;
         create_effect(move || {
             set_found.set(
                 watched_sources
@@ -811,7 +805,6 @@ fn source_inverses(editor: crate::Editor, target: Uuid, source: Uuid) -> ReadSig
             .content_of::<DatabaseSchemaContent>(schema)
             .project(|schema| schema.root());
         let database = content.project(|content| content.root());
-        let set_found = set_found;
         create_effect(move || {
             set_found.set(inverses(target, source, &database.get(), &schema.get()));
         });
@@ -841,7 +834,6 @@ pub fn watch_row_labels(
             .into_iter()
             .map(|database| row_titles(editor, database))
             .collect();
-        let set_labels = set_labels;
         create_effect(move || {
             set_labels.set(
                 watched
@@ -864,8 +856,6 @@ fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef, 
                 .content_of::<DatabaseSchemaContent>(schema)
                 .project(|schema| schema.root().title_field())
         });
-        let content = content.clone();
-        let set_titles = set_titles;
         create_effect(move || {
             let title = title_field.as_ref().and_then(ReadSignal::get);
             let projected = content.project(move |content| {
@@ -881,7 +871,6 @@ fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef, 
                     })
                     .collect::<Vec<_>>()
             });
-            let set_titles = set_titles;
             create_effect(move || set_titles.set(projected.get()));
         });
     });

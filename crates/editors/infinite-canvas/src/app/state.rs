@@ -223,7 +223,7 @@ pub(crate) struct Presence {
 }
 
 struct CanvasCells {
-    content: Rc<ContentProjection<CanvasContent>>,
+    content: ContentProjection<CanvasContent>,
     dependencies: BlockList,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,

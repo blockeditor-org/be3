@@ -51,7 +51,7 @@ pub(crate) struct VideoState {
 }
 
 struct Inner {
-    block: Rc<ContentProjection<VideoContent>>,
+    block: ContentProjection<VideoContent>,
     dependencies: BlockList,
     picker: RefCell<BlockPicker>,
     picker_attachment: Cell<Option<Uuid>>,

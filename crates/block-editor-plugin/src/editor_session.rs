@@ -317,7 +317,7 @@ impl EditorSession {
             let state = self.regions.entry(placement.region).or_default();
             state.placement = Some(*placement);
             state.metrics = Some(request.metrics.clone());
-            state.frame = request.frame.clone();
+            state.frame = request.frame;
         }
     }
 
@@ -852,7 +852,7 @@ impl EditorSession {
             spec: self
                 .regions
                 .get(&region)
-                .and_then(|state| state.frame.clone())
+                .and_then(|state| state.frame)
                 .unwrap_or_default(),
             monitors: self.monitors(region),
             describe: crate::screens::describing(),
