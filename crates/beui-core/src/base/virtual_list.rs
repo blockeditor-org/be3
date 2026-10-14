@@ -75,8 +75,15 @@ impl Metrics {
         }
     }
 
+    fn guess(&self) -> f32 {
+        match self.lengths.len() {
+            0 => self.estimated,
+            measured => self.measured / measured as f32,
+        }
+    }
+
     fn height(&self, index: usize) -> f32 {
-        self.lengths.get(&index).copied().unwrap_or(self.estimated)
+        self.lengths.get(&index).copied().unwrap_or_else(|| self.guess())
     }
 
     fn position(&self, index: usize) -> f32 {
@@ -87,11 +94,11 @@ impl Metrics {
             sum += self.sums[at];
             at &= at - 1;
         }
-        (index - measured) as f32 * self.estimated + sum as f32
+        (index - measured) as f32 * self.guess() + sum as f32
     }
 
     fn total(&self) -> f32 {
-        (self.count - self.lengths.len()) as f32 * self.estimated + self.measured
+        (self.count - self.lengths.len()) as f32 * self.guess() + self.measured
     }
 
     fn index_at(&self, position: f32) -> usize {
