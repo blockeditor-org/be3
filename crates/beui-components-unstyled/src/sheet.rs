@@ -894,7 +894,7 @@ pub fn ModalSheet(
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_close: ClickCallback,
-    children: Child,
+    #[prop(children)] content: Render,
 ) -> NodeId {
     let dismiss = on_close;
     let (gone, set_gone) = create_signal(true);
@@ -915,21 +915,22 @@ pub fn ModalSheet(
             placement=Placement::Fill
             scrim={faded}
             on_dismiss={move |_: Dismiss| dismiss.call()}
-        >
-            <ModalSheetBody
-                open
-                rest
-                stops
-                fit
-                grip
-                panel
-                on_presence={move |presence: f32| set_presence.set(presence)}
-                on_gone={move || set_gone.set(true)}
-                on_close={on_close}
-            >
-                {children}
-            </ModalSheetBody>
-        </Overlay>
+            content={move || view! {
+                <ModalSheetBody
+                    open
+                    rest
+                    stops
+                    fit
+                    grip
+                    panel
+                    on_presence={move |presence: f32| set_presence.set(presence)}
+                    on_gone={move || set_gone.set(true)}
+                    on_close={on_close}
+                >
+                    {content.call(())}
+                </ModalSheetBody>
+            }}
+        />
     }
 }
 

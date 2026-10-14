@@ -42,7 +42,6 @@ fn holding_a_finger_down_opens_a_context_menu() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let overlay = unstyled::context_menu_overlay(harness.document(), menu.get());
 
     harness.touch(TouchPhase::Start, pos2(100.0, 100.0));
     let waiting = harness.frame(Vec::new());
@@ -62,7 +61,7 @@ fn holding_a_finger_down_opens_a_context_menu() {
         "holding a finger still opens the menu, as a sheet"
     );
     assert!(
-        !harness.document().is_overlay_open(overlay),
+        !unstyled::context_menu_open(harness.document(), menu.get()),
         "a finger never opens the menu that a mouse gets"
     );
     assert_eq!(

@@ -5,7 +5,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SHEET_STOPS, SheetGripHandle};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Child, ClickCallback, Frame, List, Prop};
+use beui_view::reactive::{Align, Child, ClickCallback, Frame, List, Prop, Render};
 
 const HANDLE_HEIGHT: f32 = 24.0;
 const GRIP_WIDTH: f32 = 36.0;
@@ -49,7 +49,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     on_close: ClickCallback,
-    children: Child,
+    #[prop(children)] content: Render,
 ) -> NodeId {
     view! {
         <unstyled::ModalSheet
@@ -66,7 +66,7 @@ pub fn ModalSheet(
             }}
             on_close={on_close}
         >
-            {children}
+            {move || content.call(())}
         </unstyled::ModalSheet>
     }
 }

@@ -8,7 +8,7 @@ use beui_core::geometry::Pos2;
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop,
+    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, Show,
     create_effect, create_memo, create_signal, last_pointer, set_component_state,
 };
 
@@ -69,6 +69,12 @@ pub fn ContextMenu(
     });
     let shown = create_memo(move || open.get());
     let touched = create_memo(move || !selection && touched.get());
+    let mut ever_open = false;
+    let built = create_memo(move || {
+        ever_open |= shown.get();
+        ever_open
+    });
+    let items = items.into_run();
     view! {
         <Interactive
             on_secondary_press={move |press: PointerPress| {
@@ -83,21 +89,25 @@ pub fn ContextMenu(
         >
             <List spacing=0.0>
                 {children} @sizing={child_size}
-                <MenuPopup
-                    overlay
-                    content
-                    items={items.into_run()}
-                    menu
-                    anchor
-                    open={shown}
-                    touched
-                    focusing
-                    on_dismiss={move || {
-                        set_open.set(false);
-                        on_close.call();
+                <Show condition={built}>
+                    {move || view! {
+                        <MenuPopup
+                            overlay
+                            content
+                            items={items.clone()}
+                            menu={menu.clone()}
+                            anchor
+                            open={shown}
+                            touched
+                            focusing
+                            on_dismiss={move || {
+                                set_open.set(false);
+                                on_close.call();
+                            }}
+                            on_select={on_select}
+                        />
                     }}
-                    on_select={on_select}
-                />
+                </Show>
             </List>
         </Interactive>
     }
@@ -115,4 +125,12 @@ pub fn context_menu_overlay(document: &Document, context_menu: NodeId) -> NodeId
         .component_state::<State>(context_menu)
         .overlay
         .get()
+}
+
+pub fn context_menu_open(document: &Document, context_menu: NodeId) -> bool {
+    document
+        .component_state::<State>(context_menu)
+        .overlay
+        .try_get()
+        .is_some_and(|overlay| document.is_overlay_open(overlay))
 }

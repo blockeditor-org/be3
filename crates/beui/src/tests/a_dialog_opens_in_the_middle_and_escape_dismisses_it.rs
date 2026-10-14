@@ -32,7 +32,10 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert!(harness.document().node_rect(surface.get()).is_none());
+    assert!(
+        surface.try_get().is_none(),
+        "a closed dialog builds nothing it holds"
+    );
 
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
     harness.frame(Vec::new());

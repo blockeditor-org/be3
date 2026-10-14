@@ -27,8 +27,8 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     assert!(
-        harness.document().node_rect(content.get()).is_none(),
-        "a closed modal sheet shows nothing"
+        content.try_get().is_none(),
+        "a closed modal sheet builds nothing it holds"
     );
 
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));

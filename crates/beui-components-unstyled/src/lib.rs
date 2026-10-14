@@ -70,7 +70,7 @@ pub use command_palette::{
     command_palette_search, command_palette_shown,
 };
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
-pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
+pub use context_menu::{ContextMenu, context_menu_menu, context_menu_open, context_menu_overlay};
 pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
     date_time_field_value,
