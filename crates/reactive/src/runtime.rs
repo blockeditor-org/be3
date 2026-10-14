@@ -20,6 +20,7 @@ pub(crate) struct Runtime {
     pub(crate) parked: RefCell<HashMap<u64, Vec<Weak<Computation>>>>,
     pub(crate) sequence: Cell<u64>,
     pub(crate) flushes: Cell<u64>,
+    pub(crate) removals: Cell<u64>,
 }
 
 impl Default for Runtime {
@@ -37,6 +38,7 @@ impl Default for Runtime {
             parked: RefCell::default(),
             sequence: Cell::default(),
             flushes: Cell::default(),
+            removals: Cell::default(),
         }
     }
 }
@@ -211,7 +213,10 @@ pub(crate) fn flush() {
     let _guard = Reset::set(|runtime| &runtime.flushing, true);
     let flush = next_flush();
     loop {
-        let next = RUNTIME.with(|runtime| runtime.queue.borrow_mut().pop_front());
+        let next = RUNTIME.with(|runtime| {
+            runtime.removals.set(runtime.removals.get() + 1);
+            runtime.queue.borrow_mut().pop_front()
+        });
         let Some(next) = next else { break };
         run_queued(next, flush);
     }
@@ -221,14 +226,23 @@ pub(crate) fn flush_within(root: &Owner) {
     let depth = RUNTIME.with(|runtime| runtime.depth.get());
     let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
     let flush = next_flush();
+    let mut checked = 0;
+    let mut seen = RUNTIME.with(|runtime| runtime.removals.get());
     loop {
         let next = RUNTIME.with(|runtime| {
+            if runtime.removals.get() != seen {
+                checked = 0;
+            }
             let mut queue = runtime.queue.borrow_mut();
-            let at = queue.iter().position(|queued| {
-                queued
-                    .upgrade()
-                    .is_some_and(|computation| computation.owned_within(root))
-            })?;
+            let at = checked
+                + queue.iter().skip(checked).position(|queued| {
+                    queued
+                        .upgrade()
+                        .is_some_and(|computation| computation.owned_within(root))
+                })?;
+            checked = at;
+            runtime.removals.set(runtime.removals.get() + 1);
+            seen = runtime.removals.get();
             queue.remove(at)
         });
         let Some(next) = next else { break };
