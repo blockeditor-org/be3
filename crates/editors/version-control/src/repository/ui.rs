@@ -2,7 +2,7 @@ use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{Repository, RepositoryContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
     view,
 };
 use block_editor_beui::beui::styled::{
@@ -90,7 +90,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <Show condition={unversioned}>
-                            {move || clone!(; choose -> view! {
+                            {move || view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Body content="Nothing is versioned here yet." />
@@ -107,17 +107,17 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                         />
                                     </List>
                                 </Card>
-                            })}
+                            }}
                         </Show>
                         <Show condition={versioned}>
-                            {move || clone!(; rows -> view! {
+                            {move || view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Heading content="Branches" />
                                         <ForEach keys={branches} view={rows} />
                                     </List>
                                 </Card>
-                            })}
+                            }}
                         </Show>
                         <Card>
                             <List spacing=10.0>

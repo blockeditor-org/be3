@@ -8,8 +8,7 @@ use block_editor_beui::be_block::{InputSettings, InputSettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, clone,
-    component, create_memo, create_signal, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,
@@ -26,7 +25,7 @@ const COLUMN_SPACING: f32 = 12.0;
 
 type Settings = Rc<ContentProjection<InputSettingsContent>>;
 type DeviceKey = (String, u32, u32);
-type Apply = Rc<dyn Fn(PointerSetting)>;
+type Apply = Callback<PointerSetting>;
 
 #[component]
 pub fn InputSettingsView(editor: Editor) -> NodeId {
@@ -255,7 +254,7 @@ fn Pointers(
         Some(index.map_or(0, |index| index + 1))
     });
     let picked = keys;
-    let apply: Apply = Rc::new(move |setting: PointerSetting| {
+    let apply = Apply::new(move |setting: PointerSetting| {
         let root = root.get_untracked();
         let edit = match scope.get_untracked() {
             None => root.set_every_pointer(setting),
@@ -309,7 +308,6 @@ fn Pointers(
     let (tap_on, tap_mixed, tap_unset, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, natural_unset, has_natural) = switch_state(natural);
     let (speed_off, tap_off, natural_off) = (read_only, read_only, read_only);
-    let (apply_speed, apply_tap, apply_natural) = (apply.clone(), apply.clone(), apply);
     view! {
         <List spacing=ROW_SPACING>
             <Heading content="Pointers" />
@@ -345,9 +343,9 @@ fn Pointers(
                     max=MAX_POINTER_SPEED
                     read_only={speed_off}
                     id={"pointer.speed".to_owned()}
-                    on_change={clone!(apply_speed -> move |speed: Option<f32>| {
-                        apply_speed(PointerSetting::Speed(speed.map(PointerSpeed::new)))
-                    })}
+                    on_change={move |speed: Option<f32>| {
+                        apply.call(PointerSetting::Speed(speed.map(PointerSpeed::new)))
+                    }}
                 />
             </Show>
             <Show condition={has_tap}>
@@ -358,9 +356,9 @@ fn Pointers(
                     unset={tap_unset}
                     read_only={tap_off}
                     id={"pointer.tap-to-click".to_owned()}
-                    on_change={clone!(apply_tap -> move |tap: Option<bool>| {
-                        apply_tap(PointerSetting::TapToClick(tap))
-                    })}
+                    on_change={move |tap: Option<bool>| {
+                        apply.call(PointerSetting::TapToClick(tap))
+                    }}
                 />
             </Show>
             <Show condition={has_natural}>
@@ -371,9 +369,9 @@ fn Pointers(
                     unset={natural_unset}
                     read_only={natural_off}
                     id={"pointer.natural-scroll".to_owned()}
-                    on_change={clone!(apply_natural -> move |natural: Option<bool>| {
-                        apply_natural(PointerSetting::NaturalScroll(natural))
-                    })}
+                    on_change={move |natural: Option<bool>| {
+                        apply.call(PointerSetting::NaturalScroll(natural))
+                    }}
                 />
             </Show>
         </List>

@@ -155,10 +155,9 @@ fn DisplaySection(
     });
     let resolution_id = format!("display-settings.{connector}.resolution");
     let refresh_id = format!("display-settings.{connector}.refresh");
-    let set = Rc::new(clone!(settings id -> move |mode: Option<HostDisplayMode>| {
+    let set = Callback::new(clone!(settings id -> move |mode: Option<HostDisplayMode>| {
         settings.operate(DisplaySettings::set_mode(&id, mode.map(saved)));
     }));
-    let (sized, rated, reset) = (set.clone(), set.clone(), set);
     let (size_off, rate_off) = (read_only, read_only);
     let picked_size = size_list;
     let picked_rate = rate_list;
@@ -173,7 +172,7 @@ fn DisplaySection(
                     unset={unset}
                     read_only={read_only}
                     id={connector}
-                    on_reset={move |_: ()| reset(None)}
+                    on_reset={move |_: ()| set.call(None)}
                 />
             </List>
             <Caption content="Resolution" />
@@ -195,7 +194,7 @@ fn DisplaySection(
                     };
                     let fastest = offered.with_untracked(|modes| rates(modes, size).first().copied());
                     if fastest.is_some() {
-                        sized(fastest);
+                        set.call(fastest);
                     }
                 }}
             />
@@ -215,7 +214,7 @@ fn DisplaySection(
                 on_change={move |index: Option<usize>| {
                     let mode = index.and_then(|index| picked_rate.with_untracked(|rates| rates.get(index).copied()));
                     if mode.is_some() {
-                        rated(mode);
+                        set.call(mode);
                     }
                 }}
             />

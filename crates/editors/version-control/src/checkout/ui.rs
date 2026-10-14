@@ -2,7 +2,7 @@ use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{CheckoutContent, ConflictKind, Repository};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::{
@@ -206,14 +206,14 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             }}
                         </Show>
                         <Show condition={conflicted}>
-                            {move || clone!(; conflict_rows -> view! {
+                            {move || view! {
                                 <Card>
                                     <List spacing=12.0>
                                         <Heading content="Conflicts" />
                                         <ForEach keys={conflicts} view={conflict_rows} />
                                     </List>
                                 </Card>
-                            })}
+                            }}
                         </Show>
                         <Card>
                             <List spacing=10.0>
@@ -359,7 +359,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                     }}
                 </Show>
                 <Show condition={compared}>
-                    {move || clone!(; take_base take_ours take_theirs -> view! {
+                    {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
                                 label="Take base"
@@ -383,7 +383,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                                 on_click={take_theirs}
                             />
                         </List>
-                    })}
+                    }}
                 </Show>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
