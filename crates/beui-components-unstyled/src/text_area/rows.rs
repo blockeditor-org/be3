@@ -7,7 +7,7 @@ use text_editor_core::{
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
-use beui_core::font::{FontId, Galley, TextLayout, Wraps};
+use beui_core::font::{FontId, Galley, TextLayout};
 use beui_core::geometry::Vec2;
 use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::layout_text;
@@ -775,7 +775,6 @@ fn empty_galley(font: FontId) -> Galley {
         0.0,
         Vec::new(),
         Vec::new(),
-        Wraps::ANY,
     )
 }
 

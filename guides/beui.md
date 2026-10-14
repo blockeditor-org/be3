@@ -250,7 +250,10 @@ hooks the higher crates fill in:
   to it; a document built by `beui_view::reactive::build` has none.
 - The simulated mouse is an `InputSimulation` the inspector installs on the
   `Context`.
-- Text is shaped by the `FontBackend` a `Context` is made with.
+- Text is shaped by the `FontBackend` a `Context` is made with. A backend
+  only shapes one line (`FontBackend::shape`, text with no `\n`); core breaks
+  and aligns lines once, in `RichLayout`, which `Fonts::layout` (and so
+  `Painter::layout`) uses for wrapped, aligned or multi-line text.
   `beui::context()` makes one over `FreetypeFonts` and only the fonts beui
   bundles, which is what tests use; `beui::system_context()`, which the
   runners use, adds the system's own fonts for whatever the bundled ones do

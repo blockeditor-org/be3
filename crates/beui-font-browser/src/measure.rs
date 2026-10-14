@@ -7,7 +7,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
 use beui_core::font::{
-    FontBackend, FontFamily, FontId, Galley, GalleyLine, Shaping, TextLayout, Wraps, break_lines,
+    FontBackend, FontFamily, FontId, Galley, GalleyLine, Shaping,
 };
 use beui_core::geometry::vec2;
 
@@ -192,7 +192,7 @@ impl BrowserFonts {
 }
 
 impl FontBackend for BrowserFonts {
-    fn build(
+    fn shape(
         &mut self,
         text: &str,
         family: FontFamily,
@@ -209,79 +209,35 @@ impl FontBackend for BrowserFonts {
         };
         let measured: Rc<str> = css_font(font).into();
         let (ascent, descent) = self.metrics(&measured, pixel_size);
-        let line_height = (shape.line() * shape.spacing()).round().max(1.0);
+        let line_height = shape.line();
         let baseline = ((line_height - (ascent + descent)) / 2.0).round() + ascent;
-        let mut rows = Vec::new();
-        let mut width = 0.0f32;
-        let mut start = 0;
-        let mut wraps = Wraps::ANY;
-
-        for line in text.split('\n') {
-            let steps = self.steps(&measured, line);
-            let runs = break_lines(&steps, line, shape.wrap(), &mut wraps, |step| {
-                (step.cluster, step.x_advance)
-            });
-            let last = runs.len() - 1;
-            for (index, run) in runs.into_iter().enumerate() {
-                let end = start
-                    + match steps.get(run.end) {
-                        Some(step) if index < last => step.cluster,
-                        _ => line.len(),
-                    };
-                let row = steps[run]
-                    .iter()
-                    .map(|step| Step {
-                        cluster: start + step.cluster,
-                        ..*step
-                    })
-                    .collect::<Vec<_>>();
-                let advance = row.iter().map(|step| step.x_advance).sum::<f32>();
-                width = width.max(advance);
-                rows.push((row, end, advance));
+        let mut pen = 0.0;
+        let mut cursors = Vec::new();
+        for step in self.steps(&measured, text) {
+            if cursors
+                .last()
+                .is_none_or(|(previous, _)| *previous != step.cluster)
+            {
+                cursors.push((step.cluster, pen / scale));
             }
-            start += line.len() + 1;
+            pen += step.x_advance;
         }
-
-        let mut lines = Vec::new();
-        let mut cursor = 0.0;
-        for (row, end, advance) in rows {
-            let indent = TextLayout {
-                align: shape.align,
-                ..TextLayout::DEFAULT
-            }
-            .indent_of(width, advance);
-            let mut pen = indent;
-            let mut cursors = Vec::new();
-            for step in &row {
-                if cursors
-                    .last()
-                    .is_none_or(|(previous, _)| *previous != step.cluster)
-                {
-                    cursors.push((step.cluster, pen / scale));
-                }
-                pen += step.x_advance;
-            }
-            cursors.push((end, pen / scale));
-            lines.push(GalleyLine {
-                top: cursor / scale,
-                range: cursors[0].0..end,
-                cursors,
-            });
-            cursor += line_height;
-        }
-
+        cursors.push((text.len(), pen / scale));
         Galley::new(
             text,
             FontId {
                 size: pixel_size as f32 / scale,
                 ..font
             },
-            vec2(width.ceil() / scale, cursor.ceil() / scale),
+            vec2(pen.ceil() / scale, line_height / scale),
             line_height / scale,
             baseline / scale,
             Vec::new(),
-            lines,
-            wraps,
+            vec![GalleyLine {
+                top: 0.0,
+                range: 0..text.len(),
+                cursors,
+            }],
         )
     }
 

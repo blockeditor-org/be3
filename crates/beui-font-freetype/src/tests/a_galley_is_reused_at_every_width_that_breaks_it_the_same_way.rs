@@ -1,4 +1,5 @@
 use super::*;
+use std::ops::Range;
 use beui_core::font::{FontId, Fonts, TextLayout};
 
 const TEXT: &str = "Resizing a window reflows every paragraph in it, and most widths \
