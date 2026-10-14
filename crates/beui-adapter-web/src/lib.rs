@@ -21,15 +21,12 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    TouchPhase,
 };
 use beui_core::renderer::Loaded;
-use beui_core::runner::{
-    Adapter, Input, Keystroke, Launch, Platform, Running, SCROLL_LINE, SCROLL_PAGE, ScrollDelta,
-};
+use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
 use beui_core::window::{WindowReports, WindowState};
-
-const PINCH_SPEED: f32 = 0.01;
 
 type Loading = Pin<Box<dyn Future<Output = Result<Vec<Loaded>, Box<dyn Error>>>>>;
 type Load = Box<dyn FnOnce(web_sys::HtmlElement) -> Loading>;
@@ -133,6 +130,10 @@ fn push(input: impl Into<Input>) {
     schedule();
 }
 
+fn push_logical(input: impl Into<Input>) {
+    push(Input::logical(input));
+}
+
 fn schedule() {
     if INPUT.with(|input| input.scheduled.get()) {
         return;
@@ -227,10 +228,11 @@ impl Platform for WebPlatform {
             PASTE_KINDS.with(|pastes| pastes.borrow_mut().clone_from(&window.paste_kinds));
         }
         if window.cursor != shown.cursor {
-            let _ = self
-                .surface
-                .style()
-                .set_property("cursor", window.cursor.name());
+            let cursor = match window.cursor {
+                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.name()),
+                cursor => cursor.name().to_owned(),
+            };
+            let _ = self.surface.style().set_property("cursor", &cursor);
         }
         if window.pointer_locked != shown.pointer_locked {
             match window.pointer_locked {
@@ -323,6 +325,9 @@ impl Runner {
             self.runner.push(input);
         }
         let Some(frame) = self.runner.frame(&mut self.platform, SafeArea::default()) else {
+            if self.runner.exited() {
+                self.closed(&window);
+            }
             return;
         };
         let presenting = frame.pending && self.runner.present();
@@ -332,6 +337,30 @@ impl Runner {
             None => {}
         }
     }
+}
+
+impl Runner {
+    fn closed(&self, window: &web_sys::Window) {
+        if let Some(failure) = self.runner.failure() {
+            web_sys::console::error_1(&format!("the app stopped after a panic: {failure}").into());
+        }
+        let _ = window.close();
+    }
+}
+
+fn close_requested(event: &web_sys::Event) {
+    let runner = RUNNER.with(|runner| runner.borrow().clone());
+    let Some(runner) = runner else {
+        return;
+    };
+    let Ok(mut runner) = runner.try_borrow_mut() else {
+        return;
+    };
+    if runner.runner.exited() || runner.runner.os_close() {
+        return;
+    }
+    event.prevent_default();
+    let _ = js_sys::Reflect::set(event, &"returnValue".into(), &"".into());
 }
 
 struct Wake {
@@ -489,23 +518,13 @@ fn on<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
     Ok(())
 }
 
-fn ratio() -> f32 {
-    web_sys::window().map_or(1.0, |window| window.device_pixel_ratio() as f32)
-}
-
-fn css_position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
+fn position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
     let bounds = surface.get_bounding_client_rect();
     let (x, y) = (
         client(event, "clientX").unwrap_or(f64::from(event.client_x())),
         client(event, "clientY").unwrap_or(f64::from(event.client_y())),
     );
     pos2((x - bounds.left()) as f32, (y - bounds.top()) as f32)
-}
-
-fn position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
-    let css = css_position(surface, event);
-    let scale = ratio();
-    pos2(css.x * scale, css.y * scale)
 }
 
 fn client(event: &web_sys::MouseEvent, axis: &str) -> Option<f64> {
@@ -552,11 +571,10 @@ fn listen(
                 event.shift_key(),
             );
             let pos = position(&surface, &event);
-            let css = css_position(&surface, &event);
             if event.pointer_type() == "touch"
                 && HELD_FIELD
                     .with(|held| held.get())
-                    .is_some_and(|rect| rect.contains(css))
+                    .is_some_and(|rect| rect.contains(pos))
             {
                 HELD_FIELD.set(None);
                 let _ = agent.remove_attribute("inputmode");
@@ -566,11 +584,11 @@ fn listen(
                 REFOCUSING.set(false);
             }
             if event.pointer_type() == "touch" {
-                push(touch(&event, TouchPhase::Start, pos));
+                push_logical(touch(&event, TouchPhase::Start, pos));
                 return;
             }
             if let Some(button) = pointer_button(event.button()) {
-                push(button_event(pos, button, true));
+                push_logical(button_event(pos, button, true));
             }
         }
     })?;
@@ -578,19 +596,18 @@ fn listen(
         let surface = surface.clone();
         move |event: web_sys::PointerEvent| {
             if INPUT.with(|input| input.locked.get()) {
-                let scale = ratio();
-                push(Event::PointerMotion(vec2(
-                    event.movement_x() as f32 * scale,
-                    event.movement_y() as f32 * scale,
+                push_logical(Event::PointerMotion(vec2(
+                    event.movement_x() as f32,
+                    event.movement_y() as f32,
                 )));
                 return;
             }
             let pos = position(&surface, &event);
             if event.pointer_type() == "touch" {
-                push(touch(&event, TouchPhase::Move, pos));
+                push_logical(touch(&event, TouchPhase::Move, pos));
                 return;
             }
-            push(Event::PointerMoved(pos));
+            push_logical(Event::PointerMoved(pos));
         }
     })?;
     for (name, cancelled) in [("pointerup", false), ("pointercancel", true)] {
@@ -610,11 +627,11 @@ fn listen(
                         true => TouchPhase::Cancel,
                         false => TouchPhase::End,
                     };
-                    push(touch(&event, phase, pos));
+                    push_logical(touch(&event, phase, pos));
                     return;
                 }
                 if let Some(button) = pointer_button(event.button()) {
-                    push(button_event(pos, button, false));
+                    push_logical(button_event(pos, button, false));
                 }
             }
         })?;
@@ -631,20 +648,15 @@ fn listen(
     on(surface_target, "wheel", |event: web_sys::WheelEvent| {
         event.prevent_default();
         let delta = -vec2(event.delta_x() as f32, event.delta_y() as f32);
-        let (delta, points) = match event.delta_mode() {
-            web_sys::WheelEvent::DOM_DELTA_LINE => (ScrollDelta::Lines(delta), SCROLL_LINE),
-            web_sys::WheelEvent::DOM_DELTA_PAGE => (ScrollDelta::Pages(delta), SCROLL_PAGE),
-            _ => (ScrollDelta::Pixels(delta * ratio()), 1.0),
+        let delta = match event.delta_mode() {
+            web_sys::WheelEvent::DOM_DELTA_LINE => ScrollDelta::Lines(delta),
+            web_sys::WheelEvent::DOM_DELTA_PAGE => ScrollDelta::Pages(delta),
+            _ => ScrollDelta::Pixels(delta),
         };
-        if event.ctrl_key() {
-            let pinched = match delta {
-                ScrollDelta::Lines(delta) | ScrollDelta::Pages(delta) => delta.y * points,
-                ScrollDelta::Pixels(delta) => delta.y / ratio(),
-            };
-            push(Event::Zoom((pinched * PINCH_SPEED).exp()));
-            return;
-        }
-        push(delta);
+        push_logical(match event.ctrl_key() {
+            true => Input::Pinch(delta),
+            false => Input::Scroll(delta),
+        });
     })?;
     on(
         surface_target,
@@ -812,6 +824,9 @@ fn listen(
     })?;
     let window_target: &web_sys::EventTarget = window.as_ref();
     on(window_target, "resize", |_event: web_sys::Event| schedule())?;
+    on(window_target, "beforeunload", |event: web_sys::Event| {
+        close_requested(&event);
+    })?;
     let observer = web_sys::ResizeObserver::new(
         Closure::<dyn FnMut()>::new(schedule)
             .into_js_value()

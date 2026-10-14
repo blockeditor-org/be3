@@ -6,7 +6,7 @@ use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub struct ShiftNode {
-    child: NodeId,
+    child: Option<NodeId>,
     by: Vec2,
 }
 
@@ -16,31 +16,44 @@ impl Element for ShiftNode {
     }
 
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        crate::layout::measure(doc, painter, self.child, available)
+        self.child.map_or(Vec2::ZERO, |child| {
+            crate::layout::measure(doc, painter, child, available)
+        })
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
-        crate::layout::baseline(doc, painter, self.child, available)
+        crate::layout::baseline(doc, painter, self.child?, available)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let rect = rect.translate(doc.pixel_grid().snap_vec(self.by));
-        crate::layout::layout(doc, painter, self.child, rect, out);
+        if let Some(child) = self.child {
+            crate::layout::layout(doc, painter, child, rect, out);
+        }
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
+        let Some(child) = self.child else {
+            return;
+        };
         if self.by != Vec2::ZERO
             && rects
-                .placed(&self.child)
+                .placed(&child)
                 .is_some_and(|placed| !placed.rect.intersects(painter.clip_rect()))
         {
             return;
         }
-        crate::paint::paint(doc, painter, rects, self.child);
+        crate::paint::paint(doc, painter, rects, child);
     }
 
     fn children(&self) -> Vec<NodeId> {
-        vec![self.child]
+        self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {
@@ -63,7 +76,7 @@ impl Element for ShiftNode {
 impl Document {
     pub fn create_shift(&mut self, child: NodeId) -> NodeOf<ShiftNode> {
         self.arena.insert(ShiftNode {
-            child,
+            child: Some(child),
             by: Vec2::ZERO,
         })
     }

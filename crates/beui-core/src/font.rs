@@ -6,7 +6,9 @@ use std::ops::Range;
 use std::rc::Rc;
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::color::Color32;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use crate::rich::{Piece, RichLayout, RichOptions, Shaper, SpanStyle};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TextAlign {
@@ -89,14 +91,6 @@ impl TextLayout {
             ..Self::DEFAULT
         }
     }
-
-    pub fn indent_of(self, width: f32, line: f32) -> f32 {
-        match self.align {
-            TextAlign::Start => 0.0,
-            TextAlign::Center => ((width - line) * 0.5).round(),
-            TextAlign::End => (width - line).round(),
-        }
-    }
 }
 
 impl Default for TextLayout {
@@ -160,16 +154,12 @@ impl Wraps {
         overflows: f32::INFINITY,
     };
 
+    pub(crate) fn between(fits: f32, overflows: f32) -> Self {
+        Self { fits, overflows }
+    }
+
     pub fn contains(self, wrap: f32) -> bool {
         self.fits <= wrap && (wrap < self.overflows || self.overflows == f32::INFINITY)
-    }
-
-    fn fit(&mut self, width: f32) {
-        self.fits = self.fits.max(width);
-    }
-
-    fn overflow(&mut self, width: f32) {
-        self.overflows = self.overflows.min(width);
     }
 }
 
@@ -223,7 +213,6 @@ impl Galley {
         baseline: f32,
         glyphs: Vec<Glyph>,
         lines: Vec<GalleyLine>,
-        wraps: Wraps,
     ) -> Self {
         let lines = lines
             .into_iter()
@@ -237,7 +226,53 @@ impl Galley {
             baseline,
             glyphs,
             lines,
-            wraps,
+            Wraps::ANY,
+        )
+    }
+
+    fn of_rich(text: &str, strut: &Galley, rich: &RichLayout, pixels_per_point: f32) -> Self {
+        let mut glyphs = Vec::new();
+        let mut lines = Vec::with_capacity(rich.lines.len());
+        for line in &rich.lines {
+            let mut cursors: Vec<(usize, f32)> = Vec::new();
+            for run in &line.runs {
+                let Some(galley) = &run.galley else {
+                    continue;
+                };
+                let (left, top) = (line.run_left(run), line.run_top(run));
+                let shift = vec2(
+                    (left * pixels_per_point).round(),
+                    (top * pixels_per_point).round(),
+                );
+                glyphs.extend(galley.glyphs().iter().map(|glyph| Glyph {
+                    offset: glyph.offset + shift,
+                    ..glyph.clone()
+                }));
+                for (at, x) in galley.lines().iter().flat_map(|shaped| &shaped.cursors) {
+                    let at = run.range.start + at;
+                    if cursors.last().is_none_or(|(previous, _)| *previous != at) {
+                        cursors.push((at, left + x));
+                    }
+                }
+            }
+            if cursors.is_empty() {
+                cursors.push((line.range.start, line.left));
+            }
+            lines.push(GalleyLine {
+                top: line.top,
+                range: line.range.clone(),
+                cursors,
+            });
+        }
+        Self::split(
+            text,
+            strut.font(),
+            rich.size,
+            strut.line_height(),
+            strut.baseline(),
+            glyphs,
+            lines,
+            rich.wraps(),
         )
     }
 
@@ -478,14 +513,12 @@ struct GalleyKey {
     size: u32,
     family: FontFamily,
     shape: Shaping,
+    align: TextAlign,
     scale: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Shaping {
-    wrap: u32,
-    pub align: TextAlign,
-    spacing: u32,
     line: u32,
     pub bold: bool,
     pub italic: bool,
@@ -494,26 +527,15 @@ pub struct Shaping {
 impl Shaping {
     fn of(font: FontId, layout: TextLayout, pixels_per_point: f32) -> Self {
         let line = layout.line_height.unwrap_or_else(|| line_height(font.size));
+        let line = (line * pixels_per_point).round().max(1.0);
         Self {
-            wrap: (layout.wrap_width * pixels_per_point).max(0.0).to_bits(),
-            align: layout.align,
-            spacing: layout.line_spacing.max(0.1).to_bits(),
-            line: (line * pixels_per_point).round().max(1.0).to_bits(),
+            line: (line * layout.line_spacing.max(0.1))
+                .round()
+                .max(1.0)
+                .to_bits(),
             bold: font.bold,
             italic: font.italic,
         }
-    }
-
-    fn unwrapped(self) -> Self {
-        Self { wrap: 0, ..self }
-    }
-
-    pub fn wrap(self) -> f32 {
-        f32::from_bits(self.wrap)
-    }
-
-    pub fn spacing(self) -> f32 {
-        f32::from_bits(self.spacing)
     }
 
     pub fn line(self) -> f32 {
@@ -521,36 +543,51 @@ impl Shaping {
     }
 }
 
-impl GalleyKey {
-    fn matches(
-        &self,
-        text: &str,
-        size: u32,
-        family: FontFamily,
-        shape: Shaping,
-        scale: u32,
-    ) -> bool {
-        self.size == size
-            && self.family == family
-            && self.shape == shape
-            && self.scale == scale
-            && self.text == text
-    }
+#[derive(Clone, Copy)]
+struct Request<'a> {
+    text: &'a str,
+    size: u32,
+    family: FontFamily,
+    shape: Shaping,
+    align: TextAlign,
+    scale: u32,
 }
 
-fn galley_hash(text: &str, size: u32, family: FontFamily, shape: Shaping, scale: u32) -> u64 {
-    let mut hasher = FixedState::with_seed(0).build_hasher();
-    text.hash(&mut hasher);
-    size.hash(&mut hasher);
-    family.hash(&mut hasher);
-    shape.hash(&mut hasher);
-    scale.hash(&mut hasher);
-    hasher.finish()
+impl Request<'_> {
+    fn matches(&self, key: &GalleyKey) -> bool {
+        key.size == self.size
+            && key.family == self.family
+            && key.shape == self.shape
+            && key.align == self.align
+            && key.scale == self.scale
+            && key.text == self.text
+    }
+
+    fn hash(&self) -> u64 {
+        let mut hasher = FixedState::with_seed(0).build_hasher();
+        self.text.hash(&mut hasher);
+        self.size.hash(&mut hasher);
+        self.family.hash(&mut hasher);
+        self.shape.hash(&mut hasher);
+        self.align.hash(&mut hasher);
+        self.scale.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn key(&self) -> GalleyKey {
+        GalleyKey {
+            text: self.text.to_owned(),
+            size: self.size,
+            family: self.family,
+            shape: self.shape,
+            align: self.align,
+            scale: self.scale,
+        }
+    }
 }
 
 pub const GALLEY_CACHE_LIMIT: usize = 4096;
 const GALLEY_WIDTHS_PER_TEXT: usize = 4;
-const WORD_LOOKAHEAD: usize = 64;
 
 fn pixel_bounds(glyphs: &[Glyph]) -> [f32; 4] {
     let mut bounds = [
@@ -568,95 +605,16 @@ fn pixel_bounds(glyphs: &[Glyph]) -> [f32; 4] {
     bounds
 }
 
-pub fn break_lines<T>(
-    steps: &[T],
-    text: &str,
-    wrap: f32,
-    wraps: &mut Wraps,
-    step: impl Fn(&T) -> (usize, f32),
-) -> Vec<Range<usize>> {
-    let mut lines = Vec::new();
-    if steps.is_empty() {
-        lines.push(0..0);
-        return lines;
-    }
-    let mut start = 0;
-    while start < steps.len() {
-        let end = break_line(steps, text, start, wrap, wraps, &step);
-        lines.push(start..end);
-        start = end;
-    }
-    lines
-}
-
-fn break_line<T>(
-    steps: &[T],
-    text: &str,
-    start: usize,
-    wrap: f32,
-    wraps: &mut Wraps,
-    step: &impl Fn(&T) -> (usize, f32),
-) -> usize {
-    let mut width = step(&steps[start]).1;
-    let mut fits = f32::NEG_INFINITY;
-    let mut candidate = None;
-    for (index, item) in steps.iter().enumerate().skip(start + 1) {
-        let (cluster, advance) = step(item);
-        if follows_whitespace(text, cluster) {
-            candidate = Some((index, fits));
-        }
-        if width + advance > wrap {
-            let Some((end, fitted)) = candidate else {
-                wraps.fit(fits);
-                wraps.overflow(width + advance);
-                return index;
-            };
-            wraps.fit(fitted);
-            wraps.overflow(next_word_end(steps, text, index, width, step));
-            return end;
-        }
-        width += advance;
-        fits = fits.max(width);
-    }
-    wraps.fit(fits);
-    steps.len()
-}
-
-fn next_word_end<T>(
-    steps: &[T],
-    text: &str,
-    overflow: usize,
-    mut width: f32,
-    step: &impl Fn(&T) -> (usize, f32),
-) -> f32 {
-    let mut widest = f32::NEG_INFINITY;
-    for (index, item) in steps.iter().enumerate().skip(overflow).take(WORD_LOOKAHEAD) {
-        let (cluster, advance) = step(item);
-        if index > overflow && follows_whitespace(text, cluster) {
-            break;
-        }
-        width += advance;
-        widest = widest.max(width);
-    }
-    widest
-}
-
 fn single_character(text: &str) -> bool {
     let mut characters = text.chars();
     characters.next();
     characters.next().is_none()
 }
 
-fn follows_whitespace(text: &str, cluster: usize) -> bool {
-    text.get(..cluster)
-        .and_then(|before| before.chars().next_back())
-        .is_some_and(char::is_whitespace)
-}
-
 pub trait FontBackend {
-    fn build(
+    fn shape(
         &mut self,
-        text: &str,
+        line: &str,
         family: FontFamily,
         pixel_size: u32,
         shape: Shaping,
@@ -668,13 +626,78 @@ pub trait FontBackend {
     }
 }
 
+type Buckets = HashMap<u64, Vec<(GalleyKey, Galley)>>;
+
+#[derive(Default)]
+struct GalleyCache {
+    recent: Buckets,
+    cooling: Buckets,
+    count: usize,
+}
+
+impl GalleyCache {
+    fn find(&mut self, hash: u64, fits: impl Fn(&GalleyKey, &Galley) -> bool) -> Option<Galley> {
+        let fits = |(key, galley): &(GalleyKey, Galley)| fits(key, galley);
+        if let Some(bucket) = self.recent.get_mut(&hash)
+            && let Some(found) = bucket.iter().position(fits)
+        {
+            let entry = bucket.remove(found);
+            let galley = entry.1.clone();
+            bucket.push(entry);
+            return Some(galley);
+        }
+        let bucket = self.cooling.get_mut(&hash)?;
+        let found = bucket.iter().position(fits)?;
+        let (key, galley) = bucket.swap_remove(found);
+        self.remember(hash, key, galley.clone());
+        Some(galley)
+    }
+
+    fn remember(&mut self, hash: u64, key: GalleyKey, galley: Galley) {
+        if self.count >= GALLEY_CACHE_LIMIT {
+            self.cooling = std::mem::take(&mut self.recent);
+            self.count = 0;
+        }
+        let bucket = self.recent.entry(hash).or_default();
+        let widths = bucket.iter().filter(|(other, _)| *other == key).count();
+        if widths >= GALLEY_WIDTHS_PER_TEXT
+            && let Some(oldest) = bucket.iter().position(|(other, _)| *other == key)
+        {
+            bucket.remove(oldest);
+        } else {
+            self.count += 1;
+        }
+        bucket.push((key, galley));
+    }
+
+    fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+
 pub struct Fonts {
     backend: Box<dyn FontBackend>,
-    galleys: HashMap<u64, Vec<(GalleyKey, Galley)>>,
-    cooling: HashMap<u64, Vec<(GalleyKey, Galley)>>,
-    cached_galleys: usize,
+    lines: GalleyCache,
+    wrapped: GalleyCache,
     backend_generation: u64,
     generation: u64,
+}
+
+struct LineShaper<'a> {
+    fonts: &'a mut Fonts,
+    layout: TextLayout,
+    pixels_per_point: f32,
+}
+
+impl Shaper for LineShaper<'_> {
+    fn galley(&mut self, text: &str, font: FontId) -> Galley {
+        self.fonts
+            .layout(text, font, self.layout, self.pixels_per_point)
+    }
+
+    fn slice(&mut self, galley: &Galley, range: Range<usize>, _font: FontId) -> Galley {
+        galley.slice(range, self.pixels_per_point)
+    }
 }
 
 impl Fonts {
@@ -686,9 +709,8 @@ impl Fonts {
         Self {
             backend_generation: backend.generation(),
             backend,
-            galleys: HashMap::new(),
-            cooling: HashMap::new(),
-            cached_galleys: 0,
+            lines: GalleyCache::default(),
+            wrapped: GalleyCache::default(),
             generation: 0,
         }
     }
@@ -710,9 +732,8 @@ impl Fonts {
 
     fn forget(&mut self) {
         self.generation += 1;
-        self.galleys.clear();
-        self.cooling.clear();
-        self.cached_galleys = 0;
+        self.lines.clear();
+        self.wrapped.clear();
     }
 
     pub fn layout(
@@ -722,60 +743,81 @@ impl Fonts {
         layout: TextLayout,
         pixels_per_point: f32,
     ) -> Galley {
-        let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
-        let shape = Shaping::of(font, layout, pixels_per_point);
-        let unwrapped = shape.unwrapped();
-        let scale = pixels_per_point.to_bits();
         self.generation();
-        let hash = galley_hash(text, pixel_size, font.family, unwrapped, scale);
-        let key = |key: &GalleyKey| key.matches(text, pixel_size, font.family, unwrapped, scale);
-        let wrap = shape.wrap();
-        let fits = |(candidate, galley): &(GalleyKey, Galley)| {
-            key(candidate) && galley.wraps().contains(wrap)
-        };
-        if let Some(bucket) = self.galleys.get_mut(&hash)
-            && let Some(found) = bucket.iter().position(fits)
-        {
-            let entry = bucket.remove(found);
-            let galley = entry.1.clone();
-            bucket.push(entry);
-            return galley;
-        }
-        if let Some(bucket) = self.cooling.get_mut(&hash)
-            && let Some(found) = bucket.iter().position(fits)
-        {
-            let (key, galley) = bucket.swap_remove(found);
-            self.remember(hash, key, galley.clone());
-            return galley;
-        }
-        let galley = self
-            .backend
-            .build(text, font.family, pixel_size, shape, pixels_per_point);
-        let key = GalleyKey {
-            text: text.to_owned(),
-            size: pixel_size,
+        let request = Request {
+            text,
+            size: ((font.size * pixels_per_point).round() as u32).max(1),
             family: font.family,
-            shape: unwrapped,
-            scale,
+            shape: Shaping::of(font, layout, pixels_per_point),
+            align: TextAlign::Start,
+            scale: pixels_per_point.to_bits(),
         };
-        self.remember(hash, key, galley.clone());
+        if !text.contains('\n') {
+            let line = self.line(request, pixels_per_point);
+            if line.size().x <= layout.wrap_width {
+                return line;
+            }
+        }
+        let request = Request {
+            align: layout.align,
+            ..request
+        };
+        let hash = request.hash();
+        let wrap = layout.wrap_width;
+        if let Some(galley) = self.wrapped.find(hash, |key, galley| {
+            request.matches(key) && galley.wraps().contains(wrap)
+        }) {
+            return galley;
+        }
+        let galley = self.lay_out(text, font, layout, pixels_per_point);
+        self.wrapped.remember(hash, request.key(), galley.clone());
         galley
     }
 
-    fn remember(&mut self, hash: u64, key: GalleyKey, galley: Galley) {
-        if self.cached_galleys >= GALLEY_CACHE_LIMIT {
-            self.cooling = std::mem::take(&mut self.galleys);
-            self.cached_galleys = 0;
+    fn line(&mut self, request: Request, pixels_per_point: f32) -> Galley {
+        let hash = request.hash();
+        if let Some(galley) = self.lines.find(hash, |key, _| request.matches(key)) {
+            return galley;
         }
-        let bucket = self.galleys.entry(hash).or_default();
-        let widths = bucket.iter().filter(|(other, _)| *other == key).count();
-        if widths >= GALLEY_WIDTHS_PER_TEXT
-            && let Some(oldest) = bucket.iter().position(|(other, _)| *other == key)
-        {
-            bucket.remove(oldest);
-        } else {
-            self.cached_galleys += 1;
-        }
-        bucket.push((key, galley));
+        let galley = self.backend.shape(
+            request.text,
+            request.family,
+            request.size,
+            request.shape,
+            pixels_per_point,
+        );
+        self.lines.remember(hash, request.key(), galley.clone());
+        galley
+    }
+
+    fn lay_out(
+        &mut self,
+        text: &str,
+        font: FontId,
+        layout: TextLayout,
+        pixels_per_point: f32,
+    ) -> Galley {
+        let style = SpanStyle::new(font, Color32::TRANSPARENT);
+        let options = RichOptions {
+            wrap_width: layout.wrap_width,
+            padding: (0.0, 0.0),
+            style,
+        };
+        let mut shaper = LineShaper {
+            fonts: self,
+            layout: TextLayout {
+                wrap_width: f32::INFINITY,
+                align: TextAlign::Start,
+                ..layout
+            },
+            pixels_per_point,
+        };
+        let strut = shaper.galley("", font);
+        let mut rich = RichLayout::new(&[Piece::text(text, style)], options, &mut shaper);
+        let width = rich.size.x;
+        rich.align(width, layout.align, |x| {
+            (x * pixels_per_point).round() / pixels_per_point
+        });
+        Galley::of_rich(text, &strut, &rich, pixels_per_point)
     }
 }

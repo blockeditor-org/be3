@@ -45,6 +45,12 @@ impl Element for PortalNode {
         self.child.into_iter().collect()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
+    }
+
     fn borrowed(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
     }

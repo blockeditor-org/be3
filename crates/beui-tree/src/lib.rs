@@ -16,9 +16,8 @@ pub mod reactive {
         SlotChild, SlotHost, into_child, into_segment,
     };
     pub use crate::component::{
-        ChildScope, ChildValue, ComponentBuilder, ComponentContext, IntoRender, IntoRenderFn,
-        MissingProp, Render, RenderFn, UnitHandle, component, current_component,
-        try_current_component,
+        ChildValue, ComponentBuilder, ComponentContext, IntoRender, IntoRenderFn, MissingProp,
+        Render, RenderFn, UnitHandle, component, current_component, try_current_component,
     };
     pub use crate::control::{Dynamic, ForEach, Keyed, Show, ShowKeepAlive};
     pub use crate::prop::{Func, Getter, IntoFunc, IntoProp, Prop};
@@ -26,8 +25,9 @@ pub mod reactive {
     pub use reactive::{
         Effect, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal, OwnedStored,
         ReadSignal, RootScope, Scope, ScopeContext, Selector, Store, Stored, StoredCell,
-        WriteSignal, batch, create_effect, create_memo, create_selector, create_signal, on_cleanup,
-        owner_scope, provide_context, store, untrack, use_context, zone_pending,
+        WriteSignal, batch, child_scope, create_effect, create_memo, create_selector,
+        create_signal, on_cleanup, owner_scope, provide_context, store, untrack, use_context,
+        zone_pending,
     };
 }
 

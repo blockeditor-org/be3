@@ -230,6 +230,10 @@ impl Element for GridNode {
         self.items.nodes()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
+    }
+
     fn kind(&self) -> &'static str {
         "grid"
     }

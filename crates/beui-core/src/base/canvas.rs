@@ -147,6 +147,10 @@ impl Element for CanvasNode {
         self.items.nodes()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
+    }
+
     fn kind(&self) -> &'static str {
         "canvas"
     }
@@ -201,6 +205,12 @@ impl Element for CanvasItemNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {

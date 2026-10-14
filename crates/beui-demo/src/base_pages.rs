@@ -4,8 +4,8 @@ use beui::Sides;
 use beui::Vec2;
 use beui::reactive::Dismiss;
 use beui::reactive::{
-    Dynamic, Fade, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay, Placement,
-    ReadSignal, Shift, Track,
+    Dynamic, Fade, Gap, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay,
+    Placement, ReadSignal, Shift, Track,
 };
 
 const SWATCH: f32 = 72.0;
@@ -201,7 +201,9 @@ fn TextRuns() -> NodeId {
             <Span underline=true>"underline"</Span>
             " or "
             <Span strikethrough=true>"strike"</Span>
-            " them."
+            " them, and a gap"
+            <Gap width=24.0 />
+            "leaves room between them."
         </Text>
     }
 }

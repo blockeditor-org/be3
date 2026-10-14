@@ -131,13 +131,15 @@ impl Slide {
                     });
                 }
             }
-            BackGesture::Invoked => match phase {
-                Phase::Dragging | Phase::Returning { .. } => self.start(Phase::Leaving {
+            BackGesture::Invoked => {
+                if phase == Phase::Still {
+                    self.state.borrow_mut().direction = 1.0;
+                }
+                self.start(Phase::Leaving {
                     from: position,
                     elapsed: 0.0,
-                }),
-                _ => self.on_back.call(),
-            },
+                });
+            }
         }
     }
 

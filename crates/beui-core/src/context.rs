@@ -15,7 +15,7 @@ use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::Vec2;
 use crate::geometry::{Pos2, Rect, pos2};
-use crate::input::{CursorIcon, ImeArea, InputState, KeyChord, RawInput};
+use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord, RawInput};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, Scope, Shape};
@@ -429,6 +429,11 @@ impl Context {
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
         }
+        let typed = raw
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
+        self.inner.window.borrow_mut().begin_frame(typed);
         self.inner.input.borrow_mut().begin_frame(raw, now);
         self.inner.layers.borrow_mut().clear();
         self.inner.grouping.borrow_mut().clear();
@@ -439,7 +444,6 @@ impl Context {
         self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste.set(None);
-        self.inner.window.borrow_mut().begin_frame();
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
@@ -496,10 +500,7 @@ impl Context {
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
-            window: WindowState {
-                touch_emulation: self.touch_emulation(),
-                ..self.inner.window.borrow().clone()
-            },
+            window: self.shown_window(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             repaint: self.inner.repaint.get(),
@@ -634,6 +635,14 @@ impl Context {
         self.inner.window.borrow().cursor
     }
 
+    fn shown_window(&self) -> WindowState {
+        let mut window = self.inner.window.borrow().clone();
+        if self.touch_emulation() {
+            window.cursor = CursorIcon::Touch;
+        }
+        window
+    }
+
     pub fn touch_emulation(&self) -> bool {
         self.inner.touch_emulation.get()
     }
@@ -703,7 +712,7 @@ impl Context {
             return;
         };
         if simulation.painting() {
-            let icon = self.cursor_icon();
+            let icon = self.shown_window().cursor;
             self.scaled(scale, || {
                 let painter = self
                     .painter()

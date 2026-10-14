@@ -81,7 +81,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
         !harness.document().is_overlay_open(inner.id()),
         "set_nested_open a passing parent takes the nested overlay with it"
     );
-    assert!(!harness.document().modal_open());
+    assert_eq!(harness.document().layers().len(), 1);
     assert_eq!(nested_dismissed.get_untracked(), 1);
     assert_eq!(dismissed.get_untracked(), 0);
 }

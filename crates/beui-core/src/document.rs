@@ -70,7 +70,9 @@ pub struct Document {
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
+    pub(crate) focus_scopes: crate::base::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
+    pub(crate) focus_wanted: Option<NodeId>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: RefCell<crate::timer::Timers>,
@@ -107,7 +109,8 @@ pub struct Document {
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
-    measurements: NodeMap<Vec<(Vec2, Vec2)>>,
+    measurements: NodeMap<Vec<Measurement>>,
+    offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
@@ -117,8 +120,8 @@ pub struct Document {
     pub placed_pass: NodeMap<u64>,
     pub reached_pass: NodeMap<u64>,
     layout_pass: u64,
-    scroll_hosts: Vec<NodeId>,
-    scroll_shifts: NodeMap<f32>,
+    focus_line: FocusLine,
+    anchor_shift: f32,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     fonts_generation: u64,
@@ -156,6 +159,21 @@ struct Placing {
 }
 
 const REMEMBERED_MEASUREMENTS: usize = 4;
+
+#[derive(Default)]
+struct FocusLine {
+    key: Option<(u64, NodeId)>,
+    epoch: u64,
+    ancestors: NodeMap<u64>,
+    within: NodeMap<(u64, bool)>,
+}
+
+#[derive(Clone, Copy)]
+struct Measurement {
+    offered: Vec2,
+    size: Vec2,
+    offer_dependent: bool,
+}
 
 fn same_size(left: Vec2, right: Vec2) -> bool {
     left.x.to_bits() == right.x.to_bits() && left.y.to_bits() == right.y.to_bits()
@@ -252,7 +270,9 @@ impl Document {
             placement: None,
             portal_holders: std::collections::HashMap::new(),
             layer_state: Default::default(),
+            focus_scopes: Default::default(),
             focus_dirty: false,
+            focus_wanted: None,
             back_handlers: Vec::new(),
             back_gesture: None,
             timers: RefCell::new(Vec::new()),
@@ -289,6 +309,7 @@ impl Document {
             interaction_done: None,
             laid_out: None,
             measurements: NodeMap::default(),
+            offer_dependent: false,
             baselines: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
@@ -298,8 +319,8 @@ impl Document {
             placed_pass: NodeMap::default(),
             reached_pass: NodeMap::default(),
             layout_pass: 0,
-            scroll_hosts: Vec::new(),
-            scroll_shifts: NodeMap::default(),
+            focus_line: FocusLine::default(),
+            anchor_shift: 0.0,
             reveals: NodeMap::default(),
             viewport: None,
             fonts_generation: 0,
@@ -739,6 +760,10 @@ impl Document {
         self.paste_requested = true;
     }
 
+    pub(crate) fn paste_requested(&self) -> bool {
+        self.paste_requested
+    }
+
     pub fn pick_file(&mut self, filter: FileFilter, picked: impl FnOnce(FilePick) + 'static) {
         self.unsent_file_picks.push((filter, Box::new(picked)));
     }
@@ -781,23 +806,60 @@ impl Document {
             let installed = matches!(guard, crate::current::DocumentGuard::Installed(..));
             match installed {
                 true => context.run(|| {
-                    crate::current::with_document(|document| {
-                        for id in removals {
-                            document.remove_node(id);
-                        }
-                    })
+                    crate::current::with_document(|document| document.remove_nodes(&removals))
                 }),
                 false => {
                     drop(guard);
-                    for id in removals {
-                        self.remove_node(id);
-                    }
+                    self.remove_nodes(&removals);
                 }
             }
         }
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
+        self.remove_nodes(&[id]);
+    }
+
+    fn remove_nodes(&mut self, ids: &[NodeId]) {
+        let leaving: HashSet<NodeId> = ids.iter().copied().collect();
+        let mut parents: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
+        for &id in ids {
+            if let Some(parent) = self
+                .arena
+                .parent(id)
+                .filter(|parent| !leaving.contains(parent))
+            {
+                parents.entry(parent).or_default().push(id);
+            }
+        }
+        for &id in ids {
+            self.remove_subtree(id);
+        }
+        for (parent, children) in parents {
+            self.unlink_children(parent, &children);
+        }
+    }
+
+    fn unlink_children(&mut self, parent: NodeId, children: &[NodeId]) {
+        if !self.arena.contains(parent) {
+            return;
+        }
+        let held: HashSet<NodeId> = self.arena.get(parent).children().into_iter().collect();
+        let children: Vec<NodeId> = children
+            .iter()
+            .copied()
+            .filter(|child| held.contains(child))
+            .collect();
+        if children.is_empty() {
+            return;
+        }
+        let element = self.arena.get_mut(parent);
+        for child in children {
+            element.remove_child(child);
+        }
+    }
+
+    fn remove_subtree(&mut self, id: NodeId) {
         if !self.arena.contains(id) {
             return;
         }
@@ -849,6 +911,7 @@ impl Document {
         self.arena.put_back(id, element);
         removed.extend(self.arena.remove(id));
         self.forget_layer(id);
+        self.forget_focus_scope(id);
         self.forget_back_gesture(id);
         self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
@@ -863,7 +926,6 @@ impl Document {
         self.press_claimants.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
-        self.scroll_shifts.remove(&id);
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
@@ -885,6 +947,9 @@ impl Document {
         }
         if self.focus_before == Some(id) {
             self.focus_before = None;
+        }
+        if self.focus_wanted == Some(id) {
+            self.focus_wanted = None;
         }
         if self.activated == Some(id) {
             self.activated = None;
@@ -1059,7 +1124,7 @@ impl Document {
         if self.handles_back() {
             ctx.handle_back();
         }
-        if self.modal_open() {
+        if self.layers().takes_keyboard() {
             ctx.want_keyboard();
         }
         self.intercepted_keys
@@ -1415,20 +1480,39 @@ impl Document {
             return None;
         }
         let held = self.measurements.get(&id)?;
-        held.iter()
-            .find(|(offered, _)| same_size(*offered, available))
+        let found = held
+            .iter()
+            .find(|held| same_size(held.offered, available))
             .or_else(|| {
-                held.iter()
-                    .find(|(offered, size)| still_fits(*offered, *size, available))
+                held.iter().find(|held| {
+                    !held.offer_dependent && still_fits(held.offered, held.size, available)
+                })
             })
-            .map(|(_, size)| *size)
+            .copied()?;
+        self.offer_dependent |= found.offer_dependent;
+        Some(found.size)
     }
 
-    pub fn remember_measurement(
+    pub fn note_offer_dependent(&mut self) {
+        self.offer_dependent = true;
+    }
+
+    pub(crate) fn enter_offer(&mut self) -> bool {
+        std::mem::take(&mut self.offer_dependent)
+    }
+
+    pub(crate) fn leave_offer(&mut self, outer: bool) -> bool {
+        let dependent = self.offer_dependent;
+        self.offer_dependent |= outer;
+        dependent
+    }
+
+    pub(crate) fn remember_measurement(
         &mut self,
         id: NodeId,
         available: Vec2,
         size: Vec2,
+        offer_dependent: bool,
         watermark: u64,
     ) {
         if self.arena.layout_revision != watermark {
@@ -1436,11 +1520,15 @@ impl Document {
         }
         self.arena.clear_stale(id);
         let held = self.measurements.get_or_default(id);
-        held.retain(|(offered, _)| !same_size(*offered, available));
+        held.retain(|held| !same_size(held.offered, available));
         if held.len() >= REMEMBERED_MEASUREMENTS {
             held.remove(0);
         }
-        held.push((available, size));
+        held.push(Measurement {
+            offered: available,
+            size,
+            offer_dependent,
+        });
     }
 
     pub fn measured_baseline(&self, id: NodeId, available: Vec2) -> Option<Option<f32>> {
@@ -1588,31 +1676,16 @@ impl Document {
         self.layout_parent
     }
 
-    pub fn enter_scroll_host(&mut self, id: NodeId) {
-        self.scroll_hosts.push(id);
+    pub fn report_anchor_shift(&mut self, shift: f32) {
+        self.anchor_shift += shift;
     }
 
-    pub fn leave_scroll_host(&mut self) {
-        self.scroll_hosts.pop();
+    pub(crate) fn take_anchor_shift(&mut self) -> f32 {
+        std::mem::take(&mut self.anchor_shift)
     }
 
-    pub fn record_scroll_shift(&mut self, shift: f32) {
-        let Some(&host) = self.scroll_hosts.last() else {
-            return;
-        };
-        *self.scroll_shifts.get_or_default(host) += shift;
-    }
-
-    pub fn take_scroll_shift(&mut self, id: NodeId) -> f32 {
-        self.scroll_shifts.remove(&id).unwrap_or(0.0)
-    }
-
-    pub fn placing_len(&self) -> usize {
-        self.placing.len()
-    }
-
-    pub fn rewind_placing(&mut self, len: usize) {
-        self.placing.truncate(len);
+    pub(crate) fn forget_placing(&mut self) {
+        self.placing.clear();
     }
 
     pub fn note_placed(&mut self, id: NodeId) {
@@ -1738,15 +1811,52 @@ impl Document {
         self.painters.get(&id).is_some_and(|held| held.culled)
     }
 
-    pub fn culls(&self, id: NodeId, size: Vec2, own: PainterState) -> bool {
+    pub fn culls(&mut self, id: NodeId, size: Vec2, own: PainterState) -> bool {
         !Sight::shows(size, own) && !self.holds_focus(id)
     }
 
-    fn holds_focus(&self, id: NodeId) -> bool {
+    fn holds_focus(&mut self, id: NodeId) -> bool {
         let Some(focused) = self.focused else {
             return false;
         };
-        self.descends(focused, id) || self.descends(id, focused)
+        let key = (self.layout_pass, focused);
+        let line = &mut self.focus_line;
+        if line.key != Some(key) {
+            line.key = Some(key);
+            line.epoch += 1;
+            let mut current = Some(focused);
+            for _ in 0..ANCESTOR_LIMIT {
+                let Some(node) = current else { break };
+                line.ancestors.insert(node, line.epoch);
+                current = self.arena.parent(node);
+            }
+        }
+        let epoch = line.epoch;
+        if line.ancestors.get(&id) == Some(&epoch) {
+            return true;
+        }
+        let mut walked = Vec::new();
+        let mut current = Some(id);
+        let mut within = false;
+        for _ in 0..ANCESTOR_LIMIT {
+            let Some(node) = current else { break };
+            if let Some(&(stamp, known)) = line.within.get(&node)
+                && stamp == epoch
+            {
+                within = known;
+                break;
+            }
+            if node == focused {
+                within = true;
+                break;
+            }
+            walked.push(node);
+            current = self.arena.parent(node);
+        }
+        for node in walked {
+            line.within.insert(node, (epoch, within));
+        }
+        within
     }
 
     pub fn culled_ancestor(&self, id: NodeId) -> Option<NodeId> {
@@ -1759,18 +1869,6 @@ impl Document {
             current = self.arena.parent(node);
         }
         None
-    }
-
-    fn descends(&self, node: NodeId, from: NodeId) -> bool {
-        let mut current = Some(node);
-        for _ in 0..ANCESTOR_LIMIT {
-            match current {
-                Some(node) if node == from => return true,
-                Some(node) => current = self.arena.parent(node),
-                None => return false,
-            }
-        }
-        false
     }
 
     pub fn note_space_reads(&mut self, id: NodeId, reads: bool, base: usize) {
@@ -1890,6 +1988,15 @@ impl Document {
         Some(ctx.painter().layout_text(text, font, layout))
     }
 
+    pub fn rich_layout(
+        &self,
+        pieces: &[crate::rich::Piece],
+        options: crate::rich::RichOptions,
+    ) -> Option<crate::rich::RichLayout> {
+        let (ctx, _, _) = self.viewport.as_ref()?;
+        Some(ctx.painter().rich_layout(pieces, options))
+    }
+
     pub fn pixel_grid(&self) -> PixelGrid {
         PixelGrid::new(self.pixels_per_point())
     }
@@ -1925,7 +2032,7 @@ impl Document {
         self.report_laid_out();
         self.run_laid_out();
         while self.needs_layout() {
-            if passes == LAYOUTS_PER_FRAME {
+            if passes + 1 >= LAYOUTS_PER_FRAME {
                 self.log_unsettled(watermark);
                 self.lay_out_tree(ctx, rect);
                 ctx.request_repaint();
@@ -1950,9 +2057,11 @@ impl Document {
             crate::current::run_in(self, |document| {
                 layout::layout(document, &painter, root, rect, placed);
                 document.lay_out_boundaries(ctx, placed);
+                document.place_moved_overlays(ctx, placed);
             });
         }
         self.placing.clear();
+        self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
         self.layout_pass = self.layout_pass.wrapping_add(1);
     }

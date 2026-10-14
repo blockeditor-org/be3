@@ -1,8 +1,8 @@
 use std::ops::Range;
 
 use beui::reactive::{
-    Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, NodeRef, Prop, ReadSignal, component,
-    copy_text, create_memo, layout_text, pixels_per_point, view, with_document,
+    Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, Prop, ReadSignal, component, copy_text,
+    create_memo, layout_text, pixels_per_point, view,
 };
 use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;
@@ -366,7 +366,6 @@ pub(crate) fn HexView(state: State) -> NodeId {
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let canvas = NodeRef::new();
                 let scale = pixels_per_point();
                 let geometry = create_memo(move || {
                     scale.get();
@@ -400,7 +399,6 @@ pub(crate) fn HexView(state: State) -> NodeId {
                     state,
                     geometry,
                     rows,
-                    canvas,
                 };
                 view! {
                     <Frame color={COLORS.surface}>
@@ -418,7 +416,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                                     }
                                 }}
                             >
-                                <Frame @node_ref=&canvas width={width} height={height}>
+                                <Frame width={width} height={height}>
                                     <Drawing draw={draw} />
                                 </Frame>
                             </Interactive>
@@ -435,21 +433,11 @@ struct HexSurface {
     state: State,
     geometry: Memo<HexGeometry>,
     rows: Memo<usize>,
-    canvas: NodeRef,
 }
 
 impl HexSurface {
-    fn local(&self, pos: Pos2) -> Option<Vec2> {
-        let node = self.canvas.try_get()?;
-        let rect = with_document(|document| document.node_rect(node))?;
-        Some(Vec2::new(
-            pos.x - rect.min.x - PADDING.x,
-            pos.y - rect.min.y - PADDING.y,
-        ))
-    }
-
-    fn target(&self, pos: Pos2) -> Option<usize> {
-        let local = self.local(pos)?;
+    fn target(&self, local: Pos2) -> Option<usize> {
+        let local = Vec2::new(local.x - PADDING.x, local.y - PADDING.y);
         let len = document_len(self.state);
         Some(
             self.geometry
@@ -461,7 +449,7 @@ impl HexSurface {
 }
 
 fn hex_press(cx: HexSurface, press: PointerPress) {
-    let Some(target) = cx.target(press.pos) else {
+    let Some(target) = cx.target(press.local) else {
         return;
     };
     cx.state.inner().hex_pending_nibble.set(None);
@@ -473,7 +461,7 @@ fn hex_drag(cx: HexSurface, press: PointerPress) {
     let Some(anchor) = cx.state.inner().hex_selection_anchor.get() else {
         return;
     };
-    let Some(target) = cx.target(press.pos) else {
+    let Some(target) = cx.target(press.local) else {
         return;
     };
     set_range(cx.state, anchor, target);

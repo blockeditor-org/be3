@@ -537,6 +537,7 @@ pub enum CursorIcon {
     ResizeNorthWest,
     ResizeSouthEast,
     ResizeSouthWest,
+    Touch,
 }
 
 impl CursorIcon {
@@ -615,6 +616,7 @@ impl CursorIcon {
             CursorIcon::ZoomIn => "zoom-in",
             CursorIcon::ZoomOut => "zoom-out",
             CursorIcon::None => "none",
+            CursorIcon::Touch => "crosshair",
         }
     }
 
@@ -766,7 +768,7 @@ impl InputState {
         input.pointer_events.clear();
         if leaving {
             let source = 0;
-            if let Some(pos) = self.pointer.pos.filter(|_| !self.pointer.from_touch) {
+            if let Some(pos) = self.pointer.mouse() {
                 input.emit_at(source, PointerId::Mouse, PointerPhase::Gone, pos);
             }
             for (id, pos) in &self.touches {
@@ -791,9 +793,8 @@ impl InputState {
 
     pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
         self.pointer.motion = Vec2::ZERO;
-        if self.touches.is_empty() && self.pointer.from_touch {
-            self.pointer.pos = None;
-            self.pointer.from_touch = false;
+        if self.touches.is_empty() {
+            self.pointer.lift_finger();
         }
         self.pointer_events.clear();
         self.touched = self.touches.iter().map(|(_, pos)| *pos).collect();
@@ -810,8 +811,7 @@ impl InputState {
             }
             match event {
                 Event::PointerMoved(pos) if !self.on_finger(*pos) => {
-                    self.pointer.pos = Some(*pos);
-                    self.pointer.from_touch = false;
+                    self.pointer.place_mouse(*pos);
                     self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
                 }
                 Event::PointerMotion(delta) => {
@@ -822,10 +822,7 @@ impl InputState {
                     for (id, pos) in std::mem::take(&mut self.touches) {
                         self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
                     }
-                    if self.pointer.from_touch {
-                        self.pointer.from_touch = false;
-                        self.pointer.pos = None;
-                    }
+                    self.pointer.lift_finger();
                     self.mouse_gone();
                 }
                 Event::PointerButton {
@@ -834,8 +831,7 @@ impl InputState {
                     pressed,
                     ..
                 } if !self.on_finger(*pos) => {
-                    self.pointer.pos = Some(*pos);
-                    self.pointer.from_touch = false;
+                    self.pointer.place_mouse(*pos);
                     if *pressed && *button == PointerButton::Primary {
                         self.pointer.count_click(*pos, now);
                     }
@@ -886,7 +882,7 @@ impl InputState {
     }
 
     fn wheel(&mut self, phase: PointerPhase) {
-        if let Some(pos) = self.pointer.pos.filter(|_| !self.pointer.from_touch) {
+        if let Some(pos) = self.pointer.mouse() {
             self.emit(PointerId::Mouse, phase, pos);
         }
     }
@@ -904,10 +900,8 @@ impl InputState {
     }
 
     fn mouse_gone(&mut self) {
-        if let Some(pos) = self.pointer.pos.filter(|_| !self.pointer.from_touch) {
+        if let Some(pos) = self.pointer.mouse() {
             self.emit(PointerId::Mouse, PointerPhase::Gone, pos);
-        }
-        if !self.pointer.from_touch {
             self.pointer.pos = None;
         }
     }
@@ -1006,6 +1000,22 @@ impl Pointer {
 
     pub fn from_touch(&self) -> bool {
         self.from_touch
+    }
+
+    pub fn mouse(&self) -> Option<Pos2> {
+        self.pos.filter(|_| !self.from_touch)
+    }
+
+    fn place_mouse(&mut self, pos: Pos2) {
+        self.pos = Some(pos);
+        self.from_touch = false;
+    }
+
+    fn lift_finger(&mut self) {
+        if self.from_touch {
+            self.pos = None;
+            self.from_touch = false;
+        }
     }
 }
 

@@ -49,6 +49,8 @@ impl Element for DrawingNode {
         Vec::new()
     }
 
+    fn remove_child(&mut self, _child: NodeId) {}
+
     fn kind(&self) -> &'static str {
         "drawing"
     }

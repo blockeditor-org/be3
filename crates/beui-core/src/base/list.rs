@@ -490,6 +490,10 @@ impl Element for ListNode {
         self.items.nodes()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
+    }
+
     fn passes_scroll_anchor(&self) -> bool {
         true
     }

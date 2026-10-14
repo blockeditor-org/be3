@@ -133,6 +133,12 @@ impl Element for EmbedNode {
         self.child.into_iter().collect()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
+    }
+
     fn kind(&self) -> &'static str {
         "embed"
     }

@@ -84,12 +84,13 @@ pub enum TextPart {
     Span(SpanHandle),
     Inline(NodeId),
     Anchored(NodeId),
+    Gap(f32),
 }
 
 impl ChildItem for TextPart {
     fn node(&self) -> Option<NodeId> {
         match self {
-            TextPart::Span(_) => None,
+            TextPart::Span(_) | TextPart::Gap(_) => None,
             TextPart::Inline(node) | TextPart::Anchored(node) => Some(*node),
         }
     }
@@ -97,6 +98,7 @@ impl ChildItem for TextPart {
     fn same(&self, other: &Self) -> bool {
         match (self, other) {
             (TextPart::Span(left), TextPart::Span(right)) => Rc::ptr_eq(&left.0, &right.0),
+            (TextPart::Gap(left), TextPart::Gap(right)) => left == right,
             _ => self.node().is_some() && self.node() == other.node(),
         }
     }
@@ -106,8 +108,6 @@ impl ChildItem for TextPart {
 struct Placed {
     rect: Rect,
     origin: Pos2,
-    shaped: Rc<RichLayout>,
-    arrangement: (TextAlign, bool, f32),
     layout: Rc<RichLayout>,
     spans: Vec<Option<SpanHandle>>,
 }
@@ -116,6 +116,7 @@ struct Placed {
 enum Entry {
     Span(SpanHandle, u64),
     Inline(Vec2),
+    Gap(f32),
 }
 
 impl PartialEq for Entry {
@@ -125,6 +126,7 @@ impl PartialEq for Entry {
                 Rc::ptr_eq(&left.0, &right.0) && at == other
             }
             (Entry::Inline(left), Entry::Inline(right)) => left == right,
+            (Entry::Gap(left), Entry::Gap(right)) => left == right,
             _ => false,
         }
     }
@@ -157,6 +159,16 @@ impl Shaped {
         };
         rewrapped == *key && self.entries == entries && (laid == wrap || self.layout.fits(wrap))
     }
+}
+
+type Fitted = (Rc<RichLayout>, FitKey, Rc<RichLayout>);
+
+#[derive(Clone, Copy, PartialEq)]
+struct FitKey {
+    width: f32,
+    align: TextAlign,
+    truncate: bool,
+    scale: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -253,6 +265,7 @@ pub struct TextNode {
     shaped: RefCell<Option<Shaped>>,
     galleys: RefCell<Galleys>,
     shapings: Cell<u64>,
+    fitted: RefCell<Option<Fitted>>,
 }
 
 impl ChildHost for TextNode {
@@ -270,6 +283,7 @@ impl ChildHost for TextNode {
 enum Flow<'a> {
     Span(Ref<'a, SpanContent>),
     Inline(usize, Vec2),
+    Gap(f32),
 }
 
 impl TextNode {
@@ -283,7 +297,7 @@ impl TextNode {
             match part {
                 TextPart::Span(span) => content.push_str(&span.content().text),
                 TextPart::Inline(_) => content.push_str(OBJECT),
-                TextPart::Anchored(_) => {}
+                TextPart::Anchored(_) | TextPart::Gap(_) => {}
             }
         }
         self.content = content;
@@ -340,6 +354,7 @@ impl TextNode {
                     *item,
                     Vec2::splat(f32::INFINITY),
                 ))),
+                TextPart::Gap(width) => entries.push(Entry::Gap(*width)),
                 TextPart::Anchored(_) => {}
             }
         }
@@ -423,6 +438,7 @@ impl TextNode {
                         inline += 1;
                         Flow::Inline(inline - 1, *size)
                     }
+                    Entry::Gap(width) => Flow::Gap(*width),
                 })
                 .collect()
         };
@@ -438,6 +454,7 @@ impl TextNode {
                     index: *index,
                     size: *size,
                 },
+                Flow::Gap(width) => Piece::Gap(*width),
             })
             .collect();
         let mut galleys = self.galleys.borrow_mut();
@@ -471,23 +488,44 @@ impl TextNode {
         self.ellipsis && !self.wrap && !self.icon
     }
 
-    fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let shaped = self.rich_layout(doc, painter, rect.width());
-        let previous = self.placed.borrow().clone();
-        let arrangement = (
-            self.horizontal,
-            self.truncates(),
-            painter.ctx().pixels_per_point(),
-        );
-        let held = previous.as_ref().filter(|previous| {
-            Rc::ptr_eq(&previous.shaped, &shaped)
-                && previous.arrangement == arrangement
-                && previous.rect.width() == rect.width()
-        });
-        let layout = match held {
-            Some(held) => Rc::clone(&held.layout),
-            None => self.arranged(painter, Rc::clone(&shaped), rect.width()),
+    fn fitted(&self, painter: &Painter, layout: Rc<RichLayout>, rect: Rect) -> Rc<RichLayout> {
+        let truncate = self.truncates() && layout.size.x > rect.width();
+        if !truncate && self.horizontal == TextAlign::Start {
+            return layout;
+        }
+        let key = FitKey {
+            width: rect.width(),
+            align: self.horizontal,
+            truncate,
+            scale: painter.ctx().pixels_per_point(),
         };
+        if let Some((base, held, fitted)) = &*self.fitted.borrow()
+            && Rc::ptr_eq(base, &layout)
+            && *held == key
+        {
+            return Rc::clone(fitted);
+        }
+        let mut fitted = (*layout).clone();
+        if truncate {
+            let mut galleys = self.galleys.borrow_mut();
+            let mut shaper = self.shaper(painter, &mut galleys);
+            fitted.truncate(rect.width(), &mut shaper);
+            let fresh = std::mem::take(&mut shaper.fresh);
+            drop(shaper);
+            galleys.held.extend(fresh);
+        }
+        if self.horizontal != TextAlign::Start {
+            let grid = painter.pixel_grid();
+            fitted.align(rect.width(), self.horizontal, |x| grid.snap(x));
+        }
+        let fitted = Rc::new(fitted);
+        *self.fitted.borrow_mut() = Some((layout, key, Rc::clone(&fitted)));
+        fitted
+    }
+
+    fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+        let layout = self.fitted(painter, self.rich_layout(doc, painter, rect.width()), rect);
+        let previous = self.placed.borrow().clone();
         let top = match self.vertical {
             TextAlign::Start => rect.top(),
             TextAlign::Center => rect.center().y - layout.size.y / 2.0,
@@ -515,7 +553,7 @@ impl TextNode {
             .flat_map(|shaped| &shaped.entries)
             .map(|entry| match entry {
                 Entry::Span(span, _) => Some(span.clone()),
-                Entry::Inline(_) => None,
+                Entry::Inline(_) | Entry::Gap(_) => None,
             })
             .collect();
         let changed = previous.is_none_or(|previous| {
@@ -532,35 +570,12 @@ impl TextNode {
         *self.placed.borrow_mut() = Some(Placed {
             rect,
             origin,
-            shaped,
-            arrangement,
             layout,
             spans,
         });
         if changed && let Some(id) = doc.laying_out() {
             doc.arena.note_relaid(id);
         }
-    }
-
-    fn arranged(&self, painter: &Painter, layout: Rc<RichLayout>, width: f32) -> Rc<RichLayout> {
-        let mut layout = layout;
-        if self.truncates() && layout.size.x > width {
-            let mut galleys = self.galleys.borrow_mut();
-            let mut shaper = self.shaper(painter, &mut galleys);
-            let mut truncated = (*layout).clone();
-            truncated.truncate(width, &mut shaper);
-            let fresh = std::mem::take(&mut shaper.fresh);
-            drop(shaper);
-            galleys.held.extend(fresh);
-            layout = Rc::new(truncated);
-        }
-        if self.horizontal != TextAlign::Start {
-            let grid = painter.pixel_grid();
-            let mut aligned = (*layout).clone();
-            aligned.align(width, self.horizontal, |x| grid.snap(x));
-            layout = Rc::new(aligned);
-        }
-        layout
     }
 
     fn paint_layout(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
@@ -713,6 +728,10 @@ impl Element for TextNode {
         self.parts.nodes()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
+    }
+
     fn kind(&self) -> &'static str {
         "text"
     }
@@ -802,6 +821,7 @@ impl Document {
         color: Color32,
     ) -> NodeOf<TextNode> {
         let content = content.into();
+        let since = Cell::new(self.now());
         self.arena.insert(TextNode {
             string: SpanHandle::new(SpanContent::new(content.clone())),
             parts: ChildList::default(),
@@ -822,13 +842,14 @@ impl Document {
             padding: (0.0, 0.0),
             marks: Vec::new(),
             carets: Vec::new(),
-            since: Cell::new(Instant::now()),
+            since,
             selection: None,
             handles: Vec::new(),
             placed: Rc::new(RefCell::new(None)),
             shaped: RefCell::new(None),
             galleys: RefCell::new(Galleys::default()),
             shapings: Cell::new(0),
+            fitted: RefCell::new(None),
         })
     }
 
@@ -1026,6 +1047,12 @@ impl Element for TextItemNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {
