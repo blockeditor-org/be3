@@ -6,9 +6,9 @@ use crate::unstyled::Button;
 
 #[test]
 fn a_for_each_places_the_items_of_a_canvas() {
+    let _root = crate::reactive::RootScope::new();
     let (canvas, add) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (canvas, add) = (canvas.clone(), add.clone());
         move || {
             let (keys, set_keys) = create_signal(vec![0u32, 1]);
             view! {

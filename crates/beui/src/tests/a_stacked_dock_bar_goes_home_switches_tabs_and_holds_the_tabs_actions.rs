@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ForEach, clone};
+use crate::reactive::ForEach;
 use crate::unstyled::{DockMode, DockPane, DockTab, DockingLayout, TabId, dock_actions};
 
 const HOME: u64 = 1;
@@ -32,8 +32,8 @@ fn tap(harness: &mut Harness, test_id: &str) {
 
 #[test]
 fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
-    let closed = Rc::new(RefCell::new(Vec::new()));
-    let closing = closed.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (closed, set_closed) = create_signal(Vec::new());
     let document = build(move || {
         let layout = DockingLayout::new();
         let (open, set_open) = create_signal(vec![2u64, 3]);
@@ -44,12 +44,12 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
                         <Frame @test_id="content.1" />
                     </DockTab>
                     <ForEach keys={open}>
-                        {move |id: u64| clone!(closing set_open -> view! {
+                        {move |id: u64| view! {
                             <DockTab
                                 id
                                 title={format!("Tab {id}")}
                                 on_close={move || {
-                                    closing.borrow_mut().push(TabId::new(id));
+                                    set_closed.update(|closed| closed.push(TabId::new(id)));
                                     set_open.update(|open| open.retain(|other| *other != id));
                                 }}
                                 content={move || {
@@ -65,7 +65,7 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
                                     }
                                 }}
                             />
-                        })}
+                        }}
                     </ForEach>
                 </DockPane>
             </styled::Docking>
@@ -114,7 +114,7 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
 
     tap(&mut harness, "dock.switch");
     tap(&mut harness, "dock.switcher.close.2");
-    assert_eq!(*closed.borrow(), vec![TabId::new(2)]);
+    assert_eq!(closed.get_untracked(), vec![TabId::new(2)]);
     assert_eq!(count(&harness), "1");
     assert!(
         laid_out(&harness, "content.1"),

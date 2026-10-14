@@ -24,5 +24,8 @@ jni = "0.22"
 ndk-context = "0.1"
 ureq = "2"
 
+[dev-dependencies]
+block-ui-test = { path = "../block-ui-test" }
+
 [lints]
 workspace = true

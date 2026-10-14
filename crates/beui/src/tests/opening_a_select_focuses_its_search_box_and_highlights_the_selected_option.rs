@@ -17,16 +17,15 @@ fn opening_a_select_focuses_its_search_box_and_highlights_the_selected_option() 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let inner = select;
-    let trigger = unstyled::select_trigger(harness.document(), inner);
+    let trigger = unstyled::select_trigger(harness.document(), select);
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
 
     assert!(styled::select_open(harness.document(), select));
-    let search = unstyled::select_search(harness.document(), inner);
+    let search = unstyled::select_search(harness.document(), select);
     assert!(unstyled::text_input_focused(harness.document(), search).get());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(1)
     );
 }

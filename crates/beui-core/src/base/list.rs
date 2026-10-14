@@ -7,7 +7,7 @@ use crate::pixel_grid::PixelGrid;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -156,8 +156,8 @@ pub struct ListItem {
 }
 
 impl ChildItem for ListItem {
-    fn node(&self) -> NodeId {
-        self.child
+    fn node(&self) -> Option<NodeId> {
+        Some(self.child)
     }
 }
 
@@ -401,6 +401,10 @@ impl ListNode {
 }
 
 impl Element for ListNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (available_main, available_cross) = self.main_and_cross(available);
         if self.wrap {
@@ -482,21 +486,12 @@ impl Element for ListNode {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
     }
 
     fn passes_scroll_anchor(&self) -> bool {

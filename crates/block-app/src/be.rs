@@ -142,6 +142,9 @@ type ContentReferences = fn(&[u8], Uuid) -> Vec<Uuid>;
 
 struct Kind {
     content_type: Uuid,
+    frozen: bool,
+    schema: fn() -> String,
+    blank: fn() -> Vec<u8>,
     join: worker::Join,
     copy: worker::Copy,
     seed: worker::Seed,
@@ -158,6 +161,9 @@ where
 {
     Kind {
         content_type: C::CONTENT_TYPE,
+        frozen: C::FROZEN,
+        schema: be_block::schema_fingerprint::<C>,
+        blank: blank::<C>,
         join: worker::join::<C>,
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
@@ -175,6 +181,9 @@ where
 {
     Kind {
         content_type: C::CONTENT_TYPE,
+        frozen: C::FROZEN,
+        schema: be_block::schema_fingerprint::<C>,
+        blank: blank::<C>,
         join: worker::join_with_history::<C>,
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
@@ -184,6 +193,10 @@ where
         merge: merge_content::<C>,
         references: content_references::<C>,
     }
+}
+
+fn blank<C: be_block::BlockContent + Default>() -> Vec<u8> {
+    C::default().encode()
 }
 
 fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<be_block::Entries> {
@@ -244,10 +257,12 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::TextContent>(),
     kind_with_history::<be_block::VideoContent>(),
     kind::<be_block::UiSettingsContent>(),
+    kind::<be_block::EditorSettingsContent>(),
     kind::<be_block::InputSettingsContent>(),
     kind::<be_block::DisplaySettingsContent>(),
     kind::<be_block::BrowserTabContent>(),
     kind_with_history::<be_block::SettingsContent>(),
+    kind_with_history::<be_block::SettingsProfileContent>(),
     kind::<be_block::FolderContent>(),
     kind_with_history::<be_block::PixelRayTracerContent>(),
     kind::<be_block::EditorViewContent>(),
@@ -268,6 +283,54 @@ pub(crate) fn describe_of(content: &Content) -> Option<be_block::Entries> {
 
 pub(crate) fn derived_for(content_type: Uuid, bytes: &[u8]) -> Option<be_block::Entries> {
     (kind_of(content_type)?.describe)(bytes)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Stale {
+    Unreadable(String),
+    Reshaped,
+}
+
+pub(crate) fn staleness(block: Uuid) -> Option<Stale> {
+    let guard = stack().lock().unwrap();
+    let stack = guard.as_ref()?;
+    if stack.tried.contains(&block) {
+        return None;
+    }
+    let shared = stack.shared.lock().unwrap();
+    let node = shared.graph.get(block)?;
+    let kind = kind_of(node.content_type)?;
+    if kind.frozen {
+        return None;
+    }
+    if let Some(error) = shared.unreadable.get(&block) {
+        return Some(Stale::Unreadable(error.clone()));
+    }
+    let stamped = node.metadata.get(&be_block::SCHEMA)?;
+    (stamped != (kind.schema)()).then_some(Stale::Reshaped)
+}
+
+pub(crate) fn reset(block: Uuid) {
+    let Some(node) = node(block) else {
+        return;
+    };
+    let Some(kind) = kind_of(node.content_type) else {
+        return;
+    };
+    if let Some(stack) = stack().lock().unwrap().as_mut() {
+        stack.tried.remove(&block);
+    }
+    replace(block, node.content_type, (kind.blank)());
+}
+
+pub(crate) fn try_anyway(block: Uuid) {
+    if !matches!(staleness(block), Some(Stale::Reshaped)) {
+        return;
+    }
+    if let Some(stack) = stack().lock().unwrap().as_mut() {
+        stack.tried.insert(block);
+    }
+    crate::compositor::changed();
 }
 
 pub(crate) fn is_known(content_type: Uuid) -> bool {
@@ -304,6 +367,7 @@ struct Stack {
     commands: Option<UnboundedSender<Command>>,
     held: std::collections::HashSet<Uuid>,
     versioned: std::collections::HashSet<Uuid>,
+    tried: std::collections::HashSet<Uuid>,
     shared: Arc<Mutex<Shared>>,
     #[cfg_attr(not(test), allow(dead_code))]
     changed: Arc<Condvar>,
@@ -339,6 +403,7 @@ pub(crate) fn start(config: Config) {
         commands: Some(commands),
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashSet::new(),
+        tried: std::collections::HashSet::new(),
         shared,
         changed,
         running,
@@ -365,7 +430,11 @@ pub(crate) fn flush() {
 }
 
 pub(crate) fn open(block: Uuid, content_type: Uuid) {
-    send(Command::Open(block, content_type));
+    send(Command::Open {
+        block,
+        content_type,
+        owned: false,
+    });
 }
 
 pub(crate) fn close(block: Uuid) {
@@ -389,7 +458,11 @@ pub(crate) fn hold(block: Uuid, content_type: Uuid) {
         .as_mut()
         .is_some_and(|stack| stack.held.insert(block));
     if fresh {
-        send(Command::Open(block, content_type));
+        send(Command::Open {
+            block,
+            content_type,
+            owned: true,
+        });
     }
 }
 
@@ -621,6 +694,10 @@ pub(crate) fn identity() -> Option<(Uuid, Uuid)> {
         .map(|stack| (stack.account, stack.workspace))
 }
 
+pub(crate) fn stale_revision() -> u64 {
+    with_shared(|shared| shared.stale_revision).unwrap_or_default()
+}
+
 pub(crate) fn graph_revision() -> u64 {
     with_shared(|shared| shared.graph.revision).unwrap_or_default()
 }
@@ -671,6 +748,12 @@ pub(crate) fn create(
 ) {
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
         metadata.insert(&be_block::NAME, &name);
+    }
+    if metadata.derived.is_empty()
+        && let Some(kind) = kind_of(content_type)
+    {
+        let bytes = content.clone().unwrap_or_else(kind.blank);
+        metadata.derived = (kind.describe)(&bytes).unwrap_or_default();
     }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {

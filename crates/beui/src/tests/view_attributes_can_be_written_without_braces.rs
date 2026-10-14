@@ -1,4 +1,5 @@
 use super::*;
+use crate::FontId;
 use crate::font::TextAlign;
 use crate::reactive::{Direction, List, view};
 
@@ -8,11 +9,10 @@ const BOX_WIDTH: f32 = 120.0;
 
 #[test]
 fn view_attributes_can_be_written_without_braces() {
+    let _root = crate::reactive::RootScope::new();
     let box_ref = NodeRef::new();
     let label = NodeRef::new();
     let document = build({
-        let box_ref = box_ref.clone();
-        let label = label.clone();
         move || {
             view! {
                 <List spacing=0.0>
@@ -27,9 +27,9 @@ fn view_attributes_can_be_written_without_braces() {
                             <Text
                                 @node_ref=&label
                                 string=LABEL
-                                font_size=LABEL_SIZE
                                 align=TextAlign::End
                                 wrap=false
+                                font={FontId::proportional(LABEL_SIZE)}
                             />
                         </Frame>
                     </List>

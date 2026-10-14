@@ -5,6 +5,7 @@ mod decoration;
 mod dialog;
 mod focus;
 mod foreign;
+mod gtk_settings;
 mod held_view;
 mod idle;
 mod presentation;

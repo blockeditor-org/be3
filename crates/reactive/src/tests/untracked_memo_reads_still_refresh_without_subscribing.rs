@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn untracked_memo_reads_still_refresh_without_subscribing() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(1);
     let (trigger, set_trigger) = create_signal(0);

@@ -40,7 +40,7 @@ pub(crate) fn start_log() {
     let _ = writeln!(
         file,
         "Block {} started a session at {started} seconds after the Unix epoch.",
-        crate::COMMIT
+        crate::build()
     );
     eprintln!("block-app: the session logs to {}", path.display());
     for stream in [libc::STDOUT_FILENO, libc::STDERR_FILENO] {

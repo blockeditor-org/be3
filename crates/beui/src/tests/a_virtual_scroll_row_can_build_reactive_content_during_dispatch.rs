@@ -3,9 +3,9 @@ use crate::reactive::{ItemSize, List, NodeRef, Offset, Text, VirtualList, build,
 
 #[test]
 fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
+    let _root = crate::reactive::RootScope::new();
     let list = NodeRef::new();
     let document = build({
-        let list = list.clone();
         move || {
             view! {
                 <List spacing=0.0>

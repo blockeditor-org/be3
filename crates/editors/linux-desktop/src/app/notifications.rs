@@ -4,12 +4,11 @@ mod markup;
 mod toasts;
 
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use block_editor_beui::beui::reactive::{
-    Memo, ReadSignal, Timer, WriteSignal, clone, create_effect, create_memo, create_signal,
-    create_timer, now, untrack,
+    Memo, ReadSignal, Stored, Timer, WriteSignal, create_effect, create_memo, create_signal,
+    create_timer, now, store, untrack,
 };
 use block_editor_beui::beui::styled::{Toast, ToastAction};
 use block_editor_beui::{
@@ -49,9 +48,9 @@ impl Listed {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct DesktopNotifications {
-    shared: Rc<Shared>,
+    shared: Stored<Shared>,
     revision: ReadSignal<u64>,
     locked: Memo<bool>,
     browsing: ReadSignal<bool>,
@@ -71,10 +70,10 @@ struct Shared {
 }
 
 impl DesktopNotifications {
-    pub(crate) fn new(editor: &Editor) -> Self {
+    pub(crate) fn new(editor: Editor) -> Self {
         let (revision, set_revision) = create_signal(0_u64);
-        let shared = Rc::new(Shared {
-            editor: editor.clone(),
+        let shared = store(Shared {
+            editor,
             center: RefCell::new(Center::default()),
             started: now(),
             handled: Cell::new(0),
@@ -84,15 +83,12 @@ impl DesktopNotifications {
             shown: Cell::new(0),
             expiry: RefCell::new(None),
         });
-        let weak = Rc::downgrade(&shared);
-        let expiry = create_timer(clone!(weak -> move || {
-            weak.upgrade().and_then(|shared| shared.tick())
-        }));
-        shared.expiry.replace(Some(expiry));
+        let expiry = create_timer(move || shared.try_get().and_then(|shared| shared.tick()));
+        shared.with(|shared| shared.expiry.replace(Some(expiry)));
         let inbox = editor.host_value::<Notifications>();
         create_effect(move || {
             let inbox = inbox.get();
-            if let Some(shared) = weak.upgrade() {
+            if let Some(shared) = shared.try_get() {
                 untrack(|| shared.arrive(inbox));
             }
         });
@@ -107,25 +103,25 @@ impl DesktopNotifications {
     }
 
     pub(crate) fn listed(&self) -> Memo<Vec<Listed>> {
-        let revision = self.revision.clone();
-        let shared = Rc::clone(&self.shared);
+        let revision = self.revision;
+        let shared = self.shared;
         create_memo(move || {
             revision.get();
-            shared.center.borrow().listed().map(Listed::of).collect()
+            shared.with(|shared| shared.center.borrow().listed().map(Listed::of).collect())
         })
     }
 
     pub(crate) fn toasts(&self) -> Memo<Vec<Toast>> {
-        let revision = self.revision.clone();
-        let locked = self.locked.clone();
-        let browsing = self.browsing.clone();
-        let shared = Rc::clone(&self.shared);
+        let revision = self.revision;
+        let locked = self.locked;
+        let browsing = self.browsing;
+        let shared = self.shared;
         create_memo(move || {
             revision.get();
             if locked.get() || browsing.get() {
                 return Vec::new();
             }
-            shared.center.borrow().toasts().map(toast).collect()
+            shared.with(|shared| shared.center.borrow().toasts().map(toast).collect())
         })
     }
 
@@ -134,18 +130,20 @@ impl DesktopNotifications {
     }
 
     pub(crate) fn dismiss(&self, ids: &[u32]) {
+        let shared = self.shared.get();
         {
-            let mut center = self.shared.center.borrow_mut();
+            let mut center = shared.center.borrow_mut();
             for id in ids {
                 center.dismiss(*id);
             }
         }
-        self.shared.settle();
+        shared.settle();
     }
 
     pub(crate) fn invoke(&self, id: u32, action: &str) {
-        self.shared.center.borrow_mut().invoke(id, action);
-        self.shared.settle();
+        let shared = self.shared.get();
+        shared.center.borrow_mut().invoke(id, action);
+        shared.settle();
     }
 
     pub(crate) fn activate(&self, id: u32) {

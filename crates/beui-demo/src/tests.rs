@@ -10,12 +10,15 @@ mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
+mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
 mod holding_alt_and_pressing_q_switches_between_recent_tabs;
 mod holding_alt_moves_a_floating_demo_page_by_its_content;
 mod paused_edits_wait_for_a_send_and_carry_presence;
+mod replacing_a_page_closes_the_dialogs_it_opened;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
+mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_crash_notice_sample_reloads_from_its_button;
 mod the_demo_leaves_a_pane_saying_nothing_is_open;
@@ -34,6 +37,7 @@ mod the_lock_screens_actions_are_told_apart_by_place;
 mod the_message_toast_sample_offers_its_actions;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
+mod the_stale_notice_sample_answers_each_of_its_buttons;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
@@ -71,6 +75,12 @@ fn open(test: &mut DocumentTest, page: Page) {
         test.scroll_at(pos2(CATALOG_X, bottom / 2.0), Vec2::new(0.0, -REVEAL_STEP));
     }
     panic!("the catalog never showed {}", page.title());
+}
+
+fn open_beside(test: &mut DocumentTest, page: Page) {
+    test.frame(vec![beui::Event::Modifiers(beui::Modifiers::CTRL)]);
+    open(test, page);
+    test.frame(vec![beui::Event::Modifiers(beui::Modifiers::NONE)]);
 }
 
 fn reveal(test: &mut DocumentTest, test_id: &str) {

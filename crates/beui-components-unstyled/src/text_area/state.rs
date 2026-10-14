@@ -1,4 +1,4 @@
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
@@ -14,7 +14,7 @@ use text_editor_core::{
 };
 
 use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_view::reactive::{NodeRef, ReadSignal, WriteSignal, create_signal};
+use beui_view::reactive::{NodeRef, ReadSignal, Stored, WriteSignal, create_signal, store};
 
 use super::colors::TextAreaColors;
 use super::rows::{
@@ -104,6 +104,7 @@ impl PartialEq for TextAreaLayout {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Find {
     pub open: ReadSignal<bool>,
     pub set_open: WriteSignal<bool>,
@@ -172,12 +173,13 @@ struct Inner {
     cursors: ReadSignal<u64>,
     set_cursors: WriteSignal<u64>,
     cursor_counter: Cell<u64>,
+    rows_built: Cell<u64>,
     layout: ReadSignal<TextAreaLayout>,
     set_layout: WriteSignal<TextAreaLayout>,
 }
 
-#[derive(Clone)]
-pub struct TextAreaState(Rc<Inner>);
+#[derive(Clone, Copy)]
+pub struct TextAreaState(Stored<Inner>);
 
 impl TextAreaState {
     pub fn new(document: Arc<dyn text_editor_core::Document>) -> Self {
@@ -194,7 +196,7 @@ impl TextAreaState {
         let (focus_requests, set_focus_requests) = create_signal(0);
         let (touch_mode, set_touch_mode) = create_signal(false);
         let (caret_handle, set_caret_handle) = create_signal(false);
-        let state = Self(Rc::new(Inner {
+        let state = Self(store(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
             heights: RefCell::default(),
@@ -222,6 +224,7 @@ impl TextAreaState {
             cursors,
             set_cursors,
             cursor_counter: Cell::new(0),
+            rows_built: Cell::new(0),
             layout,
             set_layout,
         }));
@@ -229,27 +232,30 @@ impl TextAreaState {
         state
     }
 
-    pub fn core(&self) -> Ref<'_, Core> {
-        self.0.core.borrow()
+    pub fn with_core<R>(&self, read: impl FnOnce(&Core) -> R) -> R {
+        self.0.with(|inner| read(&inner.core.borrow()))
     }
 
-    pub fn core_mut(&self) -> RefMut<'_, Core> {
-        self.0.core.borrow_mut()
+    pub fn with_core_mut<R>(&self, change: impl FnOnce(&mut Core) -> R) -> R {
+        self.0.with(|inner| change(&mut inner.core.borrow_mut()))
     }
 
     pub fn execute(&self, command: EditorCommand<'_>) {
-        self.0.core.borrow_mut().execute_command(command);
+        let inner = self.0.get();
+        inner.core.borrow_mut().execute_command(command);
         self.sync();
     }
 
     pub fn copy(&self, mode: CopyMode) -> String {
-        let text = self.0.core.borrow_mut().copy_utf8(mode);
+        let inner = self.0.get();
+        let text = inner.core.borrow_mut().copy_utf8(mode);
         self.sync();
         text
     }
 
     pub fn external_edit(&self) {
-        self.0.core.borrow_mut().external_edit();
+        let inner = self.0.get();
+        inner.core.borrow_mut().external_edit();
         self.sync();
     }
 
@@ -259,40 +265,57 @@ impl TextAreaState {
     }
 
     pub fn set_show_runs(&self, shown: bool) {
-        self.0.show_runs.set(shown);
+        let inner = self.0.get();
+        inner.show_runs.set(shown);
         self.sync_document();
     }
 
     pub fn content(&self) -> ReadSignal<u64> {
-        self.0.content.clone()
+        let inner = self.0.get();
+        inner.content
+    }
+
+    pub fn rows_built(&self) -> u64 {
+        self.0.with(|inner| inner.rows_built.get())
+    }
+
+    pub(super) fn count_row_built(&self) {
+        self.0
+            .with(|inner| inner.rows_built.set(inner.rows_built.get() + 1));
     }
 
     pub fn cursors(&self) -> ReadSignal<u64> {
-        self.0.cursors.clone()
+        let inner = self.0.get();
+        inner.cursors
     }
 
     pub fn layout(&self) -> ReadSignal<TextAreaLayout> {
-        self.0.layout.clone()
+        let inner = self.0.get();
+        inner.layout
     }
 
     pub fn loaded(&self) -> bool {
-        self.0.snapshot.borrow().loaded
+        let inner = self.0.get();
+        inner.snapshot.borrow().loaded
     }
 
-    pub fn bytes(&self) -> Ref<'_, [u8]> {
-        Ref::map(self.0.snapshot.borrow(), |snapshot| &snapshot.bytes[..])
+    pub fn bytes(&self) -> Arc<[u8]> {
+        self.0.with(|inner| inner.snapshot.borrow().bytes.clone())
     }
 
     pub fn language(&self) -> TextLanguage {
-        self.0.core.borrow().language()
+        let inner = self.0.get();
+        inner.core.borrow().language()
     }
 
     pub fn indentation(&self) -> TextIndentation {
-        self.0.core.borrow().indentation()
+        let inner = self.0.get();
+        inner.core.borrow().indentation()
     }
 
     pub fn selection_ranges(&self) -> Vec<Range<usize>> {
-        let core = self.0.core.borrow();
+        let inner = self.0.get();
+        let core = inner.core.borrow();
         core.cursor_positions()
             .iter()
             .filter_map(|cursor| core.selection_range(cursor))
@@ -300,7 +323,8 @@ impl TextAreaState {
     }
 
     pub fn caret_indices(&self) -> Vec<usize> {
-        let core = self.0.core.borrow();
+        let inner = self.0.get();
+        let core = inner.core.borrow();
         core.cursor_positions()
             .iter()
             .filter_map(|cursor| core.position_index(cursor.pos.focus))
@@ -314,7 +338,8 @@ impl TextAreaState {
     }
 
     pub fn cursor_line_collapsed(&self) -> bool {
-        let core = self.0.core.borrow();
+        let inner = self.0.get();
+        let core = inner.core.borrow();
         let Some(cursor) = core.cursor_positions().first() else {
             return false;
         };
@@ -322,7 +347,7 @@ impl TextAreaState {
         let Some(line_start) = core.position_index(line_start) else {
             return false;
         };
-        self.0
+        inner
             .snapshot
             .borrow()
             .sections
@@ -331,112 +356,138 @@ impl TextAreaState {
     }
 
     pub fn reveal_cursor(&self) {
-        self.0.reveal_cursor.set(true);
+        let inner = self.0.get();
+        inner.reveal_cursor.set(true);
         self.request_reveal();
     }
 
     pub fn reveal(&self, rect: Rect) {
-        self.0.reveal.set(Some(rect));
+        let inner = self.0.get();
+        inner.reveal.set(Some(rect));
         self.request_reveal();
     }
 
     fn request_reveal(&self) {
-        self.0.set_reveals.update(|reveals| *reveals += 1);
+        let inner = self.0.get();
+        inner.set_reveals.update(|reveals| *reveals += 1);
     }
 
     pub fn focus(&self) {
-        self.0.set_focus_requests.update(|count| *count += 1);
+        let inner = self.0.get();
+        inner.set_focus_requests.update(|count| *count += 1);
     }
 
     pub fn focus_requests(&self) -> ReadSignal<u64> {
-        self.0.focus_requests.clone()
+        let inner = self.0.get();
+        inner.focus_requests
     }
 
     pub fn reveals(&self) -> ReadSignal<u64> {
-        self.0.reveals.clone()
+        let inner = self.0.get();
+        inner.reveals
     }
 
     pub fn canvas(&self) -> NodeRef {
-        self.0.canvas.clone()
+        let inner = self.0.get();
+        inner.canvas
     }
 
     pub fn take_reveal_cursor(&self) -> bool {
-        self.0.reveal_cursor.replace(false)
+        let inner = self.0.get();
+        inner.reveal_cursor.replace(false)
     }
 
     pub fn take_reveal(&self) -> Option<Rect> {
-        self.0.reveal.take()
+        let inner = self.0.get();
+        inner.reveal.take()
     }
 
     pub fn with_snapshot<R>(&self, read: impl FnOnce(&Snapshot) -> R) -> R {
-        read(&self.0.snapshot.borrow())
+        let inner = self.0.get();
+        read(&inner.snapshot.borrow())
     }
 
     pub fn publish_layout(&self, layout: TextAreaLayout) {
-        self.0.set_layout.set(layout);
+        let inner = self.0.get();
+        inner.set_layout.set(layout);
     }
 
     pub fn sections(&self) -> Vec<CollapsibleSection> {
-        self.0.snapshot.borrow().sections.clone()
+        let inner = self.0.get();
+        inner.snapshot.borrow().sections.clone()
     }
 
     pub fn checkboxes(&self) -> Vec<MarkdownCheckbox> {
-        self.0.snapshot.borrow().checkboxes.clone()
+        let inner = self.0.get();
+        inner.snapshot.borrow().checkboxes.clone()
     }
 
     pub fn selecting(&self) -> bool {
-        self.0.selecting.get()
+        let inner = self.0.get();
+        inner.selecting.get()
     }
 
     pub fn set_selecting(&self, selecting: bool) {
-        self.0.selecting.set(selecting);
+        let inner = self.0.get();
+        inner.selecting.set(selecting);
     }
 
     pub fn touch_mode(&self) -> ReadSignal<bool> {
-        self.0.touch_mode.clone()
+        let inner = self.0.get();
+        inner.touch_mode
     }
 
     pub fn set_touch_mode(&self, touch: bool) {
-        self.0.set_touch_mode.set(touch);
+        let inner = self.0.get();
+        inner.set_touch_mode.set(touch);
     }
 
     pub fn caret_handle(&self) -> ReadSignal<bool> {
-        self.0.caret_handle.clone()
+        let inner = self.0.get();
+        inner.caret_handle
     }
 
     pub fn release_tab(&self, released: bool) -> bool {
-        self.0.tab_released.replace(released)
+        let inner = self.0.get();
+        inner.tab_released.replace(released)
     }
 
     pub fn set_caret_handle(&self, shown: bool) {
-        self.0.set_caret_handle.set(shown);
+        let inner = self.0.get();
+        inner.set_caret_handle.set(shown);
     }
 
     pub fn grab(&self) -> Option<Grab> {
-        self.0.grab.get()
+        let inner = self.0.get();
+        inner.grab.get()
     }
 
     pub fn begin_grab(&self, grab: Grab, offset: Vec2) {
-        self.0.grab.set(Some(grab));
-        self.0.grab_offset.set(offset);
-        self.0.selecting.set(false);
+        let inner = self.0.get();
+        inner.grab.set(Some(grab));
+        inner.grab_offset.set(offset);
+        inner.selecting.set(false);
     }
 
     pub fn end_grab(&self) -> Option<Grab> {
-        self.0.grab_offset.set(Vec2::ZERO);
-        self.0.grab.take()
+        let inner = self.0.get();
+        inner.grab_offset.set(Vec2::ZERO);
+        inner.grab.take()
     }
 
     pub fn grab_offset(&self) -> Vec2 {
-        self.0.grab_offset.get()
+        let inner = self.0.get();
+        inner.grab_offset.get()
     }
 
     pub fn byte_at(&self, pos: Pos2) -> Option<usize> {
-        self.0.layout.get_untracked().index_at(pos)
+        let inner = self.0.get();
+        inner.layout.get_untracked().index_at(pos)
     }
 
     pub fn measure(&self, widgets: &[TextWidget], width: f32) -> Option<Vec2> {
-        let snapshot = self.0.snapshot.borrow();
+        let inner = self.0.get();
+        let snapshot = inner.snapshot.borrow();
         if !snapshot.loaded {
             return None;
         }
@@ -450,7 +501,7 @@ impl TextAreaState {
         let wrap = (width - super::PADDING.x * 2.0).max(1.0);
         let mut height = DOCUMENT_PADDING.y;
         let (mut shaped_bytes, mut shaped_height, mut one_line) = (0usize, 0.0f32, f32::MAX);
-        let mut held = self.0.heights.borrow_mut();
+        let mut held = inner.heights.borrow_mut();
         let mut heights = HashMap::with_capacity(held.len());
         for line in 0..starts.len() {
             let (start, end, newline) = line_range(&snapshot.bytes, starts, line)?;
@@ -467,7 +518,6 @@ impl TextAreaState {
                 widgets,
                 client_colors: &[],
                 composition: None,
-                selection: &[],
                 colors: &colors,
                 options,
                 spacers: &[],
@@ -495,19 +545,22 @@ impl TextAreaState {
     }
 
     pub fn find_open(&self) -> ReadSignal<bool> {
-        self.0.find.open.clone()
+        let inner = self.0.get();
+        inner.find.open
     }
 
     pub fn find_status(&self) -> FindStatus {
-        self.0.content.get();
-        self.0.cursors.get();
-        let query = self.0.find.query.get();
-        let case_sensitive = self.0.find.case_sensitive.get();
-        self.0.core.borrow().find_status(&query, case_sensitive)
+        let inner = self.0.get();
+        inner.content.get();
+        inner.cursors.get();
+        let query = inner.find.query.get();
+        let case_sensitive = inner.find.case_sensitive.get();
+        inner.core.borrow().find_status(&query, case_sensitive)
     }
 
     pub fn find_summary(&self) -> String {
-        let query_empty = self.0.find.query.with(String::is_empty);
+        let inner = self.0.get();
+        let query_empty = inner.find.query.with(String::is_empty);
         match (query_empty, self.find_status()) {
             (true, FindStatus { total: 0, .. }) => String::new(),
             (false, FindStatus { total: 0, .. }) => "No results".to_owned(),
@@ -537,45 +590,51 @@ impl TextAreaState {
     }
 
     pub fn set_find_query(&self, query: String) {
-        self.0.find.set_query.set(query);
+        let inner = self.0.get();
+        inner.find.set_query.set(query);
         self.sync_find();
     }
 
     pub fn set_find_case_sensitive(&self, case_sensitive: bool) {
-        self.0.find.set_case_sensitive.set(case_sensitive);
+        let inner = self.0.get();
+        inner.find.set_case_sensitive.set(case_sensitive);
         self.sync_find();
     }
 
     pub fn set_find_replacement(&self, replacement: String) {
-        self.0.find.set_replacement.set(replacement);
+        let inner = self.0.get();
+        inner.find.set_replacement.set(replacement);
     }
 
     pub fn open_find(&self, show_replace: bool) {
-        if !self.0.find.open.get_untracked() {
+        let inner = self.0.get();
+        if !inner.find.open.get_untracked() {
             let selected = self.copy(CopyMode::Copy);
             let query = match !selected.is_empty() && !selected.contains('\n') {
                 true => selected,
                 false => String::new(),
             };
-            self.0.find.set_query.set(query);
-            self.0.find.set_open.set(true);
+            inner.find.set_query.set(query);
+            inner.find.set_open.set(true);
         }
-        self.0.find.set_show_replace.set(show_replace);
-        self.0.find.set_focus_query.set(true);
+        inner.find.set_show_replace.set(show_replace);
+        inner.find.set_focus_query.set(true);
         self.sync_find();
     }
 
     pub fn close_find(&self) {
-        self.0.find.set_open.set(false);
-        self.0.find.set_focus_query.set(false);
+        let inner = self.0.get();
+        inner.find.set_open.set(false);
+        inner.find.set_focus_query.set(false);
     }
 
     fn sync_find(&self) {
-        if !self.0.find.open.get_untracked() {
+        let inner = self.0.get();
+        if !inner.find.open.get_untracked() {
             return;
         }
         let (query, case_sensitive) = self.query();
-        let status = self.0.core.borrow().find_status(&query, case_sensitive);
+        let status = inner.core.borrow().find_status(&query, case_sensitive);
         if status.current.is_none() && status.total > 0 {
             self.execute(EditorCommand::Find {
                 text: &query,
@@ -589,7 +648,8 @@ impl TextAreaState {
     }
 
     pub fn find_step(&self, direction: FindDirection) {
-        if !self.0.find.open.get_untracked() {
+        let inner = self.0.get();
+        if !inner.find.open.get_untracked() {
             return;
         }
         let (query, case_sensitive) = self.query();
@@ -598,8 +658,7 @@ impl TextAreaState {
             case_sensitive,
             direction,
         });
-        if self
-            .0
+        if inner
             .core
             .borrow()
             .find_status(&query, case_sensitive)
@@ -611,8 +670,9 @@ impl TextAreaState {
     }
 
     pub fn replace_match(&self) {
+        let inner = self.0.get();
         let (query, case_sensitive) = self.query();
-        let replacement = self.0.find.replacement.get_untracked();
+        let replacement = inner.find.replacement.get_untracked();
         self.execute(EditorCommand::ReplaceMatch {
             text: &query,
             case_sensitive,
@@ -622,8 +682,9 @@ impl TextAreaState {
     }
 
     pub fn replace_all_matches(&self) {
+        let inner = self.0.get();
         let (query, case_sensitive) = self.query();
-        let replacement = self.0.find.replacement.get_untracked();
+        let replacement = inner.find.replacement.get_untracked();
         self.execute(EditorCommand::ReplaceAllMatches {
             text: &query,
             case_sensitive,
@@ -631,45 +692,47 @@ impl TextAreaState {
         });
     }
 
-    pub fn find(&self) -> &Find {
-        &self.0.find
+    pub fn find(&self) -> Find {
+        self.0.with(|inner| inner.find)
     }
 
     fn query(&self) -> (String, bool) {
+        let inner = self.0.get();
         (
-            self.0.find.query.get_untracked(),
-            self.0.find.case_sensitive.get_untracked(),
+            inner.find.query.get_untracked(),
+            inner.find.case_sensitive.get_untracked(),
         )
     }
 
     fn sync_document(&self) {
-        let revision = self.0.core.borrow().document().revision();
+        let inner = self.0.get();
+        let revision = inner.core.borrow().document().revision();
         let (sections, language) = {
-            let core = self.0.core.borrow();
+            let core = inner.core.borrow();
             (core.collapsible_sections(), core.language())
         };
-        let loaded = self.0.core.borrow().document().read().is_some();
+        let loaded = inner.core.borrow().document().read().is_some();
         {
-            let snapshot = self.0.snapshot.borrow();
+            let snapshot = inner.snapshot.borrow();
             if snapshot.highlight.is_some()
                 && snapshot.loaded == loaded
                 && snapshot.revision == revision
                 && snapshot.language == language
                 && snapshot.sections == sections
-                && snapshot.runs.is_some() == self.0.show_runs.get()
+                && snapshot.runs.is_some() == inner.show_runs.get()
             {
                 return;
             }
         }
-        let highlight = self.0.core.borrow_mut().highlight();
+        let highlight = inner.core.borrow_mut().highlight();
         let bytes = highlight
             .markdown_bytes()
-            .unwrap_or_else(|| read_bytes(&self.0.core.borrow()).into());
+            .unwrap_or_else(|| read_bytes(&inner.core.borrow()).into());
         let change = {
-            let snapshot = self.0.snapshot.borrow();
+            let snapshot = inner.snapshot.borrow();
             (snapshot.highlight.is_some() && snapshot.loaded && snapshot.language == language)
                 .then(|| {
-                    self.0
+                    inner
                         .core
                         .borrow()
                         .document()
@@ -678,7 +741,7 @@ impl TextAreaState {
                 .flatten()
         };
         let (starts, checkboxes) = {
-            let snapshot = self.0.snapshot.borrow();
+            let snapshot = inner.snapshot.borrow();
             match change {
                 Some(change) => (
                     Rc::new(shifted_line_starts(&snapshot.starts, &bytes, change)),
@@ -695,8 +758,8 @@ impl TextAreaState {
             _ => Vec::new(),
         };
         let hidden = hidden_ranges(&sections);
-        let runs = self.0.show_runs.get().then(|| {
-            let core = self.0.core.borrow();
+        let runs = inner.show_runs.get().then(|| {
+            let core = inner.core.borrow();
             Rc::new(
                 core.document()
                     .read()
@@ -704,7 +767,7 @@ impl TextAreaState {
                     .unwrap_or_default(),
             )
         });
-        *self.0.snapshot.borrow_mut() = Snapshot {
+        *inner.snapshot.borrow_mut() = Snapshot {
             loaded,
             revision,
             starts,
@@ -716,21 +779,22 @@ impl TextAreaState {
             highlight: Some(highlight),
             runs,
         };
-        self.0.content_counter.set(self.0.content_counter.get() + 1);
-        self.0.set_content.set(self.0.content_counter.get());
+        inner.content_counter.set(inner.content_counter.get() + 1);
+        inner.set_content.set(inner.content_counter.get());
     }
 
     fn sync_cursors(&self) {
+        let inner = self.0.get();
         let positions = {
-            let core = self.0.core.borrow();
+            let core = inner.core.borrow();
             (core.cursor_positions().to_vec(), core.composition())
         };
-        if *self.0.cursor_cache.borrow() == positions {
+        if *inner.cursor_cache.borrow() == positions {
             return;
         }
-        *self.0.cursor_cache.borrow_mut() = positions;
-        self.0.cursor_counter.set(self.0.cursor_counter.get() + 1);
-        self.0.set_cursors.set(self.0.cursor_counter.get());
+        *inner.cursor_cache.borrow_mut() = positions;
+        inner.cursor_counter.set(inner.cursor_counter.get() + 1);
+        inner.set_cursors.set(inner.cursor_counter.get());
     }
 }
 

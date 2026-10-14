@@ -45,7 +45,10 @@ fn describe(error: &JsValue) -> String {
         .unwrap_or_else(|| format!("{error:?}"))
 }
 
-async fn run(url: String, headers: Vec<(&'static str, String)>) -> Result<Vec<u8>, String> {
+pub(crate) async fn run(
+    url: String,
+    headers: Vec<(&'static str, String)>,
+) -> Result<Vec<u8>, String> {
     let window = web_sys::window().ok_or("no browser window is available")?;
 
     let js_headers = web_sys::Headers::new()

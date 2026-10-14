@@ -6,10 +6,11 @@ const ROW_HEIGHT: f32 = 30.0;
 
 #[test]
 fn a_focused_node_scrolled_far_away_stays_laid_out() {
+    let _root = crate::reactive::RootScope::new();
     let rows: Vec<NodeRef> = (0..ROWS).map(|_| NodeRef::new()).collect();
     let scroll = NodeRef::new();
     let document = build({
-        let (rows, scroll) = (rows.clone(), scroll.clone());
+        let (rows, scroll) = (rows.clone(), scroll);
         move || {
             view! {
                 <List spacing=0.0>

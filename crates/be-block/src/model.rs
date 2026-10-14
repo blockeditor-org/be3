@@ -7,6 +7,8 @@ use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};
 pub trait Root: Model + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
 
+    const FROZEN: bool = false;
+
     fn name(&self) -> Option<String> {
         None
     }
@@ -24,10 +26,20 @@ pub trait Root: Model + Send + Sync + 'static {
         let _ = change;
         None
     }
+
+    fn describe(&self, metadata: &mut crate::BlockMetadata) {
+        let _ = metadata;
+    }
 }
 
 impl<R: Root> BlockContent for Document<R> {
     const CONTENT_TYPE: Uuid = R::CONTENT_TYPE;
+
+    const FROZEN: bool = R::FROZEN;
+
+    fn schema() -> String {
+        R::kind().describe()
+    }
 
     fn encode(&self) -> Vec<u8> {
         self.to_bytes()
@@ -47,6 +59,10 @@ impl<R: Root> BlockContent for Document<R> {
 
     fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
         joined(self.root().references_in(workspace), self.block_refs())
+    }
+
+    fn describe(&self, metadata: &mut crate::BlockMetadata) {
+        self.root().describe(metadata);
     }
 }
 

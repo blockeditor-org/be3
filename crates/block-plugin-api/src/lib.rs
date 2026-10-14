@@ -9,7 +9,7 @@ mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
-pub use host_value::{HostAction, HostImage, HostValue, decode_host, encode_host};
+pub use host_value::{HostAction, HostImage, HostValue, LinkBase, decode_host, encode_host};
 pub use linux::{
     AudioOutput, Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction,
     HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows, IncomingNotification,
@@ -56,7 +56,7 @@ pub enum FrameChrome {
     None,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct FrameSpec {
     pub chrome: FrameChrome,
     pub content: Option<ChildRect>,
@@ -101,16 +101,39 @@ pub struct FrameReport {
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
     pub claims: Vec<PressClaim>,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct WindowRequests {
+    pub cursor: CursorIcon,
+    pub pointer_locked: bool,
+    pub ime: Option<ImeArea>,
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
-    pub description: Option<Description>,
+    pub pastes: Vec<PasteKind>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PasteKind {
+    Text,
+    Image,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Pasted {
+    Text(String),
+    Image {
+        name: String,
+        #[serde(with = "serde_bytes")]
+        data: Vec<u8>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
-    pub test_ids: Vec<TestIdRect>,
     pub actions: Vec<DescribedAction>,
 }
 
@@ -135,6 +158,7 @@ pub struct DescribedNode {
     pub focused: bool,
     pub rect: Option<ChildRect>,
     pub actions: Vec<String>,
+    pub test_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -148,12 +172,6 @@ pub enum Toggled {
     Off,
     On,
     Mixed,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TestIdRect {
-    pub id: String,
-    pub rect: ChildRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,6 +304,7 @@ pub enum ChildContent {
         block_id: [u8; 16],
         block_type: [u8; 16],
         view_block: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
     WebView(WebViewId),
     Host(HostPanel),
@@ -425,6 +444,7 @@ pub struct AccessGrant {
     pub email: String,
     pub display_name: String,
     pub administrator: bool,
+    pub author: bool,
     pub granted: Option<AccessLevel>,
     pub effective: AccessLevel,
 }
@@ -512,6 +532,15 @@ impl PluginManifest {
         self.editors
             .iter()
             .find(|editor| editor.block_type == block_type)
+            .or_else(|| {
+                self.editors
+                    .iter()
+                    .find(|editor| editor.block_type == ANY_BLOCK_TYPE)
+            })
+    }
+
+    pub fn editor_id(&self) -> [u8; 16] {
+        editor_id(&self.identity.id)
     }
 }
 
@@ -591,6 +620,30 @@ pub struct TemplateDescriptor {
 pub struct Catalog {
     pub types: Vec<BlockTypeDescriptor>,
     pub templates: Vec<TemplateDescriptor>,
+    pub editors: Vec<EditorDescriptor>,
+}
+
+pub const ANY_BLOCK_TYPE: [u8; 16] = [0; 16];
+
+pub const ANY_BLOCK_TYPE_NAME: &str = "any";
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorDescriptor {
+    pub editor: [u8; 16],
+    pub block_type: [u8; 16],
+    pub name: String,
+    pub icon_codepoint: String,
+}
+
+pub fn editor_id(plugin_id: &str) -> [u8; 16] {
+    const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
+    const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
+    plugin_id
+        .bytes()
+        .fold(OFFSET, |hash, byte| {
+            (hash ^ u128::from(byte)).wrapping_mul(PRIME)
+        })
+        .to_be_bytes()
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -817,6 +870,11 @@ pub enum EditorMessage {
     LeaveFrame {
         instance: EditorInstanceId,
     },
+    Stopped {
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        stopped: Stopped,
+    },
     BarAction {
         instance: EditorInstanceId,
         action: BarAction,
@@ -843,6 +901,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowBlock {
@@ -850,6 +909,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowPanel {
@@ -965,10 +1025,6 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         status: AudioStatus,
     },
-    GrabCursor {
-        instance: EditorInstanceId,
-        grabbed: bool,
-    },
     WebViewCommand {
         instance: EditorInstanceId,
         web_view: WebViewId,
@@ -1065,15 +1121,10 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         states: Vec<HistoryState>,
     },
-    Cursor {
+    Window {
         instance: EditorInstanceId,
         region: EditorRegion,
-        cursor: CursorIcon,
-    },
-    Ime {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        area: Option<ImeArea>,
+        window: WindowRequests,
     },
     Presence {
         instance: EditorInstanceId,
@@ -1106,7 +1157,7 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         text: String,
     },
-    PasteText {
+    Paste {
         instance: EditorInstanceId,
     },
     AspectRatio {
@@ -1183,6 +1234,7 @@ impl EditorMessage {
             | Self::PresentingChanged { instance, .. }
             | Self::Resized { instance, .. }
             | Self::LeaveFrame { instance, .. }
+            | Self::Stopped { instance, .. }
             | Self::BarAction { instance, .. }
             | Self::Menu { instance, .. }
             | Self::MenuPick { instance, .. }
@@ -1209,7 +1261,6 @@ impl EditorMessage {
             | Self::Replied { instance, .. }
             | Self::PlayAudio { instance, .. }
             | Self::AudioStatus { instance, .. }
-            | Self::GrabCursor { instance, .. }
             | Self::WebViewCommand { instance, .. }
             | Self::WebViewEvent { instance, .. }
             | Self::OpenCreation { instance, .. }
@@ -1229,15 +1280,14 @@ impl EditorMessage {
             | Self::ArtifactStates { instance, .. }
             | Self::WatchHistory { instance, .. }
             | Self::HistoryStates { instance, .. }
-            | Self::Cursor { instance, .. }
-            | Self::Ime { instance, .. }
+            | Self::Window { instance, .. }
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
             | Self::ChildView { instance, .. }
             | Self::ChildBar { instance, .. }
             | Self::CopyText { instance, .. }
-            | Self::PasteText { instance }
+            | Self::Paste { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
             | Self::Performance { instance, .. }
@@ -1303,6 +1353,7 @@ pub enum CursorIcon {
     ResizeNorthWest,
     ResizeSouthEast,
     ResizeSouthWest,
+    Touch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1554,7 +1605,6 @@ pub enum HostRequest {
     SaveFile(SavedFile),
     PickBlock(BlockFilter),
     ListAccess([u8; 16]),
-    PasteImage,
     Fetch(String),
     ListData,
     ReadData(String),
@@ -1565,7 +1615,6 @@ pub enum HostReply {
     FilePicked(FilePick),
     FileSaved(FileSave),
     BlockPicked(BlockPick),
-    ImagePasted(ClipboardImage),
     Fetched(FetchResult),
     DataListed(DataListing),
     DataRead(FetchResult),
@@ -1653,13 +1702,6 @@ pub struct DroppedFile {
     pub name: String,
     #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ClipboardImage {
-    Pasted { name: String, data: Vec<u8> },
-    Empty,
-    Failed(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1819,13 +1861,13 @@ impl EditorMessage {
             | Self::ChangeView { .. }
             | Self::Present { .. }
             | Self::LeaveFrame { .. }
+            | Self::Stopped { .. }
             | Self::BarAction { .. }
             | Self::Menu { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
-            | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::CreationReady { .. }
             | Self::CreationBlock { .. }
@@ -1834,11 +1876,10 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
-            | Self::Cursor { .. }
-            | Self::Ime { .. }
+            | Self::Window { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
-            | Self::PasteText { .. }
+            | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
@@ -1873,8 +1914,12 @@ pub struct HelloAccepted {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Theme {
-    pub dark: bool,
+pub enum Theme {
+    #[default]
+    Dark,
+    OledDark,
+    Light,
+    EInk,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2013,9 +2058,10 @@ pub enum InputEvent {
         key: Key,
         pressed: bool,
         repeat: bool,
+        text: Option<String>,
     },
     Text(String),
-    Paste(String),
+    Paste(Pasted),
     Ime(ImeInput),
     Modifiers(Modifiers),
     Focus(bool),
@@ -2079,7 +2125,13 @@ pub struct ImeArea {
     pub rect: ChildRect,
     pub cursor: ChildRect,
     pub text: Option<ImeText>,
-    pub keyboard: bool,
+    pub keyboard: Keyboard,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Keyboard {
+    Held,
+    Shown { asks: u32 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2394,6 +2446,12 @@ pub struct ProtocolError {
     pub message: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Stopped {
+    Closed,
+    Failed(String),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     InvalidMessage,
@@ -2459,8 +2517,12 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             collection(value.events.len())?;
             for event in &value.events {
                 match event {
+                    InputEvent::Paste(Pasted::Image { name, data }) => {
+                        string(name)?;
+                        blob(data)?;
+                    }
                     InputEvent::Text(value)
-                    | InputEvent::Paste(value)
+                    | InputEvent::Paste(Pasted::Text(value))
                     | InputEvent::Ime(
                         ImeInput::SetComposingText(value)
                         | ImeInput::CommitText(value)
@@ -2478,7 +2540,6 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
                 collection(report.claims.len())?;
-                collection(report.intercepted_keys.len())?;
             }
             Ok(())
         }
@@ -2508,6 +2569,11 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 string(&template.template)?;
                 string(&template.name)?;
                 string(&template.icon_codepoint)?;
+            }
+            collection(value.editors.len())?;
+            for editor in &value.editors {
+                string(&editor.name)?;
+                string(&editor.icon_codepoint)?;
             }
             Ok(())
         }
@@ -2611,14 +2677,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             RegenerationOutcome::Failed(message) => string(message),
         },
         EditorMessage::OpenCreation { template, .. } => string(template),
-        EditorMessage::Ime {
-            area:
+        EditorMessage::Window { window, .. } => {
+            collection(window.intercepted_keys.len())?;
+            collection(window.pastes.len())?;
+            match &window.ime {
                 Some(ImeArea {
                     text: Some(surrounding),
                     ..
-                }),
-            ..
-        } => text(&surrounding.text),
+                }) => text(&surrounding.text),
+                _ => Ok(()),
+            }
+        }
         EditorMessage::OpenArtifact { data, .. }
         | EditorMessage::ArtifactSettings { data, .. }
         | EditorMessage::ArtifactEdited { data, .. }
@@ -2765,7 +2834,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         }
         HostRequest::PickBlock(filter) => block_filter(filter),
         HostRequest::ListAccess(_) => Ok(()),
-        HostRequest::PasteImage | HostRequest::ListData => Ok(()),
+        HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
     }
@@ -2774,9 +2843,6 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
 fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
     match reply {
         HostReply::FilePicked(FilePick::Chosen { name, data }) => {
-            string(name).and_then(|()| blob(data))
-        }
-        HostReply::ImagePasted(ClipboardImage::Pasted { name, data }) => {
             string(name).and_then(|()| blob(data))
         }
         HostReply::Fetched(FetchResult::Body(body))
@@ -2788,7 +2854,6 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         HostReply::FilePicked(FilePick::Failed(message))
         | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
-        | HostReply::ImagePasted(ClipboardImage::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
         | HostReply::DataRead(FetchResult::Failed(message))
         | HostReply::DataListed(DataListing::Failed(message))
@@ -2803,8 +2868,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         }
         HostReply::FilePicked(FilePick::Cancelled)
         | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
-        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
-        | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),
+        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled) => Ok(()),
     }
 }
 
@@ -2850,7 +2914,7 @@ fn string(value: &str) -> Result<(), DecodeError> {
 pub fn paste_events(text: &str) -> Vec<InputEvent> {
     text_pieces(text, MAX_TEXT_BYTES)
         .into_iter()
-        .map(InputEvent::Paste)
+        .map(|piece| InputEvent::Paste(Pasted::Text(piece)))
         .collect()
 }
 

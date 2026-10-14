@@ -1,4 +1,6 @@
 use super::*;
+use beui::KeyAt;
+use beui::reactive::LayerLevel;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
@@ -40,6 +42,7 @@ mod a_window_that_copies_keeps_its_own_selection;
 mod a_window_that_moves_without_resizing_is_not_configured_again;
 mod a_window_that_picks_its_own_size_is_shown_at_it_and_never_told_another;
 mod a_window_that_stops_answering_pings_is_not_responding_until_it_answers;
+mod a_windows_surfaces_are_drawn_back_to_front;
 mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
 mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
@@ -63,7 +66,7 @@ mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::reactive::{
     ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
-    clone, component, create_memo, create_signal, view, with_reactive_scope,
+    component, create_memo, create_signal, view, with_reactive_scope,
 };
 use beui::styled::TextInput;
 use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
@@ -85,31 +88,31 @@ struct Harness {
 #[component]
 fn Shown(windows: Windows) -> NodeId {
     {
-        let toggling = windows.clone();
         beui::reactive::Action::new("test.fullscreen", "Toggle fullscreen", move || {
-            let Some(id) = toggling.focused() else {
+            let Some(id) = windows.focused() else {
                 return;
             };
-            let fullscreen = toggling
+            let fullscreen = windows
                 .list()
                 .get_untracked()
                 .iter()
                 .any(|info| info.id == id && info.fullscreen.is_some());
-            toggling.request_fullscreen(id, !fullscreen);
+            windows.request_fullscreen(id, !fullscreen);
             beui::reactive::try_with_document(|document| {
                 document.request_repaint_after(std::time::Duration::ZERO);
             });
         })
         .shortcut(beui::reactive::Chord::logo(Key::F))
-        .intercepts()
+        .at(KeyAt::Window)
+        .capture()
         .register();
         beui::reactive::Action::new("test.global", "Global", || {
             GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))
         })
         .shortcut(beui::reactive::Chord::logo(Key::G))
-        .global()
+        .at(KeyAt::Window)
         .register();
-        crate::view::register_restore_shortcuts(&windows);
+        crate::view::register_restore_shortcuts(windows);
         let (text, set_text) = create_signal(String::new());
         let (locked, set_locked) = create_signal(false);
         LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
@@ -134,7 +137,6 @@ fn Shown(windows: Windows) -> NodeId {
                     />
                     <ForEach keys={ids}>
                         {move |id: WindowId| {
-                            let windows = windows.clone();
                             let list = windows.list();
                             let size = create_memo(move || {
                                 list.with(|list| {
@@ -144,7 +146,7 @@ fn Shown(windows: Windows) -> NodeId {
                                         .map_or(SHOWN, |area| area.size())
                                 })
                             });
-                            let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                            let width = create_memo(move || Some(size.get().x));
                             let height = create_memo(move || Some(size.get().y));
                             view! {
                                 <Frame width height>
@@ -156,7 +158,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Fill
-                        locks=true
+                        level=LayerLevel::Lock
                         open={locked}
                     >
                         <TextInput @test_id={"test.lock"} value="" />
@@ -164,7 +166,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Center
-                        open={asking.clone()}
+                        open={asking}
                     >
                         <TextInput @test_id={"test.dialog"} value="" focused={asking} />
                     </Overlay>
@@ -205,7 +207,7 @@ impl Harness {
         let mut windows = None;
         let document = build(|| {
             let store = Windows::new();
-            windows = Some(store.clone());
+            windows = Some(store);
             view(store)
         });
         let mut app = Compositor::new(
@@ -222,7 +224,6 @@ impl Harness {
         }
         let client = TestClient::connect(app.server());
         let context = beui::context();
-        context.set_test_ids_published(true);
         Self {
             app,
             document,
@@ -248,7 +249,7 @@ impl Harness {
 
     fn lock(&mut self, locked: bool) {
         let set = LOCK
-            .with(|lock| lock.borrow().clone())
+            .with(|lock| *lock.borrow())
             .expect("the harness has a lock");
         with_reactive_scope(&mut self.document, move || set.set(locked));
         self.app.set_locked(locked);
@@ -257,7 +258,7 @@ impl Harness {
 
     fn ask(&mut self, open: bool) {
         let set = DIALOG
-            .with(|dialog| dialog.borrow().clone())
+            .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         with_reactive_scope(&mut self.document, move || set.set(open));
         self.settle();
@@ -334,16 +335,7 @@ impl Harness {
     }
 
     fn key(&mut self, code: u32) {
-        self.frame(vec![
-            Event::PhysicalKey {
-                code,
-                pressed: true,
-            },
-            Event::PhysicalKey {
-                code,
-                pressed: false,
-            },
-        ]);
+        self.frame(vec![physical(code, true), physical(code, false)]);
         self.settle();
     }
 
@@ -440,8 +432,21 @@ thread_local! {
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
+fn stroke(key: Key, code: u32, pressed: bool, modifiers: beui::Modifiers) -> Event {
+    Event::Key {
+        press: beui::KeyPress {
+            key,
+            pressed,
+            repeat: false,
+            modifiers,
+        },
+        code: Some(code),
+        text: None,
+    }
+}
+
 fn physical(code: u32, pressed: bool) -> Event {
-    Event::PhysicalKey { code, pressed }
+    stroke(Key::Unidentified, code, pressed, beui::Modifiers::NONE)
 }
 
 fn super_key(pressed: bool) -> Vec<Event> {
@@ -449,19 +454,14 @@ fn super_key(pressed: bool) -> Vec<Event> {
         true => beui::Modifiers::LOGO,
         false => beui::Modifiers::NONE,
     };
-    vec![physical(KEY_LEFTMETA, pressed), Event::Modifiers(held)]
+    vec![
+        stroke(Key::Logo, KEY_LEFTMETA, pressed, held),
+        Event::Modifiers(held),
+    ]
 }
 
 fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
-    vec![
-        physical(KEY_F, pressed),
-        Event::Key {
-            key: Key::F,
-            pressed,
-            repeat: false,
-            modifiers,
-        },
-    ]
+    vec![stroke(Key::F, KEY_F, pressed, modifiers)]
 }
 
 fn outside() -> Pos2 {

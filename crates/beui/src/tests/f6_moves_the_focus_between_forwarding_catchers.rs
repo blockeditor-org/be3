@@ -1,27 +1,20 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 
-type Heard = Rc<RefCell<Vec<(usize, bool, Vec<Event>)>>>;
-
 #[test]
 fn f6_moves_the_focus_between_forwarding_catchers() {
-    let heard: Heard = Rc::new(RefCell::new(Vec::new()));
-    let catcher = |index: usize, heard: Heard| {
+    let _root = crate::reactive::RootScope::new();
+    let (heard, set_heard) = create_signal::<Vec<(usize, bool, Vec<Event>)>>(Vec::new());
+    let catcher = |index: usize, heard: WriteSignal<Vec<(usize, bool, Vec<Event>)>>| {
         move |input: ForwardedInput| {
-            heard
-                .borrow_mut()
-                .push((index, input.focused, input.events))
+            heard.update(|heard| heard.push((index, input.focused, flattened(input))))
         }
     };
     let document = build({
-        let heard = Rc::clone(&heard);
         move || {
-            let first = catcher(0, Rc::clone(&heard));
-            let last = catcher(1, Rc::clone(&heard));
+            let first = catcher(0, set_heard);
+            let last = catcher(1, set_heard);
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
@@ -46,17 +39,19 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
-    let f6 = |shift: bool| Event::Key {
-        key: Key::F6,
-        pressed: true,
-        repeat: false,
-        modifiers: match shift {
-            true => Modifiers::SHIFT,
-            false => Modifiers::NONE,
-        },
+    let f6 = |shift: bool| {
+        Event::key(beui::KeyPress {
+            key: Key::F6,
+            pressed: true,
+            repeat: false,
+            modifiers: match shift {
+                true => Modifiers::SHIFT,
+                false => Modifiers::NONE,
+            },
+        })
     };
 
-    heard.borrow_mut().clear();
+    set_heard.update(|heard| heard.clear());
     harness.frame(vec![f6(false)]);
     let focused = |heard: &[(usize, bool, Vec<Event>)]| {
         heard
@@ -66,19 +61,23 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
             .map(|(index, _, _)| *index)
     };
     assert_eq!(
-        focused(&heard.borrow()),
+        focused(&heard.get_untracked()),
         Some(1),
         "F6 skips the plain focusable"
     );
     assert!(
         heard
-            .borrow()
+            .get_untracked()
             .iter()
             .all(|(_, _, events)| events.is_empty()),
         "the F6 itself reaches no catcher"
     );
 
-    heard.borrow_mut().clear();
+    set_heard.update(|heard| heard.clear());
     harness.frame(vec![f6(true)]);
-    assert_eq!(focused(&heard.borrow()), Some(0), "Shift+F6 goes back");
+    assert_eq!(
+        focused(&heard.get_untracked()),
+        Some(0),
+        "Shift+F6 goes back"
+    );
 }

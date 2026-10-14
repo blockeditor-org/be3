@@ -3,17 +3,16 @@ use crate::reactive::{List, NodeRef, Text, build, view};
 
 #[test]
 fn a_multi_root_view_fills_a_children_prop_in_order() {
+    let _root = crate::reactive::RootScope::new();
     let column = NodeRef::new();
     let (first, second, third) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let column = column.clone();
-        let (first, second, third) = (first.clone(), second.clone(), third.clone());
         move || {
             let toolbar = view! {
-                <Text @node_ref=&first string="One" font_size=14.0 color=Color32::WHITE />
-                <Text @node_ref=&second string="Two" font_size=14.0 color=Color32::WHITE />
+                <Text @node_ref=&first string="One" color=Color32::WHITE />
+                <Text @node_ref=&second string="Two" color=Color32::WHITE />
                 {view! {
-                    <Text @node_ref=&third string="Three" font_size=14.0 color=Color32::WHITE />
+                    <Text @node_ref=&third string="Three" color=Color32::WHITE />
                 }}
             };
             view! {

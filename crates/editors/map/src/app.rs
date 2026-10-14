@@ -1,5 +1,4 @@
 use block_editor_beui::be_block::MapContent;
-use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -40,29 +39,25 @@ impl block_editor_beui::BeuiApp for MapApp {
 
 #[component]
 fn MapEditor(editor: Editor) -> NodeId {
-    let state = MapState::new(&editor, false);
+    let state = MapState::new(editor, false);
     state.watch();
 
-    let sized = Rc::clone(&state);
-    let sizing = editor.clone();
-    let region = state.displayed_region.clone();
+    let region = state.displayed_region;
     block_editor_beui::beui::reactive::create_effect(move || {
         let aspect = crate::geo::region_aspect_ratio(region.get()).max(0.01);
-        let _ = sized.block_id();
-        sizing.set_intrinsic_size(Some(match aspect >= 1.0 {
+        let _ = state.block_id();
+        editor.set_intrinsic_size(Some(match aspect >= 1.0 {
             true => Vec2::new(WORLD_POINTS, WORLD_POINTS / aspect),
             false => Vec2::new(WORLD_POINTS * aspect, WORLD_POINTS),
         }));
     });
 
     let chrome = editor.chrome_shown();
-    let bar = Rc::clone(&state);
-    let canvas = Rc::clone(&state);
     view! {
         <List spacing=0.0>
-            <MapToolbar state={bar} shown={chrome.clone()} />
+            <MapToolbar state={state} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
-                <MapCanvas @sizing=ItemSize::Percent(100.0) state={canvas} />
+                <MapCanvas @sizing=ItemSize::Percent(100.0) state={state} />
                 <Sidebar shown={chrome}>
                     <MapSidebar state={state} />
                 </Sidebar>
@@ -73,7 +68,7 @@ fn MapEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn MapPreview(editor: Editor) -> NodeId {
-    let state = MapState::new(&editor, true);
+    let state = MapState::new(editor, true);
     state.watch();
     view! {
         <MapCanvas state={state} />

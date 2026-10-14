@@ -1,5 +1,4 @@
 use std::cell::Cell;
-use std::collections::HashSet;
 
 use beui::accessibility::{Described, Fragment, embedded, role_named};
 use beui::{ActionGroup, ActionInfo, Rect, pos2, vec2};
@@ -20,7 +19,6 @@ struct Region {
     screen: ScreenId,
     document: u32,
     fragment: Fragment,
-    test_ids: Vec<(String, Rect)>,
     actions: ActionGroup,
 }
 
@@ -74,6 +72,7 @@ pub(crate) fn describe(context: &beui::Context) {
                         .iter()
                         .filter_map(|action| beui::accessibility_dump::action_named(action))
                         .collect(),
+                    test_ids: node.test_ids.clone(),
                 })
                 .collect();
             regions.push(Region {
@@ -81,12 +80,6 @@ pub(crate) fn describe(context: &beui::Context) {
                 screen: report.screen,
                 document: placed.document,
                 fragment: embedded(placed.document, runtime.name(), area, &nodes),
-                test_ids: description
-                    .test_ids
-                    .iter()
-                    .map(|test_id| (test_id.id.clone(), place(&test_id.rect).intersect(area)))
-                    .filter(|(_, rect)| rect.is_positive())
-                    .collect(),
                 actions: ActionGroup {
                     name: runtime.name().to_owned(),
                     actions: description
@@ -150,15 +143,8 @@ pub(crate) fn describe(context: &beui::Context) {
             context.action_ran(&requested);
         }
     }
-    let mut published = HashSet::new();
     for region in regions {
         context.publish_accessibility(region.document, region.fragment);
         context.publish_actions(region.actions);
-        for (id, rect) in region.test_ids {
-            match published.insert(id.clone()) {
-                true => context.publish_test_id(&id, rect),
-                false => context.publish_ambiguous_test_id(&id),
-            }
-        }
     }
 }

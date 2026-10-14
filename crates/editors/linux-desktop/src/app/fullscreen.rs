@@ -1,11 +1,11 @@
+use beui::KeyAt;
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::ICON_FULLSCREEN;
 use block_editor_beui::beui::reactive::{Action, Chord};
 use block_editor_beui::{Editor, HostWindows, WindowAction};
 
-pub(super) fn bind_fullscreen(editor: &Editor) {
+pub(super) fn bind_fullscreen(editor: Editor) {
     let windows = editor.host_value::<HostWindows>();
-    let editor = editor.clone();
     Action::new("desktop.fullscreen", "Toggle fullscreen", move || {
         let focused = windows.with_untracked(|windows| {
             windows
@@ -22,6 +22,7 @@ pub(super) fn bind_fullscreen(editor: &Editor) {
     })
     .glyph(ICON_FULLSCREEN)
     .shortcut(Chord::logo(Key::F))
-    .intercepts()
+    .at(KeyAt::Window)
+    .capture()
     .register();
 }

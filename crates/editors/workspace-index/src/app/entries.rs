@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::FolderContent;
@@ -43,13 +42,13 @@ pub(crate) struct Entry {
 
 pub(crate) struct Folder {
     entries: Memo<Vec<Entry>>,
-    index: Rc<ContentProjection<FolderContent>>,
+    index: ContentProjection<FolderContent>,
 }
 
 impl Folder {
     pub(crate) fn watch(
-        editor: &Editor,
-        index: &Rc<ContentProjection<FolderContent>>,
+        editor: Editor,
+        index: ContentProjection<FolderContent>,
         sort: ReadSignal<FolderSort>,
         descending: ReadSignal<bool>,
     ) -> Self {
@@ -57,14 +56,13 @@ impl Folder {
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         let referenced = index.project(|index| index.root().blocks());
-        let catalog = editor.clone();
         let entries = create_memo(move || {
             let metadata: HashMap<_, _> = references
                 .read()
                 .into_iter()
                 .map(|reference| (reference.id, reference))
                 .collect();
-            let types = catalog.block_types();
+            let types = editor.block_types();
             let mut entries: Vec<_> = referenced
                 .get()
                 .into_iter()
@@ -95,14 +93,11 @@ impl Folder {
             sort_entries(&mut entries, sort.get(), descending.get());
             entries
         });
-        Self {
-            entries,
-            index: Rc::clone(index),
-        }
+        Self { entries, index }
     }
 
     pub(crate) fn entries(&self) -> Memo<Vec<Entry>> {
-        self.entries.clone()
+        self.entries
     }
 
     pub(crate) fn accepts(&self, block_id: Uuid, folder: Uuid) -> bool {

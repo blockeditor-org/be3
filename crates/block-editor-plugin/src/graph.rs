@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use be_block::{ArtifactSource, BlockMetadata, Definition, Entries};
 use block_plugin_api::{AccessLevel, BlockLocation};
-use reactive::{ReadSignal, WriteSignal, create_signal};
+use reactive::OwnedSignal;
 use uuid::Uuid;
 
 use crate::host::Waker;
@@ -219,8 +219,7 @@ pub(crate) struct GraphState {
     watch_changed: Cell<bool>,
     results: RefCell<HashMap<BlockQuery, Vec<BlockInfo>>>,
     known: RefCell<HashMap<Uuid, BlockInfo>>,
-    revision: ReadSignal<u64>,
-    set_revision: WriteSignal<u64>,
+    revision: OwnedSignal<u64>,
     dirty: Cell<bool>,
     deferred: Cell<u64>,
     ready: RefCell<Option<Rc<dyn Fn() -> bool>>>,
@@ -229,14 +228,12 @@ pub(crate) struct GraphState {
 
 impl Default for GraphState {
     fn default() -> Self {
-        let (revision, set_revision) = create_signal(0);
         Self {
             watched: RefCell::default(),
             watch_changed: Cell::default(),
             results: RefCell::default(),
             known: RefCell::default(),
-            revision,
-            set_revision,
+            revision: OwnedSignal::new(0),
             dirty: Cell::default(),
             deferred: Cell::default(),
             ready: RefCell::default(),
@@ -253,7 +250,7 @@ impl GraphState {
     fn changed(&self) {
         let ready = self.ready.borrow().clone();
         match ready.is_none_or(|ready| ready()) {
-            true => self.set_revision.update(|revision| *revision += 1),
+            true => self.revision.write().update(|revision| *revision += 1),
             false => {
                 self.dirty.set(true);
                 self.deferred.set(self.deferred.get() + 1);
@@ -267,7 +264,7 @@ impl GraphState {
 
     pub(crate) fn flush(&self) {
         if self.dirty.replace(false) {
-            self.set_revision.update(|revision| *revision += 1);
+            self.revision.write().update(|revision| *revision += 1);
         }
     }
 
@@ -320,17 +317,17 @@ impl GraphState {
     }
 
     pub(crate) fn result(&self, query: BlockQuery) -> Option<Vec<BlockInfo>> {
-        self.revision.get();
+        self.revision.read().get();
         self.results.borrow().get(&query).cloned()
     }
 
     pub(crate) fn known(&self, id: Uuid) -> Option<BlockInfo> {
-        self.revision.get();
+        self.revision.read().get();
         self.known.borrow().get(&id).cloned()
     }
 
     pub(crate) fn revision(&self) -> u64 {
-        self.revision.get()
+        self.revision.read().get()
     }
 
     pub(crate) fn push(&self, command: GraphCommand) {

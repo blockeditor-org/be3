@@ -1,61 +1,64 @@
-use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
+use crate::arena::{self, Key};
 use crate::computation::Computation;
-use crate::runtime::untrack;
-use crate::signal::{Source, Value};
+use crate::runtime::{probe, untrack};
+use crate::signal::{Tracked, Value, track};
 
 pub struct Memo<T> {
-    inner: Rc<Value<Option<T>>>,
-    computation: Rc<Computation>,
+    key: Key,
+    ty: PhantomData<*const T>,
 }
 
 pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'static) -> Memo<T> {
-    let source = Rc::new(Source::default());
-    let inner = Rc::new(Value {
-        value: RefCell::new(None),
-        source: source.clone(),
-    });
-    let output = inner.clone();
-    let computation = Computation::new(
-        Some(source.clone()),
-        Box::new(move || {
+    let probed = probe(true, &mut compute);
+    let constant = probed.constant();
+    let output = Rc::new(Value::new(Some(probed.value)));
+    if constant {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+    } else {
+        let written = output.clone();
+        let tracked: Rc<dyn Tracked> = output.clone();
+        let computation = Computation::new(Some(tracked), move || {
             let next = compute();
-            let mut value = output.value.borrow_mut();
+            let mut value = written.value.borrow_mut();
             if value.as_ref() == Some(&next) {
                 false
             } else {
                 *value = Some(next);
                 true
             }
-        }),
-    );
-    source.producer.replace(Rc::downgrade(&computation));
-    computation.refresh();
-    Memo { inner, computation }
+        });
+        output.source.producer.replace(Rc::downgrade(&computation));
+        computation.watch(probed.read, probed.owner);
+    }
+    Memo {
+        key: arena::insert_owned(output),
+        ty: PhantomData,
+    }
 }
 
 impl<T> Clone for Memo<T> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            computation: self.computation.clone(),
-        }
+        *self
     }
 }
 
-impl<T> Memo<T> {
+impl<T> Copy for Memo<T> {}
+
+impl<T: 'static> Memo<T> {
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        if !self.computation.is_disposed() {
-            self.computation.refresh();
-            self.inner.source.track();
+        let output = arena::get::<Value<Option<T>>>(self.key)
+            .expect("memo used after the scope that owns it was disposed");
+        let producer = output.source.producer.borrow().upgrade();
+        if let Some(producer) = producer {
+            producer.refresh();
         }
-        f(self
-            .inner
-            .value
-            .borrow()
-            .as_ref()
-            .expect("memo has no value"))
+        track(output.clone());
+        f(output.value.borrow().as_ref().expect("memo has no value"))
     }
 
     pub fn get(&self) -> T
@@ -74,5 +77,9 @@ impl<T> Memo<T> {
 
     pub fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         untrack(|| self.with(f))
+    }
+
+    pub fn is_alive(&self) -> bool {
+        arena::get::<Value<Option<T>>>(self.key).is_some()
     }
 }

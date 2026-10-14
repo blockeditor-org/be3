@@ -43,7 +43,7 @@ pub fn legacy_names(icon: CursorIcon) -> &'static [&'static str] {
         CursorIcon::AllScroll => &["fleur", "size_all"],
         CursorIcon::ZoomIn => &["zoom_in"],
         CursorIcon::ZoomOut => &["zoom_out"],
-        CursorIcon::None => &[],
+        CursorIcon::None | CursorIcon::Touch => &[],
     }
 }
 
@@ -60,6 +60,7 @@ pub fn names(icon: CursorIcon) -> Vec<&'static str> {
 pub enum Choice {
     Hidden,
     Arrow,
+    Touch(beui::touch_cursor::CursorImage),
     Themed {
         image: Image,
         size: Vec2,
@@ -68,8 +69,10 @@ pub enum Choice {
 }
 
 pub fn choose(theme: &Theme, icon: CursorIcon, scale: f32) -> Choice {
-    if icon == CursorIcon::None {
-        return Choice::Hidden;
+    match icon {
+        CursorIcon::None => return Choice::Hidden,
+        CursorIcon::Touch => return Choice::Touch(beui::touch_cursor::image(scale)),
+        _ => {}
     }
     let wanted = (theme.size() as f32 * scale).round().max(1.0) as u32;
     let image = theme
@@ -118,6 +121,11 @@ impl Cursors {
                         sprite: gpu.rgba(arrow::WIDTH, arrow::HEIGHT, &arrow::pixels()),
                         size: vec2(arrow::WIDTH as f32, arrow::HEIGHT as f32),
                         hotspot: Vec2::ZERO,
+                    },
+                    Choice::Touch(image) => Shape {
+                        sprite: gpu.rgba(image.width, image.height, &image.rgba),
+                        size: Vec2::splat(beui::touch_cursor::SIZE),
+                        hotspot: Vec2::splat(beui::touch_cursor::SIZE / 2.0),
                     },
                     Choice::Themed {
                         image,

@@ -6,7 +6,7 @@ use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ButtonHandle;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, ClickCallback, Frame, Prop, clone, create_memo, focus_ring};
+use beui_view::reactive::{Child, ClickCallback, Frame, Prop, create_memo, focus_ring};
 
 const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 4.0;
@@ -18,15 +18,10 @@ pub fn ListRow(
     on_click: ClickCallback,
     on_activate: ClickCallback,
 ) -> NodeId {
-    let face = selected.clone();
+    let face = selected;
     let activates = !on_activate.is_empty();
     view! {
-        <unstyled::ListRow
-            selected
-            activates
-            on_click={move || on_click.call()}
-            on_activate={move || on_activate.call()}
-        >
+        <unstyled::ListRow selected activates on_click={on_click} on_activate={on_activate}>
             {move |handle: ButtonHandle| view! {
                 <ListRowFace handle selected={face}>{children}</ListRowFace>
             }}
@@ -43,13 +38,12 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(clone!(theme -> move || {
-        background(&theme, selected.get(), hovered.get(), active.get())
-    }));
+    let fill_color =
+        create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
     view! {
         <Frame
             color={fill_color}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_visible={focus_ring(focused)}

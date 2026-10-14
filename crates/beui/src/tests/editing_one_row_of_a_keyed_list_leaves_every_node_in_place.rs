@@ -4,20 +4,18 @@ use crate::unstyled::Button;
 
 #[test]
 fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
+    let _root = crate::reactive::RootScope::new();
     let (list, edit) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (list, edit) = (list.clone(), edit.clone());
         move || {
             let store: KeyedStore<u32, String> = KeyedStore::new();
             store.reconcile_owned((0..3u32).map(|index| (index, format!("row {index}"))));
-            let clicked = store.clone();
-            let rows = store.clone();
             view! {
                 <List spacing=0.0>
                     <Button
                         @node_ref=&edit
                         on_click={move || {
-                            clicked.reconcile_owned((0..3u32).map(|index| {
+                            store.reconcile_owned((0..3u32).map(|index| {
                                 let label = if index == 1 { "edited" } else { "row" };
                                 (index, format!("{label} {index}"))
                             }));
@@ -28,7 +26,7 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
                     <List @node_ref=&list spacing=0.0>
                         <ForEach keys={store.keys()}>
                             {move |index: u32| {
-                                let item = rows.get(&index);
+                                let item = store.get(&index);
                                 view! {
                                     <Text string={item} />
                                 }

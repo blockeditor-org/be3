@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
+use crate::settings::Layered;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct DisplayMode {
@@ -96,6 +97,27 @@ impl DisplaySettings {
         Self::MONITORS
             .put(ObjectId::ROOT, &id.to_owned(), stored)
             .into()
+    }
+}
+
+impl Layered for DisplaySettings {
+    fn over(&self, lower: &Self) -> Self {
+        let monitors = lower
+            .monitors
+            .iter()
+            .chain(self.monitors.iter())
+            .map(|(id, _)| {
+                let monitor = MonitorSettings {
+                    mode: self.mode(id).or(lower.mode(id)),
+                };
+                (id.clone(), monitor)
+            })
+            .collect();
+        Self {
+            monitors,
+            screen_off: self.screen_off.or(lower.screen_off),
+            lock_after: self.lock_after.or(lower.lock_after),
+        }
     }
 }
 

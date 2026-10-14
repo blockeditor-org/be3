@@ -7,11 +7,11 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Callback, Child, ClickCallback, Interactive, Memo, Prop, ReadSignal, Render,
-    action_disabled, action_glyph, action_label, action_tooltip, clone, component_accessibility,
+    action_disabled, action_glyph, action_label, action_tooltip, component_accessibility,
     create_memo, create_signal, set_component_state, untrack,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ButtonHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
@@ -63,7 +63,7 @@ pub fn Button(
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
-    component_accessibility(create_memo(clone!(disabled label -> move || {
+    component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         if node.label().is_none() && !label.get().is_empty() {
             node.set_label(label.get());
@@ -74,14 +74,14 @@ pub fn Button(
             node.clear_disabled();
         }
         node
-    })));
+    }));
 
     let content_node = match content {
         Some(build) => Some(build.call(ButtonHandle {
             hovered,
-            active: active.clone(),
-            focused: focused.clone(),
-            disabled: disabled.clone(),
+            active,
+            focused,
+            disabled,
             label,
             glyph,
             tooltip,
@@ -90,7 +90,6 @@ pub fn Button(
     };
 
     let click = {
-        let disabled = disabled.clone();
         move || {
             if untrack(|| disabled.get()) {
                 return;
@@ -103,7 +102,6 @@ pub fn Button(
     };
     let key_click = click.clone();
     let click_at = {
-        let disabled = disabled.clone();
         move |press: PointerPress| {
             if untrack(|| disabled.get()) {
                 return;
@@ -113,10 +111,7 @@ pub fn Button(
     };
     let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
 
-    set_component_state(State {
-        active: active.clone(),
-        focused: focused.clone(),
-    });
+    set_component_state(State { active, focused });
 
     view! {
         <Interactive
@@ -124,8 +119,8 @@ pub fn Button(
             tab_stop
             press_focus
             focused={focus_request}
-            on_key={move |press| on_key.call(press)}
-            on_text={move |text| on_text.call(text)}
+            on_key={on_key}
+            on_text={on_text}
             takes_text
             on_focus_change={move |has_focus: bool| {
                 set_focused.set(has_focus);
@@ -138,7 +133,7 @@ pub fn Button(
             key_active
             on_click={click}
             on_click_at={click_at}
-            on_press={move |press| on_press.call(press)}
+            on_press={on_press}
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
             on_active_change={move |active: bool| set_active.set(active)}
             children={content_node}
@@ -147,9 +142,9 @@ pub fn Button(
 }
 
 pub fn button_active(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).active.clone()
+    document.component_state::<State>(button).active
 }
 
 pub fn button_focused(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).focused.clone()
+    document.component_state::<State>(button).focused
 }

@@ -29,6 +29,19 @@ pub(crate) struct Protocols {
 }
 
 impl TestClient {
+    pub(crate) fn subsurface(
+        &self,
+        parent: &wl_surface::WlSurface,
+        at: (i32, i32),
+    ) -> (wl_surface::WlSurface, wl_subsurface::WlSubsurface) {
+        let subcompositor: wl_subcompositor::WlSubcompositor = self.bind("wl_subcompositor", 1);
+        let surface = self.surface();
+        let subsurface = subcompositor.get_subsurface(&surface, parent, &self.handle, ());
+        subsurface.set_position(at.0, at.1);
+        subsurface.set_desync();
+        (surface, subsurface)
+    }
+
     pub(crate) fn inhibit_shortcuts(
         &self,
         surface: &wl_surface::WlSurface,
@@ -54,15 +67,6 @@ impl TestClient {
         let manager: wp_tearing_control_manager_v1::WpTearingControlManagerV1 =
             self.bind("wp_tearing_control_manager_v1", 1);
         manager.get_tearing_control(surface, &self.handle, ())
-    }
-
-    pub(crate) fn subsurface(
-        &self,
-        surface: &wl_surface::WlSurface,
-        parent: &wl_surface::WlSurface,
-    ) -> wl_subsurface::WlSubsurface {
-        let subcompositor: wl_subcompositor::WlSubcompositor = self.bind("wl_subcompositor", 1);
-        subcompositor.get_subsurface(surface, parent, &self.handle, ())
     }
 
     pub(crate) fn viewport(&self, surface: &wl_surface::WlSurface) -> wp_viewport::WpViewport {

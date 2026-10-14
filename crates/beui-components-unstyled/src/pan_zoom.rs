@@ -7,9 +7,9 @@ use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, WriteSignal, clone,
-    component_accessibility, component_rect, create_effect, create_memo, create_signal,
-    set_component_state, untrack,
+    Callback, Interactive, Memo, PlacementBuilder, Prop, ReadSignal, Render, WriteSignal,
+    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
+    untrack,
 };
 
 pub const MIN_SCALE: f32 = 0.05;
@@ -75,7 +75,7 @@ pub struct PanZoomHandle {
     pub focused: ReadSignal<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Camera {
     view: ReadSignal<PanZoomView>,
     set_view: WriteSignal<PanZoomView>,
@@ -153,65 +153,68 @@ pub fn PanZoom(
     accessibility: Option<Prop<Node>>,
     #[prop(children)] content: Render<PanZoomHandle>,
 ) -> NodeId {
-    let rect = component_rect();
-    let (current, set_current) = create_signal(view.peek());
-    create_effect(clone!(set_current -> move || set_current.set(view.get())));
-    let (panning, set_panning) = create_signal(false);
-
-    let camera = Camera {
-        view: current.clone(),
-        set_view: set_current,
-        rect: rect.clone(),
-        min_scale: create_memo(move || min_scale.get()),
-        max_scale: create_memo(move || max_scale.get()),
-        on_change,
-    };
-    let scroll_camera = camera.clone();
-    let zoom_camera = camera.clone();
-
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
-    component_accessibility(create_memo(move || accessibility.get()));
-
-    let (focused, set_focused) = create_signal(false);
-    let key_camera = camera.clone();
-    let cursor = create_memo(clone!(panning -> move || if panning.get() {
-        CursorIcon::Grabbing
-    } else {
-        CursorIcon::Default
-    }));
-    let content_node = content.call(PanZoomHandle {
-        view: create_memo(clone!(current rect -> move || Some(current.get().canvas(rect.get())))),
-        scale: create_memo(clone!(current -> move || current.get().scale)),
-        panning: panning.clone(),
-        focused: focused.clone(),
-    });
-
-    set_component_state(current);
-
     view! {
-        <Interactive
-            focusable=true
-            on_focus_change={move |focused: bool| set_focused.set(focused)}
-            on_key={move |press: KeyPress| key_camera.key(press)}
-            cursor={cursor}
-            on_scroll={move |gesture: ScrollGesture| {
-                if gesture.modifiers.ctrl {
-                    let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
-                    scroll_camera.zoom(factor, gesture.pos);
+        <PlacementBuilder>
+            {move |rect: ReadSignal<Rect>| {
+                let (current, set_current) = create_signal(view.peek());
+                create_effect(move || set_current.set(view.get()));
+                let (panning, set_panning) = create_signal(false);
+
+                let camera = Camera {
+                    view: current,
+                    set_view: set_current,
+                    rect,
+                    min_scale: create_memo(move || min_scale.get()),
+                    max_scale: create_memo(move || max_scale.get()),
+                    on_change,
+                };
+                let scroll_camera = camera;
+                let zoom_camera = camera;
+
+                let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
+                component_accessibility(create_memo(move || accessibility.get()));
+
+                let (focused, set_focused) = create_signal(false);
+                let key_camera = camera;
+                let cursor = create_memo(move || if panning.get() {
+                    CursorIcon::Grabbing
                 } else {
-                    scroll_camera.pan(gesture.delta);
+                    CursorIcon::Default
+                });
+                let content_node = content.call(PanZoomHandle {
+                    view: create_memo(move || Some(current.get().canvas(rect.get()))),
+                    scale: create_memo(move || current.get().scale),
+                    panning,
+                    focused,
+                });
+
+                set_component_state(current);
+
+                view! {
+                    <Interactive
+                        focusable=true
+                        on_focus_change={move |focused: bool| set_focused.set(focused)}
+                        on_key={move |press: KeyPress| key_camera.key(press)}
+                        cursor={cursor}
+                        on_scroll={move |gesture: ScrollGesture| {
+                            if gesture.modifiers.ctrl {
+                                let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
+                                scroll_camera.zoom(factor, gesture.pos);
+                            } else {
+                                scroll_camera.pan(gesture.delta);
+                            }
+                        }}
+                        on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}
+                        on_pan_drag={move |delta: Vec2| camera.pan(delta)}
+                        on_pan_active_change={move |panning: bool| set_panning.set(panning)}
+                        children={Some(content_node)}
+                    />
                 }
             }}
-            on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}
-            on_pan_drag={move |delta: Vec2| camera.pan(delta)}
-            on_pan_active_change={move |panning: bool| set_panning.set(panning)}
-            children={Some(content_node)}
-        />
+        </PlacementBuilder>
     }
 }
 
 pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> ReadSignal<PanZoomView> {
-    document
-        .component_state::<ReadSignal<PanZoomView>>(pan_zoom)
-        .clone()
+    *document.component_state::<ReadSignal<PanZoomView>>(pan_zoom)
 }

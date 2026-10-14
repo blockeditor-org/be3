@@ -5,7 +5,7 @@ use std::rc::Rc;
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::reactive::{
-    Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
+    Memo, Stored, WriteSignal, create_effect, create_memo, create_signal, store, untrack,
 };
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -98,9 +98,9 @@ struct Watched {
     block_types: HashMap<Uuid, Uuid>,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Tree {
-    client: Blocks,
-    watched: Rc<RefCell<Watched>>,
+    inner: Stored<Inner>,
     rows: Memo<Vec<Row>>,
     orphans_open: Memo<bool>,
     set_expanded: block_editor_beui::beui::reactive::WriteSignal<HashSet<Uuid>>,
@@ -108,8 +108,13 @@ pub(crate) struct Tree {
     set_remembered: WriteSignal<u64>,
 }
 
+struct Inner {
+    client: Blocks,
+    watched: Rc<RefCell<Watched>>,
+}
+
 impl Tree {
-    pub(crate) fn watch(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn watch(editor: Editor) -> Self {
         let client = editor.blocks();
         let roots = client.watch(BlockQuery::Roots);
         let watched = Rc::new(RefCell::new(Watched::default()));
@@ -119,10 +124,10 @@ impl Tree {
         let (remembered, set_remembered) = create_signal(0_u64);
 
         let build = Rc::clone(&watched);
-        let host = editor.host().clone();
+        let host = editor.host();
         let building = client.clone();
-        let open = expanded.clone();
-        let orphans = orphans_open.clone();
+        let open = expanded;
+        let orphans = orphans_open;
         create_effect(move || {
             remembered.get();
             let mut watched = build.borrow_mut();
@@ -165,14 +170,13 @@ impl Tree {
         });
 
         let restored = Rc::new(Cell::new(false));
-        let restoring = editor.clone();
         let adopted = Rc::clone(&restored);
-        let (adopt_expanded, adopt_orphans) = (set_expanded.clone(), set_orphans_open.clone());
+        let (adopt_expanded, adopt_orphans) = (set_expanded, set_orphans_open);
         create_effect(move || {
             if adopted.get() {
                 return;
             }
-            let Some(view) = restoring.view_content() else {
+            let Some(view) = editor.view_content() else {
                 return;
             };
             let Some(opened) = view.read(|held| {
@@ -190,8 +194,7 @@ impl Tree {
                 });
             }
         });
-        let saving = editor.clone();
-        let (open, orphans) = (expanded, orphans_open.clone());
+        let (open, orphans) = (expanded, orphans_open);
         create_effect(move || {
             let mut expanded: Vec<Uuid> = open.get().into_iter().collect();
             let orphans = orphans.get();
@@ -200,45 +203,51 @@ impl Tree {
             }
             expanded.sort_unstable();
             let opened = ViewState::new(&Opened { expanded, orphans }, Vec::new());
-            untrack(|| saving.set_view_state(OPENED, Some(&opened)));
+            untrack(|| editor.set_view_state(OPENED, Some(&opened)));
         });
 
-        Rc::new(Self {
-            client,
-            watched,
+        Self {
+            inner: store(Inner { client, watched }),
             rows: create_memo(move || rows.get()),
             orphans_open: create_memo(move || orphans_open.get()),
             set_expanded,
             set_orphans_open,
             set_remembered,
-        })
+        }
     }
 
     pub(crate) fn rows(&self) -> Memo<Vec<Row>> {
-        self.rows.clone()
+        self.rows
     }
 
     pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
-        let rows = self.rows.clone();
+        let rows = self.rows;
         create_memo(move || rows.with(|rows| rows.iter().map(|row| row.key.clone()).collect()))
     }
 
     pub(crate) fn row(&self, key: RowKey) -> Memo<Option<Row>> {
-        let rows = self.rows.clone();
+        let rows = self.rows;
         create_memo(move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()))
     }
 
     pub(crate) fn remember(&self, id: Uuid, block_type: Uuid) {
-        self.watched.borrow_mut().block_types.insert(id, block_type);
+        self.inner.with(|inner| {
+            inner
+                .watched
+                .borrow_mut()
+                .block_types
+                .insert(id, block_type)
+        });
         self.set_remembered.update(|count| *count += 1);
     }
 
-    pub(crate) fn blocks(&self) -> &Blocks {
-        &self.client
+    pub(crate) fn blocks(&self) -> Blocks {
+        self.inner.with(|inner| inner.client.clone())
     }
 
     pub(crate) fn block_types(&self) -> HashMap<Uuid, Uuid> {
-        self.watched.borrow().block_types.clone()
+        self.inner
+            .with(|inner| inner.watched.borrow().block_types.clone())
     }
 
     pub(crate) fn toggle(&self, key: &RowKey, id: Option<Uuid>, expanded: bool) {

@@ -4,17 +4,17 @@ use crate::styled::{NumberInput, number_input_field, number_input_text};
 
 #[test]
 fn a_number_input_reports_what_was_typed_within_its_range() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let previews = Rc::new(RefCell::new(Vec::new()));
-    let (change_sink, preview_sink) = (changes.clone(), previews.clone());
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
+    let (previews, set_previews) = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
                 value=4.0
                 min=0.0
                 max=10.0
-                on_change={move |value| change_sink.borrow_mut().push(value)}
-                on_preview={move |value| preview_sink.borrow_mut().push(value)}
+                on_change={move |value| set_changes.update(|changes| changes.push(value))}
+                on_preview={move |value| set_previews.update(|previews| previews.push(value))}
             />
         }]
     });
@@ -32,15 +32,21 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
     harness.frame(Vec::new());
 
     assert_eq!(unstyled::text_input_shown(harness.document(), field), "42");
-    assert_eq!(previews.borrow().last().copied(), Some(Some(10.0)));
+    assert_eq!(
+        previews.with_untracked(|previews| previews.last().copied()),
+        Some(Some(10.0))
+    );
     assert!(
-        changes.borrow().is_empty(),
+        changes.with_untracked(|changes| changes.is_empty()),
         "typing only previews the value"
     );
 
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert_eq!(*changes.borrow(), [10.0]);
-    assert_eq!(previews.borrow().last().copied(), Some(None));
+    assert_eq!(changes.get_untracked(), [10.0]);
+    assert_eq!(
+        previews.with_untracked(|previews| previews.last().copied()),
+        Some(None)
+    );
 }

@@ -1,3 +1,4 @@
+mod dylink;
 mod gpu;
 mod harness;
 mod panic;
@@ -5,38 +6,46 @@ mod precompile;
 mod state;
 mod stderr;
 mod threads;
-mod transport;
 mod wake;
 
 #[cfg(test)]
 mod tests;
 
 use std::{
-    path::Path,
-    sync::Arc,
-    time::{Duration, Instant},
+    collections::HashMap,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
-use block_gpu_host::Gpu;
+use block_gpu_host::{Gpu, calls::Guest};
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, Instance, Linker, Module, SharedMemory, Store, TypedFunc,
 };
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
+use dylink::Program;
 use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
 pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
+pub use wasm_dylink::sdk_file_name;
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
 const CONSTRUCTORS: &str = "__wasm_call_ctors";
 
+const BACKTRACE_FRAMES: usize = 100;
+
+type Sdks = Arc<Mutex<HashMap<String, Module>>>;
+
 #[derive(Clone)]
 pub struct Host {
     engine: Engine,
+    sdks: Sdks,
     devices: Devices,
 }
 
@@ -63,8 +72,10 @@ impl Host {
         queue: wgpu::Queue,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
+        let (engine, sdks) = engine(cache)?;
         Ok(Self {
-            engine: engine(cache)?,
+            engine,
+            sdks,
             devices: Devices::Given(device, queue),
         })
     }
@@ -73,23 +84,109 @@ impl Host {
         connect: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
         cache: Option<&Path>,
     ) -> Result<Self, String> {
+        let (engine, sdks) = engine(cache)?;
         Ok(Self {
-            engine: engine(cache)?,
+            engine,
+            sdks,
             devices: Devices::OnDemand(Arc::new(connect)),
         })
     }
 
     pub fn load(&self, path: &Path) -> Result<Plugin, String> {
-        if let Some(module) = precompiled_beside(&self.engine, path) {
-            return Plugin::new(self, module);
+        let directory = path.parent().unwrap_or(Path::new("."));
+        let entry = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("{} names no module", path.display()))?;
+        self.load_from(entry, |name| {
+            let path = directory.join(name);
+            std::fs::read(&path)
+                .map_err(|error| format!("{} could not be read: {error}", path.display()))
+        })
+    }
+
+    pub fn load_from(
+        &self,
+        entry: &str,
+        read: impl Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Plugin, String> {
+        let plugin = match self.precompiled(entry, &read) {
+            Some(plugin) => plugin,
+            None => module(&self.engine, &read(entry)?)?,
+        };
+        self.link(plugin, |identity| {
+            let sdk = sdk_file_name(identity);
+            match self.precompiled(&sdk, &read) {
+                Some(module) => Ok(module),
+                None => sdk_module(&self.engine, identity, &read(&sdk)?),
+            }
+        })
+    }
+
+    fn precompiled(
+        &self,
+        name: &str,
+        read: &impl Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Option<Module> {
+        let artifact = Path::new(name)
+            .with_extension(PRECOMPILED_EXTENSION)
+            .to_str()?
+            .to_owned();
+        let bytes = read(&artifact).ok()?;
+        match unsafe { Module::deserialize(&self.engine, &bytes) } {
+            Ok(module) => Some(module),
+            Err(error) => {
+                eprintln!("{artifact} could not be used, compiling the plugin instead: {error}");
+                None
+            }
         }
-        let bytes = std::fs::read(path)
-            .map_err(|error| format!("{} could not be read: {error}", path.display()))?;
-        self.load_bytes(&bytes)
     }
 
     pub fn load_bytes(&self, bytes: &[u8]) -> Result<Plugin, String> {
-        Plugin::new(self, module(&self.engine, bytes)?)
+        self.load_bytes_with_sdk(bytes, |identity| {
+            Err(format!(
+                "the plugin needs the plugin SDK {identity}, and none was given"
+            ))
+        })
+    }
+
+    pub fn load_bytes_with_sdk(
+        &self,
+        bytes: &[u8],
+        sdk: impl FnOnce(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Plugin, String> {
+        let plugin = module(&self.engine, bytes)?;
+        self.link(plugin, |identity| {
+            sdk_module(&self.engine, identity, &sdk(identity)?)
+        })
+    }
+
+    fn link(
+        &self,
+        plugin: Module,
+        sdk: impl FnOnce(&str) -> Result<Module, String>,
+    ) -> Result<Plugin, String> {
+        let Some(identity) = dylink::sdk_identity(&plugin) else {
+            return Plugin::new(self, Program::Whole(plugin));
+        };
+        let identity = identity?;
+        let sdk = {
+            let mut sdks = self
+                .sdks
+                .lock()
+                .map_err(|_| "the plugin SDK cache was poisoned".to_owned())?;
+            match sdks.get(&identity) {
+                Some(module) => module.clone(),
+                None => {
+                    let module = sdk(&identity).map_err(|error| {
+                        format!("the plugin SDK {identity} could not be loaded: {error}")
+                    })?;
+                    sdks.insert(identity, module.clone());
+                    module
+                }
+            }
+        };
+        Plugin::new(self, Program::Linked { sdk, plugin })
     }
 }
 
@@ -103,27 +200,26 @@ pub struct Plugin {
 }
 
 impl Plugin {
-    fn new(host: &Host, module: Module) -> Result<Self, String> {
+    fn new(host: &Host, program: Program) -> Result<Self, String> {
         let engine = host.engine.clone();
-        let memory = shared_memory(&engine, &module)?;
+        let memory = shared_memory(&engine, program.first())?;
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
         let wake: Arc<Wake> = Arc::default();
+        let threads = Spawner::new(
+            engine.clone(),
+            program.clone(),
+            memory.clone(),
+            Arc::clone(&wake),
+        );
         let state = State {
             wasi,
             memory: memory.clone(),
             device: host.devices.open(),
             error: None,
-            inbox: Default::default(),
-            outbox: Vec::new(),
-            started: Instant::now(),
+            transport: Default::default(),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
-            threads: Spawner::new(
-                engine.clone(),
-                module.clone(),
-                memory.clone(),
-                Arc::clone(&wake),
-            ),
+            threads: Arc::clone(&threads),
             wake: Arc::clone(&wake),
         };
         let mut store = Store::new(&engine, state);
@@ -131,21 +227,36 @@ impl Plugin {
         p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked: {error}"))?;
         linker
-            .define(&store, "env", "memory", memory)
+            .define(&store, "env", "memory", memory.clone())
             .map_err(|error| format!("the plugin memory could not be linked: {error}"))?;
         gpu::link(&mut linker)?;
-        transport::link(&mut linker)?;
         panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
         linker
-            .define_unknown_imports_as_traps(&module)
+            .define_unknown_imports_as_traps(program.first())
             .map_err(|error| format!("the plugin imports could not be stubbed: {error}"))?;
-        let instance = linker
-            .instantiate(&mut store, &module)
+        let first = linker
+            .instantiate(&mut store, program.first())
             .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
-        call_constructors(&instance, &mut store)?;
-        initialize_storage(&instance, &mut store)?;
+        call_constructors(&first, &mut store)?;
+        let instance = match &program {
+            Program::Whole(_) => {
+                initialize_storage(&first, &first, &mut store)?;
+                first
+            }
+            Program::Linked { plugin, .. } => {
+                let mut layout = dylink::plan(&mut store, &first, plugin, &memory)?;
+                let instance = dylink::instantiate(&mut store, &linker, &first, plugin, &layout)?;
+                dylink::relocate(&mut store, &instance, &mut layout)?;
+                initialize_storage(&first, &instance, &mut store)?;
+                let base = dylink::main_thread_locals(&mut store, &first)?;
+                dylink::place_thread_locals(&mut store, &instance, &memory, &layout, base)?;
+                threads.linked(layout);
+                call_constructors(&instance, &mut store)?;
+                instance
+            }
+        };
         let plugin = Self {
             start: typed(&instance, &mut store, "plugin_start")?,
             step: typed(&instance, &mut store, "plugin_step")?,
@@ -196,11 +307,11 @@ impl Plugin {
     }
 
     pub fn send(&mut self, frame: Vec<u8>) {
-        self.store.data_mut().inbox.push_back(frame);
+        self.store.data_mut().transport.inbox.push_back(frame);
     }
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
-        std::mem::take(&mut self.store.data_mut().outbox)
+        std::mem::take(&mut self.store.data_mut().transport.outbox)
     }
 
     pub fn take_gpu_time(&mut self) -> (Duration, Duration) {
@@ -232,7 +343,7 @@ impl Plugin {
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
         self.store
             .data_mut()
-            .with_gpu(|gpu| gpu.attach_surface(surface, texture));
+            .gpu(|gpu| gpu.attach_surface(surface, texture));
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
@@ -260,9 +371,13 @@ fn call_constructors(instance: &Instance, store: &mut Store<State>) -> Result<()
         .map_err(|error| format!("the plugin could not run its constructors: {error}"))
 }
 
-fn initialize_storage(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
-    let size = global(instance, store, "__tls_size")?;
-    let align = global(instance, store, "__tls_align")?;
+fn initialize_storage(
+    runtime: &Instance,
+    instance: &Instance,
+    store: &mut Store<State>,
+) -> Result<(), String> {
+    let size = global(runtime, store, "__tls_size")?;
+    let align = global(runtime, store, "__tls_align")?;
     let initialize: TypedFunc<(u32, u32), ()> = typed(instance, store, "plugin_initialize_tls")?;
     initialize
         .call(store, (size, align))
@@ -286,6 +401,13 @@ fn module(engine: &Engine, bytes: &[u8]) -> Result<Module, String> {
         .map_err(|error| format!("the plugin module could not be compiled: {error}"))
 }
 
+fn sdk_module(engine: &Engine, identity: &str, bytes: &[u8]) -> Result<Module, String> {
+    if Engine::detect_precompiled(bytes).is_none() {
+        wasm_dylink::check_sdk(bytes, identity)?;
+    }
+    module(engine, bytes)
+}
+
 fn precompiled_beside(engine: &Engine, path: &Path) -> Option<Module> {
     let artifact = path.with_extension(PRECOMPILED_EXTENSION);
     if !artifact.is_file() {
@@ -303,12 +425,30 @@ fn precompiled_beside(engine: &Engine, path: &Path) -> Option<Module> {
     }
 }
 
-fn engine(cache: Option<&Path>) -> Result<Engine, String> {
+fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
+    static ENGINES: Mutex<Vec<(Option<PathBuf>, Engine, Sdks)>> = Mutex::new(Vec::new());
+    let mut engines = ENGINES
+        .lock()
+        .map_err(|_| "the wasm engines were poisoned".to_owned())?;
+    if let Some((_, engine, sdks)) = engines
+        .iter()
+        .find(|(directory, _, _)| directory.as_deref() == cache)
+    {
+        return Ok((engine.clone(), Arc::clone(sdks)));
+    }
     let mut config = configuration();
     if let Some(directory) = cache {
         config.cache(Some(compilation_cache(directory)?));
     }
-    Engine::new(&config).map_err(|error| format!("the wasm engine could not start: {error}"))
+    let engine = Engine::new(&config)
+        .map_err(|error| format!("the wasm engine could not start: {error}"))?;
+    let sdks = Sdks::default();
+    engines.push((
+        cache.map(Path::to_path_buf),
+        engine.clone(),
+        Arc::clone(&sdks),
+    ));
+    Ok((engine, sdks))
 }
 
 fn configuration() -> Config {
@@ -317,6 +457,7 @@ fn configuration() -> Config {
     config.shared_memory(true);
     config.wasm_bulk_memory(true);
     config.wasm_exceptions(true);
+    config.wasm_backtrace_max_frames(NonZeroUsize::new(BACKTRACE_FRAMES));
     if std::env::var_os("BE3_PERF_MAP").is_some() {
         config.profiler(wasmtime::ProfilingStrategy::PerfMap);
     }

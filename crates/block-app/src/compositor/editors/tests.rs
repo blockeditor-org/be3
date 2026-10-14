@@ -1,3 +1,4 @@
 use super::*;
+mod a_child_asking_for_another_editor_reopens_in_it;
 mod escape_stops_a_presentation_rather_than_reaching_the_editor;
 mod plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends;

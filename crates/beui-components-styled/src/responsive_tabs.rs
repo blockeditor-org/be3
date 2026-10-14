@@ -7,8 +7,8 @@ use beui_components_unstyled::{ChoiceOption, narrower_than};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Children, List, Prop, ReadSignal, Show, clone, create_effect, create_memo,
-    create_signal, set_component_state,
+    Callback, Children, List, Prop, ReadSignal, Show, create_effect, create_memo, create_signal,
+    set_component_state,
 };
 
 #[component]
@@ -20,23 +20,23 @@ pub fn ResponsiveTabs(
 ) -> NodeId {
     let options = options.into_run();
     let (selected_read, set_selected) = create_signal(selected.peek());
-    create_effect(clone!(set_selected -> move || set_selected.set(selected.get())));
-    set_component_state(selected_read.clone());
+    create_effect(move || set_selected.set(selected.get()));
+    set_component_state(selected_read);
 
     let narrow = narrower_than(breakpoint);
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
-    let highlighted = create_memo(clone!(selected_read -> move || Some(selected_read.get())));
+    let wide = create_memo(move || !narrow.get());
+    let highlighted = create_memo(move || Some(selected_read.get()));
 
     let tab_options = options.clone();
-    let tab_selected = selected_read.clone();
-    let tab_change = on_change.clone();
-    let tab_set = set_selected.clone();
+    let tab_selected = selected_read;
+    let tab_change = on_change;
+    let tab_set = set_selected;
 
     view! {
         <List spacing=0.0>
             <Show
                 condition={wide}
-                then={move || clone!(tab_options tab_selected tab_set tab_change -> view! {
+                then={move || { let tab_options = tab_options.clone(); view! {
                     <Tabs
                         options={tab_options}
                         selected={tab_selected}
@@ -45,11 +45,11 @@ pub fn ResponsiveTabs(
                             tab_change.call(index);
                         }}
                     />
-                })}
+                } }}
             />
             <Show
                 condition={narrow}
-                then={move || clone!(options highlighted set_selected on_change -> view! {
+                then={move || { let options = options.clone(); view! {
                     <Select
                         options
                         selected={highlighted}
@@ -60,7 +60,7 @@ pub fn ResponsiveTabs(
                             }
                         }}
                     />
-                })}
+                } }}
             />
         </List>
     }

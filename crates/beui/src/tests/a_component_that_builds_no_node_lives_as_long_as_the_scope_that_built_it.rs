@@ -1,0 +1,82 @@
+use super::*;
+use crate::node::NodeId;
+use crate::reactive::{
+    Children, Prop, Show, Text, build, component, create_memo, on_cleanup, view,
+    with_reactive_scope,
+};
+
+struct Note {
+    label: String,
+}
+
+crate::value_child_type!(Note);
+
+#[component]
+fn Noted(label: Prop<String>, disposals: WriteSignal<usize>) -> Note {
+    on_cleanup(move || disposals.update(|disposals| *disposals += 1));
+    Note { label: label.get() }
+}
+
+#[component]
+fn Legend(children: Children<Note>) -> NodeId {
+    let notes = children.into_run();
+    let labels = create_memo(move || {
+        notes
+            .items()
+            .iter()
+            .map(|note| note.label.clone())
+            .collect::<Vec<_>>()
+            .join(", ")
+    });
+    view! {
+        <Text string={labels} />
+    }
+}
+
+#[test]
+fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
+    let _root = crate::reactive::RootScope::new();
+    let legend = NodeRef::new();
+    let (disposals, set_disposals) = create_signal::<usize>(0);
+    let (shown, set_shown) = create_signal(true);
+    let document = build({
+        move || {
+            let loose = view! {
+                <Noted label="loose" disposals={set_disposals} />
+            };
+            assert_eq!(loose.label, "loose");
+            drop(loose);
+            assert_eq!(
+                disposals.get_untracked(),
+                0,
+                "the value does not own its component's scope; the scope that built it does"
+            );
+
+            view! {
+                <Legend @node_ref=&legend>
+                    <Noted label="first" disposals={set_disposals} />
+                    <Show condition={shown}>
+                        <Noted label="second" disposals={set_disposals} />
+                    </Show>
+                </Legend>
+            }
+        }
+    });
+
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    assert_eq!(
+        text_of(harness.document(), legend.get()),
+        "first, second",
+        "a slot typed for a node-less child receives the values its children built"
+    );
+
+    with_reactive_scope(harness.document_mut(), move || set_shown.set(false));
+    harness.frame(Vec::new());
+    assert_eq!(text_of(harness.document(), legend.get()), "first");
+    assert_eq!(
+        disposals.get_untracked(),
+        1,
+        "hiding the show disposes the branch it built, and the value's component with it"
+    );
+}

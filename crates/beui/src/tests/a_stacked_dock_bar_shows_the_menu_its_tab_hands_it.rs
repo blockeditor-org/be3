@@ -14,8 +14,8 @@ fn laid_out(harness: &Harness, test_id: &str) -> bool {
 
 #[test]
 fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
-    let renamed = Rc::new(Cell::new(0));
-    let renaming = renamed.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (renamed, set_renamed) = create_signal(0);
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
@@ -28,9 +28,8 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
                         id=2u64
                         title="Tab 2"
                         content={move || {
-                            let renaming = renaming.clone();
                             let rename = Action::new("rename", "Rename", move || {
-                                renaming.set(renaming.get() + 1)
+                                set_renamed.update(|renamed| *renamed += 1)
                             })
                             .detached();
                             dock_menu(create_memo(move || vec![rename.clone()]));
@@ -57,7 +56,11 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let row = text_within(harness.document(), root, "Rename").expect("the menu lists Rename");
     harness.click(harness.center(row));
     harness.settle();
-    assert_eq!(renamed.get(), 1, "choosing Rename runs the tab's action");
+    assert_eq!(
+        renamed.get_untracked(),
+        1,
+        "choosing Rename runs the tab's action"
+    );
 
     let back = harness.center(harness.find("dock.back"));
     harness.click(back);

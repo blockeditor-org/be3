@@ -3,8 +3,9 @@ use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view, wit
 
 #[test]
 fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
+    let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
-    let held = slot.clone();
+    let held = slot;
     let (tall, set_tall) = create_signal(false);
     let document = build(move || {
         view! {
@@ -15,7 +16,7 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
                             true => 200.0,
                             false => 100.0,
                         };
-                        let slot = held.clone();
+                        let slot = held;
                         view! {
                             <Frame height=height>
                                 <Embed slot={slot} />

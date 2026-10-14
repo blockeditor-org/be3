@@ -38,6 +38,11 @@ A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the
 for two copies of one program at once; `drive --socket=PATH` or `BE_DRIVE_SOCKET` picks the
 program a command goes to.
 
+`be-drive run` takes the same options and is for tests: it starts the program with fresh data
+and its output on its own, runs the commands on its standard input as `drive -` does, then
+waits for the program to exit, and fails unless every command succeeded and the program exited
+cleanly. block-app's smoke test (buck/app/smoke.sh) is `wait` for its shell's pane, then `close`.
+
 ## Reading the screen
 
 `drive tree` is the accessibility tree, one node per line, indented under its parent:
@@ -56,13 +61,20 @@ out of view and `focused` the one with keyboard focus. In block-app each plugin 
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
 so dialogs, the file tree and every editor read like the host's own controls.
 
-- `drive ids` lists every test id on screen with where it is, the plugins' included. Test ids
-  (guides/testing_a_gui.md) are the steadiest way to name a control.
+- `drive ids` lists every test id in the tree with where it is, the plugins' included. Test ids
+  (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
+  too, as `#id` after a node's state, and a node with nothing else to show reads as a
+  `GenericContainer`.
 - `drive find TARGET` says where a target is.
+- `drive hit TARGET` says what a press there would reach without pressing: the `Interactive`s
+  along the hit path, innermost first, each with its kind, rect, test ids, the components it was
+  made in and what it handles, then what forwarded input goes to and which overlays the press
+  would dismiss. Use it when a press goes to the wrong place or nowhere. It sees the host's own
+  document only; in block-app a press over a plugin ends at that plugin region's catcher.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
-  method's composition, a back gesture under way, files being dragged in, the clipboard and any
-  open file dialog.
+  method's composition, a back gesture under way, files being dragged in, and any open file
+  dialog.
 - `drive actions` lists the actions the command palette would offer where the focus is
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
@@ -147,16 +159,19 @@ real one:
 
 - `drive resize 390x844@3` resizes it and sets its scale, which is how to see a phone's
   layout; `drive resize screen 1920x1080` sets the screen it fills when the app asks for
-  fullscreen.
+  fullscreen. Only a headless window can be resized this way.
 - `drive focus` and `drive blur` give it focus or take it away.
-- `drive clipboard` prints the clipboard and `drive clipboard TEXT` sets it; the app's own
-  copy and paste use it, and `drive key ctrl+v` pastes it.
-- A file dialog the app opens waits for drive: `drive upload FILE TARGET` clicks TARGET and
-  answers the dialog it opens with FILE (without TARGET it answers one already open), and
-  `drive dismiss` cancels it.
+- `drive clipboard` prints the window's clipboard and `drive clipboard TEXT` sets it; the
+  app's own copy and paste use it, and `drive key ctrl+v` pastes it. In a headless window
+  the clipboard is the window's own; in a real one it is the system's.
+- A file dialog the app opens waits for drive, in any window while drive is attached:
+  `drive upload FILE TARGET` clicks TARGET and answers the dialog it opens with FILE
+  (without TARGET it answers one already open), and `drive dismiss` cancels it.
 - `drive grab FILE...` drags files in from outside, over the pointer; `drive move` carries
   them, to try what hovering with them shows, `drive drop [TARGET]` drops them and
   `drive ungrab` takes them away again.
+- `drive close` asks the window to close, as its close button does, in a window too. The app
+  then exits, or stays open, to ask about unsaved changes, and answers with what changed.
 
 ## How it works
 

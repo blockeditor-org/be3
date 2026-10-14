@@ -9,55 +9,112 @@ pub struct AppStateStore {
     connection: Connection,
 }
 
+const SCHEMA: &str = "
+    CREATE TABLE saved_accounts (
+        server_key        TEXT NOT NULL,
+        server_url        TEXT,
+        account_id        TEXT NOT NULL,
+        email             TEXT NOT NULL,
+        display_name      TEXT NOT NULL,
+        token             TEXT NOT NULL,
+        last_workspace_id TEXT,
+        authorization     TEXT,
+        PRIMARY KEY (server_key, account_id)
+    );
+    CREATE TABLE app_settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+    CREATE TABLE workspace_keys (
+        server_key   TEXT NOT NULL,
+        account_id   TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        key          BLOB NOT NULL,
+        PRIMARY KEY (server_key, account_id, workspace_id)
+    );
+    CREATE TABLE input_settings (
+        id      INTEGER PRIMARY KEY CHECK (id = 0),
+        content BLOB NOT NULL
+    );
+    CREATE TABLE display_settings (
+        id      INTEGER PRIMARY KEY CHECK (id = 0),
+        content BLOB NOT NULL
+    );
+";
+
+enum Opened {
+    Incompatible(String),
+    Failed(AppStateError),
+}
+
+impl Opened {
+    fn into_error(self) -> AppStateError {
+        match self {
+            Self::Incompatible(problems) => AppStateError::from(problems),
+            Self::Failed(error) => error,
+        }
+    }
+}
+
+impl From<rusqlite::Error> for Opened {
+    fn from(error: rusqlite::Error) -> Self {
+        Self::Failed(error.into())
+    }
+}
+
+impl From<sqlite_schema::SchemaError> for Opened {
+    fn from(error: sqlite_schema::SchemaError) -> Self {
+        match error {
+            sqlite_schema::SchemaError::Mismatch(problems) => {
+                Self::Incompatible(problems.join("; "))
+            }
+            sqlite_schema::SchemaError::Database(error) => error.into(),
+        }
+    }
+}
+
 impl AppStateStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppStateError> {
-        Self::with_connection(Connection::open(path)?)
+        let path = path.as_ref();
+        match Self::with_connection(Connection::open(path)?) {
+            Err(Opened::Incompatible(problems)) => {
+                for stale in [
+                    path.to_owned(),
+                    path.with_extension("sqlite3-wal"),
+                    path.with_extension("sqlite3-shm"),
+                ] {
+                    match std::fs::remove_file(&stale) {
+                        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                            return Err(AppStateError::from(error.to_string()));
+                        }
+                        _ => {}
+                    }
+                }
+                crate::notices::report(format!(
+                    "This device's saved sign-ins came from an incompatible build of Block, so they were cleared: {problems}"
+                ));
+                Self::with_connection(Connection::open(path)?).map_err(Opened::into_error)
+            }
+            opened => opened.map_err(Opened::into_error),
+        }
     }
 
     pub(crate) fn placeholder() -> Self {
         Self::with_connection(Connection::open_in_memory().expect("in-memory sqlite always opens"))
+            .ok()
             .expect("in-memory sqlite always initializes")
     }
 
-    fn with_connection(connection: Connection) -> Result<Self, AppStateError> {
+    fn with_connection(connection: Connection) -> Result<Self, Opened> {
         connection.pragma_update(None, "foreign_keys", true)?;
-        connection.execute_batch(
-            "CREATE TABLE IF NOT EXISTS saved_accounts (
-                server_key        TEXT NOT NULL,
-                server_url        TEXT,
-                account_id        TEXT NOT NULL,
-                email             TEXT NOT NULL,
-                display_name      TEXT NOT NULL,
-                token             TEXT NOT NULL,
-                last_workspace_id TEXT,
-                PRIMARY KEY (server_key, account_id)
-            );
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS workspace_keys (
-                server_key   TEXT NOT NULL,
-                account_id   TEXT NOT NULL,
-                workspace_id TEXT NOT NULL,
-                key          BLOB NOT NULL,
-                PRIMARY KEY (server_key, account_id, workspace_id)
-            );
-            CREATE TABLE IF NOT EXISTS input_settings (
-                id      INTEGER PRIMARY KEY CHECK (id = 0),
-                content BLOB NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS display_settings (
-                id      INTEGER PRIMARY KEY CHECK (id = 0),
-                content BLOB NOT NULL
-            );",
-        )?;
+        sqlite_schema::ensure(&connection, SCHEMA)?;
         Ok(Self { connection })
     }
 
     pub fn accounts(&self) -> Result<Vec<SavedAccount>, AppStateError> {
         let mut statement = self.connection.prepare(
-            "SELECT server_key, server_url, account_id, email, display_name, token, last_workspace_id
+            "SELECT server_key, server_url, account_id, email, display_name, token, last_workspace_id,
+                    authorization
              FROM saved_accounts ORDER BY display_name COLLATE NOCASE, account_id",
         )?;
         let accounts = statement
@@ -80,6 +137,7 @@ impl AppStateStore {
                     name: row.get(4)?,
                     token: row.get(5)?,
                     last_workspace_id,
+                    authorization: row.get(7)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -93,14 +151,16 @@ impl AppStateStore {
         };
         self.connection.execute(
             "INSERT INTO saved_accounts
-             (server_key, server_url, account_id, email, display_name, token, last_workspace_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             (server_key, server_url, account_id, email, display_name, token, last_workspace_id,
+              authorization)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(server_key, account_id) DO UPDATE SET
                 server_url = excluded.server_url,
                 email = excluded.email,
                 display_name = excluded.display_name,
                 token = excluded.token,
-                last_workspace_id = excluded.last_workspace_id",
+                last_workspace_id = excluded.last_workspace_id,
+                authorization = excluded.authorization",
             params![
                 saved.server.key(),
                 server_url,
@@ -108,7 +168,8 @@ impl AppStateStore {
                 &saved.email,
                 &saved.name,
                 &saved.token,
-                saved.last_workspace_id.map(|id| id.to_string())
+                saved.last_workspace_id.map(|id| id.to_string()),
+                &saved.authorization
             ],
         )?;
         Ok(())

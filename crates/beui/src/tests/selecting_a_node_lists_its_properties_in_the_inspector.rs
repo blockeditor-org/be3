@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn selecting_a_node_lists_its_properties_in_the_inspector() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 

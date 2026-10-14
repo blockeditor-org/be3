@@ -7,9 +7,9 @@ const ACTUAL: f32 = 30.0;
 
 #[test]
 fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
+    let _root = crate::reactive::RootScope::new();
     let list = NodeRef::new();
     let document = build({
-        let list = list.clone();
         move || {
             view! {
                 <List spacing=0.0>

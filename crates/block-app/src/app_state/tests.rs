@@ -17,5 +17,6 @@ fn account(server: ServerLocation, email: &str) -> SavedAccount {
         name: email.into(),
         token: Uuid::new_v4().to_string(),
         last_workspace_id: None,
+        authorization: None,
     }
 }

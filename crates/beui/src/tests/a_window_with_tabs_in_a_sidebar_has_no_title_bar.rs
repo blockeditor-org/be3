@@ -4,12 +4,12 @@ use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout, dock_state};
 
 #[test]
 fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />

@@ -1,5 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use foldhash::{HashMap, HashSet};
 use std::fmt::Write as _;
+use std::rc::Rc;
 
 use accesskit::{Affine, Node, NodeId, Rect, Role, TreeUpdate};
 
@@ -35,6 +36,37 @@ pub struct AccessibilityDump {
     focus: Option<NodeId>,
     written: String,
     lines: Vec<Line>,
+    test_ids: Rc<TestIds>,
+}
+
+#[derive(Default)]
+pub struct TestIds {
+    named: HashMap<String, Vec<TestIdAt>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TestIdAt {
+    pub rect: crate::geometry::Rect,
+    pub visible: bool,
+}
+
+impl TestIds {
+    pub fn rect(&self, test_id: &str) -> Option<crate::geometry::Rect> {
+        match self.named.get(test_id).map(Vec::as_slice) {
+            None | Some([]) => None,
+            Some([shown]) => Some(shown.rect),
+            Some(shown) => panic!(
+                "test id {test_id:?} names {} nodes on screen; give each its own id",
+                shown.len()
+            ),
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &[TestIdAt])> {
+        self.named
+            .iter()
+            .map(|(test_id, shown)| (test_id.as_str(), shown.as_slice()))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -51,6 +83,7 @@ pub struct Line {
     pub text: String,
     pub bounds: Option<crate::geometry::Rect>,
     pub visible: bool,
+    pub test_ids: Vec<String>,
 }
 
 impl AccessibilityDump {
@@ -59,15 +92,23 @@ impl AccessibilityDump {
     }
 
     pub fn update(&mut self, update: TreeUpdate) {
-        if let Some(tree) = update.tree {
-            self.root = Some(tree.root);
-        }
+        let root = update.tree.map(|tree| tree.root).or(self.root);
+        let changed = root != self.root
+            || self.focus != Some(update.focus)
+            || update
+                .nodes
+                .iter()
+                .any(|(id, node)| self.nodes.get(id) != Some(node));
+        self.root = root;
         self.focus = Some(update.focus);
         self.nodes.extend(update.nodes);
+        if !changed {
+            return;
+        }
         let Some(root) = self.root else {
             return;
         };
-        let mut reached = HashSet::new();
+        let mut reached = HashSet::default();
         let mut text = String::new();
         let mut lines = Vec::new();
         let everywhere = Rect::new(f64::MIN, f64::MIN, f64::MAX, f64::MAX);
@@ -81,8 +122,30 @@ impl AccessibilityDump {
             &mut lines,
         );
         self.nodes.retain(|id, _| reached.contains(id));
+        let scale = self
+            .nodes
+            .get(&root)
+            .and_then(Node::transform)
+            .map_or(1.0, |transform| transform.as_coeffs()[0] as f32);
+        let mut named: HashMap<String, Vec<TestIdAt>> = HashMap::default();
+        for line in &lines {
+            let Some(bounds) = line.bounds else {
+                continue;
+            };
+            for test_id in &line.test_ids {
+                named.entry(test_id.clone()).or_default().push(TestIdAt {
+                    rect: bounds.scaled(scale.recip()),
+                    visible: line.visible,
+                });
+            }
+        }
+        self.test_ids = Rc::new(TestIds { named });
         self.lines = lines;
         self.written = text;
+    }
+
+    pub fn test_ids(&self) -> &Rc<TestIds> {
+        &self.test_ids
     }
 
     pub fn text(&self) -> &str {
@@ -124,7 +187,14 @@ impl AccessibilityDump {
             .map(str::to_owned)
             .or(numeric);
         let value = value.as_deref();
-        let shown = node.role() != Role::GenericContainer || label.is_some() || value.is_some();
+        let test_ids: Vec<String> = node
+            .author_id()
+            .map(|ids| ids.split(' ').map(str::to_owned).collect())
+            .unwrap_or_default();
+        let shown = node.role() != Role::GenericContainer
+            || label.is_some()
+            || value.is_some()
+            || !test_ids.is_empty();
         if shown {
             let start = text.len();
             let mut visible_part = true;
@@ -143,6 +213,9 @@ impl AccessibilityDump {
             }
             if self.focus == Some(id) {
                 text.push_str(" focused");
+            }
+            for test_id in &test_ids {
+                let _ = write!(text, " #{test_id}");
             }
             if let Some(rect) = rect {
                 let _ = write!(
@@ -182,6 +255,7 @@ impl AccessibilityDump {
                     )
                 }),
                 visible: visible_part,
+                test_ids,
             });
             text.push('\n');
         }

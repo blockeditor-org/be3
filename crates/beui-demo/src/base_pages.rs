@@ -1,9 +1,13 @@
 use super::*;
 use beui::KeyPress;
 use beui::Sides;
+use beui::Vec2;
+use beui::reactive::Dismiss;
 use beui::reactive::{
-    Dynamic, Fade, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Shift, Track,
+    Dynamic, Fade, Gap, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay,
+    Placement, ReadSignal, Shift, Track,
 };
+use beui::reactive::{Icon, Text};
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -40,13 +44,13 @@ fn FrameSwatches() -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
-            <Frame width=SWATCH height=SWATCH color={theme.accent.clone()} />
-            <Frame width=SWATCH height=SWATCH color={theme.accent.clone()} radius=12 />
-            <Frame width=SWATCH height=SWATCH radius=36 color={theme.success.clone()} />
+            <Frame width=SWATCH height=SWATCH color={theme.accent} />
+            <Frame width=SWATCH height=SWATCH color={theme.accent} radius=12 />
+            <Frame width=SWATCH height=SWATCH radius=36 color={theme.success} />
             <Frame
                 width=SWATCH
                 height=SWATCH
-                outline={theme.text.clone()}
+                outline={theme.text}
                 outline_width=2.0
                 outline_visible=true
                 radius=8
@@ -54,8 +58,8 @@ fn FrameSwatches() -> NodeId {
             <Frame
                 width=SWATCH
                 height=SWATCH
-                color={theme.surface_raised.clone()}
-                outline={theme.accent.clone()}
+                color={theme.surface_raised}
+                outline={theme.accent}
                 outline_width=2.0
                 outline_offset=4.0
                 outline_visible=true
@@ -64,7 +68,7 @@ fn FrameSwatches() -> NodeId {
             <Frame
                 width=SWATCH
                 height=SWATCH
-                color={theme.warning.clone()}
+                color={theme.warning}
                 radius_top_left=Some(36)
                 radius_bottom_right=Some(36)
             />
@@ -91,14 +95,14 @@ fn AlignedBox(align: Align) -> NodeId {
     view! {
         <Frame
             height=SWATCH
-            color={theme.surface_raised.clone()}
+            color={theme.surface_raised}
             radius=RADIUS
             padding_horizontal=8.0
             padding_vertical=8.0
             align_horizontal=align
             align_vertical=align
         >
-            <Frame width=BADGE height=BADGE color={theme.accent.clone()} radius=4 />
+            <Frame width=BADGE height=BADGE color={theme.accent} radius=4 />
         </Frame>
     }
 }
@@ -111,21 +115,21 @@ fn FrameSizes() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Frame
                 max_width=Some(320.0)
-                color={theme.surface_raised.clone()}
+                color={theme.surface_raised}
                 radius=RADIUS
                 padding_horizontal=12.0
                 padding_vertical=8.0
             >
                 <Text
                     string="This frame stops growing at 320 points wide."
-                    color={theme.text.clone()}
+                    color={theme.text}
                     wrap=true
                 />
             </Frame>
             <Frame
                 width=Some(160.0)
                 aspect_ratio=Some(16.0 / 9.0)
-                color={theme.accent_soft.clone()}
+                color={theme.accent_soft}
                 radius=RADIUS
             />
         </List>
@@ -145,6 +149,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             <Sample title="Spans" code={vec![TextRuns::SOURCE]}>
                 <TextRuns />
             </Sample>
+            <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
+                <TextIcons />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -155,18 +162,46 @@ fn TextStyles() -> NodeId {
     let theme = use_theme();
     view! {
         <List spacing=SECTION_SPACING>
-            <Text string="Plain text" color={theme.text.clone()} />
-            <Text string="Bold text" color={theme.text.clone()} bold=true />
-            <Text string="Italic text" color={theme.text.clone()} italic=true />
-            <Text string="Underlined text" color={theme.text.clone()} underline=true />
-            <Text string="Monospace text" color={theme.text.clone()} monospace=true />
-            <Text string="Large accent text" font_size=24.0 color={theme.accent.clone()} />
+            <Text string="Plain text" color={theme.text} />
             <Text
-                string={ICON_STAR.to_owned()}
-                font_size=24.0
-                color={theme.warning.clone()}
-                icon=true
+                string="Bold text"
+                color={theme.text}
+                font={FontId::proportional(14.0).bold(true)}
             />
+            <Text
+                string="Italic text"
+                color={theme.text}
+                font={FontId::proportional(14.0).italic(true)}
+            />
+            <Text string="Underlined text" color={theme.text} underline=true />
+            <Text string="Monospace text" color={theme.text} font={FontId::monospace(14.0)} />
+            <Text
+                string="Large accent text"
+                color={theme.accent}
+                font={FontId::proportional(24.0)}
+            />
+            <Text color={theme.warning} font={FontId::proportional(24.0)}>
+                <Icon glyph={ICON_STAR.to_owned()} />
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TextIcons() -> NodeId {
+    let theme = use_theme();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text color={theme.text}>
+                <Icon glyph=ICON_STAR color={theme.warning} spacing_em=0.25 />
+                "An icon is a span that holds no bytes"
+            </Text>
+            <Text color={theme.text} font={FontId::proportional(20.0)} wrap=true>
+                "It takes its size from the text"
+                <Icon glyph=ICON_STAR scale=1.25 spacing_em=0.25 />
+                "scaled, and its room from both sides"
+            </Text>
         </List>
     }
 }
@@ -179,10 +214,10 @@ fn TextWrapping() -> NodeId {
                 fit can end in an ellipsis instead of spilling out of its frame.";
     view! {
         <List spacing=SECTION_SPACING>
-            <Text string={long.to_owned()} color={theme.text.clone()} wrap=true />
-            <Text string={long.to_owned()} color={theme.text_muted.clone()} ellipsis=true />
-            <Text string="Centered" color={theme.text.clone()} align=TextAlign::Center />
-            <Text string="At the end" color={theme.text.clone()} align=TextAlign::End />
+            <Text string={long.to_owned()} color={theme.text} wrap=true />
+            <Text string={long.to_owned()} color={theme.text_muted} ellipsis=true />
+            <Text string="Centered" color={theme.text} align=TextAlign::Center />
+            <Text string="At the end" color={theme.text} align=TextAlign::End />
         </List>
     }
 }
@@ -191,38 +226,22 @@ fn TextWrapping() -> NodeId {
 #[component]
 fn TextRuns() -> NodeId {
     let theme = use_theme();
-    let pieces = [
-        ("Spans give ", FontId::proportional(14.0), false),
-        ("color", FontId::proportional(14.0), true),
-        (", ", FontId::proportional(14.0), false),
-        ("size", FontId::proportional(22.0), true),
-        (" and ", FontId::proportional(14.0), false),
-        ("font", FontId::monospace(14.0), true),
-        (
-            " to ranges of one string.",
-            FontId::proportional(14.0),
-            false,
-        ),
-    ];
-    let string: String = pieces.iter().map(|(text, _, _)| *text).collect();
-    let spans = create_memo(clone!(theme -> move || {
-        let theme = theme.get();
-        let mut start = 0;
-        pieces
-            .iter()
-            .map(|(text, font, marked)| {
-                let color = match marked {
-                    true => theme.accent,
-                    false => theme.text,
-                };
-                let span = TextSpan::text(start..start + text.len(), SpanStyle::new(*font, color));
-                start += text.len();
-                span
-            })
-            .collect::<Vec<TextSpan>>()
-    }));
     view! {
-        <Text string={string} spans={spans} color={theme.text.clone()} wrap=true />
+        <Text color={theme.text} wrap=true>
+            "Spans give "
+            <Span color={theme.accent}>"color"</Span>
+            ", "
+            <Span font=FontId::proportional(22.0) color={theme.accent}>"size"</Span>
+            " and "
+            <Span font=FontId::monospace(14.0) color={theme.accent}>"font"</Span>
+            " to the parts of one text, and "
+            <Span underline=true>"underline"</Span>
+            " or "
+            <Span strikethrough=true>"strike"</Span>
+            " them, and a gap"
+            <Gap width=24.0 />
+            "leaves room between them."
+        </Text>
     }
 }
 
@@ -242,6 +261,9 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="Grid" code={vec![TrackGrid::SOURCE, Tile::SOURCE]}>
                 <TrackGrid />
             </Sample>
+            <Sample title="LayoutBuilder" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
+                <ColumnsForWidth />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -252,14 +274,37 @@ fn Tile(label: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            height=TILE_HEIGHT
-            color={theme.surface_raised.clone()}
+            min_height={Some(TILE_HEIGHT)}
+            color={theme.surface_raised}
             radius=RADIUS
             padding_horizontal=12.0
             align_vertical=Align::Center
         >
-            <Text string={label} color={theme.text.clone()} />
+            <Text string={label} color={theme.text} wrap=true />
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ColumnsForWidth() -> NodeId {
+    view! {
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let wide = create_memo(move || size.get().x >= 480.0);
+                let direction = create_memo(move || match wide.get() {
+                    true => Direction::Horizontal,
+                    false => Direction::Vertical,
+                });
+                let label = create_memo(move || format!("{:.0} wide", size.get().x));
+                view! {
+                    <List direction spacing=8.0>
+                        <Tile @sizing=ItemSize::Percent(100.0) label />
+                        <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
+                    </List>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 
@@ -357,11 +402,7 @@ fn ShowToggle() -> NodeId {
     let (shown, set_shown) = create_signal(true);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch
-                label="Shown"
-                on={shown.clone()}
-                on_change={move |on| set_shown.set(on)}
-            />
+            <LabelledSwitch label="Shown" on={shown} on_change={move |on| set_shown.set(on)} />
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
             </Show>
@@ -373,8 +414,8 @@ fn ShowToggle() -> NodeId {
 #[component]
 fn PlanetList() -> NodeId {
     let (count, set_count) = create_signal(3usize);
-    let planets = create_memo(clone!(count -> move || PLANETS[..count.get()].to_vec()));
-    let fewer = set_count.clone();
+    let planets = create_memo(move || PLANETS[..count.get()].to_vec());
+    let fewer = set_count;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=8.0>
@@ -405,21 +446,14 @@ fn DynamicShape() -> NodeId {
     let (round, set_round) = create_signal(false);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch
-                label="Round"
-                on={round.clone()}
-                on_change={move |on| set_round.set(on)}
-            />
+            <LabelledSwitch label="Round" on={round} on_change={move |on| set_round.set(on)} />
             <Dynamic value={round}>
                 {move |round: bool| match round {
                     true => view! {
-                        <Frame width=SWATCH height=SWATCH radius=36 color={theme.accent.clone()} />
+                        <Frame width=SWATCH height=SWATCH radius=36 color={theme.accent} />
                     },
                     false => view! {
-                        <Text
-                            string="Rebuilt whenever its value changes"
-                            color={theme.text.clone()}
-                        />
+                        <Text string="Rebuilt whenever its value changes" color={theme.text} />
                     },
                 }}
             </Dynamic>
@@ -446,23 +480,23 @@ fn InteractiveCard() -> NodeId {
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
     let (log, set_log) = create_signal("Hover, press, or Tab to it and type".to_owned());
-    let clicked = set_log.clone();
-    let fill = create_memo(clone!(theme hovered active -> move || {
+    let clicked = set_log;
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
         }
-    }));
-    let state = create_memo(clone!(hovered active focused -> move || {
+    });
+    let state = create_memo(move || {
         format!(
             "hovered: {}, active: {}, focused: {}",
             hovered.get(),
             active.get(),
             focused.get()
         )
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Interactive
@@ -481,17 +515,22 @@ fn InteractiveCard() -> NodeId {
                 <Frame
                     height=CARD_HEIGHT
                     color={fill}
-                    outline={theme.accent.clone()}
+                    outline={theme.accent}
                     outline_width=2.0
                     outline_visible={focus_ring(focused)}
                     radius=CARD_RADIUS
                     align_horizontal=Align::Center
                     align_vertical=Align::Center
                 >
-                    <Text string={log} color={theme.text.clone()} />
+                    <Text string={log} color={theme.text} />
                 </Frame>
             </Interactive>
-            <Text string={state} color={theme.text_muted.clone()} monospace=true />
+            <Text
+                string={state}
+                color={theme.text_muted}
+                wrap=true
+                font={FontId::monospace(14.0)}
+            />
         </List>
     }
 }
@@ -526,12 +565,12 @@ fn BadgedCard() -> NodeId {
                 <Frame
                     width=Some(200.0)
                     height=CARD_HEIGHT
-                    color={theme.surface_raised.clone()}
+                    color={theme.surface_raised}
                     radius=CARD_RADIUS
                     padding_horizontal=12.0
                     padding_vertical=12.0
                 >
-                    <Text string="Inbox" color={theme.text.clone()} />
+                    <Text string="Inbox" color={theme.text} />
                 </Frame>
                 <Frame
                     align_horizontal=Align::End
@@ -543,11 +582,15 @@ fn BadgedCard() -> NodeId {
                         width=BADGE
                         height=BADGE
                         radius=11
-                        color={theme.danger.clone()}
+                        color={theme.danger}
                         align_horizontal=Align::Center
                         align_vertical=Align::Center
                     >
-                        <Text string="3" font_size=12.0 color={theme.on_accent.clone()} bold=true />
+                        <Text
+                            string="3"
+                            color={theme.on_accent}
+                            font={FontId::proportional(12.0).bold(true)}
+                        />
                     </Frame>
                 </Frame>
             </Layers>
@@ -564,8 +607,8 @@ fn NudgedTile() -> NodeId {
         true => beui::vec2(SWATCH, 0.0),
         false => beui::Vec2::ZERO,
     });
-    let face = theme.surface_raised.clone();
-    let ink = theme.text.clone();
+    let face = theme.surface_raised;
+    let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive on_click={move || set_nudged.update(|nudged| *nudged = !*nudged)}>
@@ -574,7 +617,7 @@ fn NudgedTile() -> NodeId {
                 </Frame>
             </Interactive>
             <Shift by={by}>
-                <Frame width=SWATCH height=SWATCH color={theme.accent.clone()} radius=12 />
+                <Frame width=SWATCH height=SWATCH color={theme.accent} radius=12 />
             </Shift>
         </List>
     }
@@ -585,8 +628,8 @@ fn NudgedTile() -> NodeId {
 fn FadedStrip() -> NodeId {
     let edges = Sides::symmetric(48.0, 0.0);
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Fade edges>
+        <Fade edges>
+            <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <ForEach keys={PLANETS.to_vec()}>
                         {move |planet: &'static str| view! {
@@ -594,8 +637,8 @@ fn FadedStrip() -> NodeId {
                         }}
                     </ForEach>
                 </List>
-            </Fade>
-        </List>
+            </Scroll>
+        </Fade>
     }
 }
 
@@ -605,10 +648,10 @@ fn AnchoredOverlay() -> NodeId {
     let theme = use_theme();
     let anchor = NodeRef::new();
     let (open, set_open) = create_signal(false);
-    let dismiss = set_open.clone();
-    let target = anchor.clone();
-    let face = theme.surface_raised.clone();
-    let ink = theme.text.clone();
+    let dismiss = set_open;
+    let target = anchor;
+    let face = theme.surface_raised;
+    let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Interactive
@@ -626,17 +669,17 @@ fn AnchoredOverlay() -> NodeId {
                 </Frame>
             </Interactive>
             <Overlay
-                anchor=&anchor
+                anchor=anchor
                 placement=Placement::BelowStart
                 open={open}
-                on_dismiss={move || dismiss.set(false)}
+                on_dismiss={move |_: Dismiss| dismiss.set(false)}
             >
                 <Frame padding_vertical=4.0>
                     <Frame
                         @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
-                        color={theme.surface_raised.clone()}
-                        outline={theme.border.clone()}
+                        color={theme.surface_raised}
+                        outline={theme.border}
                         outline_width=1.0
                         outline_visible=true
                         radius=CARD_RADIUS
@@ -645,7 +688,7 @@ fn AnchoredOverlay() -> NodeId {
                     >
                         <Text
                             string="An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."
-                            color={theme.text.clone()}
+                            color={theme.text}
                             wrap=true
                         />
                     </Frame>

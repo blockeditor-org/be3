@@ -59,6 +59,7 @@ pub struct Commit {
     pub time: i64,
     pub kind: CommitKind,
     pub references: Vec<Uuid>,
+    #[serde(with = "be_store::bytes")]
     pub metadata: Vec<u8>,
 }
 

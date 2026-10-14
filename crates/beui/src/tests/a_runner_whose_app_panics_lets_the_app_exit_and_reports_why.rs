@@ -1,12 +1,9 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, Platform, RunOptions, Runner};
 
-type Log = Rc<RefCell<Vec<&'static str>>>;
+type Log = WriteSignal<Vec<&'static str>>;
 
 struct Screen;
 
@@ -36,15 +33,7 @@ impl Renderer for Screen {
 
 struct Nowhere;
 
-impl Platform for Nowhere {
-    fn copy(&mut self, _text: String) {}
-
-    fn paste(&mut self) -> Option<String> {
-        None
-    }
-
-    fn pick_file(&mut self, _request: FilePickRequest) {}
-}
+impl Platform for Nowhere {}
 
 struct Failing {
     log: Log,
@@ -54,27 +43,25 @@ struct Failing {
 impl App for Failing {
     fn update(&mut self, _context: &Context, _rect: Rect) {
         self.frames += 1;
-        self.log.borrow_mut().push("updated");
+        self.log.update(|log| log.push("updated"));
         if self.frames == 2 {
             panic!("the second frame went wrong");
         }
     }
 
     fn exiting(&mut self) {
-        self.log.borrow_mut().push("exiting");
+        self.log.update(|log| log.push("exiting"));
     }
 }
 
 #[test]
 fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
-    let log = Log::default();
+    let _root = crate::reactive::RootScope::new();
+    let (_, log) = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),
-        app: Box::new(Failing {
-            log: log.clone(),
-            frames: 0,
-        }),
+        app: Box::new(Failing { log, frames: 0 }),
     });
     let loaded = vec![Loaded {
         renderer: Box::new(Screen),
@@ -83,27 +70,27 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
     runner
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");
-    assert!(
-        runner
-            .frame(&mut Nowhere, 1.0, SafeArea::default())
-            .is_some()
-    );
+    assert!(runner.frame(&mut Nowhere, SafeArea::default()).is_some());
     assert!(runner.failure().is_none());
 
     assert!(
-        runner
-            .frame(&mut Nowhere, 1.0, SafeArea::default())
-            .is_none(),
+        runner.frame(&mut Nowhere, SafeArea::default()).is_none(),
         "a frame whose app panicked draws nothing"
     );
     assert!(runner.exited(), "the runner stops once its app panicked");
     assert_eq!(runner.failure(), Some("the second frame went wrong"));
-    assert_eq!(log.take(), ["updated", "updated", "exiting"]);
+    assert_eq!(
+        log.update(std::mem::take),
+        ["updated", "updated", "exiting"]
+    );
 
     let finished = runner.finish().expect_err("the run ends in an error");
     assert!(
         finished.to_string().contains("the second frame went wrong"),
         "{finished}"
     );
-    assert!(log.take().is_empty(), "the app hears that it exits once");
+    assert!(
+        log.update(std::mem::take).is_empty(),
+        "the app hears that it exits once"
+    );
 }

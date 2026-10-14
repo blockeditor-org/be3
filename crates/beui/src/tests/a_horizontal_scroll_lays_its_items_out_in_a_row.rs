@@ -4,9 +4,10 @@ use crate::reactive::{ForEach, ItemSize, List, NodeRef, Offset, build, view};
 
 #[test]
 fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
+    let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
     let second = NodeRef::new();
-    let (first_ref, second_ref) = (first.clone(), second.clone());
+    let (first_ref, second_ref) = (first, second);
     let document = build(move || {
         view! {
             <List spacing=0.0>

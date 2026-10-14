@@ -18,10 +18,7 @@ fn a_desynced_viewport_resize_waits_for_the_buffer_it_is_meant_for() {
     let mut client = TestClient::connect(&mut server);
     let (window, id) = client.open(&mut server);
     client.attach(&mut server, &window, 400, 300);
-    let child = client.surface();
-    let subsurface = client.subsurface(&child, &window.surface);
-    subsurface.set_desync();
-    subsurface.set_position(10, 20);
+    let (child, subsurface) = client.subsurface(&window.surface, (10, 20));
     let viewport = client.viewport(&child);
     viewport.set_destination(200, 100);
     client.attach_surface(&child, 200, 100);

@@ -638,6 +638,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-cli"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-client",
+ "be-commit",
+ "be-graph",
+ "be-keys",
+ "be-protocol",
+ "be-server",
+ "be-store",
+ "block-ui",
+ "build-id",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "be-client"
 version = "0.1.0"
 dependencies = [
@@ -648,15 +667,20 @@ dependencies = [
  "be-server",
  "be-session",
  "be-store",
+ "build-id",
  "futures-channel",
  "futures-util",
+ "httparse",
  "js-sys",
+ "rustls",
  "tokio",
+ "tokio-rustls",
  "tokio-tungstenite",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -686,6 +710,25 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "image",
+]
+
+[[package]]
+name = "be-frozen"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-cli",
+ "be-client",
+ "be-graph",
+ "be-keys",
+ "be-protocol",
+ "be-server",
+ "be-store",
+ "build-id",
+ "rusqlite",
+ "tokio",
+ "uuid",
+ "zip",
 ]
 
 [[package]]
@@ -719,6 +762,7 @@ name = "be-launcher"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "block-ui-test",
  "comrak",
  "ghostty-vt",
  "image",
@@ -737,6 +781,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-model-derive",
+ "be-store",
  "ciborium",
  "postcard",
  "sequence",
@@ -776,12 +821,15 @@ dependencies = [
  "be-protocol",
  "be-session",
  "be-store",
+ "build-id",
  "chacha20poly1305",
  "futures-util",
+ "httparse",
  "rand 0.9.4",
  "rusqlite",
  "serde",
  "sha2",
+ "sqlite-schema",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -806,7 +854,7 @@ name = "be-store"
 version = "0.1.0"
 dependencies = [
  "chacha20poly1305",
- "postcard",
+ "ciborium",
  "rand 0.9.4",
  "serde",
  "sha2",
@@ -820,7 +868,6 @@ dependencies = [
  "be-block",
  "be-commit",
  "be-store",
- "postcard",
  "serde",
  "uuid",
 ]
@@ -832,6 +879,7 @@ dependencies = [
  "be-dmabuf",
  "beui",
  "bytemuck",
+ "gvdb",
  "image",
  "resvg",
  "rustix 1.1.4",
@@ -941,6 +989,7 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
+ "image",
  "pollster",
  "rfd",
  "winit",
@@ -953,10 +1002,13 @@ dependencies = [
  "accesskit",
  "beui-components-unstyled",
  "beui-core",
+ "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
+ "bytemuck",
  "reactive",
  "text-editor-core",
+ "wgpu",
 ]
 
 [[package]]
@@ -994,8 +1046,11 @@ name = "beui-demo"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "beui-core",
+ "beui-renderer-wgpu",
  "beui_macros",
  "block-ui-test",
+ "pollster",
  "text-editor-core",
 ]
 
@@ -1208,7 +1263,6 @@ dependencies = [
 name = "block-app"
 version = "0.1.0"
 dependencies = [
- "arboard",
  "ashpd",
  "async-executor",
  "async-io",
@@ -1230,6 +1284,7 @@ dependencies = [
  "block-editor-plugin",
  "block-plugin-api",
  "block-wasm-host",
+ "build-id",
  "bytemuck",
  "directories-next",
  "futures-util",
@@ -1246,6 +1301,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sqlite-schema",
  "tokio",
  "ureq",
  "uuid",
@@ -1334,8 +1390,10 @@ dependencies = [
  "block-gpu-abi",
  "block-gpu-host",
  "js-sys",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-dylink",
  "web-sys",
  "wgpu",
 ]
@@ -1347,6 +1405,18 @@ dependencies = [
  "bincode",
  "serde",
  "serde_bytes",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "block-plugin-sdk"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-editor-plugin",
+ "serde",
  "serde_json",
  "uuid",
 ]
@@ -1390,7 +1460,10 @@ dependencies = [
  "block-gpu-host",
  "block-plugin-api",
  "bytes",
+ "rustc-demangle",
+ "sha2",
  "tokio",
+ "wasm-dylink",
  "wasmtime",
  "wasmtime-wasi",
  "wgpu",
@@ -1412,6 +1485,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5"
 dependencies = [
  "objc2 0.6.4",
+]
+
+[[package]]
+name = "block_debug"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-ui-test",
+ "uuid",
 ]
 
 [[package]]
@@ -1466,6 +1549,10 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "zip",
 ]
+
+[[package]]
+name = "build-id"
+version = "0.1.0"
 
 [[package]]
 name = "bumpalo"
@@ -3071,13 +3158,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fuzz-runner"
-version = "0.1.0"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "game-api"
 version = "0.1.0"
 dependencies = [
@@ -3515,6 +3595,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "gvdb"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111"
+dependencies = [
+ "serde",
+ "zerocopy",
+ "zvariant",
 ]
 
 [[package]]
@@ -4313,6 +4404,15 @@ name = "litrs"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
+
+[[package]]
+name = "local-tools"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "sha2",
+ "ureq",
+]
 
 [[package]]
 name = "lock_api"
@@ -5850,6 +5950,7 @@ dependencies = [
 name = "reactive"
 version = "0.1.0"
 dependencies = [
+ "foldhash 0.2.0",
  "reactive_macros",
 ]
 
@@ -6668,6 +6769,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9571ea910ebd84c86af4b3ed27f9dbdc6ad06f17c5f96146b2b671e2976744f"
 dependencies = [
  "bitflags 2.12.1",
+]
+
+[[package]]
+name = "sqlite-schema"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
 ]
 
 [[package]]
@@ -7653,10 +7761,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
-name = "verify"
-version = "0.1.0"
-
-[[package]]
 name = "version-compare"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7782,6 +7886,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-dylink"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "wasm-encoder"
 version = "0.244.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7809,6 +7921,14 @@ checksum = "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085"
 dependencies = [
  "leb128fmt",
  "wasmparser 0.257.1",
+]
+
+[[package]]
+name = "wasm-link"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "wasm-dylink",
 ]
 
 [[package]]

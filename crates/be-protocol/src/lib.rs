@@ -76,6 +76,7 @@ pub struct AccessEntry {
     pub email: String,
     pub display_name: String,
     pub role: WorkspaceRole,
+    pub author: bool,
     pub granted: Option<Access>,
     pub effective: Access,
 }
@@ -194,6 +195,7 @@ pub enum ClientMessage {
         block: Uuid,
         commit: CommitId,
         expected: Option<CommitId>,
+        parents: Vec<CommitId>,
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
@@ -311,6 +313,30 @@ pub enum ClientMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
+    CreateAgent {
+        request: u64,
+        workspace: Uuid,
+        name: String,
+        recovery: [u8; 32],
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
+    },
+    ListAgents {
+        request: u64,
+        workspace: Uuid,
+    },
+    RemoveAgent {
+        request: u64,
+        workspace: Uuid,
+        account: Uuid,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Agent {
+    pub account: Uuid,
+    pub name: String,
+    pub email: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -370,7 +396,10 @@ impl ClientMessage {
             | Self::SetRecoveryKey { request, .. }
             | Self::PutWorkspaceKey { request, .. }
             | Self::ListMemberKeys { request, .. }
-            | Self::Pair { request, .. } => *request,
+            | Self::Pair { request, .. }
+            | Self::CreateAgent { request, .. }
+            | Self::ListAgents { request, .. }
+            | Self::RemoveAgent { request, .. } => *request,
         }
     }
 }
@@ -378,6 +407,7 @@ impl ClientMessage {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub commit: CommitId,
+    pub parents: Vec<CommitId>,
     pub time: i64,
     pub pinned: bool,
 }
@@ -499,6 +529,15 @@ pub enum ServerMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
+    AgentCreated {
+        request: u64,
+        agent: Agent,
+        token: String,
+    },
+    Agents {
+        request: u64,
+        agents: Vec<Agent>,
+    },
 }
 
 impl ServerMessage {
@@ -522,7 +561,9 @@ impl ServerMessage {
             | Self::AccessList { request, .. }
             | Self::Session { request, .. }
             | Self::Keys { request, .. }
-            | Self::MemberKeys { request, .. } => Some(*request),
+            | Self::MemberKeys { request, .. }
+            | Self::AgentCreated { request, .. }
+            | Self::Agents { request, .. } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
             | Self::BlockChanged { .. }
@@ -540,4 +581,15 @@ pub fn encode<T: Serialize>(message: &T) -> Result<Vec<u8>, postcard::Error> {
 
 pub fn decode<T: for<'a> Deserialize<'a>>(bytes: &[u8]) -> Result<T, postcard::Error> {
     postcard::from_bytes(bytes)
+}
+
+const HELLO: &[u8] = b"be3 hello\n";
+
+pub fn hello(build: &str) -> Vec<u8> {
+    [HELLO, build.as_bytes()].concat()
+}
+
+pub fn read_hello(frame: &[u8]) -> Option<String> {
+    let build = frame.strip_prefix(HELLO)?;
+    String::from_utf8(build.to_vec()).ok()
 }

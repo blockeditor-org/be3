@@ -1,11 +1,9 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::icons::{
     ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK, ICON_RADIO_BUTTON_CHECKED,
     ICON_RADIO_BUTTON_UNCHECKED, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, DynamicSegment, ForEach, List, Memo, clone, component, create_memo, view,
+    Align, Callback, Direction, DynamicSegment, ForEach, List, Memo, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::PictureMenuButton;
 use block_editor_beui::beui::unstyled::MenuItem;
@@ -17,8 +15,7 @@ use block_editor_beui::{
 const TRAY_SPACING: f32 = 2.0;
 const WHEEL_STEP: f32 = 3.0;
 
-#[derive(Clone)]
-struct Chosen(Rc<dyn Fn(i32)>);
+type Chosen = Callback<i32>;
 
 fn picture(icon: &HostImage) -> Option<Image> {
     let fits = icon.width > 0 && icon.height > 0 && icon.is_whole();
@@ -49,7 +46,7 @@ fn scrolled(gesture: ScrollGesture) -> Option<(i32, bool)> {
 #[component]
 pub(crate) fn TrayItems(editor: Editor) -> NodeId {
     let listed = editor.host_value::<Tray>();
-    let keys = create_memo(clone!(listed -> move || {
+    let keys = create_memo(move || {
         listed.with(|items| {
             items
                 .iter()
@@ -57,7 +54,7 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
                 .map(|item| item.id.clone())
                 .collect::<Vec<_>>()
         })
-    }));
+    });
     view! {
         <List
             direction=Direction::Horizontal
@@ -67,7 +64,7 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
         >
             <ForEach keys>
                 {move |id: String| view! {
-                    <TrayButton editor={editor.clone()} listed={listed.clone()} id />
+                    <TrayButton editor={editor} listed={listed} id />
                 }}
             </ForEach>
         </List>
@@ -76,36 +73,45 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
 
 #[component]
 fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> NodeId {
-    let item = create_memo(clone!(id -> move || {
-        listed.with(|items| items.iter().find(|item| item.id == id).cloned().unwrap_or_default())
-    }));
-    let label = create_memo(clone!(item -> move || {
-        item.with(|item| match item.tooltip.is_empty() || item.tooltip == item.title {
-            true => item.title.clone(),
-            false => format!("{}: {}", item.title, item.tooltip),
-        })
-    }));
-    let icon = create_memo(clone!(item -> move || item.with(|item| item.icon.clone())));
+    let item = create_memo({
+        let id = id.clone();
+        move || {
+            listed.with(|items| {
+                items
+                    .iter()
+                    .find(|item| item.id == id)
+                    .cloned()
+                    .unwrap_or_default()
+            })
+        }
+    });
+    let label = create_memo(move || {
+        item.with(
+            |item| match item.tooltip.is_empty() || item.tooltip == item.title {
+                true => item.title.clone(),
+                false => format!("{}: {}", item.title, item.tooltip),
+            },
+        )
+    });
+    let icon = create_memo(move || item.with(|item| item.icon.clone()));
     let image = create_memo(move || icon.with(|icon| icon.as_ref().and_then(picture)));
-    let entries = create_memo(clone!(item -> move || item.with(|item| item.menu.clone())));
-    let has_menu =
-        create_memo(clone!(entries -> move || entries.with(|entries| !entries.is_empty())));
-    let item_is_menu = create_memo(clone!(item -> move || item.with(|item| item.item_is_menu)));
-    let click_opens =
-        create_memo(clone!(has_menu item_is_menu -> move || item_is_menu.get() && has_menu.get()));
+    let entries = create_memo(move || item.with(|item| item.menu.clone()));
+    let has_menu = create_memo(move || entries.with(|entries| !entries.is_empty()));
+    let item_is_menu = create_memo(move || item.with(|item| item.item_is_menu));
+    let click_opens = create_memo(move || item_is_menu.get() && has_menu.get());
     let request = {
-        let (editor, id) = (editor.clone(), id.clone());
+        let (editor, id) = (editor, id.clone());
         move |request: fn(String) -> TrayRequest| editor.act(request(id.clone()))
     };
     let (click, secondary, middle) = (request.clone(), request.clone(), request);
-    let (scrolling, opening, choosing) = (editor.clone(), editor.clone(), editor);
+    let (scrolling, opening, choosing) = (editor, editor, editor);
     let (scrolled_id, opened_id, chosen_id) = (id.clone(), id.clone(), id.clone());
-    let chosen = Chosen(Rc::new(move |entry: i32| {
+    let chosen = Chosen::new(move |entry: i32| {
         choosing.act(TrayRequest::MenuChosen {
             item: chosen_id.clone(),
             entry,
         });
-    }));
+    });
     let prefix = format!("desktop.tray.{id}");
     view! {
         <PictureMenuButton
@@ -149,7 +155,7 @@ fn TrayEntries(
     chosen: Chosen,
     prefix: String,
 ) -> DynamicSegment<MenuItem> {
-    let keys = create_memo(clone!(entries -> move || {
+    let keys = create_memo(move || {
         entries.with(|entries| {
             entries
                 .iter()
@@ -157,16 +163,11 @@ fn TrayEntries(
                 .map(|entry| entry.id)
                 .collect::<Vec<i32>>()
         })
-    }));
+    });
     view! {
         <ForEach keys>
             {move |id: i32| view! {
-                <TrayEntry
-                    entries={entries.clone()}
-                    id
-                    chosen={chosen.clone()}
-                    prefix={prefix.clone()}
-                />
+                <TrayEntry entries={entries} id chosen={chosen} prefix={prefix.clone()} />
             }}
         </ForEach>
     }
@@ -179,7 +180,7 @@ fn TrayEntry(
     chosen: Chosen,
     prefix: String,
 ) -> MenuItem {
-    let entry = create_memo(clone!(entries -> move || {
+    let entry = create_memo(move || {
         entries.with(|entries| {
             entries
                 .iter()
@@ -187,7 +188,7 @@ fn TrayEntry(
                 .cloned()
                 .unwrap_or_default()
         })
-    }));
+    });
     let separated = create_memo(move || {
         entries.with(|entries| {
             let Some(at) = entries
@@ -201,16 +202,13 @@ fn TrayEntry(
                 && before.iter().any(|entry| !entry.separator)
         })
     });
-    let label = create_memo(clone!(entry -> move || entry.with(|entry| entry.label.clone())));
-    let glyph = create_memo(
-        clone!(entry -> move || entry.with(|entry| toggle_glyph(entry.toggle).to_owned())),
-    );
-    let disabled = create_memo(clone!(entry -> move || entry.with(|entry| !entry.enabled)));
+    let label = create_memo(move || entry.with(|entry| entry.label.clone()));
+    let glyph = create_memo(move || entry.with(|entry| toggle_glyph(entry.toggle).to_owned()));
+    let disabled = create_memo(move || entry.with(|entry| !entry.enabled));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");
-    let choose = chosen.clone();
     view! {
-        <MenuItem label glyph disabled separated row_test_id on_click={move || (choose.0)(id)}>
+        <MenuItem label glyph disabled separated row_test_id on_click={move || chosen.call(id)}>
             <TrayEntries entries={children} chosen prefix />
         </MenuItem>
     }

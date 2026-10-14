@@ -1,9 +1,10 @@
 use std::cell::{Cell, RefCell};
+use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
-use crate::runtime::{Context, RUNTIME, Reset, batch, current_zone, enqueue, flush};
-use crate::scope::{Gate, Owner, current_owner};
-use crate::signal::Source;
+use crate::runtime::{Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, flush, probe};
+use crate::scope::{Cleanup, Gate, Owner, current_owner};
+use crate::signal::Tracked;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum State {
@@ -13,43 +14,98 @@ pub(crate) enum State {
     Disposed,
 }
 
-type Callback = Box<dyn FnMut() -> bool>;
+struct Slot<F: ?Sized> {
+    live: bool,
+    callback: ManuallyDrop<F>,
+}
 
-pub(crate) struct Computation {
+impl<F: ?Sized> Slot<F> {
+    fn release(&mut self) {
+        if std::mem::replace(&mut self.live, false) {
+            unsafe { ManuallyDrop::drop(&mut self.callback) }
+        }
+    }
+}
+
+impl<F: ?Sized> Drop for Slot<F> {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
+pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     parent: Weak<Computation>,
     pub(crate) owner: Weak<Owner>,
     state: Cell<State>,
     refreshing: Cell<bool>,
-    callback: RefCell<Option<Callback>>,
-    execution_owner: RefCell<Rc<Owner>>,
-    pub(crate) dependencies: RefCell<Vec<(Rc<Source>, u64)>>,
-    pub(crate) source: Option<Rc<Source>>,
+    execution_owner: RefCell<Option<Rc<Owner>>>,
+    pub(crate) dependencies: RefCell<Vec<(Rc<dyn Tracked>, u64)>>,
+    pub(crate) source: Option<Rc<dyn Tracked>>,
     pub(crate) queued: Cell<bool>,
     pub(crate) queued_at: Cell<u64>,
+    runs: Cell<(u64, u32)>,
     pub(crate) zone: u64,
     gate: Option<Rc<Gate>>,
+    callback: RefCell<Slot<F>>,
+}
+
+pub(crate) fn no_computation() -> Weak<Computation> {
+    Weak::<Computation<fn() -> bool>>::new()
 }
 
 impl Computation {
-    pub(crate) fn new(source: Option<Rc<Source>>, callback: Callback) -> Rc<Self> {
+    pub(crate) fn new(
+        source: Option<Rc<dyn Tracked>>,
+        callback: impl FnMut() -> bool + 'static,
+    ) -> Rc<Self> {
         let owner = current_owner();
-        let computation = Rc::new(Self {
+        let computation: Rc<Self> = Rc::new(Computation {
             parent: owner.computation.clone(),
             owner: Rc::downgrade(&owner),
             state: Cell::new(State::Dirty),
             refreshing: Cell::new(false),
-            callback: RefCell::new(Some(callback)),
-            execution_owner: RefCell::new(Rc::new(Owner::default())),
+            execution_owner: RefCell::new(None),
             dependencies: RefCell::new(Vec::new()),
             source,
             queued: Cell::new(false),
             queued_at: Cell::new(0),
+            runs: Cell::new((0, 0)),
             zone: current_zone(),
             gate: owner.gate.borrow().clone(),
+            callback: RefCell::new(Slot {
+                live: true,
+                callback: ManuallyDrop::new(callback),
+            }),
         });
-        let owned = computation.clone();
-        owner.add(move || owned.dispose());
+        owner.add(Cleanup::Dispose(computation.clone()));
         computation
+    }
+
+    pub(crate) fn count_run(&self, flush: u64) -> u32 {
+        let (counted, runs) = self.runs.get();
+        let runs = if counted == flush { runs + 1 } else { 1 };
+        self.runs.set((flush, runs));
+        runs
+    }
+
+    pub(crate) fn watch(self: &Rc<Self>, read: Vec<Read>, owner: Option<Rc<Owner>>) {
+        self.execution_owner.replace(owner);
+        let stale = read
+            .iter()
+            .any(|(source, version)| source.source().version.get() != *version);
+        for (source, _) in &read {
+            source
+                .source()
+                .subscribers
+                .borrow_mut()
+                .push(Rc::downgrade(self));
+        }
+        *self.dependencies.borrow_mut() = read;
+        self.state.set(State::Clean);
+        if stale {
+            self.invalidate(State::Dirty);
+            flush();
+        }
     }
 
     pub(crate) fn invalidate(self: &Rc<Self>, state: State) {
@@ -65,7 +121,7 @@ impl Computation {
         }
         self.state.set(state);
         if let Some(source) = &self.source {
-            let subscribers = source.subscribers.borrow().clone();
+            let subscribers = source.source().subscribers.borrow().clone();
             for subscriber in subscribers {
                 if let Some(subscriber) = subscriber.upgrade() {
                     subscriber.invalidate(State::Check);
@@ -107,6 +163,7 @@ impl Computation {
         if self.state.get() == State::Check {
             let dependencies = self.dependencies.borrow().clone();
             for (source, version) in dependencies {
+                let source = source.source();
                 let producer = source.producer.borrow().upgrade();
                 if let Some(producer) = producer {
                     producer.refresh();
@@ -122,17 +179,14 @@ impl Computation {
             }
         }
         self.detach();
-        let old_owner = self.execution_owner.replace(Rc::new(Owner::for_computation(
-            Rc::downgrade(self),
-            self.owner.clone(),
-            self.gate.clone(),
-        )));
-        old_owner.dispose();
+        let owner = self.reusable_owner();
         if self.state.get() == State::Disposed {
             return;
         }
-        let owner = self.execution_owner.borrow().clone();
-        let _context = Context::enter(Rc::downgrade(self), Rc::downgrade(&owner));
+        let _context = match &owner {
+            Some(owner) => Context::enter(Rc::downgrade(self), Rc::downgrade(owner)),
+            None => Context::enter_pending(Rc::downgrade(self), Weak::new(), Rc::downgrade(self)),
+        };
         let zone = match self.zone {
             0 => current_zone(),
             zone => zone,
@@ -144,17 +198,25 @@ impl Computation {
             memo_depth + usize::from(self.source.is_some()),
         );
         self.state.set(State::Clean);
-        let mut callback = self
-            .callback
-            .take()
-            .expect("reactive callback is already running");
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(&mut callback));
-        if self.state.get() != State::Disposed {
-            self.callback.replace(Some(callback));
-        }
+        let result = {
+            let mut slot = self
+                .callback
+                .try_borrow_mut()
+                .expect("reactive callback is already running");
+            if !slot.live {
+                return;
+            }
+            let result =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (slot.callback)()));
+            if self.state.get() == State::Disposed {
+                slot.release();
+            }
+            result
+        };
         match result {
             Ok(changed) => {
                 if changed && let Some(source) = &self.source {
+                    let source = source.source();
                     source.version.set(source.version.get().wrapping_add(1));
                 }
             }
@@ -163,6 +225,10 @@ impl Computation {
         if self.is_spent() {
             self.dispose();
         }
+    }
+
+    pub(crate) fn owned_within(&self, root: &Owner) -> bool {
+        self.owner.upgrade().is_some_and(|owner| owner.within(root))
     }
 
     pub(crate) fn closed_gate(&self) -> Option<Rc<Gate>> {
@@ -176,14 +242,45 @@ impl Computation {
         self.source.is_none()
             && self.state.get() == State::Clean
             && self.dependencies.borrow().is_empty()
-            && self.execution_owner.borrow().is_inert()
+            && self
+                .execution_owner
+                .borrow()
+                .as_ref()
+                .is_none_or(|owner| owner.is_inert())
+    }
+
+    fn reusable_owner(&self) -> Option<Rc<Owner>> {
+        let held = self.execution_owner.borrow().clone()?;
+        if held.is_inert() && !held.disposed.get() {
+            return Some(held);
+        }
+        self.execution_owner.replace(None);
+        held.dispose();
+        None
+    }
+
+    pub(crate) fn ensure_owner(self: &Rc<Self>) -> Rc<Owner> {
+        if let Some(owner) = self.execution_owner.borrow().clone() {
+            return owner;
+        }
+        let owner = Rc::new(Owner::for_computation(
+            Rc::downgrade(self),
+            self.owner.clone(),
+            self.gate.clone(),
+        ));
+        self.execution_owner.replace(Some(owner.clone()));
+        owner
     }
 
     fn detach(&self) {
         for (source, _) in self.dependencies.take() {
-            source.subscribers.borrow_mut().retain(|subscriber| {
-                !std::ptr::eq(subscriber.as_ptr(), self) && subscriber.strong_count() > 0
-            });
+            source
+                .source()
+                .subscribers
+                .borrow_mut()
+                .retain(|subscriber| {
+                    !std::ptr::addr_eq(subscriber.as_ptr(), self) && subscriber.strong_count() > 0
+                });
         }
     }
 
@@ -192,9 +289,13 @@ impl Computation {
             return;
         }
         self.detach();
-        self.callback.take();
+        if let Ok(mut slot) = self.callback.try_borrow_mut() {
+            slot.release();
+        }
         let owner = self.execution_owner.borrow().clone();
-        owner.dispose();
+        if let Some(owner) = owner {
+            owner.dispose();
+        }
     }
 
     pub(crate) fn is_disposed(&self) -> bool {
@@ -208,16 +309,28 @@ pub struct Effect {
 }
 
 pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
-    let computation = Computation::new(
-        None,
-        Box::new(move || {
-            effect();
-            false
-        }),
-    );
+    let computation = Computation::new(None, move || {
+        effect();
+        false
+    });
     enqueue(&computation);
     flush();
     Effect { computation }
+}
+
+pub fn create_binding(mut binding: impl FnMut() + 'static) {
+    let probed = probe(false, &mut binding);
+    if probed.constant() {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return;
+    }
+    let computation = Computation::new(None, move || {
+        binding();
+        false
+    });
+    computation.watch(probed.read, probed.owner);
 }
 
 impl Effect {

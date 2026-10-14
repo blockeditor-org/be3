@@ -3,23 +3,19 @@ use crate::reactive::{ForEach, ItemSize, List, Offset, build};
 
 #[test]
 fn the_scroll_position_is_reported_to_its_listener() {
-    let reported = Rc::new(Cell::new(None));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(None);
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <Offset
                     @sizing=ItemSize::Percent(100.0)
-                    on_change={move |position| sink.set(Some(position))}
+                    on_change={move |position| set_reported.set(Some(position))}
                 >
                     <List spacing=0.0>
                         <ForEach keys={indices(100)}>
                             {|index: usize| view! {
-                                <Text
-                                    string={format!("Row {index}")}
-                                    font_size=14.0
-                                    color=Color32::WHITE
-                                />
+                                <Text string={format!("Row {index}")} color=Color32::WHITE />
                             }}
                         </ForEach>
                     </List>

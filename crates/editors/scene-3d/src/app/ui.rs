@@ -1,11 +1,10 @@
 use std::cell::Cell;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use beui::accesskit::{Node, Role};
 use beui::reactive::{
-    Align, Direction, Drawing, Frame, ItemSize, List, NodeRef, Prop, clone, component, create_memo,
-    create_signal, create_timer, draw_gpu, view,
+    Align, Direction, Drawing, Frame, ItemSize, List, NodeRef, Prop, component, create_memo,
+    create_signal, create_timer, draw_gpu, store, view,
 };
 use beui::styled::{Card, Shortcut};
 use beui::unstyled::{Edge, Floating, PointerLock, PointerLockHandle};
@@ -55,54 +54,54 @@ impl Walking {
 pub(crate) fn Scene3DView() -> NodeId {
     let scene = Scene::default();
     let (camera, set_camera) = create_signal(Camera::default());
-    let walking = Rc::new(Cell::new(Walking::default()));
-    let clock = Rc::new(Cell::new(Instant::now()));
-    let drawing = create_memo(clone!(camera -> move || Some(scene.drawing(camera.get()))));
+    let walking = store(Cell::new(Walking::default()));
+    let clock = store(Cell::new(Instant::now()));
+    let drawing = create_memo(move || Some(scene.drawing(camera.get())));
     let (looking, set_looking) = create_signal(false);
-    let idle = create_memo(clone!(looking -> move || !looking.get()));
+    let idle = create_memo(move || !looking.get());
 
-    let stepping = create_timer(clone!(walking looking clock set_camera -> move || {
+    let stepping = create_timer(move || {
         let now = Instant::now();
         let elapsed = now
-            .saturating_duration_since(clock.replace(now))
+            .saturating_duration_since(clock.with(|clock| clock.replace(now)))
             .as_secs_f32()
             .min(LONGEST_STEP);
-        let walk = walking.get();
+        let walk = walking.with(Cell::get);
         if !looking.get_untracked() || !walk.moving() {
             return None;
         }
         set_camera.update(|camera| camera.walk(walk.strafe(), walk.forward(), elapsed));
         Some(Duration::ZERO)
-    }));
-
-    let look = clone!(set_camera -> move |motion: Vec2| {
-        set_camera.update(|camera| camera.look([motion.x, motion.y]));
     });
-    let walked = clone!(walking stepping -> move |press: KeyPress| {
-        let mut held = walking.get();
+
+    let look = move |motion: Vec2| {
+        set_camera.update(|camera| camera.look([motion.x, motion.y]));
+    };
+    let walked = move |press: KeyPress| {
+        let mut held = walking.with(Cell::get);
         let handled = held.hold(press.key, press.pressed);
-        walking.set(held);
+        walking.with(|walking| walking.set(held));
         if held.moving() && !stepping.running() {
-            clock.set(Instant::now());
+            clock.with(|clock| clock.set(Instant::now()));
             stepping.start(Duration::ZERO);
         }
         handled
-    });
-    let released = clone!(walking set_looking -> move |looking: bool| {
+    };
+    let released = move |looking: bool| {
         if !looking {
-            walking.set(Walking::default());
+            walking.with(|walking| walking.set(Walking::default()));
         }
         set_looking.set(looking);
-    });
+    };
 
-    let described = create_memo(clone!(looking -> move || {
+    let described = create_memo(move || {
         let mut node = Node::new(Role::Canvas);
         node.set_label(match looking.get() {
             true => "3D scene, looking around",
             false => "3D scene, click to look around",
         });
         node
-    }));
+    });
 
     let anchor = NodeRef::new();
     view! {
@@ -119,15 +118,10 @@ pub(crate) fn Scene3DView() -> NodeId {
             {move |_: PointerLockHandle| view! {
                 <List spacing=0.0>
                     <Drawing
-                        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+                        draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
                         @sizing=ItemSize::Percent(100.0)
                     />
-                    <Floating
-                        anchor={anchor.clone()}
-                        edge=Edge::Bottom
-                        open={idle}
-                        interactive=false
-                    >
+                    <Floating anchor={anchor} edge=Edge::Bottom open={idle} interactive=false>
                         <Hint />
                     </Floating>
                 </List>

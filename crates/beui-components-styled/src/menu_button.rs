@@ -4,19 +4,21 @@ use crate::button::{ButtonFace, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::focus_ring::FocusRing;
 use crate::icon_button::{IconButtonFace, IconButtonSize};
-use crate::text::IconSized;
-use crate::theme::{ICON_SIZE, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextSize};
+use crate::theme::{RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{MenuButtonHandle, MenuItem, Picture};
+use beui_core::font::TextAlign;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::image::Image;
 use beui_core::input::ScrollGesture;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Children, ClickCallback, Frame, List, Memo, Prop, Show, clone, create_memo,
+    Align, Callback, Children, ClickCallback, Frame, List, Memo, Prop, Show, create_memo,
 };
 
+const PICTURE_SIZE: f32 = TextSize::Base.icon_px();
 const PICTURE_PADDING: f32 = 6.0;
 const PICTURE_FOCUS_RING_OFFSET: f32 = 2.0;
 
@@ -45,19 +47,19 @@ pub fn MenuButton(
             menu={menu_style()}
             trigger={move |handle: MenuButtonHandle| {
                 let MenuButtonHandle { open, button } = handle;
-                let quiet = create_memo(clone!(icon_only -> move || !icon_only.get() || open.get()));
+                let quiet = create_memo(move || !icon_only.get() || open.get());
                 view! {
-                    <Tooltip label={button.label.clone()} disabled={quiet}>
+                    <Tooltip label={button.label} disabled={quiet}>
                         <ButtonFace
                             handle={button}
                             variant
-                            trailing_glyph={trailing.clone()}
-                            icon_only={icon_only.clone()}
+                            trailing_glyph={trailing}
+                            icon_only={icon_only}
                         />
                     </Tooltip>
                 }
             }}
-            on_select={move |path: Vec<usize>| on_select.call(path)}
+            on_select={on_select}
         />
     }
 }
@@ -82,12 +84,12 @@ pub fn IconMenuButton(
             trigger={move |handle: MenuButtonHandle| {
                 let MenuButtonHandle { open, button } = handle;
                 view! {
-                    <Tooltip label={button.label.clone()} disabled={open}>
+                    <Tooltip label={button.label} disabled={open}>
                         <IconButtonFace handle={button} variant size />
                     </Tooltip>
                 }
             }}
-            on_select={move |path: Vec<usize>| on_select.call(path)}
+            on_select={on_select}
         />
     }
 }
@@ -97,7 +99,6 @@ pub fn PictureMenuButton(
     label: Prop<String>,
     image: Prop<Option<Image>>,
     #[prop(default = String::new())] glyph: Prop<String>,
-    #[prop(default = ICON_SIZE)] size: f32,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = true)] secondary_opens: Prop<bool>,
@@ -110,8 +111,8 @@ pub fn PictureMenuButton(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let image = create_memo(move || image.get());
-    let pictured = create_memo(clone!(image -> move || image.with(Option::is_some)));
-    let plain = create_memo(clone!(pictured -> move || !pictured.get()));
+    let pictured = create_memo(move || image.with(Option::is_some));
+    let plain = create_memo(move || !pictured.get());
     let trigger = move |handle: MenuButtonHandle| {
         let MenuButtonHandle { open, button } = handle;
         let theme = use_theme();
@@ -124,14 +125,12 @@ pub fn PictureMenuButton(
             label,
             ..
         } = button;
-        let pressed = create_memo(clone!(open -> move || active.get() || open.get()));
-        let fill = create_memo(clone!(theme disabled -> move || {
+        let pressed = create_memo(move || active.get() || open.get());
+        let fill = create_memo(move || {
             ButtonVariant::Ghost.fill(&theme, disabled.get(), hovered.get(), pressed.get())
-        }));
-        let color = create_memo(
-            clone!(theme -> move || ButtonVariant::Ghost.label(&theme, disabled.get())),
-        );
-        let (image, pictured, plain) = (image.clone(), pictured.clone(), plain.clone());
+        });
+        let color = create_memo(move || ButtonVariant::Ghost.label(disabled.get()));
+        let (image, pictured, plain) = (image, pictured, plain);
         view! {
             <Tooltip label disabled={open}>
                 <FocusRing focused radius={RADIUS + 2} offset=PICTURE_FOCUS_RING_OFFSET>
@@ -141,17 +140,15 @@ pub fn PictureMenuButton(
                         padding_horizontal=PICTURE_PADDING
                         padding_vertical=PICTURE_PADDING
                     >
-                        <Frame width=size height=size>
+                        <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                             <List spacing=0.0 align=Align::Center>
                                 <Show condition={pictured}>
-                                    <SizedPicture image={image.clone()} size />
+                                    <SizedPicture image={image} size=PICTURE_SIZE />
                                 </Show>
                                 <Show condition={plain}>
-                                    <IconSized
-                                        glyph={glyph.clone()}
-                                        font_size=size
-                                        color={color.clone()}
-                                    />
+                                    <Text color={color} align=TextAlign::Center>
+                                        <Icon glyph={glyph} />
+                                    </Text>
                                 </Show>
                             </List>
                         </Frame>
@@ -170,12 +167,12 @@ pub fn PictureMenuButton(
             secondary_opens
             menu={menu_style()}
             trigger
-            on_click={move || on_click.call()}
-            on_secondary_click={move || on_secondary_click.call()}
-            on_middle_click={move || on_middle_click.call()}
-            on_scroll={move |gesture: ScrollGesture| on_scroll.call(gesture)}
-            on_open_change={move |open: bool| on_open_change.call(open)}
-            on_select={move |path: Vec<usize>| on_select.call(path)}
+            on_click={on_click}
+            on_secondary_click={on_secondary_click}
+            on_middle_click={on_middle_click}
+            on_scroll={on_scroll}
+            on_open_change={on_open_change}
+            on_select={on_select}
         />
     }
 }

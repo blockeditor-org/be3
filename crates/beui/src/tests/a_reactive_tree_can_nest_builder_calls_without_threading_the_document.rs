@@ -4,10 +4,9 @@ use crate::unstyled::Button;
 
 #[test]
 fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
-    let value = std::rc::Rc::new(std::cell::Cell::new(None));
-    let increment = std::rc::Rc::new(std::cell::Cell::new(None));
-    let sink_value = value.clone();
-    let sink_increment = increment.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (value, set_value) = create_signal(None);
+    let (increment, set_increment) = create_signal(None);
 
     let document = build(move || {
         let (count, set_count) = create_signal(0i64);
@@ -23,8 +22,8 @@ fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
                 <Text string="+" />
             </Button>
         };
-        sink_value.set(Some(value_node));
-        sink_increment.set(Some(increment_node));
+        set_value.set(Some(value_node));
+        set_increment.set(Some(increment_node));
         view! {
             <List spacing=8.0>
                 <List direction=Direction::Horizontal spacing=8.0>
@@ -35,8 +34,8 @@ fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
         }
     });
 
-    let value = value.get().expect("text node was created");
-    let increment = increment.get().expect("button node was created");
+    let value = value.get_untracked().expect("text node was created");
+    let increment = increment.get_untracked().expect("button node was created");
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

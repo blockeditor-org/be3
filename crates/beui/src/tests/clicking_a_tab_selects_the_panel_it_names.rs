@@ -4,8 +4,8 @@ use crate::styled::Tabs;
 
 #[test]
 fn clicking_a_tab_selects_the_panel_it_names() {
-    let reported = Rc::new(Cell::new(0));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(0);
     let (document, [tabs]) = toolbar_of(|| {
         [view! {
             <Tabs
@@ -15,7 +15,7 @@ fn clicking_a_tab_selects_the_panel_it_names() {
                 }}
                 selected=0
                 on_change={move |selected| {
-                    sink.set(selected);
+                    set_reported.set(selected);
                 }}
             />
         }]
@@ -25,11 +25,10 @@ fn clicking_a_tab_selects_the_panel_it_names() {
 
     assert_eq!(styled::tabs_selected(harness.document(), tabs), 0);
 
-    let row = tabs;
-    let second = harness.document().children(row)[1];
+    let second = harness.document().children(tabs)[1];
     harness.click(harness.center(second));
     harness.frame(Vec::new());
 
     assert_eq!(styled::tabs_selected(harness.document(), tabs), 1);
-    assert_eq!(reported.get(), 1);
+    assert_eq!(reported.get_untracked(), 1);
 }

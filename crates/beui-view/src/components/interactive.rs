@@ -1,5 +1,8 @@
-use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
+use crate::reactive::{
+    Callback, Child, ClickCallback, Prop, create_binding, create_effect, with_document,
+};
 use beui_core::base::list::Direction;
+use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::{
     AutoscrollGesture, CursorIcon, DragGesture, ImeEvent, ImeText, KeyPress, Modifiers,
@@ -20,6 +23,7 @@ pub fn Interactive(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
+    #[prop(default = None)] keyboard_asks: Prop<Option<u32>>,
     #[prop(default = true)] ime_keyboard: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
     #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
@@ -29,9 +33,10 @@ pub fn Interactive(
     on_step: Callback<f32>,
     on_text: Callback<String>,
     #[prop(default = true)] takes_text: bool,
+    #[prop(default = Vec::new())] pastes: Prop<Vec<PasteKind>>,
+    on_paste: Callback<Pasted>,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
-    on_ancestor_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Option<Prop<CursorIcon>>,
     #[prop(default = false)] key_active: Prop<bool>,
@@ -59,9 +64,8 @@ pub fn Interactive(
     on_autoscroll: Callback<AutoscrollGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
-    intercept_at: Callback<Pos2, bool>,
+    hit_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
-    forward_at: Callback<Pos2, bool>,
     #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
@@ -75,9 +79,9 @@ pub fn Interactive(
                 && on_activate.is_empty()
                 && on_step.is_empty()
                 && on_text.is_empty()
+                && on_paste.is_empty()
                 && on_ime.is_empty()
                 && on_key.is_empty()
-                && on_ancestor_key.is_empty()
                 && on_motion.is_empty()),
         "an Interactive handed focus callbacks has to be focusable"
     );
@@ -93,9 +97,9 @@ pub fn Interactive(
             if takes_text {
                 focus.on_text = on_text;
             }
+            focus.on_paste = on_paste;
             focus.on_ime = on_ime;
             focus.on_key = on_key;
-            focus.on_ancestor_key = on_ancestor_key;
             focus.on_motion = on_motion;
         }
         node.on_click = on_click;
@@ -116,10 +120,9 @@ pub fn Interactive(
         node.on_autoscroll = on_autoscroll;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
-        node.intercept_at = intercept_at;
+        node.hit_at = hit_at;
         node.on_forward = on_forward;
-        node.forward_at = forward_at;
-        node.claim_at = claim_at;
+        document.set_interactive_claim_at(interactive, claim_at);
         document.set_interactive_on_press_outside(interactive, on_press_outside);
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
@@ -127,26 +130,23 @@ pub fn Interactive(
         interactive
     });
     if focusable {
-        create_effect(move || {
-            with_document(|document| document.set_focusable_tab_stop(interactive, tab_stop.get()))
-        });
-        create_effect(move || {
+        create_binding(move || {
+            let (tab_stop, press_focus, ime) = (tab_stop.get(), press_focus.get(), ime.get());
+            let (pastes, keyboard, asks) = (pastes.get(), ime_keyboard.get(), keyboard_asks.get());
             with_document(|document| {
-                document.set_focusable_press_focus(interactive, press_focus.get())
+                document.set_focusable_tab_stop(interactive, tab_stop);
+                document.set_focusable_press_focus(interactive, press_focus);
+                document.set_focusable_ime(interactive, ime);
+                document.set_focusable_pastes(interactive, pastes);
+                document.set_focusable_ime_keyboard(interactive, keyboard);
+                document.set_focusable_keyboard_asks(interactive, asks);
             })
         });
-        create_effect(move || {
-            with_document(|document| document.set_focusable_ime(interactive, ime.get()))
-        });
-        create_effect(move || {
-            let keyboard = ime_keyboard.get();
-            with_document(|document| document.set_focusable_ime_keyboard(interactive, keyboard))
-        });
-        create_effect(move || {
+        create_binding(move || {
             let cursor = ime_cursor.get();
             with_document(|document| document.set_focusable_ime_cursor(interactive, cursor))
         });
-        create_effect(move || {
+        create_binding(move || {
             let text = ime_text.get();
             with_document(|document| document.set_focusable_ime_text(interactive, text))
         });
@@ -162,52 +162,32 @@ pub fn Interactive(
         });
     }
     if let Some(cursor) = cursor {
-        create_effect(move || {
+        create_binding(move || {
             with_document(|document| {
                 document.set_interactive_cursor(interactive, Some(cursor.get()))
             })
         });
     }
-    create_effect(move || {
+    create_binding(move || {
+        let (capture, repeat, touch) =
+            (capture_presses.get(), repeat_drag.get(), touch_drags.get());
+        let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
+        let (active, inhibits, claimed) = (
+            key_active.get(),
+            inhibits_shortcuts.get(),
+            claim_modifiers.get(),
+        );
         with_document(|document| {
-            document.set_interactive_capture_presses(interactive, capture_presses.get())
+            document.set_interactive_capture_presses(interactive, capture);
+            document.set_interactive_repeat_drag(interactive, repeat);
+            document.set_interactive_touch_drags(interactive, touch);
+            document.set_interactive_touch_drag_axis(interactive, axis);
+            document.set_interactive_claims_touch(interactive, claims);
+            document.set_interactive_scroll_axis(interactive, scroll);
+            document.set_interactive_key_active(interactive, active);
+            document.set_interactive_inhibits_shortcuts(interactive, inhibits);
+            document.set_interactive_claim_modifiers(interactive, claimed);
         })
-    });
-    create_effect(move || {
-        with_document(|document| {
-            document.set_interactive_repeat_drag(interactive, repeat_drag.get())
-        })
-    });
-    create_effect(move || {
-        with_document(|document| {
-            document.set_interactive_touch_drags(interactive, touch_drags.get())
-        })
-    });
-    create_effect(move || {
-        with_document(|document| {
-            document.set_interactive_touch_drag_axis(interactive, touch_drag_axis.get())
-        })
-    });
-    create_effect(move || {
-        with_document(|document| {
-            document.set_interactive_claims_touch(interactive, claims_touch.get())
-        })
-    });
-    create_effect(move || {
-        with_document(|document| {
-            document.set_interactive_scroll_axis(interactive, scroll_axis.get())
-        })
-    });
-    create_effect(move || {
-        with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
-    });
-    create_effect(move || {
-        let inhibits = inhibits_shortcuts.get();
-        with_document(|document| document.set_interactive_inhibits_shortcuts(interactive, inhibits))
-    });
-    create_effect(move || {
-        let claimed = claim_modifiers.get();
-        with_document(|document| document.set_interactive_claim_modifiers(interactive, claimed))
     });
     interactive.id()
 }

@@ -1,0 +1,72 @@
+name: Tracker
+
+# Moves the rows of the tracker database that a pull request names, such as
+# BE-7K3Q2M in its branch, title or body: opening it sets them to In review and
+# links it on each row's page, and merging it sets them to Done. It is the be
+# command line tool's `be pull-request` (crates/be-cli), signed in as the agent
+# whose token and recovery phrase are the repository's BE3_TRACKER_TOKEN and
+# BE3_TRACKER_RECOVERY_PHRASE secrets; without them the job does nothing. A
+# gateway in front of the server that wants an Authorization header gets the
+# BE3_TRACKER_AUTHORIZATION secret.
+#
+# be is the release ./scripts/be pins on the default branch, built from the
+# same commit as the server, rather than anything the pull request brings: this
+# workflow holds the agent's credentials, so it runs no code a pull request
+# brings, and a pull request opened before be existed is still moved.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  move:
+    name: move tracker rows
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - name: Check for the tracker's credentials
+        id: credentials
+        env:
+          BE3_TOKEN: ${{ secrets.BE3_TRACKER_TOKEN }}
+          BE3_RECOVERY_PHRASE: ${{ secrets.BE3_TRACKER_RECOVERY_PHRASE }}
+        run: |
+          if [ -n "$BE3_TOKEN" ] && [ -n "$BE3_RECOVERY_PHRASE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "The tracker's credentials are not set, so no rows are moved."
+          fi
+
+      - uses: actions/checkout@v7
+        if: ${{ steps.credentials.outputs.present == 'true' }}
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Write the tracker's credentials
+        if: ${{ steps.credentials.outputs.present == 'true' }}
+        env:
+          BE3_SERVER: ${{ vars.BE3_SERVER }}
+          BE3_WORKSPACE: ${{ vars.BE3_WORKSPACE }}
+          BE3_TOKEN: ${{ secrets.BE3_TRACKER_TOKEN }}
+          BE3_RECOVERY_PHRASE: ${{ secrets.BE3_TRACKER_RECOVERY_PHRASE }}
+          BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
+        run: |
+          umask 077
+          mkdir -p external
+          {
+            if [ -n "$BE3_SERVER" ]; then echo "server=$BE3_SERVER"; fi
+            if [ -n "$BE3_WORKSPACE" ]; then echo "workspace=$BE3_WORKSPACE"; fi
+            echo "token=$BE3_TOKEN"
+            echo "recovery_phrase=$BE3_RECOVERY_PHRASE"
+            if [ -n "$BE3_AUTHORIZATION" ]; then echo "authorization=$BE3_AUTHORIZATION"; fi
+          } > external/.tracker-credentials
+
+      - name: Move the rows the pull request names
+        if: ${{ steps.credentials.outputs.present == 'true' }}
+        env:
+          BE3_STATUS_FIELD: ${{ vars.BE3_STATUS_FIELD }}
+          BE3_REVIEW_STATUS: ${{ vars.BE3_REVIEW_STATUS }}
+          BE3_DONE_STATUS: ${{ vars.BE3_DONE_STATUS }}
+        run: ./scripts/be pull-request "$GITHUB_EVENT_PATH"

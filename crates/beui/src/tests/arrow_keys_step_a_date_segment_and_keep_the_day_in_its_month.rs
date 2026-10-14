@@ -6,15 +6,15 @@ use crate::unstyled::DateTimeParts;
 
 #[test]
 fn arrow_keys_step_a_date_segment_and_keep_the_day_in_its_month() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <DateTimeField
                 value={Some(DateTime::new(Date::new(2026, 12, 31), Time::new(9, 15)))}
                 parts=DateTimeParts::Date
                 on_change={move |value: Option<DateTime>| {
-                    sink.borrow_mut().push(value.map(|value| value.date))
+                    set_reported.update(|reported| reported.push(value.map(|value| value.date)))
                 }}
             />
         }
@@ -29,7 +29,7 @@ fn arrow_keys_step_a_date_segment_and_keep_the_day_in_its_month() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
 
     assert_eq!(
-        *reported.borrow(),
+        reported.get_untracked(),
         [
             Some(Date::new(2026, 1, 31)),
             Some(Date::new(2026, 12, 31)),

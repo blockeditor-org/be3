@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonHandle};
 use beui_core::input::{Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
-use beui_view::reactive::{ClickCallback, Prop, Render, clone, create_memo};
+use beui_view::reactive::{ClickCallback, Prop, Render, create_memo};
 
 #[component]
 pub fn ListRow(
@@ -14,17 +14,17 @@ pub fn ListRow(
     on_click: ClickCallback,
     on_activate: ClickCallback,
 ) -> NodeId {
-    let double_click = on_activate.clone();
+    let double_click = on_activate;
     let selected = create_memo(move || selected.get());
-    let accessibility = create_memo(clone!(selected -> move || {
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::Button);
         node.set_selected(selected.get());
         node
-    }));
+    });
     view! {
         <Button
             accessibility
-            on_click={move || on_click.call()}
+            on_click={on_click}
             on_click_at={move |press: PointerPress| {
                 if press.clicks >= 2 {
                     double_click.call();

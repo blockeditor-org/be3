@@ -58,6 +58,7 @@ be-store = { path = "../be-store" }
 be-vcs = { path = "../be-vcs" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
+build-id = { path = "../build-id" }
 beui-plugin-input = { path = "../beui-plugin-input" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 futures-util = { version = "0.3", features = ["io"] }
@@ -82,6 +83,7 @@ beui = { path = "../beui", features = ["window"] }
 block-wasm-host = { path = "../block-wasm-host" }
 directories-next = "2"
 rusqlite = { version = "0.32", features = ["bundled"] }
+sqlite-schema = { path = "../sqlite-schema" }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 ureq = { version = "2", features = ["gzip"] }
 # rodio (via cpal) reaches ALSA/CoreAudio/WASAPI on desktop and Oboe on
@@ -90,10 +92,9 @@ ureq = { version = "2", features = ["gzip"] }
 # not this project's wasm32-wasip1 (see editors/audio/playback.rs).
 rodio = "0.20"
 
-# Desktop only: Android has neither an embedded browser nor an image clipboard,
-# and the browser sandbox has neither.
+# Desktop only: Android has no embedded browser, and the browser sandbox has
+# none either.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
-arboard = "3.6"
 winit = "0.30"
 wry = { version = "0.55.1", optional = true }
 

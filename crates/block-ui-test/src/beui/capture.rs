@@ -46,12 +46,12 @@ pub(crate) fn capture(
                 color,
                 glyph,
                 turn,
-            } if glyph.image.color => (
+            } if glyph.image().is_some_and(|image| image.color) => (
                 clip,
                 Content::Mesh(mesh(
                     points(rect),
                     [0.0, 0.0, 1.0, 1.0],
-                    texture(&mut textures, &glyph.image)?,
+                    texture(&mut textures, glyph.image())?,
                     [255, 255, 255, color.to_array()[3]],
                     turn_of(turn),
                 )),
@@ -66,7 +66,7 @@ pub(crate) fn capture(
                 clip,
                 Content::Glyph(Glyph {
                     rect: points(rect),
-                    texture: texture(&mut textures, &glyph.image)?,
+                    texture: texture(&mut textures, glyph.image())?,
                     color: color.to_array(),
                     turn: turn_of(turn),
                 }),
@@ -246,8 +246,9 @@ fn picture(
 
 fn texture(
     textures: &mut BTreeMap<TextureKey, Texture>,
-    image: &GlyphImage,
+    image: Option<&GlyphImage>,
 ) -> Result<TextureKey, String> {
+    let image = image.ok_or("a glyph that could not be rasterized")?;
     let size = [image.width, image.height];
     let pixels: Vec<[u8; 4]> = match image.color {
         true => image

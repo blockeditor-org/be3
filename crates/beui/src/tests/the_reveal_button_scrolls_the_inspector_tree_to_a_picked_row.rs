@@ -6,6 +6,7 @@ const PICKED: usize = 28;
 
 #[test]
 fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
+    let _root = crate::reactive::RootScope::new();
     let frames: Vec<NodeRef> = (0..ROWS).map(|_| NodeRef::new()).collect();
     let document = build({
         let frames = frames.clone();
@@ -34,7 +35,7 @@ fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
     harness.click(target);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.inspector().state.selected.get(), Some(picked));
+    assert_eq!(harness.inspector().state().selected.get(), Some(picked));
     assert!(
         harness.reveal_shown(),
         "a pick outside the panel offers to scroll to it"

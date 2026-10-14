@@ -1,0 +1,268 @@
+use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_SEARCH, ICON_TUNE};
+use block_editor_beui::beui::reactive::{
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, create_signal,
+    view,
+};
+use block_editor_beui::beui::styled::{
+    Button, ButtonVariant, IconButton, ModalSheet, Popover, Scroll, Separator, TextInput,
+    ToggleButton,
+};
+use block_editor_beui::narrow_chrome;
+use uuid::Uuid;
+
+use crate::database_view::app::data::Data;
+use crate::database_view::app::display::DisplayOptions;
+use crate::database_view::app::filters::{FilterBar, FilterList};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
+
+const GUTTER: f32 = 12.0;
+const SPACING: f32 = 8.0;
+const SEARCH_WIDTH: f32 = 220.0;
+const DISPLAY_WIDTH: f32 = 380.0;
+
+#[component]
+pub fn ViewHeader(data: Data) -> NodeId {
+    let narrow = narrow_chrome();
+    let wide = create_memo(move || !narrow.get());
+    let failed = create_memo(move || data.error.with(Option::is_some));
+    let message = create_memo(move || data.error.get().unwrap_or_default());
+    let dismiss = move || data.dismiss_error();
+    view! {
+        <List spacing=0.0>
+            <Show condition={wide}>
+                {move || view! {
+                    <WideHeader data={data} />
+                }}
+            </Show>
+            <Show condition={narrow}>
+                {move || view! {
+                    <NarrowHeader data={data} />
+                }}
+            </Show>
+            <Show condition={failed}>
+                {move || view! {
+                    <Frame padding_horizontal=GUTTER padding_vertical=6.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Text
+                                @sizing=ItemSize::Percent(100.0)
+                                string={message}
+                                color=TextColor::Danger
+                                wrap=true
+                            />
+                            <Button
+                                label="Dismiss"
+                                variant=ButtonVariant::Secondary
+                                @test_id={"database-view.dismiss-error"}
+                                on_click={dismiss}
+                            />
+                        </List>
+                    </Frame>
+                }}
+            </Show>
+            <Separator />
+        </List>
+    }
+}
+
+#[component]
+fn WideHeader(data: Data) -> NodeId {
+    let count = row_count(data);
+    view! {
+        <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(6.0)}>
+            <List spacing=6.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Text style=TextStyle::HEADING string={data.name} />
+                    <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
+                    <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={data} />
+                    <NewRow data={data} compact=false />
+                </List>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <FilterBar @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
+                    <Text style=TextStyle::CAPTION string={count} />
+                    <Popover
+                        label="Display"
+                        glyph={ICON_TUNE.to_owned()}
+                        max_width=DISPLAY_WIDTH
+                        @test_id={"database-view.display"}
+                    >
+                        {move |_| view! {
+                            <DisplayOptions data={data} />
+                        }}
+                    </Popover>
+                </List>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn NarrowHeader(data: Data) -> NodeId {
+    let (sheet, set_sheet) = create_signal(false);
+    let filtered = create_memo(move || match data.filter_items.with(Vec::len) {
+        0 => "Filter and display".to_owned(),
+        count => format!("Filter and display · {count}"),
+    });
+    let count = row_count(data);
+    let open = move || set_sheet.set(true);
+    let close = move || set_sheet.set(false);
+    let done = close;
+    view! {
+        <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(8.0)}>
+            <List spacing=SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Text
+                        style=TextStyle::HEADING
+                        @sizing=ItemSize::Percent(100.0)
+                        string={data.name}
+                    />
+                    <Text style=TextStyle::CAPTION string={count} />
+                    <NewRow data={data} compact=true />
+                </List>
+                <Scroll direction=Direction::Horizontal>
+                    <ViewTabs data={data} />
+                </Scroll>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <SearchField @sizing=ItemSize::Percent(100.0) data={data} />
+                    <Button
+                        label={filtered}
+                        glyph={ICON_TUNE.to_owned()}
+                        variant=ButtonVariant::Secondary
+                        @test_id={"database-view.filter-and-display"}
+                        on_click={open}
+                    />
+                </List>
+                <ModalSheet open={sheet} on_close={close}>
+                    <Frame padding_horizontal={GUTTER * 1.5} padding_bottom={Some(GUTTER * 2.0)}>
+                        <List spacing=GUTTER>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=SPACING
+                            >
+                                <Text
+                                    style=TextStyle::HEADING
+                                    @sizing=ItemSize::Percent(100.0)
+                                    string="Filter and display"
+                                />
+                                <Button
+                                    label="Done"
+                                    variant=ButtonVariant::Ghost
+                                    @test_id={"database-view.sheet.done"}
+                                    on_click={done}
+                                />
+                            </List>
+                            <Text style=TextStyle::CAPTION string="Filters" />
+                            <FilterList data={data} />
+                            <Separator />
+                            <DisplayOptions data={data} />
+                        </List>
+                    </Frame>
+                </ModalSheet>
+            </List>
+        </Frame>
+    }
+}
+
+fn row_count(data: Data) -> block_editor_beui::beui::reactive::Memo<String> {
+    let groups = data.groups;
+    create_memo(move || {
+        let count: usize = groups.with(|groups| groups.iter().map(|group| group.rows.len()).sum());
+        match count {
+            1 => "1 row".to_owned(),
+            count => format!("{count} rows"),
+        }
+    })
+}
+
+#[component]
+fn ViewTabs(data: Data) -> NodeId {
+    let keys = create_memo(move || {
+        data.views
+            .with(|views| views.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
+    });
+    let own = data.editor().block_id();
+    let create = move || data.new_view();
+    let read_only = data.read_only;
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <ForEach keys={keys}>
+                {move |view: Uuid| {
+                    let name = create_memo(move || {
+                        data.views.with(|views| {
+                            views.iter().find(|(id, _)| *id == view).map(|(_, name)| name.clone()).unwrap_or_default()
+                        })
+                    });
+                    let open = move |_: bool| data.open_view(view);
+                    view! {
+                        <ToggleButton
+                            label={name}
+                            pressed={view == own}
+                            @test_id={format!("database-view.view.{view}")}
+                            on_change={open}
+                        />
+                    }
+                }}
+            </ForEach>
+            <IconButton
+                glyph={ICON_ADD.to_owned()}
+                label="New view"
+                variant=ButtonVariant::Ghost
+                disabled={read_only}
+                @test_id={"database-view.views.new"}
+                on_click={create}
+            />
+        </List>
+    }
+}
+
+#[component]
+fn SearchField(data: Data) -> NodeId {
+    let query = data.search;
+    let typed = move |text: String| data.set_search(text);
+    view! {
+        <TextInput
+            value={query}
+            placeholder="Search"
+            glyph={ICON_SEARCH.to_owned()}
+            clearable=true
+            @test_id={"database-view.search"}
+            on_change={typed}
+        />
+    }
+}
+
+#[component]
+fn NewRow(data: Data, compact: bool) -> NodeId {
+    let add = move || {
+        let mut values = Vec::new();
+        if let Some(title) = data.title_field.get_untracked() {
+            values.push((title, DatabaseValue::String(String::new())));
+        }
+        data.new_row(values);
+    };
+    let disabled = create_memo(move || data.read_only.get() || data.title_field.get().is_none());
+    match compact {
+        true => view! {
+            <IconButton
+                glyph={ICON_ADD.to_owned()}
+                label="New"
+                variant=ButtonVariant::Primary
+                disabled={disabled}
+                @test_id={"database-view.new"}
+                on_click={add}
+            />
+        },
+        false => view! {
+            <Button
+                label="New"
+                glyph={ICON_ADD.to_owned()}
+                variant=ButtonVariant::Primary
+                disabled={disabled}
+                @test_id={"database-view.new"}
+                on_click={add}
+            />
+        },
+    }
+}

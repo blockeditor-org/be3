@@ -8,7 +8,7 @@ use beui_core::geometry::Pos2;
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, clone,
+    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, Show,
     create_effect, create_memo, create_signal, last_pointer, set_component_state,
 };
 
@@ -37,17 +37,10 @@ pub fn ContextMenu(
     let (position, set_position) = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
-    set_component_state(State {
-        overlay: overlay.clone(),
-        content: content.clone(),
-    });
+    set_component_state(State { overlay, content });
 
-    let (requested, requested_touch, requested_position, requested_focusing) = (
-        set_open.clone(),
-        set_touched.clone(),
-        set_position.clone(),
-        set_focusing.clone(),
-    );
+    let (requested, requested_touch, requested_position, requested_focusing) =
+        (set_open, set_touched, set_position, set_focusing);
     create_effect(move || {
         let Some(at) = open_at.get() else {
             return;
@@ -57,12 +50,8 @@ pub fn ContextMenu(
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
-    let (pointed, pointed_touch, pointed_position, pointed_focusing) = (
-        set_open.clone(),
-        set_touched.clone(),
-        set_position.clone(),
-        set_focusing.clone(),
-    );
+    let (pointed, pointed_touch, pointed_position, pointed_focusing) =
+        (set_open, set_touched, set_position, set_focusing);
     let mut pointer_opened = false;
     create_effect(move || {
         if !open_at_pointer.get() {
@@ -78,11 +67,17 @@ pub fn ContextMenu(
         pointed_focusing.set(true);
         pointed.set(true);
     });
-    let shown = create_memo(clone!(open -> move || open.get()));
+    let shown = create_memo(move || open.get());
     let touched = create_memo(move || !selection && touched.get());
+    let mut ever_open = false;
+    let built = create_memo(move || {
+        ever_open |= shown.get();
+        ever_open
+    });
+    let items = items.into_run();
     view! {
         <Interactive
-            on_secondary_press={clone!(set_open -> move |press: PointerPress| {
+            on_secondary_press={move |press: PointerPress| {
                 if disabled.get() {
                     return;
                 }
@@ -90,25 +85,29 @@ pub fn ContextMenu(
                 set_touched.set(press.touch);
                 set_focusing.set(true);
                 set_open.set(true);
-            })}
+            }}
         >
             <List spacing=0.0>
                 {children} @sizing={child_size}
-                <MenuPopup
-                    overlay
-                    content
-                    items={items.into_run()}
-                    menu
-                    anchor
-                    open={shown}
-                    touched
-                    focusing
-                    on_dismiss={move || {
-                        set_open.set(false);
-                        on_close.call();
+                <Show condition={built}>
+                    {move || view! {
+                        <MenuPopup
+                            overlay
+                            content
+                            items={items.clone()}
+                            menu={menu}
+                            anchor
+                            open={shown}
+                            touched
+                            focusing
+                            on_dismiss={move || {
+                                set_open.set(false);
+                                on_close.call();
+                            }}
+                            on_select={on_select}
+                        />
                     }}
-                    on_select={move |path: Vec<usize>| on_select.call(path)}
-                />
+                </Show>
             </List>
         </Interactive>
     }
@@ -126,4 +125,12 @@ pub fn context_menu_overlay(document: &Document, context_menu: NodeId) -> NodeId
         .component_state::<State>(context_menu)
         .overlay
         .get()
+}
+
+pub fn context_menu_open(document: &Document, context_menu: NodeId) -> bool {
+    document
+        .component_state::<State>(context_menu)
+        .overlay
+        .try_get()
+        .is_some_and(|overlay| document.is_overlay_open(overlay))
 }

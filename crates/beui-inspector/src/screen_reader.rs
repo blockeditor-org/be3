@@ -62,6 +62,7 @@ pub struct ScreenReader {
     spoken: Option<String>,
     reported: Option<(AccessNodeId, String)>,
     live: bool,
+    now: Instant,
     last_spoke: Option<Instant>,
     fingers: Vec<(TouchId, Finger)>,
     finger_at: Option<Pos2>,
@@ -85,6 +86,7 @@ impl Default for ScreenReader {
             spoken: None,
             reported: None,
             live: false,
+            now: Instant::now(),
             last_spoke: None,
             fingers: Vec::new(),
             finger_at: None,
@@ -124,6 +126,7 @@ impl ScreenReader {
             self.stop();
             return;
         }
+        self.now = ctx.now();
         let (items, focus) = collect(target);
         self.items = items;
         if !self.active {
@@ -190,11 +193,15 @@ impl ScreenReader {
         self.items.get(self.index()?)
     }
 
+    fn elapsed(&self, at: Instant) -> Duration {
+        self.now.saturating_duration_since(at)
+    }
+
     fn say(&mut self, text: String) {
         if text.is_empty() {
             return;
         }
-        self.last_spoke = Some(Instant::now());
+        self.last_spoke = Some(self.now);
         self.spoken = Some(text);
     }
 
@@ -216,7 +223,7 @@ impl ScreenReader {
             && self.live
             && self
                 .last_spoke
-                .is_some_and(|at| at.elapsed() < LIVE_INTERVAL)
+                .is_some_and(|at| self.elapsed(at) < LIVE_INTERVAL)
         {
             return;
         }
@@ -350,7 +357,7 @@ impl ScreenReader {
             Finger {
                 origin: pos,
                 last: pos,
-                started: Instant::now(),
+                started: self.now,
                 moved: false,
                 cursor: self.cursor,
             },
@@ -413,7 +420,7 @@ impl ScreenReader {
         };
         let (_, finger) = self.fingers.remove(index);
         self.finger_at = None;
-        let quick = finger.started.elapsed() <= SWIPE_TIME;
+        let quick = self.elapsed(finger.started) <= SWIPE_TIME;
         if cancelled {
             self.settle();
             return;
@@ -435,12 +442,15 @@ impl ScreenReader {
                 false => Command::Decrement,
             });
         } else if quick && !finger.moved {
-            match self.last_tap.filter(|at| at.elapsed() <= DOUBLE_TAP_TIME) {
+            match self
+                .last_tap
+                .filter(|at| self.elapsed(*at) <= DOUBLE_TAP_TIME)
+            {
                 Some(_) => {
                     self.last_tap = None;
                     commands.push(Command::Activate);
                 }
-                None => self.last_tap = Some(Instant::now()),
+                None => self.last_tap = Some(self.now),
             }
         }
         self.settle();
@@ -544,15 +554,8 @@ pub fn claims(event: &Event) -> bool {
 }
 
 fn shortcut(event: &Event) -> Option<Command> {
-    let Event::Key {
-        key,
-        pressed: true,
-        modifiers,
-        ..
-    } = event
-    else {
-        return None;
-    };
+    let press = event.press().filter(|press| press.pressed)?;
+    let (key, modifiers) = (&press.key, &press.modifiers);
     if modifiers.ctrl || !modifiers.alt {
         return None;
     }

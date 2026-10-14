@@ -1,27 +1,37 @@
+use foldhash::HashSet;
 use std::any::Any;
-use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::clipboard::ClipboardReadId;
+use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
+use crate::clipboard::{PasteKind, PasteRequest};
 use crate::damage::{self, Region};
-use crate::display::{Display, Layer};
+use crate::display::{Display, Group, Layer};
 use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
 use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
-use crate::geometry::{Rect, pos2};
+use crate::geometry::Vec2;
+use crate::geometry::{Pos2, Rect, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord, RawInput};
 use crate::node::NodeId;
-use crate::paint::{Item, Recorded};
-use crate::painter::{Entry, Painter, Shape};
+use crate::paint::{Item, Recorded, Recording};
+use crate::painter::{Painter, Scope, Shape};
 use crate::screen_simulation::ScreenSimulation;
 use crate::screens::Screen;
+use crate::window::WindowState;
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
+
+#[derive(Default)]
+struct Kept {
+    dump: AccessibilityDump,
+    title: String,
+    viewport: Option<Vec2>,
+}
 
 #[derive(Clone)]
 pub struct Context {
@@ -32,31 +42,22 @@ struct Inner {
     fonts: RefCell<Fonts>,
     input: RefCell<InputState>,
     layers: RefCell<Vec<Layer>>,
-    top_shapes: RefCell<Vec<Shape>>,
-    filter: Cell<Option<(Filter, usize)>>,
+    grouping: RefCell<Vec<usize>>,
     paint_stack: RefCell<Vec<PaintFrame>>,
     space_read: Cell<bool>,
+    verifying: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
-    test_ids: RefCell<HashMap<String, Rect>>,
-    ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
-    paste_requested: Cell<bool>,
+    paste: Cell<Option<PasteRequest>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
-    clipboard_read_requests: RefCell<Vec<ClipboardReadId>>,
-    clipboard_reads: RefCell<Vec<(ClipboardReadId, Option<String>)>>,
-    next_clipboard_read: Cell<u64>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
     next_file_pick: Cell<u64>,
-    cursor_icon: Cell<CursorIcon>,
-    ime: Cell<Option<ImeArea>>,
+    window: RefCell<WindowState>,
     fullscreen: Cell<Option<bool>>,
+    fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
-    handles_back: Cell<bool>,
-    wants_keyboard: Cell<bool>,
-    intercepted_keys: RefCell<Vec<KeyChord>>,
-    pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
     simulation_area: Cell<(Rect, f32)>,
@@ -78,9 +79,11 @@ struct Inner {
     automated: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<String>>,
+    hit_query: Cell<Option<Pos2>>,
+    hit_answers: RefCell<Vec<String>>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
-    test_ids_published: Cell<bool>,
+    kept: RefCell<Option<Kept>>,
     renderer_info: RefCell<Option<RendererInfo>>,
     renderers: RefCell<RendererChoices>,
     renderer_choice: Cell<Option<usize>>,
@@ -149,20 +152,12 @@ pub struct ActionGroup {
 
 pub struct FrameOutput {
     pub layers: Rc<Vec<Layer>>,
-    pub filter: Option<(Filter, usize)>,
-    test_ids: HashMap<String, Rect>,
-    ambiguous_test_ids: HashSet<String>,
-    pub cursor_icon: CursorIcon,
-    pub ime: Option<ImeArea>,
+    test_ids: Rc<TestIds>,
+    pub window: WindowState,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub pointer_locked: bool,
     pub copied_text: Option<String>,
-    pub paste_requested: bool,
-    pub clipboard_reads: Vec<ClipboardReadId>,
+    pub paste: Option<PasteRequest>,
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
@@ -172,6 +167,7 @@ pub struct FrameOutput {
     accessibility: Vec<Fragment>,
     pub actions: Vec<ActionGroup>,
     pub unran_actions: Vec<String>,
+    pub hits: Option<Vec<String>>,
     pixels_per_point: f32,
 }
 
@@ -180,24 +176,8 @@ impl FrameOutput {
         crate::display::flatten(&self.layers)
     }
 
-    pub fn filtered_shapes(&self) -> (Vec<Shape>, Option<usize>) {
-        let boundary = self.filter.map(|(_, boundary)| boundary);
-        let mut shapes = Vec::new();
-        let mut filtered = None;
-        for (index, layer) in self.layers.iter().enumerate() {
-            if boundary == Some(index) {
-                filtered = Some(shapes.len());
-            }
-            layer.flatten(&mut shapes);
-        }
-        if boundary.is_some_and(|boundary| boundary >= self.layers.len()) {
-            filtered = Some(shapes.len());
-        }
-        (shapes, filtered)
-    }
-
-    pub fn filter(&self) -> Option<Filter> {
-        self.filter.map(|(filter, _)| filter)
+    pub fn filters(&self) -> Vec<Filter> {
+        crate::display::filters(&self.layers)
     }
 
     pub fn pixels_per_point(&self) -> f32 {
@@ -225,15 +205,12 @@ impl FrameOutput {
         bounds.is_positive().then_some(bounds)
     }
 
-    pub fn test_ids(&self) -> &HashMap<String, Rect> {
+    pub fn test_ids(&self) -> &TestIds {
         &self.test_ids
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
-        if self.ambiguous_test_ids.contains(test_id) {
-            panic!("test id {test_id:?} names more than one node on screen; give each its own id");
-        }
-        self.test_ids.get(test_id).copied()
+        self.test_ids.rect(test_id)
     }
 
     pub fn accessibility_tree(&self, title: &str, viewport: crate::geometry::Vec2) -> TreeUpdate {
@@ -257,31 +234,22 @@ impl Context {
                 fonts: RefCell::new(Fonts::boxed(fonts)),
                 input: RefCell::new(InputState::default()),
                 layers: RefCell::new(Vec::new()),
-                top_shapes: RefCell::new(Vec::new()),
-                filter: Cell::new(None),
+                grouping: RefCell::new(Vec::new()),
                 paint_stack: RefCell::new(Vec::new()),
                 space_read: Cell::new(false),
+                verifying: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
-                test_ids: RefCell::new(HashMap::new()),
-                ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
-                paste_requested: Cell::new(false),
+                paste: Cell::new(None),
                 copy_watchers: RefCell::new(Vec::new()),
-                clipboard_read_requests: RefCell::new(Vec::new()),
-                clipboard_reads: RefCell::new(Vec::new()),
-                next_clipboard_read: Cell::new(0),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
                 next_file_pick: Cell::new(0),
-                cursor_icon: Cell::new(CursorIcon::Default),
-                ime: Cell::new(None),
+                window: RefCell::new(WindowState::default()),
                 fullscreen: Cell::new(None),
+                fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
-                handles_back: Cell::new(false),
-                wants_keyboard: Cell::new(false),
-                intercepted_keys: RefCell::new(Vec::new()),
-                pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 input_simulation: RefCell::new(None),
                 simulation_area: Cell::new((Rect::NOTHING, 1.0)),
@@ -303,9 +271,11 @@ impl Context {
                 automated: Cell::new(false),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
-                accessibility_known: RefCell::new(HashSet::new()),
-                accessibility_published: RefCell::new(HashSet::new()),
-                test_ids_published: Cell::new(true),
+                hit_query: Cell::new(None),
+                hit_answers: RefCell::new(Vec::new()),
+                accessibility_known: RefCell::new(HashSet::default()),
+                accessibility_published: RefCell::new(HashSet::default()),
+                kept: RefCell::new(Some(Kept::default())),
                 renderer_info: RefCell::new(None),
                 renderers: RefCell::new(RendererChoices::default()),
                 renderer_choice: Cell::new(None),
@@ -387,6 +357,20 @@ impl Context {
         self.inner.action_requests.borrow().clone()
     }
 
+    pub fn request_hit(&self, pos: Pos2) {
+        self.inner.hit_query.set(Some(pos));
+        self.inner.hit_answers.borrow_mut().clear();
+        self.request_repaint();
+    }
+
+    pub fn hit_query(&self) -> Option<Pos2> {
+        self.inner.hit_query.get()
+    }
+
+    pub fn answer_hit(&self, answer: String) {
+        self.inner.hit_answers.borrow_mut().push(answer);
+    }
+
     pub fn action_ran(&self, id: &str) {
         self.inner
             .action_requests
@@ -394,12 +378,29 @@ impl Context {
             .retain(|requested| requested != id);
     }
 
-    pub fn set_test_ids_published(&self, published: bool) {
-        self.inner.test_ids_published.set(published);
+    pub fn keep_accessibility(&self, keep: bool) {
+        let mut kept = self.inner.kept.borrow_mut();
+        if keep != kept.is_some() {
+            *kept = keep.then(Kept::default);
+            drop(kept);
+            self.reset_accessibility();
+        }
     }
 
-    pub fn test_ids_published(&self) -> bool {
-        self.inner.test_ids_published.get()
+    pub fn set_accessibility_window(&self, title: &str, viewport: Vec2) {
+        if let Some(kept) = &mut *self.inner.kept.borrow_mut() {
+            if kept.title != title {
+                kept.title = title.to_owned();
+            }
+            kept.viewport = Some(viewport);
+        }
+    }
+
+    pub fn kept_accessibility(&self) -> Option<Ref<'_, AccessibilityDump>> {
+        Ref::filter_map(self.inner.kept.borrow(), |kept| {
+            kept.as_ref().map(|kept| &kept.dump)
+        })
+        .ok()
     }
 
     pub fn now(&self) -> Instant {
@@ -445,28 +446,21 @@ impl Context {
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
         }
+        let typed = raw
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
+        self.inner.window.borrow_mut().begin_frame(typed);
         self.inner.input.borrow_mut().begin_frame(raw, now);
-        let held = self.inner.input.borrow().long_press_due(now);
-        if let Some(delay) = held {
-            self.request_repaint_after(delay);
-        }
         self.inner.layers.borrow_mut().clear();
-        self.inner.top_shapes.borrow_mut().clear();
-        self.inner.filter.set(None);
+        self.inner.grouping.borrow_mut().clear();
         self.inner.paint_stack.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
         self.inner.moves.borrow_mut().clear();
-        self.inner.test_ids.borrow_mut().clear();
-        self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
-        self.inner.paste_requested.set(false);
-        self.inner.cursor_icon.set(CursorIcon::Default);
-        self.inner.ime.set(None);
+        self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
-        self.inner.handles_back.set(false);
-        self.inner.wants_keyboard.set(false);
-        self.inner.intercepted_keys.borrow_mut().clear();
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
@@ -477,49 +471,32 @@ impl Context {
         if let Some(viewport) = self.inner.mouse_viewport.take() {
             self.paint_mouse_simulation(viewport);
         }
-        self.flush_top();
         let layers = Rc::new(std::mem::take(&mut *self.inner.layers.borrow_mut()));
         let scale = self.pixels_per_point();
-        let filter = self.inner.filter.take();
+        let filters = crate::display::filters(&layers);
         let moved = self.settle_moves(&layers, scale);
+        let previous = self.inner.previous.replace(Some(Previous {
+            pixels_per_point: scale,
+            filters: filters.clone(),
+        }));
+        if let Some(old) = &previous {
+            for index in 0..old.filters.len().max(filters.len()) {
+                let (was, now) = (old.filters.get(index), filters.get(index));
+                if was != now {
+                    for filter in [was, now].into_iter().flatten() {
+                        self.report_damage(filter.region);
+                    }
+                }
+            }
+        }
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
         let damage = reported
             .iter()
             .fold(Region::NOTHING, |region, rect| region.union((*rect).into()));
-        let mut previous = self.inner.previous.borrow_mut();
-        let changed = match previous.as_ref() {
-            None => true,
-            Some(old) if old.pixels_per_point != scale || old.filter != filter => true,
-            Some(old) => {
-                let same = old.layers.len() == layers.len()
-                    && old
-                        .layers
-                        .iter()
-                        .zip(layers.iter())
-                        .all(|(old, new)| old.same(new));
-                if reported.is_empty() && !same {
-                    let shown = self.inner.shown.get();
-                    let visible = |layers: &[Layer]| {
-                        let mut shapes = crate::display::flatten(layers);
-                        if let Some(shown) = shown {
-                            shapes.retain(|shape| damage::bounds(shape).intersects(shown));
-                        }
-                        shapes
-                    };
-                    debug_assert!(
-                        visible(&old.layers) == visible(&layers),
-                        "a frame that reported no damage changed the shapes it painted"
-                    );
-                }
-                (!reported.is_empty() || moved.is_some()) && !same
-            }
+        let changed = match previous {
+            Some(old) if old.pixels_per_point == scale => !damage.is_empty() || moved.is_some(),
+            _ => true,
         };
-        *previous = Some(Previous {
-            layers: Rc::clone(&layers),
-            pixels_per_point: scale,
-            filter,
-        });
-        drop(previous);
         let copied_text = self.inner.copied_text.borrow_mut().take();
         if let Some(text) = &copied_text {
             let watchers = self.inner.copy_watchers.borrow().clone();
@@ -527,31 +504,41 @@ impl Context {
                 watcher(text);
             }
         }
+        let accessibility = std::mem::take(&mut *self.inner.accessibility.borrow_mut());
+        let test_ids = match &mut *self.inner.kept.borrow_mut() {
+            Some(kept) => {
+                kept.dump.update(accessibility::tree_update(
+                    &kept.title,
+                    kept.viewport.unwrap_or(Vec2::splat(f32::MAX)),
+                    scale,
+                    accessibility.clone(),
+                ));
+                Rc::clone(kept.dump.test_ids())
+            }
+            None => Rc::default(),
+        };
         FrameOutput {
             layers,
-            filter,
             damage,
             moved,
-            test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
-            ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
+            test_ids,
             copied_text,
-            paste_requested: self.inner.paste_requested.replace(false),
-            clipboard_reads: std::mem::take(&mut *self.inner.clipboard_read_requests.borrow_mut()),
+            paste: self.inner.paste.take(),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
-            cursor_icon: self.inner.cursor_icon.get(),
-            ime: self.inner.ime.take(),
+            window: self.shown_window(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
-            handles_back: self.inner.handles_back.get(),
-            wants_keyboard: self.inner.wants_keyboard.get(),
-            intercepted_keys: std::mem::take(&mut *self.inner.intercepted_keys.borrow_mut()),
-            pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
-            accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
+            accessibility,
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
             unran_actions: std::mem::take(&mut *self.inner.action_requests.borrow_mut()),
+            hits: self
+                .inner
+                .hit_query
+                .take()
+                .map(|_| std::mem::take(&mut *self.inner.hit_answers.borrow_mut())),
             pixels_per_point: scale,
         }
     }
@@ -566,16 +553,26 @@ impl Context {
         reader(&self.inner.input.borrow())
     }
 
-    pub fn retain_events(&self, keep: impl FnMut(&Event) -> bool) {
-        self.inner.input.borrow_mut().events.retain(keep);
+    pub fn set_ime_area(&self, area: Option<ImeArea>) {
+        self.inner.window.borrow_mut().ime = area;
     }
 
-    pub fn set_ime_area(&self, area: Option<ImeArea>) {
-        self.inner.ime.set(area);
+    pub fn ime_area(&self) -> Option<ImeArea> {
+        self.inner.window.borrow().ime.clone()
     }
 
     pub fn set_fullscreen(&self, fullscreen: bool) {
         self.inner.fullscreen.set(Some(fullscreen));
+    }
+
+    pub fn fullscreen(&self) -> bool {
+        self.inner.fullscreen_shown.get()
+    }
+
+    pub fn fullscreen_changed(&self, fullscreen: bool) {
+        if self.inner.fullscreen_shown.replace(fullscreen) != fullscreen {
+            self.request_repaint();
+        }
     }
 
     pub fn close_window(&self) {
@@ -583,18 +580,18 @@ impl Context {
     }
 
     pub fn handle_back(&self) {
-        self.inner.handles_back.set(true);
+        self.inner.window.borrow_mut().handles_back = true;
     }
 
     pub fn want_keyboard(&self) {
-        self.inner.wants_keyboard.set(true);
+        self.inner.window.borrow_mut().wants_keyboard = true;
     }
 
     pub fn intercept_keys(&self, chords: &[KeyChord]) {
-        let mut held = self.inner.intercepted_keys.borrow_mut();
+        let mut window = self.inner.window.borrow_mut();
         for chord in chords {
-            if !held.contains(chord) {
-                held.push(*chord);
+            if !window.intercepted_keys.contains(chord) {
+                window.intercepted_keys.push(*chord);
             }
         }
     }
@@ -608,28 +605,21 @@ impl Context {
     }
 
     pub fn request_paste(&self) {
-        self.inner.paste_requested.set(true);
+        if self.inner.paste.get().is_none() {
+            self.inner.paste.set(Some(PasteRequest::Asked));
+        }
+    }
+
+    pub fn paste_shortcut(&self) {
+        self.inner.paste.set(Some(PasteRequest::Shortcut));
+    }
+
+    pub fn accept_pastes(&self, kinds: &[PasteKind]) {
+        self.inner.window.borrow_mut().paste_kinds = kinds.to_vec();
     }
 
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
         self.inner.copy_watchers.borrow_mut().push(Rc::new(watcher));
-    }
-
-    pub fn read_clipboard(&self) -> ClipboardReadId {
-        let id = ClipboardReadId(self.inner.next_clipboard_read.get() + 1);
-        self.inner.next_clipboard_read.set(id.0);
-        self.inner.clipboard_read_requests.borrow_mut().push(id);
-        id
-    }
-
-    pub fn clipboard_read(&self, id: ClipboardReadId, text: Option<String>) {
-        self.inner.clipboard_reads.borrow_mut().push((id, text));
-    }
-
-    pub fn take_clipboard_read(&self, id: ClipboardReadId) -> Option<Option<String>> {
-        let mut reads = self.inner.clipboard_reads.borrow_mut();
-        let index = reads.iter().position(|(read, _)| *read == id)?;
-        Some(reads.remove(index).1)
     }
 
     pub fn pick_file(&self, filter: FileFilter) -> FilePickId {
@@ -653,21 +643,31 @@ impl Context {
     }
 
     pub fn set_pointer_locked(&self, locked: bool) {
-        if self.inner.pointer_locked.replace(locked) != locked {
+        let changed =
+            std::mem::replace(&mut self.inner.window.borrow_mut().pointer_locked, locked) != locked;
+        if changed {
             self.request_repaint();
         }
     }
 
     pub fn pointer_locked(&self) -> bool {
-        self.inner.pointer_locked.get()
+        self.inner.window.borrow().pointer_locked
     }
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
-        self.inner.cursor_icon.set(cursor_icon);
+        self.inner.window.borrow_mut().cursor = cursor_icon;
     }
 
     pub fn cursor_icon(&self) -> CursorIcon {
-        self.inner.cursor_icon.get()
+        self.inner.window.borrow().cursor
+    }
+
+    fn shown_window(&self) -> WindowState {
+        let mut window = self.inner.window.borrow().clone();
+        if self.touch_emulation() {
+            window.cursor = CursorIcon::Touch;
+        }
+        window
     }
 
     pub fn touch_emulation(&self) -> bool {
@@ -739,7 +739,7 @@ impl Context {
             return;
         };
         if simulation.painting() {
-            let icon = self.cursor_icon();
+            let icon = self.shown_window().cursor;
             self.scaled(scale, || {
                 let painter = self
                     .painter()
@@ -775,6 +775,14 @@ impl Context {
         self.pop_paint_frame().bounds
     }
 
+    pub fn verifying_paint(&self, verifying: bool) {
+        self.inner.verifying.set(verifying);
+    }
+
+    pub fn is_verifying_paint(&self) -> bool {
+        self.inner.verifying.get()
+    }
+
     pub fn note_space_read(&self) {
         self.inner.space_read.set(true);
     }
@@ -791,7 +799,6 @@ impl Context {
         let frame = PaintFrame {
             id,
             items: Vec::new(),
-            own: Rect::NOTHING,
             bounds: Rect::NOTHING,
             delay: Duration::MAX,
             outer_delay: self.inner.repaint_after.replace(Duration::MAX),
@@ -815,19 +822,19 @@ impl Context {
         let frame = self.pop_paint_frame();
         Recorded {
             items: frame.items,
-            own: frame.own,
-            bounds: frame.bounds,
             deadline: (frame.delay < Duration::MAX).then(|| self.now() + frame.delay),
             reads: false,
         }
     }
 
-    pub fn paint_child(&self, id: NodeId, entry: Entry, bounds: Rect) {
-        if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
-            frame.bounds = frame.bounds.union(bounds);
-            if frame.id.is_some() {
-                frame.items.push(Item::Child(id, entry));
-            }
+    pub fn paint_child(&self, scope: &Option<Rc<Scope>>, id: NodeId, at: Vec2) {
+        if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut()
+            && frame.id.is_some()
+        {
+            frame.items.push(Item {
+                scope: scope.clone(),
+                recording: Recording::Child(id, at),
+            });
         }
     }
 
@@ -844,23 +851,7 @@ impl Context {
             [(moved, roots)]
                 if whole(moved.by.x)
                     && whole(moved.by.y)
-                    && layers.iter().all(|layer| {
-                        let reach = match layer {
-                            Layer::Shape(shape) => damage::bounds(shape),
-                            Layer::Display {
-                                display,
-                                entry,
-                                scale,
-                                clip,
-                            } => {
-                                if roots.iter().any(|root| Rc::ptr_eq(root, display)) {
-                                    return true;
-                                }
-                                entry.place(display.bounds).scaled(*scale).intersect(*clip)
-                            }
-                        };
-                        !reach.intersects(moved.from.union(moved.to()))
-                    }) =>
+                    && !overlaps_besides(layers, roots, moved.from.union(moved.to())) =>
             {
                 Some(*moved)
             }
@@ -888,38 +879,30 @@ impl Context {
         }
     }
 
-    pub fn show_painting(&self, painting: &[(Rc<Display>, Entry)], within: Rect) {
+    pub fn show_painting(&self, painting: &[(Rc<Display>, Vec2)], within: Rect) {
         let shown = self.inner.shown.get();
         self.inner
             .shown
             .set(Some(shown.map_or(within, |shown| shown.union(within))));
-        self.inner
-            .layers
-            .borrow_mut()
-            .extend(painting.iter().map(|(display, entry)| Layer::Display {
-                display: Rc::clone(display),
-                entry: *entry,
-                scale: 1.0,
-                clip: Rect::EVERYTHING,
-            }));
+        self.inner.layers.borrow_mut().extend(
+            painting
+                .iter()
+                .map(|(display, at)| Layer::Display(*at, Rc::clone(display))),
+        );
     }
 
-    pub fn publish_test_id(&self, test_id: &str, rect: Rect) {
-        if !self.inner.test_ids_published.get() {
-            return;
-        }
-        self.inner
-            .test_ids
-            .borrow_mut()
-            .insert(test_id.to_owned(), rect);
+    fn grouping<R>(&self, layers: usize, content: impl FnOnce() -> R) -> R {
+        self.inner.grouping.borrow_mut().push(layers);
+        let result = content();
+        self.inner.grouping.borrow_mut().pop();
+        result
     }
 
-    pub fn publish_ambiguous_test_id(&self, test_id: &str) {
-        if self.inner.test_ids_published.get() {
-            self.inner
-                .ambiguous_test_ids
-                .borrow_mut()
-                .insert(test_id.to_owned());
+    fn group_since(&self, layers: usize, group: Group) {
+        let mut held = self.inner.layers.borrow_mut();
+        let inner: Rc<[Layer]> = held.drain(layers..).collect();
+        if !inner.is_empty() {
+            held.push(Layer::Group(group, inner));
         }
     }
 
@@ -994,14 +977,6 @@ impl Context {
         }
     }
 
-    pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
-        let scale = self.screen_scale();
-        if scale == 1.0 {
-            return self.input(reader);
-        }
-        reader(&self.inner.input.borrow().scaled(scale.recip()))
-    }
-
     pub fn set_screen_simulation(&self, simulation: Option<ScreenSimulation>) {
         self.inner.screen_simulation.set(simulation);
     }
@@ -1010,17 +985,9 @@ impl Context {
         let layers = self.inner.layers.borrow().len();
         let damage = self.inner.damage.borrow().len();
         let moves = self.inner.moves.borrow().len();
-        let result = content();
+        let result = self.grouping(layers, content);
         self.unmove(moves);
-        for layer in self.inner.layers.borrow_mut().iter_mut().skip(layers) {
-            match layer {
-                Layer::Shape(shape) => {
-                    let bounds = shape_clip(shape);
-                    *bounds = bounds.intersect(clip);
-                }
-                Layer::Display { clip: held, .. } => *held = held.intersect(clip),
-            }
-        }
+        self.group_since(layers, Group::Clip(clip));
         for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
             *rect = rect.intersect(clip);
         }
@@ -1045,6 +1012,18 @@ impl Context {
         self.inner.pixels_per_point.set(pixels_per_point);
     }
 
+    pub fn with_input<R>(
+        &self,
+        input: impl FnOnce(&InputState) -> InputState,
+        content: impl FnOnce() -> R,
+    ) -> R {
+        let given = input(&self.inner.input.borrow());
+        let held = self.inner.input.replace(given);
+        let result = content();
+        self.inner.input.replace(held);
+        result
+    }
+
     pub fn scaled<R>(&self, scale: f32, content: impl FnOnce() -> R) -> R {
         if scale == 1.0 {
             return content();
@@ -1059,31 +1038,26 @@ impl Context {
         let damage = self.inner.damage.borrow().len();
         let moves = self.inner.moves.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
-        let test_ids = self.inner.test_ids.take();
-        let ime = self.inner.ime.take();
-        let result = content();
+        let ime = self.inner.window.borrow_mut().ime.take();
+        let result = self.grouping(layers, content);
         self.unmove(moves);
-        let scaled_ime = self.inner.ime.replace(ime);
+        let scaled_ime = std::mem::replace(&mut self.inner.window.borrow_mut().ime, ime);
         if let Some(area) = scaled_ime {
-            self.inner.ime.set(Some(ImeArea {
+            self.inner.window.borrow_mut().ime = Some(ImeArea {
                 rect: area.rect.scaled(scale),
                 cursor: area.cursor.scaled(scale),
                 ..area
-            }));
+            });
         }
         self.inner.input.replace(input);
         self.inner.pixels_per_point.set(pixels_per_point);
-        for layer in self.inner.layers.borrow_mut().iter_mut().skip(layers) {
-            match layer {
-                Layer::Shape(shape) => scale_shape(shape, scale),
-                Layer::Display {
-                    scale: held, clip, ..
-                } => {
-                    *held *= scale;
-                    *clip = clip.scaled(scale);
-                }
-            }
-        }
+        self.group_since(
+            layers,
+            Group::Transform {
+                offset: Vec2::ZERO,
+                scale,
+            },
+        );
         for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
             *rect = rect.scaled(scale);
         }
@@ -1096,12 +1070,6 @@ impl Context {
         {
             fragment.scale(scale);
         }
-        let scaled = self.inner.test_ids.replace(test_ids);
-        self.inner.test_ids.borrow_mut().extend(
-            scaled
-                .into_iter()
-                .map(|(test_id, rect)| (test_id, rect.scaled(scale))),
-        );
         result
     }
 
@@ -1121,61 +1089,77 @@ impl Context {
     }
 
     pub fn push(&self, shape: Shape) {
-        if let Some(shape) = self.record(shape, Item::Main) {
-            self.inner.layers.borrow_mut().push(Layer::Shape(shape));
-        }
+        self.push_in(&None, shape);
     }
 
-    pub fn push_top(&self, shape: Shape) {
-        if let Some(shape) = self.record(shape, Item::Top) {
-            self.inner.top_shapes.borrow_mut().push(shape);
-        }
-    }
-
-    fn record(&self, shape: Shape, item: fn(Shape) -> Item) -> Option<Shape> {
+    pub fn push_in(&self, scope: &Option<Rc<Scope>>, shape: Shape) {
         let mut stack = self.inner.paint_stack.borrow_mut();
-        let Some(frame) = stack.last_mut() else {
-            return Some(shape);
-        };
-        let bounds = damage::bounds(&shape);
-        frame.own = frame.own.union(bounds);
-        frame.bounds = frame.bounds.union(bounds);
-        if frame.id.is_none() {
-            return Some(shape);
+        if let Some(frame) = stack.last_mut()
+            && frame.id.is_some()
+        {
+            if damage::bounds(&shape).is_positive() || matches!(shape, Shape::Drawing { .. }) {
+                frame.items.push(Item {
+                    scope: scope.clone(),
+                    recording: Recording::Shape(shape),
+                });
+            }
+            return;
         }
-        if bounds.is_positive() || matches!(shape, Shape::Drawing { .. }) {
-            frame.items.push(item(shape));
+        let mut shape = shape;
+        for scope in Scope::chain(scope).into_iter().rev() {
+            scope.group.place_shape(&mut shape);
         }
-        None
+        if let Some(frame) = stack.last_mut() {
+            frame.bounds = frame.bounds.union(damage::bounds(&shape));
+        }
+        drop(stack);
+        self.inner.layers.borrow_mut().push(Layer::Shape(shape));
     }
 
     pub fn apply_filter(&self, filter: Filter) {
         if filter.changes_nothing() || !filter.region.is_positive() {
             return;
         }
-        let boundary = self.inner.layers.borrow().len();
-        self.inner.filter.set(Some((filter, boundary)));
-    }
-
-    fn flush_top(&self) {
-        let top = std::mem::take(&mut *self.inner.top_shapes.borrow_mut());
-        self.inner
-            .layers
-            .borrow_mut()
-            .extend(top.into_iter().map(Layer::Shape));
+        let from = self.inner.grouping.borrow().last().copied().unwrap_or(0);
+        self.group_since(from, Group::Filter(filter));
     }
 }
 
+fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool {
+    layers.iter().any(|layer| match layer {
+        Layer::Shape(shape) => damage::bounds(shape).intersects(area),
+        Layer::Display(at, display) => {
+            !roots.iter().any(|root| Rc::ptr_eq(root, display))
+                && display.bounds.translate(*at).intersects(area)
+        }
+        Layer::Group(Group::Filter(filter), inner) => {
+            filter.region.intersects(area) || overlaps_besides(inner, roots, area)
+        }
+        Layer::Group(group, inner) => {
+            let within = match *group {
+                Group::Transform { offset, scale } if scale > 0.0 => {
+                    area.translate(-offset).scaled(scale.recip())
+                }
+                Group::Transform { .. } => return true,
+                Group::Clip(clip) => area.intersect(clip),
+                Group::Scroll {
+                    viewport, offset, ..
+                } => area.intersect(viewport).translate(-offset),
+                Group::Mask { .. } | Group::Filter(_) => area,
+            };
+            within.is_positive() && overlaps_besides(inner, roots, within)
+        }
+    })
+}
+
 struct Previous {
-    layers: Rc<Vec<Layer>>,
     pixels_per_point: f32,
-    filter: Option<(Filter, usize)>,
+    filters: Vec<Filter>,
 }
 
 struct PaintFrame {
     id: Option<NodeId>,
     items: Vec<Item>,
-    own: Rect,
     bounds: Rect,
     delay: Duration,
     outer_delay: Duration,

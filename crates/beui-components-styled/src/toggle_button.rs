@@ -2,16 +2,17 @@ use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
-use crate::text::Icon;
-use crate::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor};
+use crate::theme::{RADIUS, ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, Text, clone, create_memo,
+    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, create_memo,
 };
 
 #[component]
@@ -25,7 +26,7 @@ pub fn ToggleButton(
     on_change: Callback<bool>,
 ) -> NodeId {
     let icon_only = create_memo(move || icon_only.get());
-    let named = create_memo(clone!(icon_only -> move || !icon_only.get()));
+    let named = create_memo(move || !icon_only.get());
     view! {
         <Toggle
             checked={pressed}
@@ -34,10 +35,10 @@ pub fn ToggleButton(
             role=Role::Button
             action
             disabled
-            on_change={move |pressed| on_change.call(pressed)}
+            on_change={on_change}
         >
             {move |handle: ToggleHandle| view! {
-                <Tooltip label={handle.tooltip.clone()} disabled={named}>
+                <Tooltip label={handle.tooltip} disabled={named}>
                     <ToggleButtonFace handle icon_only />
                 </Tooltip>
             }}
@@ -57,24 +58,22 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let named = create_memo(move || !icon_only.get());
-    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
-    }));
-    let icon_color = text_color.clone();
-    let fill_color = create_memo(
-        clone!(checked theme -> move || fill_for(&theme, checked.get(), hovered.get())),
-    );
-    let border_color = create_memo(clone!(theme -> move || {
+    let text_color = create_memo(move || match disabled.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
+    let icon_color = text_color;
+    let fill_color = create_memo(move || fill_for(&theme, checked.get(), hovered.get()));
+    let border_color = create_memo(move || {
         let theme = theme.get();
         if checked.get() {
             theme.accent
         } else {
             theme.border
         }
-    }));
+    });
 
     view! {
         <FocusRing focused offset=3.0>
@@ -89,14 +88,12 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph.clone()} color={icon_color.clone()} />
+                        <Text color={icon_color} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
                     </Show>
                     <Show condition={named}>
-                        <Text
-                            string={label.clone()}
-                            font_size=FONT_BODY
-                            color={text_color.clone()}
-                        />
+                        <Text string={label} color={text_color} />
                     </Show>
                 </List>
             </Frame>

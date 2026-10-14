@@ -303,6 +303,12 @@ impl PluginEditor {
         self.plugin.as_ref()
     }
 
+    pub(crate) fn editor_id(&self) -> Option<Uuid> {
+        self.plugin
+            .as_ref()
+            .map(|plugin| Uuid::from_bytes(plugin.editor_id()))
+    }
+
     pub(crate) fn instance(&self) -> EditorInstanceId {
         self.instance
     }
@@ -429,11 +435,11 @@ impl PluginEditor {
         )
     }
 
-    pub(crate) fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+    pub(crate) fn show_block(&self, open: super::BlockOpen) {
         let Some(plugin) = &self.plugin else {
             return;
         };
-        crate::plugin_host::show_block(&plugin.identity.id, self.instance, id, block_type, via);
+        crate::plugin_host::show_block(&plugin.identity.id, self.instance, open);
     }
 
     pub(crate) fn show_dialog(&self, id: Uuid, dialog: block_plugin_api::ShellDialog) {

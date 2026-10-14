@@ -1,8 +1,7 @@
 use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Show, Text, clone, component, create_memo,
-    create_signal, view,
+    Align, Direction, Frame, ItemSize, List, Show, component, create_memo, create_signal, view,
 };
-use beui::styled::{Button, ButtonVariant, Icon, use_theme};
+use beui::styled::{Button, ButtonVariant, TextSize, use_theme};
 use beui::{NodeId, TextAlign};
 use block_editor_beui::{
     ChildBlock, ChildMode, ChildState, ChildTarget, InteractionMode,
@@ -10,17 +9,16 @@ use block_editor_beui::{
 };
 
 use super::embeds::ResolvedEmbed;
-use super::state::{FocusedEmbed, Shared};
+use super::state::{FocusedEmbed, State};
+use beui::styled::{Icon, Text, TextColor};
 
 const TITLE_SPACING: f32 = 6.0;
 const TITLE_PADDING: f32 = 6.0;
 const FRAME_RADIUS: u8 = 6;
 const TITLE_RADIUS: u8 = 4;
-const TITLE_FONT_SIZE: f32 = 16.0;
-const UNAVAILABLE_FONT_SIZE: f32 = 13.0;
 
 #[component]
-pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
+pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     let theme = use_theme();
     let key = FocusedEmbed {
         id: embed.id,
@@ -28,51 +26,45 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
     };
     let target = ChildTarget::new(embed.id, embed.block_type);
     let (child, set_child) = create_signal(ChildState::default());
-    let focused_embed = state.focused_embed.clone();
-    let focused = create_memo(clone!(focused_embed -> move || focused_embed.get() == Some(key)));
-    let mode = create_memo(clone!(child focused -> move || {
-        match (focused.get(), child.get().interaction) {
-            (true, _) => ChildMode::Active,
-            (false, Some(InteractionMode::Preview)) => ChildMode::Preview,
-            (false, _) => ChildMode::Passive,
-        }
-    }));
+    let focused_embed = state.focused_embed;
+    let focused = create_memo(move || focused_embed.get() == Some(key));
+    let mode = create_memo(move || match (focused.get(), child.get().interaction) {
+        (true, _) => ChildMode::Active,
+        (false, Some(InteractionMode::Preview)) => ChildMode::Preview,
+        (false, _) => ChildMode::Passive,
+    });
     let available = embed.available;
-    let editable = create_memo(clone!(child focused -> move || {
+    let editable = create_memo(move || {
         available && child.get().interaction == Some(InteractionMode::Preview) && !focused.get()
-    }));
+    });
     let unavailable = !available;
     let has_icon = embed.icon.is_some();
     let icon = embed.icon.unwrap_or_default().to_owned();
     let label = embed.label.clone();
     let automatic = embed.automatic;
 
-    let report = state.clone();
-    let edit_state = state.clone();
-    let icon_theme = theme.clone();
     let icon_row = move || {
-        let color = icon_theme.text.clone();
         let glyph = icon.clone();
         view! {
-            <Icon glyph={glyph} color={color} />
+            <Text align=TextAlign::Center>
+                <Icon glyph={glyph} />
+            </Text>
         }
     };
-    let unavailable_theme = theme.clone();
     let unavailable_row = move || {
-        let color = unavailable_theme.text_muted.clone();
         view! {
             <Text
                 string="Block unavailable"
-                font_size=UNAVAILABLE_FONT_SIZE
-                color={color}
+                size=TextSize::Sm
+                color=TextColor::Muted
                 align=TextAlign::Center
             />
         }
     };
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=FRAME_RADIUS
@@ -82,7 +74,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
             <List spacing=EMBEDDED_EDITOR_TITLE_GAP>
                 <Frame
                     height=EMBEDDED_EDITOR_TITLE_HEIGHT
-                    color={theme.surface_raised.clone()}
+                    color={theme.surface_raised}
                     radius=TITLE_RADIUS
                     padding_horizontal=TITLE_PADDING
                 >
@@ -91,9 +83,8 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                         <Text
                             @sizing=ItemSize::Percent(100.0)
                             string={label}
-                            font_size=TITLE_FONT_SIZE
+                            size=TextSize::Lg
                             italic={automatic}
-                            color={theme.text.clone()}
                             clip=true
                         />
                         <Show condition={editable}>
@@ -102,10 +93,10 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                                     label="Edit"
                                     variant=ButtonVariant::Secondary
                                     @test_id={format!("text.embed.{}.edit", key.id)}
-                                    on_click={clone!(edit_state -> move || {
-                                        edit_state.set_focused_embed.set(Some(key));
-                                        edit_state.focus_confirmed.set(false);
-                                    })}
+                                    on_click={move || {
+                                        state.set_focused_embed.set(Some(key));
+                                        state.inner().focus_confirmed.set(false);
+                                    }}
                                 />
                             }}
                         </Show>
@@ -113,50 +104,51 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                 </Frame>
                 <Show condition={unavailable} then={unavailable_row} />
                 <Show condition={available}>
-                    {move || clone!(set_child -> view! {
+                    {move || view! {
                         <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
-                            editor={report.editor.clone()}
+                            editor={state.editor}
                             block={Some(target)}
-                            mode={mode.clone()}
-                            on_state={clone!(report -> move |next: ChildState| {
+                            mode={mode}
+                            on_state={move |next: ChildState| {
                                 set_child.set(next.clone());
-                                report.embed_children.borrow_mut().insert(key, next.clone());
+                                state.inner().embed_children.borrow_mut().insert(key, next.clone());
                                 if let Some(size) = next.intrinsic_size
-                                    && report
+                                    && state
                                         .embed_sizes
                                         .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
                                 {
-                                    report.set_embed_sizes.update(|sizes| {
+                                    state.set_embed_sizes.update(|sizes| {
                                         sizes.insert(key.id, size);
                                     });
                                 }
-                                confirm_focus(&report, key, next.active);
-                            })}
+                                confirm_focus(state, key, next.active);
+                            }}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>
     }
 }
 
-fn confirm_focus(state: &Shared, key: FocusedEmbed, active: bool) {
+fn confirm_focus(state: State, key: FocusedEmbed, active: bool) {
     if state.focused_embed.get_untracked() != Some(key) {
         return;
     }
     if active {
-        state.focus_confirmed.set(true);
+        state.inner().focus_confirmed.set(true);
         return;
     }
-    if state.focus_confirmed.get() {
+    if state.inner().focus_confirmed.get() {
         state.set_focused_embed.set(None);
-        state.focus_confirmed.set(false);
+        state.inner().focus_confirmed.set(false);
     }
 }
 
-pub(crate) fn embed_is_live(state: &Shared, key: FocusedEmbed) -> bool {
+pub(crate) fn embed_is_live(state: State, key: FocusedEmbed) -> bool {
     state
+        .inner()
         .embed_children
         .borrow()
         .get(&key)

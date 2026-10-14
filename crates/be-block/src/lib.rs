@@ -17,6 +17,7 @@ pub mod database;
 pub mod database_schema;
 pub mod database_view;
 pub mod display_settings;
+pub mod editor_settings;
 pub mod editor_view;
 pub mod folder;
 pub mod game;
@@ -57,6 +58,7 @@ pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
 pub use display_settings::{DisplaySettings, DisplaySettingsContent};
+pub use editor_settings::{EditorSettings, EditorSettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
@@ -69,7 +71,7 @@ pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
 pub use metadata::{
     ARTIFACT, ArtifactSource, BlockMetadata, Definition, Entries, INTRINSIC_NAME, LOCAL_ID,
-    MetaKey, NAME, Origin, THUMBHASH, Thumbhash,
+    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
 };
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
@@ -78,12 +80,14 @@ pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
 pub use profile::{FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
-pub use settings::{Settings, SettingsContent};
+pub use settings::{
+    Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
+};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
-pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
+pub use ui_settings::{Theme, UiSettings, UiSettingsContent};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
     RepositoryContent,
@@ -110,6 +114,12 @@ impl Error for ContentError {}
 pub trait BlockContent: Sized + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
 
+    const FROZEN: bool = false;
+
+    fn schema() -> String {
+        String::new()
+    }
+
     fn encode(&self) -> Vec<u8>;
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
@@ -132,8 +142,13 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     }
 }
 
+pub fn schema_fingerprint<C: BlockContent>() -> String {
+    be_store::Hash::of(C::schema().as_bytes()).to_hex()[..16].to_owned()
+}
+
 pub fn derived_metadata<C: BlockContent>(content: &C) -> Entries {
     let mut metadata = BlockMetadata::default();
+    metadata.insert(&SCHEMA, &schema_fingerprint::<C>());
     if let Some(name) = content.name() {
         metadata.insert(&INTRINSIC_NAME, &name);
     }

@@ -6,15 +6,15 @@ plugin instead of workspace-ui. Two flags start it that way:
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
-  profile of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
+  session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
   once and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
-- `--desktop` (Linux): the desktop shell, linux-desktop on its own profile as under
+- `--desktop` (Linux): the desktop shell, linux-desktop on its own session as under
   `--session`, in a normal window, with programs opening as windows inside it as they do in
   any windowed run. What needs the displays and input devices themselves, such as display
   modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
   running: the power actions start only when the DRM seat provides its `DisplayControl`.
-  `./scripts/buck run //crates/block-app:smoke-desktop` is its launch check.
+  `./scripts/buck test //crates/block-app:smoke-desktop` starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
@@ -58,7 +58,9 @@ and the output of every program the app starts, go to `$XDG_STATE_HOME/block/ses
 `session.previous.log`. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
-puts each in front of the person. The host draws these itself, so they show before any shell
+puts each in front of the person, as an error toast that stays until it is dismissed;
+`notices::report_with` also keeps a full report (a crashed plugin's error, or the backtrace of
+the panic that ended the last session) behind the toast's Copy report button. The host draws these itself, so they show before any shell
 plugin runs (signing in, choosing a workspace) and over either shell; they stack in the
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
 notification toasts at the bottom.
@@ -238,8 +240,8 @@ unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a pas
 (`passwd`) for the lock to be tried.
 
 While it is locked, two things keep input from everything behind it: the lock is a beui
-`Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
-the focus and the pointer, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
+`Overlay` at `LayerLevel::Lock`, which nothing dismisses, which stays above every other layer and keeps
+the focus and the pointer, and while it is open the host and window key listeners hear only media keys (no other window action, no plugin's
 intercepted chord, no Alt+Tab); and the app menu is closed. Windows need nothing
 of their own for it: each is a forwarding catcher like a plugin's region, so with the focus and the
 pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
@@ -276,7 +278,7 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their scan codes (`Event::PhysicalKey`). Where the shell draws over a
+`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
@@ -287,10 +289,18 @@ which block-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Witho
 tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
 program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
 exported window, and it is shown as that window's child like any other dialog. The xdg shell offers only the
-fullscreen capability (`wm_capabilities`), so GTK 4 and libadwaita leave out the minimize
-and maximize buttons: a tab has nowhere to minimize to, and its size is the dock's, so
-maximizing would change nothing (a request to maximize is still answered with the
-maximized state, for programs that ask anyway). `wp-content-type-v1` and
+fullscreen capability (`wm_capabilities`): a tab has nowhere to minimize to, and its size is
+the dock's, so maximizing would change nothing (a request to maximize is still answered
+with the maximized state, for programs that ask anyway). GTK ignores those capabilities
+before 4.20 and from then on only greys the buttons out; its header bar lays out its window
+buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
+(`src/gtk_settings.rs`) writes a dconf profile into `$XDG_RUNTIME_DIR/be-wayland`: the
+profile dconf would otherwise use, plus a database of its own that sets and locks that key to
+`appmenu:` (no window buttons); the lock makes it win over the user's own value. Programs
+it launches get it as `DCONF_PROFILE` (`Compositor::environment`), so they read and write
+every other setting as before and the user's settings outside the session never change.
+Flatpak programs read the setting through the portal instead, which sees it only if it
+started after a `--session` exported the variable. `wp-content-type-v1` and
 `wp-tearing-control-v1` hints are kept per surface (`State::content_type`,
 `State::tearing`) and do not change how anything is drawn yet; `wp-single-pixel-buffer-v1`
 buffers are drawn as one-pixel textures.
@@ -298,7 +308,7 @@ buffers are drawn as one-pixel textures.
 A program that holds a `zwp_keyboard_shortcuts_inhibitor_v1` on its window (a remote
 desktop, a virtual machine) gets the desktop's shortcuts itself while its window has the
 keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps every
-intercepting action, tap and F6 from it (guides/beui_keyboard.md). Two chords always work:
+window listener - capturing actions, taps and F6 - from it (guides/beui_keyboard.md). Two chords always work, as host actions:
 Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
 block-app's `WindowActions`) takes the shortcuts back from the focused window until it
 loses the keyboard and gets it again. The inhibitor is told it is active only while its
@@ -380,7 +390,7 @@ through `wl_data_device` or the data-control protocols (`ext-data-control-v1` an
 text, which the compositor reads without blocking and hands to the app with `Context::copy_text`;
 the program's own selection stays, with all its types. Everything the app copies
 (`Context::watch_copies`) becomes a selection the compositor serves as text. Plugins paste
-through `Context::read_clipboard`, so both work in a session, where the platform's clipboard is
+through the host's `request_paste`, so both work in a session, where the platform's clipboard is
 the DRM adapter's own. A selection that only offers images is not handed to the app.
 
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
@@ -399,5 +409,5 @@ and `ctrl+v`.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
 stays with the window it began in, and while the drag lasts the compositor moves it to the
-window beui finds under the pointer (`ForwardedInput::under`). Only a shown window can be dropped on: a
+window beui finds under the pointer (`over` on each `Forwarded::Pointer`). Only a shown window can be dropped on: a
 dock tab does not switch under a drag, and the drag's icon is not drawn (BE3-296).

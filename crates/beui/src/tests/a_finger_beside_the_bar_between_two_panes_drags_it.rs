@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_finger_beside_the_bar_between_two_panes_drags_it() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

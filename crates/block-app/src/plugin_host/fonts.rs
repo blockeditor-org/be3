@@ -1,3 +1,7 @@
+#[cfg(not(target_arch = "wasm32"))]
+use std::cell::RefCell;
+use std::{collections::HashSet, path::PathBuf};
+
 use block_plugin_api::{FontFace, FontRole, Fonts};
 
 pub(super) fn bundled() -> Fonts {
@@ -23,83 +27,66 @@ pub(super) fn bundled() -> Fonts {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-pub(super) use native::Fallbacks;
+pub(super) struct Fallbacks {
+    sent: Vec<(PathBuf, u32)>,
+    asked: HashSet<char>,
+}
 
-#[cfg(not(target_arch = "wasm32"))]
-mod native {
-    use std::cell::RefCell;
-    use std::collections::HashSet;
-    use std::path::PathBuf;
-
-    use block_plugin_api::{FontFace, FontRole, Fonts};
-
-    thread_local! {
-        static SYSTEM: RefCell<Option<beui::SystemFonts>> = const { RefCell::new(None) };
+impl Fallbacks {
+    pub(super) fn new() -> Self {
+        Self {
+            sent: Vec::new(),
+            asked: HashSet::new(),
+        }
     }
 
-    pub(in crate::plugin_host) struct Fallbacks {
-        sent: Vec<(PathBuf, u32)>,
-        asked: HashSet<char>,
-    }
-
-    impl Fallbacks {
-        pub(in crate::plugin_host) fn new() -> Self {
-            Self {
-                sent: Vec::new(),
-                asked: HashSet::new(),
+    pub(super) fn answer(&mut self, missing: &[char]) -> Option<Fonts> {
+        let mut faces = Vec::new();
+        for character in missing {
+            if !self.asked.insert(*character) {
+                continue;
             }
-        }
-
-        pub(in crate::plugin_host) fn answer(&mut self, missing: &[char]) -> Option<Fonts> {
-            let mut faces = Vec::new();
-            for character in missing {
-                if !self.asked.insert(*character) {
-                    continue;
-                }
-                let candidates = SYSTEM.with(|system| {
-                    system
-                        .borrow_mut()
-                        .get_or_insert_with(beui::SystemFonts::new)
-                        .candidates(*character)
-                });
-                if candidates
-                    .iter()
-                    .any(|candidate| self.sent.contains(candidate))
-                {
-                    continue;
-                }
-                let Some((path, index)) = candidates.into_iter().next() else {
-                    continue;
-                };
-                let Ok(data) = std::fs::read(&path) else {
-                    continue;
-                };
-                self.sent.push((path, index));
-                faces.push(FontFace {
-                    role: FontRole::Fallback,
-                    index,
-                    data,
-                });
+            let candidates = candidates(*character);
+            if candidates
+                .iter()
+                .any(|candidate| self.sent.contains(candidate))
+            {
+                continue;
             }
-            (!faces.is_empty()).then_some(Fonts {
-                replace: false,
-                faces,
-            })
+            let Some((path, index)) = candidates.into_iter().next() else {
+                continue;
+            };
+            let Ok(data) = std::fs::read(&path) else {
+                continue;
+            };
+            self.sent.push((path, index));
+            faces.push(FontFace {
+                role: FontRole::Fallback,
+                index,
+                data,
+            });
         }
+        (!faces.is_empty()).then_some(Fonts {
+            replace: false,
+            faces,
+        })
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-pub(super) struct Fallbacks;
+#[cfg(not(target_arch = "wasm32"))]
+fn candidates(character: char) -> Vec<(PathBuf, u32)> {
+    thread_local! {
+        static SYSTEM: RefCell<Option<beui::SystemFonts>> = const { RefCell::new(None) };
+    }
+    SYSTEM.with(|system| {
+        system
+            .borrow_mut()
+            .get_or_insert_with(beui::SystemFonts::new)
+            .candidates(character)
+    })
+}
 
 #[cfg(target_arch = "wasm32")]
-impl Fallbacks {
-    pub(super) fn new() -> Self {
-        Self
-    }
-
-    pub(super) fn answer(&mut self, _missing: &[char]) -> Option<Fonts> {
-        None
-    }
+fn candidates(_character: char) -> Vec<(PathBuf, u32)> {
+    Vec::new()
 }

@@ -17,21 +17,20 @@ fn arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_optio
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let inner = select;
-    let trigger = unstyled::select_trigger(harness.document(), inner);
+    let trigger = unstyled::select_trigger(harness.document(), select);
     with_installed(harness.document_mut(), |_| {
         crate::focus_within(trigger);
     });
     harness.frame(Vec::new());
 
-    assert!(!unstyled::select_open(harness.document(), inner));
+    assert!(!unstyled::select_open(harness.document(), select));
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(unstyled::select_open(harness.document(), inner));
+    assert!(unstyled::select_open(harness.document(), select));
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(0)
     );
 }

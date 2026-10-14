@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::{BrowserTabContent, HistoryItem};
 use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{
-    ChildContent, Editor, EditorHost, WebViewCommand, WebViewEvent, WebViewId,
+    ChildContent, EditorHost, OwnedEditor, WebViewCommand, WebViewEvent, WebViewId,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -24,7 +24,7 @@ impl Harness {
         let host = EditorHost::default();
         host.set_editable(true);
         host.set_client_id(ACCOUNT);
-        let editor = Editor::new(host, block);
+        let editor = OwnedEditor::new(host, block);
         let mut harness = Self {
             editor: BeuiTest::new(editor),
         };

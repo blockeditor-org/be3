@@ -1,17 +1,15 @@
-use std::cell::RefCell;
-
 use super::*;
 use crate::input::{BackEdge, BackGesture};
 use crate::reactive::{BackHandler, Text, build, view};
 
 #[test]
 fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
-    let heard = Rc::new(RefCell::new(Vec::<BackGesture>::new()));
-    let reports = Rc::clone(&heard);
+    let _root = crate::reactive::RootScope::new();
+    let (heard, set_heard) = create_signal(Vec::<BackGesture>::new());
     let document = build(move || {
         view! {
             <BackHandler
-                on_gesture={move |gesture: BackGesture| reports.borrow_mut().push(gesture)}
+                on_gesture={move |gesture: BackGesture| set_heard.update(|heard| heard.push(gesture))}
             >
                 <Text string="Page" />
             </BackHandler>
@@ -28,7 +26,7 @@ fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
     driven.ask(&["back", "cancel"]).expect("it is let go");
     driven.ask(&["back"]).expect("a whole gesture goes back");
     assert_eq!(
-        *heard.borrow(),
+        heard.get_untracked(),
         [
             BackGesture::Started {
                 edge: BackEdge::Right

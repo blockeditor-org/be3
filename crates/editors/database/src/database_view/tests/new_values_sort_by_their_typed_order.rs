@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn new_values_sort_by_their_typed_order() {
-    let labels = HashMap::new();
+    let labels = BlockLabels::default();
     assert_eq!(
         compare_database_values(
             &DatabaseValue::Boolean(false),

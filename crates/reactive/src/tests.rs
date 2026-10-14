@@ -3,25 +3,34 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    KeyedItems, KeyedStore, Scope, Store, batch, create_effect, create_memo, create_selector,
-    create_signal, on_cleanup, owner_scope, untrack,
+    KeyedItems, OwnedKeyedStore, OwnedStored, RootScope, Scope, Store, batch, create_effect,
+    create_memo, create_selector, create_signal, on_cleanup, owner_scope, store, untrack,
 };
 
+mod a_binding_inside_an_effect_tracks_for_itself;
+mod a_binding_reads_the_context_of_the_scope_it_runs_in;
+mod a_binding_runs_at_once_and_again_only_for_what_it_read;
+mod a_binding_that_reads_nothing_leaves_nothing_to_run;
+mod a_child_scope_lives_as_long_as_the_scope_it_was_opened_in;
 mod a_context_reaches_the_effects_a_nested_scope_creates;
 mod a_detached_scope_reads_context_without_its_parent_disposing_it;
-mod a_disposed_memo_keeps_its_last_value;
 mod a_keyed_mapping_builds_a_row_for_each_repeat_of_a_key;
 mod a_keyed_mapping_builds_reuses_and_disposes_its_items;
+mod a_keyed_row_kept_across_a_rerun_still_reads_context;
 mod a_keyed_store_forgets_items_whose_keys_are_gone;
+mod a_keyed_store_frees_the_signals_of_keys_that_are_gone;
 mod a_keyed_store_only_wakes_the_item_that_changed;
+mod a_memo_that_panics_on_its_first_run_cleans_up_what_it_made;
+mod a_memo_that_reads_nothing_keeps_what_it_made_until_its_scope_goes;
 mod a_nested_pausable_scope_waits_while_any_scope_around_it_is_paused;
 mod a_panicking_effect_can_run_again;
 mod a_paused_scope_defers_its_effects_until_it_resumes;
-mod a_scope_opened_inside_an_effect_belongs_to_the_effects_owner;
+mod a_scope_opened_inside_an_effect_lives_until_its_handle_drops;
 mod a_selector_forgets_keys_whose_watchers_were_disposed;
 mod a_selector_memo_tracks_one_key_without_watching_the_source;
 mod a_selector_only_reruns_the_keys_that_gained_or_lost_selection;
 mod a_store_wakes_only_the_field_that_changed;
+mod a_stored_value_is_shared_by_its_copies_and_freed_with_its_scope;
 mod all_cleanups_run_even_when_one_panics;
 mod an_effect_keeps_its_zone_for_the_effects_it_creates;
 mod an_effect_that_reads_nothing_is_discarded_after_its_first_run;
@@ -29,21 +38,23 @@ mod an_effect_waits_for_its_zone_while_another_zone_is_entered;
 mod an_effect_with_cleanup_is_kept_without_dependencies;
 mod cleanup_precedes_next_execution;
 mod cleanup_reads_do_not_become_dependencies;
-mod clone_brings_cloned_handles_into_the_closure;
 mod conditional_dependencies_are_replaced;
 mod conditional_memos_replace_dependencies;
 mod diamond_and_direct_dependencies_never_glitch;
 mod disposal_releases_captured_resources;
+mod disposing_a_scope_frees_what_it_owns;
 mod downstream_effect_recovers_after_memo_panics;
 mod dropping_scope_cancels_queued_effects;
 mod effects_can_write_signals_and_settle_without_recursion;
 mod effects_of_every_zone_run_when_no_zone_is_entered;
+mod flushing_a_scope_runs_only_the_effects_it_owns;
 mod memo_panic_can_be_retried;
 mod memo_writes_are_rejected_even_when_untracked;
 mod memos_are_lazy_cached_and_filter_equal_outputs;
 mod nested_batches_defer_effects_but_memo_reads_are_current;
 mod nested_effects_are_disposed_before_parent_reruns;
 mod non_clone_values_can_be_read_and_updated;
+mod opening_a_child_scope_outside_any_scope_panics;
 mod panic_restores_tracking_and_batching;
 mod panicking_update_still_invalidates_mutated_value;
 mod reconciling_an_unchanged_list_wakes_nothing;

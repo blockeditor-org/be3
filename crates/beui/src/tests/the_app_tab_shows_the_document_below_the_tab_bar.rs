@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn the_app_tab_shows_the_document_below_the_tab_bar() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn {
         document, padding, ..
     } = hello_column();

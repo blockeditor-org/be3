@@ -1,6 +1,7 @@
 use beui::reactive::{Frame, List, build, create_signal, view};
 use beui::styled::DocumentTheme;
-use beui::styled::{Body, TextInput, use_theme};
+use beui::styled::Text;
+use beui::styled::{TextInput, use_theme};
 use beui::{App, Color32, Context, Document, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,13 +19,13 @@ impl SurveyApp {
             let theme = use_theme();
             view! {
                 <Frame
-                    color={theme.background.clone()}
+                    color={theme.background}
                     radius=0
                     padding_horizontal=16.0
                     padding_vertical=16.0
                 >
                     <List spacing=8.0>
-                        <Body content={state.clone()} />
+                        <Text string={state} />
                         <TextInput
                             value={state}
                             label="Text"

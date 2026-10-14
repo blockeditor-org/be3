@@ -1,9 +1,9 @@
 use std::any::Any;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Default)]
@@ -20,6 +20,10 @@ impl ChildHost for LayersNode {
 }
 
 impl Element for LayersNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         self.items.iter().fold(Vec2::ZERO, |size, item| {
             size.max(crate::layout::measure(doc, painter, *item, available))
@@ -43,21 +47,12 @@ impl Element for LayersNode {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {

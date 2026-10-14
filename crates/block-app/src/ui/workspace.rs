@@ -1,14 +1,13 @@
+use beui::NodeId;
 use beui::icons::{
     ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
-    ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_SYNC,
+    ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY, ICON_SWAP_HORIZ, ICON_SYNC, ICON_VIEW_QUILT,
 };
 use beui::reactive::{
-    ForEach, Frame, ItemSize, List, Memo, Prop, Show, clone, component, create_memo,
-    provide_context, view,
+    ForEach, Frame, ItemSize, List, Memo, Prop, Show, component, create_memo, provide_context, view,
 };
 use beui::styled::ContextMenu;
 use beui::unstyled::{Container, MenuItem};
-use beui::{Color32, NodeId};
 use block_plugin_api::HostPanel;
 
 use super::debug::DebugPanels;
@@ -23,7 +22,7 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
     view! {
         <Container>
             {move |_| {
-                let view = view.clone();
+                let view = view;
                 view! {
                     <WorkspaceBody view />
                 }
@@ -34,25 +33,21 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
 
 #[component]
 fn WorkspaceBody(view: AppViewStore) -> NodeId {
-    let debug = view.debug.clone();
+    let debug = view.debug;
     provide_context(DebugPanels(create_memo(move || debug.get())));
-    let presenting = view.presenting.clone();
-    let normal = create_memo(clone!(presenting -> move || !presenting.get()));
-    let status = create_memo(clone!(view -> move || view.status.get()));
-    let menu = view.app_menu.clone();
+    let presenting = view.presenting;
+    let normal = create_memo(move || !presenting.get());
+    let status = create_memo(move || view.status.get());
+    let menu = view.app_menu;
     view! {
         <List spacing=0.0>
             <Show condition={normal}>
                 <MainSurface @sizing=ItemSize::Percent(100.0) />
             </Show>
             <AppMenu status={status} open={menu} />
-            <Show condition={presenting}>
-                <Frame @sizing=ItemSize::Percent(100.0) color=Color32::BLACK>
-                    <PresentingSurface />
-                </Frame>
-            </Show>
-            <Dialogs view={view.clone()} />
-            <PairingDialog view={view.clone()} />
+            <PresentingSurface />
+            <Dialogs view={view} />
+            <PairingDialog view={view} />
         </List>
     }
 }
@@ -64,20 +59,20 @@ fn pick(command: UiCommand) {
 
 #[component]
 fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
-    let saved = create_memo(clone!(status -> move || status.get().changes_saved));
-    let unsaved = create_memo(clone!(saved -> move || !saved.get()));
-    let saved_label = create_memo(clone!(saved -> move || match saved.get() {
+    let saved = create_memo(move || status.get().changes_saved);
+    let unsaved = create_memo(move || !saved.get());
+    let saved_label = create_memo(move || match saved.get() {
         true => "All changes saved".to_owned(),
         false => "Submitting changes…".to_owned(),
-    }));
-    let saved_glyph = create_memo(clone!(saved -> move || match saved.get() {
+    });
+    let saved_glyph = create_memo(move || match saved.get() {
         true => ICON_CHECK.to_owned(),
         false => ICON_SYNC.to_owned(),
-    }));
-    let workspace = create_memo(clone!(status -> move || status.get().workspace));
-    let signed_in_as = create_memo(clone!(status -> move || status.get().signed_in_as));
+    });
+    let workspace = create_memo(move || status.get().workspace);
+    let signed_in_as = create_memo(move || status.get().signed_in_as);
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
-    let can_close = create_memo(clone!(status -> move || status.get().can_close));
+    let can_close = create_memo(move || status.get().can_close);
     view! {
         <ContextMenu
             disabled=true
@@ -97,6 +92,18 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     detail={workspace}
                     separated=true
                     on_click={|| pick(UiCommand::InviteMember)}
+                />
+                <MenuItem
+                    row_test_id={"app.menu.agents".to_owned()}
+                    label="Agents"
+                    glyph={ICON_SMART_TOY.to_owned()}
+                    on_click={|| pick(UiCommand::OpenAgents)}
+                />
+                <MenuItem
+                    row_test_id={"app.menu.switch-session".to_owned()}
+                    label="Sessions and profiles"
+                    glyph={ICON_VIEW_QUILT.to_owned()}
+                    on_click={|| pick(UiCommand::SwitchSession)}
                 />
                 <MenuItem
                     row_test_id={"app.menu.switch-workspace".to_owned()}

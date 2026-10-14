@@ -11,7 +11,7 @@ use beui::reactive::{ReadSignal, WriteSignal, create_signal, on_cleanup};
 
 use crate::editors::EditorAction;
 
-pub(crate) use editors::{Editors, PresentingSurface, ShellSurface};
+pub(crate) use editors::{OwnedEditors, PresentingSurface, ShellSurface};
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
 
 type Listeners = HashMap<String, Vec<(u64, WriteSignal<u64>)>>;
@@ -26,6 +26,7 @@ thread_local! {
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<(ReadSignal<u64>, WriteSignal<u64>)>> = const { RefCell::new(None) };
     static CHANGED: Cell<bool> = const { Cell::new(false) };
+    static STALE: Cell<u64> = const { Cell::new(0) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
     static SHELL: RefCell<Option<ShellSignal>> = const { RefCell::new(None) };
 }
@@ -42,7 +43,7 @@ pub(crate) fn shell() -> ReadSignal<Option<uuid::Uuid>> {
         shell
             .borrow()
             .as_ref()
-            .map(|(read, _)| read.clone())
+            .map(|(read, _)| *read)
             .expect("the compositor is installed while the document is built")
     })
 }
@@ -55,7 +56,7 @@ fn apply_shell() {
     let Some(block) = PENDING_SHELL.with(Cell::take) else {
         return;
     };
-    let held = SHELL.with(|shell| shell.borrow().clone());
+    let held = SHELL.with(|shell| *shell.borrow());
     if let Some((read, write)) = held
         && read.get_untracked() != block
     {
@@ -67,7 +68,7 @@ pub(crate) fn any() -> ReadSignal<u64> {
     ANY.with(|any| {
         any.borrow()
             .as_ref()
-            .map(|(read, _)| read.clone())
+            .map(|(read, _)| *read)
             .expect("the compositor is installed while the document is built")
     })
 }
@@ -108,9 +109,13 @@ pub(crate) fn notify() {
 }
 
 pub(crate) fn notify_plugins() {
+    let stale = crate::be::stale_revision();
+    if STALE.with(|seen| seen.replace(stale)) != stale {
+        changed();
+    }
     let changed = crate::plugin_host::take_changed();
     if (!changed.is_empty() || CHANGED.with(|flag| flag.replace(false)))
-        && let Some((_, write)) = ANY.with(|any| any.borrow().clone())
+        && let Some((_, write)) = ANY.with(|any| *any.borrow())
     {
         write.update(|revision| *revision += 1);
     }
@@ -119,7 +124,7 @@ pub(crate) fn notify_plugins() {
             listeners
                 .borrow()
                 .get(&plugin_id)
-                .map(|held| held.iter().map(|(_, write)| write.clone()).collect())
+                .map(|held| held.iter().map(|(_, write)| *write).collect())
                 .unwrap_or_default()
         });
         for write in writers {

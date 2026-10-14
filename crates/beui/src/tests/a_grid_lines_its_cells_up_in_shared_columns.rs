@@ -3,6 +3,7 @@ use crate::reactive::{Frame, Grid, GridCell, NodeRef, Track, view};
 
 #[test]
 fn a_grid_lines_its_cells_up_in_shared_columns() {
+    let _root = crate::reactive::RootScope::new();
     let cells: Vec<NodeRef> = (0..5).map(|_| NodeRef::new()).collect();
     let document = build({
         let [label, value, longer, other, wide] =

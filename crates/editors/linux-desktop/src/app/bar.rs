@@ -1,11 +1,10 @@
-use std::rc::Rc;
 use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Show, Spacer, component,
     create_memo, create_signal, create_timer, now, view,
 };
 use block_editor_beui::beui::styled::{IconButton, MenuButton, Separator, use_theme};
@@ -53,45 +52,44 @@ fn wall_clock() -> ReadSignal<String> {
 
 #[component]
 pub(crate) fn DesktopBar(
-    workspace: Rc<Workspace>,
+    workspace: Workspace,
     notifications: DesktopNotifications,
     launcher: ProgramLauncher,
 ) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
-    let editor = workspace.editor().clone();
-    let power = editor.clone();
-    let sounding = editor.clone();
-    let tray = editor.clone();
+    let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
-    let audible =
-        create_memo(clone!(levels -> move || levels.with(|levels| levels.output.is_some())));
-    let dated = editor.clone();
+    let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
-    let sessions = Sessions::new(&workspace);
-    let listed = sessions.listed.clone();
-    let keys = create_memo(clone!(listed -> move || {
-        listed.with(|sessions| sessions.iter().map(|session| session.profile).collect::<Vec<_>>())
-    }));
-    let named = listed.clone();
-    let settings = sessions.settings.clone();
+    let sessions = Sessions::new(workspace);
+    let listed = sessions.listed;
+    let keys = create_memo(move || {
+        listed.with(|sessions| {
+            sessions
+                .iter()
+                .map(|session| session.block)
+                .collect::<Vec<_>>()
+        })
+    });
+    let named = listed;
+    let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
-    let listing = create_memo(clone!(listed -> move || !listed.with(Vec::is_empty)));
-    let creating = sessions.clone();
+    let listing = create_memo(move || !listed.with(Vec::is_empty));
     let chose = move |path: Vec<usize>| {
         let chosen = path
             .first()
             .and_then(|index| listed.with_untracked(|sessions| sessions.get(*index).cloned()));
         if let Some(session) = chosen {
-            sessions.open(session.profile);
+            sessions.open(session.block);
         }
     };
     view! {
         <List spacing=0.0>
             <Separator />
             <Frame
-                color={theme.surface.clone()}
+                color={theme.surface}
                 padding_horizontal=BAR_PADDING
                 padding_vertical=BAR_PADDING
                 @test_id={"desktop.bar"}
@@ -116,13 +114,13 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.sessions"}
                         items={view! {
                             <ForEach keys={keys}>
-                                {move |profile: uuid::Uuid| {
-                                    let named = named.clone();
+                                {move |block: uuid::Uuid| {
+                                    let named = named;
                                     let label = create_memo(move || {
                                         named.with(|sessions| {
                                             sessions
                                                 .iter()
-                                                .find(|session| session.profile == profile)
+                                                .find(|session| session.block == block)
                                                 .map(|session| session.name.clone())
                                                 .unwrap_or_default()
                                         })
@@ -137,23 +135,23 @@ pub(crate) fn DesktopBar(
                                 label="New session"
                                 glyph={ICON_ADD.to_owned()}
                                 separated={listing}
-                                on_click={move || creating.create()}
+                                on_click={move || sessions.create()}
                             />
                         }}
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <TrayItems editor={tray} />
+                    <TrayItems editor={editor} />
                     <Show condition={audible}>
-                        <VolumeButton editor={sounding.clone()} levels={levels.clone()} />
+                        <VolumeButton editor={editor} levels={levels} />
                     </Show>
                     <NotificationsButton notifications />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
-                            <DesktopCalendar editor={dated.clone()} />
+                            <DesktopCalendar editor={editor} />
                         }}
                     </BarPopup>
-                    <PowerMenu editor={power} />
+                    <PowerMenu editor={editor} />
                 </List>
             </Frame>
         </List>

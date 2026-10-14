@@ -1,5 +1,6 @@
 mod descriptors;
 mod enums;
+mod functions;
 
 #[cfg(test)]
 mod tests;

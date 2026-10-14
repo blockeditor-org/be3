@@ -2,9 +2,11 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use reactive::{Stored, on_cleanup, store};
+
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,24 +35,32 @@ impl EmbedState {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct EmbedSlot(pub Rc<EmbedState>);
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct EmbedSlot(pub Stored<EmbedState>);
+
+impl Default for EmbedSlot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl EmbedSlot {
     pub fn new() -> Self {
-        Self::default()
+        Self(store(EmbedState::default()))
     }
 
     pub fn node(&self) -> Option<NodeId> {
-        self.0.node.get()
+        self.0.with(|state| state.node.get())
     }
 
     pub fn placement(&self) -> Option<EmbedPlacement> {
-        self.0.placement.get()
+        self.0.with(|state| state.placement.get())
     }
 
     pub fn on_place(&self, listener: impl Fn(Option<EmbedPlacement>) + 'static) {
-        *self.0.listener.borrow_mut() = Some(Box::new(listener));
+        let state = self.0.get();
+        *state.listener.borrow_mut() = Some(Box::new(listener));
+        on_cleanup(move || drop(state.listener.take()));
     }
 }
 
@@ -71,6 +81,10 @@ impl EmbedNode {
 }
 
 impl Element for EmbedNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
@@ -116,21 +130,14 @@ impl Element for EmbedNode {
         self.forget();
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.child);
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {

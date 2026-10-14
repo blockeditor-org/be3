@@ -6,7 +6,9 @@ use crate::unstyled::MenuItem;
 
 fn shown(harness: &Harness, text: &str) -> Option<Pos2> {
     let root = harness.document().root().expect("the document has a root");
-    text_within(harness.document(), root, text).map(|node| harness.center(node))
+    text_within(harness.document(), root, text)
+        .or_else(|| icon_within(harness.document(), root, text))
+        .map(|node| harness.center(node))
 }
 
 fn sheet_shown(harness: &Harness) -> bool {
@@ -19,8 +21,8 @@ fn sheet_shown(harness: &Harness) -> bool {
 
 #[test]
 fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet() {
-    let clicks = Rc::new(Cell::new(0));
-    let counted = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [button]) = toolbar_of(|| {
         [view! {
             <MenuButton
@@ -30,7 +32,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
                         label="Rename"
                         glyph={ICON_EDIT.to_owned()}
                         detail="Ctrl+R"
-                        on_click={move || counted.set(counted.get() + 1)}
+                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                     />
                 }}
             />
@@ -52,7 +54,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
     );
     harness.click(shown(&harness, "Rename").expect("the dropdown lists Rename"));
     harness.settle();
-    assert_eq!(clicks.get(), 1, "choosing the row runs its click");
+    assert_eq!(clicks.get_untracked(), 1, "choosing the row runs its click");
 
     let at = harness.center(button);
     harness.touch(TouchPhase::Start, at);
@@ -72,7 +74,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
     harness.touch(TouchPhase::End, rename);
     harness.settle();
     assert_eq!(
-        clicks.get(),
+        clicks.get_untracked(),
         2,
         "choosing the row in the sheet runs its click"
     );
