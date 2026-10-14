@@ -1106,7 +1106,7 @@ pub fn TextArea(
                             move || {
                                 content.get();
                                 let scale = scale.get();
-                                attached.get();
+                                let attached = attached.get();
                                 let wrap_width = wrap_width.get();
                                 let starts = starts.get();
                                 let widgets = widgets.get();
@@ -1125,6 +1125,7 @@ pub fn TextArea(
                                         options,
                                         starts: &starts,
                                         scale,
+                                        attached,
                                         cache: &table_cache,
                                     }),
                                     false => HashMap::new(),

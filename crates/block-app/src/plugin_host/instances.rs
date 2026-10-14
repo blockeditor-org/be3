@@ -1161,6 +1161,9 @@ impl Instances {
                 link.sent = None;
                 link.peers_sent = None;
             }
+            for screen in entry.screens.values_mut() {
+                screen.stopped = None;
+            }
             entry.stale = true;
         }
         self.epoch += 1;
