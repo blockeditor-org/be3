@@ -148,7 +148,21 @@ pub fn inverses(
     database: &Database,
     schema: &crate::database_schema::DatabaseSchema,
 ) -> Vec<Inverse> {
-    schema
+    inverses_of(
+        target,
+        source,
+        database.rows.iter().map(|row| (row.id, &row.value)),
+        schema,
+    )
+}
+
+pub fn inverses_of<'a>(
+    target: Uuid,
+    source: Uuid,
+    rows: impl IntoIterator<Item = (ObjectId, &'a DatabaseRow)>,
+    schema: &crate::database_schema::DatabaseSchema,
+) -> Vec<Inverse> {
+    let fields: Vec<_> = schema
         .fields()
         .into_iter()
         .filter(|field| {
@@ -156,18 +170,25 @@ pub fn inverses(
                 && field.relation_options.database == Some(target)
                 && !field.relation_options.inverse.trim().is_empty()
         })
+        .collect();
+    if fields.is_empty() {
+        return Vec::new();
+    }
+    let rows: Vec<(ObjectId, &DatabaseRow)> = rows.into_iter().collect();
+    fields
+        .into_iter()
         .map(|field| {
-            let mut rows: BTreeMap<Uuid, Vec<RowRef>> = BTreeMap::new();
-            for row in database.rows.iter() {
+            let mut linked_from: BTreeMap<Uuid, Vec<RowRef>> = BTreeMap::new();
+            for (id, row) in &rows {
                 let linked = match row.get(field.id) {
                     Some(DatabaseValue::Links(links)) => links,
                     Some(DatabaseValue::Relation(link)) => vec![link],
                     _ => Vec::new(),
                 };
                 for link in linked.into_iter().filter(|link| link.database == target) {
-                    rows.entry(link.row).or_default().push(RowRef {
+                    linked_from.entry(link.row).or_default().push(RowRef {
                         database: source,
-                        row: row.id.as_uuid(),
+                        row: id.as_uuid(),
                     });
                 }
             }
@@ -177,7 +198,7 @@ pub fn inverses(
                 source,
                 field: field.id,
                 multiple: field.relation_options.multiple,
-                rows,
+                rows: linked_from,
             }
         })
         .collect()
@@ -203,11 +224,19 @@ impl Inverse {
 
     pub fn shown_on(&self, row: &DatabaseRow, id: Uuid) -> DatabaseRow {
         let mut shown = row.clone();
-        shown.links = row
-            .links
+        self.show_on(&mut shown, id);
+        shown
+    }
+
+    pub fn show_on(&self, row: &mut DatabaseRow, id: Uuid) {
+        let Some(targets) = self.rows.get(&id) else {
+            return;
+        };
+        let links = std::mem::take(&mut row.links);
+        row.links = links
             .iter()
             .map(|(link, held)| (*link, *held))
-            .chain(self.rows.get(&id).into_iter().flatten().map(|target| {
+            .chain(targets.iter().map(|target| {
                 (
                     RowLink {
                         field: self.id,
@@ -217,7 +246,6 @@ impl Inverse {
                 )
             }))
             .collect();
-        shown
     }
 
     pub fn edits(&self, source: &Database, target: RowRef, wanted: &[RowRef]) -> Edit {
@@ -545,6 +573,15 @@ impl Root for Database {
 
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
         metadata.insert(&crate::metadata::ROW_PREFIX, &self.prefix.trim().to_owned());
+    }
+
+    fn name_in(_document: &Document<Self>) -> Option<String> {
+        None
+    }
+
+    fn describe_in(document: &Document<Self>, metadata: &mut crate::BlockMetadata) {
+        let prefix = document.field(ObjectId::ROOT, Self::PREFIX);
+        metadata.insert(&crate::metadata::ROW_PREFIX, &prefix.trim().to_owned());
     }
 
     fn references(&self) -> Vec<Uuid> {

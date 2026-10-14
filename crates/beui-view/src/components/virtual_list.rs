@@ -10,6 +10,7 @@ pub fn VirtualList<K>(
     keys: Prop<Vec<K>>,
     item_size: Prop<f32>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    #[prop(default = 0.0)] overscan: Prop<f32>,
     #[prop(children)] item: RenderFn<K>,
 ) -> NodeId
 where
@@ -22,6 +23,9 @@ where
     create_effect(move || {
         let keys = keys.get();
         with_document(|document| document.set_virtual_list_keys(list, keys));
+    });
+    create_effect(move || {
+        with_document(|document| document.set_virtual_list_overscan::<K>(list, overscan.get()))
     });
     create_effect(move || {
         with_document(|document| document.set_virtual_list_item_size::<K>(list, item_size.get()))

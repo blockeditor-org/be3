@@ -75,8 +75,18 @@ impl Metrics {
         }
     }
 
+    fn guess(&self) -> f32 {
+        match self.lengths.len() {
+            0 => self.estimated,
+            measured => self.measured / measured as f32,
+        }
+    }
+
     fn height(&self, index: usize) -> f32 {
-        self.lengths.get(&index).copied().unwrap_or(self.estimated)
+        self.lengths
+            .get(&index)
+            .copied()
+            .unwrap_or_else(|| self.guess())
     }
 
     fn position(&self, index: usize) -> f32 {
@@ -87,11 +97,11 @@ impl Metrics {
             sum += self.sums[at];
             at &= at - 1;
         }
-        (index - measured) as f32 * self.estimated + sum as f32
+        (index - measured) as f32 * self.guess() + sum as f32
     }
 
     fn total(&self) -> f32 {
-        (self.count - self.lengths.len()) as f32 * self.estimated + self.measured
+        (self.count - self.lengths.len()) as f32 * self.guess() + self.measured
     }
 
     fn index_at(&self, position: f32) -> usize {
@@ -120,6 +130,7 @@ pub struct VirtualListNode<K> {
     owner: Option<ScopeContext>,
     placed: Vec<Row<K>>,
     origin: Option<(K, f32)>,
+    overscan: f32,
 }
 
 impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
@@ -134,6 +145,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             owner: owner_scope(),
             placed: Vec::new(),
             origin: None,
+            overscan: 0.0,
         }
     }
 
@@ -215,10 +227,11 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         (key, node, length)
     }
 
-    fn anchor(&mut self, window: (f32, f32)) -> (usize, f32) {
+    fn anchor(&mut self, window: (f32, f32), at_start: bool) -> (usize, f32) {
         let (first, last) = window;
         let slack = (last - first) + ANCHOR_SLACK * self.metrics.estimated.max(1.0);
-        if let Some((key, position)) = &self.origin
+        if !at_start
+            && let Some((key, position)) = &self.origin
             && let Some(&index) = self.indices.get(key)
             && *position >= first - slack
             && *position <= last + slack
@@ -238,13 +251,18 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         main: Option<f32>,
         cross: f32,
     ) -> f32 {
-        let (first, last) = window;
-        if self.metrics.count == 0 || last <= first {
+        if self.metrics.count == 0 || window.1 <= window.0 {
             self.origin = None;
             self.keep(Vec::new());
             return 0.0;
         }
-        let (index, position) = self.anchor(window);
+        let at_start = window.0 <= 0.0;
+        let window = (
+            (window.0 - self.overscan).max(0.0),
+            (window.1 + self.overscan).min(main.unwrap_or(f32::INFINITY)),
+        );
+        let (first, last) = window;
+        let (index, position) = self.anchor(window, at_start);
         let before = self.metrics.total();
         let mut below = Vec::new();
         let (mut cursor, mut at, mut scanned) = (position, index, 0);
@@ -507,6 +525,25 @@ impl Document {
         let node = self.arena.get_as(list);
         let index = *node.indices.get(&(key.clone(), 0))?;
         Some(node.metrics.position(index))
+    }
+
+    pub fn set_virtual_list_overscan<K: Clone + Hash + Eq + 'static>(
+        &mut self,
+        list: NodeOf<VirtualListNode<(K, usize)>>,
+        overscan: f32,
+    ) {
+        let overscan = overscan.max(0.0);
+        if self
+            .arena
+            .get_as::<VirtualListNode<(K, usize)>>(list)
+            .overscan
+            == overscan
+        {
+            return;
+        }
+        self.arena
+            .get_mut_as::<VirtualListNode<(K, usize)>>(list)
+            .overscan = overscan;
     }
 
     pub fn set_virtual_list_item_size<K: Clone + Hash + Eq + 'static>(

@@ -284,10 +284,7 @@ pub fn group_test_key(key: GroupKey) -> String {
 
 #[component]
 fn RowLine(data: Data, row: ObjectId) -> NodeId {
-    let index = create_memo(move || {
-        data.row_ids
-            .with(|ids| ids.iter().position(|id| *id == row))
-    });
+    let index = create_memo(move || data.row_index.with(|indices| indices.get(&row).copied()));
     let entry = create_memo(move || {
         let index = index.get()?;
         data.rows.with(|rows| rows.get(index).cloned())
@@ -422,9 +419,13 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
 }
 
 #[component]
-pub fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
+pub fn Parts(
+    parts: Memo<Vec<(Uuid, Part)>>,
+    keys: Memo<Vec<Uuid>>,
+    #[prop(default = false)] wrap: bool,
+) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap={wrap}>
             <ForEach keys={keys}>
                 {move |key: Uuid| {
                     let part = create_memo(move || {
@@ -441,63 +442,89 @@ pub fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PartKind {
+    Page,
+    Plain,
+    Chip,
+}
+
 #[component]
 fn RowPart(part: Memo<Option<Part>>) -> NodeId {
-    let theme = use_theme();
-    let text = create_memo(move || match part.get() {
-        Some(Part::Choice(option)) => option.name,
-        Some(Part::Link(label)) | Some(Part::Text(label)) => label,
-        Some(Part::Links(name, count)) => format!("{name} {count}"),
-        Some(Part::Page) | None => String::new(),
+    let kind = create_memo(move || {
+        part.with(|part| match part {
+            Some(Part::Page) | None => PartKind::Page,
+            Some(Part::Text(_)) => PartKind::Plain,
+            Some(Part::Choice(_) | Part::Link(_) | Part::Links(..)) => PartKind::Chip,
+        })
     });
-    let page = create_memo(move || matches!(part.get(), Some(Part::Page)));
-    let chip = create_memo(move || {
-        matches!(
-            part.get(),
-            Some(Part::Choice(_) | Part::Link(_) | Part::Links(..))
-        )
+    let text = create_memo(move || {
+        part.with(|part| match part {
+            Some(Part::Choice(option)) => option.name.clone(),
+            Some(Part::Link(label)) | Some(Part::Text(label)) => label.clone(),
+            Some(Part::Links(name, count)) => format!("{name} {count}"),
+            Some(Part::Page) | None => String::new(),
+        })
     });
-    let plain = create_memo(move || matches!(part.get(), Some(Part::Text(_))));
-    let dot = create_memo(move || match part.get() {
-        Some(Part::Choice(option)) => choice_color(option.color, theme.kind.get()),
-        _ => theme.text_muted.get(),
-    });
-    let dotted = create_memo(move || matches!(part.get(), Some(Part::Choice(_))));
-    let linked = create_memo(move || matches!(part.get(), Some(Part::Links(..))));
-    let plain_text = text;
-    let (page_color, link_color) = (TextColor::Muted, TextColor::Muted);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame visible={page}>
-                <Text size=MARK color={page_color} align=TextAlign::Center>
-                    <Icon glyph={ICON_DESCRIPTION.to_owned()} />
-                </Text>
-            </Frame>
-            <Frame visible={plain}>
-                <Text style=TextStyle::CAPTION string={plain_text} ellipsis=true />
-            </Frame>
-            <Frame
-                visible={chip}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
-                radius=10
-                padding_horizontal=8.0
-                padding_vertical=1.0
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
-                    <Frame visible={dotted}>
+            <Dynamic value={kind}>
+                {move |kind: PartKind| match kind {
+                    PartKind::Page => view! {
+                        <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph={ICON_DESCRIPTION.to_owned()} />
+                        </Text>
+                    },
+                    PartKind::Plain => view! {
+                        <Text style=TextStyle::CAPTION string={text} ellipsis=true />
+                    },
+                    PartKind::Chip => view! {
+                        <Chip part={part} text={text} />
+                    },
+                }}
+            </Dynamic>
+        </List>
+    }
+}
+
+#[component]
+fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
+    let theme = use_theme();
+    let choice = create_memo(move || match part.get() {
+        Some(Part::Choice(option)) => Some(option),
+        _ => None,
+    });
+    let dotted = create_memo(move || choice.with(Option::is_some));
+    let dot = create_memo(move || match choice.get() {
+        Some(option) => choice_color(option.color, theme.kind.get()),
+        None => theme.text_muted.get(),
+    });
+    let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));
+    view! {
+        <Frame
+            outline={theme.border}
+            outline_width=BORDER_WIDTH
+            outline_visible=true
+            radius=10
+            padding_horizontal=8.0
+            padding_vertical=1.0
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+                <Show condition={dotted}>
+                    {move || view! {
                         <Frame width=8.0 height=8.0 radius=2 color={dot} />
-                    </Frame>
-                    <Frame visible={linked}>
-                        <Text size=TextSize::Xs color={link_color} align=TextAlign::Center>
+                    }}
+                </Show>
+                <Show condition={linked}>
+                    {move || view! {
+                        <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph={ICON_LINK.to_owned()} />
                         </Text>
-                    </Frame>
-                    <Text style=TextStyle::CAPTION string={text} align=TextAlign::Start />
-                </List>
-            </Frame>
-        </List>
+                    }}
+                </Show>
+                <Text style=TextStyle::CAPTION string={text} align=TextAlign::Start />
+            </List>
+        </Frame>
     }
 }
 

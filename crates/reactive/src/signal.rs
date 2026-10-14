@@ -9,7 +9,7 @@ use crate::runtime::{RUNTIME, batch};
 
 pub(crate) struct Source {
     pub(crate) version: Cell<u64>,
-    pub(crate) subscribers: RefCell<Vec<Weak<Computation>>>,
+    pub(crate) subscribers: RefCell<Subscribers>,
     pub(crate) producer: RefCell<Weak<Computation>>,
 }
 
@@ -20,6 +20,52 @@ impl Default for Source {
             subscribers: RefCell::default(),
             producer: RefCell::new(no_computation()),
         }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Subscribers {
+    slots: Vec<Option<Weak<Computation>>>,
+    free: Vec<usize>,
+}
+
+impl Subscribers {
+    pub(crate) fn add(&mut self, subscriber: Weak<Computation>) -> usize {
+        match self.free.pop() {
+            Some(slot) => {
+                self.slots[slot] = Some(subscriber);
+                slot
+            }
+            None => {
+                self.slots.push(Some(subscriber));
+                self.slots.len() - 1
+            }
+        }
+    }
+
+    pub(crate) fn remove(&mut self, slot: usize, subscriber: *const Computation) {
+        let held = self.slots.get(slot).and_then(Option::as_ref);
+        if !held.is_some_and(|held| std::ptr::addr_eq(held.as_ptr(), subscriber)) {
+            return;
+        }
+        self.slots[slot] = None;
+        self.free.push(slot);
+        if self.free.len() == self.slots.len() {
+            self.slots.clear();
+            self.free.clear();
+        }
+    }
+
+    pub(crate) fn live(&self) -> Vec<Rc<Computation>> {
+        self.slots
+            .iter()
+            .filter_map(|slot| slot.as_ref()?.upgrade())
+            .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.slots.len() - self.free.len()
     }
 }
 
@@ -61,15 +107,15 @@ pub(crate) fn track(tracked: Rc<dyn Tracked>) {
         let mut dependencies = observer.dependencies.borrow_mut();
         if !dependencies
             .iter()
-            .any(|(source, _)| std::ptr::addr_eq(Rc::as_ptr(source), Rc::as_ptr(&tracked)))
+            .any(|(source, _, _)| std::ptr::addr_eq(Rc::as_ptr(source), Rc::as_ptr(&tracked)))
         {
             let source = tracked.source();
-            source
+            let slot = source
                 .subscribers
                 .borrow_mut()
-                .push(Rc::downgrade(&observer));
+                .add(Rc::downgrade(&observer));
             let version = source.version.get();
-            dependencies.push((tracked, version));
+            dependencies.push((tracked, version, slot));
         }
     }
 }
@@ -77,11 +123,9 @@ pub(crate) fn track(tracked: Rc<dyn Tracked>) {
 impl Source {
     pub(crate) fn changed(&self) {
         self.version.set(self.version.get().wrapping_add(1));
-        let subscribers = self.subscribers.borrow().clone();
+        let subscribers = self.subscribers.borrow().live();
         for subscriber in subscribers {
-            if let Some(subscriber) = subscriber.upgrade() {
-                subscriber.invalidate(State::Dirty);
-            }
+            subscriber.invalidate(State::Dirty);
         }
     }
 }
