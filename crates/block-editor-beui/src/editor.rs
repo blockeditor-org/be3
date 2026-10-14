@@ -530,6 +530,16 @@ impl Editor {
         self.projection(None)
     }
 
+    pub fn loaded<C>(&self, queries: &[BlockQuery]) -> Memo<bool>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        let content = self.block_content::<C>().loaded();
+        let blocks = self.blocks();
+        let lists: Vec<BlockList> = queries.iter().map(|query| blocks.watch(*query)).collect();
+        create_memo(move || content.get() && lists.iter().all(BlockList::is_loaded))
+    }
+
     pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
@@ -718,6 +728,15 @@ impl Editor {
         })
     }
 
+    pub fn version_known(&self) -> Memo<bool> {
+        let host = self.state().host.clone();
+        let revision = self.pushed(Pushed::Version);
+        create_memo(move || {
+            revision.get();
+            host.version_known()
+        })
+    }
+
     pub fn version(&self, command: block_editor_plugin::VersionCommand) {
         self.state().host.version(self.state().block, command);
     }
@@ -797,6 +816,15 @@ impl Editor {
     pub fn block_types(&self) -> Rc<BlockCatalog> {
         self.state().pushed.track(Pushed::Catalog);
         self.state().host.block_types()
+    }
+
+    pub fn block_types_known(&self) -> Memo<bool> {
+        let host = self.state().host.clone();
+        let revision = self.pushed(Pushed::Catalog);
+        create_memo(move || {
+            revision.get();
+            host.block_types_known()
+        })
     }
 
     pub fn set_intrinsic_size(&self, size: Option<Vec2>) {

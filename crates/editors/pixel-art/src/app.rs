@@ -1,3 +1,4 @@
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::{BlockContent, ImageContent};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -34,14 +35,20 @@ pub struct PixelArtApp;
 
 impl block_editor_beui::BeuiApp for PixelArtApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelArtContent>(&[]);
         view! {
-            <PixelArtEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelArtEditor editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelArtContent>(&[]);
         view! {
-            <PixelArtPreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelArtPreview editor={editor} />
+            </Loaded>
         }
     }
 

@@ -14,7 +14,7 @@ use beui::reactive::{
     create_signal, view,
 };
 use block_editor_beui::be_block::TextContent;
-use block_editor_beui::{Creation, Editor, Loading};
+use block_editor_beui::{Creation, Editor, Loaded};
 use uuid::Uuid;
 
 use crate::hex::{self, HexView};
@@ -52,9 +52,8 @@ pub fn TextEditor(editor: Editor) -> NodeId {
 
     let hex = state.hex_view;
     let loaded = state.loaded;
-    let loading = create_memo(move || !loaded.get());
-    let text_shown = create_memo(move || loaded.get() && !hex.get());
-    let hex_shown = create_memo(move || loaded.get() && hex.get());
+    let text_shown = create_memo(move || !hex.get());
+    let hex_shown = create_memo(move || hex.get());
     let text_surface = move || {
         view! {
             <TextSurface @sizing=ItemSize::Percent(100.0) state={state} />
@@ -69,11 +68,12 @@ pub fn TextEditor(editor: Editor) -> NodeId {
         <List @node_ref=&content spacing=0.0>
             <EditorMenu state={state} />
             <ImportError state={state} />
-            <Show condition={loading}>
-                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the text" />
-            </Show>
-            <Show condition={text_shown} then={text_surface} />
-            <Show condition={hex_shown} then={hex_surface} />
+            <Loaded @sizing=ItemSize::Percent(100.0) loaded={loaded} label="Loading the text">
+                <List spacing=0.0>
+                    <Show condition={text_shown} then={text_surface} />
+                    <Show condition={hex_shown} then={hex_surface} />
+                </List>
+            </Loaded>
             <FormatBar state={state} formats />
         </List>
     }

@@ -12,7 +12,7 @@ use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
 };
 use block_editor_beui::{
-    ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId,
+    ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
@@ -37,14 +37,18 @@ impl block_editor_beui::BeuiApp for WorkspaceUiApp {
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor, true);
+    let layout = editor.view_content().map(|view| view.loaded());
+    let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
-        <Container>
-            {move |_| {
-                view! {
-                    <WorkspaceBody workspace />
-                }
-            }}
-        </Container>
+        <Loaded loaded={loaded} label="Loading the workspace">
+            <Container>
+                {move |_| {
+                    view! {
+                        <WorkspaceBody workspace />
+                    }
+                }}
+            </Container>
+        </Loaded>
     }
 }
 

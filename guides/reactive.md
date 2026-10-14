@@ -297,14 +297,26 @@ queues it for the host. It is already held behind whether the host says the
 block may be edited, and dropped until the host has sent the content once, since
 an edit made against content that has not arrived would land in the wrong place.
 `read` answers the content outside a projection (`None` until the host has sent
-it once), and `loaded()` is a signal that turns true when it has. Until then an
-editor shows `block_editor_beui::Loading` rather than an empty or editable
-view, and it keeps showing it until everything it draws from has arrived, so
-nothing is shown and then corrected a moment later: the database view waits for
-its database, schema, relations and row labels. `RelatedContent::settled()` and
-`content_settled` turn true once a block's content has arrived or the account
-cannot read it, so a block that will never arrive does not leave an editor
-loading forever.
+it once), and `loaded()` is a signal that turns true when it has.
+
+An editor shows nothing it would have to correct a moment later: not an empty
+or editable view before its content arrives, and not a placeholder ("no rows")
+that the next answer replaces. Every `BeuiApp::view` and `preview_view` wraps
+its component in `<Loaded loaded={...}>`, which shows `Loading` (a spinner)
+until the signal first turns true and only then builds what it wraps, and keeps
+it from then on, so a later change updates the view in place instead of
+bringing the spinner back. `editor.loaded::<C>(&[queries])` is the usual
+signal: the editor's own content and the answer to each graph query it draws
+names from, such as `BlockQuery::References(own)`. An editor that needs more
+waits for that too - the version control editors for `editor.version_known()`,
+the workspace shells for their view block, the database view for its database,
+schema, relations and row labels - and one with a placeholder that is already
+right while loading shows that instead (an image shows its thumbhash).
+`RelatedContent::settled()` and `content_settled` turn true once a block's
+content has arrived or the account cannot read it, so a block that will never
+arrive does not leave an editor loading forever. Something that loads later,
+inside a view that is already shown (a folder in the file tree being expanded),
+says "Loading…" in its own place.
 
 The graph around a block - its children, what it references, what references
 it - is a query rather than content. `editor.watch_blocks(BlockQuery::Children(id))`

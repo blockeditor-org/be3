@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::Editor;
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
@@ -11,7 +11,7 @@ use block_editor_beui::beui::styled::{
     Scroll, Select, Separator, use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ChoiceOption};
-use block_editor_beui::beui::{NodeId, TextAlign};
+use block_editor_beui::{Editor, Loading};
 use game_api::{Board, Control, GameActionOption, GameScreen, Gesture};
 
 mod annotations;
@@ -219,17 +219,10 @@ fn GameShape(
     let failed = shape == Shape::Error;
     let playing = shape == Shape::Screen;
     let failure = snapshot;
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
             <Show condition=loading>
-                <Frame
-                    color={theme.surface}
-                    padding_horizontal=PANEL_PADDING
-                    padding_vertical=PANEL_PADDING
-                >
-                    <Body content="Loading game..." align=TextAlign::Center />
-                </Frame>
+                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the game" />
             </Show>
             <Show condition=failed>
                 <GameError snapshot={failure} />

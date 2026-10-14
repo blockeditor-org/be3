@@ -32,7 +32,6 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     });
 
     let empty = create_memo(move || rows.with(Vec::is_empty));
-    let waiting = create_memo(move || empty.get() && !loaded.get());
     let none_yet = create_memo(move || empty.get() && loaded.get());
     let read_only = editor.read_only();
     let block_id = editor.block_id();
@@ -57,9 +56,6 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                 >
                     <List spacing=SECTION_SPACING>
                         <Heading content="Views" />
-                        <Show condition={waiting}>
-                            <Caption content="Loading…" />
-                        </Show>
                         <Show condition={none_yet}>
                             <Caption content="This database has no views yet." />
                         </Show>

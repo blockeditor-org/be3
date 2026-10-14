@@ -1,6 +1,8 @@
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::{Memo, create_memo};
+use block_editor_beui::{BlockQuery, Loaded};
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
 
 mod picture;
@@ -12,14 +14,20 @@ pub struct ImageApp;
 
 impl block_editor_beui::BeuiApp for ImageApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = placeholder_or_image(editor);
         view! {
-            <ImageEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <ImageEditor editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded = placeholder_or_image(editor);
         view! {
-            <ImagePreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <ImagePreview editor={editor} />
+            </Loaded>
         }
     }
 
@@ -28,6 +36,12 @@ impl block_editor_beui::BeuiApp for ImageApp {
             <ContentFileCreation creation id_prefix="image" filter={filter()} import={imported} />
         }
     }
+}
+
+fn placeholder_or_image(editor: Editor) -> Memo<bool> {
+    let image = editor.block_content::<ImageContent>().loaded();
+    let info = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
+    create_memo(move || image.get() || info.with(Option::is_some))
 }
 
 pub(crate) fn filter() -> FileFilter {

@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::PresentationContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{BlockQuery, Loaded};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -14,14 +15,24 @@ pub struct PresentationApp;
 
 impl block_editor_beui::BeuiApp for PresentationApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PresentationContent>(&[
+            BlockQuery::References(editor.block_id()),
+        ]);
         view! {
-            <PresentationView editor={editor} />
+            <Loaded loaded={loaded}>
+                <PresentationView editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PresentationContent>(&[
+            BlockQuery::References(editor.block_id()),
+        ]);
         view! {
-            <PresentationPreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <PresentationPreview editor={editor} />
+            </Loaded>
         }
     }
 

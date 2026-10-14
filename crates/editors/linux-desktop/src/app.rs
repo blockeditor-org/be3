@@ -11,7 +11,6 @@ mod switcher;
 mod tray;
 mod volume;
 
-use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::{
     ForEach, Frame, ItemSize, List, NodeRef, component, create_memo, view,
 };
@@ -20,6 +19,7 @@ use block_editor_beui::beui::unstyled::{
     Container, DockNode, DockPane, DockWindow, TabId, container_size,
 };
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
     AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, Workspace,
@@ -49,14 +49,18 @@ impl block_editor_beui::BeuiApp for LinuxDesktopApp {
 #[component]
 fn DesktopShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor, false);
+    let layout = editor.view_content().map(|view| view.loaded());
+    let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
-        <Container>
-            {move |_| {
-                view! {
-                    <DesktopBody workspace />
-                }
-            }}
-        </Container>
+        <Loaded loaded={loaded} label="Loading the desktop">
+            <Container>
+                {move |_| {
+                    view! {
+                        <DesktopBody workspace />
+                    }
+                }}
+            </Container>
+        </Loaded>
     }
 }
 

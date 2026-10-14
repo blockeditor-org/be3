@@ -1,4 +1,5 @@
 use block_editor_beui::Editor;
+use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::view;
@@ -15,8 +16,11 @@ pub struct DisplaySettingsApp;
 
 impl block_editor_beui::BeuiApp for DisplaySettingsApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::DisplaySettingsContent>(&[]);
         view! {
-            <DisplaySettingsView editor={editor} />
+            <Loaded loaded={loaded}>
+                <DisplaySettingsView editor={editor} />
+            </Loaded>
         }
     }
 

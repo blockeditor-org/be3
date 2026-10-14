@@ -2,6 +2,7 @@ use block_editor_beui::be_block::MapContent;
 
 use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
 use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{BlockQuery, Loaded};
 use block_editor_beui::{Creation, Editor, Sidebar};
 use uuid::Uuid;
 
@@ -21,14 +22,26 @@ pub struct MapApp;
 
 impl block_editor_beui::BeuiApp for MapApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded =
+            editor.loaded::<block_editor_beui::be_block::MapContent>(&[BlockQuery::References(
+                editor.block_id(),
+            )]);
         view! {
-            <MapEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <MapEditor editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded =
+            editor.loaded::<block_editor_beui::be_block::MapContent>(&[BlockQuery::References(
+                editor.block_id(),
+            )]);
         view! {
-            <MapPreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <MapPreview editor={editor} />
+            </Loaded>
         }
     }
 
