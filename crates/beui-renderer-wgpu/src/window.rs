@@ -91,6 +91,10 @@ impl Renderer for WindowSurface {
             .prepare(&mut self.gpu, output, scale, background)
     }
 
+    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+        self.target.note(output, scale, background);
+    }
+
     fn present(&mut self, background: Color32) -> bool {
         matches!(
             self.target.present(&mut self.gpu, background),

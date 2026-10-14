@@ -52,7 +52,7 @@ pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
     intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
     region_damage, region_drawing, region_placed, region_view, take_block_drags, take_changed,
-    take_region_actions, unmount_region, unplace_region,
+    take_focus_request, take_region_actions, unmount_region, unplace_region,
 };
 #[cfg(all(
     feature = "web-view",

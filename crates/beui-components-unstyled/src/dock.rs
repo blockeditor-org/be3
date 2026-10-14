@@ -1,5 +1,6 @@
 mod dialog;
 mod docking;
+mod fullscreen;
 mod modifier_drag;
 pub mod state;
 mod switch;
@@ -53,6 +54,8 @@ pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
     Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
 };
+use fullscreen::DockAway;
+pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
     DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
@@ -215,14 +218,31 @@ impl DockTabControl {
     }
 
     pub fn leave_fullscreen(&self) {
-        let tab = self.tab;
         if let Some(dock) = self.dock() {
-            dock.edit(|state| {
-                if state.fullscreen().is_some_and(|shown| shown.tab == tab) {
-                    state.set_fullscreen(None);
+            dock.leave_fullscreen(self.tab);
+        }
+    }
+
+    pub fn offer_fullscreen(&self) {
+        let Some(dock) = self.dock() else {
+            return;
+        };
+        if dock.is_dialog(self.tab) {
+            return;
+        }
+        let tab = self.tab;
+        let key = NEXT_MENU.with(|next| next.replace(next.get() + 1));
+        let set_offers = dock.set_offers;
+        set_offers.update(|offers| {
+            offers.insert(tab, key);
+        });
+        on_cleanup(move || {
+            set_offers.update(|offers| {
+                if offers.get(&tab) == Some(&key) {
+                    offers.remove(&tab);
                 }
             });
-        }
+        });
     }
 
     pub fn focused(&self) -> bool {
@@ -376,6 +396,8 @@ struct State {
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
     menus: ReadSignal<DockMenus>,
     set_menu: WriteSignal<DockMenus>,
+    offers: ReadSignal<HashMap<TabId, u64>>,
+    set_offers: WriteSignal<HashMap<TabId, u64>>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -389,6 +411,7 @@ struct State {
     content: RenderFn<TabId>,
     empty: RenderFn<LeafId>,
     fullscreen: RenderFn<NodeId>,
+    away: RenderFn<DockAwayHandle>,
     chrome: RenderFn<DockChromeHandle>,
     bar: RenderFn<DockBarHandle>,
     splitter: RenderFn<DockSplitterHandle>,
@@ -544,7 +567,10 @@ impl State {
         let Some(window) = window.try_get() else {
             return;
         };
-        let fullscreen = self.fullscreen_layer.try_get();
+        let fullscreen = self
+            .fullscreen_layer
+            .try_get()
+            .filter(|_| self.fullscreen_in_front());
         with_document(|document| {
             document.raise_overlay(window);
             if let Some(fullscreen) = fullscreen {
@@ -656,6 +682,24 @@ impl State {
 
     fn close_tab(&self, tab: TabId) {
         self.on_close.call(tab);
+    }
+
+    fn leave_fullscreen(&self, tab: TabId) {
+        self.edit(|state| {
+            if state.fullscreen().is_some_and(|shown| shown.tab == tab) {
+                state.set_fullscreen(None);
+            }
+        });
+    }
+
+    fn toggle_fullscreen(&self, tab: TabId) {
+        self.edit(|state| {
+            let fullscreen = match state.fullscreen() {
+                Some(shown) if shown.tab == tab => None,
+                _ => Some(DockFullscreen { tab, area: None }),
+            };
+            state.set_fullscreen(fullscreen);
+        });
     }
 
     fn show(&self, tab: TabId) {
@@ -1132,6 +1176,7 @@ pub(crate) struct DockConfig {
     pub(crate) content: RenderFn<TabId>,
     pub(crate) empty: RenderFn<LeafId>,
     pub(crate) fullscreen: Option<RenderFn<NodeId>>,
+    pub(crate) away: Option<RenderFn<DockAwayHandle>>,
     pub(crate) chrome: Option<RenderFn<DockChromeHandle>>,
     pub(crate) bar: Option<RenderFn<DockBarHandle>>,
     pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
@@ -1168,6 +1213,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         content,
         empty,
         fullscreen,
+        away,
         chrome,
         bar,
         splitter,
@@ -1190,6 +1236,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 let (current, set_current) = create_signal(state.peek());
                 let (actions, set_actions) = create_signal(HashMap::new());
                 let (menus, set_menu) = create_signal(DockMenus::new());
+                let (offers, set_offers) = create_signal(HashMap::new());
                 create_effect(move || set_current.set(state.get()));
                 let (drag, set_drag) = create_signal(None);
                 let dock = State {
@@ -1215,6 +1262,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     set_actions,
                     menus,
                     set_menu,
+                    offers,
+                    set_offers,
                     stack,
                     switcher,
                     switch,
@@ -1241,6 +1290,13 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                         RenderFn::new(|body: NodeId| {
                             view! {
                                 <Frame>{body}</Frame>
+                            }
+                        })
+                    }),
+                    away: away.unwrap_or_else(|| {
+                        RenderFn::new(|_| {
+                            view! {
+                                <Frame />
                             }
                         })
                     }),
@@ -1344,6 +1400,16 @@ fn DockFullscreenView(dock: State) -> NodeId {
         create_memo(move || OverlayAnchor::Point(area.get().map_or(Pos2::ZERO, |area| area.min)));
     let width = create_memo(move || area.get().map(|area| area.width()));
     let height = create_memo(move || area.get().map(|area| area.height()));
+    let front = create_memo(move || dock.fullscreen_in_front());
+    let layer = dock.fullscreen_layer;
+    create_effect(move || {
+        if !front.get() {
+            return;
+        }
+        if let Some(layer) = layer.try_get() {
+            untrack(|| with_document(|document| document.raise_overlay(layer)));
+        }
+    });
     let body = dock.fullscreen.call(view! {
         <Portal node={panel} />
     });
@@ -1356,7 +1422,16 @@ fn DockFullscreenView(dock: State) -> NodeId {
             traps_focus=false
             open
         >
-            <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
+            <Interactive
+                on_press={move |_: PointerPress| {
+                    if let Some(tab) = dock.fullscreen_tab() {
+                        dock.show(tab);
+                        dock.release_dialog_focus();
+                    }
+                }}
+            >
+                <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
+            </Interactive>
         </Overlay>
     }
 }
@@ -1399,6 +1474,9 @@ fn DockStack(dock: State) -> NodeId {
         switcher.call(switcher_handle(dock, shown, tabs, switching, set_switching))
     });
     let barred = create_memo(move || bar.is_some() && occupied.get());
+    let gone = dock.away_from(shown);
+    let left = create_memo(move || gone.get().is_some());
+    let here = create_memo(move || occupied.get() && gone.get().is_none());
     let empty = dock.empty;
     let homeward = dock;
     view! {
@@ -1424,8 +1502,11 @@ fn DockStack(dock: State) -> NodeId {
                 <Show condition={vacant}>
                     {empty.call(state.with_untracked(vacant_leaf))} @sizing=ItemSize::Percent(100.0)
                 </Show>
-                <Show condition={occupied}>
+                <Show condition={here}>
                     <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+                </Show>
+                <Show condition={left}>
+                    <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
                 </Show>
                 {switcher}
             </List>
@@ -1965,7 +2046,9 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
         set_panel.set(tab.map(|tab| dock.panel(tab)));
     });
     let vacant = create_memo(move || shown.get().is_none());
-    let occupied = create_memo(move || shown.get().is_some());
+    let gone = dock.away_from(shown);
+    let left = create_memo(move || gone.get().is_some());
+    let occupied = create_memo(move || shown.get().is_some() && gone.get().is_none());
     let empty = dock.empty;
     view! {
         <List spacing=0.0>
@@ -1974,6 +2057,9 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
             </Show>
             <Show condition={occupied}>
                 <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+            </Show>
+            <Show condition={left}>
+                <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
             </Show>
         </List>
     }
@@ -2159,6 +2245,17 @@ fn DockTabView(
     });
     let menu = dock.menu;
     let grouped = matches!(entry, Entry::Group(_));
+    let fullscreen = create_memo(move || match entry {
+        Entry::Tab(tab) => dock
+            .offers_fullscreen(tab)
+            .then(|| dock.fullscreen_tab() == Some(tab)),
+        Entry::Group(_) => None,
+    });
+    let toggle_fullscreen = ClickCallback::new(move || {
+        if let Entry::Tab(tab) = entry {
+            dock.toggle_fullscreen(tab);
+        }
+    });
     let carried = dock;
     let preview = dock.preview;
     let across = match vertical {
@@ -2188,12 +2285,14 @@ fn DockTabView(
                     has_next
                     held
                     closable
+                    fullscreen
                     close={close}
                     float={float}
                     group={group}
                     split={split}
                     ungroup={ungroup}
                     toggle_held={toggle_held}
+                    toggle_fullscreen={toggle_fullscreen}
                 >
                     {face}
                 </TabMenu>
@@ -2211,14 +2310,21 @@ fn TabMenu(
     has_next: Memo<bool>,
     held: Memo<Option<bool>>,
     closable: Memo<bool>,
+    fullscreen: Memo<Option<bool>>,
     close: ClickCallback,
     float: ClickCallback,
     group: ClickCallback,
     split: ClickCallback,
     ungroup: ClickCallback,
     toggle_held: ClickCallback,
+    toggle_fullscreen: ClickCallback,
     children: Child,
 ) -> NodeId {
+    let offered = create_memo(move || fullscreen.get().is_some());
+    let fullscreen_label = create_memo(move || match fullscreen.get() {
+        Some(true) => "Leave full screen".to_owned(),
+        Some(false) | None => "Full screen".to_owned(),
+    });
     let stuck = create_memo(move || floating || held.get() == Some(true));
     let homeless = create_memo(move || held.get().is_none());
     let pin_label = create_memo(move || match held.get() {
@@ -2250,6 +2356,9 @@ fn TabMenu(
                 <Show condition={grouped}>
                     <MenuItem label="Ungroup" disabled={pinned} />
                 </Show>
+                <Show condition={offered}>
+                    <MenuItem label={fullscreen_label} />
+                </Show>
             }}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => float.call(),
@@ -2258,6 +2367,7 @@ fn TabMenu(
                 Some(3) => closing.call(),
                 Some(4) if grouped => ungroup.call(),
                 Some(4) => toggle_held.call(),
+                Some(5) => toggle_fullscreen.call(),
                 _ => {}
             }}
         >

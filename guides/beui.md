@@ -353,7 +353,9 @@ hooks the higher crates fill in:
 - `Platform::pick_file` gets a `FilePickAnswer`, which can be sent from any
   thread and wakes the runner; the pick reaches the app at the next frame.
   Accessibility trees are published only between
-  `Runner::accessibility_requested` and `accessibility_deactivated`.
+  `Runner::accessibility_requested` and `accessibility_deactivated`, and
+  `Context::accessibility_requested` says whether they are, so a host asks what it
+  embeds to describe itself only while something is listening.
   `Frame::wait` is how long the adapter may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.
@@ -1398,7 +1400,8 @@ shut out rather than answering a press through it.
 How the windows stack is the document's layer order alone (`Document::layers()`),
 not anything in `DockState`: a press on a window, the focus moving into one and
 showing a tab of the window that has the focus (`DockState::show`, so a host can bring
-back a window something else covered) raise its layer, a fullscreen tab is raised again over it each time, and a drop
+back a window something else covered) raise its layer (over a fullscreen tab too, unless
+the focus is in that tab), and a drop
 target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
@@ -1529,6 +1532,13 @@ background), so it covers the tab bars, the other panes, the dock's windows
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
+Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
+its content) raises the fullscreen overlay above the floating windows, its own pane's window
+included, so a window brought in front of it and then left goes behind it again. The pane
+it left draws Docking's `away` render prop (styled: a note that it is full screen and a Leave
+full screen button), seen where the fullscreen area does not cover it, such as another screen.
+A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
+to the tab's right-click menu; only content that has its own way out should.
 
 ### Spinners
 
@@ -1901,8 +1911,7 @@ from a driver (guides/running/drive.md); the native run functions fill it
 from `BEUI_AUTOMATION` and switch to `beui::Headless` for `BEUI_HEADLESS`, and
 block-app's web build fills it from its `automate` export. The runner keeps the
 accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
-headless plugin do by default and other runners only for a driver or a plugin
-description) and the action registry's actions, takes
+headless plugin do by default and other runners only for a driver) and the action registry's actions, takes
 the next command at the start of a frame, turns input commands into `Event`s
 already in points, which skip the adapters' intake (`automation/keys.rs` names
 the keys), and answers once a frame
@@ -1918,6 +1927,15 @@ other: it keeps a clipboard, grows to its screen for fullscreen, and reports
 its size, scale and fullscreen through its `WindowReports`. beui's own tests
 drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
 frame back for a screenshot.
+
+A window nobody can see is `Runner::set_occluded`: its frames still run (layout,
+paint, accessibility, the driver), but the runner hands each one's output to
+`Renderer::note` instead of `prepare` and presents nothing. `note` keeps only
+what the frame damaged, so the wgpu `Target` draws the union of every unseen
+frame's damage into its retained frame the next time it does draw; a renderer
+without `note` prepares as usual. The headless adapter is always occluded, so it
+draws only for a driver's `shot`: the frame that takes one prepares and
+presents, and is read back.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,

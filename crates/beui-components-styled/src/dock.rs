@@ -3,7 +3,7 @@ mod switch;
 
 use beui_macros::{component, view};
 
-use crate::button::ButtonVariant;
+use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
@@ -11,14 +11,17 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle, DockKey,
-    DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
+    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle,
+    DockKey, DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
+    DockSwitchHandle, DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
+use beui_core::icons::{
+    ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_FULLSCREEN, ICON_FULLSCREEN_EXIT, ICON_MORE_VERT,
+    ICON_TAB_GROUP,
+};
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
@@ -47,6 +50,8 @@ pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::
     TAB_HEIGHT + 2.0 * BAR_PADDING + 3.0 * CHROME_BORDER,
 );
 const DROP_ALPHA: u8 = 64;
+const AWAY_SPACING: f32 = 12.0;
+const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
 
 #[component]
@@ -89,6 +94,9 @@ where
             fullscreen={move |body: NodeId| view! {
                 <Frame color={backdrop}>{body}</Frame>
             }}
+            away={move |handle: DockAwayHandle| view! {
+                <DockAwayFace handle />
+            }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
             }}
@@ -127,6 +135,37 @@ where
                 }
             }}
         />
+    }
+}
+
+#[component]
+fn DockAwayFace(handle: DockAwayHandle) -> NodeId {
+    let DockAwayHandle { title, leave, .. } = handle;
+    let theme = use_theme();
+    let message = create_memo(move || format!("{} is full screen", title.get()));
+    view! {
+        <Frame
+            color={theme.background}
+            align_horizontal=Align::Center
+            align_vertical=Align::Center
+            padding_horizontal=AWAY_PADDING
+            padding_vertical=AWAY_PADDING
+            @test_id="dock.away"
+        >
+            <List align=Align::Center spacing=AWAY_SPACING>
+                <Text size=TextSize::Xl3 color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph=ICON_FULLSCREEN />
+                </Text>
+                <Text string={message} align=TextAlign::Center />
+                <Button
+                    label="Leave full screen"
+                    glyph=ICON_FULLSCREEN_EXIT
+                    variant=ButtonVariant::Secondary
+                    @test_id="dock.away.leave"
+                    on_click={move || leave.call()}
+                />
+            </List>
+        </Frame>
     }
 }
 

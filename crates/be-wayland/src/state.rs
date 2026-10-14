@@ -1142,6 +1142,10 @@ pub(crate) fn collect_layers(
             let (Some(view), Some(buffer)) = (data.view(), data.buffer_size()) else {
                 return;
             };
+            let single_pixel = data
+                .buffer()
+                .is_some_and(|buffer| crate::single_pixel::color(buffer).is_some());
+            let view = crate::held_view::shown(states, view, single_pixel);
             let origin = *location + view.offset;
             layers.push(Layer {
                 surface: surface.clone(),
@@ -1237,6 +1241,7 @@ impl CompositorHandler for State {
     }
 
     fn commit(&mut self, surface: &WlSurface) {
+        crate::held_view::before_commit(surface);
         on_commit_buffer_handler::<Self>(surface);
         self.popups.commit(surface);
         if let Some(PopupKind::Xdg(popup)) = self.popups.find_popup(surface)

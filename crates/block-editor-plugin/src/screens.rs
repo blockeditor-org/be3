@@ -495,19 +495,14 @@ impl Screens {
                 self.requests = set.screens.clone();
                 self.relayout();
             }
-            Message::NodeAction {
-                screen,
-                node,
-                action,
-                value,
-            } => {
+            Message::NodeAction { screen, request } => {
                 let Some((instance, region)) = self.screen(*screen) else {
                     return false;
                 };
                 let Some(session) = self.sessions.get_mut(&instance) else {
                     return false;
                 };
-                session.node_action(region, *node as usize, action, value.clone());
+                session.node_action(region, request.clone());
             }
             Message::RunAction { screen, id } => {
                 let Some((instance, region)) = self.screen(*screen) else {
