@@ -2,13 +2,13 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::{Rc, Weak};
 
-use crate::computation::Computation;
+use crate::computation::{Computation, no_computation};
 use crate::scope::Owner;
 
-#[derive(Default)]
 pub(crate) struct Runtime {
     pub(crate) observer: RefCell<Weak<Computation>>,
     pub(crate) owner: RefCell<Weak<Owner>>,
+    pub(crate) pending: RefCell<Weak<Computation>>,
     pub(crate) queue: RefCell<VecDeque<Weak<Computation>>>,
     pub(crate) depth: Cell<usize>,
     pub(crate) flushing: Cell<bool>,
@@ -16,6 +16,23 @@ pub(crate) struct Runtime {
     pub(crate) zone: Cell<u64>,
     pub(crate) parked: RefCell<HashMap<u64, Vec<Weak<Computation>>>>,
     pub(crate) sequence: Cell<u64>,
+}
+
+impl Default for Runtime {
+    fn default() -> Self {
+        Self {
+            observer: RefCell::new(no_computation()),
+            owner: RefCell::default(),
+            pending: RefCell::new(no_computation()),
+            queue: RefCell::default(),
+            depth: Cell::default(),
+            flushing: Cell::default(),
+            memo_depth: Cell::default(),
+            zone: Cell::default(),
+            parked: RefCell::default(),
+            sequence: Cell::default(),
+        }
+    }
 }
 
 thread_local! {
@@ -48,13 +65,23 @@ impl<T: Copy> Drop for Reset<T> {
 pub(crate) struct Context {
     observer: Weak<Computation>,
     owner: Weak<Owner>,
+    pending: Weak<Computation>,
 }
 
 impl Context {
     pub(crate) fn enter(observer: Weak<Computation>, owner: Weak<Owner>) -> Self {
+        Self::enter_pending(observer, owner, no_computation())
+    }
+
+    pub(crate) fn enter_pending(
+        observer: Weak<Computation>,
+        owner: Weak<Owner>,
+        pending: Weak<Computation>,
+    ) -> Self {
         RUNTIME.with(|runtime| Self {
             observer: runtime.observer.replace(observer),
             owner: runtime.owner.replace(owner),
+            pending: runtime.pending.replace(pending),
         })
     }
 }
@@ -64,13 +91,19 @@ impl Drop for Context {
         RUNTIME.with(|runtime| {
             runtime.observer.replace(self.observer.clone());
             runtime.owner.replace(self.owner.clone());
+            runtime.pending.replace(self.pending.clone());
         });
     }
 }
 
 pub fn untrack<T>(f: impl FnOnce() -> T) -> T {
-    let owner = RUNTIME.with(|runtime| runtime.owner.borrow().clone());
-    let _context = Context::enter(Weak::new(), owner);
+    let (owner, pending) = RUNTIME.with(|runtime| {
+        (
+            runtime.owner.borrow().clone(),
+            runtime.pending.borrow().clone(),
+        )
+    });
+    let _context = Context::enter_pending(no_computation(), owner, pending);
     f()
 }
 

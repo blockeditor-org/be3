@@ -3,7 +3,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use crate::computation::Computation;
+use crate::arena::{self, Key};
+use crate::computation::{Computation, no_computation};
 use crate::runtime::{Context, RUNTIME, batch, flush, flush_within, next_sequence};
 
 pub(crate) struct Gate {
@@ -33,14 +34,44 @@ impl Gate {
     }
 }
 
-#[derive(Default)]
 pub(crate) struct Owner {
     pub(crate) computation: Weak<Computation>,
     pub(crate) disposed: Cell<bool>,
-    parent: Weak<Owner>,
+    parent: Option<Rc<Owner>>,
     pub(crate) gate: RefCell<Option<Rc<Gate>>>,
     contexts: RefCell<HashMap<TypeId, Rc<dyn Any>>>,
-    cleanups: RefCell<Vec<Box<dyn FnOnce()>>>,
+    cleanups: RefCell<Vec<Cleanup>>,
+}
+
+impl Default for Owner {
+    fn default() -> Self {
+        Self {
+            computation: no_computation(),
+            disposed: Cell::default(),
+            parent: None,
+            gate: RefCell::default(),
+            contexts: RefCell::default(),
+            cleanups: RefCell::default(),
+        }
+    }
+}
+
+pub(crate) enum Cleanup {
+    Run(Box<dyn FnOnce()>),
+    Free(Key),
+    Dispose(Rc<Computation>),
+    Close(Rc<Owner>),
+}
+
+impl Cleanup {
+    fn run(self) {
+        match self {
+            Cleanup::Run(cleanup) => cleanup(),
+            Cleanup::Free(key) => arena::remove(key),
+            Cleanup::Dispose(computation) => computation.dispose(),
+            Cleanup::Close(owner) => owner.dispose(),
+        }
+    }
 }
 
 impl Owner {
@@ -51,7 +82,7 @@ impl Owner {
     ) -> Self {
         Self {
             computation,
-            parent,
+            parent: parent.upgrade(),
             gate: RefCell::new(gate),
             ..Self::default()
         }
@@ -63,14 +94,14 @@ impl Owner {
             if std::ptr::eq(Rc::as_ptr(&owner), root) {
                 return true;
             }
-            current = owner.parent.upgrade();
+            current = owner.parent.clone();
         }
         false
     }
 
-    pub(crate) fn add(&self, cleanup: impl FnOnce() + 'static) {
+    pub(crate) fn add(&self, cleanup: Cleanup) {
         assert!(!self.disposed.get(), "reactive scope was disposed");
-        self.cleanups.borrow_mut().push(Box::new(cleanup));
+        self.cleanups.borrow_mut().push(cleanup);
     }
 
     pub(crate) fn is_inert(&self) -> bool {
@@ -82,10 +113,10 @@ impl Owner {
             return;
         }
         let cleanups = self.cleanups.take();
-        let _context = Context::enter(Weak::new(), Weak::new());
+        let _context = Context::enter(no_computation(), Weak::new());
         let mut failure = None;
         for cleanup in cleanups.into_iter().rev() {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(cleanup));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| cleanup.run()));
             if let Err(error) = result {
                 failure.get_or_insert(error);
             }
@@ -107,22 +138,22 @@ pub struct Scope {
 impl Scope {
     pub fn new() -> Self {
         let scope = Self::detached();
-        let parent = RUNTIME.with(|runtime| runtime.owner.borrow().upgrade());
+        let parent = live_owner();
         if let Some(parent) = parent {
             let child = scope.owner.clone();
-            parent.add(move || child.dispose());
+            parent.add(Cleanup::Close(child));
         }
         scope
     }
 
     pub fn detached() -> Self {
-        let parent = RUNTIME.with(|runtime| runtime.owner.borrow().upgrade());
+        let parent = live_owner();
         let owner = Rc::new(Owner {
             computation: parent
                 .as_ref()
                 .map(|parent| parent.computation.clone())
-                .unwrap_or_default(),
-            parent: parent.as_ref().map(Rc::downgrade).unwrap_or_default(),
+                .unwrap_or_else(no_computation),
+            parent: parent.clone(),
             gate: RefCell::new(
                 parent
                     .as_ref()
@@ -185,7 +216,7 @@ impl Scope {
 
     pub fn run<T>(&self, f: impl FnOnce() -> T) -> T {
         assert!(!self.is_disposed(), "reactive scope was disposed");
-        let _context = Context::enter(Weak::new(), Rc::downgrade(&self.owner));
+        let _context = Context::enter(no_computation(), Rc::downgrade(&self.owner));
         batch(f)
     }
 
@@ -219,7 +250,7 @@ impl RootScope {
     pub fn new() -> Self {
         let scope = Scope::detached();
         Self {
-            _context: Context::enter(Weak::new(), Rc::downgrade(&scope.owner)),
+            _context: Context::enter(no_computation(), Rc::downgrade(&scope.owner)),
             _scope: scope,
         }
     }
@@ -245,7 +276,7 @@ impl ScopeContext {
         if let Some(owner) = self.0.upgrade() {
             assert!(!owner.disposed.get(), "reactive scope was disposed");
         }
-        let _context = Context::enter(Weak::new(), self.0.clone());
+        let _context = Context::enter(no_computation(), self.0.clone());
         batch(f)
     }
 
@@ -265,8 +296,7 @@ impl ScopeContext {
 }
 
 pub fn current_scope() -> Option<ScopeContext> {
-    let owner = RUNTIME.with(|runtime| runtime.owner.borrow().clone());
-    let context = ScopeContext(owner);
+    let context = ScopeContext(Rc::downgrade(&live_owner()?));
     context.is_alive().then_some(context)
 }
 
@@ -303,7 +333,7 @@ impl Drop for Scope {
 }
 
 pub fn on_cleanup(cleanup: impl FnOnce() + 'static) {
-    current_owner().add(cleanup);
+    current_owner().add(Cleanup::Run(Box::new(cleanup)));
 }
 
 pub fn provide_context<T: 'static>(value: T) {
@@ -314,7 +344,12 @@ pub fn provide_context<T: 'static>(value: T) {
 }
 
 pub fn use_context<T: Clone + 'static>() -> Option<T> {
-    let mut owner = RUNTIME.with(|runtime| runtime.owner.borrow().upgrade());
+    let mut owner = RUNTIME.with(|runtime| {
+        runtime.owner.borrow().upgrade().or_else(|| {
+            let pending = runtime.pending.borrow().upgrade()?;
+            pending.owner.upgrade()
+        })
+    });
     while let Some(current) = owner {
         let found = current
             .contexts
@@ -324,15 +359,24 @@ pub fn use_context<T: Clone + 'static>() -> Option<T> {
         if found.is_some() {
             return found;
         }
-        owner = current.parent.upgrade();
+        owner = current.parent.clone();
     }
     None
 }
 
+pub(crate) fn live_owner() -> Option<Rc<Owner>> {
+    let owner = RUNTIME.with(|runtime| runtime.owner.borrow().upgrade());
+    if owner.is_some() {
+        return owner;
+    }
+    let pending = RUNTIME.with(|runtime| runtime.pending.borrow().upgrade())?;
+    let owner = pending.ensure_owner();
+    RUNTIME.with(|runtime| runtime.owner.replace(Rc::downgrade(&owner)));
+    Some(owner)
+}
+
 pub(crate) fn current_owner() -> Rc<Owner> {
-    let owner = RUNTIME
-        .with(|runtime| runtime.owner.borrow().upgrade())
-        .expect("create signals, memos, effects, and cleanups inside a scope");
+    let owner = live_owner().expect("create signals, memos, effects, and cleanups inside a scope");
     assert!(!owner.disposed.get(), "reactive scope was disposed");
     owner
 }
