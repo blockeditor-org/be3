@@ -203,7 +203,9 @@ impl Document {
     }
 
     pub fn set_focusable_ime(&mut self, focusable: NodeOf<InteractiveNode>, ime: bool) {
-        if self.contains(focusable) {
+        if self.contains(focusable)
+            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.ime != ime)
+        {
             self.focus_mut(focusable).ime = ime;
         }
     }
@@ -213,7 +215,9 @@ impl Document {
         focusable: NodeOf<InteractiveNode>,
         keyboard: bool,
     ) {
-        if self.contains(focusable) {
+        if self.contains(focusable)
+            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.ime_keyboard != keyboard)
+        {
             self.focus_mut(focusable).ime_keyboard = keyboard;
         }
     }
@@ -223,7 +227,9 @@ impl Document {
         focusable: NodeOf<InteractiveNode>,
         asks: Option<u32>,
     ) {
-        if self.contains(focusable) {
+        if self.contains(focusable)
+            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.keyboard_asks != asks)
+        {
             self.focus_mut(focusable).keyboard_asks = asks;
         }
     }

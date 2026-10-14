@@ -131,27 +131,16 @@ pub fn Interactive(
     });
     if focusable {
         create_binding(move || {
-            with_document(|document| document.set_focusable_tab_stop(interactive, tab_stop.get()))
-        });
-        create_binding(move || {
+            let (tab_stop, press_focus, ime) = (tab_stop.get(), press_focus.get(), ime.get());
+            let (pastes, keyboard, asks) = (pastes.get(), ime_keyboard.get(), keyboard_asks.get());
             with_document(|document| {
-                document.set_focusable_press_focus(interactive, press_focus.get())
+                document.set_focusable_tab_stop(interactive, tab_stop);
+                document.set_focusable_press_focus(interactive, press_focus);
+                document.set_focusable_ime(interactive, ime);
+                document.set_focusable_pastes(interactive, pastes);
+                document.set_focusable_ime_keyboard(interactive, keyboard);
+                document.set_focusable_keyboard_asks(interactive, asks);
             })
-        });
-        create_binding(move || {
-            with_document(|document| document.set_focusable_ime(interactive, ime.get()))
-        });
-        create_binding(move || {
-            let pastes = pastes.get();
-            with_document(|document| document.set_focusable_pastes(interactive, pastes))
-        });
-        create_binding(move || {
-            let keyboard = ime_keyboard.get();
-            with_document(|document| document.set_focusable_ime_keyboard(interactive, keyboard))
-        });
-        create_binding(move || {
-            let asks = keyboard_asks.get();
-            with_document(|document| document.set_focusable_keyboard_asks(interactive, asks))
         });
         create_binding(move || {
             let cursor = ime_cursor.get();
@@ -180,45 +169,20 @@ pub fn Interactive(
         });
     }
     create_binding(move || {
+        let (capture, repeat, touch) = (capture_presses.get(), repeat_drag.get(), touch_drags.get());
+        let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
+        let (active, inhibits, claimed) = (key_active.get(), inhibits_shortcuts.get(), claim_modifiers.get());
         with_document(|document| {
-            document.set_interactive_capture_presses(interactive, capture_presses.get())
+            document.set_interactive_capture_presses(interactive, capture);
+            document.set_interactive_repeat_drag(interactive, repeat);
+            document.set_interactive_touch_drags(interactive, touch);
+            document.set_interactive_touch_drag_axis(interactive, axis);
+            document.set_interactive_claims_touch(interactive, claims);
+            document.set_interactive_scroll_axis(interactive, scroll);
+            document.set_interactive_key_active(interactive, active);
+            document.set_interactive_inhibits_shortcuts(interactive, inhibits);
+            document.set_interactive_claim_modifiers(interactive, claimed);
         })
-    });
-    create_binding(move || {
-        with_document(|document| {
-            document.set_interactive_repeat_drag(interactive, repeat_drag.get())
-        })
-    });
-    create_binding(move || {
-        with_document(|document| {
-            document.set_interactive_touch_drags(interactive, touch_drags.get())
-        })
-    });
-    create_binding(move || {
-        with_document(|document| {
-            document.set_interactive_touch_drag_axis(interactive, touch_drag_axis.get())
-        })
-    });
-    create_binding(move || {
-        with_document(|document| {
-            document.set_interactive_claims_touch(interactive, claims_touch.get())
-        })
-    });
-    create_binding(move || {
-        with_document(|document| {
-            document.set_interactive_scroll_axis(interactive, scroll_axis.get())
-        })
-    });
-    create_binding(move || {
-        with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
-    });
-    create_binding(move || {
-        let inhibits = inhibits_shortcuts.get();
-        with_document(|document| document.set_interactive_inhibits_shortcuts(interactive, inhibits))
-    });
-    create_binding(move || {
-        let claimed = claim_modifiers.get();
-        with_document(|document| document.set_interactive_claim_modifiers(interactive, claimed))
     });
     interactive.id()
 }
