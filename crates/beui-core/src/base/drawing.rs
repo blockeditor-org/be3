@@ -22,6 +22,10 @@ pub struct DrawingNode {
 }
 
 impl Element for DrawingNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, _doc: &mut Document, _painter: &Painter, available: Vec2) -> Vec2 {
         let Some(size) = self.size else {
             return Vec2::ZERO;
@@ -44,6 +48,8 @@ impl Element for DrawingNode {
     fn children(&self) -> Vec<NodeId> {
         Vec::new()
     }
+
+    fn remove_child(&mut self, _child: NodeId) {}
 
     fn kind(&self) -> &'static str {
         "drawing"

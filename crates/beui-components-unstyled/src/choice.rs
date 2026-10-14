@@ -12,9 +12,9 @@ use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
-    Callback, ChildScope, ChildValue, Children, IntoProp, List, Memo, Prop, ReadSignal, RenderFn,
-    Run, Scope, Stored, WriteSignal, component_accessibility, create_effect, create_memo,
-    create_selector, create_signal, set_component_state, store,
+    Callback, Children, IntoProp, List, Memo, Prop, ReadSignal, RenderFn, Run, Stored, WriteSignal,
+    component_accessibility, create_effect, create_memo, create_selector, create_signal,
+    set_component_state, store,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -35,13 +35,6 @@ pub struct ChoiceOptionHandle {
 
 pub struct ChoiceOption {
     label: Memo<String>,
-    scope: ChildScope,
-}
-
-impl ChildValue for ChoiceOption {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.scope.adopt(scope);
-    }
 }
 
 impl ChoiceOption {
@@ -56,7 +49,6 @@ beui_view::value_child_type!(ChoiceOption);
 pub fn ChoiceOption(label: Prop<String>) -> ChoiceOption {
     ChoiceOption {
         label: create_memo(move || label.get()),
-        scope: ChildScope::default(),
     }
 }
 

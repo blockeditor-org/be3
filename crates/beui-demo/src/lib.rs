@@ -546,15 +546,6 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
         .at(KeyAt::Window)
         .register();
     }
-    let open = create_memo(move || layout.switching());
-    Action::new("demo.switch.cancel", "Stop switching tabs", move || {
-        layout.cancel_switch();
-    })
-    .shortcut(Chord::key(Key::Escape).alt())
-    .shortcut(Chord::key(Key::Escape).alt().shift())
-    .enabled(open)
-    .at(KeyAt::Window)
-    .register();
     create_effect(move || {
         if !modifiers.get().alt && untrack(|| layout.switching()) {
             untrack(|| layout.commit_switch());

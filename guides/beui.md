@@ -33,10 +33,10 @@ If a function returns a `NodeId`, or a value built around one such as a
 `CanvasItem`, annotate it `#[component]` and name it in `CamelCase`. The
 attribute is what makes the function usable as a tag, gives it `@test_id`,
 `@node_ref` and `@sizing`, makes `component_state`, `component_accessibility`
-and `component_placed` available inside it, and gives it a scope of its own for
-the contexts it provides. `./scripts/verify` reports a function outside an
-`impl` that writes a `view!` and returns a node or a child value without the
-attribute.
+and `component_placed` available inside it (they panic anywhere else), and
+gives it a scope of its own, so the contexts it provides reach only what it
+builds rather than its siblings. Nothing checks for the attribute; a plain
+function that writes a `view!` builds into its caller's scope.
 
 Nodes and effects live and die together whether or not a function is a
 component: a node belongs to the reactive scope it was created in, and
@@ -52,13 +52,13 @@ nothing), so each is a distinct type and a child built for one parent does not
 fit another. A new parent implements `ParentKind` for its node type, and
 `BareChild` too when a bare `NodeId` should go in it unchanged.
 
-A child needs no node at all. A `ChildValue` that is no node keeps a
-`ChildScope` field instead, which the component's scope is moved into, so
-dropping the value disposes exactly the effects that building it created and
-the owner tree does the rest. That is how an item made of data rather than
-nodes — a label, a key, a callback — can still be a component, with its own
-scope, context, memos and cleanups, and still be written as a tag. Such a
-component has nothing for `component_state`, `component_accessibility`,
+A child needs no node at all. A component that returns a value rather than a
+node still runs in a scope of its own, which lives as long as the scope that
+built it, exactly as a node's does: a value built inside a `show` branch or a
+`for_each` row goes with that branch or row, whatever happens to the value.
+That is how an item made of data rather than nodes — a label, a key, a
+callback — can still be a component, with its own scope, context, memos and
+cleanups, and still be written as a tag. Such a component has nothing for `component_state`, `component_accessibility`,
 or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
@@ -67,8 +67,9 @@ disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
-with `value_child_type!` rather than `child_type!`, which additionally says how
-a run of it is kept, so a `show` or a `for_each` can build one.
+with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
+is kept, so a `show` or a `for_each` can build one; a generic type names its
+parameters first, as in `value_child_type!(<K> DockNode<K>)`.
 
 Functions that build no part of a view are ordinary functions. Deriving a
 colour from theme tokens and interaction state, mapping a value to a label,
@@ -250,7 +251,10 @@ hooks the higher crates fill in:
   to it; a document built by `beui_view::reactive::build` has none.
 - The simulated mouse is an `InputSimulation` the inspector installs on the
   `Context`.
-- Text is shaped by the `FontBackend` a `Context` is made with.
+- Text is shaped by the `FontBackend` a `Context` is made with. A backend
+  only shapes one line (`FontBackend::shape`, text with no `\n`); core breaks
+  and aligns lines once, in `RichLayout`, which `Fonts::layout` (and so
+  `Painter::layout`) uses for wrapped, aligned or multi-line text.
   `beui::context()` makes one over `FreetypeFonts` and only the fonts beui
   bundles, which is what tests use; `beui::system_context()`, which the
   runners use, adds the system's own fonts for whatever the bundled ones do
@@ -267,18 +271,25 @@ hooks the higher crates fill in:
   `beui_core::runner::Runner::frame`, shared by all of them: it runs the
   app, publishes accessibility, and tells the adapter's `Platform` (another
   trait object) what the app asked of the window. Everything the window
-  shows for the app is one `beui_core::window::WindowState` (the cursor and
-  touch emulation, pointer lock, back handling, wanting the keyboard,
-  intercepted keys, the paste kinds the focus takes, and the IME area), which
-  the `Context` fills during a frame and `FrameOutput::window` carries. The
-  runner hands it to `Platform::show_window` with the state it showed before,
-  only when they differ or the app was just given IME or text input, so an
-  adapter compares just the fields it uses; a new field is one more field
-  there and in the adapters that act on it. Typing moves the platform's own
-  copy of the field (the web's hidden textarea, Android's editable) even
-  when the app turns the text away or a composition ends with the field
-  unchanged, so that is when the web and Android adapters bring that copy
-  back to the app's text, comparing against what they last sent. The IME
+  shows for the app is one `beui_core::window::WindowState` (the cursor,
+  pointer lock, back handling, wanting the keyboard, intercepted keys, the
+  paste kinds the focus takes, the IME area, and `typed`), which the
+  `Context` fills during a frame and `FrameOutput::window` carries. While
+  `Context::touch_emulation` is on its cursor is `CursorIcon::Touch`
+  whatever the app asked: a finger-sized circle, defined once in
+  `beui_core::touch_cursor` as an image at any scale (winit's custom cursor,
+  the DRM sprite), an SVG (the web's CSS `url(...)` cursor) and a painter
+  call (the mouse simulation's cursor). A plugin region passes it to its host
+  as the protocol's `CursorIcon::Touch`, and a platform with no custom cursors
+  falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
+  showed before, only when they differ, so an adapter compares just the
+  fields it uses; a new field is one more field there and in the adapters
+  that act on it. Typing moves the platform's own copy of the field (the
+  web's hidden textarea, Android's editable) even when the app turns the
+  text away or a composition ends with the field unchanged, so `typed`
+  counts the frames that delivered IME or text input, and the change is
+  when the web and Android adapters bring that copy back to the app's
+  text, comparing against what they last sent. The IME
   area it hands over is in the window's own units (winit's logical pixels,
   CSS pixels, a plugin region's points: physical pixels over the platform's
   scale, so points times the zoom), and `Runner::window` is the state last
@@ -306,8 +317,8 @@ hooks the higher crates fill in:
   The focus says what it takes: an `Interactive`'s `pastes` lists the
   `PasteKind`s (text, image) in the order it prefers them, and one with only
   `on_text` takes text. `request_paste` (a Paste menu) and Ctrl+V, which the
-  document turns into a paste whether the focus handles the key or forwards
-  it, ask `Platform::paste` once a frame for the first of those kinds the
+  document turns into a paste when nothing on the key's way took it or the
+  focus forwards it, ask `Platform::paste` once a frame for the first of those kinds the
   clipboard holds, and its answer arrives at the focus as `Event::Paste`
   (`Pasted::Text`, or `Pasted::Image` as a PNG `PickedFile`), handed to
   `on_paste`, or a text paste to `on_text` without one. A platform that
@@ -321,9 +332,15 @@ hooks the higher crates fill in:
   to the renderer loader the facade gives it.
 - An adapter only translates: it hands `Runner::push` a `runner::Input`, which
   is an `Event` with its positions and deltas in physical pixels, a
-  `Keystroke` (the key, its text and scancode, with no modifiers), or a
+  `Keystroke` (the key, its text and scancode, with no modifiers), a
   `ScrollDelta` in pixels, lines (`SCROLL_LINE` points) or pages
-  (`SCROLL_PAGE`). It may send `Event::Modifiers` on every event; the runner
+  (`SCROLL_PAGE`), or a `Pinch` (a Ctrl-wheel, as a `ScrollDelta`, which
+  becomes `Event::Zoom` at `PINCH_SPEED` per point). `Input::logical` wraps
+  any of them whose pixels are the window's logical ones (physical pixels
+  over the scale it last reported: the browser's CSS pixels), so the runner
+  converts them with the same scale the frame lays out at and no adapter
+  reads its scale at event time. Text is passed as the platform gives it;
+  the runner drops control characters. It may send `Event::Modifiers` on every event; the runner
   passes it on only when it changes. At the start of each frame the runner
   turns its input into points. It stamps keys, pointer buttons and
   intercepted keys with the modifiers held, and drops a held modifier's
@@ -341,10 +358,13 @@ hooks the higher crates fill in:
   Closing is the runner's: when the app calls `close_window` (or a driver's
   close is accepted) the runner exits after that frame and `frame` returns
   `None` with `Runner::exited` set, which every adapter answers by stopping
-  its loop (Android also finishes its activity; the web and plugin adapters
-  have nothing to close). An adapter whose window is closed from outside
-  calls `Runner::os_close`, which asks the app's `close_requested` and exits
-  if it agrees.
+  its loop (Android also finishes its activity, the web adapter closes the
+  tab where the browser lets a script, and a plugin region's `Frame` says
+  `stopped` from then on, `Stopped::Closed` or `Stopped::Failed`, which the
+  host shows in the region's place). An adapter whose window is closed from
+  outside calls `Runner::os_close`, which asks the app's `close_requested`
+  and exits if it agrees; the web adapter asks on `beforeunload`, and a
+  refusal is the browser's leave-the-page prompt.
   A panic out of the app's `update` stops the runner rather than unwinding
   through the event loop: the app hears `exiting`, `frame` returns `None` from
   then on, `Runner::failure` says why, and the adapter ends its loop and
@@ -434,10 +454,13 @@ Text is never one of those. A `Text`'s content is its children: string
 literals and `Prop<String>`s in its own style, `Span`s - value children with no
 node, each overriding the `font`, `color`, `underline` or `strikethrough` of
 its `text`, and marking a wrap opportunity with `break_after` - and `TextItem`s,
-whose child is laid inline as if it were one character (U+FFFC in the text).
+whose child is laid inline as if it were one character (U+FFFC in the text),
+and `Gap`s, room of a given width that holds no bytes, so the indices on either
+side of one are the same.
 `string` is a leading span in the Text's own style. Computed runs are a
 `ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
-and wraps them itself, breaking after whitespace or after a `break_after` span,
+and wraps them itself, breaking after whitespace, `-`, `/` or `\`, or after a
+`break_after` span, and between letters when no such break fits,
 with `line_padding` above and below each line, and aligns, truncates with an
 ellipsis and spaces lines by `line_height` whatever its content. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
@@ -450,8 +473,8 @@ floats beside a position in the text. `Document::text_geometry` answers where an
 under a point from the node's last layout, without a document installed.
 `unstyled::TextArea` is built from exactly this: a row per document line in a
 `VirtualList`, each a `ForEach` of the row's spans, a gutter of `Text`s beside
-it, and checkboxes, embedded widgets, table spacers and the caret's anchor as
-`TextItem`s.
+it, checkboxes, embedded widgets and the caret's anchor as `TextItem`s, and
+table spacers as `Gap`s.
 
 The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until
@@ -570,7 +593,10 @@ is how a block editor puts an embedded block inside the text and drives the
 same document from a toolbar of its own. A `completer` names a trigger
 character and a search: typing it after a space opens the menu
 `completion_menu` draws under the caret, filtered by what follows it, with
-arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The state republishes
+arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The
+menu is a passing layer with an `on_dismiss`, so Escape, back and a press
+outside it all close it the same way, and the styled find bar holds a
+`BackHandler` while it is open, so back closes it as Escape does. The state republishes
 what it shows whenever one of its own commands runs; code that changes the
 document behind it - adopting an edit that arrived from someone else - calls
 `sync()`, or `external_edit()` when the edit should also break the undo group,
@@ -615,7 +641,8 @@ catcher that only watches presses over a whole region - a dock pane focusing
 itself - sets `claims_touch=false`, so landing on it is not a direct hit and the
 controls inside it keep their reach. A quick
 tap with two or more fingers that did not move is a finger tap, which
-`on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
+`on_finger_tap` hears the way `on_shortcut` hears keys, unless a layer that
+blocks everything is open; the editor frame's top
 bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
 bottom of a narrow screen. It scrolls what it holds itself, so what goes in it
 is not wrapped in a vertical `Scroll` (one inside would measure nothing tall): a
@@ -812,6 +839,17 @@ node by walking down from its child through the nodes that lay their children
 out in place (`Element::passes_scroll_anchor`: `List`, `Frame` and `Fade`),
 taking the first child that reaches past the top of the viewport each time.
 
+The offset places its child once per layout. What the content's own layout
+decides about the anchor comes back to the offset as part of that layout's
+result: a `VirtualList` whose rows above the view measured differently from
+their estimate reports the difference with `Document::report_anchor_shift`,
+and the nearest enclosing offset sums what its child reported with how far the
+anchor drifted and any reveal it was asked for. When that sum is not zero the
+offset moves by it and is laid out again in the frame's next layout, where it
+does not re-anchor. Anything that moves the offset from outside its layout
+(`set_offset_value`, a reveal) calls its `on_steer` callback, which a `Scroll`
+uses to stop a fling or a spring the moment it is steered.
+
 ### Slider scales
 
 A slider spreads its range evenly along its track unless it is given a
@@ -963,9 +1001,14 @@ those that do not, and otherwise are ordered by when they were opened or raised
 (`Document::raise_overlay`), so raising a window never lifts it over a dialog;
 children sit above their parent and rise with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
 every layer of a lower level: `Top` for things that must float over every
-window, such as a drag preview or a volume OSD, and `Lock` for the lock screen.
+window and dialog, such as a drag preview, a volume OSD or `styled::Toasts` (so
+a toast stays readable and pressable while a dialog is open), and `Lock` for
+the lock screen.
 Opening a layer raises it and every layer it hangs in, so a menu opened in a
-window that was covered comes up with its window.
+window that was covered comes up with its window; an inert layer rises alone,
+so a tooltip shown over a covered window leaves the window where it was.
+`Document::layers()` is worked out once for each change to the tree or the
+layers and shared until the next, so asking for it again costs nothing.
 
 Each layer has one `policy` (`LayerPolicy`):
 
@@ -1007,7 +1050,9 @@ dismissed. There is one request for each reason, sent to one layer:
   outside a submenu closes the whole menu). A layer that blocks everything
   still lets the pointer reach the blocking layers it is nested in, so the
   rows of a menu stay hovered and pressable under its open submenu, and a
-  press on one closes the submenu. A mouse asks on the press; a finger
+  press on one closes the submenu. Which layers the pointer can reach is one
+  rule (`Layers::reachable`) that the hit test and the forwarding of input to
+  a forwarding catcher share. A mouse asks on the press; a finger
   on the tap, so a scroll that starts outside a layer leaves it open.
 
 Inside the layer it is sent to, a request goes to the most recently made
@@ -1030,9 +1075,24 @@ themselves, so a select, the command palette and a dialog put the focus back on
 what opened them, and a forwarding catcher (a plugin's region, a Wayland
 window) gets the keyboard back.
 
+What a layer remembers is a focus scope, and the document keeps one stack of
+them (`base/focus_scope.rs`): an open layer pushes one and closing pops it.
+Anything else that takes the focus for a while and gives it back pushes its
+own with `Document::push_focus_scope(holder)` and pops it with
+`pop_focus_scope(holder)`, which refocuses what had the focus only if the focus
+is still inside `holder`; block-app's region does that when a plugin asks for
+the keyboard.
+
+Focus asked for beneath the topmost layer that traps it never lands there, so
+nothing beneath hears it gained the focus. It is remembered until the next
+input event: if the layer closes first, the focus goes there rather than back
+to what the layer remembered, which is how a dialog's button can close the
+dialog and focus something outside it in either order.
+
 The focus is checked when something that could take it away changes - a layer
 opening or closing, a frame hiding, a node being removed or moved - by walking
-up from the focused node, never by searching the tree.
+up from the focused node, never by searching the tree; a node whose parent
+link is gone is outside the tree.
 
 A base `BackHandler` only routes: it calls `on_back` when back completes, or
 hands every phase of the gesture to `on_gesture` if it has one, and moves
@@ -1047,7 +1107,7 @@ afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
 in both places. The stacked dock shows its home tab behind the tab it leaves
 this way. A back with no gesture before it (a key, Escape, a press outside)
-goes back at once. `styled::Dialog` and
+carries the page off from where it rests in the same slide-away. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
@@ -1098,7 +1158,9 @@ forwarding catcher like a plugin's region, so a press claimed over it never
 reaches the program. `on_press_outside` hears every primary press outside the
 `Interactive`'s visible rectangle, wherever it goes and whatever takes it, at
 the same moment and from the same place a press outside asks layers to close
-(a mouse's press, a finger's tap), which is how the host hands an embedded editor's active
+(a mouse's press, a finger's tap; one call, `Document::pressed_outside`, does
+both, and a long press counts as a secondary press, which asks the layers but
+not these), which is how the host hands an embedded editor's active
 child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
@@ -1286,9 +1348,15 @@ lasts, the dock opens an overlay in the middle of the document listing the
 tabs, each with its icon and title and the chosen one highlighted, drawn by the
 `switch` render prop (`DockSwitchHandle`, a row per tab whose `pick` commits
 that tab); nothing is shown until the switch is committed. A switch is not part
-of the saved layout. The dock binds no key to it: whoever binds it decides the
+of the saved layout. Escape cancels it, with whatever modifiers are held and
+wherever the focus is (a program's window included): the overlay holds no focus
+for Escape to find it by, so the dock listens for Escape at the window while it
+is open and asks the overlay to close (`Document::dismiss_overlay`), as a press
+outside or back does. A dock in a plugin only hears a key a program has the
+keyboard for when it intercepts the chord, so linux-desktop also registers
+Alt+Escape as an intercepting action that cancels. The dock binds no other key: whoever binds it decides the
 keys, usually a chord that begins or steps the switch while a modifier is held,
-`held_modifiers()` letting go of that modifier to commit, and Escape to cancel,
+and `held_modifiers()` letting go of that modifier to commit,
 as linux-desktop does with Alt+Tab and the demo with Alt+Q.
 
 Each surface - the main one and one per window - lays its tree out over the
@@ -1298,6 +1366,13 @@ calculation on its own, which is what the drop targets and the tests are
 resolved against. A window is a floating overlay, so it paints above the dock
 and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
+
+How the windows stack is the document's layer order alone (`Document::layers()`),
+not anything in `DockState`: a press on a window and the focus moving into one
+raise its layer, a fullscreen tab is raised again over it each time, and a drop
+target is looked for in the window whose layer is on top at the pointer, never
+in one covered there by a layer that is not the dock's (a menu, a dialog, the
+fullscreen tab).
 
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
 inserts it between the tabs there, the middle of a pane joins that pane, and an
@@ -1419,8 +1494,8 @@ One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `leave_fullscreen` from outside, or the `DockTabControl` that `use_dock_tab()`
 hands the tab's own content. The panel moves into a floating overlay over that
 area, wrapped in Docking's `fullscreen` render prop (styled: the theme's
-background), so it covers the tab bars, the other panes and anything else in the
-document there, and nothing under it hears the pointer, while the rest of the
+background), so it covers the tab bars, the other panes, the dock's windows
+(even one the focus moves into) and anything else in the document there, and nothing under it hears the pointer, while the rest of the
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
@@ -1581,9 +1656,11 @@ itself go on to `on_key`, which is what a control that also walks with the
 keyboard binds.
 
 Beui does not hold the pointer itself - it asks. `Document::show` publishes the
-wish as `FrameOutput::pointer_locked`, and whoever is showing the document does
-it: the winit runner locks the cursor and hides it, and the plugin framework
-asks the host to (guides/adding_a_plugin_editor.md). What comes back is
+wish as `WindowState::pointer_locked`, and whoever is showing the document does
+it: the winit runner locks the cursor and hides it, and a plugin region passes
+it to the host in its `WindowRequests` (guides/adding_a_plugin_editor.md). An
+adapter reads raw motion only while `Runner::window()`, the state it was
+shown, holds the pointer. What comes back is
 `Event::PointerMotion`, a delta with no position, which the document delivers to
 the focused node while the pointer is held and nowhere at all while it is not.
 So a control that is not the one holding the pointer never sees motion, and a
@@ -1931,10 +2008,12 @@ by the chain's reach - the sum of what every pass can move a sample - clipped to
 the filter's own region, once for each filter. The scene textures and the blur chains are retained the
 way the frame is, and every pass is scissored to the widened rectangle: what
 lies outside it was left correct by the frame before, because the reach bounds
-what a change can touch at every level. `Renderer::prepare` returns the repaint
-it settled on, and it upgrades a partial one to the whole frame when the filters
-themselves changed - a new radius or a filter switched off restyles everything the
-region covers, damage or no damage. A frame with a filter is never copied.
+what a change can touch at every level. Each damaged rectangle is drawn through
+the whole chain as a pass of its own. A filter that changed - a new radius, or
+one switched on or off - damages the region it covers and nothing else: the
+`Context` reports the regions of the filters that differ from the frame before,
+and the renderer adds those of the filters it prepared differently. A scroll is
+copied unless what it moves overlaps a filter's region.
 
 ### The screen reader simulation
 
@@ -2090,7 +2169,11 @@ build during it:
   percent size) on the axis it reads.
 - `VirtualList` builds each row its window reaches that it does not have yet,
   as the walk reaches it, measures it and carries on, so one walk fills the
-  window.
+  window. A list laid out at the length it measured follows that length as
+  its rows measure, rather than stopping at the estimate it was given, and
+  rows that measure shorter at the end of the list pull in rows above the
+  window to take their place. When its length changed it asks with
+  `Document::invalidate_after_layout` for the next layout to measure it again.
 
 `PlacementBuilder` hands its render prop a `ReadSignal<Rect>` of where it was
 placed, in the document's coordinates, written after each layout with the
@@ -2113,8 +2196,10 @@ in. A node with something to report queues it with
 laid out with `Document::invalidate_after_layout`. The reports run together in
 one batch; whatever they changed is laid out again, which only walks the
 nodes that changed and their ancestors, until nothing changes, so a frame is
-never painted from a layout the tree no longer has. After four layouts the
-frame is painted anyway, asks for another, and debug builds log what was still
+never painted from a layout the tree no longer has. A frame lays out at most
+four times: when the reports after the third still change something, the
+fourth layout holds its own reports back for the next frame, the frame is
+painted from it and asks for another, and debug builds log what was still
 changing. Each of those extra layouts is a cost the frame pays, so keep what a
 report drives to painting where you can: a scrollbar's thumb is painted where
 the position says rather than laid out, which keeps scrolling to one layout a
@@ -2400,7 +2485,9 @@ base implementation has three parts:
 
 - A node struct containing its retained state and child ids.
 - An `Element` implementation for measurement, layout, painting, interaction,
-  child traversal, and inspector metadata.
+  child traversal, and inspector metadata. Its `remove_child` lets go of a
+  child whose scope went while the node still held it, so a node holding one
+  child keeps it in an `Option`; a `ChildHost` hands it to `remove_hosted`.
 - `Document::create_*` and `Document::set_*` methods beside the node, plus a
   public `#[component]` wrapper in `beui-view`. The wrapper creates the node
   with `with_document` and binds reactive props to setters with `create_effect`.
@@ -2497,25 +2584,37 @@ in document coordinates rather than relative to the rectangle it is handed, as
 `painter.in_document()`.
 
 Painting is retained per node. A node's `paint` runs again when the node
-changed, when it was laid out again, when its size or the painter it is handed
-changed, or when a repaint it asked for falls due; otherwise the shapes it
-recorded last time stand, and its children are only visited when something
-under them has to paint. `paint` must therefore be a function of the node, its
-rectangle, the painter and the rectangles its own layout gave its children -
-anything else it reads goes unnoticed when it changes.
+changed, when its size or the painter it is handed changed, when a child it
+paints moved or was culled or uncovered, or when a repaint it asked for falls
+due; otherwise the shapes it recorded last time stand, and its children are
+only visited when something under them has to paint. Being laid out again is
+not by itself a reason: a node whose paint reads something its own `layout`
+works out says so with `Element::paints_from_layout` (an `Offset`, a `Canvas`,
+a `VirtualList`), and a `Text` asks for its own repaint from `layout` only
+when the lines it placed are not the ones it placed before. `paint` must
+therefore be a function of the node, its rectangle, the painter and the
+rectangles its own layout gave its children - anything else it reads goes
+unnoticed when it changes. A scroll's new offset relays out its `Offset` alone,
+from the place it was last given, rather than every node around it.
 
 What a node records is a tree (`display.rs`): its own shapes, its children by
 id and translation, and group nodes around them - `Group::Clip`,
 `Group::Scroll`, `Group::Mask` (a fade), `Group::Transform` and
-`Group::Filter` - which a painter opens (`with_clip_rect` for the children it
-paints, `shifted`, `faded`, `in_document`) rather than writing them onto each
-child. When a node paints again its new tree is set against its old one by
-identity, never by guessing: its own shapes, if they changed at all, damage
-where they were and where they are; a child, matched by id, damages its old and
+`Group::Filter` - which a painter opens (`with_clip_rect`, `shifted`, `faded`
+with the space of the fade that opened it, `in_document`) rather than writing
+them onto each shape or child: a recorded shape's own `clip` is always
+everything, and `FrameOutput::shapes` folds the groups into it.
+`PainterState::within` is what each group does to the painter inside it, so a
+node visited without painting again hands its children the painters its tree
+says they had. When a node paints again its new tree is set against its old one by
+identity, never by comparing what it painted: its own shapes damage where
+they were and where they are, except a `Drawing` that is the same drawing in the
+same place, which damages only what it says it redrew; a child, matched by id, damages its old and
 new place when it was added, removed, moved or restacked, and nothing when it
 stayed; a mask whose fade changed damages its bands; and a scroll group, matched
 by the space it scrolls, whose offset changed is a copy of what it showed rather
-than damage. A repaint that paints the same thing therefore costs no pixels.
+than damage. A repaint that paints the same thing still damages its shapes, so
+a node that repaints without changing is fixed where it is asked to repaint.
 Damage is held as at most four rectangles (`damage::Region`), each drawn as its
 own pass, and two of them become one whenever their bounds are at most twice
 the area they cover, so a large change spread over nearby spots is drawn once. A
@@ -2525,7 +2624,14 @@ drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
-outside the damage. With `BEUI_OVER_REPAINT=1` in the environment (or
+outside the damage. The second check (`paint/verify.rs`) sets the frame before
+against this one node by node, matched by id: a node's own shapes, the fades
+over it and its place among its siblings are what it shows, and every pixel a
+difference touches, rounded out to whole pixels as a renderer repaints them,
+must be damaged, or, inside a region the frame copied, must be what the copy
+brought there. Painting from scratch runs every paint again, so a test that
+counts paints skips the ones made while `Context::is_verifying_paint` is set.
+With `BEUI_OVER_REPAINT=1` in the environment (or
 `beui::detect_over_repaint(true)` on the thread that paints) they also report
 every frame whose damage is more than four times the area of the shapes that
 changed, to stderr and to `beui::take_over_repaints`.

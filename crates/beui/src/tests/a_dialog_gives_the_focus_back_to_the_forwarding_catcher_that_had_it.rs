@@ -47,7 +47,7 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
     assert!(harness.document().focus_is_within(field.get()));
 
     harness.key(Key::Escape, Modifiers::NONE);
-    harness.frame(Vec::new());
+    harness.settle();
     assert!(
         harness.document().focus_is_within(catcher.get()),
         "set_open the dialog gives the focus back to the catcher"

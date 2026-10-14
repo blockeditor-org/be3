@@ -37,12 +37,21 @@ pub enum Dismiss {
 pub struct OpenLayers {
     open: Vec<Opened>,
     next: u64,
+    generation: u64,
+    cache: std::cell::RefCell<Option<(LayersKey, Layers)>>,
+}
+
+type LayersKey = (u64, u64, Option<NodeId>);
+
+impl OpenLayers {
+    pub(crate) fn changed(&mut self) {
+        self.generation += 1;
+    }
 }
 
 struct Opened {
     overlay: NodeOf<OverlayNode>,
     seq: u64,
-    returns_to: Option<NodeId>,
 }
 
 #[derive(Clone, Debug)]
@@ -55,6 +64,7 @@ pub struct Layer {
     pub level: LayerLevel,
     pub traps: bool,
     pub dismissable: bool,
+    pub locks: bool,
 }
 
 impl Layer {
@@ -86,7 +96,8 @@ type Hanging = (
     Option<NodeId>,
 );
 
-pub struct Layers(Vec<Layer>);
+#[derive(Clone)]
+pub struct Layers(std::rc::Rc<[Layer]>);
 
 impl std::ops::Deref for Layers {
     type Target = [Layer];
@@ -112,13 +123,29 @@ impl Layers {
     }
 
     pub fn locked(&self) -> bool {
-        self.0
-            .iter()
-            .any(|layer| layer.blocks_all() && layer.level == LayerLevel::Lock)
+        self.0.iter().any(|layer| layer.locks)
     }
 
-    pub fn locks_window(&self) -> bool {
-        self.0[self.blocking()].level == LayerLevel::Lock && self.blocking() > 0
+    pub fn reachable(&self, index: usize) -> bool {
+        let blocking = self.blocking();
+        if index >= blocking {
+            return true;
+        }
+        let mut chain = self.0[blocking].parent;
+        while let Some(at) = chain.filter(|at| *at > 0) {
+            if at == index {
+                return true;
+            }
+            if !self.0[at].blocks_all() {
+                return false;
+            }
+            chain = self.0[at].parent;
+        }
+        false
+    }
+
+    pub fn takes_keyboard(&self) -> bool {
+        self.keyboard() > 0
     }
 
     pub fn within(&self, index: usize, ancestor: usize) -> bool {
@@ -144,6 +171,7 @@ impl Document {
     }
 
     pub(crate) fn layers_changed(&mut self) {
+        self.layer_state.generation += 1;
         self.focus_dirty = true;
         for overlay in self.open_overlays() {
             self.arena.invalidate_node(overlay);
@@ -161,20 +189,7 @@ impl Document {
             }
             match self.arena.parent(current) {
                 Some(parent) => current = parent,
-                None => return self.holds(ancestor, node),
-            }
-        }
-        false
-    }
-
-    fn holds(&self, ancestor: NodeId, node: NodeId) -> bool {
-        let mut pending = vec![ancestor];
-        while let Some(id) = pending.pop() {
-            if id == node {
-                return true;
-            }
-            if self.contains(id) {
-                pending.extend(self.arena.get(id).children());
+                None => return false,
             }
         }
         false
@@ -200,6 +215,22 @@ impl Document {
     }
 
     pub fn layers(&self) -> Layers {
+        let key = (self.arena.revision, self.layer_state.generation, self.root);
+        if let Some((cached, layers)) = &*self.layer_state.cache.borrow()
+            && *cached == key
+            && layers.iter().skip(1).all(|layer| {
+                layer.overlay.is_some_and(|overlay| self.contains(overlay))
+                    && layer.hangs_from.is_none_or(|from| self.contains(from))
+            })
+        {
+            return layers.clone();
+        }
+        let layers = self.build_layers();
+        *self.layer_state.cache.borrow_mut() = Some((key, layers.clone()));
+        layers
+    }
+
+    fn build_layers(&self) -> Layers {
         let open = self.open_overlays();
         let mut entries: Vec<Hanging> = Vec::with_capacity(open.len());
         for overlay in &open {
@@ -262,10 +293,12 @@ impl Document {
             level: LayerLevel::Normal,
             traps: false,
             dismissable: false,
+            locks: false,
         });
         for ((level, _), index) in &keyed {
             let (overlay, _, hangs_from) = entries[*index];
             let node = self.arena.get_as::<OverlayNode>(overlay);
+            let locks = node.policy == LayerPolicy::BlocksAll && node.level == LayerLevel::Lock;
             layers.push(Layer {
                 overlay: Some(overlay),
                 parent: None,
@@ -274,7 +307,8 @@ impl Document {
                 policy: node.policy,
                 level: *level,
                 traps: node.traps_focus && node.policy != LayerPolicy::Inert,
-                dismissable: !node.on_dismiss.is_empty() && node.level != LayerLevel::Lock,
+                dismissable: !node.on_dismiss.is_empty() && !locks,
+                locks,
             });
         }
         for at in 1..layers.len() {
@@ -291,7 +325,7 @@ impl Document {
                     .unwrap_or(0),
             );
         }
-        Layers(layers)
+        Layers(layers.into())
     }
 
     pub fn layer_of(&self, layers: &Layers, node: NodeId) -> Option<usize> {
@@ -313,35 +347,20 @@ impl Document {
         self.layers().locked()
     }
 
-    pub fn modal_open(&self) -> bool {
-        self.layers()
-            .iter()
-            .skip(1)
-            .any(|layer| layer.traps || layer.blocks_all())
-    }
-
     pub fn open_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
         if self.arena.get_as::<OverlayNode>(overlay).open {
             return;
         }
         let screen = self.opening_screen(overlay);
-        let returns_to = match self.focused {
-            Some(focused) if self.is_within(focused, overlay.id()) => self
-                .focus_before
-                .filter(|before| !self.is_within(*before, overlay.id())),
-            focused => focused,
-        };
+        let traps = self.arena.get_as::<OverlayNode>(overlay).traps_focus;
+        self.push_layer_scope(overlay.id(), traps);
         let node = self.arena.get_mut_as::<OverlayNode>(overlay);
         node.open = true;
         node.screen = screen;
         self.layer_state
             .open
             .retain(|opened| opened.overlay != overlay);
-        self.layer_state.open.push(Opened {
-            overlay,
-            seq: 0,
-            returns_to,
-        });
+        self.layer_state.open.push(Opened { overlay, seq: 0 });
         self.raise_layer(overlay);
         self.layers_changed();
         self.redirect_blocked_focus();
@@ -362,12 +381,10 @@ impl Document {
         };
         let mut chain = vec![];
         let mut current = Some(index);
+        let alone = layers[index].policy == LayerPolicy::Inert;
         while let Some(at) = current.filter(|at| *at > 0) {
             chain.push(layers[at].overlay.expect("not the root layer"));
-            if layers[index].policy == LayerPolicy::Inert {
-                break;
-            }
-            current = layers[at].parent;
+            current = layers[at].parent.filter(|_| !alone);
         }
         for raised in chain.into_iter().rev() {
             let next = self.layer_state.next;
@@ -380,6 +397,7 @@ impl Document {
                 && opened.seq != next
             {
                 opened.seq = next;
+                self.layer_state.generation += 1;
                 self.arena.invalidate_node(raised);
             }
         }
@@ -398,13 +416,6 @@ impl Document {
             .into_iter()
             .filter(|other| *other != overlay && self.is_within(other.id(), overlay.id()))
             .collect();
-        let traps = self.arena.get_as::<OverlayNode>(overlay).traps_focus;
-        let returns_to = self
-            .layer_state
-            .open
-            .iter()
-            .find(|opened| opened.overlay == overlay)
-            .and_then(|opened| opened.returns_to);
         for id in std::iter::once(overlay).chain(nested.iter().copied()) {
             self.arena.get_mut_as::<OverlayNode>(id).open = false;
             self.arena.invalidate_node(id);
@@ -413,65 +424,20 @@ impl Document {
             .open
             .retain(|opened| opened.overlay != overlay && !nested.contains(&opened.overlay));
         self.layers_changed();
-        let takes_back = match self.focused {
-            Some(focused) => self.is_within(focused, overlay.id()),
-            None => traps,
-        };
-        if takes_back {
-            let target = returns_to.filter(|target| self.focus_valid(*target));
-            if target.is_some() || self.focused.is_some() {
-                self.update_focus(target);
-            }
+        for id in &nested {
+            self.forget_focus_scope(id.id());
         }
+        self.pop_scope(overlay.id());
         for id in nested {
             self.call_overlay_dismiss(id, Dismiss::WithParent);
         }
     }
 
-    pub(crate) fn note_focus_outside_layers(&mut self, focus: NodeId) {
-        let outside: Vec<NodeOf<OverlayNode>> = self
-            .open_overlays()
-            .into_iter()
-            .filter(|overlay| !self.is_within(focus, overlay.id()))
-            .collect();
-        for opened in &mut self.layer_state.open {
-            if outside.contains(&opened.overlay) {
-                opened.returns_to = Some(focus);
-            }
-        }
-    }
-
     pub(crate) fn forget_layer(&mut self, id: NodeId) {
+        self.layer_state.changed();
         self.layer_state
             .open
             .retain(|opened| opened.overlay.id() != id);
-    }
-
-    pub(crate) fn returns_on_removal(&self, removed: NodeId) -> Option<NodeId> {
-        if self.layer_state.open.is_empty() {
-            return None;
-        }
-        self.layer_state
-            .open
-            .iter()
-            .filter(|opened| {
-                self.contains(opened.overlay) && self.is_within(opened.overlay.id(), removed)
-            })
-            .filter(|opened| match self.focused {
-                Some(focused) => self.is_within(focused, opened.overlay.id()),
-                None => self.arena.get_as(opened.overlay).traps_focus,
-            })
-            .find_map(|opened| {
-                opened
-                    .returns_to
-                    .filter(|target| !self.is_within(*target, removed))
-            })
-    }
-
-    pub(crate) fn return_removed_focus(&mut self, target: NodeId) {
-        if self.focused.is_none() && self.contains(target) && self.focus_valid(target) {
-            self.update_focus(Some(target));
-        }
     }
 
     fn call_overlay_dismiss(&mut self, id: NodeOf<OverlayNode>, reason: Dismiss) {
@@ -552,22 +518,39 @@ impl Document {
                 None
             }
             Dismiss::Escape => {
-                let mut current = match self
-                    .focused
-                    .and_then(|focused| self.layer_of(&layers, focused))
-                {
-                    Some(index) => Some(index),
-                    None => Some(layers.keyboard()),
-                };
-                while let Some(index) = current.filter(|index| *index > 0) {
-                    if layers[index].dismissable {
-                        return self.deliver_to(&layers, index);
-                    }
-                    current = layers[index].parent;
-                }
-                None
+                let index = self.escape_index(&layers)?;
+                self.deliver_to(&layers, index)
             }
             Dismiss::OutsidePress | Dismiss::WithParent => None,
+        }
+    }
+
+    fn escape_index(&self, layers: &Layers) -> Option<usize> {
+        let mut current = match self
+            .focused
+            .and_then(|focused| self.layer_of(layers, focused))
+        {
+            Some(index) => Some(index),
+            None => Some(layers.keyboard()),
+        };
+        while let Some(index) = current.filter(|index| *index > 0) {
+            if layers[index].dismissable {
+                return Some(index);
+            }
+            current = layers[index].parent;
+        }
+        None
+    }
+
+    pub fn escape_layer(&self) -> Option<NodeId> {
+        let layers = self.layers();
+        let index = self.escape_index(&layers)?;
+        layers[index].overlay.map(|overlay| overlay.id())
+    }
+
+    pub fn dismiss_overlay(&mut self, overlay: NodeId, reason: Dismiss) {
+        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(overlay) {
+            self.request_dismiss(overlay, reason);
         }
     }
 
@@ -591,11 +574,7 @@ impl Document {
         if !layers[index].dismissable {
             return;
         }
-        let target = match reason {
-            Dismiss::OutsidePress => layers[index].overlay.map(DismissTarget::Overlay),
-            _ => self.deliver_to(&layers, index),
-        };
-        if let Some(target) = target {
+        if let Some(target) = self.deliver_to(&layers, index) {
             self.deliver_dismiss(target, reason);
         }
     }
@@ -656,7 +635,7 @@ impl Document {
         }
     }
 
-    pub fn press_outside(&mut self, layers: &[NodeOf<OverlayNode>]) {
+    pub(crate) fn press_outside(&mut self, layers: &[NodeOf<OverlayNode>]) {
         for overlay in layers {
             if self.is_overlay_open(overlay.id()) {
                 self.request_dismiss(*overlay, Dismiss::OutsidePress);
@@ -664,19 +643,27 @@ impl Document {
         }
     }
 
+    fn focus_blocker<'a>(&self, layers: &'a Layers, node: NodeId) -> Option<&'a Layer> {
+        layers.iter().find(|layer| {
+            layer.policy == LayerPolicy::BlocksParent
+                && layer
+                    .hangs_from
+                    .is_some_and(|blocked| self.is_within(node, blocked))
+                && layer
+                    .overlay
+                    .is_some_and(|overlay| !self.is_within(node, overlay.id()))
+        })
+    }
+
+    pub(crate) fn focus_blocked(&self, layers: &Layers, node: NodeId) -> bool {
+        self.focus_blocker(layers, node).is_some()
+    }
+
     pub fn blocked_focus_redirect(&self, layers: &Layers, node: NodeId) -> Option<Option<NodeId>> {
         let mut node = node;
         let mut visited = Vec::new();
         loop {
-            let blocker = layers.iter().find(|layer| {
-                layer.policy == LayerPolicy::BlocksParent
-                    && layer
-                        .hangs_from
-                        .is_some_and(|blocked| self.is_within(node, blocked))
-                    && layer
-                        .overlay
-                        .is_some_and(|overlay| !self.is_within(node, overlay.id()))
-            })?;
+            let blocker = self.focus_blocker(layers, node)?;
             let overlay = blocker.overlay?;
             if visited.contains(&overlay) {
                 return Some(None);
@@ -689,15 +676,7 @@ impl Document {
                 Some(first) => node = first,
                 None => return Some(None),
             }
-            if !layers.iter().any(|layer| {
-                layer.policy == LayerPolicy::BlocksParent
-                    && layer
-                        .hangs_from
-                        .is_some_and(|blocked| self.is_within(node, blocked))
-                    && layer
-                        .overlay
-                        .is_some_and(|overlay| !self.is_within(node, overlay.id()))
-            }) {
+            if !self.focus_blocked(layers, node) {
                 return Some(Some(node));
             }
         }

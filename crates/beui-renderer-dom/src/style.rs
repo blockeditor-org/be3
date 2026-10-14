@@ -241,7 +241,7 @@ pub fn group(group: Group, factor: f32) -> (String, String) {
             let (x, y) = shown(viewport);
             (clipped(x, y), within(x, y, offset))
         }
-        Group::Mask(fade) => {
+        Group::Mask { fade, .. } => {
             let (x, y) = shown(fade.rect);
             let mut outer = clipped(x, y);
             outer.push_str(&masked(

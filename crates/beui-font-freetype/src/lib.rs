@@ -3,7 +3,6 @@ mod library;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod system;
 
-use std::ops::Range;
 use std::ptr;
 use std::rc::Rc;
 
@@ -14,7 +13,6 @@ use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
-    TextLayout, Wraps, break_lines,
 };
 use beui_core::geometry::vec2;
 
@@ -153,7 +151,7 @@ impl FreetypeFonts {
         }
     }
 
-    fn build_galley(
+    fn shape_galley(
         &mut self,
         text: &str,
         family: FontFamily,
@@ -163,71 +161,25 @@ impl FreetypeFonts {
     ) -> Galley {
         self.refresh();
         let (ascent, descent) = self.metrics(family, pixel_size);
-        let line_height = (shape.line() * shape.spacing()).round().max(1.0);
+        let line_height = shape.line();
         let baseline = ((line_height - (ascent - descent)) / 2.0).round() + ascent;
-        let mut rows: Vec<Row> = Vec::new();
-        let mut width = 0.0f32;
-        let mut start = 0;
-        let mut wraps = Wraps::ANY;
-
-        for line in text.split('\n') {
-            let shaped = self.shaped(line, family, pixel_size);
-            let runs = break_lines(&shaped, line, shape.wrap(), &mut wraps, |glyph| {
-                (glyph.cluster, glyph.x_advance)
-            });
-            let last = runs.len() - 1;
-            for (index, run) in runs.into_iter().enumerate() {
-                let end = start
-                    + match shaped.get(run.end) {
-                        Some(glyph) if index < last => glyph.cluster,
-                        _ => line.len(),
-                    };
-                let advance = shaped[run.clone()]
-                    .iter()
-                    .map(|glyph| glyph.x_advance)
-                    .sum::<f32>();
-                width = width.max(advance);
-                rows.push(Row {
-                    glyphs: shaped.clone(),
-                    run,
-                    start,
-                    end,
-                    advance,
-                });
+        let shaped = self.shaped(text, family, pixel_size);
+        let mut placed = Vec::with_capacity(shaped.len());
+        let mut cursors = Vec::with_capacity(shaped.len() + 1);
+        let mut pen = 0.0;
+        for glyph in shaped.iter() {
+            if cursors
+                .last()
+                .is_none_or(|(previous, _)| *previous != glyph.cluster)
+            {
+                cursors.push((glyph.cluster, pen / scale));
             }
-            start += line.len() + 1;
+            if let Some(glyph) = self.place(*glyph, shape, pixel_size, pen, baseline) {
+                placed.push(glyph);
+            }
+            pen += glyph.x_advance;
         }
-
-        let mut placed = Vec::with_capacity(rows.iter().map(|row| row.run.len()).sum());
-        let mut lines = Vec::with_capacity(rows.len());
-        let mut cursor = 0.0;
-        for row in rows {
-            let indent = TextLayout {
-                align: shape.align,
-                ..TextLayout::DEFAULT
-            }
-            .indent_of(width, row.advance);
-            let mut pen = indent;
-            let mut cursors = Vec::with_capacity(row.run.len() + 1);
-            for glyph in &row.glyphs[row.run.clone()] {
-                let at = row.start + glyph.cluster;
-                if cursors.last().is_none_or(|(previous, _)| *previous != at) {
-                    cursors.push((at, pen / scale));
-                }
-                if let Some(glyph) = self.place(*glyph, shape, pixel_size, pen, cursor + baseline) {
-                    placed.push(glyph);
-                }
-                pen += glyph.x_advance;
-            }
-            cursors.push((row.end, pen / scale));
-            lines.push(GalleyLine {
-                top: cursor / scale,
-                range: cursors[0].0..row.end,
-                cursors,
-            });
-            cursor += line_height;
-        }
-
+        cursors.push((text.len(), pen / scale));
         let font = FontId {
             size: pixel_size as f32 / scale,
             family,
@@ -237,12 +189,15 @@ impl FreetypeFonts {
         Galley::new(
             text,
             font,
-            vec2(width.ceil() / scale, cursor.ceil() / scale),
+            vec2(pen.ceil() / scale, line_height / scale),
             line_height / scale,
             baseline / scale,
             placed,
-            lines,
-            wraps,
+            vec![GalleyLine {
+                top: 0.0,
+                range: 0..text.len(),
+                cursors,
+            }],
         )
     }
 
@@ -460,7 +415,7 @@ impl Default for FreetypeFonts {
 }
 
 impl FontBackend for FreetypeFonts {
-    fn build(
+    fn shape(
         &mut self,
         text: &str,
         family: FontFamily,
@@ -468,7 +423,7 @@ impl FontBackend for FreetypeFonts {
         shape: Shaping,
         pixels_per_point: f32,
     ) -> Galley {
-        self.build_galley(text, family, pixel_size, shape, pixels_per_point)
+        self.shape_galley(text, family, pixel_size, shape, pixels_per_point)
     }
 
     fn generation(&self) -> u64 {
@@ -481,13 +436,6 @@ unsafe extern "C" {
     fn FT_GlyphSlot_Oblique(slot: ft::FT_GlyphSlot);
 }
 
-struct Row {
-    glyphs: Rc<[ShapedGlyph]>,
-    run: Range<usize>,
-    start: usize,
-    end: usize,
-    advance: f32,
-}
 const SUBPIXEL_POSITIONS: u32 = 4;
 const SHAPED_LINE_LIMIT: usize = 4096;
 

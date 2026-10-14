@@ -15,7 +15,7 @@ use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::Vec2;
 use crate::geometry::{Pos2, Rect, pos2};
-use crate::input::{CursorIcon, ImeArea, InputState, KeyChord, RawInput};
+use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord, RawInput};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, Scope, Shape};
@@ -37,6 +37,7 @@ struct Inner {
     grouping: RefCell<Vec<usize>>,
     paint_stack: RefCell<Vec<PaintFrame>>,
     space_read: Cell<bool>,
+    verifying: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
     test_ids: RefCell<HashMap<String, Rect>>,
@@ -234,6 +235,7 @@ impl Context {
                 grouping: RefCell::new(Vec::new()),
                 paint_stack: RefCell::new(Vec::new()),
                 space_read: Cell::new(false),
+                verifying: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
@@ -427,6 +429,11 @@ impl Context {
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
         }
+        let typed = raw
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
+        self.inner.window.borrow_mut().begin_frame(typed);
         self.inner.input.borrow_mut().begin_frame(raw, now);
         self.inner.layers.borrow_mut().clear();
         self.inner.grouping.borrow_mut().clear();
@@ -437,7 +444,6 @@ impl Context {
         self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste.set(None);
-        self.inner.window.borrow_mut().begin_frame();
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
@@ -452,41 +458,30 @@ impl Context {
         }
         let layers = Rc::new(std::mem::take(&mut *self.inner.layers.borrow_mut()));
         let scale = self.pixels_per_point();
-        let filter = crate::display::filters(&layers);
+        let filters = crate::display::filters(&layers);
         let moved = self.settle_moves(&layers, scale);
+        let previous = self.inner.previous.replace(Some(Previous {
+            pixels_per_point: scale,
+            filters: filters.clone(),
+        }));
+        if let Some(old) = &previous {
+            for index in 0..old.filters.len().max(filters.len()) {
+                let (was, now) = (old.filters.get(index), filters.get(index));
+                if was != now {
+                    for filter in [was, now].into_iter().flatten() {
+                        self.report_damage(filter.region);
+                    }
+                }
+            }
+        }
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
         let damage = reported
             .iter()
             .fold(Region::NOTHING, |region, rect| region.union((*rect).into()));
-        let mut previous = self.inner.previous.borrow_mut();
-        let changed = match previous.as_ref() {
-            None => true,
-            Some(old) if old.pixels_per_point != scale || old.filter != filter => true,
-            Some(old) => {
-                let same = crate::display::same_layers(&old.layers, &layers);
-                if reported.is_empty() && !same {
-                    let shown = self.inner.shown.get();
-                    let visible = |layers: &[Layer]| {
-                        let mut shapes = crate::display::flatten(layers);
-                        if let Some(shown) = shown {
-                            shapes.retain(|shape| damage::bounds(shape).intersects(shown));
-                        }
-                        shapes
-                    };
-                    debug_assert!(
-                        visible(&old.layers) == visible(&layers),
-                        "a frame that reported no damage changed the shapes it painted"
-                    );
-                }
-                (!reported.is_empty() || moved.is_some()) && !same
-            }
+        let changed = match previous {
+            Some(old) if old.pixels_per_point == scale => !damage.is_empty() || moved.is_some(),
+            _ => true,
         };
-        *previous = Some(Previous {
-            layers: Rc::clone(&layers),
-            pixels_per_point: scale,
-            filter,
-        });
-        drop(previous);
         let copied_text = self.inner.copied_text.borrow_mut().take();
         if let Some(text) = &copied_text {
             let watchers = self.inner.copy_watchers.borrow().clone();
@@ -505,10 +500,7 @@ impl Context {
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
-            window: WindowState {
-                touch_emulation: self.touch_emulation(),
-                ..self.inner.window.borrow().clone()
-            },
+            window: self.shown_window(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             repaint: self.inner.repaint.get(),
@@ -643,6 +635,14 @@ impl Context {
         self.inner.window.borrow().cursor
     }
 
+    fn shown_window(&self) -> WindowState {
+        let mut window = self.inner.window.borrow().clone();
+        if self.touch_emulation() {
+            window.cursor = CursorIcon::Touch;
+        }
+        window
+    }
+
     pub fn touch_emulation(&self) -> bool {
         self.inner.touch_emulation.get()
     }
@@ -712,7 +712,7 @@ impl Context {
             return;
         };
         if simulation.painting() {
-            let icon = self.cursor_icon();
+            let icon = self.shown_window().cursor;
             self.scaled(scale, || {
                 let painter = self
                     .painter()
@@ -746,6 +746,14 @@ impl Context {
         self.push_paint_frame(None);
         paint();
         self.pop_paint_frame().bounds
+    }
+
+    pub fn verifying_paint(&self, verifying: bool) {
+        self.inner.verifying.set(verifying);
+    }
+
+    pub fn is_verifying_paint(&self) -> bool {
+        self.inner.verifying.get()
     }
 
     pub fn note_space_read(&self) {
@@ -792,13 +800,12 @@ impl Context {
         }
     }
 
-    pub fn paint_child(&self, scope: &Option<Rc<Scope>>, clip: Rect, id: NodeId, at: Vec2) {
+    pub fn paint_child(&self, scope: &Option<Rc<Scope>>, id: NodeId, at: Vec2) {
         if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut()
             && frame.id.is_some()
         {
             frame.items.push(Item {
                 scope: scope.clone(),
-                clip,
                 recording: Recording::Child(id, at),
             });
         }
@@ -1092,7 +1099,6 @@ impl Context {
             if damage::bounds(&shape).is_positive() || matches!(shape, Shape::Drawing { .. }) {
                 frame.items.push(Item {
                     scope: scope.clone(),
-                    clip: Rect::EVERYTHING,
                     recording: Recording::Shape(shape),
                 });
             }
@@ -1125,7 +1131,9 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
             !roots.iter().any(|root| Rc::ptr_eq(root, display))
                 && display.bounds.translate(*at).intersects(area)
         }
-        Layer::Group(Group::Filter(_), _) => true,
+        Layer::Group(Group::Filter(filter), inner) => {
+            filter.region.intersects(area) || overlaps_besides(inner, roots, area)
+        }
         Layer::Group(group, inner) => {
             let within = match *group {
                 Group::Transform { offset, scale } if scale > 0.0 => {
@@ -1136,7 +1144,7 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
                 Group::Scroll {
                     viewport, offset, ..
                 } => area.intersect(viewport).translate(-offset),
-                Group::Mask(_) | Group::Filter(_) => area,
+                Group::Mask { .. } | Group::Filter(_) => area,
             };
             within.is_positive() && overlaps_besides(inner, roots, within)
         }
@@ -1144,9 +1152,8 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
 }
 
 struct Previous {
-    layers: Rc<Vec<Layer>>,
     pixels_per_point: f32,
-    filter: Vec<Filter>,
+    filters: Vec<Filter>,
 }
 
 struct PaintFrame {

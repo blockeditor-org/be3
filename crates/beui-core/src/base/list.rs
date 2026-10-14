@@ -401,6 +401,10 @@ impl ListNode {
 }
 
 impl Element for ListNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (available_main, available_cross) = self.main_and_cross(available);
         if self.wrap {
@@ -484,6 +488,10 @@ impl Element for ListNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
     }
 
     fn passes_scroll_anchor(&self) -> bool {

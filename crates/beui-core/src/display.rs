@@ -20,7 +20,10 @@ pub enum Group {
         viewport: Rect,
         offset: Vec2,
     },
-    Mask(Fade),
+    Mask {
+        space: SpaceId,
+        fade: Fade,
+    },
     Filter(Filter),
 }
 
@@ -32,7 +35,7 @@ impl Group {
             Self::Scroll {
                 viewport, offset, ..
             } => rect.translate(offset).intersect(viewport),
-            Self::Mask(_) => rect,
+            Self::Mask { .. } => rect,
             Self::Filter(filter) => match filter.blur > 0.0 && rect.is_positive() {
                 true => rect.union(rect.expand(filter.blur * 3.0).intersect(filter.region)),
                 false => rect,
@@ -52,7 +55,7 @@ impl Group {
                     ..
                 },
             ) => space == other_space && viewport == other_viewport,
-            (Self::Mask(_), Self::Mask(_)) => true,
+            (Self::Mask { space, .. }, Self::Mask { space: other, .. }) => space == other,
             _ => self == other,
         }
     }
@@ -72,12 +75,13 @@ impl Group {
             Self::Scroll {
                 viewport, offset, ..
             } => *shape = placed_shape(shape, offset, viewport),
-            Self::Mask(_) | Self::Filter(_) => {}
+            Self::Mask { .. } | Self::Filter(_) => {}
         }
     }
 }
 
 pub struct Display {
+    pub node: NodeId,
     pub key: u64,
     pub shapes: Rc<[Shape]>,
     pub parts: Box<[Part]>,
@@ -121,8 +125,9 @@ fn count_of(parts: &[Part]) -> usize {
 static KEYS: AtomicU64 = AtomicU64::new(1);
 
 impl Display {
-    pub fn new(shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
+    pub fn new(node: NodeId, shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
         Self {
+            node,
             key: KEYS.fetch_add(1, Ordering::Relaxed),
             shapes: shapes.into(),
             bounds: bounds_of(&parts),
@@ -134,6 +139,7 @@ impl Display {
     pub fn with_children(&self, child: &impl Fn(NodeId) -> Option<Rc<Display>>) -> Option<Self> {
         let parts = rechilded(&self.parts, child)?;
         Some(Self {
+            node: self.node,
             key: self.key,
             shapes: Rc::clone(&self.shapes),
             bounds: bounds_of(&parts),
@@ -190,7 +196,9 @@ impl Display {
                             push_shown(into, placed_shape(&shape, at + offset, clip));
                         }
                     }
-                    Group::Mask(_) | Group::Filter(_) => self.flatten_parts(inner, at, clip, into),
+                    Group::Mask { .. } | Group::Filter(_) => {
+                        self.flatten_parts(inner, at, clip, into)
+                    }
                 },
             }
         }
@@ -299,19 +307,6 @@ pub enum Layer {
 }
 
 impl Layer {
-    pub fn same(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Shape(left), Self::Shape(right)) => left == right,
-            (Self::Display(at, display), Self::Display(other_at, other)) => {
-                at == other_at && Rc::ptr_eq(display, other)
-            }
-            (Self::Group(group, layers), Self::Group(other_group, others)) => {
-                group == other_group && same_layers(layers, others)
-            }
-            _ => false,
-        }
-    }
-
     pub fn bounds(&self) -> Rect {
         match self {
             Self::Shape(shape) => crate::damage::bounds(shape),
@@ -351,14 +346,6 @@ impl Layer {
             }
         }
     }
-}
-
-pub fn same_layers(layers: &[Layer], others: &[Layer]) -> bool {
-    layers.len() == others.len()
-        && layers
-            .iter()
-            .zip(others)
-            .all(|(layer, other)| layer.same(other))
 }
 
 pub fn flatten(layers: &[Layer]) -> Vec<Shape> {

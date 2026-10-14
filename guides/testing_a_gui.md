@@ -135,7 +135,10 @@ race with a wider margin, which is how one of these hid.
 The date and the time of day come from the harness too: an editor reads them from
 `block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
 `SystemTime::now()`, and the harness pins that clock to one fixed moment plus its frame clock, so
-a clock or a calendar paints the same on every run.
+a clock or a calendar paints the same on every run. beui's own date and time components (a
+calendar's today, a picker's now) read `beui::reactive::wall_clock()`, which the plugin runner
+pins to that clock each frame; a beui test without a plugin pins it with
+`beui::reactive::pin_wall_clock(Some((timer::now(), since_epoch)))`.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main

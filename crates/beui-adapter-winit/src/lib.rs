@@ -21,9 +21,7 @@ use winit::event::{
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{NamedKey, PhysicalKey};
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-use winit::window::{
-    CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Window, WindowId,
-};
+use winit::window::{CursorGrabMode, CustomCursor, Fullscreen, Window, WindowId};
 
 use accesskit::TreeUpdate;
 use beui_core::app::{SafeArea, Setup, Waker};
@@ -38,10 +36,6 @@ use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, Sc
 use beui_core::window::WindowState;
 use clipboard::Clipboard;
 
-const TOUCH_CURSOR_SIZE: u16 = 20;
-const TOUCH_CURSOR_RADIUS: f32 = TOUCH_CURSOR_SIZE as f32 / 2.0;
-const TOUCH_CURSOR_STROKE: f32 = 1.0;
-const TOUCH_CURSOR_SAMPLES: u16 = 4;
 #[cfg(target_os = "linux")]
 const EVDEV_BACK: u32 = 158;
 const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
@@ -164,9 +158,7 @@ impl Platform for WinitPlatform<'_> {
         if window.pointer_locked != shown.pointer_locked {
             lock_pointer(&surface.window, window.pointer_locked);
         }
-        if (window.cursor, window.touch_emulation, window.pointer_locked)
-            != (shown.cursor, shown.touch_emulation, shown.pointer_locked)
-        {
+        if (window.cursor, window.pointer_locked) != (shown.cursor, shown.pointer_locked) {
             show_cursor(surface, window);
         }
         if window.ime != shown.ime {
@@ -301,7 +293,17 @@ impl ApplicationHandler<UserEvent> for Runner {
         let proxy = self.proxy.clone();
         let accessibility =
             AccessKitAdapter::with_event_loop_proxy(event_loop, &window, proxy.clone());
-        let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
+        let touch = beui_core::touch_cursor::image(window.scale_factor() as f32);
+        let touch_cursor = event_loop.create_custom_cursor(
+            CustomCursor::from_rgba(
+                touch.rgba,
+                touch.width as u16,
+                touch.height as u16,
+                touch.hotspot.0 as u16,
+                touch.hotspot.1 as u16,
+            )
+            .expect("the touch cursor's image matches its size"),
+        );
         window.set_visible(true);
         let Some(load) = self.load.take() else {
             return;
@@ -515,7 +517,7 @@ impl ApplicationHandler<UserEvent> for Runner {
         let DeviceEvent::MouseMotion { delta } = event else {
             return;
         };
-        if !self.runner.context().pointer_locked() {
+        if !self.runner.window().pointer_locked {
             return;
         }
         self.push(Event::PointerMotion(vec2(delta.0 as f32, delta.1 as f32)));
@@ -556,51 +558,6 @@ fn touch_force(force: winit::event::Force) -> f32 {
     }
 }
 
-fn touch_cursor_source() -> CustomCursorSource {
-    let size = usize::from(TOUCH_CURSOR_SIZE);
-    let mut rgba = vec![0; size * size * 4];
-    let samples = f32::from(TOUCH_CURSOR_SAMPLES);
-    let sample_count = f32::from(TOUCH_CURSOR_SAMPLES * TOUCH_CURSOR_SAMPLES);
-    for y in 0..TOUCH_CURSOR_SIZE {
-        for x in 0..TOUCH_CURSOR_SIZE {
-            let mut alpha = 0.0;
-            let mut white = 0.0;
-            for sample_y in 0..TOUCH_CURSOR_SAMPLES {
-                for sample_x in 0..TOUCH_CURSOR_SAMPLES {
-                    let x = f32::from(x) + (f32::from(sample_x) + 0.5) / samples;
-                    let y = f32::from(y) + (f32::from(sample_y) + 0.5) / samples;
-                    let distance = (x - TOUCH_CURSOR_RADIUS).hypot(y - TOUCH_CURSOR_RADIUS);
-                    if distance <= TOUCH_CURSOR_RADIUS {
-                        if distance <= TOUCH_CURSOR_RADIUS - TOUCH_CURSOR_STROKE {
-                            alpha += 96.0;
-                            white += 96.0;
-                        } else {
-                            alpha += 255.0;
-                        }
-                    }
-                }
-            }
-            let offset = (usize::from(y) * size + usize::from(x)) * 4;
-            let alpha = alpha / sample_count;
-            let color = if alpha == 0.0 {
-                0.0
-            } else {
-                white / sample_count / alpha * 255.0
-            };
-            rgba[offset..offset + 3].fill(color.round() as u8);
-            rgba[offset + 3] = alpha.round() as u8;
-        }
-    }
-    CustomCursor::from_rgba(
-        rgba,
-        TOUCH_CURSOR_SIZE,
-        TOUCH_CURSOR_SIZE,
-        TOUCH_CURSOR_SIZE / 2,
-        TOUCH_CURSOR_SIZE / 2,
-    )
-    .expect("the touch cursor dimensions and hotspot are valid")
-}
-
 fn pointer_button(button: MouseButton) -> Option<PointerButton> {
     match button {
         MouseButton::Left => Some(PointerButton::Primary),
@@ -615,7 +572,7 @@ fn pointer_button(button: MouseButton) -> Option<PointerButton> {
 fn cursor(icon: CursorIcon) -> Option<winit::window::CursorIcon> {
     Some(match icon {
         CursorIcon::Default => winit::window::CursorIcon::Default,
-        CursorIcon::Crosshair => winit::window::CursorIcon::Crosshair,
+        CursorIcon::Crosshair | CursorIcon::Touch => winit::window::CursorIcon::Crosshair,
         CursorIcon::Grab => winit::window::CursorIcon::Grab,
         CursorIcon::Grabbing => winit::window::CursorIcon::Grabbing,
         CursorIcon::NotAllowed => winit::window::CursorIcon::NotAllowed,
@@ -760,9 +717,9 @@ fn named_key(named: NamedKey) -> Option<Key> {
 
 fn show_cursor(surface: &Surface, state: &WindowState) {
     let window = &surface.window;
-    if state.touch_emulation {
+    if state.cursor == CursorIcon::Touch {
         window.set_cursor(surface.touch_cursor.clone());
-        window.set_cursor_visible(true);
+        window.set_cursor_visible(!state.pointer_locked);
         return;
     }
     match cursor(state.cursor) {

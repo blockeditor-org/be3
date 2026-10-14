@@ -13,7 +13,7 @@ use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 
 pub use beui_core::callback::NodeRef;
-pub use beui_core::timer::{Timer, create_timer, now};
+pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
 pub use beui_core::current::enter;
 pub use beui_core::current::{try_with_document, with_document, with_reactive_scope};
@@ -63,6 +63,13 @@ pub fn layout_text(
     try_with_document(|document| document.layout_text(text, font, layout)).flatten()
 }
 
+pub fn rich_layout(
+    pieces: &[beui_core::rich::Piece],
+    options: beui_core::rich::RichOptions,
+) -> Option<beui_core::rich::RichLayout> {
+    try_with_document(|document| document.rich_layout(pieces, options)).flatten()
+}
+
 pub fn copy_text(text: impl Into<String>) {
     let text = text.into();
     with_document(|document| document.copy_text(text));
@@ -72,13 +79,6 @@ pub use beui_core::clipboard::{PasteKind, Pasted};
 
 pub fn request_paste() {
     with_document(Document::request_paste);
-}
-
-pub fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Scope {
-    owner
-        .or_else(owner_scope)
-        .and_then(|owner| owner.child())
-        .unwrap_or_else(|| document.reactive_scope().context().run(Scope::new))
 }
 
 pub fn pixels_per_point() -> ReadSignal<f32> {
@@ -217,7 +217,7 @@ pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
 pub use crate::components::shift::Shift;
-pub use crate::components::text::{Span, SpanText, Text, TextChild, TextItem};
+pub use crate::components::text::{Gap, Span, SpanText, Text, TextChild, TextItem};
 pub use crate::components::virtual_list::VirtualList;
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,

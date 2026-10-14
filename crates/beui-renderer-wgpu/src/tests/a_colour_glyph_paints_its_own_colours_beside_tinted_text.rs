@@ -1,6 +1,6 @@
 use super::*;
 use beui_core::font::{
-    FontBackend, FontFamily, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping, Wraps,
+    FontBackend, FontFamily, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
 };
 
 const SIDE: u32 = 16;
@@ -8,7 +8,7 @@ const SIDE: u32 = 16;
 struct Swatches;
 
 impl FontBackend for Swatches {
-    fn build(
+    fn shape(
         &mut self,
         text: &str,
         _family: FontFamily,
@@ -56,7 +56,6 @@ impl FontBackend for Swatches {
                 range: 0..text.len(),
                 cursors: vec![(0, 0.0), (text.len(), 48.0)],
             }],
-            Wraps::ANY,
         )
     }
 }

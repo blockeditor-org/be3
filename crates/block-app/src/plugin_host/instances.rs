@@ -7,7 +7,7 @@ use block_plugin_api::{
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
     FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
+    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -122,7 +122,6 @@ struct Instance {
     presenting: bool,
     reported_presenting: bool,
     host_values: Watched,
-    grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
@@ -295,7 +294,6 @@ impl Instance {
             presenting: false,
             reported_presenting: false,
             host_values: Watched::default(),
-            grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
             replacements: HashMap::new(),
@@ -452,6 +450,7 @@ struct Screen {
     dragging: bool,
     file_dropping: bool,
     window: WindowRequests,
+    stopped: Option<Stopped>,
     children: ChildTable,
     reported_statuses: HashMap<ChildId, ChildStatus>,
     revoked: HashSet<ChildId>,
@@ -686,6 +685,7 @@ impl Instances {
                 dragging: false,
                 file_dropping: false,
                 window: WindowRequests::default(),
+                stopped: None,
                 children: ChildTable::default(),
                 reported_statuses: HashMap::new(),
                 revoked: HashSet::new(),
@@ -765,6 +765,19 @@ impl Instances {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
         }
+    }
+
+    pub(super) fn stopped(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&Stopped> {
+        self.entries
+            .get(&instance)?
+            .screens
+            .get(&region)?
+            .stopped
+            .as_ref()
     }
 
     pub(super) fn placement(
@@ -1147,6 +1160,9 @@ impl Instances {
             for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
                 link.sent = None;
                 link.peers_sent = None;
+            }
+            for screen in entry.screens.values_mut() {
+                screen.stopped = None;
             }
             entry.stale = true;
         }
@@ -2029,7 +2045,10 @@ impl Instances {
     }
 
     pub(super) fn grabbing(&self) -> bool {
-        self.entries.values().any(|entry| entry.grabbed)
+        self.entries
+            .values()
+            .flat_map(|entry| entry.screens.values())
+            .any(|screen| screen.window.pointer_locked)
     }
 
     pub(super) fn ime(
@@ -2107,6 +2126,7 @@ impl Instances {
             CursorIcon::ResizeNorthWest => beui::CursorIcon::ResizeNorthWest,
             CursorIcon::ResizeSouthEast => beui::CursorIcon::ResizeSouthEast,
             CursorIcon::ResizeSouthWest => beui::CursorIcon::ResizeSouthWest,
+            CursorIcon::Touch => beui::CursorIcon::Touch,
         })
     }
 
@@ -2621,13 +2641,6 @@ impl Instances {
                     .command(command);
                 true
             }
-            EditorMessage::GrabCursor { instance, grabbed } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.grabbed = grabbed;
-                true
-            }
             EditorMessage::CreationReady { instance, ready } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -2731,6 +2744,21 @@ impl Instances {
                 instance,
                 presenting,
             } => self.set_presenting(instance, presenting),
+            EditorMessage::Stopped {
+                instance,
+                region,
+                stopped,
+            } => {
+                let Some(screen) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.screens.get_mut(&region))
+                else {
+                    return false;
+                };
+                screen.stopped = Some(stopped);
+                true
+            }
             EditorMessage::LeaveFrame { instance } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
