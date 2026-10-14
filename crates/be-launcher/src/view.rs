@@ -6,7 +6,7 @@ use beui::icons::{
 };
 #[cfg(target_os = "android")]
 use beui::reactive::Portal;
-use beui::reactive::with_document;
+use beui::reactive::{held_modifiers, with_document};
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, component,
     create_memo, view,
@@ -50,7 +50,15 @@ const CURRENT: &str = "installed";
 #[cfg(target_os = "android")]
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
-    let listing = create_memo(move || model.selected.with(Option::is_none));
+    let listing = create_memo(move || model.opened.with(Vec::is_empty));
+    let opened = create_memo(move || {
+        model.opened.with(|opened| {
+            opened
+                .iter()
+                .map(|pull_request| pull_request.number)
+                .collect::<Vec<u64>>()
+        })
+    });
     let reading = create_memo(move || !listing.get());
     let back = move || model.deselect();
     let sidebar = view! {
@@ -80,7 +88,11 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                                         on_click={back}
                                     />
                                 </Frame>
-                                <Detail @sizing=ItemSize::Percent(100.0) model={model} />
+                                <ForEach keys={opened}>
+                                    {move |number: u64| view! {
+                                        <Detail @sizing=ItemSize::Percent(100.0) model={model} number />
+                                    }}
+                                </ForEach>
                             </List>
                         </Frame>
                     </BackSlide>
@@ -260,8 +272,13 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let labels = create_memo(move || pull_request.get().labels);
     let checked_out = create_memo(move || model.current(&pull_request.get()));
     let has_tags = create_memo(move || !labels.get().is_empty() || checked_out.get());
+    let modifiers = held_modifiers();
+    let open = move || {
+        let held = modifiers.get_untracked();
+        model.select(number, held.ctrl || held.logo);
+    };
     view! {
-        <ListRow selected on_click={move || model.select(number)}>
+        <ListRow @test_id={format!("launcher.pull_request.{number}")} selected on_click={open}>
             <List direction=Direction::Horizontal spacing=8.0>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>

@@ -462,6 +462,22 @@ impl<K: DockKey> DockingLayout<K> {
         self.edit(|state| state.show(tab));
     }
 
+    pub fn replace(&self, key: &K, with: K) -> bool {
+        let Some(tab) = self.tab_of(key) else {
+            return false;
+        };
+        if !self.state.with_untracked(|state| state.contains(tab)) {
+            return false;
+        }
+        let new = self.mint(&with);
+        self.edit(|state| {
+            if !state.contains(new) && state.replace(tab, new) {
+                state.show(new);
+            }
+        });
+        true
+    }
+
     pub fn fullscreen(&self) -> Option<K> {
         let tab = self.state.with(DockState::fullscreen)?.tab;
         self.key_of(tab)

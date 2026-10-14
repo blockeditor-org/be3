@@ -449,11 +449,22 @@ impl Pages {
         }
     }
 
-    fn open(&self, page: Page) {
-        match self.open.with_untracked(|open| open.contains(&page)) {
-            true => self.layout.show(&page.tab()),
-            false => self.set_open.update(|open| open.push(page)),
+    fn open(&self, page: Page, beside: bool) {
+        if self.open.with_untracked(|open| open.contains(&page)) {
+            self.layout.show(&page.tab());
+            return;
         }
+        let shown = self.active().filter(|_| !beside);
+        batch(|| match shown {
+            Some(shown) if self.layout.replace(&shown.tab(), page.tab()) => {
+                self.set_open.update(|open| {
+                    for held in open.iter_mut().filter(|held| **held == shown) {
+                        *held = page;
+                    }
+                });
+            }
+            _ => self.set_open.update(|open| open.push(page)),
+        });
     }
 
     fn close(&self, page: Page) {
@@ -826,11 +837,16 @@ fn CatalogGroup(
 
 #[component]
 fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
+    let modifiers = held_modifiers();
+    let open = move || {
+        let held = modifiers.get_untracked();
+        pages.open(page, held.ctrl || held.logo);
+    };
     view! {
         <ListRow
             @test_id={format!("demo.catalog.{}", page.title())}
             selected
-            on_click={move || pages.open(page)}
+            on_click={open}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=CATALOG_SPACING>
                 <Icon glyph={page.icon()} />
