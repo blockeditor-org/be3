@@ -1289,9 +1289,13 @@ lasts, the dock opens an overlay in the middle of the document listing the
 tabs, each with its icon and title and the chosen one highlighted, drawn by the
 `switch` render prop (`DockSwitchHandle`, a row per tab whose `pick` commits
 that tab); nothing is shown until the switch is committed. A switch is not part
-of the saved layout. The dock binds no key to it: whoever binds it decides the
+of the saved layout. Escape cancels it, with whatever modifiers are held and
+wherever the focus is (a program's window included): the overlay holds no focus
+for Escape to find it by, so the dock listens for Escape at the window while it
+is open and asks the overlay to close (`Document::dismiss_overlay`), as a press
+outside or back does. The dock binds no other key: whoever binds it decides the
 keys, usually a chord that begins or steps the switch while a modifier is held,
-`held_modifiers()` letting go of that modifier to commit, and Escape to cancel,
+and `held_modifiers()` letting go of that modifier to commit,
 as linux-desktop does with Alt+Tab and the demo with Alt+Q.
 
 Each surface - the main one and one per window - lays its tree out over the

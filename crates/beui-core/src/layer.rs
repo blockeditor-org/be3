@@ -598,22 +598,39 @@ impl Document {
                 None
             }
             Dismiss::Escape => {
-                let mut current = match self
-                    .focused
-                    .and_then(|focused| self.layer_of(&layers, focused))
-                {
-                    Some(index) => Some(index),
-                    None => Some(layers.keyboard()),
-                };
-                while let Some(index) = current.filter(|index| *index > 0) {
-                    if layers[index].dismissable {
-                        return self.deliver_to(&layers, index);
-                    }
-                    current = layers[index].parent;
-                }
-                None
+                let index = self.escape_index(&layers)?;
+                self.deliver_to(&layers, index)
             }
             Dismiss::OutsidePress | Dismiss::WithParent => None,
+        }
+    }
+
+    fn escape_index(&self, layers: &Layers) -> Option<usize> {
+        let mut current = match self
+            .focused
+            .and_then(|focused| self.layer_of(layers, focused))
+        {
+            Some(index) => Some(index),
+            None => Some(layers.keyboard()),
+        };
+        while let Some(index) = current.filter(|index| *index > 0) {
+            if layers[index].dismissable {
+                return Some(index);
+            }
+            current = layers[index].parent;
+        }
+        None
+    }
+
+    pub fn escape_layer(&self) -> Option<NodeId> {
+        let layers = self.layers();
+        let index = self.escape_index(&layers)?;
+        layers[index].overlay.map(|overlay| overlay.id())
+    }
+
+    pub fn dismiss_overlay(&mut self, overlay: NodeId, reason: Dismiss) {
+        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(overlay) {
+            self.request_dismiss(overlay, reason);
         }
     }
 

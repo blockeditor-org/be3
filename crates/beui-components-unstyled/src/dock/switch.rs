@@ -1,10 +1,14 @@
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Pos2;
+use beui_core::input::Key;
+use beui_core::keys::KeyEvent;
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{ClickCallback, Frame, Func, Memo, create_memo};
+use beui_view::reactive::{
+    ClickCallback, Frame, Func, Memo, NodeRef, create_memo, on_global_key, with_document,
+};
 
 use super::{DockState, State, TabId};
 
@@ -64,8 +68,27 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         },
     };
     let cancelled = dock;
+    let overlay = NodeRef::new();
+    let switching = open;
+    on_global_key(move |event: KeyEvent| {
+        if event.held() {
+            return true;
+        }
+        let Some(press) = event.press() else {
+            return false;
+        };
+        let Some(overlay) = overlay.try_get() else {
+            return false;
+        };
+        if press.key != Key::Escape || !press.pressed || !switching.get_untracked() {
+            return false;
+        }
+        with_document(|document| document.dismiss_overlay(overlay, Dismiss::Escape));
+        true
+    });
     view! {
         <Overlay
+            @node_ref=&overlay
             anchor={OverlayAnchor::Point(Pos2::ZERO)}
             placement=Placement::Center
             policy=LayerPolicy::Pass
