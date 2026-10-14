@@ -570,7 +570,10 @@ is how a block editor puts an embedded block inside the text and drives the
 same document from a toolbar of its own. A `completer` names a trigger
 character and a search: typing it after a space opens the menu
 `completion_menu` draws under the caret, filtered by what follows it, with
-arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The state republishes
+arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The
+menu is a passing layer with an `on_dismiss`, so Escape, back and a press
+outside it all close it the same way, and the styled find bar holds a
+`BackHandler` while it is open, so back closes it as Escape does. The state republishes
 what it shows whenever one of its own commands runs; code that changes the
 document behind it - adopting an edit that arrived from someone else - calls
 `sync()`, or `external_edit()` when the edit should also break the undo group,

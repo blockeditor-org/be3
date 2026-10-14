@@ -1,4 +1,4 @@
-use beui_core::layer::LayerPolicy;
+use beui_core::layer::{Dismiss, LayerPolicy};
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -82,13 +82,17 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
     let items = cx.completions;
     let keys = create_memo(move || (0..items.get().len()).collect::<Vec<usize>>());
     let CompletionMenu { row, panel } = menu;
+    let layer = cx.completion_layer;
+    let dismissed = cx;
     view! {
         <Overlay
+            @node_ref=&layer
             anchor={OverlayAnchor::Node(anchor)}
             placement=Placement::BelowStart
             policy=LayerPolicy::Pass
             traps_focus=false
             open=true
+            on_dismiss={move |_: Dismiss| dismissed.dismiss()}
         >
             {panel.call(view! {
                 <List spacing=0.0>

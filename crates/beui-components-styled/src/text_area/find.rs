@@ -15,7 +15,7 @@ use beui_core::icons::{
     ICON_CLOSE, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_UP, ICON_MATCH_CASE, ICON_SEARCH,
 };
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Direction, Frame, List, Memo, Show, create_memo};
+use beui_view::reactive::{Align, BackHandler, Direction, Frame, List, Memo, Show, create_memo};
 
 const BAR_PADDING_HORIZONTAL: f32 = 12.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
@@ -26,13 +26,15 @@ const QUERY_WIDTH: f32 = 180.0;
 pub fn FindBar(state: TextAreaState) -> NodeId {
     let open = state.find_open();
     view! {
-        <List spacing=0.0>
-            <Show condition={open}>
-                {move || view! {
-                    <FindBarRows state={state} />
-                }}
-            </Show>
-        </List>
+        <BackHandler enabled={open} on_back={move || state.close_find()}>
+            <List spacing=0.0>
+                <Show condition={open}>
+                    {move || view! {
+                        <FindBarRows state={state} />
+                    }}
+                </Show>
+            </List>
+        </BackHandler>
     }
 }
 
