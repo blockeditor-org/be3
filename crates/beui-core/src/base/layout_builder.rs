@@ -49,13 +49,13 @@ impl LayoutBuilderNode {
         set_size: WriteSignal<Vec2>,
         size: Vec2,
     ) {
-        let (Some(builder), Some(content)) = (doc.laying_out(), self.content.clone()) else {
-            doc.report_after_layout(move || set_size.set(size));
-            return;
-        };
+        let builder = doc.laying_out().expect("a layout builder is laid out as itself");
+        let content = self.content.clone();
         doc.build_within(builder, move || {
             set_size.set(size);
-            content.flush_owned();
+            if let Some(content) = content {
+                content.flush_owned();
+            }
         });
         let (Some(child), offered) = (self.child, self.offered.get()) else {
             return;

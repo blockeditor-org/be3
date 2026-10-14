@@ -1670,6 +1670,10 @@ impl Document {
         std::mem::take(&mut self.anchor_shift)
     }
 
+    pub(crate) fn forget_placing(&mut self) {
+        self.placing.clear();
+    }
+
     pub fn note_placed(&mut self, id: NodeId) {
         self.placing.push(id);
         self.reached_pass.insert(id, self.layout_pass);
@@ -2014,6 +2018,7 @@ impl Document {
             crate::current::run_in(self, |document| {
                 layout::layout(document, &painter, root, rect, placed);
                 document.lay_out_boundaries(ctx, placed);
+                document.place_moved_overlays(ctx, placed);
             });
         }
         self.placing.clear();
