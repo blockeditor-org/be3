@@ -406,12 +406,14 @@ impl<K: DockKey> DockingLayout<K> {
             map.tabs.insert(key, tab);
         }
         *self.inner().keys.borrow_mut() = map;
+        self.inner().replacing.borrow_mut().clear();
         self.set_state.set(state);
         self.set_restores.update(|restores| *restores += 1);
     }
 
     pub fn reset(&self) {
         *self.inner().keys.borrow_mut() = KeyMap::default();
+        self.inner().replacing.borrow_mut().clear();
         self.set_state.set(DockState::default());
         self.set_restores.update(|restores| *restores += 1);
     }
@@ -475,7 +477,15 @@ impl<K: DockKey> DockingLayout<K> {
         if self.state.with_untracked(|state| state.contains(new)) {
             return false;
         }
-        self.inner().replacing.borrow_mut().push((tab, new));
+        let inner = self.inner();
+        let mut replacing = inner.replacing.borrow_mut();
+        if replacing
+            .iter()
+            .any(|(from, to)| *from == tab || *to == new)
+        {
+            return false;
+        }
+        replacing.push((tab, new));
         true
     }
 
@@ -529,7 +539,11 @@ impl<K: DockKey> DockingLayout<K> {
         let declared = spec.tabs();
         let replacing = std::mem::take(&mut *self.inner().replacing.borrow_mut());
         for (tab, with) in replacing {
-            if !declared.contains(&tab) && declared.contains(&with) && next.replace(tab, with) {
+            if !declared.contains(&tab)
+                && declared.contains(&with)
+                && !next.contains(with)
+                && next.replace(tab, with)
+            {
                 next.show(with);
             }
         }

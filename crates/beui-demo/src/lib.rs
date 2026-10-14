@@ -430,6 +430,18 @@ impl DemoDialogs {
             open.retain(|dialog| !closing.contains(&dialog.id));
         });
     }
+
+    fn close_from(&self, parent: TabId) {
+        let hanging: Vec<TabId> = self.open.with_untracked(|open| {
+            open.iter()
+                .filter(|dialog| dialog.parent == parent)
+                .map(|dialog| dialog.id)
+                .collect()
+        });
+        for id in hanging {
+            self.close(id);
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -437,15 +449,17 @@ struct Pages {
     layout: DockingLayout<TabId>,
     open: ReadSignal<Vec<Page>>,
     set_open: WriteSignal<Vec<Page>>,
+    dialogs: DemoDialogs,
 }
 
 impl Pages {
-    fn new() -> Self {
+    fn new(dialogs: DemoDialogs) -> Self {
         let (open, set_open) = create_signal(vec![Page::Docking]);
         Self {
             layout: DockingLayout::new(),
             open,
             set_open,
+            dialogs,
         }
     }
 
@@ -457,6 +471,7 @@ impl Pages {
         let shown = self.active().filter(|_| !beside);
         batch(|| match shown {
             Some(shown) if self.layout.replace(&shown.tab(), page.tab()) => {
+                self.dialogs.close_from(shown.tab());
                 self.set_open.update(|open| {
                     for held in open.iter_mut().filter(|held| **held == shown) {
                         *held = page;
@@ -468,8 +483,11 @@ impl Pages {
     }
 
     fn close(&self, page: Page) {
-        self.set_open
-            .update(|open| open.retain(|other| *other != page));
+        batch(|| {
+            self.dialogs.close_from(page.tab());
+            self.set_open
+                .update(|open| open.retain(|other| *other != page));
+        });
     }
 
     fn reset(&self) {
@@ -548,7 +566,8 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
 #[component]
 fn DemoShell() -> NodeId {
     let theme = use_theme();
-    let pages = Pages::new();
+    let dialogs = DemoDialogs::new();
+    let pages = Pages::new(dialogs);
     let (mobile, set_mobile) = create_signal(false);
     let narrow = narrower_than(NARROW_WIDTH);
     let mode = create_memo(move || match mobile.get() || narrow.get() {
@@ -564,7 +583,6 @@ fn DemoShell() -> NodeId {
         held: drag_modifier,
         set: set_drag_modifier,
     });
-    let dialogs = DemoDialogs::new();
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
