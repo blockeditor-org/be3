@@ -157,6 +157,8 @@ impl Shaped {
     }
 }
 
+type Fitted = (Rc<RichLayout>, FitKey, Rc<RichLayout>);
+
 #[derive(Clone, Copy, PartialEq)]
 struct FitKey {
     width: f32,
@@ -259,7 +261,7 @@ pub struct TextNode {
     shaped: RefCell<Option<Shaped>>,
     galleys: RefCell<Galleys>,
     shapings: Cell<u64>,
-    fitted: RefCell<Option<(Rc<RichLayout>, FitKey, Rc<RichLayout>)>>,
+    fitted: RefCell<Option<Fitted>>,
 }
 
 impl ChildHost for TextNode {

@@ -321,8 +321,8 @@ impl Builder<'_> {
         match kind {
             SpanKind::Text => {
                 let spanned = &self.spans[span].range;
-                let whole = spanned.start.max(self.paragraph.start)
-                    ..spanned.end.min(self.paragraph.end);
+                let whole =
+                    spanned.start.max(self.paragraph.start)..spanned.end.min(self.paragraph.end);
                 let shaped = match &self.whole[span] {
                     Some((shaped, galley)) if *shaped == whole => galley.clone(),
                     _ => {

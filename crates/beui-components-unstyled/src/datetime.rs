@@ -1,4 +1,3 @@
-
 pub const SECONDS_PER_DAY: i64 = 86_400;
 pub const MINUTES_PER_DAY: u32 = 24 * 60;
 

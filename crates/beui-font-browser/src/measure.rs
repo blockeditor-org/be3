@@ -6,9 +6,7 @@ use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
-use beui_core::font::{
-    FontBackend, FontFamily, FontId, Galley, GalleyLine, Shaping,
-};
+use beui_core::font::{FontBackend, FontFamily, FontId, Galley, GalleyLine, Shaping};
 use beui_core::geometry::vec2;
 
 use crate::{ICONS, css_font};
