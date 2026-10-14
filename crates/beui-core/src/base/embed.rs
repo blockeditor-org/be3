@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use reactive::{Stored, store};
+use reactive::{Stored, on_cleanup, store};
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
@@ -58,8 +58,9 @@ impl EmbedSlot {
     }
 
     pub fn on_place(&self, listener: impl Fn(Option<EmbedPlacement>) + 'static) {
-        self.0
-            .with(|state| *state.listener.borrow_mut() = Some(Box::new(listener)));
+        let state = self.0.get();
+        *state.listener.borrow_mut() = Some(Box::new(listener));
+        on_cleanup(move || drop(state.listener.take()));
     }
 }
 
