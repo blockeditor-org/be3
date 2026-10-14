@@ -14,7 +14,7 @@ use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
 use crate::keys::{AtNode, KeyEvent, KeyHandler, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
 use crate::layer::Dismiss;
 
-use crate::current::run_in;
+use crate::current::{run_in, with_document};
 use crate::document::{Acted, Document};
 use crate::node::{NodeId, Rects};
 
@@ -278,8 +278,10 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
 }
 
 mod builtin {
-    use super::{BackGesture, Dismiss, Key, KeyEvent, KeyPhase, autoscroll, cycle_step, forward};
-    use crate::current::with_document;
+    use super::{
+        BackGesture, Dismiss, Key, KeyEvent, KeyPhase, autoscroll, cycle_step, forward,
+        with_document,
+    };
 
     pub(super) fn autoscroll(event: KeyEvent) -> bool {
         event.phase != KeyPhase::Held
@@ -341,10 +343,18 @@ mod builtin {
     }
 }
 
-fn hold(doc: &mut Document, press: KeyPress, handler: Rc<KeyHandler>) {
+fn hold(doc: &mut Document, press: KeyPress, handler: Rc<KeyHandler>, repeats: bool) {
     if press.pressed && !press.repeat {
-        doc.keys.held.push((press.key, handler));
+        doc.keys.held.push((press.key, handler, repeats));
     }
+}
+
+fn target_holder(node: NodeId) -> Rc<KeyHandler> {
+    Rc::new(move |event: KeyEvent| {
+        event
+            .press()
+            .is_some_and(|press| with_document(|doc| doc.target_key(node, press)))
+    })
 }
 
 fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
@@ -354,7 +364,7 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
     let route = route(doc, press.key);
     let event = event_for(KeyInput::Press(press), &route);
     if let Some(placed) = answer(outer(doc, &route, KeyPhase::Capture), event) {
-        hold(doc, press, placed.handler);
+        hold(doc, press, placed.handler, true);
         return Fate::Taken;
     }
     if route.target.app {
@@ -369,12 +379,13 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
     let tree = Tree::gather(doc, &route);
     if let Some(placed) = answer(tree.capture, event) {
         let reveal = placed.reveal;
-        hold(doc, press, placed.handler);
+        hold(doc, press, placed.handler, true);
         return Fate::Handled { reveal };
     }
     if let Some(node) = route.target.node
         && doc.target_key(node, press)
     {
+        hold(doc, press, target_holder(node), false);
         return Fate::Handled { reveal: true };
     }
     let bubbled = KeyEvent {
@@ -384,9 +395,11 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
     let mut bubble = tree.bubble;
     bubble.extend(outer(doc, &route, KeyPhase::Bubble));
     match answer(bubble, bubbled) {
-        Some(placed) => Fate::Handled {
-            reveal: placed.reveal,
-        },
+        Some(placed) => {
+            let reveal = placed.reveal;
+            hold(doc, press, placed.handler, false);
+            Fate::Handled { reveal }
+        }
         None => Fate::Unheard,
     }
 }
@@ -396,9 +409,12 @@ fn held_key(doc: &mut Document, press: KeyPress) -> Option<Fate> {
         .keys
         .held
         .iter()
-        .position(|(key, _)| *key == press.key)?;
+        .position(|(key, _, _)| *key == press.key)?;
     if press.pressed && !press.repeat {
         doc.keys.held.remove(at);
+        return None;
+    }
+    if press.pressed && !doc.keys.held[at].2 {
         return None;
     }
     let route = route(doc, press.key);

@@ -51,7 +51,10 @@ interact.rs), which the lock never cuts unless noted: the first host capture
 listener ends autoscroll on any press and takes Escape doing it; the last
 window capture listener is F6 and Shift+F6 (cut with the window); the first
 window bubble listener asks the innermost dismissable layer around the focus to
-close on Escape (see the beui guide); and the last host bubble listener is Tab,
+close on Escape (see the beui guide; a key bound for an app never gets that
+far, so a window capture listener that wants Escape over an app asks
+`Document::escape_layer` and `dismiss_overlay` itself, as block-app's
+presentation mode does); and the last host bubble listener is Tab,
 Escape (which cancels a held activation) and Back. So a window listener for
 Escape hears it only when no layer took it. Ctrl+V asks the host for a paste
 once the trip is over, only if nothing took the key (an app counts as nothing),
@@ -88,8 +91,11 @@ a text input in a panel, and why it does not while a dialog is open.
 `target` (`node`, and whether it `typing`s text or is an `app`). A listener
 that takes a press in the capture phase holds its key: the physical key, the
 text it typed, its repeats and its release go to that listener alone, with
-`phase` `Held`, wherever the focus has gone since, and nowhere else. That is
-the one record of taken keys; nothing else keeps its own.
+`phase` `Held`, wherever the focus has gone since, and nowhere else. Whatever
+takes a press later on the trip - the target or a bubble listener - holds its
+release the same way, while its repeats take the trip again, so the release of
+an Escape that closed a menu never reaches the app the focus went back to.
+That is the one record of taken keys; nothing else keeps its own.
 `held_modifiers()` is a signal of the modifiers held now, which changes on
 modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
 switcher, are built from those two.

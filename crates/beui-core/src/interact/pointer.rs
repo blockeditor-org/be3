@@ -282,9 +282,7 @@ pub(crate) fn end_frame(doc: &mut Document, frame: &Frame) {
     doc.pointers.hits.clear();
     frame_drags(doc, frame);
     pinch(doc, frame);
-    let mouse = frame
-        .ctx
-        .input(|input| input.pointer.pos.filter(|_| !input.pointer.from_touch()));
+    let mouse = frame.ctx.input(|input| input.pointer.mouse());
     hover(doc, frame, mouse);
     if let Some(fingers) = doc.pointers.fingers.tap
         && doc.layers().blocking() == 0
