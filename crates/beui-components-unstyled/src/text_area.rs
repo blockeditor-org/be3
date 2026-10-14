@@ -1099,10 +1099,11 @@ pub fn TextArea(
                         let wrap_width = create_memo(move || {
                             (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
                         });
+                        let table_cache = std::cell::RefCell::new(rows::TableCache::default());
                         let tables = create_memo(
                             move || {
                                 content.get();
-                                scale.get();
+                                let scale = scale.get();
                                 attached.get();
                                 let wrap_width = wrap_width.get();
                                 let starts = starts.get();
@@ -1121,6 +1122,8 @@ pub fn TextArea(
                                         colors: &colors,
                                         options,
                                         starts: &starts,
+                                        scale,
+                                        cache: &table_cache,
                                     }),
                                     false => HashMap::new(),
                                 }))

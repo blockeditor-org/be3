@@ -890,9 +890,116 @@ pub struct TableInputs<'a> {
     pub colors: &'a TextAreaColors,
     pub options: RowOptions,
     pub starts: &'a [usize],
+    pub scale: f32,
+    pub cache: &'a std::cell::RefCell<TableCache>,
+}
+
+type MeasuredRow = Option<(Vec<(Range<usize>, f32, f32)>, f32)>;
+
+#[derive(Clone, PartialEq)]
+struct TableEnv {
+    colors: TextAreaColors,
+    options: RowOptions,
+    wrap_width: f32,
+    scale: f32,
+}
+
+type TableRowKey = (RowKey, Vec<Range<usize>>);
+
+#[derive(Default)]
+pub struct TableCache {
+    env: Option<TableEnv>,
+    rows: Vec<(TableRowKey, MeasuredRow)>,
+    used: Vec<(TableRowKey, MeasuredRow)>,
+}
+
+impl TableCache {
+    fn start(&mut self, env: TableEnv) {
+        if self.env.as_ref() != Some(&env) {
+            self.env = Some(env);
+            self.rows.clear();
+        }
+        self.used.clear();
+    }
+
+    fn finish(&mut self) {
+        self.rows = std::mem::take(&mut self.used);
+    }
+
+    fn take(&mut self, key: &TableRowKey) -> Option<MeasuredRow> {
+        if let Some(found) = self.rows.iter().position(|(held, _)| held == key) {
+            let (key, measured) = self.rows.swap_remove(found);
+            self.used.push((key, measured.clone()));
+            return Some(measured);
+        }
+        self.used
+            .iter()
+            .find(|(held, _)| held == key)
+            .map(|(_, measured)| measured.clone())
+    }
+}
+
+fn measure_table_row(
+    inputs: &TableInputs,
+    line: usize,
+    cells: &[Range<usize>],
+) -> Option<(usize, MeasuredRow)> {
+    let snapshot = inputs.snapshot;
+    let (start, end, newline) = line_range(&snapshot.bytes, inputs.starts, line)?;
+    let row_inputs = RowInputs {
+        snapshot,
+        widgets: inputs.widgets,
+        client_colors: &[],
+        composition: None,
+        colors: inputs.colors,
+        options: inputs.options,
+        spacers: &[],
+        placeholder: None,
+    };
+    let relative: Vec<Range<usize>> = cells
+        .iter()
+        .map(|cell| cell.start.saturating_sub(start)..cell.end.saturating_sub(start))
+        .collect();
+    let key = row_key(&row_inputs, start, end, newline).map(|key| (key, relative.clone()));
+    if let Some(key) = &key
+        && let Some(measured) = inputs.cache.borrow_mut().take(key)
+    {
+        return Some((start, measured));
+    }
+    let row = build_row(&row_inputs, line, start, end, newline);
+    let measured = rich_layout(&row, inputs.options.body_size, (0.0, 0.0), inputs.wrap_width)
+        .and_then(|layout| {
+            let first = layout.lines.first()?;
+            let cells: Vec<(Range<usize>, f32, f32)> = cells
+                .iter()
+                .zip(&relative)
+                .map(|(cell, relative)| {
+                    (relative, row.to_display(cell.start), row.to_display(cell.end))
+                })
+                .take_while(|(_, _, end)| *end <= first.range.end)
+                .map(|(relative, start, end)| (relative.clone(), first.x_of(start), first.x_of(end)))
+                .collect();
+            (!cells.is_empty()).then_some((cells, first.width))
+        });
+    if let Some(key) = key {
+        inputs.cache.borrow_mut().used.push((key, measured.clone()));
+    }
+    Some((start, measured))
 }
 
 pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
+    inputs.cache.borrow_mut().start(TableEnv {
+        colors: inputs.colors.clone(),
+        options: inputs.options,
+        wrap_width: inputs.wrap_width,
+        scale: inputs.scale,
+    });
+    let spacers = lay_out_tables(inputs);
+    inputs.cache.borrow_mut().finish();
+    spacers
+}
+
+fn lay_out_tables(inputs: &TableInputs) -> TableSpacers {
     let mut spacers = HashMap::new();
     let snapshot = inputs.snapshot;
     for table in &snapshot.highlight().markdown_tables() {
@@ -901,38 +1008,13 @@ pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
             .iter()
             .filter_map(|table_row| {
                 let line = line_of(inputs.starts, table_row.range.start);
-                let (start, end, newline) = line_range(&snapshot.bytes, inputs.starts, line)?;
-                let row = build_row(
-                    &RowInputs {
-                        snapshot,
-                        widgets: inputs.widgets,
-                        client_colors: &[],
-                        composition: None,
-                        colors: inputs.colors,
-                        options: inputs.options,
-                        spacers: &[],
-                        placeholder: None,
-                    },
-                    line,
-                    start,
-                    end,
-                    newline,
-                );
-                let layout = rich_layout(
-                    &row,
-                    inputs.options.body_size,
-                    (0.0, 0.0),
-                    inputs.wrap_width,
-                )?;
-                let first = layout.lines.first()?;
-                let cells: Vec<Cell> = table_row
-                    .cells
-                    .iter()
-                    .map(|cell| (row.to_display(cell.start), row.to_display(cell.end), cell))
-                    .take_while(|(_, end, _)| *end <= first.range.end)
-                    .map(|(start, end, cell)| (cell.clone(), first.x_of(start), first.x_of(end)))
+                let (start, measured) = measure_table_row(inputs, line, &table_row.cells)?;
+                let (cells, width) = measured?;
+                let cells = cells
+                    .into_iter()
+                    .map(|(cell, left, right)| (start + cell.start..start + cell.end, left, right))
                     .collect();
-                (!cells.is_empty()).then_some((start, cells, first.width))
+                Some((start, cells, width))
             })
             .collect();
         if rows.is_empty() {
