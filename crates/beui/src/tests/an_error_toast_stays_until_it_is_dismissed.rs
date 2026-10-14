@@ -25,7 +25,6 @@ fn an_error_toast_stays_until_it_is_dismissed() {
         }
     });
     let mut harness = Harness::new(document);
-    harness.context.set_test_ids_published(true);
     harness.frame(Vec::new());
 
     harness.advance(TOAST_DURATION * 4);

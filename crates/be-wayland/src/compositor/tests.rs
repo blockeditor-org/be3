@@ -224,7 +224,6 @@ impl Harness {
         }
         let client = TestClient::connect(app.server());
         let context = beui::context();
-        context.set_test_ids_published(true);
         Self {
             app,
             document,

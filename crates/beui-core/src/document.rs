@@ -646,12 +646,16 @@ impl Document {
         let owned = self.node_test_ids.entry(id).or_default();
         if !owned.iter().any(|existing| existing == &test_id) {
             owned.push(test_id);
+            self.arena.touch(id);
         }
     }
 
     pub fn clear_test_id(&mut self, id: NodeId, test_id: &str) {
         self.forget_test_id(id, test_id);
         self.drop_test_id(id, test_id);
+        if self.arena.contains(id) {
+            self.arena.touch(id);
+        }
     }
 
     fn drop_test_id(&mut self, id: NodeId, test_id: &str) {
@@ -1149,28 +1153,6 @@ impl Document {
             && let Some(area) = self.focused_ime_area()
         {
             ctx.set_ime_area(Some(area));
-        }
-        if ctx.test_ids_published() {
-            let mut live = None;
-            for (test_id, nodes) in &self.test_ids {
-                let shown = match nodes.as_slice() {
-                    [node] => Some(*node),
-                    _ => {
-                        let live = live.get_or_insert_with(|| self.live_nodes());
-                        match self.named_live(test_id, live).as_slice() {
-                            [] => None,
-                            [node] => Some(*node),
-                            _ => {
-                                ctx.publish_ambiguous_test_id(test_id);
-                                None
-                            }
-                        }
-                    }
-                };
-                if let Some(node_rect) = shown.and_then(|id| self.rects.get(&id)) {
-                    ctx.publish_test_id(test_id, node_rect);
-                }
-            }
         }
         let now = self.now;
         self.changes.prune(now);

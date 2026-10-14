@@ -25,7 +25,6 @@ fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {
         }
     });
     let mut harness = Harness::new(document);
-    harness.context.set_test_ids_published(true);
     let output = harness.frame(Vec::new());
     let first = output
         .test_id_rect("toast.1")

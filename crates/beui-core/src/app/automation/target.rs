@@ -1,5 +1,3 @@
-use foldhash::HashMap;
-
 use crate::app::accessibility_dump::Line;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 
@@ -20,17 +18,27 @@ pub(crate) fn describe(rect: Rect) -> String {
     )
 }
 
-pub(crate) fn locate(
-    target: &str,
-    lines: &[Line],
-    test_ids: &HashMap<String, Rect>,
-    pixels_per_point: f32,
-) -> Result<Rect, String> {
+pub(crate) fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
     if let Some(id) = target.strip_prefix('#') {
-        return test_ids
-            .get(id)
-            .map(|rect| scaled(*rect, pixels_per_point))
-            .ok_or_else(|| format!("no node on screen has the test id {id}; `ids` lists them"));
+        let named: Vec<&Line> = lines
+            .iter()
+            .filter(|line| line.test_ids.iter().any(|named| named == id))
+            .collect();
+        let line = match named.as_slice() {
+            [] => {
+                return Err(format!(
+                    "no node on screen has the test id {id}; `ids` lists them"
+                ));
+            }
+            [line] => *line,
+            _ => {
+                return Err(format!(
+                    "the test id {id} names {} nodes on screen",
+                    named.len()
+                ));
+            }
+        };
+        return placed(line);
     }
     let numbers: Option<Vec<f32>> = target
         .split(',')
@@ -67,6 +75,10 @@ pub(crate) fn locate(
             return Err(message);
         }
     };
+    placed(line)
+}
+
+fn placed(line: &Line) -> Result<Rect, String> {
     let rect = line
         .bounds
         .ok_or_else(|| format!("{:?} has no place on screen", line.text))?;
@@ -98,12 +110,7 @@ fn line_with<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, String> {
     }
 }
 
-pub(crate) fn node<'a>(
-    target: &str,
-    lines: &'a [Line],
-    test_ids: &HashMap<String, Rect>,
-    pixels_per_point: f32,
-) -> Result<&'a Line, String> {
+pub(crate) fn node<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, String> {
     let named = !target.starts_with('#')
         && target
             .split(',')
@@ -111,7 +118,7 @@ pub(crate) fn node<'a>(
     if named {
         return line_with(target, lines);
     }
-    let center = locate(target, lines, test_ids, pixels_per_point)?.center();
+    let center = locate(target, lines)?.center();
     let under: Vec<&Line> = lines
         .iter()
         .filter(|line| line.visible && line.bounds.is_some_and(|bounds| bounds.contains(center)))
@@ -152,13 +159,8 @@ fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
     })
 }
 
-pub(crate) fn point(
-    target: &str,
-    lines: &[Line],
-    test_ids: &HashMap<String, Rect>,
-    pixels_per_point: f32,
-) -> Result<Pos2, String> {
-    let center = locate(target, lines, test_ids, pixels_per_point)?.center();
+pub(crate) fn point(target: &str, lines: &[Line], pixels_per_point: f32) -> Result<Pos2, String> {
+    let center = locate(target, lines)?.center();
     Ok(pos2(
         center.x / pixels_per_point,
         center.y / pixels_per_point,

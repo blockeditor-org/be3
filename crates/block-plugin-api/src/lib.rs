@@ -134,7 +134,6 @@ pub enum Pasted {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
-    pub test_ids: Vec<TestIdRect>,
     pub actions: Vec<DescribedAction>,
 }
 
@@ -159,6 +158,7 @@ pub struct DescribedNode {
     pub focused: bool,
     pub rect: Option<ChildRect>,
     pub actions: Vec<String>,
+    pub test_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -172,12 +172,6 @@ pub enum Toggled {
     Off,
     On,
     Mixed,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TestIdRect {
-    pub id: String,
-    pub rect: ChildRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

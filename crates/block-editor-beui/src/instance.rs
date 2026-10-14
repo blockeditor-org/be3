@@ -31,6 +31,7 @@ pub(crate) struct BeuiInstance<A: BeuiApp> {
     surfaces: HashMap<EditorRegion, PluginSurface>,
     views: Views<A>,
     lent: Rc<RefCell<Option<Lent<A>>>>,
+    keeps_accessibility: bool,
 }
 
 struct Lent<A: BeuiApp> {
@@ -244,6 +245,7 @@ impl<A: BeuiApp> Views<A> {
 impl<A: BeuiApp> BeuiInstance<A> {
     pub(crate) fn adopting(adopted: crate::headless::Adopted) -> Self {
         let mut instance = Self::new(adopted.host());
+        instance.keeps_accessibility = true;
         let views = &mut instance.views;
         match adopted {
             crate::headless::Adopted::Editor(editor, view) => {
@@ -285,21 +287,25 @@ impl<A: BeuiApp> BeuiInstance<A> {
             surfaces: HashMap::new(),
             views: Views::empty(),
             lent: Rc::default(),
+            keeps_accessibility: false,
         }
     }
 
     fn surface(&mut self, region: EditorRegion) -> &mut PluginSurface {
         let host = &self.host;
         let lent = &self.lent;
+        let keeps_accessibility = self.keeps_accessibility;
         self.surfaces.entry(region).or_insert_with(|| {
-            PluginSurface::launch(
+            let surface = PluginSurface::launch(
                 host.clone(),
                 crate::fonts::context(),
                 RegionApp::<A> {
                     region,
                     lent: Rc::clone(lent),
                 },
-            )
+            );
+            surface.context().keep_accessibility(keeps_accessibility);
+            surface
         })
     }
 

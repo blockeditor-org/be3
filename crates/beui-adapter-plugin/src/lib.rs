@@ -38,7 +38,6 @@ impl Adapter for PluginAdapter {
     fn run(self: Box<Self>, launch: Launch) -> Running {
         Box::pin(async move {
             let mut runner = Runner::new(launch);
-            runner.context().set_test_ids_published(true);
             let waker = self.host.waker();
             let loaded = Loaded {
                 renderer: Box::new(SurfaceRenderer::new(Rc::clone(&self.surface))),
@@ -216,22 +215,11 @@ impl PluginSurface {
                             .iter()
                             .map(|action| format!("{action:?}"))
                             .collect(),
+                        test_ids: line.test_ids.clone(),
                     })
                     .collect()
             })
             .unwrap_or_default();
-        let mut test_ids: Vec<(String, Rect)> = self
-            .runner
-            .output()
-            .map(|output| {
-                output
-                    .test_ids()
-                    .iter()
-                    .map(|(id, rect)| (id.clone(), self.to_region(region, *rect)))
-                    .collect()
-            })
-            .unwrap_or_default();
-        test_ids.sort_by(|a, b| a.0.cmp(&b.0));
         let actions = self
             .runner
             .output()
@@ -251,11 +239,7 @@ impl PluginSurface {
                     .collect()
             })
             .unwrap_or_default();
-        Description {
-            nodes,
-            test_ids,
-            actions,
-        }
+        Description { nodes, actions }
     }
 
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {
