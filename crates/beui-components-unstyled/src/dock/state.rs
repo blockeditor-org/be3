@@ -1061,6 +1061,9 @@ impl DockState {
             return false;
         }
         self.recent.retain(|other| *other != tab);
+        if self.fullscreen.is_some_and(|shown| shown.tab == tab) {
+            self.fullscreen = None;
+        }
         self.normalize();
         self.settle_focus();
         true
