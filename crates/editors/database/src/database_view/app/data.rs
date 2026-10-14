@@ -50,6 +50,7 @@ pub struct ViewData {
     pub inverses: Memo<Vec<Inverse>>,
     pub rows: Memo<Vec<DatabaseRow>>,
     pub row_ids: Memo<Vec<ObjectId>>,
+    pub row_index: Memo<HashMap<ObjectId, usize>>,
     pub prefix: Memo<String>,
     pub title_field: Memo<Option<Uuid>>,
     pub fields: Memo<Vec<DatabaseField>>,
@@ -102,6 +103,14 @@ impl ViewData {
                 .collect::<Vec<ObjectId>>()
         });
         let row_ids = create_memo(move || row_ids.get());
+        let row_index = create_memo(move || {
+            row_ids.with(|ids| {
+                ids.iter()
+                    .enumerate()
+                    .map(|(index, id)| (*id, index))
+                    .collect::<HashMap<ObjectId, usize>>()
+            })
+        });
         let found_inverses = watch_inverses(editor, database_id);
         let inverses = create_memo(move || found_inverses.get().unwrap_or_default());
         let rows = create_memo(move || {
@@ -238,6 +247,7 @@ impl ViewData {
             inverses,
             rows,
             row_ids,
+            row_index,
             prefix,
             title_field,
             fields,
@@ -422,8 +432,8 @@ impl ViewData {
     }
 
     pub fn index_of(&self, row: ObjectId) -> Option<usize> {
-        self.row_ids
-            .with_untracked(|ids| ids.iter().position(|id| *id == row))
+        self.row_index
+            .with_untracked(|indices| indices.get(&row).copied())
     }
 
     pub fn add_row(&self, values: Vec<(Uuid, DatabaseValue)>) -> ObjectId {
