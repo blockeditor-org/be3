@@ -20,6 +20,7 @@ pub struct InteractiveNode {
     pub cursor: Option<CursorIcon>,
     pub scroll_axis: Option<Direction>,
     pub capture_presses: bool,
+    pub keeps_focus: bool,
     pub repeat_drag: bool,
     pub touch_drags: bool,
     pub touch_drag_axis: Option<Direction>,
@@ -70,6 +71,7 @@ impl InteractiveNode {
             cursor: None,
             scroll_axis: None,
             capture_presses: false,
+            keeps_focus: false,
             repeat_drag: false,
             touch_drags: false,
             touch_drag_axis: None,
@@ -404,6 +406,12 @@ impl Document {
             self.arena
                 .touch_mut_as::<InteractiveNode>(id)
                 .capture_presses = capture_presses;
+        }
+    }
+
+    pub fn set_interactive_keeps_focus(&mut self, id: NodeOf<InteractiveNode>, keeps: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).keeps_focus != keeps {
+            self.arena.touch_mut_as::<InteractiveNode>(id).keeps_focus = keeps;
         }
     }
 

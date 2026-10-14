@@ -1,5 +1,8 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use crate::reactive::{
-    Callback, Child, ClickCallback, Prop, create_binding, create_effect, with_document,
+    Callback, Child, ClickCallback, Prop, create_binding, create_effect, on_cleanup, with_document,
 };
 use beui_core::base::list::Direction;
 use beui_core::clipboard::{PasteKind, Pasted};
@@ -41,6 +44,7 @@ pub fn Interactive(
     cursor: Option<Prop<CursorIcon>>,
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = false)] keeps_focus: Prop<bool>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
     #[prop(default = false)] touch_drags: Prop<bool>,
     #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
@@ -85,6 +89,23 @@ pub fn Interactive(
                 && on_motion.is_empty()),
         "an Interactive handed focus callbacks has to be focusable"
     );
+    let on_focus_change = match on_focus_change.is_empty() {
+        true => on_focus_change,
+        false => {
+            let held = Rc::new(Cell::new(false));
+            let holding = Rc::clone(&held);
+            on_cleanup(move || {
+                let live = beui_core::current::try_with_document(|_| ()).is_some();
+                if held.get() && live {
+                    on_focus_change.call(false);
+                }
+            });
+            Callback::new(move |focused: bool| {
+                holding.set(focused);
+                on_focus_change.call(focused);
+            })
+        }
+    };
     let interactive = with_document(|document| {
         let interactive = document.create_interactive(focusable);
         let node = document.arena.touch_mut_as::<InteractiveNode>(interactive);
@@ -150,8 +171,12 @@ pub fn Interactive(
             let text = ime_text.get();
             with_document(|document| document.set_focusable_ime_text(interactive, text))
         });
+        let asked = Cell::new(false);
         create_effect(move || {
             let wanted = focused.get();
+            if !wanted && !asked.replace(wanted) {
+                return;
+            }
             with_document(|document| match wanted {
                 true => document.focus_focusable(interactive.id()),
                 false if document.focused_node() == Some(interactive.id()) => {
@@ -171,6 +196,7 @@ pub fn Interactive(
     create_binding(move || {
         let (capture, repeat, touch) =
             (capture_presses.get(), repeat_drag.get(), touch_drags.get());
+        let keeps = keeps_focus.get();
         let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
         let (active, inhibits, claimed) = (
             key_active.get(),
@@ -179,6 +205,7 @@ pub fn Interactive(
         );
         with_document(|document| {
             document.set_interactive_capture_presses(interactive, capture);
+            document.set_interactive_keeps_focus(interactive, keeps);
             document.set_interactive_repeat_drag(interactive, repeat);
             document.set_interactive_touch_drags(interactive, touch);
             document.set_interactive_touch_drag_axis(interactive, axis);

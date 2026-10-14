@@ -505,6 +505,12 @@ fn reached(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> (Vec<No
 }
 
 fn focus_target(doc: &Document, rects: &Rects, reached: &[NodeId], pos: Pos2) -> Option<NodeId> {
+    if reached
+        .iter()
+        .any(|id| interactive(doc, *id).is_some_and(|node| node.keeps_focus))
+    {
+        return doc.focused_node();
+    }
     for id in reached {
         let Some(focus) = interactive(doc, *id).and_then(|node| node.focus.as_ref()) else {
             continue;

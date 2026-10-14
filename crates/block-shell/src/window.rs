@@ -99,6 +99,13 @@ pub(crate) fn WindowPanel(
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
         });
+        let given = create_memo(move || tab.keyboard());
+        let host = editor.host();
+        create_effect(move || {
+            if given.get().is_some() {
+                host.act(WindowAction::Focus(window));
+            }
+        });
         let called = create_memo(move || tab.attention());
         let host = editor.host();
         create_effect(move || {
