@@ -1302,6 +1302,13 @@ resolved against. A window is a floating overlay, so it paints above the dock
 and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
 
+How the windows stack is the document's layer order alone (`Document::layers()`),
+not anything in `DockState`: a press on a window and the focus moving into one
+raise its layer, a fullscreen tab is raised again over it each time, and a drop
+target is looked for in the window whose layer is on top at the pointer, never
+in one covered there by a layer that is not the dock's (a menu, a dialog, the
+fullscreen tab).
+
 Dragging a tab picks a drop target from what is under the pointer: a tab bar
 inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
@@ -1422,8 +1429,8 @@ One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `leave_fullscreen` from outside, or the `DockTabControl` that `use_dock_tab()`
 hands the tab's own content. The panel moves into a floating overlay over that
 area, wrapped in Docking's `fullscreen` render prop (styled: the theme's
-background), so it covers the tab bars, the other panes and anything else in the
-document there, and nothing under it hears the pointer, while the rest of the
+background), so it covers the tab bars, the other panes, the dock's windows
+(even one the focus moves into) and anything else in the document there, and nothing under it hears the pointer, while the rest of the
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
