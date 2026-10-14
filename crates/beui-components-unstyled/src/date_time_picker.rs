@@ -7,11 +7,11 @@ use crate::date_time_field::{
 };
 use crate::datetime::{Date, DateTime, HourCycle, Time};
 use crate::popover::{Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle};
-use beui_core::geometry::Rect;
+use beui_core::geometry::Vec2;
 use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, Frame, Interactive, Memo, NodeRef, PlacementBuilder, Prop,
+    Callback, Child, ClickCallback, Frame, Interactive, LayoutBuilder, Memo, NodeRef, Prop,
     ReadSignal, Render, RenderFn, WriteSignal, create_effect, create_memo, create_signal,
     create_timer,
 };
@@ -122,9 +122,9 @@ pub fn DateTimePicker(
         }
     });
     view! {
-        <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
-                let width = create_memo(move || placed.get().width());
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let width = create_memo(move || size.get().x);
                 let field = Field {
                     current,
                     report,
@@ -236,7 +236,7 @@ pub fn DateTimePicker(
                     </Frame>
                 }
             }}
-        </PlacementBuilder>
+        </LayoutBuilder>
     }
 }
 

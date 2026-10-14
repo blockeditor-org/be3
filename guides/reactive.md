@@ -818,12 +818,13 @@ like any other wrapper.
 
 ## Containers and responsive layout
 
-Layout sizes are available reactively: `node_size(id)` returns a
-`ReadSignal<Vec2>` that the document updates from that node's laid-out rect.
-`Document::show` runs layout, publishes the sizes that changed, and lets the
-effects that woke up rebuild before it lays out what they changed again, so a
-size-driven change is visible in the frame that caused it rather than one frame
-later. The signal reads `Vec2::ZERO` until the first layout.
+Content that depends on the space it is given is built inside layout, not
+after it: a `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the
+size it is laid out at, and rebuilds its content in the same walk when that
+size changes (see "One layout per frame" in the beui guide). `node_rect(id)`
+watches where a node was placed, for content positioned in document
+coordinates; content that needs a rect to lay itself out uses a
+`LayoutBuilder` instead.
 
 `unstyled::container` ties the two together: it is a `LayoutBuilder`, which
 builds its content in a scope of its own under the caller's, the way `Show`

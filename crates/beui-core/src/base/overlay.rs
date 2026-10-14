@@ -251,6 +251,35 @@ fn resolve_rect(
     Rect::from_min_size(origin, content_size)
 }
 
+impl OverlayNode {
+    fn place_content(
+        &mut self,
+        doc: &mut Document,
+        painter: &Painter,
+        content: NodeId,
+        out: &Rects,
+    ) {
+        let viewport = doc.viewport_rect();
+        let anchored = self.anchor_node().and_then(|id| out.get(&id));
+        self.anchored = anchored;
+        let area = self.area(doc, viewport, anchored);
+        let content_size = crate::layout::measure(doc, painter, content, area.size());
+        let anchor_rect = match &self.anchor {
+            OverlayAnchor::Node(_) => anchored.unwrap_or(area),
+            OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
+            OverlayAnchor::Rect(rect) => *rect,
+        };
+        let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
+        crate::layout::layout(doc, painter, content, rect, out);
+    }
+
+    fn anchor_moved(&self, out: &Rects) -> bool {
+        self.anchor_node()
+            .and_then(|id| out.get(&id))
+            .is_some_and(|rect| self.anchored != Some(rect))
+    }
+}
+
 impl Element for OverlayNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         Vec2::ZERO
@@ -268,17 +297,7 @@ impl Element for OverlayNode {
         if self.policy == LayerPolicy::BlocksAll {
             crate::layout::layout(doc, painter, self.scrim.id(), viewport, out);
         }
-        let anchored = self.anchor_node().and_then(|id| out.get(&id));
-        self.anchored = anchored;
-        let area = self.area(doc, viewport, anchored);
-        let content_size = crate::layout::measure(doc, painter, content, area.size());
-        let anchor_rect = match &self.anchor {
-            OverlayAnchor::Node(_) => anchored.unwrap_or(area),
-            OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
-            OverlayAnchor::Rect(rect) => *rect,
-        };
-        let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
-        crate::layout::layout(doc, painter, content, rect, out);
+        self.place_content(doc, painter, content, out);
     }
 
     fn paint(&self, _doc: &Document, _painter: &Painter, _rects: &Rects, _rect: Rect) {}
@@ -355,17 +374,33 @@ impl Document {
         let moved: Vec<NodeOf<OverlayNode>> = self
             .open_overlays()
             .into_iter()
-            .filter(|overlay| {
-                let node = self.arena.get_as(*overlay);
-                node.anchor_node()
-                    .and_then(|id| rects.get(&id))
-                    .is_some_and(|rect| node.anchored != Some(rect))
-            })
+            .filter(|overlay| self.arena.get_as(*overlay).anchor_moved(&rects))
             .collect();
         for overlay in &moved {
             self.arena.invalidate_node(*overlay);
         }
         !moved.is_empty()
+    }
+
+    pub(crate) fn place_moved_overlays(&mut self, ctx: &crate::context::Context, out: &Rects) {
+        let painter = ctx.painter();
+        for overlay in self.open_overlays() {
+            let node = self.arena.get_as(overlay);
+            let Some(content) = node.content.filter(|_| node.anchor_moved(out)) else {
+                continue;
+            };
+            if !out.contains_key(&overlay.id()) || self.is_culled(overlay.id()) {
+                continue;
+            }
+            let mut element = self.arena.take(overlay);
+            let outer = self.enter_measure(overlay.id());
+            if let Some(node) = element.as_any_mut().downcast_mut::<OverlayNode>() {
+                node.place_content(self, &painter, content, out);
+            }
+            self.leave_measure(outer);
+            self.arena.put_back(overlay, element);
+            self.forget_placing();
+        }
     }
 
     pub fn create_overlay(

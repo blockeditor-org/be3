@@ -47,11 +47,11 @@ impl<T: ChildItem> NodeChildren<T> for ChildList<T> {
     }
 
     fn find(&self, child: NodeId) -> Option<&T> {
-        self.iter().find(|item| item.node() == Some(child))
+        self.find_by(child.key(), item_key)
     }
 
     fn contains(&self, child: NodeId) -> bool {
-        self.iter().any(|item| item.node() == Some(child))
+        self.find(child).is_some()
     }
 
     fn remove(&mut self, child: NodeId) {
@@ -59,10 +59,14 @@ impl<T: ChildItem> NodeChildren<T> for ChildList<T> {
     }
 
     fn find_mut(&mut self, child: NodeId) -> Option<&mut T> {
-        self.iter_mut().find(|item| item.node() == Some(child))
+        self.find_by_mut(child.key(), item_key)
     }
 
     fn fill_children(&mut self, slot: SlotId, items: Vec<T>) {
         self.fill_keeping(slot, items, ChildItem::same);
     }
+}
+
+fn item_key<T: ChildItem>(item: &T) -> Option<u64> {
+    item.node().map(NodeId::key)
 }
