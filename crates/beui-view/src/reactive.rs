@@ -13,7 +13,7 @@ use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 
 pub use beui_core::callback::NodeRef;
-pub use beui_core::timer::{Timer, create_timer, now};
+pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
 pub use beui_core::current::enter;
 pub use beui_core::current::{try_with_document, with_document, with_reactive_scope};

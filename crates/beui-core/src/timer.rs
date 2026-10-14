@@ -1,6 +1,6 @@
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::current::{try_with_document, with_document};
 use ::reactive::{Stored, on_cleanup, store};
@@ -60,6 +60,23 @@ impl Timer {
 
 pub fn now() -> Instant {
     try_with_document(|document| document.now()).unwrap_or_else(Instant::now)
+}
+
+thread_local! {
+    static PINNED_WALL_CLOCK: Cell<Option<(Instant, Duration)>> = const { Cell::new(None) };
+}
+
+pub fn pin_wall_clock(at: Option<(Instant, Duration)>) {
+    PINNED_WALL_CLOCK.with(|held| held.set(at));
+}
+
+pub fn wall_clock() -> Duration {
+    match PINNED_WALL_CLOCK.with(Cell::get) {
+        Some((at, since_epoch)) => since_epoch + now().saturating_duration_since(at),
+        None => SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default(),
+    }
 }
 
 pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
