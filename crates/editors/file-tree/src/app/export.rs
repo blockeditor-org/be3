@@ -17,6 +17,7 @@ pub(crate) struct Export {
     pub(crate) name: String,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Exporter {
     set_wanted: WriteSignal<Option<Export>>,
     error: ReadSignal<Option<String>>,
@@ -34,14 +35,14 @@ pub(crate) fn exportable(block_type: Uuid) -> bool {
 }
 
 impl Exporter {
-    pub(crate) fn new(editor: Editor) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor) -> Self {
         let (wanted, set_wanted) = create_signal(None::<Export>);
         let (error, set_error) = create_signal(None::<String>);
-        let exporter = Rc::new(Self {
+        let exporter = Self {
             set_wanted,
             error,
             set_error,
-        });
+        };
         let saver = Rc::new(RefCell::new(FileSaver::default()));
         let saving = Rc::clone(&saver);
         create_effect(move || {
