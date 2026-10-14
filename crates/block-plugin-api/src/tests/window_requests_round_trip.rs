@@ -8,6 +8,7 @@ fn window_requests_round_trip() {
             region: EditorRegion::Frame,
             window: WindowRequests {
                 cursor: CursorIcon::Crosshair,
+                pointer_locked: true,
                 ime: None,
                 handles_back: true,
                 wants_keyboard: true,

@@ -100,7 +100,7 @@ mod focus_messages_round_trip;
 mod forwarded_picks_and_creation_children_round_trip;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;
-mod grabbing_the_cursor_round_trips;
+mod a_stopped_region_and_pointer_motion_round_trip;
 mod history_messages_round_trip;
 mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;

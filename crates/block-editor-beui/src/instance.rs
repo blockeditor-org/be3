@@ -478,8 +478,6 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: to_region(rect),
             })
             .collect();
-        let locked = self.surfaces.values().any(PluginSurface::pointer_locked);
-        self.host.grab_cursor(locked);
         if self.zones_pending() {
             frame.repaint_after = Some(Duration::ZERO);
         }
