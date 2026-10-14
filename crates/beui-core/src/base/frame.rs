@@ -214,6 +214,10 @@ impl FrameNode {
 }
 
 impl Element for FrameNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         if !self.visible {
             return Vec2::ZERO;

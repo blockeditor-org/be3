@@ -344,7 +344,7 @@ impl Document {
         if node.offset == value && !node.anchored {
             return;
         }
-        let node = self.arena.get_mut_as::<OffsetNode>(offset);
+        let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
         node.offset = value;
         node.anchored = false;
     }
@@ -353,7 +353,7 @@ impl Document {
         if self.arena.get_as::<OffsetNode>(offset).offset == value {
             return;
         }
-        let node = self.arena.get_mut_as::<OffsetNode>(offset);
+        let node = self.arena.relayout_alone_mut_as::<OffsetNode>(offset);
         node.offset = value;
         node.anchored = false;
     }
@@ -369,7 +369,7 @@ impl Document {
         if self.arena.get_as::<OffsetNode>(offset).overscroll == overscroll {
             return;
         }
-        self.arena.get_mut_as::<OffsetNode>(offset).overscroll = overscroll;
+        self.arena.relayout_alone_mut_as::<OffsetNode>(offset).overscroll = overscroll;
     }
 
     pub fn first_offset_within(&self, id: NodeId) -> Option<NodeOf<OffsetNode>> {

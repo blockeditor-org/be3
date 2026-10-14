@@ -252,6 +252,10 @@ fn resolve_rect(
 }
 
 impl Element for OverlayNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         Vec2::ZERO
     }

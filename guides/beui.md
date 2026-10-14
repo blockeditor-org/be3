@@ -2492,12 +2492,18 @@ in document coordinates rather than relative to the rectangle it is handed, as
 `painter.in_document()`.
 
 Painting is retained per node. A node's `paint` runs again when the node
-changed, when it was laid out again, when its size or the painter it is handed
-changed, or when a repaint it asked for falls due; otherwise the shapes it
-recorded last time stand, and its children are only visited when something
-under them has to paint. `paint` must therefore be a function of the node, its
-rectangle, the painter and the rectangles its own layout gave its children -
-anything else it reads goes unnoticed when it changes.
+changed, when its size or the painter it is handed changed, when a child it
+paints moved or was culled or uncovered, or when a repaint it asked for falls
+due; otherwise the shapes it recorded last time stand, and its children are
+only visited when something under them has to paint. Being laid out again is
+not by itself a reason: a node whose paint reads something its own `layout`
+works out says so with `Element::paints_from_layout` (an `Offset`, a `Canvas`,
+a `VirtualList`), and a `Text` asks for its own repaint from `layout` only
+when the lines it placed are not the ones it placed before. `paint` must
+therefore be a function of the node, its rectangle, the painter and the
+rectangles its own layout gave its children - anything else it reads goes
+unnoticed when it changes. A scroll's new offset relays out its `Offset` alone,
+from the place it was last given, rather than every node around it.
 
 What a node records is a tree (`display.rs`): its own shapes, its children by
 id and translation, and group nodes around them - `Group::Clip`,
@@ -2505,12 +2511,14 @@ id and translation, and group nodes around them - `Group::Clip`,
 `Group::Filter` - which a painter opens (`with_clip_rect` for the children it
 paints, `shifted`, `faded`, `in_document`) rather than writing them onto each
 child. When a node paints again its new tree is set against its old one by
-identity, never by guessing: its own shapes, if they changed at all, damage
-where they were and where they are; a child, matched by id, damages its old and
+identity, never by comparing what it painted: its own shapes damage where
+they were and where they are, except a `Drawing` that is the same drawing in the
+same place, which damages only what it says it redrew; a child, matched by id, damages its old and
 new place when it was added, removed, moved or restacked, and nothing when it
 stayed; a mask whose fade changed damages its bands; and a scroll group, matched
 by the space it scrolls, whose offset changed is a copy of what it showed rather
-than damage. A repaint that paints the same thing therefore costs no pixels.
+than damage. A repaint that paints the same thing still damages its shapes, so
+a node that repaints without changing is fixed where it is asked to repaint.
 Damage is held as at most four rectangles (`damage::Region`), each drawn as its
 own pass, and two of them become one whenever their bounds are at most twice
 the area they cover, so a large change spread over nearby spots is drawn once. A

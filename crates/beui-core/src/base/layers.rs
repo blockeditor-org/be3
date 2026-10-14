@@ -20,6 +20,10 @@ impl ChildHost for LayersNode {
 }
 
 impl Element for LayersNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         self.items.iter().fold(Vec2::ZERO, |size, item| {
             size.max(crate::layout::measure(doc, painter, *item, available))

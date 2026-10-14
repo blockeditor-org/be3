@@ -106,6 +106,8 @@ impl ChildItem for TextPart {
 struct Placed {
     rect: Rect,
     origin: Pos2,
+    shaped: Rc<RichLayout>,
+    arrangement: (TextAlign, bool, f32),
     layout: Rc<RichLayout>,
     spans: Vec<Option<SpanHandle>>,
 }
@@ -470,23 +472,22 @@ impl TextNode {
     }
 
     fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let mut layout = self.rich_layout(doc, painter, rect.width());
-        if self.truncates() && layout.size.x > rect.width() {
-            let mut galleys = self.galleys.borrow_mut();
-            let mut shaper = self.shaper(painter, &mut galleys);
-            let mut truncated = (*layout).clone();
-            truncated.truncate(rect.width(), &mut shaper);
-            let fresh = std::mem::take(&mut shaper.fresh);
-            drop(shaper);
-            galleys.held.extend(fresh);
-            layout = Rc::new(truncated);
-        }
-        if self.horizontal != TextAlign::Start {
-            let grid = painter.pixel_grid();
-            let mut aligned = (*layout).clone();
-            aligned.align(rect.width(), self.horizontal, |x| grid.snap(x));
-            layout = Rc::new(aligned);
-        }
+        let shaped = self.rich_layout(doc, painter, rect.width());
+        let previous = self.placed.borrow().clone();
+        let arrangement = (
+            self.horizontal,
+            self.truncates(),
+            painter.ctx().pixels_per_point(),
+        );
+        let held = previous.as_ref().filter(|previous| {
+            Rc::ptr_eq(&previous.shaped, &shaped)
+                && previous.arrangement == arrangement
+                && previous.rect.width() == rect.width()
+        });
+        let layout = match held {
+            Some(held) => Rc::clone(&held.layout),
+            None => self.arranged(painter, Rc::clone(&shaped), rect.width()),
+        };
         let top = match self.vertical {
             TextAlign::Start => rect.top(),
             TextAlign::Center => rect.center().y - layout.size.y / 2.0,
@@ -507,7 +508,7 @@ impl TextNode {
             let caret = layout.caret_rect(at, size.x);
             crate::layout::layout(doc, painter, item, caret.translate(origin.to_vec2()), out);
         }
-        let spans = self
+        let spans: Vec<Option<SpanHandle>> = self
             .shaped
             .borrow()
             .iter()
@@ -517,12 +518,49 @@ impl TextNode {
                 Entry::Inline(_) => None,
             })
             .collect();
+        let changed = previous.is_none_or(|previous| {
+            previous.rect != rect
+                || previous.origin != origin
+                || !Rc::ptr_eq(&previous.layout, &layout)
+                || previous.spans.len() != spans.len()
+                || previous.spans.iter().zip(&spans).any(|pair| match pair {
+                    (Some(left), Some(right)) => !Rc::ptr_eq(&left.0, &right.0),
+                    (None, None) => false,
+                    _ => true,
+                })
+        });
         *self.placed.borrow_mut() = Some(Placed {
             rect,
             origin,
+            shaped,
+            arrangement,
             layout,
             spans,
         });
+        if changed && let Some(id) = doc.laying_out() {
+            doc.arena.note_relaid(id);
+        }
+    }
+
+    fn arranged(&self, painter: &Painter, layout: Rc<RichLayout>, width: f32) -> Rc<RichLayout> {
+        let mut layout = layout;
+        if self.truncates() && layout.size.x > width {
+            let mut galleys = self.galleys.borrow_mut();
+            let mut shaper = self.shaper(painter, &mut galleys);
+            let mut truncated = (*layout).clone();
+            truncated.truncate(width, &mut shaper);
+            let fresh = std::mem::take(&mut shaper.fresh);
+            drop(shaper);
+            galleys.held.extend(fresh);
+            layout = Rc::new(truncated);
+        }
+        if self.horizontal != TextAlign::Start {
+            let grid = painter.pixel_grid();
+            let mut aligned = (*layout).clone();
+            aligned.align(width, self.horizontal, |x| grid.snap(x));
+            layout = Rc::new(aligned);
+        }
+        layout
     }
 
     fn paint_layout(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
@@ -645,6 +683,10 @@ impl TextNode {
 }
 
 impl Element for TextNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let size = self.rich_layout(doc, painter, available.x).size;
         match self.truncates() {
@@ -955,6 +997,10 @@ impl Document {
 }
 
 impl Element for TextItemNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),

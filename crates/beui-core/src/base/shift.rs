@@ -11,6 +11,10 @@ pub struct ShiftNode {
 }
 
 impl Element for ShiftNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         crate::layout::measure(doc, painter, self.child, available)
     }

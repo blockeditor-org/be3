@@ -1867,6 +1867,10 @@ impl Element for Counted {
         self.inner.relayout_boundary()
     }
 
+    fn paints_from_layout(&self) -> bool {
+        self.inner.paints_from_layout()
+    }
+
     fn children(&self) -> Vec<NodeId> {
         self.inner.children()
     }

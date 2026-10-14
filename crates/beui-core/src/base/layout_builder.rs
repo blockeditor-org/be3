@@ -69,6 +69,10 @@ impl LayoutBuilderNode {
 }
 
 impl Element for LayoutBuilderNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),

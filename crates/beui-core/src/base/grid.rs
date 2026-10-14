@@ -186,6 +186,10 @@ impl GridNode {
 }
 
 impl Element for GridNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         self.plan(doc, painter, available.x).size()
     }

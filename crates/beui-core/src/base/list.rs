@@ -401,6 +401,10 @@ impl ListNode {
 }
 
 impl Element for ListNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (available_main, available_cross) = self.main_and_cross(available);
         if self.wrap {

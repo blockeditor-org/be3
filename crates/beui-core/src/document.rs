@@ -1698,7 +1698,16 @@ impl Document {
         if moved || space {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
+        if moved {
+            self.repaint_painter_of(id);
+        }
         true
+    }
+
+    fn repaint_painter_of(&mut self, id: NodeId) {
+        if let Some(parent) = self.arena.parent(id) {
+            self.arena.note_relaid(parent);
+        }
     }
 
     pub fn record_placement(
@@ -1717,7 +1726,9 @@ impl Document {
         let previous = out.insert(id, placed);
         out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
         self.arena.clear_unplaced(id);
-        self.arena.note_relaid(id);
+        if self.arena.get(id).paints_from_layout() {
+            self.arena.note_relaid(id);
+        }
         self.placed_pass.insert(id, self.layout_pass);
         let held = Placing {
             given,
@@ -1734,6 +1745,11 @@ impl Document {
             .map(|held| (held.given.clip, held.culled));
         if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
+        }
+        if previous.map(|previous| previous.rect.min) != Some(rect.min)
+            || previous_held.map(|(_, was)| was) != Some(culled)
+        {
+            self.repaint_painter_of(id);
         }
         if culled {
             let mut dropped = Vec::new();

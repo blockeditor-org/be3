@@ -354,22 +354,38 @@ impl PaintCache {
                 settled: true,
             });
         };
-        if !before.same_shapes(&after) {
-            match before.redrawn(&after) {
+        let (runs, mut drawn) = before.own();
+        for placed in runs {
+            stale(&mut self.stale, placed);
+        }
+        let (runs, drawings) = after.own();
+        for (rect, _) in runs {
+            self.damage.add(absolute(rect, now));
+        }
+        for drawing in drawings {
+            let held = drawn
+                .iter()
+                .position(|held| held.drawing.same_draw(drawing.drawing))
+                .map(|index| drawn.swap_remove(index));
+            let redrawn = held
+                .as_ref()
+                .and_then(|held| after.redrawn(&before, held, &drawing));
+            match redrawn {
                 Some(region) => {
                     for rect in region.rects() {
                         self.damage.add(absolute(*rect, now));
                     }
                 }
                 None => {
-                    for placed in before.shape_bounds() {
-                        stale(&mut self.stale, placed);
+                    if let Some(held) = &held {
+                        stale(&mut self.stale, before.drawn(held));
                     }
-                    for (rect, _) in after.shape_bounds() {
-                        self.damage.add(absolute(rect, now));
-                    }
+                    self.damage.add(absolute(after.drawn(&drawing).0, now));
                 }
             }
+        }
+        for held in &drawn {
+            stale(&mut self.stale, before.drawn(held));
         }
         let held: HashMap<NodeId, usize> = before
             .children
@@ -476,6 +492,13 @@ struct Placed {
     scroll: Option<SpaceId>,
 }
 
+struct Drawn<'a> {
+    path: usize,
+    rect: Rect,
+    clip: Rect,
+    drawing: &'a crate::drawing::Drawing,
+}
+
 struct Scrolled {
     space: SpaceId,
     viewport: Rect,
@@ -578,49 +601,62 @@ impl<'a> Elements<'a> {
             .or(around)
     }
 
-    fn own(&self) -> impl Iterator<Item = (usize, &Shape)> + '_ {
-        self.shapes.iter().flat_map(|(path, start, end, _)| {
-            self.display.shapes[*start as usize..*end as usize]
+    fn own(&self) -> (Vec<(Rect, Option<SpaceId>)>, Vec<Drawn<'a>>) {
+        let mut runs = Vec::new();
+        let mut drawn = Vec::new();
+        for (path, start, end, placed) in &self.shapes {
+            let shapes = &self.display.shapes[*start as usize..*end as usize];
+            let scroll = self.scroll_of(*path, self.around);
+            if !shapes
                 .iter()
-                .map(|shape| (*path, shape))
-        })
-    }
-
-    fn same_shapes(&self, other: &Self) -> bool {
-        self.own().count() == other.own().count()
-            && self
-                .own()
-                .zip(other.own())
-                .all(|((path, shape), (other_path, other_shape))| {
-                    shape == other_shape && same_path(&self.paths[path], &other.paths[other_path])
-                })
-    }
-
-    fn redrawn(&self, other: &Self) -> Option<Region> {
-        if self.own().count() != other.own().count() {
-            return None;
-        }
-        let mut region = Region::NOTHING;
-        for ((path, shape), (other_path, other_shape)) in self.own().zip(other.own()) {
-            if !same_path(&self.paths[path], &other.paths[other_path]) {
-                return None;
-            }
-            if shape == other_shape {
+                .any(|shape| matches!(shape, Shape::Drawing { .. }))
+            {
+                runs.push((*placed, scroll));
                 continue;
             }
-            let redrawn = redrawn_in_place(shape, other_shape)?;
-            for rect in redrawn.rects() {
-                region.add(self.place(path, *rect));
+            let mut bounds = Rect::NOTHING;
+            for shape in shapes {
+                match shape {
+                    Shape::Drawing {
+                        rect,
+                        drawing,
+                        clip,
+                    } => drawn.push(Drawn {
+                        path: *path,
+                        rect: *rect,
+                        clip: *clip,
+                        drawing,
+                    }),
+                    shape => bounds = bounds.union(crate::damage::bounds(shape)),
+                }
             }
+            runs.push((self.place(*path, bounds), scroll));
         }
-        Some(region)
+        (runs, drawn)
     }
 
-    fn shape_bounds(&self) -> Vec<(Rect, Option<SpaceId>)> {
-        self.shapes
-            .iter()
-            .map(|(path, _, _, placed)| (*placed, self.scroll_of(*path, self.around)))
-            .collect()
+    fn drawn(&self, drawn: &Drawn) -> (Rect, Option<SpaceId>) {
+        (
+            self.place(drawn.path, drawn.rect.intersect(drawn.clip)),
+            self.scroll_of(drawn.path, self.around),
+        )
+    }
+
+    fn redrawn(&self, before: &Self, held: &Drawn, drawn: &Drawn) -> Option<Region> {
+        if held.rect != drawn.rect
+            || held.clip != drawn.clip
+            || !same_path(&before.paths[held.path], &self.paths[drawn.path])
+        {
+            return None;
+        }
+        let damage = drawn.drawing.damage_since(held.drawing)?;
+        let visible = drawn.rect.intersect(drawn.clip);
+        let mut region = Region::NOTHING;
+        for damaged in damage.rects() {
+            let rect = damaged.translate(drawn.rect.min.to_vec2()).intersect(visible);
+            region.add(self.place(drawn.path, rect));
+        }
+        Some(region)
     }
 }
 
@@ -979,3 +1015,4 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
     }
     painter.paint_child(id, at);
 }
+

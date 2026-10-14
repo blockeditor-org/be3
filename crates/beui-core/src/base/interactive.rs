@@ -240,6 +240,10 @@ fn fraction(rect: Rect, pos: Pos2) -> Vec2 {
 }
 
 impl Element for InteractiveNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),

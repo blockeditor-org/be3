@@ -101,6 +101,10 @@ pub trait Element: Any {
         false
     }
 
+    fn paints_from_layout(&self) -> bool {
+        true
+    }
+
     fn passes_scroll_anchor(&self) -> bool {
         false
     }
@@ -717,6 +721,20 @@ impl Arena {
         self.repaint_node(id);
         self.mark_stale(id);
         self.queue_adoption(id);
+    }
+
+    pub fn relayout_alone_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
+        let id = node.id;
+        self.layout_revision = self.layout_revision.wrapping_add(1);
+        self.relaid.push(id);
+        self.repaint_node(id);
+        if let Some(slot) = self.slot(id) {
+            self.stale[slot] = true;
+            self.unplaced[slot] = true;
+            self.boundaries.push(id);
+        }
+        self.marked = None;
+        self.downcast_mut(node)
     }
 
     fn queue_adoption(&mut self, id: NodeId) {
