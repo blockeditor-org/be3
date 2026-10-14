@@ -36,6 +36,7 @@ mod crossing_the_phone_width_keeps_the_block_on_show;
 mod linking_a_block_in_the_picker_answers_the_pick;
 mod renaming_a_block_the_host_asks_about_saves_its_name;
 mod sharing_a_block_grants_the_people_added_and_lists_them_again;
+mod showing_a_block_with_another_editor_switches_its_tab;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
@@ -215,7 +216,12 @@ fn profile(fixture: &Fixture) -> EditorView {
 }
 
 fn show(fixture: &mut Fixture, id: Uuid, via: Option<Uuid>) {
-    fixture.host.show_block(id, SHOWN_TYPE, via);
+    fixture.host.show_block(block_editor_beui::ShowRequest {
+        block_id: id,
+        block_type: SHOWN_TYPE,
+        via,
+        editor: None,
+    });
     fixture.settle();
 }
 
@@ -241,6 +247,7 @@ fn catalog() -> block_editor_beui::Catalog {
             category: block_editor_beui::TemplateCategory::Important,
             dialog: false,
         }],
+        editors: Vec::new(),
     }
 }
 

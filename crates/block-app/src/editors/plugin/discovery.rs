@@ -48,6 +48,9 @@ impl Plugins {
             std::iter::once(editor.block_type)
                 .chain(editor.templates.iter().map(|template| template.block_type))
         }) {
+            if block_type == block_plugin_api::ANY_BLOCK_TYPE {
+                continue;
+            }
             let block_type = Uuid::from_bytes(block_type);
             if !crate::be::is_known(block_type)
                 && !be_block::profile::VIEW_EDITORS.contains(&block_type)
@@ -68,20 +71,6 @@ impl Plugins {
                 existing.identity.id
             ));
             return;
-        }
-        for editor in &manifest.editors {
-            if let Some(existing) = self
-                .manifests
-                .iter()
-                .find(|existing| existing.editor(editor.block_type).is_some())
-            {
-                self.errors.push(format!(
-                    "{source}: {} already edits {}",
-                    existing.identity.id,
-                    Uuid::from_bytes(editor.block_type)
-                ));
-                return;
-            }
         }
         self.manifests.push(Arc::new(manifest));
     }

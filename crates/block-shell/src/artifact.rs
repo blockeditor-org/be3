@@ -31,10 +31,7 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
         info.with(|info| {
             let info = info.as_ref()?;
             let artifact = info.artifact.as_ref()?;
-            Some(TabItem {
-                id: artifact.source?,
-                block_type: artifact.source_type,
-            })
+            Some(TabItem::new(artifact.source?, artifact.source_type))
         })
     });
     let described = create_memo(move || source.get().is_some());

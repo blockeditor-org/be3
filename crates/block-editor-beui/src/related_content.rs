@@ -1,9 +1,21 @@
 use std::rc::Rc;
 
-use beui::reactive::{Memo, ReadSignal, create_effect, create_signal};
+use beui::reactive::{Memo, ReadSignal, create_effect, create_memo, create_signal};
 use uuid::Uuid;
 
-use crate::{ContentProjection, Editor};
+use crate::{BlockQuery, ContentProjection, Editor};
+
+pub fn content_settled(editor: Editor, block: Uuid, loaded: ReadSignal<bool>) -> Memo<bool> {
+    let found = editor.blocks().watch(BlockQuery::Block(block));
+    create_memo(move || {
+        loaded.get()
+            || (found.is_loaded()
+                && found
+                    .read()
+                    .first()
+                    .is_none_or(|info| !info.access.can_view()))
+    })
+}
 
 pub struct RelatedContent<C> {
     editor: Editor,
@@ -41,6 +53,22 @@ where
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
         self.projection()?.read(read)
+    }
+
+    pub fn settled(&self) -> Memo<bool> {
+        let (settled, set_settled) = create_signal(false);
+        let id = self.id;
+        let editor = self.editor;
+        create_effect(move || {
+            let Some(block) = id.get() else {
+                set_settled.set(false);
+                return;
+            };
+            let loaded = editor.content_of::<C>(block).loaded();
+            let held = content_settled(editor, block, loaded);
+            create_effect(move || set_settled.set(held.get()));
+        });
+        create_memo(move || settled.get())
     }
 
     pub fn operate(&self, operation: C::Op) {

@@ -14,6 +14,7 @@ mod file_chooser;
 pub mod fonts;
 pub mod headless;
 mod instance;
+mod loading;
 mod related_content;
 pub mod version_control;
 
@@ -27,12 +28,13 @@ pub use chrome::{
 };
 pub use dock::BottomDock;
 pub use editor::{
-    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, OwnedEditor, SubregionContent,
-    fit_content,
+    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, OwnedEditor, RawContent,
+    SubregionContent, fit_content,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use instance::BeuiPlugin;
-pub use related_content::RelatedContent;
+pub use loading::Loading;
+pub use related_content::{RelatedContent, content_settled};
 pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {

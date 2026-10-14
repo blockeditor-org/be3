@@ -1,14 +1,14 @@
 use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::be_block::database_view::DatabaseViewKind;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, List, Memo, NodeRef, Show, component,
+    Align, Direction, Dynamic, Frame, ItemSize, Layers, List, Memo, NodeRef, Show, component,
     create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::DatabaseValueEditor;
-use block_editor_beui::{Editor, Toolbar, narrow_chrome};
+use block_editor_beui::{Editor, Loading, Toolbar, narrow_chrome};
 use uuid::Uuid;
 
 use crate::database_view::app::data::{Data, ViewData};
@@ -27,6 +27,10 @@ const CELL_EDITOR_HEIGHT: f32 = 40.0;
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     let data = ViewData::new(editor);
     create_effect(move || {
+        if !data.loaded.get() {
+            editor.set_intrinsic_size(None);
+            return;
+        }
         let size = match data.kind.get() {
             DatabaseViewKind::Spreadsheet => Some(spreadsheet_size(data)),
             DatabaseViewKind::Kanban | DatabaseViewKind::Scatter | DatabaseViewKind::List => None,
@@ -34,7 +38,10 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
         editor.set_intrinsic_size(size);
     });
 
-    let spreadsheet = create_memo(move || data.kind.get() == DatabaseViewKind::Spreadsheet);
+    let loaded = data.loaded;
+    let loading = create_memo(move || !loaded.get());
+    let spreadsheet =
+        create_memo(move || loaded.get() && data.kind.get() == DatabaseViewKind::Spreadsheet);
     let chrome = editor.chrome_shown();
     let toolbar_chrome = chrome;
     let narrow = narrow_chrome();
@@ -42,7 +49,7 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
         let covered = narrow.get()
             && data.kind.get() != DatabaseViewKind::Spreadsheet
             && data.selected_row().is_some();
-        chrome.get() && !covered
+        loaded.get() && chrome.get() && !covered
     });
     let content = NodeRef::new();
     editor.content(&content);
@@ -63,7 +70,16 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
                     }}
                 </Show>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Content data={data} panels=true />
+                    <Layers>
+                        <Show condition={loading}>
+                            <Loading label="Loading the database" />
+                        </Show>
+                        <Show condition={loaded}>
+                            {move || view! {
+                                <Content data={data} panels=true />
+                            }}
+                        </Show>
+                    </Layers>
                 </Frame>
             </List>
         </Frame>
@@ -73,10 +89,21 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
 #[component]
 pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
     let data = ViewData::new(editor);
+    let loaded = data.loaded;
+    let loading = create_memo(move || !loaded.get());
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
-            <Content data={data} panels=false />
+            <Layers>
+                <Show condition={loading}>
+                    <Loading label="Loading the database" />
+                </Show>
+                <Show condition={loaded}>
+                    {move || view! {
+                        <Content data={data} panels=false />
+                    }}
+                </Show>
+            </Layers>
         </Frame>
     }
 }

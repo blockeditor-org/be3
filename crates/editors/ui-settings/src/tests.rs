@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::app::UiSettingsApp;
 
 mod a_profile_shows_the_theme_it_inherits;
+mod choosing_a_default_editor_stores_it;
 mod choosing_a_theme_stores_it;
 
 struct Harness {

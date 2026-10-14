@@ -54,6 +54,8 @@ pub(crate) struct State {
     pub presence_revision: ReadSignal<u64>,
     set_presence_revision: WriteSignal<u64>,
     pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
+    pub loaded: ReadSignal<bool>,
+    set_loaded: WriteSignal<bool>,
     inner: Stored<Inner>,
 }
 
@@ -90,6 +92,7 @@ impl State {
         let (presence_revision, set_presence_revision) = create_signal(0);
         let (focused_embed, set_focused_embed) = create_signal(None);
         let (embed_sizes, set_embed_sizes) = create_signal(HashMap::new());
+        let (loaded, set_loaded) = create_signal(false);
         let state = Self {
             workspace_id: editor.host().workspace_id(),
             link_base: editor.host_value::<LinkBase>(),
@@ -113,6 +116,8 @@ impl State {
             set_import_error,
             presence_revision,
             set_presence_revision,
+            loaded,
+            set_loaded,
             inner: store(Inner {
                 client,
                 content,
@@ -197,6 +202,7 @@ impl State {
             self.text.sync();
         }
         if first {
+            self.set_loaded.set(true);
             let start = self.text.with_core(|core| core.position(0));
             self.text.execute(EditorCommand::SetSelection {
                 anchor: start,

@@ -294,9 +294,17 @@ Keep a projection cheap and pure; it must not operate. Write through
 `ContentProjection::operate`, which applies the operation to what the view
 sees straight away, so a local edit is visible in the frame that made it, and
 queues it for the host. It is already held behind whether the host says the
-block may be edited. `read` answers the content outside a projection (`None`
-until the host has sent it once), and `loaded()` is a signal that turns true
-when it has.
+block may be edited, and dropped until the host has sent the content once, since
+an edit made against content that has not arrived would land in the wrong place.
+`read` answers the content outside a projection (`None` until the host has sent
+it once), and `loaded()` is a signal that turns true when it has. Until then an
+editor shows `block_editor_beui::Loading` rather than an empty or editable
+view, and it keeps showing it until everything it draws from has arrived, so
+nothing is shown and then corrected a moment later: the database view waits for
+its database, schema, relations and row labels. `RelatedContent::settled()` and
+`content_settled` turn true once a block's content has arrived or the account
+cannot read it, so a block that will never arrive does not leave an editor
+loading forever.
 
 The graph around a block - its children, what it references, what references
 it - is a query rather than content. `editor.watch_blocks(BlockQuery::Children(id))`

@@ -7,6 +7,7 @@ fn open_block_request_round_trips() {
         block_id: [1; 16],
         block_type: [2; 16],
         via: Some([3; 16]),
+        editor: Some([4; 16]),
     });
     assert_eq!(
         decode_frame(&encode_frame(&message).unwrap()).unwrap(),

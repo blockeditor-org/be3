@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::profile::{RECENTS, VIEW_EDITORS};
 use block_editor_beui::be_block::{
-    BlockContent, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
+    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -73,8 +73,6 @@ pub struct Workspace {
     set_titles: WriteSignal<HashMap<TabId, String>>,
     simulated: ReadSignal<HashMap<Uuid, AccessLevel>>,
     set_simulated: WriteSignal<HashMap<Uuid, AccessLevel>>,
-    debugged: ReadSignal<HashSet<Uuid>>,
-    set_debugged: WriteSignal<HashSet<Uuid>>,
     error: ReadSignal<Option<String>>,
     set_error: WriteSignal<Option<String>>,
     files: ReadSignal<Option<Uuid>>,
@@ -94,6 +92,7 @@ pub struct Workspace {
     windows: Memo<Vec<HostWindow>>,
     panels: ReadSignal<Vec<HostPanel>>,
     set_panels: WriteSignal<Vec<HostPanel>>,
+    default_editors: Memo<EditorSettings>,
 }
 
 impl Workspace {
@@ -102,7 +101,6 @@ impl Workspace {
         let (views, set_views) = create_signal(HashMap::new());
         let (titles, set_titles) = create_signal(HashMap::new());
         let (simulated, set_simulated) = create_signal(HashMap::new());
-        let (debugged, set_debugged) = create_signal(HashSet::new());
         let (error, set_error) = create_signal(None);
         let (files, set_files) = create_signal(None);
         let (routes, set_routes) = create_signal(0);
@@ -113,6 +111,7 @@ impl Workspace {
         let (share, set_share) = create_signal(None);
         let (panels, set_panels) = create_signal(Vec::new());
         let windows = editor.host_value::<HostWindows>();
+        let default_editors = editor.effective_settings::<EditorSettings>();
         let workspace = Self {
             state: store(State {
                 layout: DockingLayout::new(),
@@ -134,8 +133,6 @@ impl Workspace {
             set_titles,
             simulated,
             set_simulated,
-            debugged,
-            set_debugged,
             error,
             set_error,
             files,
@@ -148,6 +145,7 @@ impl Workspace {
             set_sheet,
             picks,
             set_picks,
+            default_editors,
             dialog,
             set_dialog,
             share,
@@ -285,7 +283,7 @@ impl Workspace {
     }
 
     pub fn open_block(&self, id: Uuid, block_type: Uuid) {
-        self.open(TabItem { id, block_type }, None);
+        self.open(TabItem::new(id, block_type), None);
     }
 
     pub(crate) fn host(&self) -> EditorHost {
@@ -308,27 +306,6 @@ impl Workspace {
             .or_else(|| self.blocks().info(id))
     }
 
-    pub(crate) fn debug_data(&self, id: Uuid) -> Option<String> {
-        let info = self.info(id)?;
-        let parent = match info.parent {
-            BlockParent::Root => "root".to_owned(),
-            BlockParent::Detached => "detached".to_owned(),
-            BlockParent::Block(parent) => parent.to_string(),
-        };
-        let data = serde_json::json!({
-            "id": info.id.to_string(),
-            "type": info.block_type.to_string(),
-            "author": info.author.to_string(),
-            "parent": parent,
-            "name": info.name(),
-            "named_by_hand": info.named_by_hand(),
-            "references": info.references.iter().map(Uuid::to_string).collect::<Vec<_>>(),
-            "access": info.access.label(),
-            "artifact_source": info.artifact().map(|artifact| artifact.source_type.to_string()),
-        });
-        serde_json::to_string(&data).ok()
-    }
-
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
         self.editor.block_types()
     }
@@ -339,10 +316,6 @@ impl Workspace {
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<AccessLevel> {
         self.simulated.with(|simulated| simulated.get(&id).copied())
-    }
-
-    pub(crate) fn is_debugged(&self, id: Uuid) -> bool {
-        self.debugged.with(|debugged| debugged.contains(&id))
     }
 
     fn show_requested(&self) {
@@ -366,10 +339,7 @@ impl Workspace {
         }
         for request in self.host().take_show_requests() {
             self.open(
-                TabItem {
-                    id: request.block_id,
-                    block_type: request.block_type,
-                },
+                TabItem::new(request.block_id, request.block_type).edited_with(request.editor),
                 request.via,
             );
         }
@@ -750,6 +720,9 @@ impl Workspace {
         self.record_via(item.id, via);
         self.record_type(item.id, item.block_type);
         if let Some(tab) = self.tab_showing(item.id) {
+            if item.editor.is_some() {
+                self.switch_editor(tab, item);
+            }
             inner.layout.show(&tab);
             inner.active.set(Some(item.id));
             return;
@@ -769,6 +742,50 @@ impl Workspace {
         tabs.insert(tab, item);
         self.set_tabs.set(tabs);
         inner.active.set(Some(item.id));
+    }
+
+    fn switch_editor(&self, tab: TabId, item: TabItem) {
+        let mut tabs = self.tabs.get_untracked();
+        let Some(held) = tabs.get_mut(&tab) else {
+            return;
+        };
+        if held.editor == item.editor {
+            return;
+        }
+        held.editor = item.editor;
+        if !VIEW_EDITORS.contains(&item.block_type) {
+            let mut views = self.views.get_untracked();
+            if let Some(view) = views.remove(&tab)
+                && view != item.id
+            {
+                self.blocks().set_parent(view, BlockParent::Detached);
+            }
+            if let Some(view) = self.create_view(item.block_type, Some(item.id)) {
+                views.insert(tab, view);
+            }
+            self.set_views.set(views);
+        }
+        self.set_tabs.set(tabs);
+    }
+
+    pub(crate) fn editor_of(&self, item: &TabItem) -> Option<Uuid> {
+        let types = self.types();
+        item.editor
+            .filter(|editor| {
+                types
+                    .editor(*editor)
+                    .is_some_and(|entry| entry.edits(item.block_type))
+            })
+            .or_else(|| {
+                self.default_editors
+                    .with(|defaults| defaults.default_editor(item.block_type))
+                    .filter(|editor| {
+                        types
+                            .editor(*editor)
+                            .is_some_and(|entry| entry.edits(item.block_type))
+                    })
+            })
+            .or_else(|| types.built_in_editor(item.block_type))
     }
 
     pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
@@ -824,9 +841,6 @@ impl Workspace {
         let mut simulated = self.simulated.get_untracked();
         simulated.remove(&id);
         self.set_simulated.set(simulated);
-        let mut debugged = self.debugged.get_untracked();
-        debugged.remove(&id);
-        self.set_debugged.set(debugged);
         if inner.active.get() == Some(id) {
             inner.active.set(None);
             self.rerouted();
@@ -864,22 +878,10 @@ impl Workspace {
     }
 
     pub(crate) fn simulate(&self, id: Uuid, level: AccessLevel) {
-        let mut debugged = self.debugged.get_untracked();
-        debugged.remove(&id);
-        self.set_debugged.set(debugged);
         let mut simulated = self.simulated.get_untracked();
         simulated.insert(id, level);
         self.set_simulated.set(simulated);
         self.host().simulate_access(id, level);
-    }
-
-    pub(crate) fn debug(&self, id: Uuid, debugging: bool) {
-        let mut debugged = self.debugged.get_untracked();
-        match debugging {
-            true => debugged.insert(id),
-            false => debugged.remove(&id),
-        };
-        self.set_debugged.set(debugged);
     }
 
     pub(crate) fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
@@ -956,13 +958,7 @@ impl Workspace {
                         None => {}
                     }
                 }
-                workspace.open(
-                    TabItem {
-                        id: picked.id,
-                        block_type: picked.block_type,
-                    },
-                    container,
-                );
+                workspace.open(TabItem::new(picked.id, picked.block_type), container);
             },
         );
     }

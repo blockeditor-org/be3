@@ -13,6 +13,7 @@ mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
+mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
 mod the_desktop_files_toolbar_opens_the_app_menu;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
@@ -67,7 +68,7 @@ impl Fixture {
         self.test
             .take_opens()
             .into_iter()
-            .map(|(id, _, _)| id)
+            .map(|open| open.block_id)
             .collect()
     }
 }
