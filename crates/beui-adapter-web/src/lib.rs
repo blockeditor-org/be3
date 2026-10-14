@@ -411,7 +411,7 @@ fn waker() -> Waker {
 pub fn accessibility_tree() -> Option<String> {
     let runner = RUNNER.with(|runner| runner.borrow().clone())?;
     let runner = runner.try_borrow().ok()?;
-    runner.runner.accessibility_text().map(str::to_owned)
+    runner.runner.accessibility_text()
 }
 
 pub fn request_frame() {

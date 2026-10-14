@@ -981,14 +981,7 @@ impl EditorSession {
                                 focused: node.focused,
                                 rect: node.rect.map(reported),
                                 actions: node.actions.clone(),
-                            })
-                            .collect(),
-                        test_ids: description
-                            .test_ids
-                            .iter()
-                            .map(|(id, rect)| block_plugin_api::TestIdRect {
-                                id: id.clone(),
-                                rect: reported(*rect),
+                                test_ids: node.test_ids.clone(),
                             })
                             .collect(),
                         actions: description.actions.clone(),

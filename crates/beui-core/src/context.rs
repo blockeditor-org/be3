@@ -1,12 +1,13 @@
-use foldhash::{HashMap, HashSet};
+use foldhash::HashSet;
 use std::any::Any;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
+use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::clipboard::{PasteKind, PasteRequest};
 use crate::damage::{self, Region};
 use crate::display::{Display, Group, Layer};
@@ -25,6 +26,13 @@ use crate::window::WindowState;
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
 
+#[derive(Default)]
+struct Kept {
+    dump: AccessibilityDump,
+    title: String,
+    viewport: Option<Vec2>,
+}
+
 #[derive(Clone)]
 pub struct Context {
     inner: Rc<Inner>,
@@ -40,8 +48,6 @@ struct Inner {
     verifying: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
-    test_ids: RefCell<HashMap<String, Rect>>,
-    ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
     paste: Cell<Option<PasteRequest>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
@@ -77,7 +83,7 @@ struct Inner {
     hit_answers: RefCell<Vec<String>>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
-    test_ids_published: Cell<bool>,
+    kept: RefCell<Option<Kept>>,
     renderer_info: RefCell<Option<RendererInfo>>,
     renderers: RefCell<RendererChoices>,
     renderer_choice: Cell<Option<usize>>,
@@ -146,8 +152,7 @@ pub struct ActionGroup {
 
 pub struct FrameOutput {
     pub layers: Rc<Vec<Layer>>,
-    test_ids: HashMap<String, Rect>,
-    ambiguous_test_ids: HashSet<String>,
+    test_ids: Rc<TestIds>,
     pub window: WindowState,
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
@@ -200,15 +205,12 @@ impl FrameOutput {
         bounds.is_positive().then_some(bounds)
     }
 
-    pub fn test_ids(&self) -> &HashMap<String, Rect> {
+    pub fn test_ids(&self) -> &TestIds {
         &self.test_ids
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
-        if self.ambiguous_test_ids.contains(test_id) {
-            panic!("test id {test_id:?} names more than one node on screen; give each its own id");
-        }
-        self.test_ids.get(test_id).copied()
+        self.test_ids.rect(test_id)
     }
 
     pub fn accessibility_tree(&self, title: &str, viewport: crate::geometry::Vec2) -> TreeUpdate {
@@ -238,8 +240,6 @@ impl Context {
                 verifying: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
-                test_ids: RefCell::new(HashMap::default()),
-                ambiguous_test_ids: RefCell::new(HashSet::default()),
                 copied_text: RefCell::new(None),
                 paste: Cell::new(None),
                 copy_watchers: RefCell::new(Vec::new()),
@@ -275,7 +275,7 @@ impl Context {
                 hit_answers: RefCell::new(Vec::new()),
                 accessibility_known: RefCell::new(HashSet::default()),
                 accessibility_published: RefCell::new(HashSet::default()),
-                test_ids_published: Cell::new(true),
+                kept: RefCell::new(Some(Kept::default())),
                 renderer_info: RefCell::new(None),
                 renderers: RefCell::new(RendererChoices::default()),
                 renderer_choice: Cell::new(None),
@@ -378,12 +378,29 @@ impl Context {
             .retain(|requested| requested != id);
     }
 
-    pub fn set_test_ids_published(&self, published: bool) {
-        self.inner.test_ids_published.set(published);
+    pub fn keep_accessibility(&self, keep: bool) {
+        let mut kept = self.inner.kept.borrow_mut();
+        if keep != kept.is_some() {
+            *kept = keep.then(Kept::default);
+            drop(kept);
+            self.reset_accessibility();
+        }
     }
 
-    pub fn test_ids_published(&self) -> bool {
-        self.inner.test_ids_published.get()
+    pub fn set_accessibility_window(&self, title: &str, viewport: Vec2) {
+        if let Some(kept) = &mut *self.inner.kept.borrow_mut() {
+            if kept.title != title {
+                kept.title = title.to_owned();
+            }
+            kept.viewport = Some(viewport);
+        }
+    }
+
+    pub fn kept_accessibility(&self) -> Option<Ref<'_, AccessibilityDump>> {
+        Ref::filter_map(self.inner.kept.borrow(), |kept| {
+            kept.as_ref().map(|kept| &kept.dump)
+        })
+        .ok()
     }
 
     pub fn now(&self) -> Instant {
@@ -440,8 +457,6 @@ impl Context {
         self.inner.paint_stack.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
         self.inner.moves.borrow_mut().clear();
-        self.inner.test_ids.borrow_mut().clear();
-        self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
@@ -489,12 +504,24 @@ impl Context {
                 watcher(text);
             }
         }
+        let accessibility = std::mem::take(&mut *self.inner.accessibility.borrow_mut());
+        let test_ids = match &mut *self.inner.kept.borrow_mut() {
+            Some(kept) => {
+                kept.dump.update(accessibility::tree_update(
+                    &kept.title,
+                    kept.viewport.unwrap_or(Vec2::splat(f32::MAX)),
+                    scale,
+                    accessibility.clone(),
+                ));
+                Rc::clone(kept.dump.test_ids())
+            }
+            None => Rc::default(),
+        };
         FrameOutput {
             layers,
             damage,
             moved,
-            test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
-            ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
+            test_ids,
             copied_text,
             paste: self.inner.paste.take(),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
@@ -504,7 +531,7 @@ impl Context {
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             repaint: self.inner.repaint.get(),
-            accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
+            accessibility,
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
             unran_actions: std::mem::take(&mut *self.inner.action_requests.borrow_mut()),
             hits: self
@@ -879,25 +906,6 @@ impl Context {
         }
     }
 
-    pub fn publish_test_id(&self, test_id: &str, rect: Rect) {
-        if !self.inner.test_ids_published.get() {
-            return;
-        }
-        self.inner
-            .test_ids
-            .borrow_mut()
-            .insert(test_id.to_owned(), rect);
-    }
-
-    pub fn publish_ambiguous_test_id(&self, test_id: &str) {
-        if self.inner.test_ids_published.get() {
-            self.inner
-                .ambiguous_test_ids
-                .borrow_mut()
-                .insert(test_id.to_owned());
-        }
-    }
-
     pub fn publish_accessibility(&self, document: u32, fragment: Fragment) {
         self.inner
             .accessibility_published
@@ -1030,7 +1038,6 @@ impl Context {
         let damage = self.inner.damage.borrow().len();
         let moves = self.inner.moves.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
-        let test_ids = self.inner.test_ids.take();
         let ime = self.inner.window.borrow_mut().ime.take();
         let result = self.grouping(layers, content);
         self.unmove(moves);
@@ -1063,12 +1070,6 @@ impl Context {
         {
             fragment.scale(scale);
         }
-        let scaled = self.inner.test_ids.replace(test_ids);
-        self.inner.test_ids.borrow_mut().extend(
-            scaled
-                .into_iter()
-                .map(|(test_id, rect)| (test_id, rect.scaled(scale))),
-        );
         result
     }
 

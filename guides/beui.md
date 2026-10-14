@@ -1870,8 +1870,9 @@ frames.
 from a driver (guides/running/drive.md); the native run functions fill it
 from `BEUI_AUTOMATION` and switch to `beui::Headless` for `BEUI_HEADLESS`, and
 block-app's web build fills it from its `automate` export. The runner keeps the
-accessibility tree as text, publishes test ids (no other runner does, except
-a plugin's) and the action registry's actions, takes
+accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
+headless plugin do by default and other runners only for a driver or a plugin
+description) and the action registry's actions, takes
 the next command at the start of a frame, turns input commands into `Event`s
 already in points, which skip the adapters' intake (`automation/keys.rs` names
 the keys), and answers once a frame
@@ -2087,7 +2088,14 @@ namespace so a component can name its props whatever it likes:
 - `@test_id` gives a node a name for headless interaction tests. It takes a
   `Prop<String>`, so a row whose identity is itself reactive can carry one:
   bind a memo and the name follows it, and the name it left behind stops
-  resolving.
+  resolving. A test id is one word. It is a property of the node like its
+  accessibility: the node's accessibility node carries it as AccessKit's
+  `author_id` (several ids joined by spaces), and a named node with no role or
+  text of its own still gets one, a `GenericContainer`. So test ids reach
+  `FrameOutput::test_id_rect`, `drive` and a plugin's description by the same
+  incremental path as the rest of the tree, and only where the tree shows the
+  node: not under a hidden frame or a closed overlay. `Document::find_test_id`
+  finds the node itself.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.
 - `@sizing` selects the child's `ItemSize` or `Sizing` among its siblings in a list, and

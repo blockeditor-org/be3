@@ -200,7 +200,7 @@ mod bench {
         let filter = std::env::args().nth(1);
         let context = beui::context();
         context.stop_clock();
-        context.set_test_ids_published(false);
+        context.keep_accessibility(false);
         let started = Instant::now();
         let gpu = std::env::var_os("GPU").map(|_| {
             pollster::block_on(OffscreenSurface::new(

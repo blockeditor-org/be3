@@ -25,8 +25,9 @@ it an icon, or moving it to a sidebar then leaves the tests alone.
 
     <Button label="Add task" @test_id={"checklist.add"} on_click={add} />
 
-@test_id names the node the component builds, and the frame reports the rectangle every
-named node was laid out at, which is what block-ui-test clicks. Name them
+@test_id names the node the component builds. The node's accessibility node carries the id,
+so the frame reports the rectangle of every named node the accessibility tree shows, which is
+what block-ui-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
 block itself keys them by (`checklist.item.{id}.done`, where `id` is the item's `ObjectId`,
 the same id the edit names), never by the order they happen to be drawn in. An id names one node in the tree:

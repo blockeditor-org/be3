@@ -55,6 +55,7 @@ pub struct Described {
     pub focused: bool,
     pub rect: Option<Rect>,
     pub actions: Vec<Action>,
+    pub test_ids: Vec<String>,
 }
 
 pub fn embedded(document: u32, title: &str, area: Rect, described: &[Described]) -> Fragment {
@@ -104,6 +105,9 @@ pub fn embedded(document: u32, title: &str, area: Rect, described: &[Described])
         }
         for action in &entry.actions {
             node.add_action(*action);
+        }
+        if !entry.test_ids.is_empty() {
+            node.set_author_id(entry.test_ids.join(" "));
         }
         if entry.focused {
             focus = Some(id(slot));
@@ -341,7 +345,8 @@ impl Pass<'_> {
             .as_any()
             .downcast_ref::<TextNode>()
             .and_then(TextNode::accessible_text);
-        if explicit.is_none() && text.is_none() && !force {
+        let named = !document.node_test_ids(id).is_empty();
+        if explicit.is_none() && text.is_none() && !named && !force {
             for child in element.children() {
                 self.visit(child, Some(id), origin, false, out);
             }
@@ -505,6 +510,10 @@ impl Document {
             rect.height().into(),
         ));
         node.set_children(inner.children);
+        let test_ids = self.node_test_ids(id);
+        if !test_ids.is_empty() {
+            node.set_author_id(test_ids.join(" "));
+        }
 
         if explicit.is_some() {
             if node.is_disabled() {

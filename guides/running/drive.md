@@ -61,8 +61,10 @@ out of view and `focused` the one with keyboard focus. In block-app each plugin 
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
 so dialogs, the file tree and every editor read like the host's own controls.
 
-- `drive ids` lists every test id on screen with where it is, the plugins' included. Test ids
-  (guides/testing_a_gui.md) are the steadiest way to name a control.
+- `drive ids` lists every test id in the tree with where it is, the plugins' included. Test ids
+  (guides/testing_a_gui.md) are the steadiest way to name a control; `drive tree` shows them
+  too, as `#id` after a node's state, and a node with nothing else to show reads as a
+  `GenericContainer`.
 - `drive find TARGET` says where a target is.
 - `drive hit TARGET` says what a press there would reach without pressing: the `Interactive`s
   along the hit path, innermost first, each with its kind, rect, test ids, the components it was
