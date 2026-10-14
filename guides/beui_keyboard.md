@@ -40,15 +40,22 @@ or the root. Listeners sit at positions on it (`KeyAt`):
   topmost trapping layer hears the key, as if the focus could be anywhere in it.
 
 and each listens in the capture phase, on the way down before the target, or the
-bubble phase, on the way back up after it (`on_key(at, phase, handler)`). The
-trip is: host and window capture listeners, F6, tree capture listeners from the
+bubble phase, on the way back up after it (`on_key(at, phase, handler)`). A key
+one of them holds (below) skips the trip and goes straight to its holder. The
+trip is: host and window capture listeners, tree capture listeners from the
 root down to the target, the target itself (its `on_key`, then its own
-activation and arrow stepping), tree bubble listeners from the target up, the
-layers (Escape asks the innermost dismissable layer around the focus to close,
-see the beui guide), the window and host bubble listeners, and last the
-built-in keys: Tab, Escape (which cancels a held activation) and Back. The
-first listener to answer `true` ends the trip. So a window listener for Escape
-hears it only when no layer took it.
+activation and arrow stepping), tree bubble listeners from the target up, and
+the window and host bubble listeners. The first listener to answer `true` ends
+the trip. The document's own keys are listeners on it too (`builtin` in
+interact.rs), which the lock never cuts unless noted: the first host capture
+listener ends autoscroll on any press and takes Escape doing it; the last
+window capture listener is F6 and Shift+F6 (cut with the window); the first
+window bubble listener asks the innermost dismissable layer around the focus to
+close on Escape (see the beui guide); and the last host bubble listener is Tab,
+Escape (which cancels a held activation) and Back. So a window listener for
+Escape hears it only when no layer took it. Ctrl+V asks the host for a paste
+once the trip is over, only if nothing took the key (an app counts as nothing),
+or if what took it asked for a paste itself.
 
 A listener at the focused node itself is on the path in both phases, which is
 how a compound control steers keys before the control inside it handles them:
@@ -145,7 +152,9 @@ An action is a listener too. `action_scope(&node_ref)` makes a scope that
 listens in the bubble phase at that node, so an action registered under it - an
 editor's, or a text area's - only answers while the focus is inside the node,
 and a key the focused control does not handle reaches the innermost scope
-first. An action registered under no scope listens at the root. With the focus
+first. An action registered under no scope listens at the root. `.capture()`
+moves an action, at the root or in a scope, to the capture phase, so it answers
+before the focused control does. With the focus
 on a node no scope holds, every scope is live; with nothing focused, every
 scope in the topmost trapping layer is. A chord without Ctrl, Alt or Super (and
 not on a media key) does not reach actions while the target types text or is

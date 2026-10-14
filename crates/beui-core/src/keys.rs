@@ -86,15 +86,10 @@ struct Listener {
     handler: Weak<KeyHandler>,
 }
 
-pub(crate) enum Holder {
-    Listener(Rc<KeyHandler>),
-    Cycle,
-}
-
 #[derive(Default)]
 pub struct KeyListeners {
     listeners: RefCell<Vec<Listener>>,
-    pub(crate) held: Vec<(Key, Holder)>,
+    pub(crate) held: Vec<(Key, Rc<KeyHandler>)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

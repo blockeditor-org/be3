@@ -270,7 +270,15 @@ impl Action {
                 | (Some(KeyAt::Host), KeyAt::Host)
                 | (None, KeyAt::Root)
         );
-        same && (self.0.capture == (phase != KeyPhase::Bubble))
+        same && self.hears(phase)
+    }
+
+    fn hears(&self, phase: KeyPhase) -> bool {
+        self.0.capture == (phase != KeyPhase::Bubble)
+    }
+
+    fn rooted(&self, phase: KeyPhase) -> bool {
+        self.0.at.is_none() && self.hears(phase)
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -421,13 +429,18 @@ pub fn action_scope(node: &NodeRef) -> ActionScope {
     }));
     registry.0.scopes.borrow_mut().push(Rc::downgrade(&scope.0));
     provide_context(scope.clone());
-    let listening = Rc::downgrade(&scope.0);
-    crate::reactive::on_key(KeyAt::Node(*node), KeyPhase::Bubble, move |event| {
-        listening.upgrade().is_some_and(|scope| {
-            let actions = scope.actions.borrow().clone();
-            run_matching(actions.iter().filter(|action| action.0.at.is_none()), event)
-        })
-    });
+    for phase in [KeyPhase::Capture, KeyPhase::Bubble] {
+        let listening = Rc::downgrade(&scope.0);
+        crate::reactive::on_key(KeyAt::Node(*node), phase, move |event| {
+            listening.upgrade().is_some_and(|scope| {
+                let actions = scope.actions.borrow().clone();
+                run_matching(
+                    actions.iter().filter(|action| action.rooted(event.phase)),
+                    event,
+                )
+            })
+        });
+    }
     let held = Rc::clone(&scope.0);
     on_cleanup(move || {
         registry.0.scopes.borrow_mut().retain(|other| {
@@ -528,7 +541,10 @@ impl Registry {
                 actions.extend(scope.actions.borrow().iter().cloned());
             }
         }
-        run_matching(actions.iter().filter(|action| action.0.at.is_none()), event)
+        run_matching(
+            actions.iter().filter(|action| action.rooted(event.phase)),
+            event,
+        )
     }
 
     fn outer_key(&self, at: &KeyAt, event: KeyEvent) -> bool {
@@ -631,8 +647,7 @@ fn registry() -> Registry {
             document.listen_keys(at, phase, true, Rc::downgrade(&handler));
             registry.0.listeners.borrow_mut().push(handler);
         };
-        listen(KeyAt::Root, KeyPhase::Bubble);
-        for at in [KeyAt::Window, KeyAt::Host] {
+        for at in [KeyAt::Root, KeyAt::Window, KeyAt::Host] {
             listen(at.clone(), KeyPhase::Capture);
             listen(at, KeyPhase::Bubble);
         }
