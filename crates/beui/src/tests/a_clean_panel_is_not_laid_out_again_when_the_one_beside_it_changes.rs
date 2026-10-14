@@ -9,13 +9,13 @@ fn a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes() {
     let (layouts, _) = counted(&mut document, middle);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let settled = layouts.get();
+    let settled = layouts.get_untracked();
     assert!(settled > 0, "the first frame has to lay the panel out");
 
     harness.document_mut().set_frame_width(top, Some(200.0));
     harness.frame(Vec::new());
     assert_eq!(
-        layouts.get(),
+        layouts.get_untracked(),
         settled,
         "a panel whose subtree did not change must keep the placement it had"
     );
@@ -25,7 +25,7 @@ fn a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes() {
     harness.document_mut().set_frame_width(middle, Some(200.0));
     harness.frame(Vec::new());
     assert!(
-        layouts.get() > settled,
+        layouts.get_untracked() > settled,
         "a panel that changed has to be laid out again"
     );
 }

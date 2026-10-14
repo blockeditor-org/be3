@@ -6,7 +6,6 @@ fn sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured() {
     let _root = crate::reactive::RootScope::new();
     let (left, right) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (left, right) = (left, right);
         move || {
             let panes = view! {
                 <List @sizing=ItemSize::Fixed(30.0) @node_ref=&left spacing=0.0></List>

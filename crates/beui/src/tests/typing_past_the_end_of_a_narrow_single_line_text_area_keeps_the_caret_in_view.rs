@@ -7,24 +7,23 @@ use text_editor_core::TextBuffer;
 #[test]
 fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view() {
     let _root = crate::reactive::RootScope::new();
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let (sink, slot) = (held.clone(), area);
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state));
+        set_held.update(|held| *held = Some(state));
         view! {
             <List spacing=0.0>
                 <Frame width=80.0>
-                    <TextArea @node_ref=&slot state={state} single_line=true />
+                    <TextArea @node_ref=&area state={state} single_line=true />
                 </Frame>
             </List>
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = (*held.borrow()).expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("a value that is much wider than the field");

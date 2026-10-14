@@ -5,12 +5,11 @@ use crate::reactive::{Draw, Drawing, NodeRef, Prop, build, create_signal, view};
 fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     let _root = crate::reactive::RootScope::new();
     let drawing = NodeRef::new();
-    let asking = Rc::new(RefCell::new(None));
+    let (asking, set_asking) = create_signal(None);
     let mut document = build({
-        let (drawing, asking) = (drawing, asking.clone());
         move || {
             let (on, set_on) = create_signal(true);
-            asking.replace(Some(set_on));
+            set_asking.update(|asking| *asking = Some(set_on));
             let draw: Prop<Draw> = Prop::dynamic(move || match on.get() {
                 true => blinking(),
                 false => still(),
@@ -30,11 +29,11 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     assert!(output.repaint_after > Duration::ZERO);
     assert!(output.repaint_after <= BLINK);
     assert!(!harness.frame(vec![]).changed);
-    assert_eq!((layouts.get(), paints.get()), (1, 1));
+    assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
     harness.advance(BLINK);
     harness.frame(vec![]);
-    assert_eq!((layouts.get(), paints.get()), (1, 2));
-    let set_on = (*asking.borrow()).expect("the drawing was built");
+    assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 2));
+    let set_on = asking.get_untracked().expect("the drawing was built");
     crate::reactive::with_reactive_scope(harness.document_mut(), move || set_on.set(false));
     assert_eq!(harness.frame(vec![]).repaint_after, Duration::MAX);
 }

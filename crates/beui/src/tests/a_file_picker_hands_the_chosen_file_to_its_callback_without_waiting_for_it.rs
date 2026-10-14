@@ -1,22 +1,18 @@
 use super::*;
 use crate::reactive::{FileFilter, PickedFile, Text, build, create_file_picker, view};
 use crate::unstyled::Button;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[test]
 fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let slot = button;
-    let chosen = Rc::new(RefCell::new(Vec::new()));
-    let sink = chosen.clone();
+    let (chosen, set_chosen) = create_signal(Vec::new());
     let document = build(move || {
-        let picker = create_file_picker(move |picked| sink.borrow_mut().push(picked));
+        let picker = create_file_picker(move |picked| set_chosen.update(|chosen| chosen.push(picked)));
         let picking = picker.picking();
         let open = move || picker.open(FileFilter::new("Images", &["png"], &["image/png"]));
         view! {
-            <Button @node_ref=&slot disabled={picking} on_click={open}>
+            <Button @node_ref=&button disabled={picking} on_click={open}>
                 <Text string="Choose" />
             </Button>
         }
@@ -32,7 +28,7 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
     assert_eq!(request.filter.extensions, ["png"]);
 
     assert!(click(&mut harness, at).is_empty());
-    assert!(chosen.borrow().is_empty());
+    assert!(chosen.with_untracked(|chosen| chosen.is_empty()));
 
     let photo = PickedFile {
         name: "photo.png".into(),
@@ -42,7 +38,7 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
         .context()
         .file_picked(request.id, Ok(Some(photo.clone())));
     harness.frame(Vec::new());
-    assert_eq!(*chosen.borrow(), [Ok(photo)]);
+    assert_eq!(chosen.get_untracked(), [Ok(photo)]);
 
     let again = click(&mut harness, at);
     let [cancelled] = again.as_slice() else {
@@ -50,7 +46,7 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
     };
     harness.context().file_picked(cancelled.id, Ok(None));
     harness.frame(Vec::new());
-    assert_eq!(chosen.borrow().len(), 1);
+    assert_eq!(chosen.with_untracked(|chosen| chosen.len()), 1);
     assert_eq!(click(&mut harness, at).len(), 1);
 }
 

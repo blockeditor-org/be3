@@ -8,7 +8,6 @@ fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
     let _root = crate::reactive::RootScope::new();
     let (scroll, listbox) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, listbox) = (scroll, listbox);
         move || {
             view! {
                 <Scroll @node_ref=&scroll>

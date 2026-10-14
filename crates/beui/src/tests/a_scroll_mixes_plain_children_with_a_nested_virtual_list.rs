@@ -8,11 +8,9 @@ const ROWS: usize = 500;
 #[test]
 fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     let _root = crate::reactive::RootScope::new();
-    let built = Rc::new(RefCell::new(Vec::new()));
-    let sink = built.clone();
+    let (built, set_built) = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>
@@ -28,7 +26,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                                     item_size=VIRTUAL_ITEM_HEIGHT
                                 >
                                     {move |index: usize| {
-                                        sink.borrow_mut().push(index);
+                                        set_built.update(|built| built.push(index));
                                         view! {
                                             <Frame height=VIRTUAL_ITEM_HEIGHT>
                                                 <Spacer />
@@ -53,7 +51,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
 
     let rows = ROWS as f32 * VIRTUAL_ITEM_HEIGHT;
     let visible = ((VIEWPORT.y - HEADER) / VIRTUAL_ITEM_HEIGHT).ceil() as usize;
-    assert_eq!(*built.borrow(), (0..visible).collect::<Vec<usize>>());
+    assert_eq!(built.get_untracked(), (0..visible).collect::<Vec<usize>>());
     assert_eq!(harness.rect(list).top(), HEADER);
     assert_eq!(harness.rect(list).height(), rows);
     assert_eq!(
@@ -68,5 +66,5 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     assert_eq!(harness.document.scroll_offset(scroll), content - VIEWPORT.y);
     let last = *harness.document.children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y - FOOTER);
-    assert_eq!(built.borrow().last(), Some(&(ROWS - 1)));
+    assert_eq!(built.get_untracked().last(), Some(&(ROWS - 1)));
 }

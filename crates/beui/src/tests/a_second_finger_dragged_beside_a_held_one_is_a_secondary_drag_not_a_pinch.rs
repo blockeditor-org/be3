@@ -1,21 +1,18 @@
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
-
 use super::*;
 use crate::input::{SecondaryDrag, ZoomGesture};
 use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
-    let drags: Rc<RefCell<Vec<SecondaryDrag>>> = Rc::default();
-    let zoomed = Rc::new(Cell::new(false));
+    let _root = crate::reactive::RootScope::new();
+    let (drags, set_drags) = create_signal::<Vec<SecondaryDrag>>(Vec::new());
+    let (zoomed, set_zoomed) = create_signal(false);
     let document = build({
-        let (drags, zoomed) = (drags.clone(), zoomed.clone());
         move || {
             view! {
                 <Interactive
-                    on_secondary_drag={move |drag| drags.borrow_mut().push(drag)}
-                    on_zoom={move |_: ZoomGesture| zoomed.set(true)}
+                    on_secondary_drag={move |drag| set_drags.update(|drags| drags.push(drag))}
+                    on_zoom={move |_: ZoomGesture| set_zoomed.set(true)}
                 >
                     <Frame width=300.0 height=300.0 />
                 </Interactive>
@@ -32,8 +29,8 @@ fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
     harness.finger(1, TouchPhase::End, pos2(20.0, 20.0));
     harness.frame(Vec::new());
 
-    assert!(!zoomed.get(), "a held finger does not pinch");
-    let seen = drags.borrow();
+    assert!(!zoomed.get_untracked(), "a held finger does not pinch");
+    let seen = drags.get_untracked();
     let last = seen.last().expect("the drag was reported");
     assert!(seen[0].started);
     assert_eq!(last.from, pos2(100.0, 100.0));
@@ -46,7 +43,7 @@ fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
     harness.move_fingers(pos2(0.0, 0.0), pos2(150.0, 150.0));
     harness.frame(Vec::new());
 
-    assert!(zoomed.get(), "moving the first finger too makes it a pinch");
-    let cancelled = drags.borrow().last().is_some_and(|drag| drag.cancelled);
+    assert!(zoomed.get_untracked(), "moving the first finger too makes it a pinch");
+    let cancelled = drags.get_untracked().last().is_some_and(|drag| drag.cancelled);
     assert!(cancelled, "the drag the second finger began is called off");
 }

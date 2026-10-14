@@ -6,17 +6,15 @@ use crate::styled::{ColorWheel, WHEEL_SIZE};
 #[test]
 fn dragging_a_color_wheels_ring_turns_its_hue() {
     let _root = crate::reactive::RootScope::new();
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let changed = changes.clone();
+    let (changes, set_changes) = create_signal(Vec::new());
     let wheel = NodeRef::new();
-    let named = wheel;
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <ColorWheel
-                    @node_ref=&named
+                    @node_ref=&wheel
                     value={Hsva::new(0.0, 1.0, 1.0, 1.0).to_color()}
-                    on_change={move |color| changed.borrow_mut().push(color)}
+                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
                 />
             </List>
         }
@@ -36,7 +34,7 @@ fn dragging_a_color_wheels_ring_turns_its_hue() {
     );
     harness.frame(Vec::new());
 
-    let changes = changes.borrow();
+    let changes = changes.get_untracked();
     assert_eq!(changes.len(), 1, "a drag reports once, when it ends");
     let turned = Hsva::from_color(changes[0]);
     assert!((turned.hue - 90.0).abs() < 1.0, "{turned:?}");

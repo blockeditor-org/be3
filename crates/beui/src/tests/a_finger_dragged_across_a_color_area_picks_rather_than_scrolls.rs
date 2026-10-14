@@ -6,18 +6,16 @@ use crate::styled::{ColorPicker, PICKER_WIDTH, Scroll};
 #[test]
 fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
     let _root = crate::reactive::RootScope::new();
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let changed = changes.clone();
+    let (changes, set_changes) = create_signal(Vec::new());
     let picker = NodeRef::new();
-    let named = picker;
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Fixed(200.0)>
                     <ColorPicker
-                        @node_ref=&named
+                        @node_ref=&picker
                         value={Hsva::new(120.0, 1.0, 1.0, 1.0).to_color()}
-                        on_change={move |color| changed.borrow_mut().push(color)}
+                        on_change={move |color| set_changes.update(|changes| changes.push(color))}
                     />
                 </Scroll>
             </List>
@@ -40,7 +38,7 @@ fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
         area.top(),
         "the scroll stayed put"
     );
-    let changes = changes.borrow();
+    let changes = changes.get_untracked();
     assert_eq!(changes.len(), 1);
     let picked = Hsva::from_color(changes[0]);
     assert!((picked.hue - 120.0).abs() < 1.0);

@@ -100,21 +100,21 @@ fn assert_selection(harness: &Harness, state: &TextAreaState, range: Range<usize
 
 #[test]
 fn clicking_and_dragging_in_a_text_area_moves_the_caret_and_selects() {
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
-    let sink = held.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let document = build(move || {
         let document =
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
-        sink.replace(Some(state));
+        set_held.update(|held| *held = Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let state = (*held.borrow()).expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
     let second = TEXT.find("second").expect("the text has a second line");
     let third = TEXT.find("third").expect("the text has a third line");
 

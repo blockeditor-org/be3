@@ -7,7 +7,6 @@ fn a_sheet_is_never_taller_than_what_it_holds() {
     let sheet = NodeRef::new();
     let rows = NodeRef::new();
     let document = build({
-        let (sheet, rows) = (sheet, rows);
         move || {
             view! {
                 <List spacing=0.0>

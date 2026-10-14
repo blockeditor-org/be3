@@ -8,7 +8,6 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (first, second, region) = (first, second, region);
         move || {
             view! {
                 <SelectableText @node_ref=&region>

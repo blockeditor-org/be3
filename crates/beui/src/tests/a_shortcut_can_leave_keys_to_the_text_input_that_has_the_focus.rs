@@ -4,12 +4,12 @@ use crate::reactive::{focus_takes_text, on_shortcut};
 use crate::styled::TextInput;
 
 #[component]
-fn LetterShortcut(taken: Rc<Cell<u32>>) -> NodeId {
+fn LetterShortcut(taken: WriteSignal<u32>) -> NodeId {
     on_shortcut(move |press: KeyPress| {
         if press.key != Key::A || !press.pressed || focus_takes_text() {
             return false;
         }
-        taken.set(taken.get() + 1);
+        taken.update(|taken| *taken += 1);
         true
     });
     view! {
@@ -19,11 +19,11 @@ fn LetterShortcut(taken: Rc<Cell<u32>>) -> NodeId {
 
 #[test]
 fn a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus() {
-    let taken = Rc::new(Cell::new(0));
-    let shortcut = Rc::clone(&taken);
+    let _root = crate::reactive::RootScope::new();
+    let (taken, set_taken) = create_signal(0);
     let (document, [input]) = toolbar_of(move || {
         [view! {
-            <LetterShortcut taken={shortcut} />
+            <LetterShortcut taken={set_taken} />
         }]
     });
     let mut harness = Harness::new(document);
@@ -31,7 +31,7 @@ fn a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus() {
 
     harness.key(Key::A, Modifiers::NONE);
     assert_eq!(
-        taken.get(),
+        taken.get_untracked(),
         1,
         "nothing takes text, so the shortcut has the key"
     );
@@ -39,6 +39,6 @@ fn a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus() {
     harness.click(harness.center(input));
     harness.key(Key::A, Modifiers::NONE);
     harness.type_text("a");
-    assert_eq!(taken.get(), 1, "the focused text input keeps the key");
+    assert_eq!(taken.get_untracked(), 1, "the focused text input keeps the key");
     assert_eq!(styled::text_input_value(harness.document(), input), "a");
 }

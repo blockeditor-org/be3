@@ -5,11 +5,9 @@ use crate::styled::Select;
 #[test]
 fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
     let _root = crate::reactive::RootScope::new();
-    let other_clicks = Rc::new(Cell::new(0));
-    let counter = other_clicks.clone();
+    let (other_clicks, set_other_clicks) = create_signal(0);
     let (select, other) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (select, other) = (select, other);
         move || {
             let options = view! {
                 <unstyled::ChoiceOption label="Apple" />
@@ -20,7 +18,7 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
                     <Select @node_ref=&select options selected=Some(0) />
                     <unstyled::Button
                         @node_ref=&other
-                        on_click={move || counter.set(counter.get() + 1)}
+                        on_click={move || set_other_clicks.update(|other_clicks| *other_clicks += 1)}
                     >
                         <ButtonFace label="Other" />
                     </unstyled::Button>
@@ -32,8 +30,7 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let inner = select;
-    let trigger = unstyled::select_trigger(harness.document(), inner);
+    let trigger = unstyled::select_trigger(harness.document(), select);
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
     assert!(styled::select_open(harness.document(), select));
@@ -43,5 +40,5 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
 
     assert!(!styled::select_open(harness.document(), select));
     assert_eq!(styled::select_selected(harness.document(), select), Some(0));
-    assert_eq!(other_clicks.get(), 0);
+    assert_eq!(other_clicks.get_untracked(), 0);
 }

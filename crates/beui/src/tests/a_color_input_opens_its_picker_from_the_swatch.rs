@@ -6,14 +6,14 @@ use crate::styled::ColorInput;
 
 #[test]
 fn a_color_input_opens_its_picker_from_the_swatch() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <ColorInput
                 value={Color32::from_rgb(0x11, 0x22, 0x33)}
                 label="Fill"
-                on_change={move |color| sink.borrow_mut().push(color)}
+                on_change={move |color| set_changes.update(|changes| changes.push(color))}
             />
         }]
     });
@@ -44,7 +44,7 @@ fn a_color_input_opens_its_picker_from_the_swatch() {
 
     harness.key(Key::ArrowUp, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert_eq!(changes.borrow().len(), 1, "{:?}", changes.borrow());
+    assert_eq!(changes.with_untracked(|changes| changes.len()), 1, "{:?}", changes.get_untracked());
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());

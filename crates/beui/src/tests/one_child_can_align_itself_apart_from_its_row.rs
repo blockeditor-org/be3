@@ -6,7 +6,6 @@ fn one_child_can_align_itself_apart_from_its_row() {
     let _root = crate::reactive::RootScope::new();
     let (tall, centred, ended) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (tall, centred, ended) = (tall, centred, ended);
         move || {
             view! {
                 <List direction=Direction::Horizontal align=Align::Start spacing=0.0>

@@ -4,8 +4,6 @@ use crate::reactive::{
     ChildScope, ChildValue, Children, Prop, Scope, Text, build, component, on_cleanup, view,
 };
 
-type Disposals = Rc<Cell<usize>>;
-
 struct Note {
     label: String,
     scope: ChildScope,
@@ -20,8 +18,8 @@ impl ChildValue for Note {
 crate::value_child_type!(Note);
 
 #[component]
-fn Noted(label: Prop<String>, disposals: Disposals) -> Note {
-    on_cleanup(move || disposals.set(disposals.get() + 1));
+fn Noted(label: Prop<String>, disposals: WriteSignal<usize>) -> Note {
+    on_cleanup(move || disposals.update(|disposals| *disposals += 1));
     Note {
         label: label.get(),
         scope: ChildScope::default(),
@@ -46,30 +44,29 @@ fn Legend(children: Children<Note>) -> NodeId {
 fn a_component_that_builds_no_node_owns_its_scope_through_the_value() {
     let _root = crate::reactive::RootScope::new();
     let legend = NodeRef::new();
-    let disposals: Disposals = Rc::new(Cell::new(0));
+    let (disposals, set_disposals) = create_signal::<usize>(0);
     let document = build({
-        let disposals = disposals.clone();
         move || {
             let loose = view! {
-                <Noted label="loose" disposals={disposals.clone()} />
+                <Noted label="loose" disposals={set_disposals} />
             };
             assert_eq!(loose.label, "loose");
             assert!(
                 loose.scope.is_alive(),
                 "a component that builds no node keeps its scope in the value it returns"
             );
-            assert_eq!(disposals.get(), 0);
+            assert_eq!(disposals.get_untracked(), 0);
             drop(loose);
             assert_eq!(
-                disposals.get(),
+                disposals.get_untracked(),
                 1,
                 "dropping the value must dispose the scope its component ran in"
             );
 
             view! {
                 <Legend @node_ref=&legend>
-                    <Noted label="first" disposals={disposals.clone()} />
-                    <Noted label="second" disposals={disposals.clone()} />
+                    <Noted label="first" disposals={set_disposals} />
+                    <Noted label="second" disposals={set_disposals} />
                 </Legend>
             }
         }
@@ -84,7 +81,7 @@ fn a_component_that_builds_no_node_owns_its_scope_through_the_value() {
         "a slot typed for a node-less child receives the values its children built"
     );
     assert_eq!(
-        disposals.get(),
+        disposals.get_untracked(),
         3,
         "a node-less child is disposed once the slot that read it drops the value"
     );

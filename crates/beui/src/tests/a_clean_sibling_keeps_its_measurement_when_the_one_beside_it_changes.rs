@@ -6,7 +6,6 @@ fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
     let _root = crate::reactive::RootScope::new();
     let (steady, edited) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let (steady, edited) = (steady, edited);
         move || {
             view! {
                 <List spacing=0.0>
@@ -24,12 +23,12 @@ fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
     let mut harness = Harness::new(document);
 
     harness.frame(Vec::new());
-    let built = measures.get();
+    let built = measures.get_untracked();
     assert!(built > 0, "the first frame has to measure the text");
 
     harness.frame(Vec::new());
     assert_eq!(
-        measures.get(),
+        measures.get_untracked(),
         built,
         "an unchanged frame must not measure anything again"
     );
@@ -37,7 +36,7 @@ fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
     harness.document.set_text(edited, "edited twice");
     harness.frame(Vec::new());
     assert_eq!(
-        measures.get(),
+        measures.get_untracked(),
         built,
         "changing one child must not re-measure the child beside it"
     );
@@ -45,7 +44,7 @@ fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
     harness.document.set_text(steady, "steady now");
     harness.frame(Vec::new());
     assert!(
-        measures.get() > built,
+        measures.get_untracked() > built,
         "changing a text has to re-measure it"
     );
 }

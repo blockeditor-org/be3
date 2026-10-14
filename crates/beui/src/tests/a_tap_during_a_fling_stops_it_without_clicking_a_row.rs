@@ -5,21 +5,18 @@ use crate::unstyled::Scroll;
 #[test]
 fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
     let _root = crate::reactive::RootScope::new();
-    let clicks = Rc::new(Cell::new(0));
-    let click_sink = clicks.clone();
+    let (clicks, set_clicks) = create_signal(0);
     let scroll = NodeRef::new();
-    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(300)}>
                         {move |index: usize| {
-                            let click_sink = click_sink.clone();
                             view! {
                                 <LabelledButton
                                     label={format!("Row {index}")}
-                                    on_click={move || click_sink.set(click_sink.get() + 1)}
+                                    on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                                 />
                             }
                         }}
@@ -49,14 +46,14 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
 
     assert!(!unstyled::scroll_animating(harness.document(), scroll));
     assert_eq!(harness.document().scroll_offset(scroll), stopped);
-    assert_eq!(clicks.get(), 0, "the tap that stops a fling is not a click");
+    assert_eq!(clicks.get_untracked(), 0, "the tap that stops a fling is not a click");
 
     let row = pos2(x, harness.rect(scroll).top() + 10.0);
     harness.advance(Duration::from_secs(1));
     harness.touch(TouchPhase::Start, row);
     harness.touch(TouchPhase::End, row);
     assert_eq!(
-        clicks.get(),
+        clicks.get_untracked(),
         1,
         "once the list is still, a tap clicks the row"
     );

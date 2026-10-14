@@ -8,7 +8,6 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let (open, set_open) = create_signal(false);
-    let closing = set_open;
     let document = build({
         move || {
             view! {
@@ -18,7 +17,7 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
                         @node_ref=&sheet
                         open={open}
                         fit=true
-                        on_close={move || closing.set(false)}
+                        on_close={move || set_open.set(false)}
                     >
                         <Frame height=200.0 />
                     </ModalSheet>

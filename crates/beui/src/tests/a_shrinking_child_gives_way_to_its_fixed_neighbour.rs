@@ -6,7 +6,6 @@ fn a_shrinking_child_gives_way_to_its_fixed_neighbour() {
     let _root = crate::reactive::RootScope::new();
     let (label, button) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (label, button) = (label, button);
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=10.0>

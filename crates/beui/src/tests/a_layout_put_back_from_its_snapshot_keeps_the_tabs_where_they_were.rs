@@ -19,10 +19,9 @@ fn TwoTabs(layout: DockingLayout<u64>) -> NodeId {
 
 fn docked(layout: DockingLayout<u64>) -> (Harness, NodeId) {
     let dock = NodeRef::new();
-    let built = dock;
     let document = build(move || {
         view! {
-            <TwoTabs @node_ref=&built layout={layout.clone()} />
+            <TwoTabs @node_ref=&dock layout={layout.clone()} />
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

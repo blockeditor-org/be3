@@ -6,18 +6,16 @@ use crate::styled::{OklchColorWheel, WHEEL_SIZE};
 #[test]
 fn turning_an_oklch_color_wheel_keeps_its_lightness() {
     let _root = crate::reactive::RootScope::new();
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let changed = changes.clone();
+    let (changes, set_changes) = create_signal(Vec::new());
     let wheel = NodeRef::new();
-    let named = wheel;
     let start = Oklch::new(0.6, 0.06, 0.0, 1.0);
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <OklchColorWheel
-                    @node_ref=&named
+                    @node_ref=&wheel
                     value={start.to_color()}
-                    on_change={move |color| changed.borrow_mut().push(color)}
+                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
                 />
             </List>
         }
@@ -37,7 +35,7 @@ fn turning_an_oklch_color_wheel_keeps_its_lightness() {
     );
     harness.frame(Vec::new());
 
-    let changes = changes.borrow();
+    let changes = changes.get_untracked();
     assert_eq!(changes.len(), 1);
     let turned = Oklch::from_color(changes[0]);
     assert!((turned.hue - 180.0).abs() < 2.0, "{turned:?}");

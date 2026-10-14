@@ -23,13 +23,13 @@ fn a_dialog_of_a_dock_dialog_stacks_over_it() {
 
     harness.click(inner.center());
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![11],
         "the nested dialog is drawn above its parent"
     );
     harness.click(outer.min + vec2(8.0, 8.0));
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![11],
         "the dialog under a modal one hears no press"
     );
@@ -49,7 +49,7 @@ fn a_dialog_of_a_dock_dialog_stacks_over_it() {
     harness.frame(Vec::new());
     harness.click(inner.center());
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![11, 11],
         "shown again, the nested dialog is still on top"
     );

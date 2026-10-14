@@ -5,10 +5,8 @@ use crate::reactive::{Frame, List, Show, build, create_signal, view, with_reacti
 fn a_test_id_names_the_copy_that_is_shown() {
     let _root = crate::reactive::RootScope::new();
     let (wide, set_wide) = create_signal(true);
-    let widen = set_wide;
     let document = build(move || {
-        let shown = wide;
-        let narrow = crate::reactive::create_memo(move || !shown.get());
+        let narrow = crate::reactive::create_memo(move || !wide.get());
         view! {
             <List spacing=0.0>
                 <Show condition={wide}>
@@ -39,11 +37,11 @@ fn a_test_id_names_the_copy_that_is_shown() {
         "the id names the copy on screen"
     );
 
-    with_reactive_scope(harness.document_mut(), move || widen.set(true));
+    with_reactive_scope(harness.document_mut(), move || set_wide.set(true));
     harness.frame(Vec::new());
     assert_eq!(
         width(&harness),
         Some(10.0),
-        "a copy shown again is named, not the hidden one built after it"
+        "a copy wide again is named, not the hidden one built after it"
     );
 }

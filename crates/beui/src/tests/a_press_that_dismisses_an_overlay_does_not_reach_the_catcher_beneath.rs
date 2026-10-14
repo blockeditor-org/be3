@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, Text, build, create_signal, view};
@@ -8,23 +5,19 @@ use crate::styled::Dialog;
 
 const WIDE: Vec2 = Vec2::new(1600.0, 1000.0);
 
-fn presses(heard: &RefCell<Vec<Event>>) -> usize {
-    heard
-        .borrow()
+fn presses(heard: ReadSignal<Vec<Event>>) -> usize {
+    heard.with_untracked(|heard| heard
         .iter()
         .filter(|event| matches!(event, Event::PointerButton { pressed: true, .. }))
-        .count()
+        .count())
 }
 
 #[test]
 fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
-    let reopen = set_open;
-    let shown = open;
-    let heard = Rc::new(RefCell::new(Vec::<Event>::new()));
+    let (heard, set_heard) = create_signal(Vec::<Event>::new());
     let document = build({
-        let heard = Rc::clone(&heard);
         move || {
             view! {
                 <List spacing=0.0>
@@ -32,7 +25,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
                         <CanvasItem x=0.0 y=0.0 width={WIDE.x} height={WIDE.y}>
                             <Interactive
                                 on_forward={move |input: ForwardedInput| {
-                                    heard.borrow_mut().extend(flattened(input))
+                                    set_heard.update(|heard| heard.extend(flattened(input)))
                                 }}
                             >
                                 <Frame />
@@ -69,33 +62,33 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     );
     harness.settle();
     assert!(
-        !shown.get_untracked(),
+        !open.get_untracked(),
         "the press outside closes the dialog"
     );
     assert_eq!(
-        presses(&heard),
+        presses(heard),
         0,
         "the press that closed the dialog is not also the catcher's, {:?}",
-        heard.borrow()
+        heard.get_untracked()
     );
 
     harness.click(outside);
     assert_eq!(
-        presses(&heard),
+        presses(heard),
         1,
         "the next press reaches the catcher, {:?}",
-        heard.borrow()
+        heard.get_untracked()
     );
 
-    with_installed(harness.document_mut(), |_| reopen.set(true));
+    with_installed(harness.document_mut(), |_| set_open.set(true));
     harness.settle();
     harness.click(outside);
     harness.settle();
-    assert!(!shown.get_untracked());
+    assert!(!open.get_untracked());
     assert_eq!(
-        presses(&heard),
+        presses(heard),
         1,
         "a press and release in frames of their own are kept from the catcher too, {:?}",
-        heard.borrow()
+        heard.get_untracked()
     );
 }

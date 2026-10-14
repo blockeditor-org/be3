@@ -7,11 +7,10 @@ use crate::styled::TextInput;
 fn a_clearable_text_input_empties_from_its_clear_button() {
     let _root = crate::reactive::RootScope::new();
     let (value, set_value) = create_signal("road".to_owned());
-    let shown = value;
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <TextInput
-                value={shown}
+                value={value}
                 glyph={ICON_SEARCH.to_owned()}
                 clearable=true
                 on_change={move |next: String| set_value.set(next)}

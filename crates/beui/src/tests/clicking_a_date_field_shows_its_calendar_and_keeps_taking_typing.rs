@@ -9,21 +9,19 @@ use crate::unstyled::DateTimeParts;
 #[test]
 fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let _root = crate::reactive::RootScope::new();
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let (reported, set_reported) = create_signal(Vec::new());
     let field = NodeRef::new();
-    let named = field;
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <DateTimeField
-                    @node_ref=&named
+                    @node_ref=&field
                     value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
                     today={Some(Date::new(2026, 1, 1))}
                     parts=DateTimeParts::Date
                     label="Due"
                     on_change={move |value: Option<DateTime>| {
-                        sink.borrow_mut().push(value.map(|value| value.date))
+                        set_reported.update(|reported| reported.push(value.map(|value| value.date)))
                     }}
                 />
             </List>
@@ -55,14 +53,14 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
         showing(&harness, "September 1982"),
         "the calendar follows what is typed"
     );
-    assert_eq!(*reported.borrow(), [Some(Date::new(1982, 9, 27))]);
+    assert_eq!(reported.get_untracked(), [Some(Date::new(1982, 9, 27))]);
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
     assert!(!open(&harness));
     harness.type_text("10");
     assert_eq!(
-        *reported.borrow(),
+        reported.get_untracked(),
         [Some(Date::new(1982, 9, 27)), Some(Date::new(1982, 10, 27))],
         "the focus went back to the segment that was being typed in"
     );

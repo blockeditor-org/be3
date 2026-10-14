@@ -11,11 +11,10 @@ const CONTENT_HEIGHT: f32 = 2000.0;
 fn a_styled_scroll_puts_its_scrollbar_beside_the_content() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let held = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&held @sizing=ItemSize::Percent(100.0)>
+                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame height=CONTENT_HEIGHT />
                 </Scroll>
             </List>

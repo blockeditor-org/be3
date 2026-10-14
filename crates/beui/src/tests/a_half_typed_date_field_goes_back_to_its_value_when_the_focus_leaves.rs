@@ -6,14 +6,12 @@ use crate::unstyled::{DateSegmentHandle, DateTimeField, date_time_field_text};
 #[test]
 fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
     let _root = crate::reactive::RootScope::new();
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let (reported, set_reported) = create_signal(Vec::new());
     let field = NodeRef::new();
-    let named = field;
     let document = build(move || {
         view! {
             <DateTimeField
-                @node_ref=&named
+                @node_ref=&field
                 value={Some(DateTime::new(Date::new(2026, 9, 27), Time::new(10, 30)))}
                 segment={|handle: DateSegmentHandle| view! {
                     <Text string={handle.text} />
@@ -21,7 +19,7 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
                 literal={|text: String| view! {
                     <Text string=text />
                 }}
-                on_change={move |value| sink.borrow_mut().push(value)}
+                on_change={move |value| set_reported.update(|reported| reported.push(value))}
             />
         }
     });
@@ -45,5 +43,5 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
         date_time_field_text(harness.document(), field),
         "2026-09-27 10:30"
     );
-    assert!(reported.borrow().is_empty());
+    assert!(reported.with_untracked(|reported| reported.is_empty()));
 }

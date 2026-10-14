@@ -5,19 +5,19 @@ const INSERTED_AT: usize = 3;
 #[test]
 fn inserting_into_a_virtual_list_view_builds_only_the_new_row() {
     let _root = crate::reactive::RootScope::new();
-    let built = Rc::new(RefCell::new(Vec::new()));
-    let scroll = keyed_virtual_list(&built);
+    let (built, set_built) = create_signal(Vec::new());
+    let scroll = keyed_virtual_list(set_built);
     let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
     let rows = harness.document.children(scroll.list);
 
-    built.borrow_mut().clear();
+    set_built.update(|built| built.clear());
     let mut keys = indices(VIRTUAL_ITEM_COUNT);
     keys.insert(INSERTED_AT, VIRTUAL_ITEM_COUNT);
     with_installed(harness.document_mut(), |_| scroll.set_keys.set(keys));
     harness.frame(Vec::new());
 
-    assert_eq!(*built.borrow(), vec![VIRTUAL_ITEM_COUNT]);
+    assert_eq!(built.get_untracked(), vec![VIRTUAL_ITEM_COUNT]);
     let after = harness.document.children(scroll.list);
     assert_eq!(after.len(), rows.len());
     assert_eq!(after[..INSERTED_AT], rows[..INSERTED_AT]);

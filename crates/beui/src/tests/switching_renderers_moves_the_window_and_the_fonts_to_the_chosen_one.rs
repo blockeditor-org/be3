@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::error::Error;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use super::*;
@@ -21,7 +19,7 @@ impl rwh::HasDisplayHandle for Window {
     }
 }
 
-type Log = Rc<RefCell<Vec<String>>>;
+type Log = WriteSignal<Vec<String>>;
 
 struct Recording {
     name: &'static str,
@@ -30,7 +28,7 @@ struct Recording {
 
 impl Recording {
     fn record(&self, event: String) {
-        self.log.borrow_mut().push(format!("{} {event}", self.name));
+        self.log.update(|log| log.push(format!("{} {event}", self.name)));
     }
 }
 
@@ -89,21 +87,22 @@ fn glyphs(context: &Context) -> usize {
 
 #[test]
 fn switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one() {
-    let log = Log::default();
+    let _root = crate::reactive::RootScope::new();
+    let (_, log) = create_signal(Vec::new());
     let context = Context::new(FreetypeFonts::default());
     let empty = FreetypeFonts::new(FontLibrary::new(FontSources::default()));
     let loaded = vec![
         Loaded {
             renderer: Box::new(Recording {
                 name: "first",
-                log: log.clone(),
+                log,
             }),
             fonts: None,
         },
         Loaded {
             renderer: Box::new(Recording {
                 name: "second",
-                log: log.clone(),
+                log,
             }),
             fonts: Some(Box::new(empty)),
         },
@@ -113,7 +112,7 @@ fn switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one() {
         .attach(Arc::new(Window), 100, 50)
         .expect("the first renderer attaches");
     assert_eq!(
-        log.take(),
+        log.update(std::mem::take),
         [
             "second active false",
             "first active true",
@@ -134,7 +133,7 @@ fn switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one() {
             .expect("the second renderer attaches")
     );
     assert_eq!(
-        log.take(),
+        log.update(std::mem::take),
         [
             "first detach",
             "first active false",
@@ -161,7 +160,7 @@ fn switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one() {
             .expect("the first renderer resizes")
     );
     assert_eq!(
-        log.take(),
+        log.update(std::mem::take),
         [
             "second detach",
             "second detach",

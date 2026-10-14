@@ -6,19 +6,17 @@ use crate::styled::{ColorPicker, PICKER_WIDTH};
 #[test]
 fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
     let _root = crate::reactive::RootScope::new();
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let previews = Rc::new(RefCell::new(Vec::new()));
-    let (changed, previewed) = (changes.clone(), previews.clone());
+    let (changes, set_changes) = create_signal(Vec::new());
+    let (previews, set_previews) = create_signal(Vec::new());
     let picker = NodeRef::new();
-    let named = picker;
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <ColorPicker
-                    @node_ref=&named
+                    @node_ref=&picker
                     value={Hsva::new(0.0, 1.0, 1.0, 1.0).to_color()}
-                    on_change={move |color| changed.borrow_mut().push(color)}
-                    on_preview={move |color| previewed.borrow_mut().push(color)}
+                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
+                    on_preview={move |color| set_previews.update(|previews| previews.push(color))}
                 />
             </List>
         }
@@ -33,12 +31,12 @@ fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
     );
     harness.frame(Vec::new());
 
-    let changes = changes.borrow();
+    let changes = changes.get_untracked();
     assert_eq!(changes.len(), 1, "a drag reports once, when it ends");
     let reported = Hsva::from_color(changes[0]);
     assert!((reported.saturation - 0.5).abs() < 0.02);
     assert!((reported.value - 0.5).abs() < 0.02);
-    let previews = previews.borrow();
+    let previews = previews.get_untracked();
     assert!(previews.len() >= 2);
     assert_eq!(
         previews.last(),

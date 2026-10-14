@@ -13,7 +13,6 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
     let (toggle, header, body) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
 
     let document = build({
-        let (toggle, header, body) = (toggle, header, body);
         move || {
             let (tall, set_tall) = create_signal(false);
             let sizing = create_memo(move || match tall.get() {
@@ -30,7 +29,6 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                     </Button>
                     <ForEach keys={vec![0, 1]}>
                         {move |index: usize| {
-                            let (header, body) = (header, body);
                             match index {
                                 0 => view! {
                                     <Frame @sizing={sizing} @node_ref=&header />

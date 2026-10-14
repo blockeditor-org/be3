@@ -8,6 +8,7 @@ fn a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing() {
         document,
         dock,
         presses,
+        ..
     } = split_dock(Some(Modifiers::LOGO));
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
@@ -26,7 +27,7 @@ fn a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing() {
         "neither the content nor the tab carried anything anywhere"
     );
     assert_eq!(
-        presses.get(),
+        presses.get_untracked(),
         0,
         "the presses made with the modifier never reached the content"
     );

@@ -1,17 +1,14 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{Frame, build, on_finger_tap, view};
 
 #[test]
 fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
-    let taps: Rc<RefCell<Vec<usize>>> = Rc::default();
+    let _root = crate::reactive::RootScope::new();
+    let (taps, set_taps) = create_signal::<Vec<usize>>(Vec::new());
     let document = build({
-        let taps = taps.clone();
         move || {
             on_finger_tap(move |fingers: usize| {
-                taps.borrow_mut().push(fingers);
+                set_taps.update(|taps| taps.push(fingers));
                 true
             });
             view! {
@@ -24,7 +21,7 @@ fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
 
     harness.touch(TouchPhase::Start, pos2(50.0, 50.0));
     harness.touch(TouchPhase::End, pos2(50.0, 50.0));
-    assert!(taps.borrow().is_empty(), "one finger is an ordinary tap");
+    assert!(taps.with_untracked(|taps| taps.is_empty()), "one finger is an ordinary tap");
 
     harness.finger(1, TouchPhase::Start, pos2(50.0, 50.0));
     harness.finger(2, TouchPhase::Start, pos2(120.0, 50.0));
@@ -33,7 +30,7 @@ fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
     harness.finger(2, TouchPhase::End, pos2(120.0, 50.0));
     harness.finger(1, TouchPhase::End, pos2(50.0, 50.0));
     assert_eq!(
-        *taps.borrow(),
+        taps.get_untracked(),
         vec![3],
         "the tap counts the most fingers that were down"
     );
@@ -44,7 +41,7 @@ fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
     harness.finger(1, TouchPhase::End, pos2(30.0, 50.0));
     harness.finger(2, TouchPhase::End, pos2(160.0, 50.0));
     assert_eq!(
-        *taps.borrow(),
+        taps.get_untracked(),
         vec![3],
         "fingers that moved were a pinch, not a tap"
     );

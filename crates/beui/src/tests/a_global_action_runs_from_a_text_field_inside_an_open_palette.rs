@@ -7,25 +7,23 @@ use crate::unstyled::command_palette_shown;
 #[test]
 fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
     let _root = crate::reactive::RootScope::new();
-    let ran = Rc::new(RefCell::new(Vec::new()));
-    let (lock, louder, typed) = (ran.clone(), ran.clone(), ran.clone());
+    let (ran, set_ran) = create_signal(Vec::new());
     let palette = NodeRef::new();
-    let held = palette;
     let document = build(move || {
         Action::new("test.lock", "Lock screen", move || {
-            lock.borrow_mut().push("lock")
+            set_ran.update(|ran| ran.push("lock"))
         })
         .shortcut(Chord::logo(Key::L))
         .at(KeyAt::Window)
         .register();
         Action::new("test.louder", "Volume up", move || {
-            louder.borrow_mut().push("louder")
+            set_ran.update(|ran| ran.push("louder"))
         })
         .shortcut(Chord::key(Key::VolumeUp))
         .at(KeyAt::Window)
         .register();
         Action::new("test.typed", "Line tool", move || {
-            typed.borrow_mut().push("typed")
+            set_ran.update(|ran| ran.push("typed"))
         })
         .shortcut(Chord::key(Key::L))
         .at(KeyAt::Window)
@@ -33,7 +31,7 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
         let (open, set_open) = create_signal(true);
         view! {
             <List spacing=0.0>
-                <CommandPalette @node_ref=&held open on_close={move || set_open.set(false)} />
+                <CommandPalette @node_ref=&palette open on_close={move || set_open.set(false)} />
             </List>
         }
     });
@@ -51,7 +49,7 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
     harness.key(Key::L, Modifiers::NONE);
 
     assert_eq!(
-        *ran.borrow(),
+        ran.get_untracked(),
         vec!["lock", "louder"],
         "Super chords and media keys reach global actions while a menu and a text field have the focus, and a plain letter stays the field's"
     );

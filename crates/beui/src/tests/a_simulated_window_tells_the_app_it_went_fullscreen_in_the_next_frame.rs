@@ -32,7 +32,7 @@ impl Renderer for Screen {
 
 struct Asking {
     asked: bool,
-    seen: Rc<Cell<bool>>,
+    seen: WriteSignal<bool>,
 }
 
 impl App for Asking {
@@ -46,13 +46,14 @@ impl App for Asking {
 
 #[test]
 fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
-    let seen = Rc::new(Cell::new(false));
+    let _root = crate::reactive::RootScope::new();
+    let (seen, set_seen) = create_signal(false);
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),
         app: Box::new(Asking {
             asked: false,
-            seen: seen.clone(),
+            seen: set_seen,
         }),
     });
     let mut window = Simulation::new(
@@ -76,12 +77,12 @@ fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
     let frame = runner
         .frame(&mut window, SafeArea::default())
         .expect("a loaded runner draws");
-    assert!(!seen.get(), "the app has only asked");
+    assert!(!seen.get_untracked(), "the app has only asked");
     assert!(
         frame.again(),
         "the simulated window's answer asks for the frame that delivers it"
     );
 
     runner.frame(&mut window, SafeArea::default());
-    assert!(seen.get(), "the app hears that the window went fullscreen");
+    assert!(seen.get_untracked(), "the app hears that the window went fullscreen");
 }

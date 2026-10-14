@@ -11,7 +11,6 @@ fn a_fragment_sits_beside_the_children_written_around_it() {
         NodeRef::new(),
     );
     let document = build({
-        let (first, second, third, fourth) = (first, second, third, fourth);
         move || {
             let middle = view! {
                 <Frame @node_ref=&second width=20.0 />

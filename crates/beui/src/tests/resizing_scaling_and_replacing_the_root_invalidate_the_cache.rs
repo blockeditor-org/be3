@@ -21,7 +21,7 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     assert_eq!(harness.rect(text).size(), WIDE_VIEWPORT);
     harness.context.set_pixels_per_point(2.0);
     assert!(harness.frame(vec![]).changed);
-    assert_eq!((layouts.get(), paints.get()), (3, 3));
+    assert_eq!((layouts.get_untracked(), paints.get_untracked()), (3, 3));
     harness.document.remove_node(text);
     let output = harness.frame(vec![]);
     assert!(output.changed);

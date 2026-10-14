@@ -8,12 +8,11 @@ use text_editor_core::TextBuffer;
 fn a_text_area_shows_its_placeholder_until_something_is_typed() {
     let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
-    let slot = area;
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
-            <TextArea @node_ref=&slot state={state} placeholder="Write something" />
+            <TextArea @node_ref=&area state={state} placeholder="Write something" />
         }
     });
     let mut harness = Harness::new(document);

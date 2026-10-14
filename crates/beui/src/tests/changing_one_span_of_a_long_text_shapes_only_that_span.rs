@@ -3,8 +3,6 @@ use crate::reactive::{
     ForEach, Frame, NodeRef, Span, Text, WriteSignal, build, create_memo, create_signal, enter,
     view,
 };
-use std::cell::RefCell;
-use std::rc::Rc;
 
 const WORDS: usize = 60;
 
@@ -16,12 +14,11 @@ fn words() -> Vec<String> {
 fn changing_one_span_of_a_long_text_shapes_only_that_span() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
-    let writer: Rc<RefCell<Option<WriteSignal<Vec<String>>>>> = Rc::default();
+    let (writer, set_writer) = create_signal::<Option<WriteSignal<Vec<String>>>>(None);
     let document = build({
-        let (text, writer) = (text, writer.clone());
         move || {
             let (words, set_words) = create_signal(words());
-            *writer.borrow_mut() = Some(set_words);
+            set_writer.update(|writer| *writer = Some(set_words));
             let keys = create_memo(move || (0..words.get().len()).collect::<Vec<usize>>());
             view! {
                 <Frame width=200.0>
@@ -41,7 +38,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
             }
         }
     });
-    let set_words = (*writer.borrow()).expect("the words were made");
+    let set_words = writer.get_untracked().expect("the words were made");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = kind_of::<TextNode>(harness.document(), text.get());

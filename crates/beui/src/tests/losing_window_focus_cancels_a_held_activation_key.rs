@@ -3,11 +3,11 @@ use crate::reactive::view;
 
 #[test]
 fn losing_window_focus_cancels_a_held_activation_key() {
-    let clicks = Rc::new(Cell::new(0));
-    let counter = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton label="Click" on_click={move || counter.set(counter.get() + 1)} />
+            <LabelledButton label="Click" on_click={move || set_clicks.update(|clicks| *clicks += 1)} />
         }]
     });
     let mut harness = Harness::new(document);
@@ -19,7 +19,7 @@ fn losing_window_focus_cancels_a_held_activation_key() {
         Event::Focus(true),
         key_event(Key::Space, false, Modifiers::NONE),
     ]);
-    assert_eq!(clicks.get(), 0);
+    assert_eq!(clicks.get_untracked(), 0);
     harness.key(Key::Space, Modifiers::NONE);
-    assert_eq!(clicks.get(), 1);
+    assert_eq!(clicks.get_untracked(), 1);
 }

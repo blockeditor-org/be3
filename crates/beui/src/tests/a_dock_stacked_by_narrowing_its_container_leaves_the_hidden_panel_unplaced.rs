@@ -15,7 +15,6 @@ fn a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced() 
             view! {
                 <Container>
                     {move |_| {
-                        let home = home;
                         let narrow = narrower_than(BREAKPOINT);
                         let mode = create_memo(move || match narrow.get() {
                             true => DockMode::Stacked,

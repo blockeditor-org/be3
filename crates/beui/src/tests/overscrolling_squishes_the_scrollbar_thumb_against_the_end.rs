@@ -6,11 +6,10 @@ use crate::styled::Scroll;
 fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let held = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&held @sizing=ItemSize::Percent(100.0)>
+                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame height=1200.0 />
                 </Scroll>
             </List>

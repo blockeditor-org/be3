@@ -8,16 +8,13 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
     let (item_size, set_item_size) = create_signal(VIRTUAL_ITEM_HEIGHT);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll, list);
-        let row_size = item_size;
         move || {
-            let padding = create_memo(move || row_size.get() / 2.0);
+            let padding = create_memo(move || item_size.get() / 2.0);
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={keys} item_size={item_size}>
                             {move |_: usize| {
-                                let padding = padding;
                                 view! {
                                     <Frame padding_horizontal=0.0 padding_vertical={padding}>
                                         <Spacer />

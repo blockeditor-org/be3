@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{
     Align, Direction, Interactive, ItemSize, List, NodeRef, Spacer, Text, build, view,
@@ -12,10 +9,9 @@ const MARGIN: f32 = 40.0;
 #[test]
 fn a_tree_row_decides_which_part_of_it_is_clickable() {
     let _root = crate::reactive::RootScope::new();
-    let chosen: Rc<RefCell<Vec<usize>>> = Rc::default();
+    let (chosen, set_chosen) = create_signal::<Vec<usize>>(Vec::new());
     let tree = NodeRef::new();
     let document = build({
-        let (chosen, tree) = (Rc::clone(&chosen), tree);
         move || {
             let item = |key: usize| TreeItem {
                 label: format!("row {key}"),
@@ -29,7 +25,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                     keys={vec![0usize, 1]}
                     item
                     selected=None
-                    on_select={move |key: usize| chosen.borrow_mut().push(key)}
+                    on_select={move |key: usize| set_chosen.update(|chosen| chosen.push(key))}
                     on_expand={move |_: (usize, bool)| {}}
                 >
                     {move |handle: TreeRowHandle<usize>| {
@@ -64,7 +60,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
     harness.frame(Vec::new());
 
     assert!(
-        chosen.borrow().is_empty(),
+        chosen.with_untracked(|chosen| chosen.is_empty()),
         "the margin the row left outside its own catcher must not select it"
     );
     assert_eq!(
@@ -77,7 +73,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        *chosen.borrow(),
+        chosen.get_untracked(),
         [0],
         "the part the row made clickable selects"
     );

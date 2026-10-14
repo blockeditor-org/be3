@@ -8,13 +8,12 @@ const SECOND: f32 = 90.0;
 
 #[test]
 fn switching_a_show_damages_both_panels() {
-    let taken: Rc<Cell<Option<WriteSignal<bool>>>> = Rc::new(Cell::new(None));
-    let sink = taken.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (taken, set_taken) = create_signal::<Option<WriteSignal<bool>>>(None);
     let document = build(move || {
         let (second, set_second) = create_signal(false);
-        sink.set(Some(set_second));
-        let showing = second;
-        let first = create_memo(move || !showing.get());
+        set_taken.update(|taken| *taken = Some(set_second));
+        let first = create_memo(move || !second.get());
         let second = create_memo(move || second.get());
         view! {
             <List spacing=0.0>
@@ -27,7 +26,7 @@ fn switching_a_show_damages_both_panels() {
             </List>
         }
     });
-    let set_second = taken.take().expect("the view published its signal");
+    let set_second = taken.get_untracked().expect("the view published its signal");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 

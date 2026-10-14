@@ -2,11 +2,9 @@ use super::*;
 use crate::reactive::{List, NodeRef, Show, Text, build, create_signal, view};
 use crate::unstyled::Button;
 
-type Builds = Rc<Cell<usize>>;
-
 #[component]
-fn CountedPanel(builds: Builds) -> NodeId {
-    builds.set(builds.get() + 1);
+fn CountedPanel(builds: WriteSignal<usize>) -> NodeId {
+    builds.update(|builds| *builds += 1);
     view! {
         <Text string="panel" />
     }
@@ -15,11 +13,10 @@ fn CountedPanel(builds: Builds) -> NodeId {
 #[test]
 fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
     let _root = crate::reactive::RootScope::new();
-    let builds: Builds = Rc::new(Cell::new(0));
+    let (builds, set_builds) = create_signal::<usize>(0);
     let (toggle, panel) = (NodeRef::new(), NodeRef::new());
 
     let document = build({
-        let (builds, toggle, panel) = (builds.clone(), toggle, panel);
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {
@@ -31,7 +28,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
                         <Text string="toggle" />
                     </Button>
                     <Show condition=visible>
-                        <CountedPanel builds={builds.clone()} />
+                        <CountedPanel builds={set_builds} />
                     </Show>
                 </List>
             }
@@ -43,7 +40,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        builds.get(),
+        builds.get_untracked(),
         0,
         "a children block filling a render prop must stay unbuilt while it is hidden"
     );
@@ -51,7 +48,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
-    assert_eq!(builds.get(), 1, "showing it must build the children block");
+    assert_eq!(builds.get_untracked(), 1, "showing it must build the children block");
     let shown = harness.document().children(column);
     assert_eq!(shown.len(), 2);
     assert_eq!(text_of(harness.document(), shown[1]), "panel");
@@ -61,7 +58,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     assert_eq!(
-        builds.get(),
+        builds.get_untracked(),
         2,
         "hiding and showing it again must build the children block afresh"
     );

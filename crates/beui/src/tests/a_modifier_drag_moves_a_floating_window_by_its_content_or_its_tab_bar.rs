@@ -6,11 +6,10 @@ use crate::unstyled::dock_state;
 fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock;
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout drag_modifier={Some(Modifiers::LOGO)}>
+            <styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
                 <unstyled::DockPane
                     id="desktop"
                     empty={|| view! {

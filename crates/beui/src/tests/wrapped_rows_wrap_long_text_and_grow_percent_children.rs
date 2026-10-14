@@ -8,7 +8,6 @@ fn wrapped_rows_wrap_long_text_and_grow_percent_children() {
     let _root = crate::reactive::RootScope::new();
     let (caption, grown, fixed) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (caption, grown, fixed) = (caption, grown, fixed);
         move || {
             view! {
                 <List direction=Direction::Horizontal wrap=true spacing=10.0>

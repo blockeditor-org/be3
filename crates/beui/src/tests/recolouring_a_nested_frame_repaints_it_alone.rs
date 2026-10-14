@@ -6,7 +6,6 @@ fn recolouring_a_nested_frame_repaints_it_alone() {
     let _root = crate::reactive::RootScope::new();
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let (outer, inner) = (outer, inner);
         move || {
             view! {
                 <Frame
@@ -33,12 +32,12 @@ fn recolouring_a_nested_frame_repaints_it_alone() {
     let output = harness.frame(Vec::new());
 
     assert_eq!(
-        (outer_layouts.get(), inner_layouts.get()),
+        (outer_layouts.get_untracked(), inner_layouts.get_untracked()),
         (1, 1),
         "a new colour lays nothing out"
     );
     assert_eq!(
-        (outer_paints.get(), inner_paints.get()),
+        (outer_paints.get_untracked(), inner_paints.get_untracked()),
         (1, 2),
         "the frame around the recoloured one keeps what it painted"
     );

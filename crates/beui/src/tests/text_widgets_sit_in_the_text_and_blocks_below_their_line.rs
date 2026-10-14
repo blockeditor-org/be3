@@ -10,17 +10,15 @@ const BLOCK: Vec2 = Vec2::new(120.0, 60.0);
 #[test]
 fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     let _root = crate::reactive::RootScope::new();
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
-    let sink = held.clone();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let block = NodeRef::new();
     let popup = NodeRef::new();
     let document = build({
-        let (block, popup) = (block, popup);
         move || {
             let document =
                 Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
             let state = TextAreaState::new(document);
-            sink.replace(Some(state));
+            set_held.update(|held| *held = Some(state));
             let widgets = vec![
                 TextWidget {
                     range: 4..7,
@@ -52,7 +50,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = (*held.borrow()).expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
     let canvas = harness.rect(state.canvas().get());
     let layout = state.layout().get_untracked();
     let caret = |byte: usize| {

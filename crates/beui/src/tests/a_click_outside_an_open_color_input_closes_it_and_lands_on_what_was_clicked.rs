@@ -7,15 +7,15 @@ use crate::styled::{Button, ButtonVariant, ColorInput};
 
 #[test]
 fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked() {
-    let clicks = Rc::new(Cell::new(0));
-    let clicked = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [button, input]) = toolbar_of(|| {
         [
             view! {
                 <Button
                     label="Elsewhere"
                     variant=ButtonVariant::Secondary
-                    on_click={move || clicked.set(clicked.get() + 1)}
+                    on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                 />
             },
             view! {
@@ -51,5 +51,5 @@ fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked()
     harness.frame(Vec::new());
 
     assert!(!open(&harness), "the click closes the popover");
-    assert_eq!(clicks.get(), 1, "and lands on the button it was aimed at");
+    assert_eq!(clicks.get_untracked(), 1, "and lands on the button it was aimed at");
 }

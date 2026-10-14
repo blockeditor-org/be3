@@ -6,22 +6,19 @@ use crate::unstyled::Scroll;
 #[test]
 fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     let _root = crate::reactive::RootScope::new();
-    let clicks = Rc::new(Cell::new(0));
-    let click_sink = clicks.clone();
+    let (clicks, set_clicks) = create_signal(0);
     let scroll = NodeRef::new();
-    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(100)}>
                         {move |index: usize| {
-                            let click_sink = click_sink.clone();
                             view! {
                                 <LabelledButton
                                     label={format!("Row {index}")}
                                     on_click={move || {
-                                        click_sink.set(click_sink.get() + 1);
+                                        set_clicks.update(|clicks| *clicks += 1);
                                     }}
                                 />
                             }
@@ -50,5 +47,5 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     assert!(harness.document().scroll_offset(scroll) > released_offset);
     assert!(unstyled::scroll_animating(harness.document(), scroll));
     assert_eq!(harness.document().focused_node(), None);
-    assert_eq!(clicks.get(), 0);
+    assert_eq!(clicks.get_untracked(), 0);
 }

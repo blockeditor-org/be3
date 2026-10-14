@@ -8,13 +8,12 @@ use crate::unstyled::PopoverHandle;
 fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
     let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
-    let content_ref = content;
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <Popover label="Filters">
                     {move |_: PopoverHandle| view! {
-                        <Frame @node_ref={&content_ref}>
+                        <Frame @node_ref={&content}>
                             <Checkbox label="Only starred" checked=false />
                         </Frame>
                     }}

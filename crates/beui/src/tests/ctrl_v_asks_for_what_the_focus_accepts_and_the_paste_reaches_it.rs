@@ -1,26 +1,22 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 use crate::{ForwardedInput, PasteKind, PasteRequest, Pasted, PickedFile};
 
 #[test]
 fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
-    let heard = Rc::new(RefCell::new(Vec::new()));
-    let forwarded = Rc::new(RefCell::new(Vec::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (heard, set_heard) = create_signal(Vec::new());
+    let (forwarded, set_forwarded) = create_signal(Vec::new());
     let document = build({
-        let (heard, forwarded) = (Rc::clone(&heard), Rc::clone(&forwarded));
         move || {
-            let (pasted, typed) = (Rc::clone(&heard), Rc::clone(&heard));
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
                         <Interactive
                             focusable=true
                             pastes={vec![PasteKind::Image]}
-                            on_paste={move |paste: Pasted| pasted.borrow_mut().push(format!("{:?}", paste.kind()))}
-                            on_text={move |text: String| typed.borrow_mut().push(text)}
+                            on_paste={move |paste: Pasted| set_heard.update(|heard| heard.push(format!("{:?}", paste.kind())))}
+                            on_text={move |text: String| set_heard.update(|heard| heard.push(text))}
                         >
                             <Frame />
                         </Interactive>
@@ -29,7 +25,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
                         <Interactive
                             focusable=true
                             pastes={vec![PasteKind::Text, PasteKind::Image]}
-                            on_forward={move |input: ForwardedInput| forwarded.borrow_mut().extend(flattened(input))}
+                            on_forward={move |input: ForwardedInput| set_forwarded.update(|forwarded| forwarded.extend(flattened(input)))}
                         >
                             <Frame />
                         </Interactive>
@@ -68,7 +64,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
         Event::Paste(Pasted::Text("typed".to_owned())),
     ]);
     assert_eq!(
-        *heard.borrow(),
+        heard.get_untracked(),
         ["Image", "typed"],
         "a kind the focus did not ask for still reaches its text handler"
     );
@@ -84,7 +80,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
         output.window.paste_kinds,
         [PasteKind::Text, PasteKind::Image]
     );
-    forwarded.borrow_mut().clear();
+    set_forwarded.update(|forwarded| forwarded.clear());
     harness.frame(vec![Event::Paste(Pasted::Image(image.clone()))]);
-    assert_eq!(*forwarded.borrow(), [Event::Paste(Pasted::Image(image))]);
+    assert_eq!(forwarded.get_untracked(), [Event::Paste(Pasted::Image(image))]);
 }

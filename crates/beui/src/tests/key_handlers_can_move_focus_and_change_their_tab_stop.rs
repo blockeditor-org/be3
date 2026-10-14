@@ -9,7 +9,6 @@ fn key_handlers_can_move_focus_and_change_their_tab_stop() {
     let second = NodeRef::new();
     let (document, [_first, _second]) = toolbar_of({
         move || {
-            let target = second;
             [
                 view! {
                     <unstyled::Button
@@ -19,7 +18,7 @@ fn key_handlers_can_move_focus_and_change_their_tab_stop() {
                                 return false;
                             }
                             set_skipped.set(true);
-                            crate::focus_within(target.get());
+                            crate::focus_within(second.get());
                             true
                         }}
                     >

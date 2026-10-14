@@ -6,10 +6,10 @@ use crate::reactive::{BackHandler, Frame, Overlay, build, view};
 
 #[test]
 fn escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismiss() {
-    let backs = Rc::new(Cell::new(0));
-    let dismissed = Rc::new(RefCell::new(Vec::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (backs, set_backs) = create_signal(0);
+    let (dismissed, set_dismissed) = create_signal(Vec::new());
     let document = build({
-        let (backs, dismissed) = (backs.clone(), dismissed.clone());
         move || {
             view! {
                 <Frame>
@@ -17,9 +17,9 @@ fn escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismis
                         anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
                         placement=Placement::At
                         open=true
-                        on_dismiss={move |reason: Dismiss| dismissed.borrow_mut().push(reason)}
+                        on_dismiss={move |reason: Dismiss| set_dismissed.update(|dismissed| dismissed.push(reason))}
                     >
-                        <BackHandler on_back={move || backs.set(backs.get() + 1)}>
+                        <BackHandler on_back={move || set_backs.update(|backs| *backs += 1)}>
                             <Frame width=40.0 height=30.0 />
                         </BackHandler>
                     </Overlay>
@@ -31,17 +31,17 @@ fn escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismis
     harness.frame(Vec::new());
 
     harness.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(backs.get(), 1, "Escape goes to the layer's back handler");
+    assert_eq!(backs.get_untracked(), 1, "Escape goes to the layer's back handler");
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
-    assert_eq!(backs.get(), 2, "and so does back");
-    assert!(dismissed.borrow().is_empty());
+    assert_eq!(backs.get_untracked(), 2, "and so does back");
+    assert!(dismissed.with_untracked(|dismissed| dismissed.is_empty()));
 
     harness.click(pos2(VIEWPORT.x - 5.0, VIEWPORT.y - 5.0));
     harness.frame(Vec::new());
     assert_eq!(
-        *dismissed.borrow(),
+        dismissed.get_untracked(),
         [Dismiss::OutsidePress],
         "a press outside asks the layer itself"
     );
-    assert_eq!(backs.get(), 2);
+    assert_eq!(backs.get_untracked(), 2);
 }

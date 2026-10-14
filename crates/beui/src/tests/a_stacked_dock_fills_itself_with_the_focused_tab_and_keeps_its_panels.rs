@@ -57,13 +57,12 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
         "a stacked dock draws no tab bars"
     );
 
-    let tiling = set_mode;
-    with_reactive_scope(harness.document_mut(), move || tiling.set(DockMode::Tiled));
+    with_reactive_scope(harness.document_mut(), move || set_mode.set(DockMode::Tiled));
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().find_test_id("content.3"),
         Some(third),
-        "tiling the dock again keeps the panel it was showing"
+        "set_mode the dock again keeps the panel it was showing"
     );
     assert!(
         harness.rect(third).left() > WIDE_VIEWPORT.x / 3.0,

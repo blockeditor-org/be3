@@ -5,11 +5,10 @@ use crate::unstyled::{DockPane, DockTab, DockingLayout};
 fn dock_tabs_are_the_same_height_whether_or_not_they_close() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <DockPane id="tabs">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />

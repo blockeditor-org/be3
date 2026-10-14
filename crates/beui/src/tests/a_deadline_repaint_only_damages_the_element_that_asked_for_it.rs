@@ -8,7 +8,6 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
     let _root = crate::reactive::RootScope::new();
     let (panel, drawing) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let (panel, drawing) = (panel, drawing);
         move || {
             view! {
                 <List spacing=0.0>
@@ -24,7 +23,7 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
     let (_, paints) = counted(&mut document, panel);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let settled = paints.get();
+    let settled = paints.get_untracked();
 
     harness.advance(Duration::from_secs(1));
     let damage = harness
@@ -33,7 +32,7 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
         .expect("the drawing repaints on its deadline");
 
     assert_eq!(
-        paints.get(),
+        paints.get_untracked(),
         settled,
         "a deadline repaint must not reach past the element that asked for it"
     );
@@ -42,10 +41,10 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
 }
 
 fn alternating() -> crate::reactive::Draw {
-    let lit = Rc::new(Cell::new(false));
+    let (lit, set_lit) = create_signal(false);
     Rc::new(move |painter: &crate::painter::Painter, rect: Rect| {
-        lit.set(!lit.get());
-        let color = match lit.get() {
+        set_lit.set(!lit.get_untracked());
+        let color = match lit.get_untracked() {
             true => Color32::WHITE,
             false => Color32::BLACK,
         };

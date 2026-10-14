@@ -1,30 +1,26 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 use crate::{Forwarded, ForwardedInput};
 
-fn lefts(heard: &RefCell<Vec<Forwarded>>) -> usize {
-    heard
-        .borrow()
+fn lefts(heard: ReadSignal<Vec<Forwarded>>) -> usize {
+    heard.with_untracked(|heard| heard
         .iter()
         .filter(|event| **event == Forwarded::Left)
-        .count()
+        .count())
 }
 
 #[test]
 fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
-    let heard = Rc::new(RefCell::new(Vec::<Forwarded>::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (heard, set_heard) = create_signal(Vec::<Forwarded>::new());
     let document = build({
-        let heard = Rc::clone(&heard);
         move || {
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
                         <Interactive
                             on_forward={move |input: ForwardedInput| {
-                                heard.borrow_mut().extend(input.events)
+                                set_heard.update(|heard| heard.extend(input.events))
                             }}
                         >
                             <Frame />
@@ -42,20 +38,20 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.frame(vec![Event::PointerMoved(outside)]);
     harness.frame(vec![Event::PointerMoved(pos2(260.0, 50.0))]);
     assert_eq!(
-        lefts(&heard),
+        lefts(heard),
         1,
         "the catcher hears the pointer leave, once"
     );
 
-    heard.borrow_mut().clear();
+    set_heard.update(|heard| heard.clear());
     harness.press_at(inside);
     harness.frame(vec![Event::PointerMoved(outside)]);
-    assert_eq!(lefts(&heard), 0, "a press it holds keeps the pointer");
+    assert_eq!(lefts(heard), 0, "a press it holds keeps the pointer");
     harness.frame(vec![Event::PointerButton {
         pos: outside,
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Modifiers::NONE,
     }]);
-    assert_eq!(lefts(&heard), 1, "until it is let go");
+    assert_eq!(lefts(heard), 1, "until it is let go");
 }

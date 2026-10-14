@@ -24,14 +24,12 @@ fn choose(harness: &mut Harness, label: &str) {
 #[test]
 fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_down() {
     let _root = crate::reactive::RootScope::new();
-    let ran = Rc::new(Cell::new(0));
-    let running = ran.clone();
+    let (ran, set_ran) = create_signal(0);
     let dock = NodeRef::new();
-    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout focus=2u64>
+            <styled::Docking @node_ref=&dock layout focus=2u64>
                 <DockPane id="tabs">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -40,9 +38,8 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
                         id=2u64
                         title="Tab 2"
                         content={move || {
-                            let running = running.clone();
                             let tidy = Action::new("tidy", "Tidy up", move || {
-                                running.set(running.get() + 1)
+                                set_ran.update(|ran| *ran += 1)
                             })
                             .detached();
                             dock_menu(create_memo(move || vec![tidy.clone()]));
@@ -70,7 +67,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
         "the menu sits at the end of the bar, past the tabs"
     );
     choose(&mut harness, "Tidy up");
-    assert_eq!(ran.get(), 1, "choosing an item runs the tab's action");
+    assert_eq!(ran.get_untracked(), 1, "choosing an item runs the tab's action");
 
     let label = harness.rect(dock_tab(harness.document(), dock, "Tab 1"));
     let grip = pos2(label.left() - 25.0, label.center().y);
@@ -97,7 +94,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
         "a pane with its tabs in a sidebar still offers the menu"
     );
     choose(&mut harness, "Tidy up");
-    assert_eq!(ran.get(), 2);
+    assert_eq!(ran.get_untracked(), 2);
 
     let first = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     harness.click(first);

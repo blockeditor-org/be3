@@ -6,11 +6,10 @@ use crate::unstyled::Scroll;
 fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(100)}>
                         {|index: usize| view! {
                             <LabelledButton label={format!("Row {index}")} />

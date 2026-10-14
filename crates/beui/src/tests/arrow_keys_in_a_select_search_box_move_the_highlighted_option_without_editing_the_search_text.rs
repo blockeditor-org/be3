@@ -17,21 +17,20 @@ fn arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let inner = select;
-    let trigger = unstyled::select_trigger(harness.document(), inner);
+    let trigger = unstyled::select_trigger(harness.document(), select);
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
-    let search = unstyled::select_search(harness.document(), inner);
+    let search = unstyled::select_search(harness.document(), select);
 
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         None
     );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(0)
     );
     assert_eq!(unstyled::text_input_value(harness.document(), search), "");
@@ -39,7 +38,7 @@ fn arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(1)
     );
     assert_eq!(unstyled::text_input_value(harness.document(), search), "");
@@ -47,7 +46,7 @@ fn arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing
     harness.key(Key::ArrowUp, Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(0)
     );
 }

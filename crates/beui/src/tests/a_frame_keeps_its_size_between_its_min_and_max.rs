@@ -6,7 +6,6 @@ fn a_frame_keeps_its_size_between_its_min_and_max() {
     let _root = crate::reactive::RootScope::new();
     let (widened, capped) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (widened, capped) = (widened, capped);
         move || {
             view! {
                 <List direction=Direction::Horizontal align=Align::Start spacing=0.0>

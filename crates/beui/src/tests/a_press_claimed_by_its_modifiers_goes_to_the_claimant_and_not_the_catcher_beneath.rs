@@ -1,30 +1,27 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 
-fn presses(log: &RefCell<Vec<Event>>) -> usize {
-    log.borrow()
+fn presses(log: ReadSignal<Vec<Event>>) -> usize {
+    log.with_untracked(|log| log
         .iter()
         .filter(|event| matches!(event, Event::PointerButton { .. }))
-        .count()
+        .count())
 }
 
 #[test]
 fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath() {
-    let child = Rc::new(RefCell::new(Vec::<Event>::new()));
-    let parent = Rc::new(RefCell::new(Vec::<Event>::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (child, set_child) = create_signal(Vec::<Event>::new());
+    let (parent, set_parent) = create_signal(Vec::<Event>::new());
     let document = build({
-        let (child, parent) = (Rc::clone(&child), Rc::clone(&parent));
         move || {
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=200.0>
                         <Interactive
                             on_forward={move |input: ForwardedInput| {
-                                child.borrow_mut().extend(flattened(input))
+                                set_child.update(|child| child.extend(flattened(input)))
                             }}
                         >
                             <Frame />
@@ -35,7 +32,7 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
                             hit_at={|local: Pos2| local.x >= 100.0}
                             claim_at={|(_, held): (Pos2, Modifiers)| held.logo}
                             on_forward={move |input: ForwardedInput| {
-                                parent.borrow_mut().extend(flattened(input))
+                                set_parent.update(|parent| parent.extend(flattened(input)))
                             }}
                         >
                             <Frame />
@@ -51,26 +48,26 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
 
     harness.click(hole);
     assert_eq!(
-        presses(&child),
+        presses(child),
         2,
         "a plain click in the hole is the child's"
     );
-    assert_eq!(presses(&parent), 0);
+    assert_eq!(presses(parent), 0);
 
     drag_with(&mut harness, hole, pos2(70.0, 90.0), Modifiers::LOGO);
     assert_eq!(
-        presses(&child),
+        presses(child),
         2,
         "the child hears nothing of a press the parent claimed"
     );
     assert_eq!(
-        presses(&parent),
+        presses(parent),
         2,
         "the parent hears the press it claimed and its release"
     );
     assert!(
         parent
-            .borrow()
+            .get_untracked()
             .contains(&Event::PointerMoved(pos2(70.0, 90.0))),
         "and the drag between them"
     );

@@ -9,18 +9,16 @@ const SETTLING_FRAMES: usize = 8;
 #[test]
 fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let _root = crate::reactive::RootScope::new();
-    let built = Rc::new(RefCell::new(Vec::new()));
-    let sink = built.clone();
+    let (built, set_built) = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
                             {move |index: usize| {
-                                sink.borrow_mut().push(index);
+                                set_built.update(|built| built.push(index));
                                 view! {
                                     <Frame height=ACTUAL>
                                         <Spacer />
@@ -47,7 +45,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
         harness.frame(Vec::new());
     }
 
-    assert_eq!(built.borrow().last(), Some(&(ROWS - 1)));
+    assert_eq!(built.get_untracked().last(), Some(&(ROWS - 1)));
     let last = *harness.document.children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y);
     assert_eq!(

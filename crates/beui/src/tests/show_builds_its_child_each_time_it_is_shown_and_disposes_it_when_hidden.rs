@@ -6,10 +6,8 @@ use crate::unstyled::Button;
 fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     let _root = crate::reactive::RootScope::new();
     let (column, toggle) = (NodeRef::new(), NodeRef::new());
-    let builds = Rc::new(Cell::new(0));
-    let sink = builds.clone();
+    let (builds, set_builds) = create_signal(0);
     let document = build({
-        let (column, toggle) = (column, toggle);
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {
@@ -23,7 +21,7 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
                     <Show
                         condition={visible}
                         then={move || {
-                            sink.set(sink.get() + 1);
+                            set_builds.update(|builds| *builds += 1);
                             view! {
                                 <Text string="panel" />
                             }
@@ -38,7 +36,7 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    assert_eq!(builds.get(), 0, "a hidden show() must not build its child");
+    assert_eq!(builds.get_untracked(), 0, "a hidden show() must not build its child");
     assert_eq!(
         harness.document().children(column).len(),
         1,
@@ -48,7 +46,7 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     assert_eq!(
-        builds.get(),
+        builds.get_untracked(),
         1,
         "showing it for the first time must build it"
     );
@@ -71,7 +69,7 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     assert_eq!(
-        builds.get(),
+        builds.get_untracked(),
         2,
         "showing it a second time must build it afresh"
     );

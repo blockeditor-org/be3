@@ -5,8 +5,8 @@ use crate::reactive::NodeRef;
 fn a_released_sheet_springs_to_its_stop_or_closed() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let closed = Rc::new(Cell::new(0));
-    let document = sheet_of_rows(0.5, &sheet, &closed);
+    let (closed, set_closed) = create_signal(0);
+    let document = sheet_of_rows(0.5, sheet, set_closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();
@@ -32,7 +32,7 @@ fn a_released_sheet_springs_to_its_stop_or_closed() {
         from + vec2(0.0, 120.0),
     ]);
     assert_eq!(
-        closed.get(),
+        closed.get_untracked(),
         1,
         "a quick flick down closes the sheet, though it was let go high up"
     );

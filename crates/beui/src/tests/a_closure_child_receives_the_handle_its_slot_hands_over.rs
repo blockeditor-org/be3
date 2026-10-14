@@ -8,17 +8,16 @@ const ITEM_HEIGHT: f32 = 20.0;
 #[test]
 fn a_closure_child_receives_the_handle_its_slot_hands_over() {
     let _root = crate::reactive::RootScope::new();
-    let measured: Rc<RefCell<Option<ReadSignal<Vec2>>>> = Rc::default();
+    let (measured, set_measured) = create_signal::<Option<ReadSignal<Vec2>>>(None);
     let item = NodeRef::new();
 
     let document = build({
-        let (measured, item) = (measured.clone(), item);
         move || {
             view! {
                 <Frame width=PANEL_WIDTH>
                     <Container>
                         {move |size: ReadSignal<Vec2>| {
-                            *measured.borrow_mut() = Some(size);
+                            set_measured.update(|measured| *measured = Some(size));
                             view! {
                                 <Frame @node_ref=&item height=ITEM_HEIGHT>
                                     <Spacer />
@@ -34,9 +33,8 @@ fn a_closure_child_receives_the_handle_its_slot_hands_over() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
-    let measured = measured.borrow();
     let size = measured
-        .as_ref()
+        .get_untracked()
         .expect("the closure child must have been called with the container size");
     assert_eq!(size.get().x, PANEL_WIDTH);
     assert_eq!(harness.rect(item.get()).width(), PANEL_WIDTH);

@@ -6,7 +6,6 @@ use crate::styled::{Scroll, TextInput};
 fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {
     let _root = crate::reactive::RootScope::new();
     let input = NodeRef::new();
-    let input_ref = input;
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -17,7 +16,7 @@ fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {
                                 <LabelledButton label={format!("Row {index}")} />
                             }}
                         </ForEach>
-                        <TextInput value="" @node_ref=&input_ref />
+                        <TextInput value="" @node_ref=&input />
                     </List>
                 </Scroll>
             </List>

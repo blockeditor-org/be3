@@ -6,11 +6,11 @@ use crate::styled::Link;
 
 #[test]
 fn clicking_a_link_reports_it_and_reads_as_a_link() {
-    let clicks = Rc::new(Cell::new(0));
-    let sink = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [link]) = toolbar_of(|| {
         [view! {
-            <Link label="Open the grid" on_click={move || sink.set(sink.get() + 1)} />
+            <Link label="Open the grid" on_click={move || set_clicks.update(|clicks| *clicks += 1)} />
         }]
     });
     let mut harness = Harness::new(document);
@@ -27,5 +27,5 @@ fn clicking_a_link_reports_it_and_reads_as_a_link() {
     harness.click(harness.center(link));
     harness.frame(Vec::new());
 
-    assert_eq!(clicks.get(), 1);
+    assert_eq!(clicks.get_untracked(), 1);
 }

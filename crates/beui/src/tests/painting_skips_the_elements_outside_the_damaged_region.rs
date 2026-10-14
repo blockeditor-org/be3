@@ -9,7 +9,7 @@ fn painting_skips_the_elements_outside_the_damaged_region() {
     let (_, paints) = counted(&mut document, upper);
     let mut harness = Harness::new(document);
     let shapes = harness.frame(Vec::new()).shapes().len();
-    let settled = paints.get();
+    let settled = paints.get_untracked();
 
     harness
         .document_mut()
@@ -18,7 +18,7 @@ fn painting_skips_the_elements_outside_the_damaged_region() {
 
     assert_eq!(output.damage(), Some(harness.rect(lower)));
     assert_eq!(
-        paints.get(),
+        paints.get_untracked(),
         settled,
         "an element the damaged region does not reach must not be painted again"
     );

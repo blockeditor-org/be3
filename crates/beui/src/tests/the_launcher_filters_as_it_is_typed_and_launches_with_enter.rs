@@ -14,8 +14,8 @@ fn item(key: &str, title: &str, terms: &[&str]) -> LauncherItem {
 
 #[test]
 fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
-    let heard = Rc::new(RefCell::new(Vec::<String>::new()));
-    let (launched, ran, closed) = (heard.clone(), heard.clone(), heard.clone());
+    let _root = crate::reactive::RootScope::new();
+    let (heard, set_heard) = create_signal(Vec::<String>::new());
     let items = Rc::new(vec![
         item("files", "Files", &["folder"]),
         item("foot", "Foot", &["terminal"]),
@@ -29,15 +29,15 @@ fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
                 open
                 items
                 on_launch={move |key: String| {
-                    launched.borrow_mut().push(format!("launch {key}"));
+                    set_heard.update(|heard| heard.push(format!("launch {key}")));
                     launching.set(false);
                 }}
                 on_run={move |line: String| {
-                    ran.borrow_mut().push(format!("run {line}"));
+                    set_heard.update(|heard| heard.push(format!("run {line}")));
                     running.set(false);
                 }}
                 on_close={move || {
-                    closed.borrow_mut().push("close".to_owned());
+                    set_heard.update(|heard| heard.push("close".to_owned()));
                     closing.set(false);
                 }}
             />
@@ -72,7 +72,7 @@ fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
     assert_eq!(
-        *heard.borrow(),
+        heard.get_untracked(),
         ["launch foot"],
         "the name ranks first, and the arrows move the highlight"
     );

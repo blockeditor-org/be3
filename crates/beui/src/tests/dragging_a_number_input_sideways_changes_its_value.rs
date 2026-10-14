@@ -4,8 +4,8 @@ use crate::styled::{NumberDrag, NumberInput, number_input_field, number_input_te
 
 #[test]
 fn dragging_a_number_input_sideways_changes_its_value() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <NumberInput
@@ -13,7 +13,7 @@ fn dragging_a_number_input_sideways_changes_its_value() {
                 min=0.0
                 max=100.0
                 drag={NumberDrag::Linear { speed: 0.5 }}
-                on_change={move |value| sink.borrow_mut().push(value)}
+                on_change={move |value| set_changes.update(|changes| changes.push(value))}
             />
         }]
     });
@@ -24,17 +24,17 @@ fn dragging_a_number_input_sideways_changes_its_value() {
     harness.drag(middle, middle + Vec2::new(20.0, 0.0));
     harness.frame(Vec::new());
 
-    assert_eq!(changes.borrow().last().copied(), Some(14.0));
+    assert_eq!(changes.with_untracked(|changes| changes.last().copied()), Some(14.0));
     let shown = number_input_text(harness.document(), input)
         .expect("a drag must not open the field for editing");
     assert_eq!(text_of(harness.document(), shown), "14");
 
-    changes.borrow_mut().clear();
+    set_changes.update(|changes| changes.clear());
     harness.click(middle);
     harness.frame(Vec::new());
 
     assert!(
-        changes.borrow().is_empty(),
+        changes.with_untracked(|changes| changes.is_empty()),
         "a click without a drag must not change the value"
     );
     let field = number_input_field(harness.document(), input)

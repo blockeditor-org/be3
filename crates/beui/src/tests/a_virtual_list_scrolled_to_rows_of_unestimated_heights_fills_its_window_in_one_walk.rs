@@ -13,11 +13,9 @@ fn height(index: usize) -> f32 {
 #[test]
 fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk() {
     let _root = crate::reactive::RootScope::new();
-    let built = Rc::new(RefCell::new(Vec::new()));
-    let sink = built.clone();
+    let (built, set_built) = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>
@@ -27,7 +25,7 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
                                 let walk = with_document(|document| {
                                     document.laying_out().map(|_| document.layout_pass())
                                 });
-                                sink.borrow_mut().push(walk);
+                                set_built.update(|built| built.push(walk));
                                 view! {
                                     <Frame height={height(index)}>
                                         <Spacer />
@@ -44,11 +42,11 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    built.borrow_mut().clear();
+    set_built.update(|built| built.clear());
     harness.document.set_scroll_offset(scroll, 5000.0);
     harness.frame(Vec::new());
 
-    let walks = built.borrow().clone();
+    let walks = built.get_untracked();
     assert!(!walks.is_empty(), "the new region builds rows");
     assert!(
         walks.iter().all(|walk| walk.is_some() && *walk == walks[0]),

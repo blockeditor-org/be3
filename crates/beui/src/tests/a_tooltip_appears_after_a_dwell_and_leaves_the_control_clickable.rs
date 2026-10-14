@@ -1,5 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
 use std::time::Duration;
 
 use super::*;
@@ -10,10 +8,9 @@ use crate::unstyled::{Tooltip, TooltipHandle};
 #[test]
 fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     let _root = crate::reactive::RootScope::new();
-    let clicked = Rc::new(Cell::new(0u32));
+    let (clicked, set_clicked) = create_signal(0u32);
     let button = NodeRef::new();
     let document = build({
-        let clicked = Rc::clone(&clicked);
         move || {
             view! {
                 <List spacing=0.0>
@@ -26,7 +23,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
                             }
                         }}
                     >
-                        <Button @node_ref=&button on_click={move || clicked.set(clicked.get() + 1)}>
+                        <Button @node_ref=&button on_click={move || set_clicked.update(|clicked| *clicked += 1)}>
                             <Text string="add" />
                         </Button>
                     </Tooltip>
@@ -55,7 +52,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
 
     harness.click(center);
     assert_eq!(
-        clicked.get(),
+        clicked.get_untracked(),
         1,
         "an open tooltip must not take the press away from what it describes"
     );

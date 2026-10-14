@@ -1,9 +1,9 @@
 use super::*;
-use crate::reactive::{List, Show, Text, WriteSignal, build, create_signal, view};
+use crate::reactive::{List, Show, Text, build, view};
 
 struct Guarded {
     document: Document,
-    unsaved: Rc<Cell<bool>>,
+    unsaved: ReadSignal<bool>,
     asking: WriteSignal<bool>,
 }
 
@@ -13,11 +13,11 @@ impl App for Guarded {
     }
 
     fn close_requested(&mut self) -> bool {
-        if self.unsaved.get() {
+        if self.unsaved.get_untracked() {
             let asking = self.asking;
             with_installed(&mut self.document, |_| asking.set(true));
         }
-        !self.unsaved.get()
+        !self.unsaved.get_untracked()
     }
 }
 
@@ -35,11 +35,11 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
             </List>
         }
     });
-    let unsaved = Rc::new(Cell::new(true));
+    let (unsaved, set_unsaved) = create_signal(true);
     let mut driven = Driven::with_app(
         Guarded {
             document,
-            unsaved: unsaved.clone(),
+            unsaved,
             asking,
         },
         true,
@@ -54,7 +54,7 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
     );
     assert!(!driven.closed, "the app kept its window open");
 
-    unsaved.set(false);
+    set_unsaved.set(false);
     assert_eq!(
         driven.ask(&["close"]),
         Ok("The window closed.\n".to_owned())

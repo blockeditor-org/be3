@@ -7,7 +7,6 @@ fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let (lead, trail, add) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (lead, trail, add) = (lead, trail, add);
         move || {
             let (items, set_items) = create_signal(vec![1u32, 2]);
             view! {

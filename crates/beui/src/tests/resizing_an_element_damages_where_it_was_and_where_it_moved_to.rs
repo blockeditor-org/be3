@@ -9,12 +9,11 @@ const BOTTOM: f32 = 40.0;
 fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
     let _root = crate::reactive::RootScope::new();
     let bottom = NodeRef::new();
-    let taken: Rc<Cell<Option<WriteSignal<bool>>>> = Rc::new(Cell::new(None));
-    let sink = taken.clone();
+    let (taken, set_taken) = create_signal::<Option<WriteSignal<bool>>>(None);
     let document = build({
         move || {
             let (tall, set_tall) = create_signal(false);
-            sink.set(Some(set_tall));
+            set_taken.update(|taken| *taken = Some(set_tall));
             let height = create_memo(move || if tall.get() { TALL } else { SHORT });
             view! {
                 <List spacing=0.0>
@@ -30,7 +29,7 @@ fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
         }
     });
     let bottom = bottom.get();
-    let set_tall = taken.take().expect("the view published its signal");
+    let set_tall = taken.get_untracked().expect("the view published its signal");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let was = harness.rect(bottom);

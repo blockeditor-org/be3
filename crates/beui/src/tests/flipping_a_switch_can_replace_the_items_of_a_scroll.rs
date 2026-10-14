@@ -13,11 +13,9 @@ fn flipping_a_switch_can_replace_the_items_of_a_scroll() {
 }
 
 fn check_compact_rows(inset: f32) {
-    let built = Rc::new(RefCell::new(Vec::new()));
+    let (built, set_built) = create_signal(Vec::new());
     let (switch, scroll, list) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (switch, scroll, list) = (switch, scroll, list);
-        let sink = built.clone();
         move || {
             let (compact, set_compact) = create_signal(false);
             let item_height = create_memo(move || {
@@ -42,8 +40,7 @@ fn check_compact_rows(inset: f32) {
                             item_size={item_height}
                         >
                             {move |index: usize| {
-                                sink.borrow_mut().push(index);
-                                let padding = padding;
+                                set_built.update(|built| built.push(index));
                                 view! {
                                     <Frame padding_horizontal=0.0 padding_vertical={padding}>
                                         <Spacer />
@@ -67,7 +64,7 @@ fn check_compact_rows(inset: f32) {
     harness.frame(Vec::new());
     let rows = harness.document.children(list);
     let top = harness.rect(rows[0]).top();
-    built.borrow_mut().clear();
+    set_built.update(|built| built.clear());
 
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
@@ -80,7 +77,7 @@ fn check_compact_rows(inset: f32) {
     assert_eq!(harness.document.children(list)[0], kept);
     assert!(
         built
-            .borrow()
+            .get_untracked()
             .iter()
             .all(|&built| built >= index + rows.len())
     );
@@ -93,12 +90,12 @@ fn check_compact_rows(inset: f32) {
         index as f32 * VIRTUAL_ITEM_HEIGHT / 2.0 + inset
     );
 
-    built.borrow_mut().clear();
+    set_built.update(|built| built.clear());
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
 
     assert_eq!(harness.document.children(list)[0], kept);
-    assert!(built.borrow().is_empty());
+    assert!(built.with_untracked(|built| built.is_empty()));
     assert_eq!(
         harness.rect(harness.document.children(list)[0]).top(),
         settled

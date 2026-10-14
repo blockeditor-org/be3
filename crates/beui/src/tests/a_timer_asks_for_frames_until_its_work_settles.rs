@@ -1,18 +1,15 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{create_timer, view};
 
 #[test]
 fn a_timer_asks_for_frames_until_its_work_settles() {
-    let runs = Rc::new(Cell::new(0));
+    let _root = crate::reactive::RootScope::new();
+    let (runs, set_runs) = create_signal(0);
     let document = build({
-        let runs = Rc::clone(&runs);
         move || {
             let timer = create_timer(move || {
-                runs.set(runs.get() + 1);
-                (runs.get() < 3).then_some(Duration::ZERO)
+                set_runs.update(|runs| *runs += 1);
+                (runs.get_untracked() < 3).then_some(Duration::ZERO)
             });
             timer.start(Duration::ZERO);
             view! {
@@ -25,11 +22,11 @@ fn a_timer_asks_for_frames_until_its_work_settles() {
     let mut harness = Harness::new(document);
 
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::ZERO);
-    assert_eq!(runs.get(), 1);
+    assert_eq!(runs.get_untracked(), 1);
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::ZERO);
-    assert_eq!(runs.get(), 2);
+    assert_eq!(runs.get_untracked(), 2);
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    assert_eq!(runs.get(), 3);
+    assert_eq!(runs.get_untracked(), 3);
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    assert_eq!(runs.get(), 3, "a timer whose work settled runs no more");
+    assert_eq!(runs.get_untracked(), 3, "a timer whose work settled runs no more");
 }

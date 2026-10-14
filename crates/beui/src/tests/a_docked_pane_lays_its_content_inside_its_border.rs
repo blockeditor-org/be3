@@ -4,11 +4,10 @@ use super::*;
 fn a_docked_pane_lays_its_content_inside_its_border() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock;
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
                     <unstyled::DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content" />

@@ -13,11 +13,10 @@ fn a_wrapping_caption_grows_taller_than_the_single_line_it_would_be() {
 
 fn caption_height(wrap: bool) -> f32 {
     let frame = NodeRef::new();
-    let placed = frame;
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame @node_ref=&placed width=FRAME_WIDTH>
+                <Frame @node_ref=&frame width=FRAME_WIDTH>
                     <Caption content=LONG_CAPTION wrap />
                 </Frame>
             </List>

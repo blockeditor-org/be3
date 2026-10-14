@@ -1,25 +1,20 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{Align, Direction, List, NodeRef, Spacer, Text, build, view};
 
 #[test]
 fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     let _root = crate::reactive::RootScope::new();
-    let row_clicks = Rc::new(Cell::new(0u32));
-    let inner_clicks = Rc::new(Cell::new(0u32));
+    let (row_clicks, set_row_clicks) = create_signal(0u32);
+    let (inner_clicks, set_inner_clicks) = create_signal(0u32);
     let inner = NodeRef::new();
     let row = NodeRef::new();
     let document = build({
-        let (row_clicks, inner_clicks, inner, row) =
-            (Rc::clone(&row_clicks), Rc::clone(&inner_clicks), inner, row);
         move || {
             view! {
                 <List spacing=0.0>
                     <unstyled::Button
                         @node_ref=&row
-                        on_click={move || row_clicks.set(row_clicks.get() + 1)}
+                        on_click={move || set_row_clicks.update(|row_clicks| *row_clicks += 1)}
                         content={move |_: unstyled::ButtonHandle| view! {
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Text string="a row that opens something" />
@@ -29,7 +24,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
                                     tab_stop=false
                                     capture_presses=true
                                     on_click={move || {
-                                        inner_clicks.set(inner_clicks.get() + 1)
+                                        set_inner_clicks.update(|inner_clicks| *inner_clicks += 1)
                                     }}
                                     content={move |_: unstyled::ButtonHandle| view! {
                                         <Text string="add" />
@@ -50,9 +45,9 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     harness.click(harness.center(inner));
     harness.frame(Vec::new());
 
-    assert_eq!(inner_clicks.get(), 1, "the captured button answers");
+    assert_eq!(inner_clicks.get_untracked(), 1, "the captured button answers");
     assert_eq!(
-        row_clicks.get(),
+        row_clicks.get_untracked(),
         0,
         "a press the captured button took must not reach the row around it"
     );
@@ -61,6 +56,6 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     harness.click(Pos2::new(rect.left() + 4.0, rect.center().y));
     harness.frame(Vec::new());
 
-    assert_eq!(row_clicks.get(), 1, "the rest of the row still answers");
-    assert_eq!(inner_clicks.get(), 1);
+    assert_eq!(row_clicks.get_untracked(), 1, "the rest of the row still answers");
+    assert_eq!(inner_clicks.get_untracked(), 1);
 }

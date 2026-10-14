@@ -3,11 +3,11 @@ use crate::reactive::view;
 
 #[test]
 fn picking_a_node_leaves_the_document_alone() {
-    let clicks = Rc::new(Cell::new(0));
-    let counter = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [_button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton label="Click me" on_click={move || counter.set(counter.get() + 1)} />
+            <LabelledButton label="Click me" on_click={move || set_clicks.update(|clicks| *clicks += 1)} />
         }]
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
@@ -17,6 +17,6 @@ fn picking_a_node_leaves_the_document_alone() {
     harness.click(pos2(4.0, 4.0));
     harness.frame(Vec::new());
 
-    assert_eq!(clicks.get(), 0);
+    assert_eq!(clicks.get_untracked(), 0);
     assert!(harness.inspector().state().selected.get().is_some());
 }

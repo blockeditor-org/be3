@@ -7,11 +7,10 @@ use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <DockPane id="tabs">
                     <ForEach keys={vec![1u64, 2, 3]}>
                         {move |id: u64| view! {

@@ -4,11 +4,11 @@ use crate::styled::{NumberInput, number_input_field, number_input_text};
 
 #[test]
 fn a_clicked_number_input_selects_its_text_until_enter() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(move || {
         [view! {
-            <NumberInput value=1234.0 on_change={move |value| sink.borrow_mut().push(value)} />
+            <NumberInput value=1234.0 on_change={move |value| set_changes.update(|changes| changes.push(value))} />
         }]
     });
     let mut harness = Harness::new(document);
@@ -28,7 +28,7 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
     harness.frame(Vec::new());
 
     assert!(
-        changes.borrow().is_empty(),
+        changes.with_untracked(|changes| changes.is_empty()),
         "dragging inside the field must not change the value"
     );
     let selection = unstyled::text_input_selection(harness.document(), field);

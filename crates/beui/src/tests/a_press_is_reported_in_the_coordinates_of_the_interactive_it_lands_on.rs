@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::input::PointerPress;
 use crate::reactive::{Frame, Interactive, NodeRef, build, view};
@@ -8,10 +5,9 @@ use crate::reactive::{Frame, Interactive, NodeRef, build, view};
 #[test]
 fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
     let _root = crate::reactive::RootScope::new();
-    let heard = Rc::new(RefCell::new(Vec::<PointerPress>::new()));
+    let (heard, set_heard) = create_signal(Vec::<PointerPress>::new());
     let target = NodeRef::new();
     let document = build({
-        let heard = Rc::clone(&heard);
         move || {
             view! {
                 <List spacing=0.0>
@@ -19,7 +15,7 @@ fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
                     <Frame padding_horizontal=30.0>
                         <Interactive
                             @node_ref={&target}
-                            on_click_at={move |press: PointerPress| heard.borrow_mut().push(press)}
+                            on_click_at={move |press: PointerPress| set_heard.update(|heard| heard.push(press))}
                         >
                             <Frame height=40.0 />
                         </Interactive>
@@ -34,7 +30,7 @@ fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
     let rect = harness.rect(target.get());
     let at = rect.min + vec2(5.0, 10.0);
     harness.click(at);
-    let heard = heard.borrow();
+    let heard = heard.get_untracked();
     assert_eq!(heard.len(), 1, "the click lands on the interactive");
     assert_eq!(heard[0].pos, at, "pos stays in the document's coordinates");
     assert_eq!(

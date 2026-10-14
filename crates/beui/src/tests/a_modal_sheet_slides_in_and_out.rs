@@ -8,7 +8,6 @@ fn a_modal_sheet_slides_in_and_out() {
     let content = NodeRef::new();
     let (open, set_open) = create_signal(false);
     let document = build({
-        let (content, set_open) = (content, set_open);
         move || {
             view! {
                 <List spacing=0.0>
@@ -28,8 +27,7 @@ fn a_modal_sheet_slides_in_and_out() {
             .node_rect(content.get())
             .map(|rect| rect.top())
     };
-    let opening = set_open;
-    with_reactive_scope(harness.document_mut(), move || opening.set(true));
+    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let entering = top(&harness).expect("the sheet is laid out as it enters");

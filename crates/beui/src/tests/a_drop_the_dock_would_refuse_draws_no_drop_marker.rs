@@ -13,11 +13,10 @@ fn shown(harness: &Harness, test_id: &str) -> bool {
 fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout focus=10u64>
+            <styled::Docking @node_ref=&dock layout focus=10u64>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -39,7 +38,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     dock.get();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let root = harness.document().root().expect("the dock was built");
+    let root = harness.document().root().expect("the dock was dock");
     let pinned = harness.center(dock_tab(harness.document(), root, "Tab 10"));
     let outside = harness.center(dock_tab(harness.document(), root, "Tab 1"));
     let inside = harness.center(dock_tab(harness.document(), root, "Tab 11"));

@@ -12,7 +12,6 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
     let _root = crate::reactive::RootScope::new();
     let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (toggle, left, right) = (toggle, left, right);
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {

@@ -7,20 +7,20 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
-    let sink = held.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"one two one two one"))
             as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state));
+        set_held.update(|held| *held = Some(state));
         view! {
             <TextArea state={state} />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = (*held.borrow()).expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
     let status = |harness: &mut Harness| {
         with_reactive_scope(harness.document_mut(), move || state.find_status())
     };

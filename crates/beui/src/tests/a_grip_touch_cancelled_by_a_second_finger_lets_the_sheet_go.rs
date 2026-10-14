@@ -5,8 +5,8 @@ use crate::reactive::NodeRef;
 fn a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let closed = Rc::new(Cell::new(0));
-    let document = sheet_of_rows(0.9, &sheet, &closed);
+    let (_, set_closed) = create_signal(0);
+    let document = sheet_of_rows(0.9, sheet, set_closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();

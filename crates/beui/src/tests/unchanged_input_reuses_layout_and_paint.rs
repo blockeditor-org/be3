@@ -16,7 +16,7 @@ fn unchanged_input_reuses_layout_and_paint() {
     let (layouts, paints) = counted(&mut document, fill);
     let mut harness = Harness::new(document);
     assert!(harness.frame(vec![]).changed);
-    assert_eq!((layouts.get(), paints.get()), (1, 1));
+    assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
     for event in [
         Event::PointerMoved(pos2(10.0, 10.0)),
         Event::PointerMoved(pos2(20.0, 20.0)),
@@ -31,8 +31,8 @@ fn unchanged_input_reuses_layout_and_paint() {
     harness.document.set_frame_color(fill, Color32::WHITE);
     harness.document.set_root(fill.id());
     assert!(!harness.frame(vec![]).changed);
-    assert_eq!((layouts.get(), paints.get()), (1, 1));
+    assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
     harness.document.set_frame_color(fill, Color32::BLACK);
     assert!(harness.frame(vec![]).changed);
-    assert_eq!((layouts.get(), paints.get()), (1, 2));
+    assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 2));
 }

@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{
     Canvas, CanvasItem, Embed, EmbedSlot, build, create_signal, view, with_reactive_scope,
@@ -8,19 +5,18 @@ use crate::reactive::{
 
 #[test]
 fn an_embed_reports_its_placement_when_it_moves() {
-    let placed = Rc::new(RefCell::new(Vec::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (placed, set_placed) = create_signal(Vec::new());
     let slot = EmbedSlot::new();
     slot.on_place({
-        let placed = Rc::clone(&placed);
-        move |placement| placed.borrow_mut().push(placement.map(|at| at.rect))
+        move |placement| set_placed.update(|placed| placed.push(placement.map(|at| at.rect)))
     });
-    let moved = Rc::new(RefCell::new(None));
+    let (moved, set_moved) = create_signal(None);
     let document = build({
         let slot = slot.clone();
-        let moved = Rc::clone(&moved);
         move || {
             let (x, set_x) = create_signal(10.0);
-            *moved.borrow_mut() = Some(set_x);
+            set_moved.update(|moved| *moved = Some(set_x));
             view! {
                 <Canvas>
                     <CanvasItem x={x} y=20.0 width=30.0 height=40.0>
@@ -34,7 +30,7 @@ fn an_embed_reports_its_placement_when_it_moves() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
-        *placed.borrow(),
+        placed.get_untracked(),
         [Some(Rect::from_min_size(
             pos2(10.0, 20.0),
             vec2(30.0, 40.0)
@@ -42,11 +38,11 @@ fn an_embed_reports_its_placement_when_it_moves() {
         "a placement that did not change is not reported again"
     );
 
-    let set_x = moved.borrow_mut().take().expect("the view was built");
+    let set_x = moved.get_untracked().expect("the view was built");
     with_reactive_scope(harness.document_mut(), move || set_x.set(60.0));
     harness.frame(Vec::new());
     assert_eq!(
-        placed.borrow().last().copied().flatten(),
+        placed.get_untracked().last().copied().flatten(),
         Some(Rect::from_min_size(pos2(60.0, 20.0), vec2(30.0, 40.0)))
     );
 }

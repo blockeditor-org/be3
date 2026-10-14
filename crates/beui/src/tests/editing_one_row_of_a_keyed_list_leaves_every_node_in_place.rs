@@ -7,7 +7,6 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
     let _root = crate::reactive::RootScope::new();
     let (list, edit) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (list, edit) = (list, edit);
         move || {
             let store: KeyedStore<u32, String> = KeyedStore::new();
             store.reconcile_owned((0..3u32).map(|index| (index, format!("row {index}"))));

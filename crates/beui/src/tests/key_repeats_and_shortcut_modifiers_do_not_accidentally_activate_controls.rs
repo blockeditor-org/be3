@@ -3,11 +3,11 @@ use crate::reactive::view;
 
 #[test]
 fn key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls() {
-    let clicks = Rc::new(Cell::new(0));
-    let counter = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [_button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton label="Click" on_click={move || counter.set(counter.get() + 1)} />
+            <LabelledButton label="Click" on_click={move || set_clicks.update(|clicks| *clicks += 1)} />
         }]
     });
     let mut harness = Harness::new(document);
@@ -21,7 +21,7 @@ fn key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls() {
         modifiers: Modifiers::NONE,
     })]);
     harness.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
-    assert_eq!(clicks.get(), 0);
+    assert_eq!(clicks.get_untracked(), 0);
     harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
     for _ in 0..3 {
         harness.frame(vec![Event::key(beui::KeyPress {
@@ -32,5 +32,5 @@ fn key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls() {
         })]);
     }
     harness.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
-    assert_eq!(clicks.get(), 1);
+    assert_eq!(clicks.get_untracked(), 1);
 }
