@@ -1,9 +1,8 @@
-use std::rc::Rc;
 
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, List, Show, clone, component, create_memo, view,
+    ForEach, Frame, List, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState};
@@ -15,33 +14,31 @@ const DEFAULT_ASPECT_RATIO: f32 = 16.0 / 9.0;
 const STAGE: Color32 = Color32::from_gray(18);
 
 #[component]
-pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
-    let shown = Rc::clone(&state);
+pub(crate) fn Player(state: VideoState) -> NodeId {
     let playhead = state.playhead;
     let clips = state.clips;
-    let visible = create_memo(clone!(shown -> move || {
+    let visible = create_memo(move || {
         let _ = clips.get();
         let _ = playhead.get();
-        shown
+        state
             .video()
             .map(|video| video.visible_at(playhead.get()))
             .unwrap_or_default()
-    }));
+    });
     let empty = create_memo(move || visible.get().is_empty());
     let any = create_memo(move || !empty.get());
 
-    let sized = Rc::clone(&state);
-    let ratio = create_memo(clone!(sized -> move || {
+    let ratio = create_memo(move || {
         let ids = visible.get();
-        let Some(video) = sized.video() else {
+        let Some(video) = state.video() else {
             return DEFAULT_ASPECT_RATIO;
         };
         ids.first()
             .and_then(|id| video.clip(*id))
-            .and_then(|clip| sized.target(clip.block_id))
-            .and_then(|target| sized.aspect_ratio(target.id))
+            .and_then(|clip| state.target(clip.block_id))
+            .and_then(|target| state.aspect_ratio(target.id))
             .unwrap_or(DEFAULT_ASPECT_RATIO)
-    }));
+    });
     let theme = use_theme();
 
     view! {
@@ -51,12 +48,11 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
                     <Caption content="No clip at the playhead" color={theme.text_muted} />
                 </Show>
                 <Show condition={any}>
-                    {move || clone!(state -> view! {
+                    {move || view! {
                         <Frame aspect_ratio={ratio} color=Color32::BLACK>
                             <List spacing=0.0>
                                 <ForEach keys={visible}>
                                     {move |id: Uuid| {
-                                        let state = Rc::clone(&state);
                                         view! {
                                             <Layer state id />
                                         }
@@ -64,7 +60,7 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
                                 </ForEach>
                             </List>
                         </Frame>
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>
@@ -72,14 +68,12 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
 }
 
 #[component]
-fn Layer(state: Rc<VideoState>, id: Uuid) -> NodeId {
-    let held = Rc::clone(&state);
+fn Layer(state: VideoState, id: Uuid) -> NodeId {
     let clips = state.clips;
-    let block = create_memo(clone!(held -> move || {
+    let block = create_memo(move || {
         let clip = clips.get().into_iter().find(|clip| clip.id == id)?;
-        held.target(clip.block_id)
-    }));
-    let reported = Rc::clone(&state);
+        state.target(clip.block_id)
+    });
     let watched = block;
     view! {
         <ChildBlock
@@ -90,7 +84,7 @@ fn Layer(state: Rc<VideoState>, id: Uuid) -> NodeId {
                 if let (Some(target), Some(ratio)) =
                     (watched.get_untracked(), child.aspect_ratio)
                 {
-                    reported.report_aspect_ratio(target.id, ratio);
+                    state.report_aspect_ratio(target.id, ratio);
                 }
             }}
         />
