@@ -535,8 +535,9 @@ fn ink_bounds(extents: [f32; 4], pixel_size: u32, shape: Shaping) -> [f32; 4] {
     } else {
         0.0
     };
-    let x = 2.0 + bold + lean;
-    let y = 2.0 + bold;
+    let hinting = 2.0 + size / 16.0;
+    let x = hinting + bold + lean;
+    let y = hinting + bold;
     [left - x, top - y, right + x, bottom + y]
 }
 
