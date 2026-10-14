@@ -14,7 +14,7 @@ use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Child, Children, Frame, IntoProp, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
     Render, RenderFn, Run, Selector, Stored, WriteSignal, create_effect, create_memo,
-    create_selector, create_signal, on_key, set_component_state, store,
+    create_selector, create_signal, on_key, set_component_state, store, untrack,
 };
 use std::cell::RefCell;
 
@@ -180,6 +180,23 @@ pub fn Select(
     create_effect(move || {
         state.options.get().len();
         apply_requested_selection(state, selected_prop.get());
+    });
+    create_effect(move || {
+        let query = state.search_text.get().to_lowercase();
+        let shown: Vec<usize> = state
+            .options
+            .get()
+            .items()
+            .iter()
+            .enumerate()
+            .filter(|(_, option)| shows(&query, &option.label().get()))
+            .map(|(index, _)| index)
+            .collect();
+        let hidden =
+            untrack(|| state.highlighted.get()).is_some_and(|index| !shown.contains(&index));
+        if hidden {
+            untrack(|| state.set_highlighted.set(shown.first().copied()));
+        }
     });
 
     let reveal = reveal_reader(state);
@@ -394,13 +411,13 @@ fn apply_selection(state: State, selected: Option<usize>) {
 
 fn filter(state: State, text: &str) {
     state.set_search_text.set(text.to_owned());
-    let visible = visible_rows(state);
-    let still_visible = state
+    let shown = visible_rows(state);
+    let still_shown = state
         .highlighted
         .get_untracked()
-        .is_some_and(|index| visible.contains(&index));
-    if !still_visible {
-        state.set_highlighted.set(visible.first().copied());
+        .is_some_and(|index| shown.contains(&index));
+    if !still_shown {
+        state.set_highlighted.set(shown.first().copied());
     }
 }
 
