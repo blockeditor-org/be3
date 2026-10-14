@@ -1,5 +1,7 @@
+use beui::NodeId;
 use beui::icons::{
     ICON_BUILD, ICON_DOWNLOAD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
+    ICON_TERMINAL,
 };
 use beui::reactive::{
     Align, Direction, DynamicSegment, ForEach, Frame, ItemSize, List, ListChild, Memo, ReadSignal,
@@ -7,18 +9,17 @@ use beui::reactive::{
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Icon, IconButton, Scroll, Spinner, SplitButton, Tabs,
+    Button, ButtonVariant, Caption, Code, Docking, Icon, IconButton, Scroll, Spinner, SplitButton,
     TextInput, use_theme,
 };
-use beui::unstyled::{ChoiceOption, MenuItem};
-use beui::{NodeId, TextAlign};
+use beui::unstyled::{DockEntry, DockPane, DockTab, MenuItem};
 
 use crate::detail::Detail;
-use crate::github::{Entry, PullRequest, branch_deleted};
+use crate::github::{Entry, PullRequest, State, branch_deleted};
 use crate::model::{COMMON, Loaded, Model, Tab};
 use crate::pane::TerminalPane;
 use crate::targets::{Action, Target};
-use crate::view::PADDING;
+use crate::view::{PADDING, state_glyph};
 
 const SPACING: f32 = 8.0;
 const TARGET_ROW: f32 = 44.0;
@@ -26,13 +27,6 @@ const MAIN: &str = "main";
 
 #[component]
 pub(crate) fn Workspace(model: Model) -> NodeId {
-    let tab = create_memo(move || {
-        let tab = model.tab.get();
-        Tab::ALL
-            .iter()
-            .position(|candidate| *candidate == tab)
-            .unwrap_or(0)
-    });
     let head = create_memo(move || {
         let summary = model.head_summary.get();
         if summary.is_empty() {
@@ -43,36 +37,22 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
     });
     let running = model.running;
     let idle = create_memo(move || !running.get());
-    let show = move |index: usize| {
-        if let Some(tab) = Tab::ALL.get(index) {
-            model.show_tab(*tab);
-        }
-    };
     let stop = move || model.stop();
     let run = move || model.run_again();
-    let on_pull_request = create_memo(move || model.tab.get() == Tab::PullRequest);
-    let on_targets = create_memo(move || model.tab.get() == Tab::Targets);
-    let on_log = create_memo(move || model.tab.get() == Tab::Log);
+    let opened = create_memo(move || {
+        model.opened.with(|opened| {
+            opened
+                .iter()
+                .map(|pull_request| pull_request.number)
+                .collect::<Vec<u64>>()
+        })
+    });
     let pane = model.pane;
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=12.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                    <Tabs
-                        options={view! {
-                            <ChoiceOption label="PR" />
-                            <ChoiceOption label="Targets" />
-                            <ChoiceOption label="Log" />
-                        }}
-                        selected={tab}
-                        on_change={show}
-                    />
-                    <Caption
-                        @sizing=ItemSize::Percent(100.0)
-                        content={head}
-                        align=TextAlign::End
-                        ellipsis=true
-                    />
+                    <Caption @sizing=ItemSize::Percent(100.0) content={head} ellipsis=true />
                     <Show condition={running}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>
@@ -94,24 +74,53 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                     </Show>
                 </List>
             </Frame>
-            <Show condition={on_pull_request}>
-                <Detail @sizing=ItemSize::Percent(100.0) model={model} />
-            </Show>
-            <Show condition={on_targets}>
-                <TargetList @sizing=ItemSize::Percent(100.0) model={model} />
-            </Show>
-            <Show condition={on_log}>
-                {move || view! {
-                    <Frame
-                        @sizing=ItemSize::Percent(100.0)
-                        padding_horizontal=PADDING
-                        padding_vertical=PADDING
-                    >
-                        <TerminalPane pane />
-                    </Frame>
-                }}
-            </Show>
+            <Docking @sizing=ItemSize::Percent(100.0) layout={model.layout}>
+                <DockPane id="workspace" active={Some(Tab::Log)}>
+                    <DockTab id=Tab::Targets title="Targets" icon=ICON_BUILD>
+                        <TargetList model />
+                    </DockTab>
+                    <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
+                        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                            <TerminalPane pane />
+                        </Frame>
+                    </DockTab>
+                    <ForEach keys={opened}>
+                        {move |number: u64| view! {
+                            <PullRequestTab model number />
+                        }}
+                    </ForEach>
+                </DockPane>
+            </Docking>
         </List>
+    }
+}
+
+#[component]
+fn PullRequestTab(model: Model, number: u64) -> DockEntry<Tab> {
+    let pull_request = create_memo(move || {
+        model.opened.with(|opened| {
+            opened
+                .iter()
+                .find(|pull_request| pull_request.number == number)
+                .cloned()
+        })
+    });
+    let title = create_memo(move || match pull_request.get() {
+        Some(pull_request) => format!("#{number} {}", pull_request.title),
+        None => format!("#{number}"),
+    });
+    let icon = create_memo(move || {
+        pull_request
+            .get()
+            .map_or(state_glyph(State::Open), |pull_request| {
+                state_glyph(pull_request.state)
+            })
+            .to_owned()
+    });
+    view! {
+        <DockTab id={Tab::PullRequest(number)} title icon on_close={move || model.close(number)}>
+            <Detail model number />
+        </DockTab>
     }
 }
 
