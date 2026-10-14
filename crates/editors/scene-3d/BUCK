@@ -1,6 +1,5 @@
 load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
-    name = "scene_3d",
     module = "scene_3d",
 )

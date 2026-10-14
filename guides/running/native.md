@@ -14,7 +14,7 @@ guide is for what that does not cover.
 - `--install-session [PREFIX]` (Linux): install the app as a login session
   (guides/linux_desktop.md).
 
-`./scripts/buck run //crates/block-app:app` runs it in a window, with every plugin beside it.
+`./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
 
 ## In a window
 
@@ -26,7 +26,7 @@ display driven with xdotool. Install them first (`sudo apt-get install xvfb xdot
     Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
     export DISPLAY=:99
     BEUI_AUTOMATION=/tmp/block.sock XDG_DATA_HOME=/tmp/block-data \
-        ./scripts/buck run //crates/block-app:app -- --dev-workspace > /tmp/block.log 2>&1 &
+        ./scripts/buck run //crates/block-app:native -- --dev-workspace > /tmp/block.log 2>&1 &
     WINDOW=$(xdotool search --sync --onlyvisible --name '^Block$' | head -n 1)
     xdotool windowfocus --sync $WINDOW
 

@@ -113,7 +113,7 @@ PLUGIN_SDK = "root//crates/block-plugin-sdk:module"
 def plugin_sdk():
     facts = cargo_wasm_facts()
     native.rust_library(
-        name = facts.crate.replace("_", "-") + "_wasm",
+        name = "wasm",
         crate = facts.crate,
         crate_root = facts.crate_root,
         deps = facts.deps,
@@ -128,12 +128,12 @@ def plugin_sdk():
     )
     wasi_module(
         name = "module",
-        library = ":" + facts.crate.replace("_", "-") + "_wasm",
+        library = ":wasm",
         module = "sdk",
         visibility = ["PUBLIC"],
     )
 
-# An editor: the guest cdylib (wasm32 only; a plugin is all behind
+# An editor: the guest cdylib, :wasm (wasm32 only; a plugin is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
 # tests, which is how a test names a module it loads with include_bytes!.
@@ -141,10 +141,10 @@ def plugin_sdk():
 # A plugin is linked against the plugin SDK unless shared_sdk is False, which a
 # plugin needs when it links a library that is not position-independent (the
 # PDF plugin's PDFium): it then carries everything it uses itself.
-def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True):
+def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True):
     facts = cargo_wasm_facts()
     native.rust_library(
-        name = name + "_wasm",
+        name = "wasm",
         crate = facts.crate,
         crate_root = facts.crate_root,
         deps = facts.deps + extra_deps,
@@ -160,7 +160,7 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extr
     )
     wasi_module(
         name = "module",
-        library = ":" + name + "_wasm",
+        library = ":wasm",
         module = module,
         visibility = visibility,
     )
@@ -193,7 +193,7 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extr
 def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
     facts = cargo_wasm_facts()
     native.rust_binary(
-        name = "test_module",
+        name = "test-module",
         crate = facts.crate,
         crate_root = facts.crate_root,
         deps = facts.test_deps + extra_deps,
@@ -207,15 +207,15 @@ def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
     wasi_test(
         name = "test",
         manifest = "Cargo.toml",
-        module = ":test_module",
+        module = ":test-module",
         precompile = per_cross_platform(True, lambda _: False),
-        runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
+        runner = "//crates/plugin-test-runner:bin",
     )
     plugin_test_run(
-        name = "test_run",
+        name = "test-run",
         manifest = "Cargo.toml",
-        module = ":test_module",
-        runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
+        module = ":test-module",
+        runner = "//crates/plugin-test-runner:bin",
     )
 
 # Compiled to wasm, a plugin's tests paint with the FreeType and HarfBuzz it
@@ -314,7 +314,7 @@ plugin_test_run = rule(
     attrs = _plugin_test_attrs
     | {
         "runner": attrs.exec_dep(providers = [RunInfo]),
-        "_inputs": attrs.dep(default = "root//:plugin_test_inputs"),
+        "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
         "_lavapipe": attrs.source(default = "root//buck/sysroot:lavapipe_icd.json"),
         "_sysroot": attrs.dep(default = "root//buck/sysroot:amd64-test"),
     },

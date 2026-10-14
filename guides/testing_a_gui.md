@@ -198,7 +198,7 @@ way for the test to fail.
   row of controls - and text drawn outside its own box. Each line names the node, its nearest
   ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the text,
   let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it - rather than the test.
-- ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/paint-snapshot:example-rasterize -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.
 - Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so
@@ -206,7 +206,7 @@ way for the test to fail.
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
-  ./scripts/buck run //crates/paint-snapshot:changed-example says, for every painting in
+  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every painting in
   snapshots/ that differs from HEAD, which frame changed and what moved in it. With
   -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
   and a changes image for every frame that differs, where magenta marks every pixel that
@@ -267,7 +267,7 @@ next, and anything that starts afresh with each harness must be reset when it do
 (HeadlessPlugin::new restarts the frame clock). A test that fails only after others ran passes
 alone, and in the runner's rerun too; reproduce it by running the whole module, with no filter,
 through ./scripts/buck test, which runs it again every time where ./scripts/verify's cached
-:test_run does not. A single test is a filter handed through to the
+:test-run does not. A single test is a filter handed through to the
 test binary: ./scripts/test some_test_name finds the crate and runs it, and
 ./scripts/buck test //crates/editors/checklist:test -- --test-arg=some_test_name is the same by hand.
 

@@ -1691,7 +1691,7 @@ impl App for CounterApp {
 Run the demo with:
 
 ```text
-./scripts/buck run //crates/beui-demo:demo
+./scripts/buck run //crates/beui-demo:native
 ```
 
 Beui's features:
@@ -1733,7 +1733,7 @@ focused field into what is left, through every scroll it sits in.
   (`beui-font-browser`), and the browser fetches the icon font from the URL
   `icons_font` names. A `Drawing`, a `Punch` and a `Filter` draw nothing there.
   `crates/beui-web-demo` is the demo with both renderers, DOM first:
-  `./scripts/buck run //crates/beui-web-demo:web-serve` serves it on
+  `./scripts/buck run //crates/beui-web-demo:web` serves it on
   http://127.0.0.1:8070.
 
 `beui::run_with` takes `RunOptions` (title, app id, starting size) where

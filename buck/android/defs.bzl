@@ -1,10 +1,12 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
-# An APK, made on a worker without Gradle by buck-tools apk, unsigned; sign.sh signs it
-# locally with this machine's key, and signed_apk on a worker with CI's. An APK
-# is only ever Android's, so both rules move themselves there: asked for under
-# any target platform, they are the one configured target, and building
-# //crates/... for every platform makes one APK rather than one for each.
+# An APK, made on a worker without Gradle by buck-tools apk. It is unsigned
+# unless ci_signed, which signs it on a worker with CI's keystore; `buck2 run`
+# on an unsigned one signs it here with this machine's key (sign.sh) and
+# --install installs it and starts `activity`. An APK is only ever Android's,
+# so the rule moves itself there: asked for under any target platform, it is the
+# one configured target, and building //crates/... for every platform makes one
+# APK rather than one for each.
 # The NDK's libc++_shared.so goes beside the native library. Only the files
 # it reads from the platform and the NDK are its inputs, android.jar and
 # libc++_shared.so, rather than their 15,000 others, each of which buck2 would
@@ -18,8 +20,42 @@ android_transition = transition(
     refs = {"android": "root//buck/platforms:android_arm64"} | PROFILE_REFS,
 )
 
-def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
+_sign = """
+set -eu
+jdk="$1" build_tools="$2" unsigned="$3" out="$4" keystore_dir="$5"
+if [ ! -f "$keystore_dir/ci-keystore.base64" ]; then
+    echo 'There is no buck/android/ci-keystore.base64 to sign with: guides/build_server.md says where it comes from.' >&2
+    exit 1
+fi
+keystore="$(mktemp)"
+base64 -d < "$keystore_dir/ci-keystore.base64" > "$keystore"
+JAVA_HOME="$jdk" "$jdk/bin/java" -jar "$build_tools/lib/apksigner.jar" sign \
+    --ks "$keystore" --ks-pass pass:android --in "$unsigned" --out "$out"
+rm -f "$keystore"
+"""
+
+# The APK signed on a worker with CI's keystore, buck/android:ci-keystore. The
+# keystore is an input like any other, so a new one signs afresh.
+def _ci_sign(ctx: AnalysisContext, unsigned: Artifact) -> Artifact:
     out = ctx.actions.declare_output(ctx.label.name + ".apk")
+    ctx.actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            _sign,
+            "sh",
+            ctx.attrs._jdk,
+            ctx.attrs._build_tools,
+            unsigned,
+            out.as_output(),
+            ctx.attrs._keystore[DefaultInfo].default_outputs[0],
+        ),
+        category = "apk_sign",
+    )
+    return out
+
+def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output(ctx.label.name + ("-unsigned.apk" if ctx.attrs.ci_signed else ".apk"))
     library = ctx.attrs.library[DefaultInfo].sub_targets["cdylib"][DefaultInfo].default_outputs[0]
     command = cmd_args(
         ctx.attrs._apk[RunInfo],
@@ -57,12 +93,27 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.assets:
         command.add(cmd_args(ctx.attrs.assets[DefaultInfo].default_outputs[0], format = "--assets={}"))
     ctx.actions.run(command, category = "apk")
-    return [DefaultInfo(default_output = out)]
+    if ctx.attrs.ci_signed:
+        return [DefaultInfo(default_output = _ci_sign(ctx, out))]
+    run = cmd_args(
+        "sh",
+        ctx.attrs._sign,
+        ctx.attrs._jdk,
+        ctx.attrs._build_tools,
+        ctx.attrs._platform_tools,
+        out,
+        ctx.label.package.split("/")[-1],
+        ctx.attrs.activity,
+    )
+    return [DefaultInfo(default_output = out), RunInfo(args = run)]
 
 android_apk = rule(
     attrs = {
+        # The activity --install starts, given the package's name.
+        "activity": attrs.string(),
         "application_id": attrs.string(),
         "assets": attrs.option(attrs.dep(), default = None),
+        "ci_signed": attrs.bool(default = False),
         "java": attrs.list(attrs.source(allow_directory = True), default = []),
         "label": attrs.string(),
         "library": attrs.transition_dep(cfg = android_transition),
@@ -73,57 +124,15 @@ android_apk = rule(
         "target_sdk": attrs.int(),
         "version_code": attrs.int(),
         "version_name": attrs.string(),
-        "_apk": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:buck-tools-bin", providers = [RunInfo])),
-        "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
-        "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
-        "_ndk": attrs.default_only(attrs.source(default = "root//buck/tools:android-ndk")),
-        "_platform": attrs.default_only(attrs.source(default = "root//buck/android:platform")),
-    },
-    cfg = android_transition,
-    impl = _android_apk_impl,
-)
-
-_sign = """
-set -eu
-jdk="$1" build_tools="$2" unsigned="$3" out="$4" keystore_dir="$5"
-if [ ! -f "$keystore_dir/ci-keystore.base64" ]; then
-    echo 'There is no buck/android/ci-keystore.base64 to sign with: guides/build_server.md says where it comes from.' >&2
-    exit 1
-fi
-keystore="$(mktemp)"
-base64 -d < "$keystore_dir/ci-keystore.base64" > "$keystore"
-JAVA_HOME="$jdk" "$jdk/bin/java" -jar "$build_tools/lib/apksigner.jar" sign \
-    --ks "$keystore" --ks-pass pass:android --in "$unsigned" --out "$out"
-rm -f "$keystore"
-"""
-
-# An APK signed on a worker with CI's keystore, buck/android:ci-keystore. The
-# keystore is an input like any other, so a new one signs afresh.
-def _signed_apk_impl(ctx: AnalysisContext) -> list[Provider]:
-    out = ctx.actions.declare_output(ctx.label.name + ".apk")
-    ctx.actions.run(
-        cmd_args(
-            "sh",
-            "-c",
-            _sign,
-            "sh",
-            ctx.attrs._jdk,
-            ctx.attrs._build_tools,
-            ctx.attrs.apk[DefaultInfo].default_outputs[0],
-            out.as_output(),
-            ctx.attrs._keystore[DefaultInfo].default_outputs[0],
-        ),
-        category = "apk_sign",
-    )
-    return [DefaultInfo(default_output = out)]
-
-signed_apk = rule(
-    attrs = {
-        "apk": attrs.dep(),
+        "_apk": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:bin", providers = [RunInfo])),
         "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
         "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
         "_keystore": attrs.default_only(attrs.dep(default = "root//buck/android:ci-keystore")),
+        "_ndk": attrs.default_only(attrs.source(default = "root//buck/tools:android-ndk")),
+        "_platform": attrs.default_only(attrs.source(default = "root//buck/android:platform")),
+        "_platform_tools": attrs.default_only(attrs.source(default = "root//buck/android:platform-tools")),
+        "_sign": attrs.default_only(attrs.source(default = "root//buck/android:sign.sh")),
     },
     cfg = android_transition,
-    impl = _signed_apk_impl,
+    impl = _android_apk_impl,
 )
