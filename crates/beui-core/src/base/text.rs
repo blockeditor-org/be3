@@ -157,6 +157,14 @@ impl Shaped {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+struct FitKey {
+    width: f32,
+    align: TextAlign,
+    truncate: bool,
+    scale: f32,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct FontKey {
     size: u32,
@@ -251,6 +259,7 @@ pub struct TextNode {
     shaped: RefCell<Option<Shaped>>,
     galleys: RefCell<Galleys>,
     shapings: Cell<u64>,
+    fitted: RefCell<Option<(Rc<RichLayout>, FitKey, Rc<RichLayout>)>>,
 }
 
 impl ChildHost for TextNode {
@@ -469,24 +478,43 @@ impl TextNode {
         self.ellipsis && !self.wrap && !self.icon
     }
 
-    fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let mut layout = self.rich_layout(doc, painter, rect.width());
-        if self.truncates() && layout.size.x > rect.width() {
+    fn fitted(&self, painter: &Painter, layout: Rc<RichLayout>, rect: Rect) -> Rc<RichLayout> {
+        let truncate = self.truncates() && layout.size.x > rect.width();
+        if !truncate && self.horizontal == TextAlign::Start {
+            return layout;
+        }
+        let key = FitKey {
+            width: rect.width(),
+            align: self.horizontal,
+            truncate,
+            scale: painter.ctx().pixels_per_point(),
+        };
+        if let Some((base, held, fitted)) = &*self.fitted.borrow()
+            && Rc::ptr_eq(base, &layout)
+            && *held == key
+        {
+            return Rc::clone(fitted);
+        }
+        let mut fitted = (*layout).clone();
+        if truncate {
             let mut galleys = self.galleys.borrow_mut();
             let mut shaper = self.shaper(painter, &mut galleys);
-            let mut truncated = (*layout).clone();
-            truncated.truncate(rect.width(), &mut shaper);
+            fitted.truncate(rect.width(), &mut shaper);
             let fresh = std::mem::take(&mut shaper.fresh);
             drop(shaper);
             galleys.held.extend(fresh);
-            layout = Rc::new(truncated);
         }
         if self.horizontal != TextAlign::Start {
             let grid = painter.pixel_grid();
-            let mut aligned = (*layout).clone();
-            aligned.align(rect.width(), self.horizontal, |x| grid.snap(x));
-            layout = Rc::new(aligned);
+            fitted.align(rect.width(), self.horizontal, |x| grid.snap(x));
         }
+        let fitted = Rc::new(fitted);
+        *self.fitted.borrow_mut() = Some((layout, key, Rc::clone(&fitted)));
+        fitted
+    }
+
+    fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+        let layout = self.fitted(painter, self.rich_layout(doc, painter, rect.width()), rect);
         let top = match self.vertical {
             TextAlign::Start => rect.top(),
             TextAlign::Center => rect.center().y - layout.size.y / 2.0,
@@ -788,6 +816,7 @@ impl Document {
             shaped: RefCell::new(None),
             galleys: RefCell::new(Galleys::default()),
             shapings: Cell::new(0),
+            fitted: RefCell::new(None),
         })
     }
 
