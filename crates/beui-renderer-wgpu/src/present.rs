@@ -180,11 +180,17 @@ pub struct Target {
     config: wgpu::SurfaceConfiguration,
     prepared_size: Option<(Vec2, f32)>,
     clear_color: Option<Color32>,
-    pending: Option<Repaint>,
-    moved: Option<(Moved, f32, Repaint)>,
+    unpainted: Option<Unpainted>,
     retained: Option<Retained>,
     presented: bool,
     offscreen: bool,
+}
+
+struct Unpainted {
+    repaint: Repaint,
+    moved: Option<(Moved, f32)>,
+    whole: Repaint,
+    encoded: bool,
 }
 
 struct Retained {
@@ -209,8 +215,7 @@ impl Target {
             },
             prepared_size: None,
             clear_color: None,
-            pending: None,
-            moved: None,
+            unpainted: None,
             retained: None,
             presented: false,
             offscreen: false,
@@ -275,8 +280,7 @@ impl Target {
     pub fn detach(&mut self) {
         self.surface = None;
         self.retained = None;
-        self.pending = None;
-        self.moved = None;
+        self.unpainted = None;
     }
 
     pub fn resize(&mut self, gpu: &Gpu, width: u32, height: u32) {
@@ -335,6 +339,53 @@ impl Target {
             .is_some_and(|retained| retained.size == (self.config.width, self.config.height))
     }
 
+    pub fn note(&mut self, output: &FrameOutput, scale: f32, clear_color: Color32) {
+        let physical = vec2(self.config.width as f32, self.config.height as f32);
+        let size = (physical, scale);
+        let stale = self.prepared_size != Some(size)
+            || self.clear_color != Some(clear_color)
+            || !self.retains();
+        self.clear_color = Some(clear_color);
+        if !(output.changed || stale) {
+            return;
+        }
+        self.prepared_size = Some(size);
+        let whole = match stale {
+            true => Repaint::Everything,
+            false => output.repaint(clear_color),
+        };
+        self.unpainted = Some(match self.unpainted.take() {
+            Some(held) => {
+                let held = match held.moved {
+                    Some(_) => held.whole,
+                    None => held.repaint,
+                };
+                let repaint = held.union(whole);
+                Unpainted {
+                    repaint,
+                    moved: None,
+                    whole: repaint,
+                    encoded: false,
+                }
+            }
+            None if stale => Unpainted {
+                repaint: Repaint::Everything,
+                moved: None,
+                whole,
+                encoded: false,
+            },
+            None => {
+                let (repaint, moved) = output.repaint_moving(clear_color);
+                Unpainted {
+                    repaint,
+                    moved: moved.map(|moved| (moved, scale)),
+                    whole,
+                    encoded: false,
+                }
+            }
+        });
+    }
+
     pub fn prepare(
         &mut self,
         gpu: &mut Gpu,
@@ -342,38 +393,27 @@ impl Target {
         scale: f32,
         clear_color: Color32,
     ) -> bool {
-        let physical = vec2(self.config.width as f32, self.config.height as f32);
-        let size = (physical, scale);
-        let stale = self.prepared_size != Some(size)
-            || self.clear_color != Some(clear_color)
-            || !self.retains();
-        let (repaint, moved, whole) = match stale {
-            true => (Repaint::Everything, None, Repaint::Everything),
-            false => {
-                let (repaint, moved) = output.repaint_moving(clear_color);
-                (repaint, moved, output.repaint(clear_color))
-            }
+        self.note(output, scale, clear_color);
+        let Some(unpainted) = &mut self.unpainted else {
+            return false;
         };
-        if output.changed || stale {
-            let (repaint, moved) = match self.pending {
-                Some(pending) => {
-                    let held = self.moved.take().map_or(pending, |(_, _, whole)| whole);
-                    (held.union(whole), None)
-                }
-                None => (repaint, moved),
-            };
-            let effective =
-                gpu.renderer
-                    .prepare(&gpu.device, &gpu.queue, output, physical, scale, repaint);
-            self.moved = match effective {
-                Repaint::Region { .. } => moved.map(|moved| (moved, scale, whole)),
-                Repaint::Everything => None,
-            };
-            self.prepared_size = Some(size);
-            self.pending = Some(effective);
+        if !unpainted.encoded {
+            let physical = vec2(self.config.width as f32, self.config.height as f32);
+            let effective = gpu.renderer.prepare(
+                &gpu.device,
+                &gpu.queue,
+                output,
+                physical,
+                scale,
+                unpainted.repaint,
+            );
+            if matches!(effective, Repaint::Everything) {
+                unpainted.moved = None;
+            }
+            unpainted.repaint = effective;
+            unpainted.encoded = true;
         }
-        self.clear_color = Some(clear_color);
-        self.pending.is_some()
+        true
     }
 
     pub fn present(&mut self, gpu: &mut Gpu, background: Color32) -> Presented {
@@ -408,11 +448,13 @@ impl Target {
             });
         let clear = clear_color_in(self.config.format, background);
         self.retain(&gpu.device);
-        let pending = self.pending.take();
-        let moved = self.moved.take();
+        let (pending, moved) = match self.unpainted.take_if(|unpainted| unpainted.encoded) {
+            Some(unpainted) => (Some(unpainted.repaint), unpainted.moved),
+            None => (None, None),
+        };
         let size = (self.config.width, self.config.height);
         let retained = self.retained.as_ref();
-        if let (Some((moved, scale, _)), Some(retained), Some(Repaint::Region { .. })) =
+        if let (Some((moved, scale)), Some(retained), Some(Repaint::Region { .. })) =
             (moved, retained, pending)
         {
             gpu.renderer
