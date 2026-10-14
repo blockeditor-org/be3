@@ -168,6 +168,7 @@ pub(super) struct Placed {
 #[derive(Default)]
 struct Pacing {
     needed: bool,
+    unseen: bool,
     paint_at: Option<Duration>,
     requested_at: Option<Duration>,
     animated: u64,
@@ -176,6 +177,7 @@ struct Pacing {
 impl Pacing {
     fn reset(&mut self) {
         self.needed = false;
+        self.unseen = false;
         self.paint_at = None;
         self.requested_at = None;
     }
@@ -427,9 +429,15 @@ impl Runtime {
             self.session.state(),
             SessionState::Idle | SessionState::Starting
         );
+        starting || self.drawing() || !self.backend.settled()
+    }
+
+    fn drawing(&mut self) -> bool {
+        if self.error.is_some() || !self.instances.has_mounted() {
+            return false;
+        }
         let drawing = self.session.granted_surface().is_some();
-        let awaited = drawing && (self.pacing.needed || self.pacing.requested_at.is_some());
-        starting || awaited || !self.backend.settled()
+        drawing && (self.pacing.needed || self.pacing.requested_at.is_some())
     }
 
     fn request_frame(&mut self) {
@@ -437,10 +445,14 @@ impl Runtime {
             return;
         }
         let drawing = self.session.granted_surface().is_some();
+        let seen = host::seen();
+        self.pacing.needed |= seen && self.pacing.unseen;
         if drawing && self.pacing.due(self.now(), host::pass()) {
             self.pacing.request(self.now(), host::pass());
+            self.pacing.unseen = !seen;
             self.send(vec![Message::DrawFrame {
                 now_micros: self.now().as_micros() as u64,
+                seen,
             }]);
         }
         if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
@@ -998,6 +1010,15 @@ pub(crate) fn busy() -> bool {
             .runtimes
             .values_mut()
             .any(|runtime| runtime.contain(Runtime::busy))
+    })
+}
+
+pub(crate) fn drawing() -> bool {
+    HOST.with(|host| {
+        host.borrow_mut()
+            .runtimes
+            .values_mut()
+            .any(|runtime| runtime.contain(Runtime::drawing))
     })
 }
 

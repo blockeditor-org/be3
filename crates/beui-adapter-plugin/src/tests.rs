@@ -24,6 +24,7 @@ fn region(rect: Rect, pixels: [u32; 2]) -> Region {
         spec: FrameSpec::default(),
         monitors: Vec::new(),
         describe: None,
+        seen: true,
     }
 }
 

@@ -1708,6 +1708,7 @@ pub enum Message {
     Input(InputBatch),
     DrawFrame {
         now_micros: u64,
+        seen: bool,
     },
     FrameNeeded,
     FrameReady(FrameReady),
