@@ -355,6 +355,10 @@ impl beui::App for Shell {
         self.app.busy() || plugin_host::busy()
     }
 
+    fn drawing(&self) -> bool {
+        plugin_host::drawing()
+    }
+
     fn close_requested(&mut self) -> bool {
         self.app.close_requested()
     }

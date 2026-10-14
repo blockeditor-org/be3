@@ -89,6 +89,10 @@ impl Default for Surface {
 }
 
 impl Surface {
+    pub(crate) fn unpainted(&self) -> bool {
+        self.pending.is_some()
+    }
+
     fn note(&mut self, output: &FrameOutput, scale: f32) {
         let look = (scale, self.laid);
         let moved = self.look.as_ref() != Some(&look);
@@ -292,6 +296,10 @@ impl Renderer for SurfaceRenderer {
         let mut surface = self.0.borrow_mut();
         surface.note(output, scale);
         surface.prepare(output, scale)
+    }
+
+    fn note(&mut self, output: &FrameOutput, scale: f32, _background: Color32) {
+        self.0.borrow_mut().note(output, scale);
     }
 
     fn present(&mut self, _background: Color32) -> bool {

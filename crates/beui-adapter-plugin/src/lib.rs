@@ -135,6 +135,7 @@ impl PluginSurface {
             self.runner.reports().resized(width, height);
         }
         self.runner.reports().scaled(region.scale_factor);
+        self.runner.set_occluded(!region.seen);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
             beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
@@ -168,7 +169,9 @@ impl PluginSurface {
             };
         };
         let description = region.describe.map(|_| self.describe(region));
-        frame_for(self.runner.window(), &frame, description)
+        let mut frame = frame_for(self.runner.window(), &frame, description);
+        frame.changed |= self.surface.borrow().unpainted();
+        frame
     }
 
     fn describe(&mut self, region: &Region) -> Description {

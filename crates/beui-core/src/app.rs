@@ -47,6 +47,10 @@ pub trait App {
     fn busy(&self) -> bool {
         false
     }
+
+    fn drawing(&self) -> bool {
+        false
+    }
 }
 
 pub struct Setup {
