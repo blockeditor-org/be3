@@ -3,6 +3,7 @@ mod library;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod system;
 
+use std::cell::Cell;
 use std::ptr;
 use std::rc::Rc;
 
@@ -127,6 +128,7 @@ impl FreetypeFonts {
             data: source.clone(),
             face,
             font: HbFont::new(hb_face),
+            size: Cell::new(None),
         });
         Some(self.faces.len() - 1)
     }
@@ -241,9 +243,10 @@ impl FreetypeFonts {
     }
 
     fn rasterize(&self, key: GlyphId) -> Option<GlyphImage> {
-        let face = self.faces.get(key.face)?.face;
+        let data = self.faces.get(key.face)?;
+        let face = data.face;
+        let scale = data.sized(key.pixel_size)?;
         unsafe {
-            let scale = color::set_size(face, key.pixel_size)?;
             if ft::FT_Load_Glyph(face, key.glyph, ft::FT_LOAD_COLOR as i32) != 0 {
                 return None;
             }
@@ -282,11 +285,12 @@ impl FreetypeFonts {
         let Some(&index) = self.family(family).first() else {
             return fallback;
         };
-        let face = self.faces[index].face;
+        let data = &self.faces[index];
+        if data.sized(pixel_size) != Some(1.0) {
+            return fallback;
+        }
+        let face = data.face;
         unsafe {
-            if ft::FT_Set_Pixel_Sizes(face, 0, pixel_size) != 0 {
-                return fallback;
-            }
             let size = (*face).size;
             if size.is_null() {
                 return fallback;
@@ -486,6 +490,20 @@ struct FaceData {
     data: FontData,
     face: ft::FT_Face,
     font: Owned<HbFont<'static>>,
+    size: Cell<Option<(u32, Option<f32>)>>,
+}
+
+impl FaceData {
+    fn sized(&self, pixel_size: u32) -> Option<f32> {
+        if let Some((size, scale)) = self.size.get()
+            && size == pixel_size
+        {
+            return scale;
+        }
+        let scale = unsafe { color::set_size(self.face, pixel_size) };
+        self.size.set(Some((pixel_size, scale)));
+        scale
+    }
 }
 
 #[derive(Clone, Copy)]
