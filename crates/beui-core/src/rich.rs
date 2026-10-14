@@ -401,7 +401,15 @@ impl Builder<'_> {
             .len()
             .checked_sub(1)
             .filter(|last| wrap - (fits[*last].1 - origin) < wrap * WRAP_FALLBACK_REMAINING_WIDTH);
-        let chosen = good.or(fallback)?;
+        let Some(chosen) = good.or(fallback) else {
+            if !fits.is_empty() {
+                return None;
+            }
+            let (byte, x) = stops[first..]
+                .iter()
+                .find(|(byte, x)| *byte < to && *x > origin)?;
+            return Some((*byte, 0.0, x - origin));
+        };
         let (byte, x) = fits[chosen];
         let reach = x - origin;
         let mut limit = stops[first + chosen + 1..]
