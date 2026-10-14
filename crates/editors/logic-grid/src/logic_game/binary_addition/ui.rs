@@ -5,12 +5,11 @@ use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
     Show, Spacer, Stored, component, create_memo, create_signal, store, view,
 };
-use block_editor_beui::beui::styled::{
-    Body, Bordered, Button, ButtonVariant, Caption, Code, Icon, use_theme,
-};
+use block_editor_beui::beui::styled::{Bordered, Button, ButtonVariant, use_theme};
 use block_editor_beui::beui::{NodeId, TextAlign};
 
 use super::{BinaryAdditionQuiz, next_answer};
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 type Answers = (Vec<Option<bool>>, Vec<Option<bool>>);
 
@@ -84,11 +83,9 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
         set_checked.set(false);
     };
 
-    let theme = use_theme();
-    let success = theme.success;
     view! {
         <List spacing=ROW_SPACING>
-            <Body content={title} />
+            <Text string={title} />
             <Bordered corner_radius=8>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <ProblemGrid
@@ -116,10 +113,18 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     on_click={reset}
                 />
                 <Show condition={passed}>
-                    <Caption content="This page is correct." color={theme.success} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="This page is correct."
+                        color=TextColor::Success
+                    />
                 </Show>
                 <Show condition={failed}>
-                    <Caption content="Some blanks still need work." color={theme.danger} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Some blanks still need work."
+                        color=TextColor::Danger
+                    />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -142,10 +147,10 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                 </Show>
                 <Show condition={done}>
                     {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={success} />
-                            <Caption content="Every problem is correct." color={success} />
-                        </List>
+                        <Text style=TextStyle::CAPTION color=TextColor::Success>
+                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                            "Every problem is correct."
+                        </Text>
                     }}
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -239,7 +244,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Caption content={sign} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION string={sign} align=TextAlign::End />
             </Frame>
             <ForEach keys={bits}>
                 {move |column: usize| {
@@ -250,7 +255,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
                     });
                     view! {
                         <Frame width=CELL>
-                            <Code content={bit} align=TextAlign::Center />
+                            <Text style=TextStyle::CODE string={bit} align=TextAlign::Center />
                         </Frame>
                     }
                 }}
@@ -274,7 +279,7 @@ fn BitRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Caption content={label} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION string={label} align=TextAlign::End />
             </Frame>
             <ForEach keys={columns}>
                 {move |column: usize| {

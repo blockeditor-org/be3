@@ -1,11 +1,11 @@
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{ForEach, Frame, List, Show, component, create_memo, view};
-use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState};
 use uuid::Uuid;
 
 use super::state::VideoState;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const DEFAULT_ASPECT_RATIO: f32 = 16.0 / 9.0;
 const STAGE: Color32 = Color32::from_gray(18);
@@ -36,13 +36,12 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
             .and_then(|target| state.aspect_ratio(target.id))
             .unwrap_or(DEFAULT_ASPECT_RATIO)
     });
-    let theme = use_theme();
 
     view! {
         <Frame color=STAGE padding_horizontal=8.0 padding_vertical=8.0>
             <List spacing=0.0>
                 <Show condition={empty}>
-                    <Caption content="No clip at the playhead" color={theme.text_muted} />
+                    <Text style=TextStyle::CAPTION string="No clip at the playhead" />
                 </Show>
                 <Show condition={any}>
                     {move || view! {

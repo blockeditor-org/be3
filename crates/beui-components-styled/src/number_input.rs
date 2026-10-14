@@ -2,14 +2,15 @@ use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::focus_ring::FocusRing;
+use crate::text::{Text, TextColor};
 use crate::text_input::TextInput;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, use_theme};
+use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Frame, NodeRef, Prop, Text, create_memo, set_component_state};
+use beui_view::reactive::{Callback, Frame, NodeRef, Prop, create_memo, set_component_state};
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
@@ -91,8 +92,8 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         }
     });
     let color = create_memo(move || match text.get().is_empty() {
-        true => theme.text_muted.get(),
-        false => ButtonVariant::Secondary.label(&theme, disabled.get()),
+        true => TextColor::Muted,
+        false => ButtonVariant::Secondary.label(disabled.get()),
     });
     let fill = create_memo(move || {
         ButtonVariant::Secondary.fill(&theme, disabled.get(), hovered.get(), active.get())
@@ -111,7 +112,6 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
                 <Text
                     @node_ref=&shown
                     string={string}
-                    font_size=FONT_BODY
                     color={color}
                     align=TextAlign::Center
                     clip=true

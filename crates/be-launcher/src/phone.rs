@@ -4,11 +4,10 @@ use std::collections::HashMap;
 use beui::NodeId;
 use beui::icons::ICON_PLAY_ARROW;
 use beui::reactive::{
-    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Stored, Text, WriteSignal, component,
+    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Stored, WriteSignal, component,
     create_memo, create_signal, store, view,
 };
-use beui::styled::theme::FONT_BODY;
-use beui::styled::{ButtonVariant, Caption, Spinner, SplitButton, use_theme};
+use beui::styled::{ButtonVariant, Spinner, SplitButton};
 use beui::unstyled::MenuItem;
 
 use crate::android;
@@ -16,6 +15,7 @@ use crate::builds::{self, Build, Installed, Object, Slot};
 use crate::github::{Entry, PullRequest};
 use crate::model::{Cache, Loaded, Model};
 use crate::tasks::{self, Tasks};
+use beui::styled::{Text, TextColor, TextStyle};
 
 const APP: &str = "app.apk";
 const LAUNCHER: &str = "launcher.apk";
@@ -467,7 +467,7 @@ pub(crate) fn Notes(
     });
     view! {
         <List spacing=8.0>
-            <Caption content={status} wrap=true />
+            <Text style=TextStyle::CAPTION string={status} wrap=true />
             <SlotNotes model slot />
         </List>
     }
@@ -530,7 +530,12 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
+                <Text
+                    style=TextStyle::CAPTION
+                    @sizing=ItemSize::Percent(100.0)
+                    string={summary}
+                    wrap=true
+                />
                 <SplitButton
                     label="Run main"
                     glyph=ICON_PLAY_ARROW
@@ -545,7 +550,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
                     on_select={pick}
                 />
             </List>
-            <Caption content={launcher} wrap=true />
+            <Text style=TextStyle::CAPTION string={launcher} wrap=true />
             <SlotNotes model slot={Slot::Main} />
         </List>
     }
@@ -590,7 +595,6 @@ fn slot_name(slot: Slot) -> String {
 
 #[component]
 fn SlotNotes(model: Model, slot: Slot) -> NodeId {
-    let theme = use_theme();
     let phone = model.phone;
     let working = create_memo(move || {
         phone
@@ -635,12 +639,12 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
                 {move || view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner width=18.0 label="Working on the build" />
-                        <Caption content={progress} />
+                        <Text style=TextStyle::CAPTION string={progress} />
                     </List>
                 }}
             </Show>
             <Show condition={failed}>
-                <Text string={problem} font_size=FONT_BODY color={theme.danger} wrap=true />
+                <Text string={problem} color=TextColor::Danger wrap=true />
             </Show>
         </List>
     }

@@ -217,7 +217,7 @@ pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
 pub use crate::components::shift::Shift;
-pub use crate::components::text::{Gap, Span, SpanText, Text, TextChild, TextItem};
+pub use crate::components::text::{Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
 pub use crate::components::virtual_list::VirtualList;
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,

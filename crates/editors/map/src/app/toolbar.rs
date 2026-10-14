@@ -4,9 +4,10 @@ use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{Prop, Show, component, create_memo, view};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, IconButton, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton};
 
 use super::state::{MapState, ZOOM_STEP};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[component]
 pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {
@@ -15,7 +16,6 @@ pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {
     let error = state.last_error;
     let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
-    let theme = use_theme();
 
     view! {
         <Toolbar shown={shown}>
@@ -57,7 +57,7 @@ pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {
                 on_click={move || state.reload_tiles()}
             />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger} />
+                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
             </Show>
         </Toolbar>
     }

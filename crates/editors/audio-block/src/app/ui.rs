@@ -6,17 +6,15 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, NodeRef, Show, component, create_effect, create_memo,
     create_signal, create_timer, now, view,
 };
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, IconButton, IconSized, use_theme,
-};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, use_theme};
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
-const ICON_SIZE: f32 = 48.0;
 const SECOND_MICROS: u64 = 1_000_000;
 
 fn played_to(status: &AudioStatus, since: Duration) -> u64 {
@@ -104,12 +102,10 @@ pub fn AudioView(editor: Editor) -> NodeId {
                     padding_vertical=PADDING
                 >
                     <List spacing=SPACING>
-                        <IconSized
-                            glyph={ICON_AUDIO_FILE.to_owned()}
-                            font_size=ICON_SIZE
-                            color={theme.text}
-                        />
-                        <Body content={source} align=TextAlign::Center />
+                        <Text size=TextSize::Xl4 align=TextAlign::Center>
+                            <Icon glyph={ICON_AUDIO_FILE.to_owned()} />
+                        </Text>
+                        <Text string={source} align=TextAlign::Center />
                         <IconButton
                             @sizing={ItemSize::Intrinsic.align(Align::Center)}
                             glyph={glyph}
@@ -117,16 +113,18 @@ pub fn AudioView(editor: Editor) -> NodeId {
                             @test_id={"audio.play"}
                             on_click={toggle}
                         />
-                        <Caption
-                            content={elapsed}
+                        <Text
+                            style=TextStyle::CAPTION
+                            string={elapsed}
                             align=TextAlign::Center
                             @test_id={"audio.position"}
                         />
                         <Show condition={failed}>
-                            <Caption
-                                content={reason}
+                            <Text
+                                style=TextStyle::CAPTION
+                                string={reason}
                                 align=TextAlign::Center
-                                color={theme.danger}
+                                color=TextColor::Danger
                             />
                         </Show>
                     </List>
@@ -158,10 +156,9 @@ fn AudioPanel(editor: Editor) -> NodeId {
     let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
-    let theme = use_theme();
     view! {
         <List spacing=SPACING>
-            <Heading content="Audio" />
+            <Text style=TextStyle::HEADING string="Audio" />
             <Button
                 label="Replace audio..."
                 variant=ButtonVariant::Secondary
@@ -170,7 +167,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger} />
+                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
             </Show>
         </List>
     }

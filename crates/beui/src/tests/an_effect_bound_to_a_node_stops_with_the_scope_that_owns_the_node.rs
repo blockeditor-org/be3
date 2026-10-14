@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{Scope, bind, create_signal, view};
-use crate::styled::Caption;
+use crate::styled::{Text, TextStyle};
 
 #[test]
 fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
@@ -12,7 +12,7 @@ fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
         let scope = Scope::new();
         let caption = scope.run(|| {
             view! {
-                <Caption content="Caption" />
+                <Text style=TextStyle::CAPTION string="Caption" />
             }
         });
         set_owner.update(|owner| *owner = Some(scope));

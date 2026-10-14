@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{Frame, List, NodeRef, view};
-use crate::styled::Caption;
+use crate::styled::{Text, TextStyle};
 
 const FRAME_WIDTH: f32 = 90.0;
 const LONG_CAPTION: &str = "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom.";
@@ -17,7 +17,7 @@ fn caption_height(wrap: bool) -> f32 {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&frame width=FRAME_WIDTH>
-                    <Caption content=LONG_CAPTION wrap />
+                    <Text style=TextStyle::CAPTION string=LONG_CAPTION wrap />
                 </Frame>
             </List>
         }

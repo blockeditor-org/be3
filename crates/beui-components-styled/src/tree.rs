@@ -4,8 +4,8 @@ use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::scroll::Scroll;
-use crate::text::IconSized;
-use crate::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{RADIUS, ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -13,6 +13,7 @@ use beui_components_unstyled::{
 };
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::font::TextAlign;
 use beui_core::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
 };
@@ -257,8 +258,8 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
     let ring = focus_ring(focused);
     let outlined = create_memo(move || marked.get() || ring.get());
     let color = create_memo(move || match marked.get() || hovered.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let glyph = create_memo(move || match expanded.get() {
         true => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
@@ -275,7 +276,9 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
                 outline_visible={outlined}
                 radius=CHEVRON_RADIUS
             >
-                <IconSized glyph={glyph} font_size=FONT_SMALL color={color} />
+                <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
             </Frame>
         </Tooltip>
     }

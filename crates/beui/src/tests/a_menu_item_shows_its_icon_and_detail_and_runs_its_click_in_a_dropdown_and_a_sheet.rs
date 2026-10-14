@@ -6,7 +6,9 @@ use crate::unstyled::MenuItem;
 
 fn shown(harness: &Harness, text: &str) -> Option<Pos2> {
     let root = harness.document().root().expect("the document has a root");
-    text_within(harness.document(), root, text).map(|node| harness.center(node))
+    text_within(harness.document(), root, text)
+        .or_else(|| icon_within(harness.document(), root, text))
+        .map(|node| harness.center(node))
 }
 
 fn sheet_shown(harness: &Harness) -> bool {

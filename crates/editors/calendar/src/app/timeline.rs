@@ -4,7 +4,7 @@ use block_editor_beui::beui::reactive::{
     Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, LayoutBuilder,
     List, Memo, ReadSignal, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
+use block_editor_beui::beui::styled::{ListRow, Scroll, use_theme};
 use block_editor_beui::beui::{NodeId, PointerPress, Vec2};
 use block_ui::datetime::civil_from_days;
 
@@ -12,6 +12,7 @@ use super::model::{
     SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
     weekday_from_days,
 };
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const HEADER_HEIGHT: f32 = 22.0;
 const HOUR_HEIGHT: f32 = 40.0;
@@ -75,14 +76,13 @@ pub(crate) fn Timeline(
 fn DayHeader(day: i64) -> NodeId {
     let (_, _, number) = civil_from_days(day);
     let label = format!("{} {number}", WEEKDAY_ABBR[weekday_from_days(day) as usize]);
-    let theme = use_theme();
     let color = match day == today_days_since_epoch() {
-        true => theme.accent,
-        false => theme.text,
+        true => TextColor::Accent,
+        false => TextColor::Default,
     };
     view! {
         <Frame height=HEADER_HEIGHT>
-            <Body content={label} align=TextAlign::Center color={color} />
+            <Text string={label} align=TextAlign::Center color={color} />
         </Frame>
     }
 }
@@ -145,7 +145,7 @@ fn Grid(
                                         };
                                         view! {
                                             <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
-                                                <Caption content={label} />
+                                                <Text style=TextStyle::CAPTION string={label} />
                                             </CanvasItem>
                                         }
                                     }}
@@ -211,7 +211,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame color={theme.accent} radius=3>
                 <ListRow @test_id={test_id} on_click={open} on_activate={open}>
-                    <Caption content={title} color={theme.on_accent} />
+                    <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
                 </ListRow>
             </Frame>
         </CanvasItem>

@@ -1,14 +1,13 @@
 use beui_macros::{component, view};
 
 use crate::Scrollbar;
-use crate::text::IconSized;
-use crate::theme::{
-    BORDER_WIDTH, ICON_SIZE, SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme,
-};
+use crate::text::{Icon, Text};
+use crate::theme::{BORDER_WIDTH, SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
+use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
@@ -97,7 +96,9 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
         >
             <List align=Align::Center spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
-                <IconSized glyph font_size=ICON_SIZE color={theme.text} />
+                <Text align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
             </List>
         </Frame>

@@ -1,19 +1,20 @@
 use block_editor_beui::Editor;
+use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
+use block_editor_beui::beui::reactive;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef,
-    ReadSignal, Show, Text, WriteSignal, component, create_memo, create_signal, view,
+    ReadSignal, Show, WriteSignal, component, create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Separator, use_theme};
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize};
 use block_editor_beui::beui::unstyled;
-use block_editor_beui::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::beui::{CursorIcon, FontId, NodeId, Rect, Vec2, pos2, vec2};
 
 const SIDEBAR_WIDTH: f32 = 220.0;
 const RAIL_WIDTH: f32 = 44.0;
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 10.0;
-const HEADING_SIZE: f32 = 16.0;
-const LABEL_SIZE: f32 = 12.0;
 const CARD_TITLE_SIZE: f32 = 17.0;
 const CARD_LABEL_SIZE: f32 = 11.0;
 const CARD_PADDING: f32 = 12.0;
@@ -162,16 +163,11 @@ fn Sidebar(
             padding_vertical=PANEL_PADDING
         >
             <List spacing=PANEL_SPACING>
-                <Text
-                    string="Pan and Zoom"
-                    font_size=HEADING_SIZE
-                    color={theme.text}
-                    @test_id={"pan_zoom.title"}
-                />
+                <Text string="Pan and Zoom" size=TextSize::Lg @test_id={"pan_zoom.title"} />
                 <Text
                     string={readout}
-                    font_size=LABEL_SIZE
-                    color={theme.text_muted}
+                    size=TextSize::Sm
+                    color=TextColor::Muted
                     @test_id={"pan_zoom.zoom"}
                 />
                 <List direction=Direction::Horizontal spacing=6.0>
@@ -197,8 +193,8 @@ fn Sidebar(
                 <Separator />
                 <Text
                     string={chosen}
-                    font_size=LABEL_SIZE
-                    color={theme.text_muted}
+                    size=TextSize::Sm
+                    color=TextColor::Muted
                     @test_id={"pan_zoom.selected"}
                 />
                 <List spacing=4.0>
@@ -251,7 +247,9 @@ fn Rail(set_open: WriteSignal<bool>) -> NodeId {
                         padding_horizontal=8.0
                         padding_vertical=8.0
                     >
-                        <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} color={theme.text} />
+                        <Text align=TextAlign::Center>
+                            <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} />
+                        </Text>
                     </Frame>
                 </unstyled::Button>
             </List>
@@ -295,6 +293,8 @@ fn CardView(
     };
     let title_size = scaled(scale, CARD_TITLE_SIZE);
     let label_size = scaled(scale, CARD_LABEL_SIZE);
+    let title_font = create_memo(move || FontId::proportional(title_size.get()));
+    let label_font = create_memo(move || FontId::proportional(label_size.get()));
     let padding = scaled(scale, CARD_PADDING);
     let spacing = scaled(scale, CARD_SPACING);
     let radius = create_memo(move || (CARD_RADIUS * scale.get()) as u8);
@@ -321,8 +321,12 @@ fn CardView(
                     padding_vertical={padding}
                 >
                     <List spacing={spacing}>
-                        <Text string={card.name} font_size={title_size} color={theme.text} />
-                        <Text string={position} font_size={label_size} color={theme.text_muted} />
+                        <reactive::Text string={card.name} font={title_font} color={theme.text} />
+                        <reactive::Text
+                            string={position}
+                            font={label_font}
+                            color={theme.text_muted}
+                        />
                     </List>
                 </Frame>
             </Interactive>
@@ -330,6 +334,6 @@ fn CardView(
     }
 }
 
-fn scaled(scale: ReadSignal<f32>, base: f32) -> block_editor_beui::beui::reactive::Memo<f32> {
+fn scaled(scale: ReadSignal<f32>, base: f32) -> reactive::Memo<f32> {
     create_memo(move || (base * scale.get()).max(1.0))
 }

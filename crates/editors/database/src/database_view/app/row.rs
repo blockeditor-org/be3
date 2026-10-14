@@ -12,8 +12,8 @@ use block_editor_beui::beui::reactive::{
     create_memo, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, IconButton, IconMenuButton, ListRow, Scroll, Select,
-    Separator, TextInput, use_theme,
+    Button, ButtonVariant, IconButton, IconMenuButton, ListRow, Scroll, Select, Separator,
+    TextInput, use_theme,
 };
 use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
@@ -21,9 +21,10 @@ use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget, narrow_chrome};
 use uuid::Uuid;
 
-use crate::database_view::app::controls::{ChoicePicker, MARK_SIZE};
+use crate::database_view::app::controls::{ChoicePicker, MARK, MARK_SIZE};
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{iconic, row_title, visible_groups};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 20.0;
 const SPACING: f32 = 8.0;
@@ -159,7 +160,11 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 on_click={move || next(1)}
                             />
                             <Frame padding_horizontal=6.0>
-                                <Caption content={code} @test_id={"database-view.detail.id"} />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={code}
+                                    @test_id={"database-view.detail.id"}
+                                />
                             </Frame>
                             <Frame @sizing=ItemSize::Percent(100.0) />
                             <IconButton
@@ -316,7 +321,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Caption content={name} ellipsis=true />
+                <Text style=TextStyle::CAPTION string={name} ellipsis=true />
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <List spacing=0.0>
@@ -419,8 +424,8 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     view! {
         <List spacing=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Body content={heading} />
-                <Caption content={count} />
+                <Text string={heading} />
+                <Text style=TextStyle::CAPTION string={count} />
                 <Frame @sizing=ItemSize::Percent(100.0) />
                 <Frame @sizing=ItemSize::Fixed(180.0)>
                     <Select
@@ -530,13 +535,13 @@ fn LinkedRow(
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Frame width=MARK_SIZE height=MARK_SIZE>
                         <Frame visible={marked}>
-                            <ChoiceMark option={option} size=MARK_SIZE />
+                            <ChoiceMark option={option} size=MARK />
                         </Frame>
                     </Frame>
-                    <Caption content={code} />
-                    <Body
+                    <Text style=TextStyle::CAPTION string={code} />
+                    <Text
                         @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                        content={label}
+                        string={label}
                         ellipsis=true
                     />
                 </List>

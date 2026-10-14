@@ -8,8 +8,7 @@ use block_editor_beui::beui::reactive::{
     component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, DateTimeField, Dialog, IconButton, Tabs, TextInput,
-    use_theme,
+    Button, ButtonVariant, DateTimeField, Dialog, IconButton, Tabs, TextInput, use_theme,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -20,6 +19,7 @@ use super::model::{
 };
 use super::month::MonthGrid;
 use super::timeline::Timeline;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -124,7 +124,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         @test_id={"calendar.next"}
                         on_click={next}
                     />
-                    <Body content={header} />
+                    <Text string={header} />
                     <Tabs
                         options={view! {
                             <ChoiceOption label={CalendarView::Day.label()} />
@@ -289,7 +289,7 @@ fn EventDialog(
                     @test_id={"calendar.form.title"}
                     on_change={edit_title}
                 />
-                <Caption content="Starts" />
+                <Text style=TextStyle::CAPTION string="Starts" />
                 <DateTimeField
                     value={start}
                     label="Starts"
@@ -297,7 +297,7 @@ fn EventDialog(
                     @test_id={"calendar.form.start"}
                     on_change={edit_start}
                 />
-                <Caption content="Ends" />
+                <Text style=TextStyle::CAPTION string="Ends" />
                 <DateTimeField
                     value={end}
                     label="Ends"
@@ -306,7 +306,7 @@ fn EventDialog(
                     on_change={edit_end}
                 />
                 <Show condition={backwards}>
-                    <Caption content="The event ends before it starts." />
+                    <Text style=TextStyle::CAPTION string="The event ends before it starts." />
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button

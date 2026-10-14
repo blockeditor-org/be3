@@ -2,11 +2,11 @@ use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
 use beui::reactive::Func;
 use beui::reactive::{
     Align, Canvas, CanvasItem, Child, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    ReadSignal, Show, Spacer, Text, component, create_memo, create_signal, store, view,
+    ReadSignal, Show, Spacer, component, create_memo, create_signal, store, view,
 };
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Select,
-    TextInput, Tooltip, use_theme,
+    Button, ButtonVariant, ContextMenu, Dialog, IconButton, MenuButton, Select, TextColor,
+    TextInput, TextSize, Tooltip, use_theme,
 };
 use beui::unstyled::Picture;
 use beui::unstyled::{
@@ -17,11 +17,11 @@ use beui::{CursorIcon, ImageFit, NodeId, TextAlign};
 use super::glyph::{GLYPH_HEIGHT, GLYPH_WIDTH, Glyph};
 use super::session::Session;
 use super::*;
+use beui::styled::{Text, TextStyle};
 
 const SLOT_SIZE: f32 = 64.0;
 const SLOT_INSET: f32 = 4.0;
 const BADGE_SIZE: f32 = 15.0;
-const SLOT_FONT: f32 = 9.0;
 const COLUMN_WIDTH: f32 = 84.0;
 const COLUMN_GAP: f32 = 8.0;
 const COLUMN_PADDING: f32 = 6.0;
@@ -140,7 +140,11 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                             on_click={up}
                         />
                     </SlotDrop>
-                    <Caption @sizing=ItemSize::Percent(100.0) content={title} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                        string={title}
+                    />
                     <MenuButton
                         label="Hotbar actions"
                         glyph={ICON_ADD.to_owned()}
@@ -243,7 +247,7 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
                 padding_vertical=COLUMN_PADDING
             >
                 <List align=Align::Center spacing=4.0>
-                    <Caption content={title} align=TextAlign::Center />
+                    <Text style=TextStyle::CAPTION string={title} align=TextAlign::Center />
                     <Show condition={empty}>
                         <Frame width=SLOT_SIZE height=SLOT_SIZE />
                     </Show>
@@ -382,8 +386,8 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
             .get()
             .is_none_or(|slot| slot.disabled || slot.dragging)
         {
-            true => theme.text_muted.get(),
-            false => theme.text.get(),
+            true => TextColor::Muted,
+            false => TextColor::Default,
         }
     });
     let image = create_memo(move || shown.get().map(|slot| slot.glyph.image()));
@@ -423,7 +427,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                 >
                     <Text
                         string={label}
-                        font_size=SLOT_FONT
+                        size=TextSize::Xs
                         color={text}
                         align=TextAlign::Center
                         vertical_align=TextAlign::Center
@@ -434,7 +438,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                     <Frame visible={badged} color={theme.background} radius=3>
                         <Text
                             string={hotkey}
-                            font_size=SLOT_FONT
+                            size=TextSize::Xs
                             color={badge_text}
                             align=TextAlign::Center
                             vertical_align=TextAlign::Center
@@ -464,7 +468,7 @@ fn ResetDialog(session: Session) -> NodeId {
     view! {
         <Dialog open={open} title="Reset hotbar?" width=DIALOG_WIDTH on_dismiss={dismiss}>
             <List spacing=SPACING>
-                <Body content="This will restore the default hotbar layout." />
+                <Text string="This will restore the default hotbar layout." />
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button
                         label="Reset"
@@ -498,7 +502,7 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
             <Show condition={single}>
                 {move || view! {
                     <List spacing=4.0>
-                        <Caption content="Scale" />
+                        <Text style=TextStyle::CAPTION string="Scale" />
                         <ScalePicker session={session} output=false />
                     </List>
                 }}
@@ -506,9 +510,9 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
             <Show condition={merger}>
                 {move || view! {
                     <List spacing=4.0>
-                        <Caption content="Input scale" />
+                        <Text style=TextStyle::CAPTION string="Input scale" />
                         <ScalePicker session={session} output=false />
-                        <Caption content="Output scale" />
+                        <Text style=TextStyle::CAPTION string="Output scale" />
                         <ScalePicker session={session} output=true />
                     </List>
                 }}
@@ -522,11 +526,11 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
                     on_change={typed}
                 />
             </Show>
-            <Caption content="Middle drag or wheel: pan" />
-            <Caption content="Ctrl+wheel: zoom" />
-            <Caption content="Shift: add or remove" />
-            <Caption content="Delete: remove" />
-            <Caption content="Esc: cancel" />
+            <Text style=TextStyle::CAPTION string="Middle drag or wheel: pan" />
+            <Text style=TextStyle::CAPTION string="Ctrl+wheel: zoom" />
+            <Text style=TextStyle::CAPTION string="Shift: add or remove" />
+            <Text style=TextStyle::CAPTION string="Delete: remove" />
+            <Text style=TextStyle::CAPTION string="Esc: cancel" />
         </List>
     }
 }

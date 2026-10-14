@@ -5,7 +5,7 @@ use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Child, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
     PasteKind, Pasted, component, create_effect, create_memo, create_selector, untrack, view,
 };
-use block_editor_beui::beui::styled::{Caption, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{
     Color32, CursorIcon, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextAlign, Vec2,
 };
@@ -18,6 +18,7 @@ use crate::tiles::TileId;
 use super::labels::{self, MapLabel};
 use super::state::MapState;
 use super::tiles::{self, Tile};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
 const ATTRIBUTION: &str = "© OpenStreetMap contributors";
@@ -203,10 +204,9 @@ fn PointMarker(
 
 #[component]
 fn Attribution() -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame height=ATTRIBUTION_HEIGHT color=HALO padding_horizontal=6.0>
-            <Caption content=ATTRIBUTION color={theme.text_muted} align=TextAlign::End />
+            <Text style=TextStyle::CAPTION string=ATTRIBUTION align=TextAlign::End />
         </Frame>
     }
 }

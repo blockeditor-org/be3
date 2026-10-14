@@ -8,15 +8,14 @@ use block_editor_beui::beui::reactive::{
     create_memo, use_context, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, IconButton, ToggleButton, use_theme,
-};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, ToggleButton, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{BottomDock, sheet_open};
 
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
+use block_editor_beui::beui::styled::{Text, TextColor};
 
 const TOOLS: [(Tool, &str, &str); 6] = [
     (Tool::Select, ICON_SELECT, "Select"),
@@ -161,13 +160,12 @@ pub(crate) fn ImportError(state: CanvasState) -> NodeId {
     let failed = create_memo(move || state.import_error.get().is_some());
     let message = create_memo(move || state.import_error.get().unwrap_or_default());
     let dismiss = move || state.dismiss_import_error();
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
             <Show condition={failed}>
                 {move || view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Body content={message} color={theme.danger} />
+                        <Text string={message} color=TextColor::Danger />
                         <Button
                             label="Dismiss"
                             variant=ButtonVariant::Secondary

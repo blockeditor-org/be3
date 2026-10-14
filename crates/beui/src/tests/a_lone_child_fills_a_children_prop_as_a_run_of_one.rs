@@ -9,7 +9,7 @@ fn a_lone_child_fills_a_children_prop_as_a_run_of_one() {
     let document = build({
         move || {
             let lone = view! {
-                <Text @node_ref=&only string="One" font_size=14.0 color=Color32::WHITE />
+                <Text @node_ref=&only string="One" color=Color32::WHITE />
             };
             view! {
                 <List @node_ref=&column spacing=0.0 children={lone} />

@@ -23,11 +23,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
                         <VirtualList keys={indices(ROWS)} item_size=ROW_HEIGHT>
                             {move |index: usize| view! {
                                 <Frame height=ROW_HEIGHT>
-                                    <Text
-                                        string={format!("Row {index}")}
-                                        font_size=14.0
-                                        color=Color32::WHITE
-                                    />
+                                    <Text string={format!("Row {index}")} color=Color32::WHITE />
                                 </Frame>
                             }}
                         </VirtualList>

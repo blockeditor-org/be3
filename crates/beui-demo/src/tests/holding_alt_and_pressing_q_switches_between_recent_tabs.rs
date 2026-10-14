@@ -1,7 +1,7 @@
 use super::*;
 use beui::{Event, Key, Modifiers};
 
-const TEXT_PAGE: &str = "demo.code.Type scale";
+const TEXT_PAGE: &str = "demo.code.Text styles";
 const BUTTONS_PAGE: &str = "demo.code.Buttons";
 
 fn press(key: Key, modifiers: Modifiers) -> Vec<Event> {

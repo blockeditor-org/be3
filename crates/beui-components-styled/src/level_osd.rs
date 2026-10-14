@@ -4,10 +4,11 @@ use std::time::{Duration, Instant};
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::text::IconSized;
+use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
+use beui_core::font::TextAlign;
 use beui_core::geometry::{Rect, pos2};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -27,7 +28,6 @@ const BOTTOM_MARGIN: f32 = 96.0;
 const PADDING_HORIZONTAL: f32 = 20.0;
 const PADDING_VERTICAL: f32 = 16.0;
 const SPACING: f32 = 16.0;
-const GLYPH_SIZE: f32 = 26.0;
 const BAR_WIDTH: f32 = 200.0;
 const BAR_HEIGHT: f32 = 6.0;
 const BAR_RADIUS: u8 = 3;
@@ -134,6 +134,7 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
         true => text_muted.get(),
         false => text.get(),
     }));
+    let glyph_ink = create_memo(move || TextColor::Custom(glyph_color.get()));
     let fill = faded(create_memo(move || match muted.get() {
         true => text_muted.get(),
         false => accent.get(),
@@ -172,7 +173,9 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
                 @test_id={id}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <IconSized glyph={glyph} font_size=GLYPH_SIZE color={glyph_color} />
+                    <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                     <Frame
                         width=Some(BAR_WIDTH)
                         height=BAR_HEIGHT

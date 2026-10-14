@@ -8,8 +8,7 @@ use block_editor_beui::beui::reactive::{
     create_effect, create_memo, create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, Icon, IconButton, Link, ListRow, Scroll,
-    use_theme,
+    Button, ButtonVariant, IconButton, Link, ListRow, Scroll, use_theme,
 };
 use block_editor_beui::beui::{NodeId, Vec2};
 use logicgame::challenges::{ChallengeId, generate_challenge};
@@ -17,6 +16,8 @@ use logicgame::challenges::{ChallengeId, generate_challenge};
 use crate::logic_game::binary_addition::ui::BinaryAddition;
 
 use super::game::{Game, Level, Solution};
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const PADDING: f32 = 16.0;
 const ROW_SPACING: f32 = 8.0;
@@ -74,7 +75,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
             <Frame @node_ref={&content} padding_horizontal=PADDING padding_vertical=PADDING>
                 <List spacing=ROW_SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <Heading content="Levels" />
+                        <Text style=TextStyle::HEADING string="Levels" />
                         <Show condition={has_hotbar}>
                             <IconButton
                                 glyph={ICON_WIDGETS.to_owned()}
@@ -135,7 +136,6 @@ fn LevelRow(
     let shows_quiz = create_memo(move || expanded.get() && quiz);
     let shows_solutions = create_memo(move || expanded.get() && !quiz);
     let goal = generate_challenge(challenge).goal;
-    let theme = use_theme();
     view! {
         <List spacing=4.0>
             <ListRow
@@ -145,19 +145,21 @@ fn LevelRow(
                 on_activate={move || {}}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Body content={challenge.name()} />
+                    <Text string={challenge.name()} />
                     <Show condition={completed}>
-                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success} />
+                        <Text color=TextColor::Success align=TextAlign::Center>
+                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                        </Text>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Caption content={attempts} />
+                    <Text style=TextStyle::CAPTION string={attempts} />
                 </List>
             </ListRow>
             <Show condition={expanded}>
                 {move || { let goal = goal.clone(); view! {
                     <Frame padding_left=INDENT>
                         <List spacing=ROW_SPACING>
-                            <Caption content={goal} wrap=true />
+                            <Text style=TextStyle::CAPTION string={goal} wrap=true />
                             <Show condition={shows_quiz}>
                                 <BinaryAddition editor={editor} block={block} />
                             </Show>
@@ -251,12 +253,13 @@ fn SolutionRow(
         }
     };
     let remove = move || game.remove(challenge, reference);
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Link label={name} disabled={missing} on_click={open} />
             <Show condition={passed}>
-                <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success} />
+                <Text color=TextColor::Success align=TextAlign::Center>
+                    <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton

@@ -5,16 +5,15 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::theme::FONT_SMALL;
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, IconButton, IconSized, use_theme,
-};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, use_theme};
 use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
 use super::panel::Info;
 use super::tab::TabItem;
 use super::workspace::Workspace;
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 5.0;
@@ -93,7 +92,7 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
     let regenerate = block_command(&workspace, block, Command::Regenerate);
     let unlink = block_command(&workspace, block, Command::Unlink);
     let theme = use_theme();
-    let heading_color = theme.text;
+    let heading_color = TextColor::Default;
     view! {
         <Frame
             visible={shown}
@@ -103,14 +102,12 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
         >
             <List spacing=PADDING_VERTICAL>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <IconSized
-                        glyph={ICON_AUTO_AWESOME.to_owned()}
-                        font_size=FONT_SMALL
-                        color={heading_color}
-                    />
-                    <Body content="Dynamic artifact" />
+                    <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
+                        <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
+                    </Text>
+                    <Text string="Dynamic artifact" />
                     <Show condition={waiting}>
-                        <Caption content="Loading…" />
+                        <Text style=TextStyle::CAPTION string="Loading…" />
                     </Show>
                     <Show condition={described}>
                         {move || view! {
@@ -119,7 +116,7 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Caption content="Generated from" />
+                                <Text style=TextStyle::CAPTION string="Generated from" />
                                 <Button
                                     @test_id={"workspace.artifact.source"}
                                     label={source_name}
@@ -130,13 +127,13 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                                         }
                                     }}
                                 />
-                                <Caption content={summary} />
+                                <Text style=TextStyle::CAPTION string={summary} />
                             </List>
                         }}
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={running}>
-                        <Caption content="Regenerating…" />
+                        <Text style=TextStyle::CAPTION string="Regenerating…" />
                     </Show>
                     <IconButton
                         @test_id={"workspace.artifact.settings"}
@@ -161,7 +158,7 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                     />
                 </List>
                 <Show condition={failed}>
-                    <Caption content={failure} color={theme.danger} />
+                    <Text style=TextStyle::CAPTION string={failure} color=TextColor::Danger />
                 </Show>
             </List>
         </Frame>

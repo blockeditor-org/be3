@@ -1,6 +1,7 @@
 use beui::reactive::{Frame, List, build, create_signal, view};
 use beui::styled::DocumentTheme;
-use beui::styled::{Body, TextInput, use_theme};
+use beui::styled::Text;
+use beui::styled::{TextInput, use_theme};
 use beui::{App, Color32, Context, Document, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,7 +25,7 @@ impl SurveyApp {
                     padding_vertical=16.0
                 >
                     <List spacing=8.0>
-                        <Body content={state} />
+                        <Text string={state} />
                         <TextInput
                             value={state}
                             label="Text"

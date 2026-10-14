@@ -1355,6 +1355,7 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     if document.node_kind(node) == "text" {
         let detail = document.node_detail(node).unwrap_or_default();
         let text = detail.trim_matches('"');
+        collected.extend(document.text_icons(node));
         if !text.is_empty() {
             collected.push(text.to_owned());
         }

@@ -5,7 +5,7 @@ use block_editor_beui::beui::reactive::{
     PlacementBuilder, ReadSignal, WriteSignal, component, create_effect, create_memo,
     held_modifiers, untrack, view,
 };
-use block_editor_beui::beui::styled::{Code, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     Color32, CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
@@ -18,6 +18,7 @@ use crate::drawing::{ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing
 
 use super::pane::{Pane, Shown};
 use super::state::Tools;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const GRID_MIN_CELL: f32 = 6.0;
 const GRID_ALPHA: u8 = 60;
@@ -479,7 +480,7 @@ pub(crate) fn HoverLabel(tools: Tools, hovered: ReadSignal<Option<(u16, u16)>>) 
             padding_horizontal=HOVER_LABEL_PADDING
             padding_vertical=HOVER_LABEL_PADDING
         >
-            <Code @test_id={"pixel-art.hover"} content={label} />
+            <Text style=TextStyle::CODE @test_id={"pixel-art.hover"} string={label} />
         </Frame>
     }
 }

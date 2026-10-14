@@ -3,8 +3,8 @@ pub mod keyboard;
 use std::array;
 use std::time::{Duration, Instant};
 
-use beui_components_styled::Theme;
-use beui_components_styled::theme::{CARD_RADIUS, ICON_SIZE};
+use beui_components_styled::theme::CARD_RADIUS;
+use beui_components_styled::{TextSize, Theme};
 use beui_core::color::Color32;
 use beui_core::context::{Context, InputSimulation};
 use beui_core::font::FontId;
@@ -629,7 +629,7 @@ impl MouseSimulation {
                 painter,
                 bounds.center(),
                 BUTTON_ICONS[index],
-                ICON_SIZE,
+                TextSize::Base.icon_px(),
                 color,
             );
         }

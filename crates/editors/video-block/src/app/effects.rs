@@ -6,27 +6,25 @@ use block_editor_beui::beui::icons::ICON_LINK_OFF;
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, List, Memo, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{
-    Body, Caption, Heading, IconButton, NumberInput, Separator, use_theme,
-};
+use block_editor_beui::beui::styled::{IconButton, NumberInput, Separator};
 
 use crate::timeline::timecode;
 use uuid::Uuid;
 
 use super::state::VideoState;
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[component]
 pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
     let clip = create_memo(move || state.selected_clip());
     let chosen = create_memo(move || clip.get().is_some());
     let none = create_memo(move || !chosen.get());
-    let theme = use_theme();
     view! {
         <List spacing=8.0>
-            <Heading content="Effects" />
+            <Text style=TextStyle::HEADING string="Effects" />
             <Separator />
             <Show condition={none}>
-                <Caption content="Select a clip to see its effects." color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string="Select a clip to see its effects." />
             </Show>
             <Show condition={chosen}>
                 <ClipInspector state={state} clip={clip} />
@@ -89,16 +87,15 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
             .map(|effect| effect.id)
             .collect::<Vec<Uuid>>()
     });
-    let theme = use_theme();
-    let seconds_color = theme.text_muted;
-    let start_color = theme.text_muted;
-    let parent_color = theme.text_muted;
-    let bare_color = theme.text_muted;
+    let seconds_color = TextColor::Muted;
+    let start_color = TextColor::Muted;
+    let parent_color = TextColor::Muted;
+    let bare_color = TextColor::Muted;
     let hanging_row = hanging;
 
     view! {
         <List spacing=8.0>
-            <Body content={name} />
+            <Text string={name} />
             <NumberInput
                 value={length}
                 min=1.0
@@ -113,14 +110,14 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                     state.update_clip(clip);
                 }}
             />
-            <Caption content={seconds} color={seconds_color} />
+            <Text style=TextStyle::CAPTION string={seconds} color={seconds_color} />
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Body content="Starts at" />
-                <Caption content={starts} color={start_color} />
+                <Text string="Starts at" />
+                <Text style=TextStyle::CAPTION string={starts} color={start_color} />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Body content="Attached to" />
-                <Caption content={parent_name} color={parent_color} />
+                <Text string="Attached to" />
+                <Text style=TextStyle::CAPTION string={parent_name} color={parent_color} />
                 <Show condition={hanging_row}>
                     {move || view! {
                         <IconButton
@@ -157,9 +154,9 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                     />
                 }}
             </Show>
-            <Body content="Effect stack" />
+            <Text string="Effect stack" />
             <Show condition={bare}>
-                <Caption content="No effects yet." color={bare_color} />
+                <Text style=TextStyle::CAPTION string="No effects yet." color={bare_color} />
             </Show>
             <ForEach keys={effect_ids}>
                 {move |id: Uuid| {
@@ -183,11 +180,10 @@ fn EffectRow(effects: Memo<Vec<VideoEffect>>, id: Uuid) -> NodeId {
         },
     );
     let name = create_memo(move || held.get().map(|effect| effect.name).unwrap_or_default());
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <Caption content={state} color={theme.text_muted} />
-            <Body content={name} />
+            <Text style=TextStyle::CAPTION string={state} />
+            <Text string={name} />
         </List>
     }
 }

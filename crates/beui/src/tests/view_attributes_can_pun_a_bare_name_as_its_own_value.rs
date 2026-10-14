@@ -1,4 +1,5 @@
 use super::*;
+use crate::FontId;
 use crate::reactive::view;
 
 const PUNNED: &str = "Punned";
@@ -14,7 +15,7 @@ fn view_attributes_can_pun_a_bare_name_as_its_own_value() {
             let font_size = 18.0f32;
             let spacing = 0.0f32;
             let children = view! {
-                <Text @node_ref=&label string font_size />
+                <Text @node_ref=&label string font={FontId::proportional(font_size)} />
             };
             view! {
                 <List @node_ref=&column spacing children />

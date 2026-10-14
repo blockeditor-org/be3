@@ -5,7 +5,7 @@ use block_editor_beui::beui::reactive::{
     view,
 };
 use block_editor_beui::beui::styled::{
-    Accordion, Body, ButtonVariant, Caption, IconButton, IconButtonSize, use_theme,
+    Accordion, ButtonVariant, IconButton, IconButtonSize, TextColor, use_theme,
 };
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, NodeId};
@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::geometry::entity_kind_label;
 
 use super::state::CanvasState;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const ROW_PADDING: f32 = 4.0;
 const ROW_RADIUS: u8 = 4;
@@ -38,7 +39,7 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
         <Accordion title="Layers" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
                 <Show condition={empty}>
-                    <Caption content="Nothing on the canvas yet." wrap=true />
+                    <Text style=TextStyle::CAPTION string="Nothing on the canvas yet." wrap=true />
                 </Show>
                 <ForEach keys={ids}>
                     {move |id: Uuid| {
@@ -79,8 +80,8 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
     });
     let theme = use_theme();
     let text = create_memo(move || match hidden.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     let toggle = move || state.set_hidden(id, !hidden.get_untracked());
     let select = move || state.select(id, false);
@@ -128,7 +129,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                             >
                                 {move |_: DragHandle| view! {
                                     <Frame padding_vertical=ROW_PADDING>
-                                        <Body content={label} color={text} />
+                                        <Text string={label} color={text} />
                                     </Frame>
                                 }}
                             </Draggable>
@@ -150,7 +151,7 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
             padding_horizontal=8.0
             padding_vertical=ROW_PADDING
         >
-            <Body content={label} />
+            <Text string={label} />
         </Frame>
     }
 }

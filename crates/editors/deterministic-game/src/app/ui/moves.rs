@@ -2,17 +2,15 @@ use block_editor_beui::beui::icons::{
     ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIRST_PAGE, ICON_LAST_PAGE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Text, component, create_memo,
-    view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Caption, IconButton, IconButtonSize, use_theme};
+use block_editor_beui::beui::styled::{IconButton, IconButtonSize, TextColor, TextSize, use_theme};
 use block_editor_beui::beui::unstyled;
 use block_editor_beui::beui::{Color32, NodeId, TextAlign};
 
 use super::{Steps, Table};
+use block_editor_beui::beui::styled::{Text, TextStyle, Weight};
 
-const TURN_SIZE: f32 = 13.0;
-const SCORE_SIZE: f32 = 15.0;
 const NUMBER_WIDTH: f32 = 30.0;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,13 +73,12 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
     let at_start = create_memo(move || shown.get() == 0);
     let at_end = create_memo(move || shown.get() >= count.get());
     let ended = create_memo(move || table.with(|table| table.ending.is_some()));
-    let theme = use_theme();
-    let muted = create_memo(move || theme.get().text_muted);
+    let muted = TextColor::Muted;
     let header_keys = column_keys;
     view! {
         <List spacing=6.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                <Caption content="Moves" @sizing=ItemSize::Percent(100.0) />
+                <Text style=TextStyle::CAPTION string="Moves" @sizing=ItemSize::Percent(100.0) />
                 <IconButton
                     glyph={ICON_FIRST_PAGE.to_owned()}
                     label="First move"
@@ -118,7 +115,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
             <List direction=Direction::Horizontal spacing=2.0>
                 <Text
                     string="#"
-                    font_size=TURN_SIZE
+                    size=TextSize::Sm
                     color={muted}
                     @sizing=ItemSize::Fixed(NUMBER_WIDTH)
                 />
@@ -130,7 +127,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                         view! {
                             <Text
                                 string={name}
-                                font_size=TURN_SIZE
+                                size=TextSize::Sm
                                 color={muted}
                                 @sizing=ItemSize::Percent(100.0)
                             />
@@ -139,7 +136,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                 </ForEach>
             </List>
             <Show condition={empty}>
-                <Caption content="No moves yet" />
+                <Text style=TextStyle::CAPTION string="No moves yet" />
             </Show>
             <List spacing=1.0>
                 <ForEach keys>
@@ -169,13 +166,12 @@ fn MoveRow(
     shown: Memo<usize>,
     steps: Steps,
 ) -> NodeId {
-    let theme = use_theme();
-    let muted = create_memo(move || theme.get().text_muted);
+    let muted = TextColor::Muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
             <Text
                 string={format!("{}", row + 1)}
-                font_size=TURN_SIZE
+                size=TextSize::Sm
                 color={muted}
                 @sizing=ItemSize::Fixed(NUMBER_WIDTH)
             />
@@ -229,7 +225,7 @@ fn MoveCell(
         true => theme.get().accent_soft,
         false => Color32::TRANSPARENT,
     });
-    let color = create_memo(move || theme.get().text);
+    let color = TextColor::Default;
     let open = move || {
         if let Some(cell) = cell.get_untracked() {
             steps.show(cell.last + 1);
@@ -241,7 +237,7 @@ fn MoveCell(
             on_click={open}
             content={move |_: unstyled::ButtonHandle| view! {
                 <Frame color={fill} radius=4 padding_horizontal=6.0 padding_vertical=3.0>
-                    <Text string={text} font_size=TURN_SIZE color={color} />
+                    <Text string={text} size=TextSize::Sm color={color} />
                 </Frame>
             }}
         />
@@ -269,21 +265,20 @@ fn Result(table: Memo<Table>) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let theme = use_theme();
-    let text = create_memo(move || theme.get().text);
-    let muted = create_memo(move || theme.get().text_muted);
+    let text = TextColor::Default;
+    let muted = TextColor::Muted;
     view! {
         <List spacing=2.0 align=Align::Center @test_id={"game.result"}>
             <Show condition={scored}>
                 <Text
                     string={score}
-                    font_size=SCORE_SIZE
-                    bold=true
+                    size=TextSize::Lg
+                    weight=Weight::Bold
                     color={text}
                     align=TextAlign::Center
                 />
             </Show>
-            <Text string={description} font_size=TURN_SIZE color={muted} align=TextAlign::Center />
+            <Text string={description} size=TextSize::Sm color={muted} align=TextAlign::Center />
         </List>
     }
 }

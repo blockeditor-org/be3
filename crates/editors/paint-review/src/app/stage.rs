@@ -2,13 +2,14 @@ use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Show, component, create_effect,
     create_memo, create_timer, set_component_state, untrack, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
 
 use crate::render::Rendered;
 
 use super::state::{Review, Shown};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[derive(Clone)]
 struct StageState {
@@ -183,19 +184,18 @@ fn Notice(
     failed: Memo<bool>,
     progress: Memo<String>,
 ) -> NodeId {
-    let theme = use_theme();
     let color = create_memo(move || match failed.get() {
-        true => theme.danger.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Danger,
+        false => TextColor::Muted,
     });
     let telling = create_memo(move || !progress.get().is_empty());
     view! {
         <List spacing=4.0>
             <Show condition={shown}>
-                <Body content={note} color={color} @test_id={"paint_review.notice"} />
+                <Text string={note} color={color} @test_id={"paint_review.notice"} />
             </Show>
             <Show condition={telling}>
-                <Caption content={progress} color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string={progress} />
             </Show>
         </List>
     }

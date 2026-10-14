@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use crate::text::Caption;
+use crate::text::{Text, TextColor, TextStyle};
 use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TOOLTIP_DELAY, TooltipHandle};
@@ -49,7 +49,7 @@ fn TooltipBubble(handle: TooltipHandle) -> NodeId {
                 padding_horizontal=PADDING_HORIZONTAL
                 padding_vertical=PADDING_VERTICAL
             >
-                <Caption content={label} color={theme.text} />
+                <Text style=TextStyle::CAPTION string={label} color=TextColor::Default />
             </Frame>
         </Frame>
     }

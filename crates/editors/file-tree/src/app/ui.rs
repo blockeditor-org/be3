@@ -12,10 +12,9 @@ use block_editor_beui::beui::reactive::{
     Show, Spacer, Stored, WriteSignal, component, create_effect, create_memo, create_signal,
     focus_ring, store, view, with_document,
 };
-use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Paragraph,
-    Tooltip, Tree, TreeRowFace, tree_row_node, use_theme,
+    Button, ButtonVariant, ContextMenu, Dialog, IconButton, Tooltip, Tree, TreeRowFace,
+    tree_row_node, use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
@@ -25,6 +24,8 @@ use uuid::Uuid;
 use super::export::{Export, Exporter, exportable};
 use super::phone::PhoneFiles;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 6.0;
@@ -172,7 +173,11 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         <Show condition={failed}>
                             {move || view! {
                                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                                    <Caption content={reason} color={theme.danger} />
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string={reason}
+                                        color=TextColor::Danger
+                                    />
                                 </Frame>
                             }}
                         </Show>
@@ -275,14 +280,15 @@ fn Inspector(
 
 #[component]
 fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
-    let theme = use_theme();
     view! {
         <List spacing=FIELD_SPACING>
-            <Caption content={label} />
-            <Paragraph
-                content={value}
-                color={theme.text}
+            <Text style=TextStyle::CAPTION string={label} />
+            <Text
+                style=TextStyle::PARAGRAPH
+                string={value}
+                color=TextColor::Default
                 @test_id={format!("file-tree.inspect.{named}")}
+                wrap=true
             />
         </List>
     }
@@ -388,13 +394,12 @@ fn TreeRow(
             .is_some_and(|row| row.access.can_view() && exportable(row.block_type))
     });
     let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
-    let theme = use_theme();
-    let glyph_color = theme.text_muted;
-    let generated_color = theme.text_muted;
-    let access_color = theme.text_muted;
+    let glyph_color = TextColor::Muted;
+    let generated_color = TextColor::Muted;
+    let access_color = TextColor::Muted;
     let color = create_memo(move || match muted.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     view! {
         <ContextMenu
@@ -430,24 +435,26 @@ fn TreeRow(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Show condition={has_glyph}>
-                    <IconSized glyph={glyph} font_size=FONT_SMALL color={glyph_color} />
+                    <Text size=TextSize::Xs color={glyph_color} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                 </Show>
-                <Body @sizing=ItemSize::Percent(100.0) content={label} color={color} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} color={color} />
                 <Show condition={generated}>
                     {move || view! {
                         <Tooltip label="Generated from another block">
-                            <IconSized
-                                glyph={ICON_AUTO_AWESOME.to_owned()}
-                                font_size=FONT_SMALL
-                                color={generated_color}
-                            />
+                            <Text size=TextSize::Xs color={generated_color} align=TextAlign::Center>
+                                <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
+                            </Text>
                         </Tooltip>
                     }}
                 </Show>
                 <Show condition={restricted}>
                     {move || view! {
                         <Tooltip label={access_label}>
-                            <IconSized glyph={access} font_size=FONT_SMALL color={access_color} />
+                            <Text size=TextSize::Xs color={access_color} align=TextAlign::Center>
+                                <Icon glyph={access} />
+                            </Text>
                         </Tooltip>
                     }}
                 </Show>
@@ -559,8 +566,8 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let color = create_memo(move || match hovered.get() || active.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let fill = create_memo(move || match active.get() {
         true => theme.pressed.get(),
@@ -577,7 +584,9 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
                 outline_visible={focus_ring(focused)}
                 radius=3
             >
-                <IconSized glyph={ICON_ADD.to_owned()} font_size=FONT_SMALL color={color} />
+                <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+                    <Icon glyph={ICON_ADD.to_owned()} />
+                </Text>
             </Frame>
         </Tooltip>
     }

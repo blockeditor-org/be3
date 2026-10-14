@@ -8,7 +8,8 @@ use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, List, Memo, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, Scroll, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Scroll, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::root_settings::is_own_settings;
 use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor};
 use uuid::Uuid;
@@ -60,16 +61,20 @@ pub fn SettingsView(editor: Editor) -> NodeId {
             <Scroll>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <List spacing=SPACING>
-                        <Heading content="Settings" />
+                        <Text style=TextStyle::HEADING string="Settings" />
                         <Show condition={others}>
-                            <Caption content=NOT_OURS />
+                            <Text style=TextStyle::CAPTION string=NOT_OURS />
                         </Show>
-                        <Caption
-                            content="Settings for every device. A settings profile can change any of them for the devices that use it."
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Settings for every device. A settings profile can change any of them for the devices that use it."
                         />
                         <Kinds editor={editor} layer={settings} blocked={blocked} />
-                        <Heading content="Settings profiles" />
-                        <Caption content="Each device uses one, and starts with one of its own." />
+                        <Text style=TextStyle::HEADING string="Settings profiles" />
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Each device uses one, and starts with one of its own."
+                        />
                         <ForEach keys={profiles}>
                             {move |profile: Uuid| {
                                 let listed = editor.blocks().watch(BlockQuery::Block(profile));
@@ -162,15 +167,19 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             <Scroll>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <List spacing=SPACING>
-                        <Heading content="Settings profile" />
+                        <Text style=TextStyle::HEADING string="Settings profile" />
                         <Show condition={others}>
-                            <Caption content=NOT_OURS />
+                            <Text style=TextStyle::CAPTION string=NOT_OURS />
                         </Show>
-                        <Caption
-                            content="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
                         />
                         <Show condition={used}>
-                            <Caption content="This device uses this profile." />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="This device uses this profile."
+                            />
                         </Show>
                         <Show condition={unused}>
                             <Button

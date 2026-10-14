@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use crate::number_input::NumberInput;
-use crate::text::Caption;
+use crate::text::{Text, TextStyle};
 use crate::text_input::TextInput;
 use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FOCUS_RING_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled::{
@@ -215,7 +215,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
 fn ChannelLabel(content: Prop<String>) -> NodeId {
     view! {
         <Frame align_vertical=Align::Center>
-            <Caption content />
+            <Text style=TextStyle::CAPTION string={content} />
         </Frame>
     }
 }

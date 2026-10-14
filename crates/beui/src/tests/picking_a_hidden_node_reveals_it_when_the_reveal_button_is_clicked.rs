@@ -13,12 +13,7 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
                         <Frame padding_horizontal=4.0 padding_vertical=4.0>
                             <Frame padding_horizontal=4.0 padding_vertical=4.0>
                                 <Frame padding_horizontal=4.0 padding_vertical=4.0>
-                                    <Text
-                                        @node_ref=&text
-                                        string="Hello"
-                                        font_size=14.0
-                                        color=Color32::WHITE
-                                    />
+                                    <Text @node_ref=&text string="Hello" color=Color32::WHITE />
                                 </Frame>
                             </Frame>
                         </Frame>

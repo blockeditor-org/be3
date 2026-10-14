@@ -100,7 +100,10 @@ pub use stack::Stack;
 pub use stale_notice::StaleNotice;
 pub use switch::{Switch, switch_on};
 pub use tabs::{Tabs, tabs_selected};
-pub use text::{Body, Caption, Code, Display, Heading, Icon, IconSized, Paragraph, Title};
+pub use text::{
+    Family, ICON_SCALE, ICON_SPACING_EM, Icon, Span, Text, TextColor, TextSize, TextStyle,
+    TextStyleProvider, Weight,
+};
 pub use text_area::emoji::emoji_menu;
 pub use text_area::{TextArea, text_area_surface};
 pub use text_input::{TextInput, text_input_value};

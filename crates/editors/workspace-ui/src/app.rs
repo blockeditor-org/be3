@@ -7,7 +7,8 @@ use block_editor_beui::beui::reactive::{
     Align, ForEach, Frame, ItemSize, List, NodeRef, component, create_effect, create_memo, untrack,
     view,
 };
-use block_editor_beui::beui::styled::{Caption, Docking, Heading, use_theme};
+use block_editor_beui::beui::styled::{Docking, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
 };
@@ -159,8 +160,11 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Heading content="No file open" />
-                <Caption content="Open or create a file from Files to get started." />
+                <Text style=TextStyle::HEADING string="No file open" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Open or create a file from Files to get started."
+                />
             </List>
         </Frame>
     }

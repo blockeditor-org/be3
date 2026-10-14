@@ -8,7 +8,7 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     let mut document = build({
         move || {
             view! {
-                <Text @node_ref=&text string="hello" font_size=14.0 color=Color32::WHITE />
+                <Text @node_ref=&text string="hello" color=Color32::WHITE />
             }
         }
     });

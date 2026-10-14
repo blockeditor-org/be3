@@ -1,13 +1,11 @@
 use beui::NodeId;
 use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
 use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Text,
-    Track, component, create_memo, provide_context, use_context, view,
+    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Track,
+    component, create_memo, provide_context, use_context, view,
 };
-use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, SelectableText,
-    Separator, Spinner, use_theme,
+    Button, ButtonVariant, IconButton, Link, Scroll, SelectableText, Separator, Spinner, use_theme,
 };
 use beui::unstyled;
 use beui::unstyled::Picture;
@@ -21,6 +19,9 @@ use crate::time::{now, relative};
 use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
 #[cfg(not(target_os = "android"))]
 use crate::workspace::{Actions, Notes};
+use beui::TextAlign;
+use beui::styled::theme::CARD_RADIUS;
+use beui::styled::{Family, Icon, Text, TextColor, TextSize, TextStyle, Weight};
 
 const SPACING: f32 = 12.0;
 const CARD_PADDING: f32 = 12.0;
@@ -86,7 +87,6 @@ fn placeholder() -> PullRequest {
 
 #[component]
 fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
-    let theme = use_theme();
     let title = create_memo(move || {
         let pull_request = pull_request.get();
         format!("{} #{}", pull_request.title, pull_request.number)
@@ -128,10 +128,15 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List spacing=0.0>
                 <Frame padding_horizontal=PADDING padding_vertical=4.0>
                     <List spacing=SPACING>
-                        <Text string={title} font_size=FONT_TITLE color={theme.text} wrap=true />
+                        <Text string={title} size=TextSize::Xl wrap=true />
                         <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <StateBadge state />
-                            <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
+                            <Text
+                                style=TextStyle::CAPTION
+                                @sizing=ItemSize::Percent(100.0)
+                                string={summary}
+                                wrap=true
+                            />
                         </List>
                         <Show condition={tagged}>
                             <Labels labels={labels} checked_out={checked_out} />
@@ -160,16 +165,11 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <Show condition={loading}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                                 <Spinner width=20.0 label="Loading the conversation" />
-                                <Caption content="Loading the conversation" />
+                                <Text style=TextStyle::CAPTION string="Loading the conversation" />
                             </List>
                         </Show>
                         <Show condition={failed}>
-                            <Text
-                                string={error}
-                                font_size=FONT_BODY
-                                color={theme.danger}
-                                wrap=true
-                            />
+                            <Text string={error} color=TextColor::Danger wrap=true />
                         </Show>
                     </List>
                 </Frame>
@@ -201,7 +201,7 @@ fn StateBadge(state: Memo<State>) -> NodeId {
         State::Merged => MERGED,
         State::Closed => theme.danger.get(),
     });
-    let ink = create_memo(move || readable_on(fill.get()));
+    let ink = create_memo(move || TextColor::Custom(readable_on(fill.get())));
     let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let label = create_memo(move || {
         match state.get() {
@@ -219,10 +219,10 @@ fn StateBadge(state: Memo<State>) -> NodeId {
             padding_horizontal=BADGE_PADDING_HORIZONTAL
             padding_vertical=BADGE_PADDING_VERTICAL
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <Icon glyph color={ink} />
-                <Text string={label} font_size=FONT_BODY color={ink} />
-            </List>
+            <Text color={ink}>
+                <Icon glyph={glyph} />
+                {label}
+            </Text>
         </Frame>
     }
 }
@@ -291,8 +291,8 @@ fn CommentCard(
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Avatar model={model} url={author.avatar} />
-                            <Body @sizing=ItemSize::Percent(100.0) content={heading} />
-                            <Link label={time} font_size=FONT_SMALL on_click={open} />
+                            <Text @sizing=ItemSize::Percent(100.0) string={heading} />
+                            <Link label={time} size=TextSize::Sm on_click={open} />
                         </List>
                     </Frame>
                     <Frame padding_horizontal=CARD_PADDING padding_vertical=CARD_PADDING>
@@ -334,8 +334,8 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
         >
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Code content={location} />
-                    <Caption content={author} />
+                    <Text style=TextStyle::CODE string={location} />
+                    <Text style=TextStyle::CAPTION string={author} />
                 </List>
                 <Blocks model blocks={body} />
             </List>
@@ -345,13 +345,14 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
 
 #[component]
 fn CommitRow(sha: String, message: String) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame padding_horizontal=EVENT_INDENT padding_vertical=3.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Icon glyph=ICON_COMMIT color={theme.text_muted} />
-                <Code content={sha} color={theme.text_muted} />
-                <Caption @sizing=ItemSize::Percent(100.0) content={message} />
+                <Text color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph=ICON_COMMIT />
+                </Text>
+                <Text style=TextStyle::CODE string={sha} color=TextColor::Muted />
+                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) string={message} />
             </List>
         </Frame>
     }
@@ -362,7 +363,7 @@ fn EventRow(actor: String, text: String, when: i64) -> NodeId {
     let line = format!("{actor} {text} · {}", relative(now(), when));
     view! {
         <Frame padding_horizontal=EVENT_INDENT padding_vertical=3.0>
-            <Caption content={line} wrap=true />
+            <Text style=TextStyle::CAPTION string={line} wrap=true />
         </Frame>
     }
 }
@@ -406,13 +407,7 @@ fn BlockView(model: Model, block: Block) -> NodeId {
             <Dynamic value={block}>
                 {move |block: Block| match block {
                     Block::Heading(text) => view! {
-                        <Text
-                            string={text}
-                            font_size=FONT_HEADING
-                            color={use_theme().text}
-                            bold=true
-                            wrap=true
-                        />
+                        <Text string={text} size=TextSize::Lg weight=Weight::Bold wrap=true />
                     },
                     Block::Paragraph(text) => view! {
                         <Prose text />
@@ -474,7 +469,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
 #[component]
 fn Prose(text: String) -> NodeId {
     view! {
-        <Text string={text} font_size=FONT_BODY color={use_theme().text} wrap=true />
+        <Text string={text} wrap=true />
     }
 }
 
@@ -483,7 +478,7 @@ fn CodeBlock(text: String) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background} radius=6 padding_horizontal=10.0 padding_vertical=8.0>
-            <Text string={text} font_size=FONT_SMALL color={theme.text} monospace=true wrap=true />
+            <Text string={text} size=TextSize::Sm family=Family::Mono wrap=true />
         </Frame>
     }
 }
@@ -494,13 +489,7 @@ fn Quote(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=10.0>
             <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) color={theme.border} />
-            <Text
-                @sizing=ItemSize::Percent(100.0)
-                string={text}
-                font_size=FONT_BODY
-                color={theme.text_muted}
-                wrap=true
-            />
+            <Text @sizing=ItemSize::Percent(100.0) string={text} color=TextColor::Muted wrap=true />
         </List>
     }
 }
@@ -513,13 +502,7 @@ fn Item(text: String) -> NodeId {
             <Frame padding_horizontal=BULLET_INDENT padding_vertical=7.0>
                 <Frame width=BULLET height=BULLET radius=3 color={theme.text_muted} />
             </Frame>
-            <Text
-                @sizing=ItemSize::Percent(100.0)
-                string={text}
-                font_size=FONT_BODY
-                color={theme.text}
-                wrap=true
-            />
+            <Text @sizing=ItemSize::Percent(100.0) string={text} wrap=true />
         </List>
     }
 }
@@ -556,7 +539,7 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
                 {move || { let described = described.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner width=18.0 label="Loading an image" />
-                        <Caption content={described} />
+                        <Text style=TextStyle::CAPTION string={described} />
                     </List>
                 } }}
             </Show>

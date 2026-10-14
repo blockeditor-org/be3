@@ -16,23 +16,23 @@ use beui::icons::{
 use beui::reactive::{
     Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
     ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    Span, Stored, Text, VirtualList, WriteSignal, batch, build, create_effect, create_memo,
+    Span, Stored, VirtualList, WriteSignal, batch, build, create_effect, create_memo,
     create_selector, create_signal, focus_ring, held_modifiers, on_shortcut, provide_context,
     store, untrack, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
-use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
+use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
-    Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
-    Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, CrashNotice,
-    DateTimeField, Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton,
-    IconButtonSize, IconSized, KeepChanges, Launcher, LauncherItem, LevelOsd, Link, ListRow,
-    Listbox, LockAction, LockScreen, MenuButton, ModalSheet, NumberInput, OklchColorWheel,
-    OsdLevel, Paragraph, PictureMenuButton, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
-    Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, StaleNotice,
-    Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts,
-    ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
+    Accordion, ActionRow, Bordered, Button, ButtonVariant, Calendar, Card, Checkbox, Chip,
+    ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, CrashNotice, DateTimeField,
+    Dialog, Docking, FocusRing, Fullscreen, IconButton, IconButtonSize, KeepChanges, Launcher,
+    LauncherItem, LevelOsd, Link, ListRow, Listbox, LockAction, LockScreen, MenuButton, ModalSheet,
+    NumberInput, OklchColorWheel, OsdLevel, PictureMenuButton, Popover, Progress, RadioGroup,
+    ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut, Slider, Spinner,
+    SplitButton, Stack, StaleNotice, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider,
+    Toast, ToastAction, Toasts, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
+use beui::styled::{Icon, Text, TextStyle};
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockDialog, DockMode, DockPane, DockSplit, DockTab,
     DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
@@ -261,7 +261,7 @@ impl Page {
     fn summary(self) -> &'static str {
         match self {
             Page::Docking => "Tabs, splits, windows and groups",
-            Page::Text => "Type scale, icons, chips, links",
+            Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
             Page::Choices => "Radio groups, listboxes, tabs",
@@ -735,9 +735,9 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
     let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <Title content="beui" />
+            <Text style=TextStyle::TITLE string="beui" />
             <Show condition={wide}>
-                <Caption content="retained mode ui" />
+                <Text style=TextStyle::CAPTION string="retained mode ui" />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
@@ -828,8 +828,8 @@ fn CatalogGroup(
         <List spacing=0.0>
             <Frame padding_horizontal=CATALOG_GROUP_PADDING padding_vertical=CATALOG_GROUP_PADDING>
                 <List spacing=2.0>
-                    <Heading content={title} />
-                    <Caption content={summary} ellipsis=true />
+                    <Text style=TextStyle::HEADING string={title} />
+                    <Text style=TextStyle::CAPTION string={summary} ellipsis=true />
                 </List>
             </Frame>
             <ForEach keys={listed}>
@@ -854,10 +854,12 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
     view! {
         <ListRow @test_id={format!("demo.catalog.{}", page.title())} selected on_click={open}>
             <List direction=Direction::Horizontal align=Align::Center spacing=CATALOG_SPACING>
-                <Icon glyph={page.icon()} />
+                <Text align=TextAlign::Center>
+                    <Icon glyph={page.icon()} />
+                </Text>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Body content={page.title()} />
-                    <Caption content={page.summary()} ellipsis=true />
+                    <Text string={page.title()} />
+                    <Text style=TextStyle::CAPTION string={page.summary()} ellipsis=true />
                 </List>
             </List>
         </ListRow>
@@ -869,8 +871,11 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
             <List spacing=4.0 align=Align::Center>
-                <Heading content="Nothing open" />
-                <Caption content="Open a page from Components to get started." />
+                <Text style=TextStyle::HEADING string="Nothing open" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Open a page from Components to get started."
+                />
             </List>
         </Frame>
     }

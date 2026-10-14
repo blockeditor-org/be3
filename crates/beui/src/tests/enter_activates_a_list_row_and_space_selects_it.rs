@@ -13,7 +13,7 @@ fn enter_activates_a_list_row_and_space_selects_it() {
                 on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                 on_activate={move || set_activations.update(|activations| *activations += 1)}
             >
-                <Text string="Row" font_size=14.0 color=Color32::WHITE />
+                <Text string="Row" color=Color32::WHITE />
             </ListRow>
         }]
     });

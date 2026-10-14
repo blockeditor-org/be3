@@ -5,7 +5,8 @@ use block_editor_beui::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, component,
     create_effect, create_memo, store, view,
 };
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, Scroll, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Scroll, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockInfo, BlockList, BlockQuery};
 use block_editor_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
@@ -56,12 +57,15 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                     padding_vertical=PADDING
                 >
                     <List spacing=SECTION_SPACING>
-                        <Heading content="Views" />
+                        <Text style=TextStyle::HEADING string="Views" />
                         <Show condition={waiting}>
-                            <Caption content="Loading…" />
+                            <Text style=TextStyle::CAPTION string="Loading…" />
                         </Show>
                         <Show condition={none_yet}>
-                            <Caption content="This database has no views yet." />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="This database has no views yet."
+                            />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <ViewLinks editor={editor} rows={rows} />
@@ -119,7 +123,7 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={missing}>
-                <Caption content="Loading the schema…" />
+                <Text style=TextStyle::CAPTION string="Loading the schema…" />
             </Show>
             <ChildBlock
                 @sizing=ItemSize::Percent(100.0)

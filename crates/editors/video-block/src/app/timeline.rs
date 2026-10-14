@@ -6,7 +6,7 @@ use block_editor_beui::beui::reactive::{
     Memo, PlacementBuilder, ReadSignal, component, create_effect, create_memo, create_selector,
     create_signal, untrack, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2};
 use block_editor_beui::{ChildBlock, ChildMode, Drag};
@@ -18,6 +18,7 @@ use crate::timeline::{
 };
 
 use super::state::{ClipDrag, VideoState};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const THUMBNAIL_MARGIN: f32 = 3.0;
 const CLIP_RADIUS: u8 = 4;
@@ -273,11 +274,10 @@ fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
 
 #[component]
 fn RulerTick(tick: Tick) -> CanvasItem {
-    let theme = use_theme();
     let label = format!("{}:{:02}", tick.seconds / 60, tick.seconds % 60);
     view! {
         <CanvasItem x={tick.x + 3.0} y=2.0 width=60.0 height={RULER_HEIGHT - 4.0}>
-            <Caption content={label} color={theme.text_muted} />
+            <Text style=TextStyle::CAPTION string={label} />
         </CanvasItem>
     }
 }
@@ -364,7 +364,7 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                                         on_state={move |_| {}}
                                     />
                                 </Frame>
-                                <Body @sizing=ItemSize::Percent(100.0) content={name} />
+                                <Text @sizing=ItemSize::Percent(100.0) string={name} />
                                 <TrimHandle state={state} row={row} scale={trim_edge_scale} />
                             </List>
                         </Frame>

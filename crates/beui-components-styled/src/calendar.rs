@@ -4,7 +4,8 @@ use beui_macros::{component, view};
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::focus_ring::FocusRing;
 use crate::icon_button::{IconButton, IconButtonSize};
-use crate::theme::{FONT_BODY, FONT_SMALL, RADIUS, ThemeStore, use_theme};
+use crate::text::{Text, TextColor, TextSize};
+use crate::theme::{RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
@@ -15,7 +16,7 @@ use beui_core::icons::{
 };
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, Show, Text, create_memo,
+    Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, Show, create_memo,
 };
 
 pub const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING;
@@ -157,13 +158,12 @@ fn HeaderToggle(
 
 #[component]
 fn WeekdayLabel(weekday: Weekday) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame height=WEEKDAY_HEIGHT>
             <Text
                 string={weekday.narrow_name().to_owned()}
-                font_size=FONT_SMALL
-                color={theme.text_muted}
+                size=TextSize::Sm
+                color=TextColor::Muted
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
             />
@@ -199,7 +199,7 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
             active.get(),
         )
     });
-    let ink = create_memo(move || cell_ink(&theme, selected.get(), disabled.get(), outside.get()));
+    let ink = create_memo(move || cell_ink(selected.get(), disabled.get(), outside.get()));
     let ring = create_memo(move || marked.get() && !selected.get());
     view! {
         <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
@@ -213,7 +213,6 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
             >
                 <Text
                     string={label}
-                    font_size=FONT_BODY
                     color={ink}
                     align=TextAlign::Center
                     vertical_align=TextAlign::Center
@@ -240,11 +239,11 @@ fn cell_fill(
     }
 }
 
-fn cell_ink(theme: &ThemeStore, selected: bool, disabled: bool, quiet: bool) -> Color32 {
+fn cell_ink(selected: bool, disabled: bool, quiet: bool) -> TextColor {
     match (selected, disabled, quiet) {
-        (true, _, _) => theme.on_accent.get(),
-        (false, true, _) => theme.border.get(),
-        (false, false, true) => theme.text_muted.get(),
-        (false, false, false) => theme.text.get(),
+        (true, _, _) => TextColor::OnAccent,
+        (false, true, _) => TextColor::Faint,
+        (false, false, true) => TextColor::Muted,
+        (false, false, false) => TextColor::Default,
     }
 }
