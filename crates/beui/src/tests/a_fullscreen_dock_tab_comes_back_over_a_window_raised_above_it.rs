@@ -23,7 +23,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
     let other = Rc::new(Cell::new(false));
     let layout = DockingLayout::<u64>::new();
     let document = {
-        let (program, other, layout) = (program.clone(), other.clone(), layout.clone());
+        let (program, other, layout) = (program.clone(), other.clone(), layout);
         build(move || {
             let (program, other) = (program.clone(), other.clone());
             view! {
@@ -70,7 +70,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
     harness.settle();
     let over_other = harness.center(harness.find("other"));
 
-    let entering = layout.clone();
+    let entering = layout;
     with_reactive_scope(harness.document_mut(), move || {
         entering.show(&1);
         entering.enter_fullscreen(&1, None);
@@ -80,7 +80,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
     assert!(program.get(), "the fullscreen tab covers the other window");
     assert!(!other.get());
 
-    let switching = layout.clone();
+    let switching = layout;
     with_reactive_scope(harness.document_mut(), move || switching.show(&2));
     harness.settle();
     hover(&mut harness, over_other);
@@ -89,7 +89,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
         "a window shown after it comes in front of the fullscreen tab"
     );
 
-    let back = layout.clone();
+    let back = layout;
     with_reactive_scope(harness.document_mut(), move || back.show(&1));
     harness.settle();
     hover(&mut harness, over_other);
@@ -99,7 +99,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
         "showing the fullscreen tab again brings it in front, not the window it left"
     );
 
-    let switching = layout.clone();
+    let switching = layout;
     with_reactive_scope(harness.document_mut(), move || switching.show(&2));
     harness.settle();
     assert_eq!(layout.focused(), Some(2));

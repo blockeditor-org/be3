@@ -39,7 +39,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
     let layout = DockingLayout::<u64>::new();
     let dock = NodeRef::new();
     let document = {
-        let (layout, built) = (layout.clone(), dock.clone());
+        let (layout, built) = (layout, dock);
         build(move || {
             view! {
                 <styled::Docking @node_ref=&built layout>
@@ -80,7 +80,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
         pos2(0.0, WIDE_VIEWPORT.y - 100.0),
         vec2(WIDE_VIEWPORT.x, 100.0),
     );
-    let moving = layout.clone();
+    let moving = layout;
     with_reactive_scope(harness.document_mut(), move || {
         moving.enter_fullscreen(&1, Some(screen));
     });
@@ -93,7 +93,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
     pick(&mut harness, dock, "Leave full screen");
     assert_eq!(layout.fullscreen(), None, "the entry turns into leaving it");
 
-    let entering = layout.clone();
+    let entering = layout;
     with_reactive_scope(harness.document_mut(), move || {
         entering.enter_fullscreen(&1, Some(screen));
     });

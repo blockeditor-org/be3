@@ -50,12 +50,12 @@ use beui_view::reactive::{
 
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
-pub use fullscreen::DockAwayHandle;
-use fullscreen::DockAway;
 pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
     Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
 };
+use fullscreen::DockAway;
+pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
     DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
