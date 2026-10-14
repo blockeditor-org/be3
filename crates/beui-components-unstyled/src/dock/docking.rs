@@ -308,6 +308,7 @@ impl<K> Default for KeyMap<K> {
 struct LayoutInner<K> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
+    replacing: RefCell<Vec<(TabId, TabId)>>,
 }
 
 pub struct DockingLayout<K: 'static> {
@@ -379,6 +380,7 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
+            replacing: RefCell::default(),
         };
         let layout = move |inner| Self {
             state,
@@ -470,11 +472,10 @@ impl<K: DockKey> DockingLayout<K> {
             return false;
         }
         let new = self.mint(&with);
-        self.edit(|state| {
-            if !state.contains(new) && state.replace(tab, new) {
-                state.show(new);
-            }
-        });
+        if self.state.with_untracked(|state| state.contains(new)) {
+            return false;
+        }
+        self.inner().replacing.borrow_mut().push((tab, new));
         true
     }
 
@@ -525,6 +526,13 @@ impl<K: DockKey> DockingLayout<K> {
     fn reconcile(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
         let current = self.state.get_untracked();
         let mut next = current.clone();
+        let declared = spec.tabs();
+        let replacing = std::mem::take(&mut *self.inner().replacing.borrow_mut());
+        for (tab, with) in replacing {
+            if !declared.contains(&tab) && declared.contains(&with) && next.replace(tab, with) {
+                next.show(with);
+            }
+        }
         next.reconcile(spec);
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
         kept.extend(next.all_tabs());

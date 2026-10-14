@@ -6,11 +6,11 @@ use beui::icons::{
 };
 #[cfg(target_os = "android")]
 use beui::reactive::Portal;
-use beui::reactive::{held_modifiers, with_document};
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, component,
     create_memo, view,
 };
+use beui::reactive::{held_modifiers, with_document};
 #[cfg(not(target_os = "android"))]
 use beui::styled::Separator;
 use beui::styled::theme::{FONT_BODY, FONT_SMALL};
@@ -90,7 +90,11 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                                 </Frame>
                                 <ForEach keys={opened}>
                                     {move |number: u64| view! {
-                                        <Detail @sizing=ItemSize::Percent(100.0) model={model} number />
+                                        <Detail
+                                            @sizing=ItemSize::Percent(100.0)
+                                            model={model}
+                                            number
+                                        />
                                     }}
                                 </ForEach>
                             </List>

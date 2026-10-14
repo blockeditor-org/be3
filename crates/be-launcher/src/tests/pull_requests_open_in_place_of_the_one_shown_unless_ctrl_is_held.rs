@@ -108,7 +108,6 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
         test.rect_of(&close(model, 1)).min.x < test.rect_of(&close(model, 3)).min.x,
         "in the tab it had"
     );
-    test.snapshot("pull_request_tabs");
 
     test.click(&close(model, 3));
     test.frame(Vec::new());

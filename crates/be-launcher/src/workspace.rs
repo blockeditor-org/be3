@@ -1,3 +1,4 @@
+use beui::NodeId;
 use beui::icons::{
     ICON_BUILD, ICON_DOWNLOAD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
     ICON_TERMINAL,
@@ -12,7 +13,6 @@ use beui::styled::{
     TextInput, use_theme,
 };
 use beui::unstyled::{DockEntry, DockPane, DockTab, MenuItem};
-use beui::NodeId;
 
 use crate::detail::Detail;
 use crate::github::{Entry, PullRequest, State, branch_deleted};

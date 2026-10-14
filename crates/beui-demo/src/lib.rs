@@ -843,11 +843,7 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
         pages.open(page, held.ctrl || held.logo);
     };
     view! {
-        <ListRow
-            @test_id={format!("demo.catalog.{}", page.title())}
-            selected
-            on_click={open}
-        >
+        <ListRow @test_id={format!("demo.catalog.{}", page.title())} selected on_click={open}>
             <List direction=Direction::Horizontal align=Align::Center spacing=CATALOG_SPACING>
                 <Icon glyph={page.icon()} />
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>

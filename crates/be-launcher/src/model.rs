@@ -5,7 +5,8 @@ use std::collections::HashMap;
 
 use beui::Image;
 use beui::reactive::{
-    KeyedStore, ReadSignal, Selector, Stored, WriteSignal, create_selector, create_signal, store,
+    KeyedStore, ReadSignal, ScopeContext, Selector, Stored, WriteSignal, create_selector,
+    create_signal, owner_scope, store,
 };
 #[cfg(not(target_os = "android"))]
 use beui::reactive::{batch, create_effect, untrack};
@@ -95,6 +96,7 @@ pub(crate) struct Viewer {
 #[derive(Clone, Copy)]
 pub(crate) struct Model {
     tasks: Stored<Tasks>,
+    owner: Stored<Option<ScopeContext>>,
     pub(crate) repository: ReadSignal<Loaded<String>>,
     set_repository: WriteSignal<Loaded<String>>,
     pub(crate) filter: ReadSignal<Filter>,
@@ -189,6 +191,7 @@ impl Model {
         let (running, set_running) = create_signal(false);
         let model = Self {
             tasks: store(tasks),
+            owner: store(owner_scope()),
             repository,
             set_repository,
             filter,
@@ -347,11 +350,18 @@ impl Model {
             .holds(crate::builds::Slot::PullRequest(pull_request.number))
     }
 
+    fn owned<T>(&self, make: impl FnOnce() -> T) -> T {
+        match self.owner.get().as_ref() {
+            Some(owner) => owner.run(make),
+            None => make(),
+        }
+    }
+
     pub(crate) fn timeline(&self, pull_request: &PullRequest) -> ReadSignal<Loaded<Vec<Entry>>> {
         if let Some((read, _)) = self.timelines.get().borrow().get(&pull_request.number) {
             return *read;
         }
-        let (read, write) = create_signal(Loaded::Loading);
+        let (read, write) = self.owned(|| create_signal(Loaded::Loading));
         self.timelines
             .get()
             .borrow_mut()
@@ -412,7 +422,7 @@ impl Model {
         if let Some((read, _)) = self.images.get().borrow().get(url) {
             return *read;
         }
-        let (read, write) = create_signal(Loaded::Loading);
+        let (read, write) = self.owned(|| create_signal(Loaded::Loading));
         self.images
             .get()
             .borrow_mut()
