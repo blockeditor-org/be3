@@ -9,7 +9,7 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     ClickCallback, Frame, Interactive, Memo, NodeRef, ReadSignal, RenderFn, create_effect,
-    create_memo, create_signal, create_timer, node_scope, on_cleanup, provide_context, untrack,
+    create_memo, create_signal, create_timer, on_cleanup, provide_context, store, untrack,
     with_document,
 };
 
@@ -265,7 +265,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             });
         }
     });
-    let scope = with_document(|document| node_scope(document, dock.owner.with(Clone::clone)));
+    let scope = dock.open_scope();
     let control = DockTabControl {
         tab,
         state: dock.state,
@@ -275,7 +275,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         provide_context(control);
         content.call(())
     });
-    on_cleanup(move || drop(scope));
+    store(scope);
     let width = create_memo(move || size.get().x);
     let height = create_memo(move || size.get().y);
     let body = view! {

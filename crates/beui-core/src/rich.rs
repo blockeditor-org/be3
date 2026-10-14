@@ -2,7 +2,7 @@ use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::ops::Range;
 
 use crate::color::Color32;
-use crate::font::{FontId, Galley, TextAlign};
+use crate::font::{FontId, Galley, TextAlign, Wraps};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Corners;
 
@@ -40,6 +40,7 @@ pub enum Piece<'a> {
         index: usize,
         size: Vec2,
     },
+    Gap(f32),
 }
 
 impl<'a> Piece<'a> {
@@ -55,6 +56,7 @@ impl<'a> Piece<'a> {
         match self {
             Piece::Text { text, .. } => text.len(),
             Piece::Inline { .. } => OBJECT.len(),
+            Piece::Gap(_) => 0,
         }
     }
 
@@ -67,6 +69,7 @@ impl<'a> Piece<'a> {
 pub enum SpanKind {
     Text,
     Inline(usize, Vec2),
+    Gap(f32),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -285,7 +288,8 @@ struct Builder<'a> {
     text: &'a str,
     spans: &'a [TextSpan],
     shaper: &'a mut dyn Shaper,
-    whole: Vec<Option<Galley>>,
+    paragraph: Range<usize>,
+    whole: Vec<Option<(Range<usize>, Galley)>>,
 }
 
 impl Builder<'_> {
@@ -294,10 +298,26 @@ impl Builder<'_> {
         let mut x = 0.0;
         let first = self
             .spans
-            .partition_point(|span| span.range.end <= from)
+            .partition_point(|span| {
+                span.range.end < from || (span.range.end == from && !span.range.is_empty())
+            })
             .min(self.spans.len());
         for index in first..self.spans.len() {
             let span = &self.spans[index];
+            if span.range.is_empty() {
+                let at = span.range.start;
+                let last = at == to && to == self.paragraph.end;
+                if at >= from && (at < to || last) {
+                    let run = self.run(index, at..at, x);
+                    x += run.width;
+                    runs.push(run);
+                    continue;
+                }
+                if at >= to {
+                    break;
+                }
+                continue;
+            }
             if span.range.start >= to {
                 break;
             }
@@ -319,14 +339,16 @@ impl Builder<'_> {
         } = self.spans[span].clone();
         match kind {
             SpanKind::Text => {
-                let whole = self.spans[span].range.clone();
+                let spanned = &self.spans[span].range;
+                let whole =
+                    spanned.start.max(self.paragraph.start)..spanned.end.min(self.paragraph.end);
                 let shaped = match &self.whole[span] {
-                    Some(shaped) => shaped.clone(),
-                    None => {
+                    Some((shaped, galley)) if *shaped == whole => galley.clone(),
+                    _ => {
                         let shaped = self
                             .shaper
                             .galley(self.text.get(whole.clone()).unwrap_or(""), style.font);
-                        self.whole[span] = Some(shaped.clone());
+                        self.whole[span] = Some((whole.clone(), shaped.clone()));
                         shaped
                     }
                 };
@@ -356,6 +378,16 @@ impl Builder<'_> {
                 x,
                 width: size.x,
                 height: size.y,
+                galley: None,
+            },
+            SpanKind::Gap(width) => RichRun {
+                piece,
+                range,
+                style,
+                kind,
+                x,
+                width,
+                height: 0.0,
                 galley: None,
             },
         }
@@ -398,14 +430,25 @@ impl Builder<'_> {
             .len()
             .checked_sub(1)
             .filter(|last| wrap - (fits[*last].1 - origin) < wrap * WRAP_FALLBACK_REMAINING_WIDTH);
-        let chosen = good.or(fallback)?;
+        let Some(chosen) = good.or(fallback) else {
+            if !fits.is_empty() {
+                return None;
+            }
+            let (byte, x) = stops[first..]
+                .iter()
+                .find(|(byte, x)| *byte < to && *x > origin)?;
+            return Some((*byte, 0.0, x - origin));
+        };
         let (byte, x) = fits[chosen];
         let reach = x - origin;
         let mut limit = stops[first + chosen + 1..]
             .iter()
             .take_while(|(next, _)| *next <= to)
             .find(|(next, _)| *next > byte && (good.is_none() || *next == to || self.good(*next)))
-            .map_or(f32::INFINITY, |(_, x)| x - origin);
+            .map_or(f32::INFINITY, |(next, x)| match *next == to {
+                true => stops[stops.partition_point(|(byte, _)| *byte <= to) - 1].1 - origin,
+                false => x - origin,
+            });
         if good.is_none() {
             limit = limit.min(reach / (1.0 - WRAP_FALLBACK_REMAINING_WIDTH));
         }
@@ -453,8 +496,9 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
                 text.push_str(OBJECT);
                 (fallback, SpanKind::Inline(inline, size), false)
             }
+            Piece::Gap(width) => (fallback, SpanKind::Gap(width), false),
         };
-        if text.len() > start {
+        if text.len() > start || matches!(kind, SpanKind::Gap(_)) {
             spans.push(TextSpan {
                 piece: index,
                 range: start..text.len(),
@@ -496,6 +540,7 @@ impl RichLayout {
             text,
             spans: &spans,
             shaper,
+            paragraph: 0..0,
             whole: vec![None; spans.len()],
         };
         let kept = previous.map_or(0, |(previous, changed)| {
@@ -514,6 +559,7 @@ impl RichLayout {
         loop {
             let end = text[start..].find('\n').map_or(text.len(), |at| start + at);
             let mut from = resume.take().unwrap_or(start);
+            builder.paragraph = start..end;
             let whole = builder.runs(start, end);
             let total = whole.last().map_or(0.0, |run| run.x + run.width);
             let stops = match total > options.wrap_width || from != start {
@@ -566,6 +612,10 @@ impl RichLayout {
             reach,
             limit,
         }
+    }
+
+    pub fn wraps(&self) -> Wraps {
+        Wraps::between(self.reach, self.limit)
     }
 
     pub fn fits(&self, wrap_width: f32) -> bool {

@@ -10,18 +10,19 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     let drawn = {
         move |color: Color32| -> Draw {
             Rc::new(move |painter: &Painter, rect: Rect| {
-                set_painted.update(|painted| *painted += 1);
+                if !painter.ctx().is_verifying_paint() {
+                    set_painted.update(|painted| *painted += 1);
+                }
                 painter.rect_filled(rect, 0.0, color);
             })
         }
     };
     let (draw, set_draw) = create_signal(drawn(Color32::WHITE));
-    let mut document = build(move || {
+    let document = build(move || {
         view! {
             <Drawing draw={draw} />
         }
     });
-    document.verifies_paint = false;
     let mut harness = Harness::new(document);
 
     let output = harness.frame(Vec::new());

@@ -33,5 +33,16 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     assert_eq!(filled.size(), VIEWPORT);
 
     harness.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(dismissed.get_untracked(), 1);
+    harness.frame(Vec::new());
+    assert_eq!(
+        dismissed.get_untracked(),
+        0,
+        "Escape plays the slide-away a back gesture plays"
+    );
+    harness.settle();
+    assert_eq!(
+        dismissed.get_untracked(),
+        1,
+        "and dismisses once it is gone"
+    );
 }

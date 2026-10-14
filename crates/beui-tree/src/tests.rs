@@ -48,11 +48,7 @@ impl DomNode {
     }
 }
 
-impl ChildValue for DomNode {
-    fn adopt_scope(&mut self, scope: Scope) {
-        scope.into_parent();
-    }
-}
+impl ChildValue for DomNode {}
 
 crate::child_type!(DomNode);
 

@@ -7,11 +7,13 @@ use std::{
 use be_graph::Access;
 use beui::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, Dynamic, ForEach, Frame, Interactive, Layers,
-    Memo, OwnedStored, PlacementBuilder, Portal, Prop, ReadSignal, Show, Stored, WriteSignal,
-    component, create_effect, create_memo, create_signal, on_cleanup, on_global_key,
-    provide_context, store, use_context, view,
+    Memo, NodeRef, Overlay, OverlayAnchor, OwnedStored, Placement, PlacementBuilder, Portal, Prop,
+    ReadSignal, Show, Stored, WriteSignal, component, create_effect, create_memo, create_signal,
+    on_cleanup, on_global_key, provide_context, store, use_context, view, with_document,
 };
-use beui::{Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
+use beui::{
+    Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
+};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
     FrameChrome, FrameSpec, HostPanel, HostWindowId, SettingsProgress, TopBar, ViewChange,
@@ -499,38 +501,51 @@ pub(crate) fn PresentingSurface() -> NodeId {
         })
     });
     let keys = create_memo(move || presenting.get().into_iter().collect::<Vec<_>>());
+    let open = create_memo(move || presenting.with(Option::is_some));
+    let overlay = NodeRef::new();
+    stop_on_escape(overlay);
     view! {
-        <Layers>
-            <ForEach keys={keys}>
-                {move |block: Uuid| {
-                    provide_context(Nesting::root());
-                    crate::host::set_fullscreen(true);
-                    on_cleanup(|| crate::host::set_fullscreen(false));
-                    stop_on_escape(move || {
-                        editors.with(|open| {
-                            for editor in open.values_mut().filter(|editor| editor.presenting_now()) {
-                                editor.stop_presenting_now();
-                            }
-                        });
+        <Overlay
+            @node_ref=&overlay
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
+            placement=Placement::Fill
+            scrim=Color32::BLACK
+            open={open}
+            on_dismiss={move |reason: Dismiss| {
+                if matches!(reason, Dismiss::Escape | Dismiss::Back) {
+                    editors.with(|open| {
+                        for editor in open.values_mut().filter(|editor| editor.presenting_now()) {
+                            editor.stop_presenting_now();
+                        }
                     });
-                    view! {
-                        <BlockFrame
-                            block
-                            chrome=Chrome::Drawn
-                            content=None
-                            top_bar=TopBar::Hidden
-                            embedded=false
-                            passive=false
-                            presented=true
-                        />
-                    }
-                }}
-            </ForEach>
-        </Layers>
+                }
+            }}
+        >
+            <Layers>
+                <ForEach keys={keys}>
+                    {move |block: Uuid| {
+                        provide_context(Nesting::root());
+                        crate::host::set_fullscreen(true);
+                        on_cleanup(|| crate::host::set_fullscreen(false));
+                        view! {
+                            <BlockFrame
+                                block
+                                chrome=Chrome::Drawn
+                                content=None
+                                top_bar=TopBar::Hidden
+                                embedded=false
+                                passive=false
+                                presented=true
+                            />
+                        }
+                    }}
+                </ForEach>
+            </Layers>
+        </Overlay>
     }
 }
 
-fn stop_on_escape(stop: impl Fn() + 'static) {
+fn stop_on_escape(overlay: NodeRef) {
     on_global_key(move |event: KeyEvent| {
         if event.held() {
             return true;
@@ -538,11 +553,19 @@ fn stop_on_escape(stop: impl Fn() + 'static) {
         let Some(press) = event.press() else {
             return false;
         };
-        if press.key != Key::Escape || !press.pressed {
+        if press.key != Key::Escape || !press.pressed || !event.target.app {
             return false;
         }
-        stop();
-        true
+        let Some(overlay) = overlay.try_get() else {
+            return false;
+        };
+        with_document(|document| {
+            let reaches = document.escape_layer() == Some(overlay);
+            if reaches {
+                document.dismiss_overlay(overlay, Dismiss::Escape);
+            }
+            reaches
+        })
     });
 }
 

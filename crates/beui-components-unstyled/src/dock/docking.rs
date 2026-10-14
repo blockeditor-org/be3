@@ -13,10 +13,9 @@ use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
-    Callback, ChildScope, ChildSegment, ChildValue, Children, ClickCallback, Frame, Func,
-    IntoChild, IntoProp, IntoSegment, Memo, OwnedStored, Prop, ReadSignal, RenderFn, RootScope,
-    Run, Scope, SlotChild, Stored, WriteSignal, create_effect, create_memo, create_signal, store,
-    untrack,
+    Callback, Children, ClickCallback, Frame, Func, IntoProp, Memo, OwnedStored, Prop, ReadSignal,
+    RenderFn, RootScope, Run, Scope, Stored, WriteSignal, create_effect, create_memo,
+    create_signal, store, untrack,
 };
 use serde::{Deserialize, Serialize};
 
@@ -37,7 +36,6 @@ impl<T: Clone + Eq + Hash + 'static> DockKey for T {}
 
 pub struct DockNode<K: 'static> {
     kind: NodeKind<K>,
-    scope: ChildScope,
 }
 
 enum NodeKind<K: 'static> {
@@ -69,7 +67,6 @@ enum NodeKind<K: 'static> {
 
 pub struct DockEntry<K: 'static> {
     kind: EntryKind<K>,
-    scope: ChildScope,
 }
 
 enum EntryKind<K: 'static> {
@@ -89,44 +86,8 @@ enum EntryKind<K: 'static> {
     },
 }
 
-macro_rules! dock_child {
-    ($ty:ident) => {
-        impl<K: 'static> ChildValue for $ty<K> {
-            fn adopt_scope(&mut self, scope: Scope) {
-                self.scope.adopt(scope);
-            }
-        }
-
-        impl<K: 'static> IntoChild<$ty<K>> for $ty<K> {
-            fn into_child(self) -> $ty<K> {
-                self
-            }
-        }
-
-        impl<K: 'static> IntoSegment<$ty<K>> for $ty<K> {
-            fn into_segment(self) -> ChildSegment<$ty<K>> {
-                ChildSegment::One(self)
-            }
-        }
-
-        impl<K: 'static> From<$ty<K>> for Children<$ty<K>> {
-            fn from(child: $ty<K>) -> Self {
-                Self::from(ChildSegment::One(child))
-            }
-        }
-
-        impl<K: 'static> SlotChild for $ty<K> {
-            type Stored = Rc<$ty<K>>;
-
-            fn store(self) -> Self::Stored {
-                Rc::new(self)
-            }
-        }
-    };
-}
-
-dock_child!(DockNode);
-dock_child!(DockEntry);
+beui_view::value_child_type!(<K> DockNode<K>);
+beui_view::value_child_type!(<K> DockEntry<K>);
 
 #[component]
 pub fn DockSplit<K>(
@@ -145,7 +106,6 @@ where
             fraction: create_memo(move || fraction.get()),
             children: children.into_run(),
         },
-        scope: ChildScope::default(),
     }
 }
 
@@ -170,7 +130,6 @@ where
             empty,
             entries: children.into_run(),
         },
-        scope: ChildScope::default(),
     }
 }
 
@@ -185,7 +144,6 @@ where
             rect,
             children: children.into_run(),
         },
-        scope: ChildScope::default(),
     }
 }
 
@@ -216,7 +174,6 @@ where
                 content,
             },
         },
-        scope: ChildScope::default(),
     }
 }
 
@@ -241,7 +198,6 @@ where
             on_close,
             content,
         },
-        scope: ChildScope::default(),
     }
 }
 
@@ -262,7 +218,6 @@ where
             pinned,
             children: children.into_run(),
         },
-        scope: ChildScope::default(),
     }
 }
 
@@ -308,6 +263,7 @@ impl<K> Default for KeyMap<K> {
 struct LayoutInner<K> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
+    replacing: RefCell<Vec<(TabId, TabId)>>,
 }
 
 pub struct DockingLayout<K: 'static> {
@@ -379,6 +335,7 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
+            replacing: RefCell::default(),
         };
         let layout = move |inner| Self {
             state,
@@ -404,12 +361,14 @@ impl<K: DockKey> DockingLayout<K> {
             map.tabs.insert(key, tab);
         }
         *self.inner().keys.borrow_mut() = map;
+        self.inner().replacing.borrow_mut().clear();
         self.set_state.set(state);
         self.set_restores.update(|restores| *restores += 1);
     }
 
     pub fn reset(&self) {
         *self.inner().keys.borrow_mut() = KeyMap::default();
+        self.inner().replacing.borrow_mut().clear();
         self.set_state.set(DockState::default());
         self.set_restores.update(|restores| *restores += 1);
     }
@@ -462,6 +421,29 @@ impl<K: DockKey> DockingLayout<K> {
         self.edit(|state| state.show(tab));
     }
 
+    pub fn replace(&self, key: &K, with: K) -> bool {
+        let Some(tab) = self.tab_of(key) else {
+            return false;
+        };
+        if !self.state.with_untracked(|state| state.contains(tab)) {
+            return false;
+        }
+        let new = self.mint(&with);
+        if self.state.with_untracked(|state| state.contains(new)) {
+            return false;
+        }
+        let inner = self.inner();
+        let mut replacing = inner.replacing.borrow_mut();
+        if replacing
+            .iter()
+            .any(|(from, to)| *from == tab || *to == new)
+        {
+            return false;
+        }
+        replacing.push((tab, new));
+        true
+    }
+
     pub fn fullscreen(&self) -> Option<K> {
         let tab = self.state.with(DockState::fullscreen)?.tab;
         self.key_of(tab)
@@ -509,6 +491,17 @@ impl<K: DockKey> DockingLayout<K> {
     fn reconcile(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
         let current = self.state.get_untracked();
         let mut next = current.clone();
+        let declared = spec.tabs();
+        let replacing = std::mem::take(&mut *self.inner().replacing.borrow_mut());
+        for (tab, with) in replacing {
+            if !declared.contains(&tab)
+                && declared.contains(&with)
+                && !next.contains(with)
+                && next.replace(tab, with)
+            {
+                next.show(with);
+            }
+        }
         next.reconcile(spec);
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
         kept.extend(next.all_tabs());

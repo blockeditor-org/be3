@@ -100,6 +100,11 @@ pub(crate) fn DockingPage() -> NodeId {
                          becomes one tab, and choosing it shows a second tab bar holding the tabs \
                          inside. A group ungroups from its own right-click menu."
                     />
+                    <Paragraph
+                        content="A page picked in Components takes the place of the page shown, in \
+                         the same tab. Hold Ctrl (Cmd on a Mac) while picking one to open it in a \
+                         tab of its own instead."
+                    />
                     <Caption
                         content="Mobile, in the toolbar, stacks the panes as a phone would."
                         wrap=true

@@ -5,7 +5,7 @@ use crate::input::BackGesture;
 use crate::reactive::{BackHandler, Frame, Overlay, build, view};
 
 #[test]
-fn escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismiss() {
+fn escape_back_and_a_press_outside_all_reach_a_layers_back_handler() {
     let _root = crate::reactive::RootScope::new();
     let (backs, set_backs) = create_signal(0);
     let (dismissed, set_dismissed) = create_signal(Vec::new());
@@ -38,14 +38,12 @@ fn escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismis
     );
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 2, "and so does back");
-    assert!(dismissed.with_untracked(|dismissed| dismissed.is_empty()));
 
     harness.click(pos2(VIEWPORT.x - 5.0, VIEWPORT.y - 5.0));
     harness.frame(Vec::new());
-    assert_eq!(
-        dismissed.get_untracked(),
-        [Dismiss::OutsidePress],
-        "a press outside asks the layer itself"
+    assert_eq!(backs.get_untracked(), 3, "and so does a press outside");
+    assert!(
+        dismissed.with_untracked(|dismissed| dismissed.is_empty()),
+        "none of them skip the handler for the layer's own on_dismiss"
     );
-    assert_eq!(backs.get_untracked(), 2);
 }

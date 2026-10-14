@@ -1,3 +1,4 @@
+use beui::NodeId;
 use beui::icons::{
     ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
     ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY, ICON_SWAP_HORIZ, ICON_SYNC, ICON_VIEW_QUILT,
@@ -7,7 +8,6 @@ use beui::reactive::{
 };
 use beui::styled::ContextMenu;
 use beui::unstyled::{Container, MenuItem};
-use beui::{Color32, NodeId};
 use block_plugin_api::HostPanel;
 
 use super::debug::DebugPanels;
@@ -45,11 +45,7 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
                 <MainSurface @sizing=ItemSize::Percent(100.0) />
             </Show>
             <AppMenu status={status} open={menu} />
-            <Show condition={presenting}>
-                <Frame @sizing=ItemSize::Percent(100.0) color=Color32::BLACK>
-                    <PresentingSurface />
-                </Frame>
-            </Show>
+            <PresentingSurface />
             <Dialogs view={view} />
             <PairingDialog view={view} />
         </List>

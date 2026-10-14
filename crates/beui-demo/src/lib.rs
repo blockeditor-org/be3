@@ -430,6 +430,18 @@ impl DemoDialogs {
             open.retain(|dialog| !closing.contains(&dialog.id));
         });
     }
+
+    fn close_from(&self, parent: TabId) {
+        let hanging: Vec<TabId> = self.open.with_untracked(|open| {
+            open.iter()
+                .filter(|dialog| dialog.parent == parent)
+                .map(|dialog| dialog.id)
+                .collect()
+        });
+        for id in hanging {
+            self.close(id);
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -437,28 +449,45 @@ struct Pages {
     layout: DockingLayout<TabId>,
     open: ReadSignal<Vec<Page>>,
     set_open: WriteSignal<Vec<Page>>,
+    dialogs: DemoDialogs,
 }
 
 impl Pages {
-    fn new() -> Self {
+    fn new(dialogs: DemoDialogs) -> Self {
         let (open, set_open) = create_signal(vec![Page::Docking]);
         Self {
             layout: DockingLayout::new(),
             open,
             set_open,
+            dialogs,
         }
     }
 
-    fn open(&self, page: Page) {
-        match self.open.with_untracked(|open| open.contains(&page)) {
-            true => self.layout.show(&page.tab()),
-            false => self.set_open.update(|open| open.push(page)),
+    fn open(&self, page: Page, beside: bool) {
+        if self.open.with_untracked(|open| open.contains(&page)) {
+            self.layout.show(&page.tab());
+            return;
         }
+        let shown = self.active().filter(|_| !beside);
+        batch(|| match shown {
+            Some(shown) if self.layout.replace(&shown.tab(), page.tab()) => {
+                self.dialogs.close_from(shown.tab());
+                self.set_open.update(|open| {
+                    for held in open.iter_mut().filter(|held| **held == shown) {
+                        *held = page;
+                    }
+                });
+            }
+            _ => self.set_open.update(|open| open.push(page)),
+        });
     }
 
     fn close(&self, page: Page) {
-        self.set_open
-            .update(|open| open.retain(|other| *other != page));
+        batch(|| {
+            self.dialogs.close_from(page.tab());
+            self.set_open
+                .update(|open| open.retain(|other| *other != page));
+        });
     }
 
     fn reset(&self) {
@@ -517,15 +546,6 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
         .at(KeyAt::Window)
         .register();
     }
-    let open = create_memo(move || layout.switching());
-    Action::new("demo.switch.cancel", "Stop switching tabs", move || {
-        layout.cancel_switch();
-    })
-    .shortcut(Chord::key(Key::Escape).alt())
-    .shortcut(Chord::key(Key::Escape).alt().shift())
-    .enabled(open)
-    .at(KeyAt::Window)
-    .register();
     create_effect(move || {
         if !modifiers.get().alt && untrack(|| layout.switching()) {
             untrack(|| layout.commit_switch());
@@ -537,7 +557,8 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
 #[component]
 fn DemoShell() -> NodeId {
     let theme = use_theme();
-    let pages = Pages::new();
+    let dialogs = DemoDialogs::new();
+    let pages = Pages::new(dialogs);
     let (mobile, set_mobile) = create_signal(false);
     let narrow = narrower_than(NARROW_WIDTH);
     let mode = create_memo(move || match mobile.get() || narrow.get() {
@@ -553,7 +574,6 @@ fn DemoShell() -> NodeId {
         held: drag_modifier,
         set: set_drag_modifier,
     });
-    let dialogs = DemoDialogs::new();
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
@@ -826,12 +846,13 @@ fn CatalogGroup(
 
 #[component]
 fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
+    let modifiers = held_modifiers();
+    let open = move || {
+        let held = modifiers.get_untracked();
+        pages.open(page, held.ctrl || held.logo);
+    };
     view! {
-        <ListRow
-            @test_id={format!("demo.catalog.{}", page.title())}
-            selected
-            on_click={move || pages.open(page)}
-        >
+        <ListRow @test_id={format!("demo.catalog.{}", page.title())} selected on_click={open}>
             <List direction=Direction::Horizontal align=Align::Center spacing=CATALOG_SPACING>
                 <Icon glyph={page.icon()} />
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>

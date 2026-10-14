@@ -762,6 +762,7 @@ name = "be-launcher"
 version = "0.1.0"
 dependencies = [
  "beui",
+ "block-ui-test",
  "comrak",
  "ghostty-vt",
  "image",

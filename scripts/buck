@@ -14,7 +14,7 @@
 # Usage:
 #   ./scripts/buck build //crates/...
 #   ./scripts/buck test //crates/...
-#   ./scripts/buck run //crates/block-app:app
+#   ./scripts/buck run //crates/block-app:native
 
 set -euo pipefail
 

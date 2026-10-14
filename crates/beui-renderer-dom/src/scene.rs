@@ -9,6 +9,7 @@ use beui_core::context::{FrameOutput, RendererInfo};
 use beui_core::display::{Display, Group, Layer, Part};
 use beui_core::geometry::Vec2;
 use beui_core::image::{Image, ImageId};
+use beui_core::node::NodeId;
 use beui_core::painter::Shape;
 use beui_core::renderer::Renderer;
 
@@ -20,7 +21,6 @@ const STYLE: &str = "\
 .beui-stage div{position:absolute;left:0;top:0;box-sizing:border-box;white-space:pre;pointer-events:none;font-variant-ligatures:none}\
 .beui-stage .beui-layer{isolation:isolate}\
 .beui-stage .beui-scaled{transform-origin:0 0}";
-const ROOT: u64 = 0;
 const IMAGE_LIMIT: usize = 512;
 
 #[derive(Clone)]
@@ -42,23 +42,17 @@ struct Node {
     content: web_sys::HtmlElement,
     display: Option<Rc<Display>>,
     factor: f32,
-    parent: u64,
+    parent: Option<NodeId>,
     placed: Option<(Vec2, f32)>,
     painted: Vec<Option<Child>>,
     groups: Vec<Option<Grouped>>,
     children: Vec<Child>,
-    kids: Vec<u64>,
+    kids: Vec<NodeId>,
 }
 
 struct Root {
     wrap: Child,
     holds: Option<u64>,
-}
-
-struct Loose {
-    shape: Shape,
-    factor: f32,
-    child: Option<Child>,
 }
 
 pub struct DomRenderer {
@@ -67,10 +61,10 @@ pub struct DomRenderer {
     stage: web_sys::HtmlElement,
     next: u64,
     layers: Vec<Child>,
-    roots: HashMap<u64, Root>,
+    roots: HashMap<NodeId, Root>,
     groups: Vec<Option<Grouped>>,
-    loose: Vec<Loose>,
-    nodes: HashMap<u64, Node>,
+    loose: Vec<Option<Child>>,
+    nodes: HashMap<NodeId, Node>,
     images: HashMap<ImageId, Rc<str>>,
     prepared: Option<(f32, f32, Color32)>,
     size: Option<(u32, u32)>,
@@ -79,7 +73,7 @@ pub struct DomRenderer {
 struct Shown {
     loose: usize,
     groups: usize,
-    roots: HashSet<u64>,
+    roots: HashSet<NodeId>,
 }
 
 impl DomRenderer {
@@ -107,7 +101,7 @@ impl DomRenderer {
             document,
             root,
             stage,
-            next: ROOT + 1,
+            next: 0,
             layers: Vec::new(),
             roots: HashMap::new(),
             groups: Vec::new(),
@@ -156,7 +150,7 @@ impl DomRenderer {
         self.groups = groups;
         self.loose.truncate(shown.loose);
         reconcile(&self.stage, &mut self.layers, desired);
-        let gone: Vec<u64> = self
+        let gone: Vec<NodeId> = self
             .roots
             .keys()
             .filter(|key| !shown.roots.contains(key))
@@ -164,7 +158,7 @@ impl DomRenderer {
             .collect();
         for key in gone {
             self.roots.remove(&key);
-            self.release(key, ROOT);
+            self.release(key, None);
         }
     }
 
@@ -186,7 +180,7 @@ impl DomRenderer {
                 }
                 Layer::Display(at, display) => {
                     if let Some(wrap) = self.layer(display, *at, factor) {
-                        shown.roots.insert(display.key);
+                        shown.roots.insert(display.node);
                         desired.push(wrap);
                     }
                 }
@@ -265,35 +259,24 @@ impl DomRenderer {
     }
 
     fn loose(&mut self, index: usize, shape: &Shape, factor: f32) -> Option<Child> {
-        if let Some(held) = self.loose.get(index)
-            && held.shape == *shape
-            && held.factor == factor
-        {
-            return held.child.clone();
-        }
-        let reused = self.loose.get_mut(index).and_then(|held| held.child.take());
+        let reused = self.loose.get_mut(index).and_then(Option::take);
         let child = self.paint(reused, shape, factor);
-        let held = Loose {
-            shape: shape.clone(),
-            factor,
-            child: child.clone(),
-        };
         match index < self.loose.len() {
-            true => self.loose[index] = held,
-            false => self.loose.push(held),
+            true => self.loose[index] = child.clone(),
+            false => self.loose.push(child.clone()),
         }
         child
     }
 
     fn layer(&mut self, display: &Rc<Display>, at: Vec2, factor: f32) -> Option<Child> {
-        let frame = self.visit(display, factor, ROOT)?;
-        self.place(display.key, at, factor);
-        if !self.roots.contains_key(&display.key) {
+        let frame = self.visit(display, factor, None)?;
+        self.place(display.node, at, factor);
+        if !self.roots.contains_key(&display.node) {
             let wrap = self.child()?;
             wrap.element.set_class_name("beui-layer");
-            self.roots.insert(display.key, Root { wrap, holds: None });
+            self.roots.insert(display.node, Root { wrap, holds: None });
         }
-        let root = self.roots.get_mut(&display.key)?;
+        let root = self.roots.get_mut(&display.node)?;
         if root.holds != Some(frame.id) {
             root.wrap.element.set_text_content(None);
             let _ = root.wrap.element.append_child(&frame.element);
@@ -302,8 +285,13 @@ impl DomRenderer {
         Some(root.wrap.clone())
     }
 
-    fn visit(&mut self, display: &Rc<Display>, factor: f32, parent: u64) -> Option<Child> {
-        let key = display.key;
+    fn visit(
+        &mut self,
+        display: &Rc<Display>,
+        factor: f32,
+        parent: Option<NodeId>,
+    ) -> Option<Child> {
+        let key = display.node;
         let mut node = match self.nodes.remove(&key) {
             Some(node) => node,
             None => {
@@ -340,23 +328,16 @@ impl DomRenderer {
     }
 
     fn update(&mut self, node: &mut Node, display: &Rc<Display>, factor: f32) {
-        let held = node
+        let kept = node
             .display
             .as_ref()
-            .filter(|_| node.factor == factor)
-            .map(|held| Rc::clone(&held.shapes));
-        let same_shapes = held
-            .as_ref()
-            .is_some_and(|held| Rc::ptr_eq(held, &display.shapes));
+            .is_some_and(|held| node.factor == factor && Rc::ptr_eq(&held.shapes, &display.shapes));
         let mut old = std::mem::take(&mut node.painted);
         let mut painted = Vec::with_capacity(display.shapes.len());
         for (index, shape) in display.shapes.iter().enumerate() {
             let previous = old.get_mut(index).and_then(Option::take);
-            let same = held
-                .as_ref()
-                .is_some_and(|held| same_shapes || held.get(index) == Some(shape));
             match previous {
-                Some(previous) if same => painted.push(Some(previous)),
+                Some(previous) if kept => painted.push(Some(previous)),
                 previous => painted.push(self.paint(previous, shape, factor)),
             }
         }
@@ -365,7 +346,7 @@ impl DomRenderer {
         let mut index = 0;
         let desired = self.fill(
             &display.parts,
-            display.key,
+            display.node,
             factor,
             &painted,
             &mut groups,
@@ -375,10 +356,10 @@ impl DomRenderer {
         groups.truncate(index);
         node.groups = groups;
         reconcile(&node.content, &mut node.children, desired);
-        let kept: HashSet<u64> = kids.iter().copied().collect();
+        let shown: HashSet<NodeId> = kids.iter().copied().collect();
         for kid in std::mem::replace(&mut node.kids, kids) {
-            if !kept.contains(&kid) {
-                self.release(kid, display.key);
+            if !shown.contains(&kid) {
+                self.release(kid, Some(display.node));
             }
         }
         node.painted = painted;
@@ -390,12 +371,12 @@ impl DomRenderer {
     fn fill(
         &mut self,
         parts: &[Part],
-        key: u64,
+        key: NodeId,
         factor: f32,
         painted: &[Option<Child>],
         groups: &mut Vec<Option<Grouped>>,
         index: &mut usize,
-        kids: &mut Vec<u64>,
+        kids: &mut Vec<NodeId>,
     ) -> Vec<Child> {
         let mut desired = Vec::new();
         for part in parts {
@@ -406,10 +387,10 @@ impl DomRenderer {
                         .flatten()
                         .cloned(),
                 ),
-                Part::Child(_, at, child) => {
-                    if let Some(frame) = self.visit(child, factor, key) {
-                        self.place(child.key, *at, factor);
-                        kids.push(child.key);
+                Part::Child(id, at, child) => {
+                    if let Some(frame) = self.visit(child, factor, Some(key)) {
+                        self.place(*id, *at, factor);
+                        kids.push(*id);
                         desired.push(frame);
                     }
                 }
@@ -430,7 +411,7 @@ impl DomRenderer {
         desired
     }
 
-    fn place(&mut self, key: u64, at: Vec2, factor: f32) {
+    fn place(&mut self, key: NodeId, at: Vec2, factor: f32) {
         let Some(node) = self.nodes.get_mut(&key) else {
             return;
         };
@@ -444,7 +425,7 @@ impl DomRenderer {
             .set_css_text(&style::placement(at, factor));
     }
 
-    fn release(&mut self, key: u64, parent: u64) {
+    fn release(&mut self, key: NodeId, parent: Option<NodeId>) {
         let mut pending = vec![(key, parent)];
         while let Some((key, parent)) = pending.pop() {
             if self
@@ -455,7 +436,7 @@ impl DomRenderer {
                 continue;
             }
             if let Some(node) = self.nodes.remove(&key) {
-                pending.extend(node.kids.into_iter().map(|kid| (kid, key)));
+                pending.extend(node.kids.into_iter().map(|kid| (kid, Some(key))));
             }
         }
     }

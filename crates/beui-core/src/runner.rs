@@ -22,7 +22,7 @@ use crate::window::{WindowReports, WindowState};
 mod intake;
 
 use intake::{Drain, Intake};
-pub use intake::{Input, Keystroke, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
+pub use intake::{Input, Keystroke, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
 
 type Answered = (FilePickId, FilePick);
 
@@ -415,6 +415,7 @@ impl Runner {
         self.intake.drain(
             &mut Drain {
                 pixels_per_point: scale,
+                native_pixels_per_point: self.native,
                 touch_emulation: self.context.touch_emulation(),
             },
             &mut self.events,
@@ -438,10 +439,6 @@ impl Runner {
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
-        let typed = raw
-            .events
-            .iter()
-            .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
         let app = &mut self.app;
         let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
@@ -475,7 +472,7 @@ impl Runner {
         }
         let window_units = scale / self.context.native_pixels_per_point();
         let window = output.window.clone().scaled(window_units);
-        if typed || window != self.shown {
+        if window != self.shown {
             platform.show_window(&window, &self.shown);
             self.shown = window;
         }

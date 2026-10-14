@@ -10,9 +10,9 @@ cargo_binary()
 
 deploy(
     name = "deploy",
-    be_linux_arm64 = "//crates/be-cli:be",
-    be_linux_x86_64 = "//crates/be-cli:be",
-    server = "//crates/be-server:be-server-bin",
-    tool = ":local-tools-bin",
+    be_linux_arm64 = "//crates/be-cli:native",
+    be_linux_x86_64 = "//crates/be-cli:native",
+    server = "//crates/be-server:bin",
+    tool = ":bin",
     web = "//crates/block-app:web",
 )

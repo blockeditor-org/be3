@@ -132,7 +132,22 @@ impl Owner {
 pub struct Scope {
     owner: Rc<Owner>,
     gate: Option<Rc<Gate>>,
-    handed: bool,
+}
+
+fn open_owner(parent: Option<Rc<Owner>>) -> Rc<Owner> {
+    Rc::new(Owner {
+        computation: parent
+            .as_ref()
+            .map(|parent| parent.computation.clone())
+            .unwrap_or_else(no_computation),
+        gate: RefCell::new(
+            parent
+                .as_ref()
+                .and_then(|parent| parent.gate.borrow().clone()),
+        ),
+        parent,
+        ..Owner::default()
+    })
 }
 
 impl Scope {
@@ -147,24 +162,9 @@ impl Scope {
     }
 
     pub fn detached() -> Self {
-        let parent = live_owner();
-        let owner = Rc::new(Owner {
-            computation: parent
-                .as_ref()
-                .map(|parent| parent.computation.clone())
-                .unwrap_or_else(no_computation),
-            parent: parent.clone(),
-            gate: RefCell::new(
-                parent
-                    .as_ref()
-                    .and_then(|parent| parent.gate.borrow().clone()),
-            ),
-            ..Owner::default()
-        });
         Self {
-            owner,
+            owner: open_owner(live_owner()),
             gate: None,
-            handed: false,
         }
     }
 
@@ -222,10 +222,6 @@ impl Scope {
 
     pub fn dispose(&self) {
         batch(|| self.owner.dispose());
-    }
-
-    pub fn into_parent(mut self) {
-        self.handed = true;
     }
 
     pub fn is_disposed(&self) -> bool {
@@ -291,8 +287,16 @@ impl ScopeContext {
     }
 
     pub fn child(&self) -> Option<Scope> {
-        self.is_alive().then(|| self.run(Scope::new))
+        self.is_alive().then(|| self.run(Scope::detached))
     }
+}
+
+pub fn child_scope<T>(f: impl FnOnce() -> T) -> (T, ScopeContext) {
+    let parent = current_owner();
+    let owner = open_owner(Some(parent.clone()));
+    parent.add(Cleanup::Close(owner.clone()));
+    let context = ScopeContext(Rc::downgrade(&owner));
+    (context.run(f), context)
 }
 
 pub fn current_scope() -> Option<ScopeContext> {
@@ -321,9 +325,6 @@ impl Default for Scope {
 
 impl Drop for Scope {
     fn drop(&mut self) {
-        if self.handed {
-            return;
-        }
         if std::thread::panicking() {
             self.owner.dispose();
         } else {

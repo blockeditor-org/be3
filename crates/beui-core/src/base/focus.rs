@@ -374,7 +374,7 @@ impl Document {
 
     pub fn focus_is_within(&self, root: NodeId) -> bool {
         self.focused
-            .is_some_and(|focused| self.focusables_within(root).contains(&focused))
+            .is_some_and(|focused| self.is_within(focused, root))
     }
 
     pub fn focus_next(&mut self) {
@@ -453,6 +453,11 @@ impl Document {
         if !dirty {
             return;
         }
+        if let Some(wanted) = self.focus_wanted.take()
+            && self.focus_valid(wanted)
+        {
+            self.update_focus(Some(wanted));
+        }
         if let Some(focused) = self.focused
             && !self.focus_valid(focused)
         {
@@ -482,7 +487,7 @@ impl Document {
                 break;
             }
             let Some(parent) = self.arena.parent(current) else {
-                return self.focusables().contains(&node);
+                return false;
             };
             if !self.arena.get(parent).children().contains(&current) {
                 return false;
@@ -493,7 +498,7 @@ impl Document {
         let Some(layer) = self.layer_of(&layers, node) else {
             return false;
         };
-        layer >= layers.keyboard() && self.blocked_focus_redirect(&layers, node).is_none()
+        layer >= layers.keyboard() && !self.focus_blocked(&layers, node)
     }
 
     pub fn update_focus(&mut self, new_focus: Option<NodeId>) {
@@ -508,10 +513,11 @@ impl Document {
                     .layer_of(&layers, new)
                     .is_some_and(|layer| layer < keyboard)
                 {
-                    if layers[keyboard].level == crate::layer::LayerLevel::Lock {
-                        return;
+                    if !layers.locked() {
+                        self.focus_wanted = Some(new);
+                        self.focus_dirty = true;
                     }
-                    self.focus_dirty = true;
+                    return;
                 }
                 if let Some(redirect) = self.blocked_focus_redirect(&layers, new) {
                     if redirect.is_some() && redirect != self.focused {
@@ -521,7 +527,7 @@ impl Document {
                 }
             }
             None => {
-                let held = layers[keyboard].level == crate::layer::LayerLevel::Lock
+                let held = layers.locked()
                     && self.focused.is_some_and(|old| {
                         self.layer_of(&layers, old)
                             .is_some_and(|layer| layers.within(layer, keyboard))
@@ -538,7 +544,7 @@ impl Document {
         self.focused = new_focus;
         self.focus_before = old;
         if let Some(new) = new_focus {
-            self.note_focus_outside_layers(new);
+            self.note_focus_outside_scopes(new);
         }
         self.keyboard_held = new_focus.is_some_and(|focused| {
             self.contains(focused)

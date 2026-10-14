@@ -669,22 +669,6 @@ impl DockState {
         self.settle_focus();
     }
 
-    pub fn raise(&mut self, surface: SurfaceId) {
-        let Some(index) = self
-            .surfaces
-            .iter()
-            .position(|candidate| candidate.id == surface)
-        else {
-            return;
-        };
-        if index == 0 || index + 1 == self.surfaces.len() {
-            return;
-        }
-        let raised = self.surfaces.remove(index);
-        self.invalidate();
-        self.surfaces.push(raised);
-    }
-
     pub fn tree_of(&self, leaf: LeafId) -> Option<Tree> {
         self.index().leaves.get(&leaf).map(|(tree, _)| *tree)
     }
@@ -951,9 +935,6 @@ impl DockState {
         }
         self.focus = Some(leaf);
         self.reveal(leaf);
-        if let Some(surface) = self.surface_of(leaf) {
-            self.raise(surface);
-        }
         self.remember_focus();
     }
 

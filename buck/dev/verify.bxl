@@ -62,8 +62,8 @@ def _rust_fixes(ctx, actions) -> list[Artifact]:
         sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
         if "clippy.json" in sub_targets:
             clippy.setdefault(target.label.package, []).append(sub_targets["clippy.json"][DefaultInfo].default_outputs[0])
-    buck_tools = _output(ctx, "root//crates/buck-tools:buck-tools-bin")
-    fix_rust_source = _output(ctx, "root//crates/fix-rust-source:fix-rust-source-bin")
+    buck_tools = _output(ctx, "root//crates/buck-tools:bin")
+    fix_rust_source = _output(ctx, "root//crates/fix-rust-source:bin")
     rustfmt = _output(ctx, "root//buck/tools:rustfmt-sysroot")
     script = ctx.fs.source("buck/dev/fix.sh")
     fixes = []
@@ -108,7 +108,7 @@ def _impl(ctx: bxl.Context):
     args = ctx.cli_args
     actions = ctx.bxl_actions().actions
     printed = [
-        ("verify", _host_output(ctx, "root//crates/local-tools:local-tools-bin", args.host)),
+        ("verify", _host_output(ctx, "root//crates/local-tools:bin", args.host)),
         ("buckify", buckify(ctx, actions)),
         ("sysroot", _output(ctx, "root//buck/sysroot:lock")),
     ]
@@ -124,7 +124,7 @@ def _impl(ctx: bxl.Context):
         printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
         printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))
     if args.previews:
-        printed.append(("previews", _output(ctx, "root//crates/paint-snapshot:preview-example")))
+        printed.append(("previews", _output(ctx, "root//crates/paint-snapshot:example-preview")))
     paths = ctx.output.ensure_multiple([artifact for _, artifact in printed])
     ctx.output.ensure_multiple(built)
     for (kind, _), path in zip(printed, paths):

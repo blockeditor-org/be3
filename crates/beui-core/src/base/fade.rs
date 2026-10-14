@@ -3,40 +3,61 @@ use std::any::Any;
 use crate::base::frame::Sides;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
 use crate::painter::Painter;
 
 pub struct FadeNode {
-    child: NodeId,
+    child: Option<NodeId>,
     edges: Sides,
+    mask: Option<SpaceId>,
 }
 
 impl Element for FadeNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        crate::layout::measure(doc, painter, self.child, available)
+        self.child.map_or(Vec2::ZERO, |child| {
+            crate::layout::measure(doc, painter, child, available)
+        })
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
-        crate::layout::baseline(doc, painter, self.child, available)
+        crate::layout::baseline(doc, painter, self.child?, available)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        crate::layout::layout(doc, painter, self.child, rect, out);
+        if let Some(child) = self.child {
+            crate::layout::layout(doc, painter, child, rect, out);
+        }
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
+        let Some(child) = self.child else {
+            return;
+        };
         let Sides {
             left,
             top,
             right,
             bottom,
         } = self.edges;
-        let faded = painter.faded(rect, [left, top, right, bottom]);
-        crate::paint::paint(doc, &faded, rects, self.child);
+        let Some(mask) = self.mask else {
+            return;
+        };
+        let faded = painter.faded(mask, rect, [left, top, right, bottom]);
+        crate::paint::paint(doc, &faded, rects, child);
     }
 
     fn children(&self) -> Vec<NodeId> {
-        vec![self.child]
+        self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn passes_scroll_anchor(&self) -> bool {
@@ -69,10 +90,21 @@ impl Element for FadeNode {
 
 impl Document {
     pub fn create_fade(&mut self, child: NodeId) -> NodeOf<FadeNode> {
-        self.arena.insert(FadeNode {
-            child,
+        let fade = self.arena.insert(FadeNode {
+            child: Some(child),
             edges: Sides::default(),
-        })
+            mask: None,
+        });
+        let id = NodeId::from(fade);
+        if let Some(node) = self
+            .arena
+            .state_mut(id)
+            .as_any_mut()
+            .downcast_mut::<FadeNode>()
+        {
+            node.mask = Some(SpaceId::of(id));
+        }
+        fade
     }
 
     pub fn set_fade(&mut self, fade: NodeOf<FadeNode>, edges: Sides) {

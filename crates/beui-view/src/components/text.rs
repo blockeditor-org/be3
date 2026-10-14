@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use crate::reactive::{
-    Child, ChildSegment, ChildValue, Children, ComponentContext, FromPlaced, IntoChild, IntoProp,
-    IntoSegment, IntoSlotHost, Memo, Placed, Prop, ReadSignal, Scope, SlotChild, SlotHost, SlotId,
-    create_binding, create_effect, with_document,
+    Child, ChildSegment, ChildValue, Children, FromPlaced, IntoChild, IntoProp, IntoSegment,
+    IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId, create_binding,
+    create_effect, with_document,
 };
 use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart};
 use beui_core::color::Color32;
@@ -86,23 +86,8 @@ pub fn Text(
 
 pub enum TextChild {
     Span(Span),
+    Gap(Gap),
     Item(TextItem),
-}
-
-impl ChildValue for TextChild {
-    fn adopt_scope(&mut self, scope: Scope) {
-        match self {
-            TextChild::Span(span) => span.adopt_scope(scope),
-            TextChild::Item(item) => item.adopt_scope(scope),
-        }
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
-        match self {
-            TextChild::Span(span) => span.finish_component(component, scope),
-            TextChild::Item(item) => item.finish_component(component, scope),
-        }
-    }
 }
 
 crate::child_type!(TextChild);
@@ -117,6 +102,7 @@ impl SlotChild for TextChild {
                  it cannot be kept in a run of children away from one"
             ),
             TextChild::Item(item) => item.store(),
+            TextChild::Gap(gap) => TextPart::Gap(gap.width),
         }
     }
 }
@@ -128,6 +114,7 @@ impl SlotHost<TextChild> for TextHost {
         match child {
             TextChild::Span(span) => TextPart::Span(span.bind(self.0)),
             TextChild::Item(item) => item.store(),
+            TextChild::Gap(gap) => TextPart::Gap(gap.width),
         }
     }
 
@@ -217,11 +204,7 @@ pub struct Span {
     break_after: Prop<bool>,
 }
 
-impl ChildValue for Span {
-    fn adopt_scope(&mut self, scope: Scope) {
-        scope.into_parent();
-    }
-}
+impl ChildValue for Span {}
 
 fn bind<T: Clone + 'static>(
     text: NodeOf<TextNode>,
@@ -309,6 +292,29 @@ pub fn Span(
         underline,
         strikethrough,
         break_after,
+    }
+}
+
+pub struct Gap {
+    width: f32,
+}
+
+impl ChildValue for Gap {}
+
+#[component]
+pub fn Gap(width: f32) -> Gap {
+    Gap { width }
+}
+
+impl IntoChild<TextChild> for Gap {
+    fn into_child(self) -> TextChild {
+        TextChild::Gap(self)
+    }
+}
+
+impl IntoSegment<TextChild> for Gap {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::One(TextChild::Gap(self))
     }
 }
 

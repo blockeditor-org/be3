@@ -26,7 +26,7 @@ set_count.update(|count| *count += 1);
 Keep the scope alive for as long as the view exists. Dropping it or calling
 `scope.dispose()` stops its computations, runs their cleanup callbacks, and
 frees the signals and memos created in it.
-Run `./scripts/buck run //crates/reactive:retained-example` for a complete example that
+Run `./scripts/buck run //crates/reactive:example-retained` for a complete example that
 updates retained state and batches changes around a mutable borrow.
 
 ## Signals and memos
@@ -335,15 +335,29 @@ also disposes children, even when a child handle remains alive. A scope cannot
 be entered after disposal, and disposing it frees the signals, memos and
 selectors it owns. Disposal is idempotent.
 
-Inside a computation, the current scope is that computation's execution scope,
-which is thrown away every time it reruns. To open a scope that survives those
-reruns but still belongs to the surrounding tree, use `owner_scope()`: it
-returns the `ScopeContext` of the scope that created the running computation
-(or the current scope when no computation is running). `ScopeContext::child()`
-opens a child scope there, returning `None` if that scope is already gone, and
-`ScopeContext::is_alive()` answers the same question on its own. This is how a
-list keeps per-item scopes across updates of the list itself while still
-tearing them down with whatever owns the list.
+A scope has exactly one owner, and there are two kinds:
+
+- `child_scope(|| ...)` runs its closure in a new child of the current scope
+  that lives exactly as long as that scope, and returns what it built with a
+  `ScopeContext` to enter it again later. Every `#[component]` runs in one.
+  It panics with no current scope, since nothing would ever dispose it.
+- A `Scope` value owns its scope and disposes it when dropped.
+  `Scope::detached()` opens one under the current scope, so it reads that
+  scope's context and pauses with it, but only the value disposes it;
+  `Scope::new()` is also disposed with the current scope. Keep the value where
+  its lifetime belongs: in a `store` when it should go with the current scope
+  (the control-flow components keep each branch's scope in one, beside the
+  child it built), or in a map entry when it goes with the entry, as
+  `KeyedItems` and the dock's panels do.
+
+A `ScopeContext` is a weak handle that owns nothing. Inside a computation, the
+current scope is that computation's execution scope, which is thrown away
+every time it reruns; `owner_scope()` returns the `ScopeContext` of the scope
+that created the running computation (or the current scope when no computation
+is running). `ScopeContext::child()` opens a scope under it that its handle
+owns, returning `None` if that scope is already gone, and `is_alive()` answers
+the same question on its own. This is how a list keeps per-item scopes across
+updates of the list itself while still reading what was provided above it.
 
 `on_cleanup(|| ...)` registers a callback on the current scope. Every computation
 has a fresh execution scope: before it reruns, its old nested computations and
@@ -813,12 +827,13 @@ like any other wrapper.
 
 ## Containers and responsive layout
 
-Layout sizes are available reactively: `node_size(id)` returns a
-`ReadSignal<Vec2>` that the document updates from that node's laid-out rect.
-`Document::show` runs layout, publishes the sizes that changed, and lets the
-effects that woke up rebuild before it lays out what they changed again, so a
-size-driven change is visible in the frame that caused it rather than one frame
-later. The signal reads `Vec2::ZERO` until the first layout.
+Content that depends on the space it is given is built inside layout, not
+after it: a `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the
+size it is laid out at, and rebuilds its content in the same walk when that
+size changes (see "One layout per frame" in the beui guide). `node_rect(id)`
+watches where a node was placed, for content positioned in document
+coordinates; content that needs a rect to lay itself out uses a
+`LayoutBuilder` instead.
 
 `unstyled::container` ties the two together: it is a `LayoutBuilder`, which
 builds its content in a scope of its own under the caller's, the way `Show`
@@ -844,8 +859,8 @@ Each `Document` owns a root `reactive::Scope` (`Document::reactive_scope`).
 Every node belongs to the scope that was current when it was created, just as an
 effect does, and disposing that scope removes the nodes it still owns: a scope's
 nodes, effects and `on_cleanup` callbacks go together. Every `#[component]`
-runs in a child scope of the scope that built it, which it hands back to that
-scope, so a component lives exactly as long as its caller. Code built directly
+runs in a `child_scope` of the scope that built it, so a component lives
+exactly as long as its caller. Code built directly
 in `build`'s closure belongs to the document's root scope and lives as long as
 the document.
 
@@ -853,15 +868,17 @@ the document.
 scope of its own and drop that scope to drop the child: `Show` disposes its
 child's scope when it hides it, where `ShowKeepAlive` pauses it. Anything else
 that drops part of a view on its own keeps a `Scope` for it and drops that,
-as the dock does for each tab's panel; nothing removes nodes by hand.
+as the dock does for each tab's panel; nothing removes nodes by hand. A
+component that returns a value rather than a node lives as long as the scope
+that built it, like one that returns a node; dropping the value does nothing.
 
 The scope that owns a node and the node that holds it can differ. When a node is
 removed, its children that belong to another, still-live scope are detached
 rather than removed, and live on until their own scope goes, which is what lets
 a `Portal` show a subtree built elsewhere. The other way round, a node whose
-scope is disposed while a parent still holds it leaves that parent holding a
-removed id, so take a child out of its parent before dropping its scope, as the
-control-flow components do by filling their slot first.
+scope is disposed while a parent still holds it is taken out of that parent
+when it is removed: every `Element` says how to let go of a child with
+`remove_child`.
 
 An effect that writes one particular node belongs with that node rather than
 with whichever scope is running: `bind(node, || ...)` creates it in the scope

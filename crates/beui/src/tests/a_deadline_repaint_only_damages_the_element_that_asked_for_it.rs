@@ -43,7 +43,9 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
 fn alternating() -> crate::reactive::Draw {
     let (lit, set_lit) = create_signal(false);
     Rc::new(move |painter: &crate::painter::Painter, rect: Rect| {
-        set_lit.set(!lit.get_untracked());
+        if !painter.ctx().is_verifying_paint() {
+            set_lit.set(!lit.get_untracked());
+        }
         let color = match lit.get_untracked() {
             true => Color32::WHITE,
             false => Color32::BLACK,

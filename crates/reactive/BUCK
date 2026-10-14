@@ -4,6 +4,6 @@ cargo_library()
 
 cargo_test()
 
-# The examples: `./scripts/buck run //crates/reactive:<example>-example`.
+# The examples: `./scripts/buck run //crates/reactive:example-<example>`.
 
 cargo_example("retained")
