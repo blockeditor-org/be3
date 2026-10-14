@@ -123,11 +123,18 @@ pub struct Drag {
     pub dropped: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RawContent {
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChildTarget {
     pub id: Uuid,
     pub block_type: Uuid,
     pub view_block: Option<Uuid>,
+    pub editor: Option<Uuid>,
 }
 
 impl ChildTarget {
@@ -136,7 +143,13 @@ impl ChildTarget {
             id,
             block_type,
             view_block: None,
+            editor: None,
         }
+    }
+
+    pub fn edited_with(mut self, editor: Option<Uuid>) -> Self {
+        self.editor = editor;
+        self
     }
 
     pub fn viewed_by(mut self, view_block: Uuid) -> Self {
@@ -168,6 +181,7 @@ impl SubregionContent {
                 block_id: target.id.into_bytes(),
                 block_type: target.block_type.into_bytes(),
                 view_block: target.view_block.map(Uuid::into_bytes),
+                editor: target.editor.map(Uuid::into_bytes),
             },
             Self::WebView(web_view) => ChildContent::WebView(*web_view),
             Self::Host(panel) => ChildContent::Host(*panel),
@@ -577,6 +591,39 @@ impl Editor {
     pub fn create_child<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
         self.blocks()
             .create(content, BlockParent::Block(self.state().block))
+    }
+
+    pub fn raw_block_content(&self) -> ReadSignal<Option<RawContent>> {
+        let state = self.state();
+        let cached = state
+            .projections
+            .borrow()
+            .get(&None)
+            .and_then(|held| held.downcast_ref::<OwnedSignal<Option<RawContent>>>())
+            .map(OwnedSignal::read);
+        if let Some(read) = cached {
+            return read;
+        }
+        let owned = OwnedSignal::new(None::<RawContent>);
+        let (read, write) = (owned.read(), owned.write());
+        let host = state.host.clone();
+        state.pumps.borrow_mut().insert(
+            None,
+            Rc::new(move || {
+                for update in host.take_content_updates(None) {
+                    match update {
+                        crate::ContentUpdate::Snapshot(content) => write.set(Some(RawContent {
+                            content_type: content.content_type,
+                            bytes: content.bytes,
+                        })),
+                        crate::ContentUpdate::Operations(_) => host.request_content_resend(None),
+                    }
+                }
+            }),
+        );
+        state.due.borrow_mut().push(None);
+        state.projections.borrow_mut().insert(None, Box::new(owned));
+        read
     }
 
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
@@ -1259,6 +1306,38 @@ impl Creation {
 }
 
 impl Editor {
+    pub fn effective_settings<R>(&self) -> Memo<R>
+    where
+        R: be_block::Layered + PartialEq + 'static,
+        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
+    {
+        let editor = *self;
+        create_memo(move || {
+            let layers = crate::root_settings::RootSettings::default()
+                .read(&editor)
+                .map(|held| {
+                    crate::root_settings::layers(
+                        &editor,
+                        &held,
+                        R::CONTENT_TYPE,
+                        editor.host().client_id(),
+                    )
+                })
+                .unwrap_or_default();
+            be_block::layered(
+                layers
+                    .defaults
+                    .into_iter()
+                    .chain(layers.own)
+                    .filter_map(|block| {
+                        editor
+                            .content_of::<be_block::be_model::Document<R>>(block)
+                            .read(|content| content.root())
+                    }),
+            )
+        })
+    }
+
     pub fn inherited_settings<R>(&self) -> Memo<R>
     where
         R: be_block::Layered + PartialEq + 'static,

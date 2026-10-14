@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use super::export::{Exporter, exportable};
 use super::rows::{Inspection, Placement, Row, RowKey, Tree as FileTree, describe};
-use super::ui::{Picker, menu_action};
+use super::ui::{OpenWith, Picker, menu_action};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 2.0;
@@ -783,6 +783,7 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                     glyph={ICON_OPEN_IN_NEW.to_owned()}
                     disabled={unviewable}
                 />
+                <OpenWith editor={editor} row={row} />
                 <MenuItem
                     row_test_id={"file-tree.actions.add".to_owned()}
                     label="New file inside"
@@ -836,14 +837,14 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
             }}
             on_select={move |path: Vec<usize>| match path.as_slice() {
                 [0] => opening(),
-                [1] => add_inside(),
-                [2] => chosen(vec![2]),
+                [2] => add_inside(),
                 [3] => chosen(vec![3]),
-                [4] => chosen(vec![1, 0]),
-                [5] => chosen(vec![4]),
-                [6] => chosen(vec![6]),
+                [4] => chosen(vec![4]),
+                [5] => chosen(vec![2, 0]),
+                [6] => chosen(vec![5]),
                 [7] => chosen(vec![7]),
-                [8] => chosen(vec![5]),
+                [8] => chosen(vec![8]),
+                [9] => chosen(vec![6]),
                 _ => {}
             }}
         />

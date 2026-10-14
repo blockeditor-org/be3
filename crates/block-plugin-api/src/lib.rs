@@ -310,6 +310,7 @@ pub enum ChildContent {
         block_id: [u8; 16],
         block_type: [u8; 16],
         view_block: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
     WebView(WebViewId),
     Host(HostPanel),
@@ -537,6 +538,15 @@ impl PluginManifest {
         self.editors
             .iter()
             .find(|editor| editor.block_type == block_type)
+            .or_else(|| {
+                self.editors
+                    .iter()
+                    .find(|editor| editor.block_type == ANY_BLOCK_TYPE)
+            })
+    }
+
+    pub fn editor_id(&self) -> [u8; 16] {
+        editor_id(&self.identity.id)
     }
 }
 
@@ -616,6 +626,30 @@ pub struct TemplateDescriptor {
 pub struct Catalog {
     pub types: Vec<BlockTypeDescriptor>,
     pub templates: Vec<TemplateDescriptor>,
+    pub editors: Vec<EditorDescriptor>,
+}
+
+pub const ANY_BLOCK_TYPE: [u8; 16] = [0; 16];
+
+pub const ANY_BLOCK_TYPE_NAME: &str = "any";
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorDescriptor {
+    pub editor: [u8; 16],
+    pub block_type: [u8; 16],
+    pub name: String,
+    pub icon_codepoint: String,
+}
+
+pub fn editor_id(plugin_id: &str) -> [u8; 16] {
+    const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
+    const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
+    plugin_id
+        .bytes()
+        .fold(OFFSET, |hash, byte| {
+            (hash ^ u128::from(byte)).wrapping_mul(PRIME)
+        })
+        .to_be_bytes()
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -873,6 +907,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowBlock {
@@ -880,6 +915,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowPanel {
@@ -2539,6 +2575,11 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 string(&template.template)?;
                 string(&template.name)?;
                 string(&template.icon_codepoint)?;
+            }
+            collection(value.editors.len())?;
+            for editor in &value.editors {
+                string(&editor.name)?;
+                string(&editor.icon_codepoint)?;
             }
             Ok(())
         }

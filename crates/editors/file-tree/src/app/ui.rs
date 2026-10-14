@@ -5,12 +5,12 @@ use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_INFO, ICON_LINK_OFF, ICON_MOVE_UP,
-    ICON_NOTE_ADD, ICON_SHARE,
+    ICON_NOTE_ADD, ICON_OPEN_WITH, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal, Show,
-    Spacer, Stored, WriteSignal, component, create_effect, create_memo, create_signal, focus_ring,
-    store, view, with_document,
+    Align, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal,
+    Show, Spacer, Stored, WriteSignal, component, create_effect, create_memo, create_signal,
+    focus_ring, store, view, with_document,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
@@ -400,6 +400,7 @@ fn TreeRow(
         <ContextMenu
             child_size=ItemSize::Percent(100.0)
             items={view! {
+                <OpenWith editor={editor} row={row} />
                 <MenuItem label="Add" glyph={ICON_NOTE_ADD.to_owned()} disabled={add} />
                 <MenuItem label="Set parent" glyph={ICON_MOVE_UP.to_owned()} disabled={edit}>
                     <MenuItem label="Root" disabled={rooted} />
@@ -455,6 +456,62 @@ fn TreeRow(
                 </Show>
             </List>
         </ContextMenu>
+    }
+}
+
+#[component]
+pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
+    let block = create_memo(move || {
+        row.get()
+            .filter(|row| row.access.can_view())
+            .and_then(|row| Some((row.id?, row.block_type)))
+    });
+    let editors = create_memo(move || {
+        let types = editor.block_types();
+        block.get().map_or_else(Vec::new, |(_, block_type)| {
+            types
+                .editors_for(block_type)
+                .into_iter()
+                .map(|entry| (entry.editor, entry.name.clone()))
+                .collect::<Vec<_>>()
+        })
+    });
+    let keys = create_memo(move || {
+        editors.with(|editors| editors.iter().map(|(id, _)| *id).collect::<Vec<_>>())
+    });
+    let none = create_memo(move || keys.with(Vec::is_empty));
+    view! {
+        <MenuItem
+            label="Open with"
+            glyph={ICON_OPEN_WITH.to_owned()}
+            disabled={none}
+            row_test_id={"file-tree.open-with".to_owned()}
+        >
+            <ForEach keys={keys}>
+                {move |chosen: Uuid| {
+                    let label = create_memo(move || {
+                        editors.with(|editors| {
+                            editors
+                                .iter()
+                                .find(|(id, _)| *id == chosen)
+                                .map(|(_, name)| name.clone())
+                                .unwrap_or_default()
+                        })
+                    });
+                    view! {
+                        <MenuItem
+                            label={label}
+                            row_test_id={format!("file-tree.open-with.{chosen}")}
+                            on_click={move || {
+                                if let Some((id, block_type)) = block.get_untracked() {
+                                    editor.host().open_block_with(id, block_type, chosen);
+                                }
+                            }}
+                        />
+                    }
+                }}
+            </ForEach>
+        </MenuItem>
     }
 }
 
@@ -598,27 +655,27 @@ pub(crate) fn menu_action(
             return;
         };
         match path.as_slice() {
-            [0] => picker.open(
+            [1] => picker.open(
                 editor,
                 Some(id),
                 [id].into_iter().collect::<HashSet<Uuid>>(),
             ),
-            [1, 0] => tree.blocks().set_parent(id, BlockParent::Root),
-            [1, 1] => tree.blocks().set_parent(id, BlockParent::Detached),
-            [2] => editor.host().rename_block(id),
-            [3] => editor.host().share_block(id),
-            [4] => {
+            [2, 0] => tree.blocks().set_parent(id, BlockParent::Root),
+            [2, 1] => tree.blocks().set_parent(id, BlockParent::Detached),
+            [3] => editor.host().rename_block(id),
+            [4] => editor.host().share_block(id),
+            [5] => {
                 if let Some(container) = shown.container {
                     editor.host().unlink_block(id, container);
                 }
             }
-            [5] => {
+            [6] => {
                 editor
                     .host()
                     .delete_block(id, shown.block_type, shown.source, shown.is_reference)
             }
-            [6] => inspect.set(shown.inspection),
-            [7] => exporter.export(Export {
+            [7] => inspect.set(shown.inspection),
+            [8] => exporter.export(Export {
                 id,
                 block_type: shown.block_type,
                 name: shown.label.clone(),

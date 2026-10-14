@@ -1,0 +1,16 @@
+{
+  "id": "be3.block-debug",
+  "name": "Debug view",
+  "version": "0.1.0",
+  "editors": [
+    {
+      "block_type": "any",
+      "display_name": "Debug view",
+      "icon": "",
+      "regions": [
+        "Frame"
+      ]
+    }
+  ],
+  "entry_point": "block_debug.wasm"
+}

@@ -186,16 +186,35 @@ impl Editors {
         })
     }
 
-    fn ensure(&self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>, parent: Uuid) {
+    fn ensure(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        view_block: Option<Uuid>,
+        editor: Option<Uuid>,
+        parent: Uuid,
+    ) {
         let state = self.0.get();
         if parent != id {
             state.parents.borrow_mut().insert(id, parent);
         }
         let registry = self.registry();
-        self.with(|open| {
-            open.entry(id)
-                .or_insert_with(|| registry.open(id, block_type).viewed_by(view_block));
+        let wanted = editor.filter(|editor| registry.edits(*editor, block_type));
+        let replaced = self.with(|open| {
+            let kept = open.get(&id).is_some_and(|existing| {
+                wanted.is_none_or(|wanted| existing.editor_id() == Some(wanted))
+            });
+            if kept {
+                return None;
+            }
+            open.insert(
+                id,
+                registry
+                    .open_with(id, block_type, wanted)
+                    .viewed_by(view_block),
+            )
         });
+        drop(replaced);
     }
 
     fn ensure_creation(&self, key: CreationKey, editor: Uuid, template: &str) -> bool {
@@ -1269,7 +1288,7 @@ fn HostedChild(
     });
     let kind = create_memo(move || {
         any.get();
-        let (id, block_type, view_block) = match content.get() {
+        let (id, block_type, view_block, editor) = match content.get() {
             None => return Kind::Missing,
             Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
             Some(HostContent::Window(window)) => {
@@ -1292,12 +1311,13 @@ fn HostedChild(
                 block_id,
                 block_type,
                 view_block,
-            }) => (block_id, block_type, view_block),
+                editor,
+            }) => (block_id, block_type, view_block, editor),
         };
         if nesting.above.with(|above| above.contains(&id)) {
             return Kind::Unavailable;
         }
-        editors.ensure(id, block_type, view_block, parent);
+        editors.ensure(id, block_type, view_block, editor, parent);
         let Some(child) = child.get() else {
             return Kind::Missing;
         };
@@ -1371,7 +1391,13 @@ fn HostedChild(
     let keys = create_memo(move || {
         content
             .get()
-            .map(|content| (content.block_id().unwrap_or_default(), kind.get()))
+            .map(|content| {
+                (
+                    content.block_id().unwrap_or_default(),
+                    kind.get(),
+                    content.editor(),
+                )
+            })
             .into_iter()
             .collect::<Vec<_>>()
     });
@@ -1381,7 +1407,7 @@ fn HostedChild(
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
                     <ForEach keys={keys}>
-                        {move |(id, kind): (Uuid, Kind)| {
+                        {move |(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
                             let reporter = reporter_for(parent, region, key);
                             match kind {
                                 Kind::Missing | Kind::Unavailable => view! {

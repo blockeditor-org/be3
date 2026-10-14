@@ -345,6 +345,12 @@ impl ContentStore {
                     held.operate(operation.clone(), true);
                 }
             }
+            EditorMessage::ResendContent { block_id, .. } => {
+                let mut inner = self.0.borrow_mut();
+                if let Some(held) = inner.blocks.get_mut(&Uuid::from_bytes(*block_id)) {
+                    held.sent = None;
+                }
+            }
             EditorMessage::WatchContent { blocks, .. } => {
                 self.0.borrow_mut().watched_content = blocks
                     .iter()

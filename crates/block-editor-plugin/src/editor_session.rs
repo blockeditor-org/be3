@@ -195,8 +195,8 @@ impl EditorSession {
         self.host.receive_host_value(key, value);
     }
 
-    pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.host.show_block(block_id, block_type, via);
+    pub(crate) fn show_block(&self, request: crate::ShowRequest) {
+        self.host.show_block(request);
     }
 
     pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
@@ -618,12 +618,13 @@ impl EditorSession {
                 change,
             }));
         }
-        for (block_id, block_type, via) in self.host.take_opens() {
+        for open in self.host.take_opens() {
             messages.push(Message::Editor(EditorMessage::OpenBlock {
                 instance,
-                block_id: block_id.into_bytes(),
-                block_type: block_type.into_bytes(),
-                via: via.map(Uuid::into_bytes),
+                block_id: open.block_id.into_bytes(),
+                block_type: open.block_type.into_bytes(),
+                via: open.via.map(Uuid::into_bytes),
+                editor: open.editor.map(Uuid::into_bytes),
             }));
         }
         for (block_id, block_type) in self.host.take_block_drags() {
