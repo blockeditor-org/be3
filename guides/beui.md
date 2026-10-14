@@ -1296,7 +1296,12 @@ it builds) and derefs to it.
 one back; restore it in the same `batch` that declares its tabs, since a tab not
 declared when the dock reconciles is closed. `reset` goes back to the layout the
 children describe. The handle also shows a tab (`show`) and reads which is
-focused (`focused`, `shown` for a stacked dock). A tab that stops being declared
+focused (`focused`, `shown` for a stacked dock). `replace(key, with)` puts a new
+tab in the place of an open one - the same pane or window, at the same index -
+and shows it; declare `with` instead of `key` in the same `batch`. A list that
+opens what it names into one tab, as the demo's catalog and be-launcher's pull
+requests do with a plain click, replaces the tab shown last; Ctrl (or Cmd) and
+a click opens another. A tab that stops being declared
 for a moment - a `Show` around it that flips, a `ForEach` rebuilt from new keys -
 loses its place, so keep a tab's declaration in one stable place.
 

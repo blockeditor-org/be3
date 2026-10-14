@@ -1,8 +1,8 @@
 use beui::NodeId;
 use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
 use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, Keyed, List, Memo, ReadSignal, Show,
-    Spacer, Text, Track, component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Text,
+    Track, component, create_memo, provide_context, use_context, view,
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
@@ -34,43 +34,21 @@ const BULLET: f32 = 5.0;
 const BULLET_INDENT: f32 = 8.0;
 const EVENT_INDENT: f32 = 14.0;
 
-#[component]
-pub(crate) fn Detail(model: Model) -> NodeId {
-    let none = create_memo(move || model.selected.with(Option::is_none));
-    let selected = model.selected;
-    view! {
-        <List spacing=0.0>
-            <Show condition={none}>
-                <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                    <List spacing=8.0>
-                        <Text
-                            string="Pick a pull request"
-                            font_size=FONT_TITLE
-                            color={use_theme().text}
-                        />
-                        <Caption
-                            content="Its conversation shows here, and you can check it out and run it."
-                            wrap=true
-                        />
-                    </List>
-                </Frame>
-            </Show>
-            <Keyed
-                value={selected}
-                key={|pull_request: Option<PullRequest>| pull_request.map(|pull_request| pull_request.number)}
-            >
-                {move |pull_request: ReadSignal<Option<PullRequest>>| view! {
-                    <Selected @sizing=ItemSize::Percent(100.0) model={model} pull_request />
-                }}
-            </Keyed>
-        </List>
-    }
-}
+#[derive(Clone, Copy)]
+struct Shown(u64);
 
 #[component]
-fn Selected(model: Model, pull_request: ReadSignal<Option<PullRequest>>) -> NodeId {
+pub(crate) fn Detail(model: Model, number: u64) -> NodeId {
+    let pull_request = create_memo(move || {
+        model.opened.with(|opened| {
+            opened
+                .iter()
+                .find(|pull_request| pull_request.number == number)
+                .cloned()
+        })
+    });
     let shown = create_memo(move || pull_request.with(Option::is_some));
-    let pull_request = create_memo(move || pull_request.get());
+    provide_context(Shown(number));
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
@@ -565,7 +543,12 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
         let url = url.clone();
         move || model.open(&url)
     };
-    let enlarge = move || model.view_image(&url);
+    let shown = use_context::<Shown>();
+    let enlarge = move || {
+        if let Some(Shown(number)) = shown {
+            model.view_image(number, &url);
+        }
+    };
     let accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
     view! {
         <List spacing=4.0>
