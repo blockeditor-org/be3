@@ -1859,7 +1859,9 @@ impl Element for Counted {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        self.paints.update(|paints| *paints += 1);
+        if !painter.ctx().is_verifying_paint() {
+            self.paints.update(|paints| *paints += 1);
+        }
         self.inner.paint(doc, painter, rects, rect);
     }
 
@@ -1928,7 +1930,6 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
     let (paints, set_paints) = create_signal(0);
     let (measures, set_measures) = create_signal(0);
     let (visits, set_visits) = create_signal(0);
-    document.verifies_paint = false;
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,

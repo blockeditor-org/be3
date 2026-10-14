@@ -22,8 +22,8 @@ use crate::layout;
 use crate::node::{
     ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
 };
-use crate::paint::{self, PaintCache};
-use crate::painter::{Local, Painter, PainterState, Shape};
+use crate::paint::{self, PaintCache, verify};
+use crate::painter::{Local, Painter, PainterState};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -124,7 +124,6 @@ pub struct Document {
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
-    pub verifies_paint: bool,
     pub copied_text: Option<String>,
     next_paint: Option<Instant>,
     now: Instant,
@@ -306,7 +305,6 @@ impl Document {
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
-            verifies_paint: true,
             copied_text: None,
             next_paint: None,
             now: Instant::now(),
@@ -1128,8 +1126,8 @@ impl Document {
         self.arena.recycle(released);
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
-            let verifying = self.verifies_paint && verifying_paint();
-            let previous = verifying.then(|| flatten(&self.painting));
+            let verifying = verifying_paint();
+            let previous = verifying.then(|| self.painting.clone());
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let cache = self.paint_cache.get_mut();
@@ -1289,8 +1287,8 @@ impl Document {
         &mut self,
         ctx: &Context,
         viewport: Rect,
-        previous: &[Shape],
-        region: &crate::damage::Region,
+        previous: &[(Rc<Display>, Vec2)],
+        region: &Region,
         moved: Option<Moved>,
         everything: bool,
     ) {
@@ -1301,13 +1299,14 @@ impl Document {
         let retained = self.paint_cache.replace(PaintCache::default());
         let painting = std::mem::take(&mut self.painting);
         let damage = std::mem::take(&mut self.damage);
+        ctx.verifying_paint(true);
         self.paint(ctx);
+        ctx.verifying_paint(false);
         let fresh = std::mem::replace(&mut self.painting, painting);
         self.paint_cache.replace(retained);
         self.damage = damage;
         self.work.painted_nodes.set(counted.0);
         self.work.replayed_nodes.set(counted.1);
-        let shapes = flatten(&self.painting);
         assert!(
             fresh.len() == self.painting.len()
                 && fresh
@@ -1315,53 +1314,28 @@ impl Document {
                     .zip(&self.painting)
                     .all(|((fresh, at), (retained, held))| at == held && fresh.same_tree(retained)),
             "the retained painting differs from painting from scratch: {:?} against {:?}",
-            flatten(&fresh)
+            fresh
                 .iter()
-                .zip(&shapes)
-                .position(|(fresh, retained)| !fresh.same_look(retained))
-                .map(|at| crate::damage::bounds(&shapes[at])),
+                .zip(&self.painting)
+                .find(|((fresh, at), (retained, held))| at != held || !fresh.same_tree(retained))
+                .map(|((fresh, _), _)| fresh.node),
             fresh
                 .iter()
                 .map(|(display, at)| display.bounds.translate(*at))
                 .collect::<Vec<_>>(),
         );
-        let kept = |old: &Shape, new: &Shape| {
-            old.same_look(new) || paint::redrawn_in_place(old, new).is_some()
-        };
-        let prefix = previous
-            .iter()
-            .zip(&shapes)
-            .take_while(|(old, new)| kept(old, new))
-            .count();
-        let suffix = previous[prefix..]
-            .iter()
-            .rev()
-            .zip(shapes[prefix..].iter().rev())
-            .take_while(|(old, new)| kept(old, new))
-            .count();
-        let old = &previous[prefix..previous.len() - suffix];
-        let new = &shapes[prefix..shapes.len() - suffix];
-        let landed = moved.map_or(Rect::NOTHING, |moved| moved.from.translate(moved.by));
-        let changed: Vec<&Shape> = old
-            .iter()
-            .filter(|shape| !new.iter().any(|new| kept(shape, new)))
-            .chain(
-                new.iter()
-                    .filter(|shape| !old.iter().any(|old| kept(old, shape))),
-            )
-            .collect();
-        let mut needed = crate::damage::Region::NOTHING;
-        for shape in &changed {
-            needed.add(crate::damage::bounds(shape).intersect(viewport));
-        }
+        let old = verify::Seen::of(previous, moved.map(|moved| moved.from));
+        let new = verify::Seen::of(&self.painting, moved.map(|moved| moved.to()));
+        let changes = verify::changes(&old, &new, moved);
         if !everything && moved.is_none() && detecting_over_repaint() {
-            let area = |region: &crate::damage::Region| {
+            let area = |region: &Region| {
                 region
                     .rects()
                     .iter()
                     .map(|rect| rect.width() * rect.height())
                     .sum::<f32>()
             };
+            let needed = verify::changed_area(&old, &new).clipped(viewport);
             let (damaged, changed_area) = (area(region), area(&needed));
             if damaged > changed_area * OVER_REPAINT_FACTOR + OVER_REPAINT_SLACK {
                 let report = OverRepaint {
@@ -1372,18 +1346,18 @@ impl Document {
                 OVER_REPAINTS.with_borrow_mut(|reports| reports.push(report));
             }
         }
-        for shape in changed {
-            let bounds = crate::damage::bounds(shape).intersect(viewport);
+        let scale = ctx.pixels_per_point();
+        for (rect, why) in changes.needed {
+            let rect = rect.intersect(viewport);
             assert!(
-                paint::uncovered(bounds, landed)
-                    .into_iter()
-                    .all(|rect| covered(rect, region)),
-                "a shape changed outside the damaged region: {bounds:?} is not within {:?}",
+                verify::covered(rect, region, scale),
+                "the painting changed outside the damaged region: {rect:?} ({why:?}) is not within {:?}{}",
                 region.rects(),
+                match moved {
+                    Some(moved) => format!(" (with {moved:?} copied)"),
+                    None => String::new(),
+                },
             );
-        }
-        if let Some(moved) = moved {
-            verify_move(previous, &shapes, region, moved);
         }
     }
 
@@ -1991,93 +1965,6 @@ impl Document {
         self.layout_revision = self.arena.layout_revision;
         self.layout_pass = self.layout_pass.wrapping_add(1);
     }
-}
-
-fn covered(rect: Rect, region: &Region) -> bool {
-    let mut left = vec![rect];
-    for damaged in region.rects() {
-        left = left
-            .into_iter()
-            .flat_map(|rect| paint::uncovered(rect, damaged.expand(0.01)))
-            .collect();
-    }
-    left.iter().all(|rect| !rect.is_positive())
-}
-
-fn verify_move(previous: &[Shape], shapes: &[Shape], region: &Region, moved: Moved) {
-    let landed = moved.from.translate(moved.by);
-    let within = |shape: &Shape, area: Rect| crate::damage::bounds(shape).intersects(area);
-    let shown = |shapes: &[Shape], area: Rect| {
-        shapes
-            .iter()
-            .rposition(|shape| {
-                paint::covers(shape, area)
-                    && matches!(shape, Shape::Rect { color, .. } if color.alpha() == u8::MAX)
-            })
-            .unwrap_or(0)
-    };
-    let (previous, shapes) = (
-        &previous[shown(previous, moved.from)..],
-        &shapes[shown(shapes, landed)..],
-    );
-    let before: Vec<Shape> = previous
-        .iter()
-        .filter(|shape| within(shape, moved.from))
-        .map(|shape| crate::painter::placed_shape(shape, moved.by, Rect::EVERYTHING))
-        .collect();
-    let after: Vec<&Shape> = shapes
-        .iter()
-        .filter(|shape| within(shape, landed))
-        .collect();
-    let matches = |old: &Shape, new: &Shape| {
-        (paint::covers(old, landed) && paint::covers(new, landed) && same_fill(old, new))
-            || (unclipped(old) == unclipped(new)
-                && clip_of(old).intersect(landed) == clip_of(new).intersect(landed))
-    };
-    let damaged = |shape: &Shape| {
-        paint::painted(shape, crate::damage::bounds(shape))
-            .into_iter()
-            .all(|rect| covered(rect.intersect(landed), region))
-    };
-    for new in &after {
-        assert!(
-            damaged(new) || before.iter().any(|old| matches(old, new)),
-            "a shape the copy moved into {:?} was not there to be moved",
-            crate::damage::bounds(new).intersect(landed),
-        );
-    }
-    for old in &before {
-        assert!(
-            damaged(old) || after.iter().any(|new| matches(old, new)),
-            "the copy moved a shape into {:?} that is no longer painted there",
-            crate::damage::bounds(old).intersect(landed),
-        );
-    }
-}
-
-fn unclipped(shape: &Shape) -> Shape {
-    let mut shape = shape.clone();
-    *crate::context::shape_clip(&mut shape) = Rect::EVERYTHING;
-    shape
-}
-
-fn clip_of(shape: &Shape) -> Rect {
-    *crate::context::shape_clip(&mut shape.clone())
-}
-
-fn same_fill(left: &Shape, right: &Shape) -> bool {
-    matches!(
-        (left, right),
-        (Shape::Rect { color, .. }, Shape::Rect { color: other, .. }) if color == other
-    )
-}
-
-fn flatten(painting: &[(Rc<Display>, Vec2)]) -> Vec<Shape> {
-    let mut shapes = Vec::new();
-    for (display, at) in painting {
-        display.flatten(*at, &mut shapes);
-    }
-    shapes
 }
 
 const OVER_REPAINT_FACTOR: f32 = 4.0;

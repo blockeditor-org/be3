@@ -37,6 +37,7 @@ struct Inner {
     grouping: RefCell<Vec<usize>>,
     paint_stack: RefCell<Vec<PaintFrame>>,
     space_read: Cell<bool>,
+    verifying: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
     test_ids: RefCell<HashMap<String, Rect>>,
@@ -234,6 +235,7 @@ impl Context {
                 grouping: RefCell::new(Vec::new()),
                 paint_stack: RefCell::new(Vec::new()),
                 space_read: Cell::new(false),
+                verifying: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
@@ -746,6 +748,14 @@ impl Context {
         self.push_paint_frame(None);
         paint();
         self.pop_paint_frame().bounds
+    }
+
+    pub fn verifying_paint(&self, verifying: bool) {
+        self.inner.verifying.set(verifying);
+    }
+
+    pub fn is_verifying_paint(&self) -> bool {
+        self.inner.verifying.get()
     }
 
     pub fn note_space_read(&self) {

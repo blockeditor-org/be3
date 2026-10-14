@@ -10,6 +10,8 @@ use crate::geometry::{Pos2, Rect, Vec2};
 use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects, SpaceId};
 use crate::painter::{Painter, PainterState, Scope, Shape, placed_shape};
 
+pub mod verify;
+
 pub struct Item {
     pub scope: Option<Rc<Scope>>,
     pub clip: Rect,
@@ -318,7 +320,7 @@ impl PaintCache {
 
     fn store(&mut self, id: NodeId, placement: Placement, at: Vec2, recorded: Recorded) {
         let (shapes, parts) = build(recorded.items, |child| self.display(child));
-        let display = Rc::new(Display::new(shapes, parts));
+        let display = Rc::new(Display::new(id, shapes, parts));
         self.note_scrolls(&display.parts, placement.own.scroll);
         let below = self.reads_below(&display);
         let old = self.entries.remove(&id);

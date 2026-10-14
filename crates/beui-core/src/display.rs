@@ -78,6 +78,7 @@ impl Group {
 }
 
 pub struct Display {
+    pub node: NodeId,
     pub key: u64,
     pub shapes: Rc<[Shape]>,
     pub parts: Box<[Part]>,
@@ -121,8 +122,9 @@ fn count_of(parts: &[Part]) -> usize {
 static KEYS: AtomicU64 = AtomicU64::new(1);
 
 impl Display {
-    pub fn new(shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
+    pub fn new(node: NodeId, shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
         Self {
+            node,
             key: KEYS.fetch_add(1, Ordering::Relaxed),
             shapes: shapes.into(),
             bounds: bounds_of(&parts),
@@ -134,6 +136,7 @@ impl Display {
     pub fn with_children(&self, child: &impl Fn(NodeId) -> Option<Rc<Display>>) -> Option<Self> {
         let parts = rechilded(&self.parts, child)?;
         Some(Self {
+            node: self.node,
             key: self.key,
             shapes: Rc::clone(&self.shapes),
             bounds: bounds_of(&parts),

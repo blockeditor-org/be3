@@ -2528,7 +2528,14 @@ drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
-outside the damage. With `BEUI_OVER_REPAINT=1` in the environment (or
+outside the damage. The second check (`paint/verify.rs`) sets the frame before
+against this one node by node, matched by id: a node's own shapes, the fades
+over it and its place among its siblings are what it shows, and every pixel a
+difference touches, rounded out to whole pixels as a renderer repaints them,
+must be damaged, or, inside a region the frame copied, must be what the copy
+brought there. Painting from scratch runs every paint again, so a test that
+counts paints skips the ones made while `Context::is_verifying_paint` is set.
+With `BEUI_OVER_REPAINT=1` in the environment (or
 `beui::detect_over_repaint(true)` on the thread that paints) they also report
 every frame whose damage is more than four times the area of the shapes that
 changed, to stderr and to `beui::take_over_repaints`.
