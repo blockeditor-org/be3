@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::scope::current_owner;
+use crate::scope::{Cleanup, current_owner};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub(crate) struct Key {
@@ -55,7 +55,7 @@ pub(crate) fn insert(value: Rc<dyn Any>) -> Key {
 pub(crate) fn insert_owned(value: Rc<dyn Any>) -> Key {
     let owner = current_owner();
     let key = insert(value);
-    owner.add(move || remove(key));
+    owner.add(Cleanup::Free(key));
     key
 }
 

@@ -13,8 +13,8 @@ fn repeated_reads_only_subscribe_once() {
     });
     for next in 2..10 {
         set_value.set(next);
-        assert_eq!(value.source().subscribers.borrow().len(), 1);
+        assert_eq!(value.subscribers(), 1);
     }
     scope.dispose();
-    assert!(value.source().subscribers.borrow().is_empty());
+    assert_eq!(value.subscribers(), 0);
 }

@@ -4,33 +4,63 @@ use std::rc::{Rc, Weak};
 
 use crate::arena::{self, Key};
 
-use crate::computation::{Computation, State};
+use crate::computation::{Computation, State, no_computation};
 use crate::runtime::{RUNTIME, batch};
 
-#[derive(Default)]
 pub(crate) struct Source {
     pub(crate) version: Cell<u64>,
     pub(crate) subscribers: RefCell<Vec<Weak<Computation>>>,
     pub(crate) producer: RefCell<Weak<Computation>>,
 }
 
-impl Source {
-    pub(crate) fn track(self: &Rc<Self>) {
-        if let Some(observer) = RUNTIME.with(|runtime| runtime.observer.borrow().upgrade()) {
-            if observer.is_disposed() {
-                return;
-            }
-            let mut dependencies = observer.dependencies.borrow_mut();
-            if !dependencies
-                .iter()
-                .any(|(source, _)| Rc::ptr_eq(source, self))
-            {
-                dependencies.push((self.clone(), self.version.get()));
-                self.subscribers.borrow_mut().push(Rc::downgrade(&observer));
-            }
+impl Default for Source {
+    fn default() -> Self {
+        Self {
+            version: Cell::default(),
+            subscribers: RefCell::default(),
+            producer: RefCell::new(no_computation()),
         }
     }
+}
 
+pub(crate) trait Tracked {
+    fn source(&self) -> &Source;
+}
+
+impl Tracked for Source {
+    fn source(&self) -> &Source {
+        self
+    }
+}
+
+impl<T> Tracked for Value<T> {
+    fn source(&self) -> &Source {
+        &self.source
+    }
+}
+
+pub(crate) fn track(tracked: Rc<dyn Tracked>) {
+    if let Some(observer) = RUNTIME.with(|runtime| runtime.observer.borrow().upgrade()) {
+        if observer.is_disposed() {
+            return;
+        }
+        let mut dependencies = observer.dependencies.borrow_mut();
+        if !dependencies
+            .iter()
+            .any(|(source, _)| std::ptr::addr_eq(Rc::as_ptr(source), Rc::as_ptr(&tracked)))
+        {
+            let source = tracked.source();
+            source
+                .subscribers
+                .borrow_mut()
+                .push(Rc::downgrade(&observer));
+            let version = source.version.get();
+            dependencies.push((tracked, version));
+        }
+    }
+}
+
+impl Source {
     pub(crate) fn changed(&self) {
         self.version.set(self.version.get().wrapping_add(1));
         let subscribers = self.subscribers.borrow().clone();
@@ -43,8 +73,8 @@ impl Source {
 }
 
 pub(crate) struct Value<T> {
+    pub(crate) source: Source,
     pub(crate) value: RefCell<T>,
-    pub(crate) source: Rc<Source>,
 }
 
 pub struct ReadSignal<T> {
@@ -104,7 +134,7 @@ impl<T> Value<T> {
     pub(crate) fn new(value: T) -> Self {
         Self {
             value: RefCell::new(value),
-            source: Rc::new(Source::default()),
+            source: Source::default(),
         }
     }
 }
@@ -132,7 +162,7 @@ impl<T> Copy for WriteSignal<T> {}
 impl<T: 'static> ReadSignal<T> {
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         let inner = stored::<T>(self.key);
-        inner.source.track();
+        track(inner.clone());
         f(&inner.value.borrow())
     }
 
@@ -163,8 +193,8 @@ impl<T: 'static> ReadSignal<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn source(&self) -> Rc<Source> {
-        stored::<T>(self.key).source.clone()
+    pub(crate) fn subscribers(&self) -> usize {
+        stored::<T>(self.key).source.subscribers.borrow().len()
     }
 }
 

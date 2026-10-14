@@ -1,16 +1,10 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
 use crate::arena::{self, Key};
 use crate::computation::Computation;
 use crate::runtime::untrack;
-use crate::signal::{Source, Value};
-
-struct Inner<T> {
-    output: Rc<Value<Option<T>>>,
-    computation: Rc<Computation>,
-}
+use crate::signal::{Tracked, Value, track};
 
 pub struct Memo<T> {
     key: Key,
@@ -18,33 +12,23 @@ pub struct Memo<T> {
 }
 
 pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'static) -> Memo<T> {
-    let source = Rc::new(Source::default());
-    let output = Rc::new(Value {
-        value: RefCell::new(None),
-        source: source.clone(),
-    });
+    let output = Rc::new(Value::new(None::<T>));
     let written = output.clone();
-    let computation = Computation::new(
-        Some(source.clone()),
-        Box::new(move || {
-            let next = compute();
-            let mut value = written.value.borrow_mut();
-            if value.as_ref() == Some(&next) {
-                false
-            } else {
-                *value = Some(next);
-                true
-            }
-        }),
-    );
-    source.producer.replace(Rc::downgrade(&computation));
+    let tracked: Rc<dyn Tracked> = output.clone();
+    let computation = Computation::new(Some(tracked), move || {
+        let next = compute();
+        let mut value = written.value.borrow_mut();
+        if value.as_ref() == Some(&next) {
+            false
+        } else {
+            *value = Some(next);
+            true
+        }
+    });
+    output.source.producer.replace(Rc::downgrade(&computation));
     computation.refresh();
-    let key = arena::insert_owned(Rc::new(Inner {
-        output,
-        computation,
-    }));
     Memo {
-        key,
+        key: arena::insert_owned(output),
         ty: PhantomData,
     }
 }
@@ -59,16 +43,14 @@ impl<T> Copy for Memo<T> {}
 
 impl<T: 'static> Memo<T> {
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        let inner = arena::get::<Inner<T>>(self.key)
+        let output = arena::get::<Value<Option<T>>>(self.key)
             .expect("memo used after the scope that owns it was disposed");
-        inner.computation.refresh();
-        inner.output.source.track();
-        f(inner
-            .output
-            .value
-            .borrow()
-            .as_ref()
-            .expect("memo has no value"))
+        let producer = output.source.producer.borrow().upgrade();
+        if let Some(producer) = producer {
+            producer.refresh();
+        }
+        track(output.clone());
+        f(output.value.borrow().as_ref().expect("memo has no value"))
     }
 
     pub fn get(&self) -> T
@@ -90,6 +72,6 @@ impl<T: 'static> Memo<T> {
     }
 
     pub fn is_alive(&self) -> bool {
-        arena::get::<Inner<T>>(self.key).is_some()
+        arena::get::<Value<Option<T>>>(self.key).is_some()
     }
 }
