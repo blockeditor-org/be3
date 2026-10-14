@@ -7,7 +7,7 @@ use beui::reactive::{
 };
 use beui::styled::ContextMenu;
 use beui::unstyled::{Container, MenuItem};
-use beui::{Color32, NodeId};
+use beui::NodeId;
 use block_plugin_api::HostPanel;
 
 use super::debug::DebugPanels;
@@ -45,11 +45,7 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
                 <MainSurface @sizing=ItemSize::Percent(100.0) />
             </Show>
             <AppMenu status={status} open={menu} />
-            <Show condition={presenting}>
-                <Frame @sizing=ItemSize::Percent(100.0) color=Color32::BLACK>
-                    <PresentingSurface />
-                </Frame>
-            </Show>
+            <PresentingSurface />
             <Dialogs view={view} />
             <PairingDialog view={view} />
         </List>
