@@ -3,7 +3,7 @@ use beui_core::color::Color32;
 use std::cell::RefCell;
 
 use crate::reactive::{
-    Callback, Child, NodeRef, Prop, Render, Scope, create_effect, with_document,
+    Callback, Child, NodeRef, Prop, Render, Scope, create_binding, create_effect, with_document,
 };
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
@@ -35,22 +35,22 @@ pub fn Overlay(
         document.set_overlay_on_dismiss(overlay, on_dismiss);
         overlay
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_overlay_anchor(overlay, anchor.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_overlay_placement(overlay, placement.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_overlay_scrim(overlay, scrim.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_overlay_policy(overlay, policy.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_overlay_level(overlay, level.get()))
     });
     create_effect(move || {

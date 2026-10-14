@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::arena::{self, Key};
 use crate::computation::Computation;
-use crate::runtime::untrack;
+use crate::runtime::{probe, untrack};
 use crate::signal::{Tracked, Value, track};
 
 pub struct Memo<T> {
@@ -12,21 +12,29 @@ pub struct Memo<T> {
 }
 
 pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'static) -> Memo<T> {
-    let output = Rc::new(Value::new(None::<T>));
-    let written = output.clone();
-    let tracked: Rc<dyn Tracked> = output.clone();
-    let computation = Computation::new(Some(tracked), move || {
-        let next = compute();
-        let mut value = written.value.borrow_mut();
-        if value.as_ref() == Some(&next) {
-            false
-        } else {
-            *value = Some(next);
-            true
+    let probed = probe(true, &mut compute);
+    let constant = probed.constant();
+    let output = Rc::new(Value::new(Some(probed.value)));
+    if constant {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
         }
-    });
-    output.source.producer.replace(Rc::downgrade(&computation));
-    computation.refresh();
+    } else {
+        let written = output.clone();
+        let tracked: Rc<dyn Tracked> = output.clone();
+        let computation = Computation::new(Some(tracked), move || {
+            let next = compute();
+            let mut value = written.value.borrow_mut();
+            if value.as_ref() == Some(&next) {
+                false
+            } else {
+                *value = Some(next);
+                true
+            }
+        });
+        output.source.producer.replace(Rc::downgrade(&computation));
+        computation.watch(probed.read, probed.owner);
+    }
     Memo {
         key: arena::insert_owned(output),
         ty: PhantomData,

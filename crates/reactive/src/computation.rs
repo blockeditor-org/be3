@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
-use crate::runtime::{Context, RUNTIME, Reset, batch, current_zone, enqueue, flush};
+use crate::runtime::{Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, flush, probe};
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::Tracked;
 
@@ -43,6 +43,7 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     pub(crate) source: Option<Rc<dyn Tracked>>,
     pub(crate) queued: Cell<bool>,
     pub(crate) queued_at: Cell<u64>,
+    runs: Cell<(u64, u32)>,
     pub(crate) zone: u64,
     gate: Option<Rc<Gate>>,
     callback: RefCell<Slot<F>>,
@@ -68,6 +69,7 @@ impl Computation {
             source,
             queued: Cell::new(false),
             queued_at: Cell::new(0),
+            runs: Cell::new((0, 0)),
             zone: current_zone(),
             gate: owner.gate.borrow().clone(),
             callback: RefCell::new(Slot {
@@ -77,6 +79,33 @@ impl Computation {
         });
         owner.add(Cleanup::Dispose(computation.clone()));
         computation
+    }
+
+    pub(crate) fn count_run(&self, flush: u64) -> u32 {
+        let (counted, runs) = self.runs.get();
+        let runs = if counted == flush { runs + 1 } else { 1 };
+        self.runs.set((flush, runs));
+        runs
+    }
+
+    pub(crate) fn watch(self: &Rc<Self>, read: Vec<Read>, owner: Option<Rc<Owner>>) {
+        self.execution_owner.replace(owner);
+        let stale = read
+            .iter()
+            .any(|(source, version)| source.source().version.get() != *version);
+        for (source, _) in &read {
+            source
+                .source()
+                .subscribers
+                .borrow_mut()
+                .push(Rc::downgrade(self));
+        }
+        *self.dependencies.borrow_mut() = read;
+        self.state.set(State::Clean);
+        if stale {
+            self.invalidate(State::Dirty);
+            flush();
+        }
     }
 
     pub(crate) fn invalidate(self: &Rc<Self>, state: State) {
@@ -287,6 +316,21 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
     enqueue(&computation);
     flush();
     Effect { computation }
+}
+
+pub fn create_binding(mut binding: impl FnMut() + 'static) {
+    let probed = probe(false, &mut binding);
+    if probed.constant() {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return;
+    }
+    let computation = Computation::new(None, move || {
+        binding();
+        false
+    });
+    computation.watch(probed.read, probed.owner);
 }
 
 impl Effect {

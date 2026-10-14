@@ -345,10 +345,15 @@ pub fn provide_context<T: 'static>(value: T) {
 
 pub fn use_context<T: Clone + 'static>() -> Option<T> {
     let mut owner = RUNTIME.with(|runtime| {
-        runtime.owner.borrow().upgrade().or_else(|| {
-            let pending = runtime.pending.borrow().upgrade()?;
-            pending.owner.upgrade()
-        })
+        runtime
+            .owner
+            .borrow()
+            .upgrade()
+            .or_else(|| {
+                let pending = runtime.pending.borrow().upgrade()?;
+                pending.owner.upgrade()
+            })
+            .or_else(|| runtime.probe.borrow().as_ref()?.parent.upgrade())
     });
     while let Some(current) = owner {
         let found = current
@@ -369,10 +374,31 @@ pub(crate) fn live_owner() -> Option<Rc<Owner>> {
     if owner.is_some() {
         return owner;
     }
+    if let Some(owner) = probe_owner() {
+        RUNTIME.with(|runtime| runtime.owner.replace(Rc::downgrade(&owner)));
+        return Some(owner);
+    }
     let pending = RUNTIME.with(|runtime| runtime.pending.borrow().upgrade())?;
     let owner = pending.ensure_owner();
     RUNTIME.with(|runtime| runtime.owner.replace(Rc::downgrade(&owner)));
     Some(owner)
+}
+
+fn probe_owner() -> Option<Rc<Owner>> {
+    RUNTIME.with(|runtime| {
+        let mut probe = runtime.probe.borrow_mut();
+        let probe = probe.as_mut()?;
+        if probe.owner.is_none() {
+            let parent = probe.parent.upgrade()?;
+            let gate = parent.gate.borrow().clone();
+            probe.owner = Some(Rc::new(Owner::for_computation(
+                no_computation(),
+                Rc::downgrade(&parent),
+                gate,
+            )));
+        }
+        probe.owner.clone()
+    })
 }
 
 pub(crate) fn current_owner() -> Rc<Owner> {

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::reactive::{
     Child, ChildSegment, ChildValue, Children, ComponentContext, FromPlaced, IntoChild, IntoProp,
     IntoSegment, IntoSlotHost, Memo, Placed, Prop, ReadSignal, Scope, SlotChild, SlotHost, SlotId,
-    create_effect, with_document,
+    create_binding, create_effect, with_document,
 };
 use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart};
 use beui_core::color::Color32;
@@ -45,41 +45,41 @@ pub fn Text(
     let node = with_document(|document| {
         document.create_text(String::new(), DEFAULT_FONT_SIZE, Color32::WHITE)
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_text_horizontal_align(node, align.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_text_vertical_align(node, vertical_align.get()))
     });
-    create_effect(move || with_document(|document| document.set_text_wrap(node, wrap.get())));
-    create_effect(move || {
+    create_binding(move || with_document(|document| document.set_text_wrap(node, wrap.get())));
+    create_binding(move || {
         with_document(|document| document.set_text_monospace(node, monospace.get()))
     });
-    create_effect(move || with_document(|document| document.set_text_bold(node, bold.get())));
-    create_effect(move || with_document(|document| document.set_text_italic(node, italic.get())));
-    create_effect(move || with_document(|document| document.set_text_icon(node, icon.get())));
-    create_effect(move || with_document(|document| document.set_text_clip(node, clip.get())));
-    create_effect(move || {
+    create_binding(move || with_document(|document| document.set_text_bold(node, bold.get())));
+    create_binding(move || with_document(|document| document.set_text_italic(node, italic.get())));
+    create_binding(move || with_document(|document| document.set_text_icon(node, icon.get())));
+    create_binding(move || with_document(|document| document.set_text_clip(node, clip.get())));
+    create_binding(move || {
         with_document(|document| document.set_text_underline(node, underline.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_text_ellipsis(node, ellipsis.get()))
     });
-    create_effect(move || with_document(|document| document.set_text(node, string.get())));
-    create_effect(move || {
+    create_binding(move || with_document(|document| document.set_text(node, string.get())));
+    create_binding(move || {
         with_document(|document| document.set_text_font_size(node, font_size.get()))
     });
     if let Some(line_height) = line_height {
-        create_effect(move || {
+        create_binding(move || {
             with_document(|document| document.set_text_line_height(node, Some(line_height.get())))
         });
     }
-    create_effect(move || with_document(|document| document.set_text_color(node, color.get())));
-    create_effect(move || {
+    create_binding(move || with_document(|document| document.set_text_color(node, color.get())));
+    create_binding(move || {
         with_document(|document| document.set_text_line_padding(node, line_padding.get()))
     });
-    create_effect(move || with_document(|document| document.set_text_marks(node, marks.get())));
-    create_effect(move || with_document(|document| document.set_text_carets(node, carets.get())));
+    create_binding(move || with_document(|document| document.set_text_marks(node, marks.get())));
+    create_binding(move || with_document(|document| document.set_text_carets(node, carets.get())));
     children.mount(node);
     node.id()
 }

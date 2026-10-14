@@ -95,7 +95,7 @@ pub fn ContextMenu(
                             overlay
                             content
                             items={items.clone()}
-                            menu={menu.clone()}
+                            menu={menu}
                             anchor
                             open={shown}
                             touched
