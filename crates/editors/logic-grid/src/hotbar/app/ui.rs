@@ -5,8 +5,8 @@ use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FOLDER};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, Icon, IconButton, Scroll, use_theme};
 use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
@@ -144,7 +144,10 @@ fn SlotRow(
     });
     let unpin = move || {
         let Some(compiled) = row.with(|row| match row {
-            Some(Row { kind: RowKind::Component { compiled, .. }, .. }) => Some(*compiled),
+            Some(Row {
+                kind: RowKind::Component { compiled, .. },
+                ..
+            }) => Some(*compiled),
             _ => None,
         }) else {
             return;

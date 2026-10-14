@@ -14,8 +14,9 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
     Callback, ChildScope, ChildSegment, ChildValue, Children, ClickCallback, Frame, Func,
-    IntoChild, IntoProp, IntoSegment, Memo, Prop, ReadSignal, RenderFn, RootScope, Run, Scope,
-    SlotChild, Stored, OwnedStored, WriteSignal, create_effect, create_memo, create_signal, store, untrack,
+    IntoChild, IntoProp, IntoSegment, Memo, OwnedStored, Prop, ReadSignal, RenderFn, RootScope,
+    Run, Scope, SlotChild, Stored, WriteSignal, create_effect, create_memo, create_signal, store,
+    untrack,
 };
 use serde::{Deserialize, Serialize};
 
@@ -518,7 +519,7 @@ impl<K: DockKey> DockingLayout<K> {
         );
         {
             let inner = self.inner();
-        let mut keys = inner.keys.borrow_mut();
+            let mut keys = inner.keys.borrow_mut();
             keys.keys.retain(|tab, _| kept.contains(tab));
             keys.tabs.retain(|_, tab| kept.contains(tab));
         }

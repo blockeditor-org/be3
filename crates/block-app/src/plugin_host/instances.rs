@@ -675,7 +675,7 @@ impl Instances {
                     instance,
                     region,
                     metrics: viewport_metrics(size, visible, scale_factor, Vec::new()),
-                    frame: frame,
+                    frame,
                 },
                 last_seen: pass,
                 mounted: 0,

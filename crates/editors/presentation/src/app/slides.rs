@@ -54,16 +54,12 @@ impl Slides {
     }
 
     pub fn slide(&self, id: Uuid) -> Option<Slide> {
-        let known = self.store
-            .keys()
-            .with(|keys| keys.contains(&id));
+        let known = self.store.keys().with(|keys| keys.contains(&id));
         known.then(|| self.store.get(&id).get())
     }
 
     fn known(&self, id: Uuid) -> Option<Slide> {
-        let known = self.store
-            .keys()
-            .with_untracked(|keys| keys.contains(&id));
+        let known = self.store.keys().with_untracked(|keys| keys.contains(&id));
         known.then(|| self.store.get(&id).get_untracked())
     }
 
@@ -119,7 +115,8 @@ impl Slides {
     }
 
     pub fn move_to(&self, id: Uuid, index: usize) {
-        if let Some(edit) = self.block
+        if let Some(edit) = self
+            .block
             .read(|presentation| presentation.root().move_to(ObjectId::from_uuid(id), index))
         {
             self.block.operate(edit);

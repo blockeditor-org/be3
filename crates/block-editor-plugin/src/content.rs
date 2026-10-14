@@ -122,8 +122,6 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         *self.due.borrow_mut() = Some(Rc::new(due));
     }
 
-
-
     fn loaded(&self) -> ReadSignal<bool> {
         let (loaded, set_loaded) = create_signal(self.loaded.get());
         self.loaded_signals.borrow_mut().push(set_loaded);
@@ -141,8 +139,6 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         self.adopt_lazily();
         self.loaded.get().then(|| read(&self.visible.borrow()))
     }
-
-
 
     fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
     where

@@ -2,8 +2,8 @@ use block_editor_beui::be_block::{
     Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component,
-    create_memo, create_selector, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component, create_memo,
+    create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,

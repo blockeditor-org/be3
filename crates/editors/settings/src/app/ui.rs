@@ -194,11 +194,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     }
 }
 
-fn blocked<C: Layer>(
-    editor: Editor,
-    layer: ContentProjection<C>,
-    own: Memo<bool>,
-) -> Memo<bool> {
+fn blocked<C: Layer>(editor: Editor, layer: ContentProjection<C>, own: Memo<bool>) -> Memo<bool> {
     let loaded = layer.project(|_| true);
     let read_only = editor.read_only();
     create_memo(move || !loaded.get() || read_only.get() || !own.get())

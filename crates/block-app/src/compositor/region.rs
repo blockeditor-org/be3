@@ -6,9 +6,9 @@ use std::{
 
 use beui::reactive::{
     BackHandler, Callback, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach,
-    Frame, Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, component,
-    create_effect, create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack,
-    use_context, use_screens, view,
+    Frame, Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, component, create_effect,
+    create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack, use_context, use_screens,
+    view,
 };
 use beui::styled::CrashNotice;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
@@ -97,22 +97,20 @@ pub(crate) fn PluginRegion(
     let revision = super::listen(&plugin_id.get());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let screens = use_screens();
-    let place = Callback::new(move |placement: Option<EmbedPlacement>| {
-        match placement {
-            Some(placement) => plugin_host::place_region(
-                &plugin_id.get(),
-                instance,
-                region,
-                RegionPlacement {
-                    rect: placement.rect,
-                    clip: placement.clip,
-                    screens: screens.get_untracked(),
-                },
-                frame.peek(),
-                view.peek(),
-            ),
-            None => plugin_host::unplace_region(&plugin_id.get(), instance, region),
-        }
+    let place = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
+        Some(placement) => plugin_host::place_region(
+            &plugin_id.get(),
+            instance,
+            region,
+            RegionPlacement {
+                rect: placement.rect,
+                clip: placement.clip,
+                screens: screens.get_untracked(),
+            },
+            frame.peek(),
+            view.peek(),
+        ),
+        None => plugin_host::unplace_region(&plugin_id.get(), instance, region),
     });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {

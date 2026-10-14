@@ -20,8 +20,8 @@ use block_editor_beui::beui::icons::{
     ICON_SHORT_TEXT, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer,
-    component, create_effect, create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, component,
+    create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Checkbox, Heading, IconButton, IconSized, NumberInput, Scroll,

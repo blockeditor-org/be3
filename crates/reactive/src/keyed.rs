@@ -112,7 +112,8 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 
     pub fn contains(&self, key: &K) -> bool {
-        self.inner.with(|inner| inner.entries.borrow().contains_key(key))
+        self.inner
+            .with(|inner| inner.entries.borrow().contains_key(key))
     }
 
     pub fn tracked_keys(&self) -> usize {
@@ -170,11 +171,7 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
 
     fn set_keys(&self, keys: Vec<K>) {
         let inner = self.inner.get();
-        if inner
-            .keys
-            .read()
-            .with_untracked(|current| *current == keys)
-        {
+        if inner.keys.read().with_untracked(|current| *current == keys) {
             return;
         }
         let retained: HashSet<&K> = keys.iter().collect();

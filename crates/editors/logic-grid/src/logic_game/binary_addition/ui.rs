@@ -69,8 +69,10 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     let check = move || set_checked.set(true);
     let reset = move || {
         let problem = page.get_untracked();
-        quiz.get().write_row(&block, problem, QuizRow::Carries, Vec::new());
-        quiz.get().write_row(&block, problem, QuizRow::Sums, Vec::new());
+        quiz.get()
+            .write_row(&block, problem, QuizRow::Carries, Vec::new());
+        quiz.get()
+            .write_row(&block, problem, QuizRow::Sums, Vec::new());
         set_checked.set(false);
     };
     let back = move || {
@@ -163,7 +165,8 @@ fn ProblemGrid(
 ) -> NodeId {
     let operands = create_memo(move || quiz.get().problems()[page.get()].operands().to_vec());
     let write = move |row: QuizRow, values: Vec<Option<bool>>| {
-        quiz.get().write_row(&block, page.get_untracked(), row, values);
+        quiz.get()
+            .write_row(&block, page.get_untracked(), row, values);
     };
     let carries = create_memo(move || answers.with(|(carries, _)| carries.clone()));
     let sums = create_memo(move || answers.with(|(_, sums)| sums.clone()));

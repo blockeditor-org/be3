@@ -19,8 +19,8 @@ use block_ui::BlockCatalog;
 use uuid::Uuid;
 
 use crate::{
-    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection, OwnedContentProjection,
-    EditorHost, PickedBlock, Waker,
+    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
+    EditorHost, OwnedContentProjection, PickedBlock, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use block_plugin_api::AudioStatus;
@@ -606,7 +606,10 @@ impl Editor {
             .borrow_mut()
             .insert(block, Rc::new(move || source.pump()));
         state.due.borrow_mut().push(block);
-        state.projections.borrow_mut().insert(block, Box::new(owned));
+        state
+            .projections
+            .borrow_mut()
+            .insert(block, Box::new(owned));
         source
     }
 

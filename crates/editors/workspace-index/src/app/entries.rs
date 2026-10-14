@@ -93,10 +93,7 @@ impl Folder {
             sort_entries(&mut entries, sort.get(), descending.get());
             entries
         });
-        Self {
-            entries,
-            index,
-        }
+        Self { entries, index }
     }
 
     pub(crate) fn entries(&self) -> Memo<Vec<Entry>> {
