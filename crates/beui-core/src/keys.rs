@@ -89,7 +89,7 @@ struct Listener {
 #[derive(Default)]
 pub struct KeyListeners {
     listeners: RefCell<Vec<Listener>>,
-    pub(crate) held: Vec<(Key, Rc<KeyHandler>)>,
+    pub(crate) held: Vec<(Key, Rc<KeyHandler>, bool)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
