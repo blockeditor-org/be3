@@ -715,7 +715,7 @@ impl Document {
         }
     }
 
-    pub fn press_outside(&mut self, layers: &[NodeOf<OverlayNode>]) {
+    pub(crate) fn press_outside(&mut self, layers: &[NodeOf<OverlayNode>]) {
         for overlay in layers {
             if self.is_overlay_open(overlay.id()) {
                 self.request_dismiss(*overlay, Dismiss::OutsidePress);

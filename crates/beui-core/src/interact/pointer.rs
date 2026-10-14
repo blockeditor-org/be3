@@ -373,10 +373,7 @@ fn down(
         press_down(doc, frame, down);
         return None;
     }
-    doc.press_outside(&down.hit.outside);
-    if role == Role::Press {
-        doc.pressed_outside(frame.rects, event.pos);
-    }
+    doc.pressed_outside(frame.rects, &down.hit.outside, event.pos, role == Role::Press);
     Some(down)
 }
 
@@ -864,8 +861,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                 && !session.dragged
                 && !cancelled
             {
-                doc.press_outside(&outside);
-                doc.pressed_outside(frame.rects, session.origin - session.shift);
+                doc.pressed_outside(frame.rects, &outside, session.origin - session.shift, true);
             }
             if doc.dragging() {
                 match cancelled {
@@ -949,7 +945,7 @@ fn long_presses(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
         let (pos, clicks, modifiers) = (session.pos, session.clicks, session.modifiers);
         doc.acted = Acted::Pointer(pos);
         let hit = hit(doc, frame.rects, frame.root, pos, false);
-        doc.press_outside(&hit.outside);
+        doc.pressed_outside(frame.rects, &hit.outside, pos, false);
         pressed.push(LongPressed {
             pos,
             clicks,

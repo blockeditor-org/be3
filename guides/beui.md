@@ -1109,7 +1109,9 @@ forwarding catcher like a plugin's region, so a press claimed over it never
 reaches the program. `on_press_outside` hears every primary press outside the
 `Interactive`'s visible rectangle, wherever it goes and whatever takes it, at
 the same moment and from the same place a press outside asks layers to close
-(a mouse's press, a finger's tap), which is how the host hands an embedded editor's active
+(a mouse's press, a finger's tap; one call, `Document::pressed_outside`, does
+both, and a long press counts as a secondary press, which asks the layers but
+not these), which is how the host hands an embedded editor's active
 child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
