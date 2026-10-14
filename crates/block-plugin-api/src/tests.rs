@@ -73,6 +73,7 @@ fn region_screen(
 
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
+mod a_stopped_region_and_pointer_motion_round_trip;
 mod an_intercepted_key_round_trips;
 mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
@@ -100,7 +101,6 @@ mod focus_messages_round_trip;
 mod forwarded_picks_and_creation_children_round_trip;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;
-mod a_stopped_region_and_pointer_motion_round_trip;
 mod history_messages_round_trip;
 mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;

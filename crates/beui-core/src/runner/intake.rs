@@ -171,7 +171,12 @@ impl Intake {
             },
             Event::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
             Event::Scroll(delta) => {
-                self.input(Input::Scroll(ScrollDelta::Pixels(delta)), scale, drain, events);
+                self.input(
+                    Input::Scroll(ScrollDelta::Pixels(delta)),
+                    scale,
+                    drain,
+                    events,
+                );
             }
             Event::Touch {
                 id,

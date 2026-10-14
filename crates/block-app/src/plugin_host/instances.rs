@@ -767,8 +767,17 @@ impl Instances {
         }
     }
 
-    pub(super) fn stopped(&self, instance: EditorInstanceId, region: EditorRegion) -> Option<&Stopped> {
-        self.entries.get(&instance)?.screens.get(&region)?.stopped.as_ref()
+    pub(super) fn stopped(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&Stopped> {
+        self.entries
+            .get(&instance)?
+            .screens
+            .get(&region)?
+            .stopped
+            .as_ref()
     }
 
     pub(super) fn placement(

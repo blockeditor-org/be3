@@ -21,9 +21,7 @@ use winit::event::{
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{NamedKey, PhysicalKey};
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-use winit::window::{
-    CursorGrabMode, Fullscreen, Window, WindowId,
-};
+use winit::window::{CursorGrabMode, Fullscreen, Window, WindowId};
 
 use accesskit::TreeUpdate;
 use beui_core::app::{SafeArea, Setup, Waker};
