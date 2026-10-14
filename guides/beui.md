@@ -753,14 +753,20 @@ view! {
 
 `item_size` is an estimate, and a row that measures differently is laid out at
 the size it measured. The list remembers what each row it has built actually
-measured and reports the sum, so its length grows towards the truth as rows come
-into view and the last row can always be scrolled to. A row that is measured
+measured and reports the sum, counting each row it has not built at the average
+of those it has, so its length is close to the truth from the first layout and
+the last row can always be scrolled to. A row that is measured
 above the viewport would move everything below it, so the list keeps drawing
 from the row it drew from last frame and asks the scroll around it to move its
 offset by the difference instead; the scroll applies that before it places
 anything, so nothing on screen shifts. Outside a scroll a `VirtualList` builds
 what fits in the box it is given, which is how one sized by a `Stack` builds a
 screenful in one layout and a hundred pixels' worth in the next.
+
+`overscan` builds that many pixels of rows beyond each edge of the window, so the
+row a key press moves to already exists to be revealed. A list scrolled to its
+very top shows a row inserted above the rest rather than holding the rows below
+in place.
 
 Rows belong to their keys, not to their positions. Scrolling reuses the rows
 that stay in view and disposes the effects of the ones that leave, and the item
