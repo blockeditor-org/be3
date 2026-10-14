@@ -201,19 +201,18 @@ fn main() {
     context.stop_clock();
     context.set_test_ids_published(false);
     let started = Instant::now();
-    let gpu = || {
-        std::env::var_os("GPU").map(|_| {
-            pollster::block_on(OffscreenSurface::new(
-                VIEWPORT.x as u32,
-                VIEWPORT.y as u32,
-                None,
-            ))
-            .expect("an offscreen GPU")
-        })
-    };
-    let mut bench = Bench::new(context.clone(), gpu());
+    let gpu = std::env::var_os("GPU").map(|_| {
+        pollster::block_on(OffscreenSurface::new(
+            VIEWPORT.x as u32,
+            VIEWPORT.y as u32,
+            None,
+        ))
+        .expect("an offscreen GPU")
+    });
+    let mut bench = Bench::new(context.clone(), gpu);
     bench.frame(Vec::new());
     bench.settle();
+    let mut gpu = bench.gpu.take();
     println!("startup {:?}", started.elapsed());
     let repeat: usize = std::env::var("REPEAT")
         .ok()
@@ -230,10 +229,11 @@ fn main() {
             {
                 continue;
             }
-            let mut bench = Bench::new(context.clone(), gpu());
+            let mut bench = Bench::new(context.clone(), gpu.take());
             bench.frame(Vec::new());
             bench.settle();
             let frames = bench.open(title);
+            gpu = bench.gpu.take();
             let worst = report(label, title, &frames, verbose);
             match summary.iter_mut().find(|(held, _, _)| held == title) {
                 Some((_, _, warm)) => warm.push(worst),

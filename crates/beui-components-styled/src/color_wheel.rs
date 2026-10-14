@@ -6,12 +6,9 @@ use beui_macros::{component, view};
 use crate::color_picker::thumb;
 use crate::theme::{BORDER_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{
-    ColorPickerState, ColorWheelHandle, OklchTriangle, WheelGeometry, WheelPoint,
-};
-use beui_core::color::{Color32, Hsva, Oklch, gamma_from_linear};
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
-use beui_core::image::Image;
+use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
+use beui_core::color::{Color32, Hsva, Oklch};
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_view::reactive::{Callback, Draw, Drawing, Frame, Prop, create_memo, focus_ring};
@@ -23,16 +20,59 @@ const THUMB_RADIUS: f32 = 7.0;
 const GRAB_SLOP: f32 = 10.0;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 2.0;
-const RING_HUES: usize = 720;
-const LIGHTNESS_STEPS: usize = 256;
 const GAMUT_LINE_WIDTH: f32 = 1.25;
-const GAMUT_LINE_OPACITY: f32 = 0.7;
 const OUTLINE_DARK: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
+
+#[cfg(feature = "gpu")]
+mod gpu;
+
+#[cfg(feature = "gpu")]
+use gpu::Slot;
+
+#[derive(Clone, Default)]
+struct Drawn {
+    slot: Slot,
+    held: Rc<RefCell<Option<(Face, beui_core::drawing::Drawing)>>>,
+}
+
+impl Drawn {
+    fn drawing(&self, face: Face) -> beui_core::drawing::Drawing {
+        let mut held = self.held.borrow_mut();
+        match held.as_ref() {
+            Some((drawn, drawing)) if *drawn == face => drawing.clone(),
+            _ => {
+                let drawing = self.slot.drawing(face);
+                *held = Some((face, drawing.clone()));
+                drawing
+            }
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Model {
     Hsv,
     Oklch,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Face {
+    model: Model,
+    hue: f32,
+    ring_width: f32,
+    ring_gap: f32,
+    gamut_line: f32,
+}
+
+#[cfg(not(feature = "gpu"))]
+#[derive(Clone, Default)]
+struct Slot;
+
+#[cfg(not(feature = "gpu"))]
+impl Slot {
+    fn drawing(&self, _face: Face) -> beui_core::drawing::Drawing {
+        beui_core::drawing::Drawing::erased(())
+    }
 }
 
 #[component]
@@ -129,36 +169,29 @@ pub fn OklchColorWheel(
 #[component]
 fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     let ColorWheelHandle { point, focused, .. } = handle;
-    let hues = ring_colors(model);
-    let ring = Rc::new(RefCell::new(None::<(u32, Image)>));
-    let triangle = Rc::new(RefCell::new(None::<(u32, u32, Image)>));
+    let drawn = Drawn::default();
     let draw = Prop::dynamic(move || {
         let point = point.get();
-        let (hues, ring, triangle) = (hues.clone(), ring.clone(), triangle.clone());
+        let drawn = drawn.clone();
         Rc::new(move |painter: &Painter, rect: Rect| {
             let wheel = WheelGeometry::new(rect, RING_WIDTH);
             if wheel.outer <= 0.0 {
                 return;
             }
-            let pixels =
-                ((wheel.outer * 2.0 * painter.ctx().pixels_per_point()).round() as u32).max(1);
-            let scale = pixels as f32 / (wheel.outer * 2.0);
-            let local = WheelGeometry {
-                centre: pos2(pixels as f32 / 2.0, pixels as f32 / 2.0),
-                outer: wheel.outer * scale,
-                inner: wheel.inner * scale,
-            };
             let bounds = Rect::from_center_size(
                 wheel.centre,
                 Vec2::new(wheel.outer * 2.0, wheel.outer * 2.0),
             );
-            let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-            let ring_image = cached(&ring, pixels, || {
-                shared_ring(model, pixels, || {
-                    ring_image(&hues, local, RING_GAP * scale, pixels)
-                })
-            });
-            painter.image(bounds, whole, &ring_image, Color32::WHITE, 0.0, true);
+            painter.drawing(
+                bounds,
+                &drawn.drawing(Face {
+                    model,
+                    hue: point.hue,
+                    ring_width: RING_WIDTH,
+                    ring_gap: RING_GAP,
+                    gamut_line: GAMUT_LINE_WIDTH,
+                }),
+            );
             let rim = |radius: f32| {
                 painter.rect_stroke(
                     Rect::from_center_size(wheel.centre, Vec2::new(radius * 2.0, radius * 2.0)),
@@ -169,26 +202,11 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
             };
             rim(wheel.outer);
             rim(wheel.inner + RING_GAP);
-            let triangle_image = {
-                let mut held = triangle.borrow_mut();
-                match held.as_ref() {
-                    Some((size, hue, image)) if *size == pixels && *hue == point.hue.to_bits() => {
-                        image.clone()
-                    }
-                    _ => {
-                        let image = triangle_image(model, local, point.hue, pixels, scale);
-                        *held = Some((pixels, point.hue.to_bits(), image.clone()));
-                        image
-                    }
-                }
-            };
-            painter.image(bounds, whole, &triangle_image, Color32::WHITE, 0.0, true);
-            let hue_fill = hues[hue_index(point.hue)];
             thumb(
                 painter,
                 wheel.ring_point(point.hue),
                 THUMB_RADIUS,
-                opaque(hue_fill),
+                color_at(model, WheelPoint::new(point.hue, 1.0, 1.0)),
             );
             thumb(
                 painter,
@@ -215,203 +233,9 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     }
 }
 
-fn cached(
-    held: &RefCell<Option<(u32, Image)>>,
-    pixels: u32,
-    build: impl FnOnce() -> Image,
-) -> Image {
-    let mut held = held.borrow_mut();
-    match held.as_ref() {
-        Some((size, image)) if *size == pixels => image.clone(),
-        _ => {
-            let image = build();
-            *held = Some((pixels, image.clone()));
-            image
-        }
-    }
-}
-
-fn opaque([red, green, blue]: [u8; 3]) -> Color32 {
-    Color32::from_rgb(red, green, blue)
-}
-
 fn color_at(model: Model, point: WheelPoint) -> Color32 {
     match model {
         Model::Hsv => point.to_hsva(1.0).to_color(),
         Model::Oklch => point.to_oklch(1.0).to_color(),
-    }
-}
-
-fn hue_index(hue: f32) -> usize {
-    ((hue.rem_euclid(360.0) / 360.0 * RING_HUES as f32).round() as usize) % RING_HUES
-}
-
-type Hues = Rc<Vec<[u8; 3]>>;
-
-thread_local! {
-    static RING_COLORS: RefCell<Vec<(Model, Hues)>> = const { RefCell::new(Vec::new()) };
-    static RINGS: RefCell<Vec<(Model, u32, Image)>> = const { RefCell::new(Vec::new()) };
-}
-
-fn shared_ring(model: Model, pixels: u32, build: impl FnOnce() -> Image) -> Image {
-    if let Some(image) = RINGS.with_borrow(|rings| {
-        rings
-            .iter()
-            .find(|(held, size, _)| *held == model && *size == pixels)
-            .map(|(_, _, image)| image.clone())
-    }) {
-        return image;
-    }
-    let image = build();
-    RINGS.with_borrow_mut(|rings| rings.push((model, pixels, image.clone())));
-    image
-}
-
-fn ring_colors(model: Model) -> Hues {
-    if let Some(colors) = RING_COLORS.with_borrow(|held| {
-        held.iter()
-            .find(|(held, _)| *held == model)
-            .map(|(_, colors)| colors.clone())
-    }) {
-        return colors;
-    }
-    let colors = Rc::new(compute_ring_colors(model));
-    RING_COLORS.with_borrow_mut(|held| held.push((model, colors.clone())));
-    colors
-}
-
-fn compute_ring_colors(model: Model) -> Vec<[u8; 3]> {
-    (0..RING_HUES)
-        .map(|index| {
-            let hue = index as f32 * 360.0 / RING_HUES as f32;
-            let color = color_at(model, WheelPoint::new(hue, 1.0, 1.0));
-            let [red, green, blue, _] = color.to_array();
-            [red, green, blue]
-        })
-        .collect()
-}
-
-fn coverage(depth: f32) -> f32 {
-    (depth + 0.5).clamp(0.0, 1.0)
-}
-
-fn pixel_centre(index: usize, pixels: u32) -> Pos2 {
-    let (x, y) = (index as u32 % pixels, index as u32 / pixels);
-    pos2(x as f32 + 0.5, y as f32 + 0.5)
-}
-
-fn ring_image(hues: &[[u8; 3]], wheel: WheelGeometry, gap: f32, pixels: u32) -> Image {
-    let inner = wheel.inner + gap;
-    let pixels_out = (0..(pixels * pixels) as usize)
-        .flat_map(|index| {
-            let pos = pixel_centre(index, pixels);
-            let distance = (pos - wheel.centre).length();
-            let alpha = coverage((distance - inner).min(wheel.outer - distance));
-            let [red, green, blue] = hues[hue_index(wheel.hue_at(pos))];
-            [red, green, blue, (alpha * 255.0).round() as u8]
-        })
-        .collect();
-    Image::from_rgba(pixels, pixels, pixels_out)
-}
-
-fn triangle_image(model: Model, wheel: WheelGeometry, hue: f32, pixels: u32, scale: f32) -> Image {
-    let shade = match model {
-        Model::Hsv => Shade::Hsv,
-        Model::Oklch => Shade::oklch(hue),
-    };
-    let at = |pos: Pos2| {
-        wheel
-            .triangle_at(hue, pos)
-            .map(|(saturation, value)| WheelPoint::new(hue, saturation, value))
-    };
-    let half_line = GAMUT_LINE_WIDTH * scale / 2.0;
-    let pixels_out = (0..(pixels * pixels) as usize)
-        .flat_map(|index| {
-            let pos = pixel_centre(index, pixels);
-            let alpha = coverage(wheel.distance_inside_triangle(hue, pos));
-            if alpha <= 0.0 {
-                return [0, 0, 0, 0];
-            }
-            let point = at(pos).unwrap_or(WheelPoint::new(hue, 0.0, 0.0));
-            let mut rgb = shade.rgb(point).map(f32::from);
-            let neighbours = [at(pos + Vec2::new(1.0, 0.0)), at(pos + Vec2::new(0.0, 1.0))];
-            if let Some(distance) = shade.gamut_distance(point, neighbours) {
-                let strength = coverage(half_line - distance.abs()) * GAMUT_LINE_OPACITY;
-                let luminance = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
-                let ink = if luminance > 140.0 { 0.0 } else { 255.0 };
-                rgb = rgb.map(|channel| channel + (ink - channel) * strength);
-            }
-            let [red, green, blue] = rgb.map(|channel| channel.round().clamp(0.0, 255.0) as u8);
-            [red, green, blue, (alpha * 255.0).round() as u8]
-        })
-        .collect();
-    Image::from_rgba(pixels, pixels, pixels_out)
-}
-
-enum Shade {
-    Hsv,
-    Oklch {
-        triangle: OklchTriangle,
-        limits: Vec<f32>,
-    },
-}
-
-impl Shade {
-    fn oklch(hue: f32) -> Self {
-        Self::Oklch {
-            triangle: OklchTriangle::new(hue),
-            limits: (0..=LIGHTNESS_STEPS)
-                .map(|step| Oklch::max_chroma(step as f32 / LIGHTNESS_STEPS as f32, hue))
-                .collect(),
-        }
-    }
-
-    fn limit(limits: &[f32], lightness: f32) -> f32 {
-        let step = lightness.clamp(0.0, 1.0) * LIGHTNESS_STEPS as f32;
-        let below = (step.floor() as usize).min(LIGHTNESS_STEPS);
-        let above = (below + 1).min(LIGHTNESS_STEPS);
-        let blend = step - below as f32;
-        limits[below] + (limits[above] - limits[below]) * blend
-    }
-
-    fn rgb(&self, point: WheelPoint) -> [u8; 3] {
-        match self {
-            Shade::Hsv => {
-                let [red, green, blue, _] = point.to_hsva(1.0).to_color().to_array();
-                [red, green, blue]
-            }
-            Shade::Oklch { triangle, limits } => {
-                let color = triangle.color(point, 1.0);
-                let chroma = color.chroma.min(Self::limit(limits, color.lightness));
-                Oklch { chroma, ..color }
-                    .linear_rgb()
-                    .map(gamma_from_linear)
-            }
-        }
-    }
-
-    fn excess(&self, point: WheelPoint) -> Option<f32> {
-        match self {
-            Shade::Hsv => None,
-            Shade::Oklch { triangle, limits } => {
-                let color = triangle.color(point, 1.0);
-                Some(color.chroma - Self::limit(limits, color.lightness))
-            }
-        }
-    }
-
-    fn gamut_distance(
-        &self,
-        point: WheelPoint,
-        neighbours: [Option<WheelPoint>; 2],
-    ) -> Option<f32> {
-        let here = self.excess(point)?;
-        let [right, down] = neighbours.map(|neighbour| {
-            neighbour
-                .and_then(|neighbour| self.excess(neighbour))
-                .map(|there| there - here)
-        });
-        let slope = Vec2::new(right?, down?).length();
-        (slope > f32::EPSILON).then(|| here / slope)
     }
 }

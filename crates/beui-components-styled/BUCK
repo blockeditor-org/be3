@@ -1,5 +1,7 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-cargo_library()
+styled_srcs = glob(["src/**/*.rs", "src/**/*.wgsl"])
 
-cargo_test()
+cargo_library(srcs = styled_srcs)
+
+cargo_test(srcs = styled_srcs)

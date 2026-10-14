@@ -1607,8 +1607,12 @@ queue and an encoder, and is where the passes of its own go - rendering into
 its own textures, writing its own buffers. `paint` is handed the render pass
 beui is painting the document into, and draws there. Both are handed a `DrawAt`
 carrying the rectangle and the clip in physical pixels, the size of the whole
-target, the scale, and the target's texture format, which is what a pipeline
-built on the first frame is built against. A `Draw` must leave the pass's
+target, the scale, the target's texture format, which is what a pipeline
+built on the first frame is built against, and `renderer`, a number that is the
+same for every frame one renderer draws and different for any other. Key gpu
+resources shared between drawings by `renderer` rather than by the device: wgpu
+devices of two instances can compare equal. The color wheel
+(beui-components-styled's `color_wheel/gpu.rs`) shares one pipeline that way. A `Draw` must leave the pass's
 viewport and scissor as it found them: position what it draws from the
 rectangle it was given, the way beui's own shader does, rather than by setting
 a viewport.
@@ -1621,7 +1625,10 @@ gpu resources belong to the `Draw` rather than to the drawing: keep them in an
 `Rc<RefCell<Option<..>>>` the drawing clones, build them on the first `prepare`
 from the format `DrawAt` names, and a headless test - which never builds a
 `Renderer` - never opens a device at all. The `scene_3d` editor is the worked
-example.
+example. The DOM renderer cannot run a `Draw`, so it fills a drawing's
+rectangle with magenta instead; a crate that draws with the gpu does so behind
+a feature that beui's `render` feature turns on, as beui-components-styled's
+`gpu` does.
 
 ## Use beui in a standalone app
 
