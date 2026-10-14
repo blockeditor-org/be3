@@ -1,11 +1,9 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::icons::{
     ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK, ICON_RADIO_BUTTON_CHECKED,
     ICON_RADIO_BUTTON_UNCHECKED, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, DynamicSegment, ForEach, List, Memo, clone, component, create_memo, view,
+    Align, Callback, Direction, DynamicSegment, ForEach, List, Memo, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::PictureMenuButton;
 use block_editor_beui::beui::unstyled::MenuItem;
@@ -17,8 +15,7 @@ use block_editor_beui::{
 const TRAY_SPACING: f32 = 2.0;
 const WHEEL_STEP: f32 = 3.0;
 
-#[derive(Clone)]
-struct Chosen(Rc<dyn Fn(i32)>);
+type Chosen = Callback<i32>;
 
 fn picture(icon: &HostImage) -> Option<Image> {
     let fits = icon.width > 0 && icon.height > 0 && icon.is_whole();
@@ -100,12 +97,12 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     let (click, secondary, middle) = (request.clone(), request.clone(), request);
     let (scrolling, opening, choosing) = (editor, editor, editor);
     let (scrolled_id, opened_id, chosen_id) = (id.clone(), id.clone(), id.clone());
-    let chosen = Chosen(Rc::new(move |entry: i32| {
+    let chosen = Chosen::new(move |entry: i32| {
         choosing.act(TrayRequest::MenuChosen {
             item: chosen_id.clone(),
             entry,
         });
-    }));
+    });
     let prefix = format!("desktop.tray.{id}");
     view! {
         <PictureMenuButton
@@ -161,7 +158,7 @@ fn TrayEntries(
     view! {
         <ForEach keys>
             {move |id: i32| view! {
-                <TrayEntry entries={entries} id chosen={chosen.clone()} prefix={prefix.clone()} />
+                <TrayEntry entries={entries} id chosen={chosen} prefix={prefix.clone()} />
             }}
         </ForEach>
     }
@@ -201,9 +198,8 @@ fn TrayEntry(
     let disabled = create_memo(move || entry.with(|entry| !entry.enabled));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");
-    let choose = chosen.clone();
     view! {
-        <MenuItem label glyph disabled separated row_test_id on_click={move || (choose.0)(id)}>
+        <MenuItem label glyph disabled separated row_test_id on_click={move || chosen.call(id)}>
             <TrayEntries entries={children} chosen prefix />
         </MenuItem>
     }
