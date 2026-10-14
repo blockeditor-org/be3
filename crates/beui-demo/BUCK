@@ -25,4 +25,4 @@ headless(
 cargo_example("open-bench", srcs = srcs + glob(["examples/**/*.rs"]))
 
 # Input from libFuzzer, run through the whole demo without drawing it.
-cargo_fuzz(extra_features = ["fuzzing"], runs = 300)
+cargo_fuzz(extra_features = ["fuzzing"], runs = 100)

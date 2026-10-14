@@ -411,6 +411,10 @@ impl Context {
         self.inner.clock.set(Some(self.inner.now.get()));
     }
 
+    pub fn clock_stopped(&self) -> bool {
+        self.inner.clock.get().is_some()
+    }
+
     pub fn run_clock(&self) {
         self.inner.clock.set(None);
     }

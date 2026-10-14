@@ -754,6 +754,13 @@ impl Arena {
         self.forget_marks();
     }
 
+    pub fn unplace_all(&mut self) {
+        self.layout_revision = self.layout_revision.wrapping_add(1);
+        self.stale.fill(true);
+        self.unplaced.fill(true);
+        self.forget_marks();
+    }
+
     pub fn invalidate_node(&mut self, id: impl Into<NodeId>) {
         let id = id.into();
         self.layout_revision = self.layout_revision.wrapping_add(1);

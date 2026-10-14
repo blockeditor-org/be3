@@ -10,6 +10,10 @@ mod selector;
 mod signal;
 mod stored;
 
+pub fn live_values() -> usize {
+    arena::live()
+}
+
 pub use computation::{Effect, create_binding, create_effect};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
 pub use memo::{Memo, create_memo};

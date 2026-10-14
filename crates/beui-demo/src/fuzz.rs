@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use beui::datetime::Date;
+use beui::reactive::{live_values, pin_wall_clock};
 use beui::{
     BackEdge, BackGesture, Context, Event, FontLibrary, FreetypeFonts, Key, KeyPress, Modifiers,
-    PointerButton, Pos2, RawInput, Rect, TouchId, TouchPhase, Vec2, pos2,
+    PointerButton, Pos2, RawInput, Rect, Shape, TouchId, TouchPhase, Vec2, pos2,
 };
 
 use crate::DemoApp;
@@ -58,11 +59,119 @@ const BUTTONS: [PointerButton; 3] = [
     PointerButton::Middle,
 ];
 
+const WALL_CLOCK: Duration = Duration::from_secs(1_768_478_400);
+
 pub fn input(data: &[u8]) {
+    beui::verify_paint(true);
+    beui::verify_layout(true);
+    let first = run(data);
+    let live = live_values();
+    let second = run(data);
+    assert_eq!(
+        live_values(),
+        live,
+        "a run left reactive values alive after its document was dropped"
+    );
+    compare(&first, &second);
+}
+
+struct Traced {
+    shapes: Vec<Shape>,
+    damage: Vec<Rect>,
+    repaint: bool,
+    repaint_after: Duration,
+    test_ids: Vec<(String, Rect, bool)>,
+    copied_text: Option<String>,
+}
+
+fn compare(first: &[Traced], second: &[Traced]) {
+    assert_eq!(
+        first.len(),
+        second.len(),
+        "the same input drew a different number of frames"
+    );
+    for (index, (first, second)) in first.iter().zip(second).enumerate() {
+        let differs = |what: &str| panic!("frame {index} of the same input differs in {what}");
+        if first.shapes.len() != second.shapes.len() {
+            differs("how many shapes it paints");
+        }
+        if let Some(shape) = first
+            .shapes
+            .iter()
+            .zip(&second.shapes)
+            .position(|(first, second)| !same_shape(first, second))
+        {
+            differs(&format!("shape {shape}"));
+        }
+        if first.damage != second.damage {
+            differs("its damage");
+        }
+        if (first.repaint, first.repaint_after) != (second.repaint, second.repaint_after) {
+            differs("when it asks to be painted again");
+        }
+        if first.test_ids != second.test_ids {
+            differs("the test ids it shows");
+        }
+        if first.copied_text != second.copied_text {
+            differs("the text it copies");
+        }
+    }
+}
+
+fn same_shape(first: &Shape, second: &Shape) -> bool {
+    match (first, second) {
+        (
+            Shape::Drawing { rect, clip, .. },
+            Shape::Drawing {
+                rect: other_rect,
+                clip: other_clip,
+                ..
+            },
+        ) => (rect, clip) == (other_rect, other_clip),
+        (
+            Shape::Image {
+                rect,
+                source,
+                tint,
+                corner_radius,
+                smooth,
+                rotation,
+                clip,
+                ..
+            },
+            Shape::Image {
+                rect: other_rect,
+                source: other_source,
+                tint: other_tint,
+                corner_radius: other_corner_radius,
+                smooth: other_smooth,
+                rotation: other_rotation,
+                clip: other_clip,
+                ..
+            },
+        ) => {
+            (rect, source, tint, corner_radius, smooth, rotation, clip)
+                == (
+                    other_rect,
+                    other_source,
+                    other_tint,
+                    other_corner_radius,
+                    other_smooth,
+                    other_rotation,
+                    other_clip,
+                )
+        }
+        _ => first.same_look(second),
+    }
+}
+
+fn run(data: &[u8]) -> Vec<Traced> {
     let mut input = Input(data);
+    let mut traced = Vec::new();
     let mut demo = DemoApp::on(Date::new(2026, 1, 15)).document;
     let context = Context::new(FreetypeFonts::new(FontLibrary::bundled()));
     context.stop_clock();
+    pin_wall_clock(Some((context.now(), WALL_CLOCK)));
     context.keep_accessibility(true);
     let mut size = SIZES[0];
     let mut pointer = Pos2::ZERO;
@@ -77,12 +186,29 @@ pub fn input(data: &[u8]) {
         let output = context.run(raw, |context| {
             demo.show(context, Rect::from_min_size(Pos2::ZERO, size));
         });
-        let mut named: Vec<_> = output.test_ids().iter().collect();
-        named.sort_by(|a, b| a.0.cmp(b.0));
-        *targets = named
-            .into_iter()
-            .flat_map(|(_, shown)| shown.iter().filter(|at| at.visible).map(|at| at.rect))
+        let mut test_ids: Vec<_> = output
+            .test_ids()
+            .iter()
+            .flat_map(|(name, shown)| {
+                shown
+                    .iter()
+                    .map(move |at| (name.to_owned(), at.rect, at.visible))
+            })
             .collect();
+        test_ids.sort_by(|a, b| a.0.cmp(&b.0));
+        *targets = test_ids
+            .iter()
+            .filter(|(_, _, visible)| *visible)
+            .map(|(_, rect, _)| *rect)
+            .collect();
+        traced.push(Traced {
+            shapes: output.shapes(),
+            damage: output.damage.rects().to_vec(),
+            repaint: output.repaint,
+            repaint_after: output.repaint_after,
+            test_ids,
+            copied_text: output.copied_text.clone(),
+        });
     };
     frame(&mut events, size, &mut targets);
     while !input.is_empty() {
@@ -218,6 +344,8 @@ pub fn input(data: &[u8]) {
         }
     }
     frame(&mut events, size, &mut targets);
+    pin_wall_clock(None);
+    traced
 }
 
 struct Input<'a>(&'a [u8]);
