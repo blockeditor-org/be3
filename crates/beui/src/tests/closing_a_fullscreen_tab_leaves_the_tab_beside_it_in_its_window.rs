@@ -1,12 +1,13 @@
 use super::*;
 use crate::reactive::{
-    ForEach, Layers, Overlay, OverlayAnchor, WriteSignal, component, component_rect, create_memo,
-    create_signal, with_reactive_scope,
+    ForEach, Layers, Overlay, OverlayAnchor, PlacementBuilder, ReadSignal, WriteSignal, component,
+    create_memo, create_signal, with_reactive_scope,
 };
 use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout, dock_state};
 
 #[test]
 fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let built = dock.clone();
     let layout = DockingLayout::<u64>::new();
@@ -88,14 +89,19 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
 
 #[component]
 fn Panel(id: u64) -> NodeId {
-    let rect = component_rect();
-    let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
     view! {
-        <Layers>
-            <Frame @test_id={format!("content.{id}")} />
-            <Overlay anchor traps_focus=false open=false>
-                <Frame width=40.0 height=20.0 />
-            </Overlay>
-        </Layers>
+        <PlacementBuilder>
+            {move |rect: ReadSignal<Rect>| {
+                let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
+                view! {
+                    <Layers>
+                        <Frame @test_id={format!("content.{id}")} />
+                        <Overlay anchor traps_focus=false open=false>
+                            <Frame width=40.0 height=20.0 />
+                        </Overlay>
+                    </Layers>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
