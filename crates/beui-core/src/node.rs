@@ -13,6 +13,12 @@ pub struct NodeId {
     generation: u32,
 }
 
+impl NodeId {
+    pub(crate) fn key(self) -> u64 {
+        (u64::from(self.generation) << 32) | u64::from(self.index)
+    }
+}
+
 pub struct NodeOf<T> {
     id: NodeId,
     kind: PhantomData<fn() -> T>,
@@ -487,7 +493,8 @@ pub struct Arena {
     free: Vec<u32>,
     released: Vec<u32>,
     boundaries: Vec<NodeId>,
-    marked: Option<NodeId>,
+    mark_epoch: u64,
+    marks: Vec<u64>,
     live: usize,
     pub revision: u64,
     pub layout_revision: u64,
@@ -518,6 +525,7 @@ impl Arena {
                 self.removed[slot] = false;
                 self.stale[slot] = true;
                 self.unplaced[slot] = true;
+                self.marks[slot] = 0;
                 self.adoption.get_mut()[slot] = Adoption::Settled;
                 NodeId {
                     index,
@@ -534,6 +542,7 @@ impl Arena {
                 self.removed.push(false);
                 self.stale.push(true);
                 self.unplaced.push(true);
+                self.marks.push(0);
                 self.adoption.get_mut().push(Adoption::Settled);
                 NodeId {
                     index,
@@ -707,7 +716,7 @@ impl Arena {
         self.stale.fill(true);
         self.unplaced.fill(true);
         self.boundaries.clear();
-        self.marked = None;
+        self.forget_marks();
     }
 
     pub fn invalidate_node(&mut self, id: impl Into<NodeId>) {
@@ -746,12 +755,9 @@ impl Arena {
 
     fn mark_stale(&mut self, id: NodeId) {
         if self.adopt() {
-            self.marked = None;
+            self.forget_marks();
         }
-        if self.marked == Some(id) {
-            return;
-        }
-        self.marked = Some(id);
+        let epoch = self.mark_epoch.wrapping_add(1);
         let mut current = Some(id);
         for _ in 0..ANCESTOR_LIMIT {
             let Some((node, slot)) = current.and_then(|node| Some((node, self.slot(node)?))) else {
@@ -769,14 +775,22 @@ impl Arena {
                 self.boundaries.push(node);
                 return;
             }
+            if self.marks[slot] == epoch {
+                return;
+            }
+            self.marks[slot] = epoch;
             self.stale[slot] = true;
             self.unplaced[slot] = true;
             current = self.parents.get_mut()[slot];
         }
     }
 
+    fn forget_marks(&mut self) {
+        self.mark_epoch = self.mark_epoch.wrapping_add(1);
+    }
+
     pub(crate) fn fence(&mut self, fence: Option<NodeId>) -> Option<NodeId> {
-        self.marked = None;
+        self.forget_marks();
         std::mem::replace(&mut self.fence, fence)
     }
 
@@ -795,7 +809,7 @@ impl Arena {
         if let Some(slot) = self.slot(id) {
             self.stale[slot] = false;
         }
-        self.marked = None;
+        self.forget_marks();
     }
 
     pub fn unplaced(&self, id: NodeId) -> bool {
@@ -806,7 +820,7 @@ impl Arena {
         if let Some(slot) = self.slot(id) {
             self.unplaced[slot] = false;
         }
-        self.marked = None;
+        self.forget_marks();
     }
 
     fn adopt(&self) -> bool {

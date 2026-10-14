@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SlotId(u32);
 
@@ -31,6 +34,7 @@ pub struct ChildList<T> {
     next: u32,
     slots: Vec<Slot<T>>,
     revision: u64,
+    index: RefCell<Option<(u64, HashMap<u64, (usize, usize)>)>>,
 }
 
 impl<T> Default for ChildList<T> {
@@ -39,6 +43,7 @@ impl<T> Default for ChildList<T> {
             next: 0,
             slots: Vec::new(),
             revision: 0,
+            index: RefCell::new(None),
         }
     }
 }
@@ -71,9 +76,43 @@ impl<T> ChildList<T> {
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.revision += 1;
         self.slots
             .iter_mut()
             .flat_map(|slot| slot.items.as_mut_slice())
+    }
+
+    fn locate(&self, key: u64, key_of: impl Fn(&T) -> Option<u64>) -> Option<(usize, usize)> {
+        let mut held = self.index.borrow_mut();
+        if held
+            .as_ref()
+            .is_none_or(|(revision, _)| *revision != self.revision)
+        {
+            let mut index = HashMap::new();
+            for (slot, held) in self.slots.iter().enumerate() {
+                for (position, item) in held.items.as_slice().iter().enumerate() {
+                    if let Some(key) = key_of(item) {
+                        index.entry(key).or_insert((slot, position));
+                    }
+                }
+            }
+            *held = Some((self.revision, index));
+        }
+        held.as_ref()?.1.get(&key).copied()
+    }
+
+    pub fn find_by(&self, key: u64, key_of: impl Fn(&T) -> Option<u64>) -> Option<&T> {
+        let (slot, position) = self.locate(key, key_of)?;
+        self.slots[slot].items.as_slice().get(position)
+    }
+
+    pub fn find_by_mut(
+        &mut self,
+        key: u64,
+        key_of: impl Fn(&T) -> Option<u64>,
+    ) -> Option<&mut T> {
+        let (slot, position) = self.locate(key, key_of)?;
+        self.slots[slot].items.as_mut_slice().get_mut(position)
     }
 
     pub fn get(&self, index: usize) -> Option<&T> {
