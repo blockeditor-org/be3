@@ -1,6 +1,6 @@
 use be_block::BlockContent as _;
+use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_plugin_api::WindowRequests;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
@@ -9,6 +9,7 @@ use block_plugin_api::{
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewId,
 };
+use block_plugin_api::{DescribedAction, WindowRequests};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -437,6 +438,13 @@ pub(super) struct Placement {
     pub(super) pass: u64,
 }
 
+pub(super) struct Described<'a> {
+    pub(super) screen: ScreenId,
+    pub(super) actions: &'a [DescribedAction],
+    pub(super) focused: bool,
+    pub(super) tree: &'a mut Embedded,
+}
+
 struct Screen {
     input: InputAdapter,
     placement: Option<Placement>,
@@ -447,6 +455,8 @@ struct Screen {
     holding: bool,
     used: Option<Vec2>,
     report: Option<FrameReport>,
+    accessibility: Embedded,
+    focus_requested: bool,
     dragging: bool,
     file_dropping: bool,
     window: WindowRequests,
@@ -682,6 +692,8 @@ impl Instances {
                 holding: false,
                 used: None,
                 report: None,
+                accessibility: Embedded::new(beui::accessibility::next_document_id()),
+                focus_requested: false,
                 dragging: false,
                 file_dropping: false,
                 window: WindowRequests::default(),
@@ -1872,13 +1884,21 @@ impl Instances {
 
     pub(super) fn set_frame_reports(&mut self, reports: Vec<FrameReport>) -> bool {
         let mut changed = false;
-        for report in reports {
+        for mut report in reports {
+            let mut tree = report
+                .description
+                .as_mut()
+                .and_then(|description| description.tree.take());
             for entry in self.entries.values_mut() {
                 if let Some(screen) = entry
                     .screens
                     .values_mut()
                     .find(|screen| screen.request.screen == report.screen)
                 {
+                    if let Some(tree) = tree.take() {
+                        screen.accessibility.update(tree);
+                        changed = true;
+                    }
                     changed |= screen.report.as_ref() != Some(&report);
                     screen.report = Some(report.clone());
                 }
@@ -1898,6 +1918,42 @@ impl Instances {
             .get(&region)?
             .report
             .as_ref()
+    }
+
+    pub(super) fn described(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<Described<'_>> {
+        let screen = self.entries.get_mut(&instance)?.screens.get_mut(&region)?;
+        let description = screen.report.as_ref()?.description.as_ref()?;
+        Some(Described {
+            screen: screen.request.screen,
+            actions: &description.actions,
+            focused: screen.input.focused(),
+            tree: &mut screen.accessibility,
+        })
+    }
+
+    pub(super) fn request_focus(&mut self, screen: ScreenId) {
+        for entry in self.entries.values_mut() {
+            for placed in entry.screens.values_mut() {
+                if placed.request.screen == screen {
+                    placed.focus_requested = true;
+                }
+            }
+        }
+    }
+
+    pub(super) fn take_focus_request(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> bool {
+        self.entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+            .is_some_and(|screen| std::mem::take(&mut screen.focus_requested))
     }
 
     pub(super) fn drive_web_views(&mut self, pass: u64) -> Vec<Message> {

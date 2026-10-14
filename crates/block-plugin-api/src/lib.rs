@@ -1,3 +1,4 @@
+pub use accesskit;
 use bincode::Options;
 use serde::{Deserialize, Serialize};
 pub use serde_bytes::ByteBuf;
@@ -31,6 +32,7 @@ pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
+pub const MAX_ACCESSIBILITY_NODES: usize = 64 * 1024;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
@@ -133,7 +135,7 @@ pub enum Pasted {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
-    pub nodes: Vec<DescribedNode>,
+    pub tree: Option<accesskit::TreeUpdate>,
     pub actions: Vec<DescribedAction>,
 }
 
@@ -145,33 +147,6 @@ pub struct DescribedAction {
     pub enabled: bool,
     pub checked: Option<bool>,
     pub live: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DescribedNode {
-    pub depth: u16,
-    pub role: String,
-    pub label: String,
-    pub value: String,
-    pub toggled: Option<Toggled>,
-    pub disabled: bool,
-    pub focused: bool,
-    pub rect: Option<ChildRect>,
-    pub actions: Vec<String>,
-    pub test_ids: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum NodeValue {
-    Text(String),
-    Number(f64),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Toggled {
-    Off,
-    On,
-    Mixed,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1753,9 +1728,7 @@ pub enum Message {
     },
     NodeAction {
         screen: ScreenId,
-        node: u32,
-        action: String,
-        value: Option<NodeValue>,
+        request: accesskit::ActionRequest,
     },
 }
 
@@ -2540,6 +2513,14 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
                 collection(report.claims.len())?;
+                if let Some(tree) = report
+                    .description
+                    .as_ref()
+                    .and_then(|description| description.tree.as_ref())
+                    && tree.nodes.len() > MAX_ACCESSIBILITY_NODES
+                {
+                    return Err(DecodeError::LimitExceeded("accessibility nodes"));
+                }
             }
             Ok(())
         }
@@ -2579,13 +2560,10 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         }
         Message::Children(value) => validate_children(value),
         Message::RunAction { id, .. } => string(id),
-        Message::NodeAction { action, value, .. } => {
-            string(action)?;
-            match value {
-                Some(NodeValue::Text(text)) => string(text),
-                _ => Ok(()),
-            }
-        }
+        Message::NodeAction { request, .. } => match &request.data {
+            Some(accesskit::ActionData::Value(value)) => text(value),
+            _ => Ok(()),
+        },
         Message::ChildStatuses(value) => {
             collection(value.len())?;
             for status in value {

@@ -2,10 +2,12 @@ use beui_core::clipboard::{PasteAnswer, PasteKind};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::runner::Platform;
 use block_editor_plugin::EditorHost;
+use block_editor_plugin::accesskit::TreeUpdate;
 
 pub(crate) struct HostPlatform {
     host: EditorHost,
     picks: Vec<(u64, FilePickAnswer)>,
+    tree: Option<TreeUpdate>,
 }
 
 impl HostPlatform {
@@ -13,7 +15,12 @@ impl HostPlatform {
         Self {
             host,
             picks: Vec::new(),
+            tree: None,
         }
+    }
+
+    pub(crate) fn take_tree(&mut self) -> Option<TreeUpdate> {
+        self.tree.take()
     }
 
     pub(crate) fn deliver_picks(&mut self) {
@@ -38,6 +45,10 @@ impl Platform for HostPlatform {
 
     fn delivers_paste_shortcut(&self) -> bool {
         true
+    }
+
+    fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
+        self.tree = Some(tree());
     }
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {

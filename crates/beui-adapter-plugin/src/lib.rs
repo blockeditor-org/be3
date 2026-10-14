@@ -14,10 +14,8 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
 use beui_core::window::WindowState;
-use block_editor_plugin::{
-    DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, NodeValue, Region,
-    Toggled,
-};
+use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
+use block_editor_plugin::{DescribedAction, Description, EditorHost, Frame, InputEvent, Region};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
@@ -54,6 +52,7 @@ pub struct PluginSurface {
     runner: Runner,
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
+    described: Option<u64>,
 }
 
 impl PluginSurface {
@@ -86,6 +85,7 @@ impl PluginSurface {
             runner,
             platform: HostPlatform::new(host),
             surface,
+            described: None,
         }
     }
 
@@ -99,31 +99,8 @@ impl PluginSurface {
         region.scale_factor / context.pixels_per_point()
     }
 
-    pub fn node_action(&mut self, node: usize, action: &str, value: Option<NodeValue>) {
-        let Some(action) = beui_core::app::accessibility_dump::action_named(action) else {
-            return;
-        };
-        let Some(target) = self.runner.accessibility().and_then(|dump| {
-            dump.lines()
-                .iter()
-                .filter(|line| line.role != beui_core::accesskit::Role::Window)
-                .nth(node)
-                .map(|line| line.id)
-        }) else {
-            return;
-        };
-        let data = value.map(|value| match value {
-            NodeValue::Text(text) => beui_core::accesskit::ActionData::Value(text.into()),
-            NodeValue::Number(number) => beui_core::accesskit::ActionData::NumericValue(number),
-        });
-        self.runner
-            .context()
-            .accessibility_action(beui_core::accesskit::ActionRequest {
-                action,
-                target_tree: beui_core::accesskit::TreeId::ROOT,
-                target_node: target,
-                data,
-            });
+    pub fn node_action(&mut self, request: ActionRequest) {
+        self.runner.accessibility_action(request);
     }
 
     pub fn run_action(&mut self, id: &str) {
@@ -171,9 +148,15 @@ impl PluginSurface {
             right: width as f32 - rect.max.x * scale,
             bottom: height as f32 - rect.max.y * scale,
         };
-        if region.describe {
-            self.runner.keep_accessibility();
-            self.runner.context().set_automated(true);
+        if self.described != region.describe {
+            self.described = region.describe;
+            match region.describe {
+                Some(_) => self.runner.accessibility_requested(),
+                None => self.runner.accessibility_deactivated(),
+            }
+            self.runner
+                .context()
+                .set_automated(region.describe.is_some());
         }
         let Some(frame) = self.runner.frame(&mut self.platform, area) else {
             return Frame {
@@ -184,42 +167,15 @@ impl PluginSurface {
                 ..Frame::default()
             };
         };
-        let description = region.describe.then(|| self.describe(region));
+        let description = region.describe.map(|_| self.describe(region));
         frame_for(self.runner.window(), &frame, description)
     }
 
-    fn describe(&self, region: &Region) -> Description {
-        let points = region.scale_factor.recip();
-        let nodes = self
-            .runner
-            .accessibility()
-            .map(|dump| {
-                dump.lines()
-                    .iter()
-                    .filter(|line| line.role != beui_core::accesskit::Role::Window)
-                    .map(|line| DescribedNode {
-                        depth: line.depth.saturating_sub(1).min(usize::from(u16::MAX)) as u16,
-                        role: format!("{:?}", line.role),
-                        label: line.label.clone(),
-                        value: line.value.clone(),
-                        toggled: line.toggled.map(|toggled| match toggled {
-                            beui_core::accesskit::Toggled::False => Toggled::Off,
-                            beui_core::accesskit::Toggled::True => Toggled::On,
-                            beui_core::accesskit::Toggled::Mixed => Toggled::Mixed,
-                        }),
-                        disabled: line.disabled,
-                        focused: line.focused,
-                        rect: line.bounds.map(|bounds| bounds.scaled(points)),
-                        actions: line
-                            .actions
-                            .iter()
-                            .map(|action| format!("{action:?}"))
-                            .collect(),
-                        test_ids: line.test_ids.clone(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+    fn describe(&mut self, region: &Region) -> Description {
+        let tree = self
+            .platform
+            .take_tree()
+            .map(|tree| self.placed(region, tree));
         let actions = self
             .runner
             .output()
@@ -239,7 +195,21 @@ impl PluginSurface {
                     .collect()
             })
             .unwrap_or_default();
-        Description { nodes, actions }
+        Description { tree, actions }
+    }
+
+    fn placed(&self, region: &Region, mut tree: TreeUpdate) -> TreeUpdate {
+        let scale = self.runner.context().pixels_per_point() / region.scale_factor;
+        let origin = region.rect.min;
+        let placed = Affine::translate((-f64::from(origin.x), -f64::from(origin.y)))
+            * Affine::scale(scale.into());
+        let root = tree.tree.as_ref().map(|tree| tree.root);
+        for (id, node) in &mut tree.nodes {
+            if Some(*id) == root {
+                node.set_transform(placed);
+            }
+        }
+        tree
     }
 
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {
