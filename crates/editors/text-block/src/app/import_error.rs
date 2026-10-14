@@ -1,8 +1,9 @@
 use beui::NodeId;
 use beui::reactive::{Align, Direction, Frame, List, Show, component, create_memo, view};
-use beui::styled::{Body, Button, ButtonVariant, use_theme};
+use beui::styled::{Button, ButtonVariant, use_theme};
 
 use super::state::State;
+use beui::styled::{Text, TextColor};
 
 const BAR_PADDING_HORIZONTAL: f32 = 12.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
@@ -35,7 +36,7 @@ fn ImportErrorRow(state: State) -> NodeId {
             padding_vertical=BAR_PADDING_VERTICAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                <Body content={message} color={theme.danger} />
+                <Text string={message} color=TextColor::Danger />
                 <Button
                     label="Dismiss"
                     variant=ButtonVariant::Secondary

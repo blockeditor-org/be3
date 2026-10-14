@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{NodeRef, view};
-use crate::styled::Caption;
+use crate::styled::{Text, TextStyle};
 
 #[test]
 fn a_node_ref_lets_go_of_a_removed_node() {
@@ -8,7 +8,7 @@ fn a_node_ref_lets_go_of_a_removed_node() {
     let caption = NodeRef::new();
     let (document, [built]) = toolbar_of(move || {
         [view! {
-            <Caption @node_ref=&caption content="Caption" />
+            <Text style=TextStyle::CAPTION @node_ref=&caption string="Caption" />
         }]
     });
     let list = kind_of::<ListNode>(&document, document.root().expect("the toolbar is the root"));

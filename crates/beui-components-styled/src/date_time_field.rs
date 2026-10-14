@@ -6,10 +6,8 @@ use crate::focus_ring::FocusRing;
 use crate::popover::{PANEL_PADDING, PopoverPanel};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
-use crate::text::IconSized;
-use crate::theme::{
-    BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme,
-};
+use crate::text::{Icon, Text, TextColor};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, field_border, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Weekday};
@@ -24,8 +22,8 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Text,
-    create_memo, focus_ring,
+    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, create_memo,
+    focus_ring,
 };
 
 const HEIGHT: f32 = 34.0;
@@ -160,14 +158,14 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
     });
     let ink = create_memo(
         move || match (disabled.get(), placeholder.get(), focused.get()) {
-            (true, _, _) | (false, true, false) => theme.text_muted.get(),
-            _ => theme.text.get(),
+            (true, _, _) | (false, true, false) => TextColor::Muted,
+            _ => TextColor::Default,
         },
     );
     view! {
         <Frame height_fraction=1.0 align_vertical=Align::Center>
             <Frame color={fill} radius=SEGMENT_RADIUS padding_horizontal=SEGMENT_PADDING>
-                <Text string={text} font_size=FONT_BODY color={ink} align=TextAlign::Center />
+                <Text string={text} color={ink} align=TextAlign::Center />
             </Frame>
         </Frame>
     }
@@ -175,14 +173,8 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
 
 #[component]
 fn LiteralFace(text: String) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Text
-            string={text}
-            font_size=FONT_BODY
-            color={theme.text_muted}
-            vertical_align=TextAlign::Center
-        />
+        <Text string={text} color=TextColor::Muted vertical_align=TextAlign::Center />
     }
 }
 
@@ -214,8 +206,8 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
             },
         );
     let ink = create_memo(move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     let glyph = match parts {
         DateTimeParts::Time => ICON_SCHEDULE,
@@ -230,7 +222,9 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
                     padding_horizontal=TRIGGER_PADDING
                     padding_vertical=TRIGGER_PADDING
                 >
-                    <IconSized glyph={glyph.to_owned()} font_size=ICON_SIZE color={ink} />
+                    <Text color={ink} align=TextAlign::Center>
+                        <Icon glyph={glyph.to_owned()} />
+                    </Text>
                 </Frame>
             </FocusRing>
         </Tooltip>
@@ -484,8 +478,8 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
         },
     );
     let ink = create_memo(move || match selected.get() {
-        true => theme.on_accent.get(),
-        false => theme.text.get(),
+        true => TextColor::OnAccent,
+        false => TextColor::Default,
     });
     view! {
         <Frame
@@ -500,7 +494,6 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
         >
             <Text
                 string={label}
-                font_size=FONT_BODY
                 color={ink}
                 align={if centred { TextAlign::Center } else { TextAlign::Start }}
                 vertical_align=TextAlign::Center

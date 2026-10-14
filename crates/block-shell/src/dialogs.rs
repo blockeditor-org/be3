@@ -8,8 +8,8 @@ use block_editor_beui::beui::reactive::{
     component, create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, Card, Chip, Dialog, Heading, Icon, IconButton, IconButtonSize,
-    Paragraph, Scroll, Select, Spinner, TextInput,
+    Button, ButtonVariant, Card, Chip, Dialog, IconButton, IconButtonSize, Scroll, Select, Spinner,
+    TextInput,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{
@@ -19,6 +19,8 @@ use uuid::Uuid;
 
 use super::share::{GRANTABLE, Member, Person, ShareAction};
 use super::workspace::Workspace;
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextSize, TextStyle};
 
 const MEMBERS_HEIGHT: f32 = 280.0;
 const SETTINGS_HEIGHT: f32 = 96.0;
@@ -96,7 +98,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
                     on_submit={move |_value: String| submit()}
                 />
                 <Show condition={invalid}>
-                    <Caption content={error} />
+                    <Text style=TextStyle::CAPTION string={error} />
                 </Show>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button
@@ -132,10 +134,16 @@ fn UnlinkDialog(workspace: Workspace) -> NodeId {
             on_dismiss={move || workspace.close_dialog()}
         >
             <List spacing=12.0>
-                <Paragraph
-                    content="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
+                    wrap=true
                 />
-                <Paragraph content="The link and its settings cannot be restored." />
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="The link and its settings cannot be restored."
+                    wrap=true
+                />
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button
                         label="Unlink"
@@ -217,7 +225,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
                     />
                 </Frame>
                 <Show condition={has_summary}>
-                    <Caption content={summary_text} />
+                    <Text style=TextStyle::CAPTION string={summary_text} />
                 </Show>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button
@@ -345,12 +353,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
         <Dialog open={open} title={title} width=460.0 on_dismiss={move || workspace.close_dialog()}>
             <List spacing=10.0>
                 <Show condition={has_error}>
-                    <Caption content={error_text} />
+                    <Text style=TextStyle::CAPTION string={error_text} />
                 </Show>
                 <Show condition={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner />
-                        <Caption content="Loading members…" />
+                        <Text style=TextStyle::CAPTION string="Loading members…" />
                     </List>
                 </Show>
                 <TextInput
@@ -366,7 +374,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         <Card>
                             <List spacing=4.0>
                                 <Show condition={unmatched}>
-                                    <Caption content="No matching workspace members." />
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string="No matching workspace members."
+                                    />
                                 </Show>
                                 <ForEach keys={suggestion_keys}>
                                     {move |id: Uuid| {
@@ -445,11 +456,14 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </List>
                     }}
                 </Show>
-                <Heading content="People with access" />
+                <Text style=TextStyle::HEADING string="People with access" />
                 <Frame height=MEMBERS_HEIGHT>
                     <Scroll>
                         <Show condition={nobody}>
-                            <Caption content="Nobody can open this block yet." />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="Nobody can open this block yet."
+                            />
                         </Show>
                         <ForEach keys={member_keys}>
                             {move |id: Uuid| {
@@ -538,10 +552,12 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                            <Icon glyph={ICON_PERSON.to_owned()} />
-                            <Heading content={name} />
+                            <Text align=TextAlign::Center>
+                                <Icon glyph={ICON_PERSON.to_owned()} />
+                            </Text>
+                            <Text style=TextStyle::HEADING string={name} />
                         </List>
-                        <Caption content={email} />
+                        <Text style=TextStyle::CAPTION string={email} />
                         <Show condition={is_fixed}>
                             {move || view! {
                                 <List
@@ -549,13 +565,15 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                     align=Align::Center
                                     spacing=4.0
                                 >
-                                    <Icon glyph={ICON_LOCK.to_owned()} text_size=12.0 />
-                                    <Caption content={fixed_text} />
+                                    <Text size=TextSize::Sm align=TextAlign::Center>
+                                        <Icon glyph={ICON_LOCK.to_owned()} />
+                                    </Text>
+                                    <Text style=TextStyle::CAPTION string={fixed_text} />
                                 </List>
                             }}
                         </Show>
                         <Show condition={has_note}>
-                            <Caption content={note_text} />
+                            <Text style=TextStyle::CAPTION string={note_text} />
                         </Show>
                     </List>
                     <Show condition={is_fixed}>

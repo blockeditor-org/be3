@@ -3,17 +3,18 @@ use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::icon_button::{IconButton, IconButtonSize};
-use crate::text::Icon;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize, Weight};
+use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
+use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_CLOSE, ICON_ERROR, ICON_INFO};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Prop, Show, Text, create_memo,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Prop, Show, create_memo,
     create_timer,
 };
 use std::hash::{Hash, Hasher};
@@ -146,40 +147,41 @@ fn ToastCard(
         expiry.start(duration);
     }
     let (glyph, tint) = match danger {
-        true => (ICON_ERROR, theme.danger),
-        false => (ICON_INFO, theme.accent),
+        true => (ICON_ERROR, TextColor::Danger),
+        false => (ICON_INFO, TextColor::Accent),
     };
     let pictured = image.is_some();
     let titled = !title.is_empty();
     let said = !message.is_empty();
     let acted = !actions.is_empty();
     let (message_size, message_color) = match titled {
-        true => (FONT_SMALL, theme.text_muted),
-        false => (FONT_BODY, theme.text),
+        true => (TextSize::Sm, TextColor::Muted),
+        false => (TextSize::Base, TextColor::Default),
     };
-    let title_color = theme.text;
+    let title_color = TextColor::Default;
     let content = view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Show condition={pictured}>
                 <ToastPicture image={image.clone()} />
             </Show>
             <Show condition={!pictured}>
-                <Icon glyph={glyph.to_owned()} color={tint} />
+                <Text color={tint} align=TextAlign::Center>
+                    <Icon glyph={glyph.to_owned()} />
+                </Text>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
                 <Show condition={titled}>
                     <Text
                         string={title.clone()}
-                        font_size=FONT_BODY
                         color={title_color}
-                        bold=true
+                        weight=Weight::Bold
                         wrap=true
                     />
                 </Show>
                 <Show condition={said}>
                     <Text
                         string={message.clone()}
-                        font_size={message_size}
+                        size={message_size}
                         color={message_color}
                         wrap=true
                     />

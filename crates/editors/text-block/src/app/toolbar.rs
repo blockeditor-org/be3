@@ -9,13 +9,14 @@ use beui::reactive::{
     Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component,
     create_memo, create_signal, view, with_document,
 };
-use beui::styled::{Body, Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
+use beui::styled::{Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
 use beui::unstyled::{ChoiceOption, Scroll};
 use block_editor_beui::BlockParent;
 use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::State;
+use beui::styled::Text;
 
 const TOOLBAR_SPACING: f32 = 6.0;
 const SETTINGS_SPACING: f32 = 10.0;
@@ -256,7 +257,7 @@ fn HexSettings(state: State) -> NodeId {
     let insert = state.hex_insert_mode;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-            <Body @sizing=ItemSize::Percent(100.0) content="Insert instead of overwriting" />
+            <Text @sizing=ItemSize::Percent(100.0) string="Insert instead of overwriting" />
             <Switch
                 label="Insert instead of overwriting"
                 on={insert}
@@ -300,7 +301,7 @@ fn TextSettings(state: State) -> NodeId {
     view! {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Body @sizing=ItemSize::Percent(100.0) content="Language" />
+                <Text @sizing=ItemSize::Percent(100.0) string="Language" />
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Language"
@@ -325,7 +326,7 @@ fn TextSettings(state: State) -> NodeId {
                 </Frame>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Body @sizing=ItemSize::Percent(100.0) content="Indentation" />
+                <Text @sizing=ItemSize::Percent(100.0) string="Indentation" />
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Indentation"
@@ -352,7 +353,7 @@ fn TextSettings(state: State) -> NodeId {
                         align=Align::Center
                         spacing=SETTINGS_SPACING
                     >
-                        <Body @sizing=ItemSize::Percent(100.0) content="Indentation width" />
+                        <Text @sizing=ItemSize::Percent(100.0) string="Indentation width" />
                         <Frame width=NUMBER_WIDTH>
                             <NumberInput
                                 label="Indentation width"

@@ -260,6 +260,11 @@ fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
     };
     let bold = field(|span| span.bold);
     let italic = field(|span| span.italic);
+    let font = create_memo(move || {
+        FontId::monospace(FONT_SIZE)
+            .bold(bold.get())
+            .italic(italic.get())
+    });
     let underline = field(|span| span.underline);
     let text = create_memo(move || {
         span.with(|span| {
@@ -277,7 +282,7 @@ fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
     });
     view! {
         <Frame color={background}>
-            <Text string={text} font_size=FONT_SIZE color monospace=true bold italic underline />
+            <Text string={text} font color underline />
         </Frame>
     }
 }

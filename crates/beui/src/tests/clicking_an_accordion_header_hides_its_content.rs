@@ -13,7 +13,6 @@ fn clicking_an_accordion_header_hides_its_content() {
                     <Text
                         @node_ref=&body
                         string="beui keeps a retained tree of nodes."
-                        font_size=14.0
                         color=Color32::WHITE
                     />
                 </Accordion>

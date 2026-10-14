@@ -1,4 +1,5 @@
 use super::*;
+use beui::styled::{Family, Text, TextSize, TextStyle};
 
 #[component]
 pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
@@ -19,7 +20,12 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Heading @sizing=ItemSize::Percent(100.0) content={title} wrap=true />
+                <Text
+                    style=TextStyle::HEADING
+                    @sizing=ItemSize::Percent(100.0)
+                    string={title}
+                    wrap=true
+                />
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
                     label="Code"
@@ -57,7 +63,7 @@ fn CodeBlock(source: String) -> NodeId {
             padding_vertical=CODE_PADDING
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
-                <Text font_size=FONT_SMALL color={theme.text} monospace=true wrap=true>
+                <Text size=TextSize::Sm family=Family::Mono wrap=true>
                     <ForEach keys={tokens}>
                         {move |(start, end, color): (usize, usize, Color32)| view! {
                             <Span text={source[start..end].to_owned()} color />

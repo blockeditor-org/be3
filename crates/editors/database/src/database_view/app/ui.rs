@@ -4,7 +4,7 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, Frame, ItemSize, List, Memo, NodeRef, Show, component,
     create_effect, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Body, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::DatabaseValueEditor;
@@ -18,6 +18,7 @@ use crate::database_view::app::list::{ListView, RowBeside};
 use crate::database_view::app::scatter::Scatter;
 use crate::database_view::app::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
+use block_editor_beui::beui::styled::Text;
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
 const CELL_EDITOR_HEIGHT: f32 = 40.0;
@@ -153,7 +154,7 @@ fn CellEditor(data: Data) -> NodeId {
         <Frame height=CELL_EDITOR_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Frame @sizing={ItemSize::Intrinsic.min(CELL_LABEL_WIDTH)}>
-                    <Body @test_id={"database-view.cell-editor.cell"} content={label} />
+                    <Text @test_id={"database-view.cell-editor.cell"} string={label} />
                 </Frame>
                 <Show condition={chosen}>
                     <DatabaseValueEditor

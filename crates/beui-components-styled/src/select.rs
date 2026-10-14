@@ -1,11 +1,9 @@
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
-use crate::text::Icon;
+use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
-use crate::theme::{
-    BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme,
-};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -16,8 +14,8 @@ use beui_core::document::Document;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, Text,
-    create_memo, focus_ring,
+    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, create_memo,
+    focus_ring,
 };
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
@@ -91,12 +89,12 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
         false => theme.surface_raised.get(),
     });
     let text_color = create_memo(move || match disabled.get() || empty.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     let arrow_color = create_memo(move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     view! {
         <Frame
@@ -119,13 +117,14 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
                     <Text
                         string={label_text}
-                        font_size=FONT_BODY
                         color={text_color}
                         align=TextAlign::Start
                         ellipsis=true
                         @sizing=ItemSize::Percent(100.0)
                     />
-                    <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} color={arrow_color} />
+                    <Text color={arrow_color} align=TextAlign::Center>
+                        <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} />
+                    </Text>
                 </List>
             </Frame>
         </Frame>
@@ -174,7 +173,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=OPTION_PADDING_VERTICAL
         >
-            <Text string={label} font_size=FONT_BODY color={theme.text} align=TextAlign::Start />
+            <Text string={label} align=TextAlign::Start />
         </Frame>
     }
 }

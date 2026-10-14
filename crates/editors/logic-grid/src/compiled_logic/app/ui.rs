@@ -2,10 +2,10 @@ use block_editor_beui::be_block::CompiledLogicContent;
 use block_editor_beui::be_block::compiled_logic::CompiledLogic as Program;
 use block_editor_beui::be_block::{BlockContent, LogicGridContent};
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, Memo, Show, Text, component, create_effect, create_memo, view,
+    ForEach, Frame, ItemSize, List, Memo, Show, component, create_effect, create_memo, view,
 };
-use block_editor_beui::beui::styled::theme::FONT_SMALL;
-use block_editor_beui::beui::styled::{Caption, Heading, Scroll, Separator, use_theme};
+use block_editor_beui::beui::styled::{Family, Scroll, Separator, use_theme};
+use block_editor_beui::beui::styled::{Text, TextSize, TextStyle};
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockLink, ChildTarget, Editor};
 use logicgame::grid::{ComponentPort, ConnectionDirection};
@@ -70,30 +70,33 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
-                            <Heading content="Compiled from" />
+                            <Text style=TextStyle::HEADING string="Compiled from" />
                             <BlockLink
                                 editor={editor}
                                 block={source}
                                 @test_id={"compiled-logic.source"}
                             />
-                            <Caption content={summary} />
+                            <Text style=TextStyle::CAPTION string={summary} />
                         </List>
                         <Separator />
                         <List spacing=6.0>
-                            <Heading content="Ports" />
+                            <Text style=TextStyle::HEADING string="Ports" />
                             <Lines lines={ports} />
                         </List>
                         <Separator />
                         <List spacing=6.0>
-                            <Heading content="Calls" />
+                            <Text style=TextStyle::HEADING string="Calls" />
                             <Show condition={no_calls}>
-                                <Caption content="This component calls nothing else." />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string="This component calls nothing else."
+                                />
                             </Show>
                             <Calls editor={editor} calls={calls} />
                         </List>
                         <Separator />
                         <List spacing=6.0>
-                            <Heading content="Program" />
+                            <Text style=TextStyle::HEADING string="Program" />
                             <Lines lines={program} monospace=true />
                         </List>
                     </List>
@@ -127,7 +130,6 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
 #[component]
 fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> NodeId {
     let keys = create_memo(move || (0..lines.with(Vec::len)).collect::<Vec<usize>>());
-    let theme = use_theme();
     view! {
         <List spacing=2.0>
             <ForEach keys={keys}>
@@ -138,9 +140,8 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
                     view! {
                         <Text
                             string={line}
-                            font_size=FONT_SMALL
-                            color={theme.text}
-                            monospace={monospace}
+                            size=TextSize::Sm
+                            family={if monospace { Family::Mono } else { Family::Sans }}
                         />
                     }
                 }}

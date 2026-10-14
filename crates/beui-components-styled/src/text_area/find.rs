@@ -4,13 +4,14 @@ use text_editor_core::FindDirection;
 
 use crate::Button;
 use crate::ButtonVariant;
-use crate::Caption;
 use crate::Icon;
 use crate::IconButton;
 use crate::TextInput;
 use crate::ToggleButton;
+use crate::text::{Text, TextColor, TextStyle};
 use crate::use_theme;
 use beui_components_unstyled::TextAreaState;
+use beui_core::font::TextAlign;
 use beui_core::icons::{
     ICON_CLOSE, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_UP, ICON_MATCH_CASE, ICON_SEARCH,
 };
@@ -59,7 +60,9 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                     padding_vertical=BAR_PADDING_VERTICAL
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
+                        <Text color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph=ICON_SEARCH />
+                        </Text>
                         <Frame width=QUERY_WIDTH>
                             <TextInput
                                 value={query}
@@ -79,7 +82,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             @test_id={"text.find.match-case"}
                             on_change={move |pressed: bool| state.set_find_case_sensitive(pressed)}
                         />
-                        <Caption content={summary} />
+                        <Text style=TextStyle::CAPTION string={summary} />
                         <IconButton
                             glyph=ICON_KEYBOARD_ARROW_UP
                             label="Previous match"

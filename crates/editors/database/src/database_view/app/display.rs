@@ -12,14 +12,14 @@ use block_editor_beui::beui::reactive::{
     view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, IconButton, Select, Separator, Switch, TextInput,
-    ToggleButton,
+    Button, ButtonVariant, IconButton, Select, Separator, Switch, TextInput, ToggleButton,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
 use crate::database_view::groups::groupable;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SPACING: f32 = 10.0;
 const LABEL_WIDTH: f32 = 96.0;
@@ -80,7 +80,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                    <Caption content="Row id prefix" />
+                    <Text style=TextStyle::CAPTION string="Row id prefix" />
                 </Frame>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
@@ -314,7 +314,7 @@ fn EmptyGroups(data: Data) -> NodeId {
     let toggle = move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Body @sizing=ItemSize::Percent(100.0) content="Show empty groups" />
+            <Text @sizing=ItemSize::Percent(100.0) string="Show empty groups" />
             <Switch
                 on={on}
                 label="Show empty groups"
@@ -339,7 +339,7 @@ fn ShownFields(data: Data) -> NodeId {
     });
     view! {
         <List spacing=6.0>
-            <Caption content="Shown on each row" />
+            <Text style=TextStyle::CAPTION string="Shown on each row" />
             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
                 <ForEach keys={keys}>
                     {move |field: Uuid| {
@@ -382,7 +382,7 @@ fn Labelled(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Caption content={label} />
+                <Text style=TextStyle::CAPTION string={label} />
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>{children}</Frame>
         </List>

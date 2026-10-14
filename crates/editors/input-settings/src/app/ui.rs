@@ -10,8 +10,9 @@ use block_editor_beui::beui::reactive::{
     create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Caption, Heading, IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,
+    IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,
 };
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, HostInputDevice, InputDevices};
 
@@ -69,8 +70,11 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <List spacing=SECTION_SPACING>
                         <List spacing=ROW_SPACING>
-                            <Heading content="Keyboard" />
-                            <Caption content="XKB names, like us, de or us,de." />
+                            <Text style=TextStyle::HEADING string="Keyboard" />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="XKB names, like us, de or us,de."
+                            />
                             <TextSetting
                                 label="Layout"
                                 value={create_memo(move || layout.get())}
@@ -136,7 +140,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             read_only={pointers_off}
                         />
                         <List spacing=ROW_SPACING>
-                            <Heading content="Programs" />
+                            <Text style=TextStyle::HEADING string="Programs" />
                             <SwitchSetting
                                 label="Middle-click paste"
                                 on={paste_on}
@@ -148,8 +152,9 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                     settings.operate(InputSettings::set_middle_click_paste(on))
                                 }}
                             />
-                            <Caption
-                                content="Lets programs paste the text last selected in them with the middle button."
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="Lets programs paste the text last selected in them with the middle button."
                             />
                         </List>
                     </List>
@@ -305,9 +310,9 @@ fn Pointers(
     let (speed_off, tap_off, natural_off) = (read_only, read_only, read_only);
     view! {
         <List spacing=ROW_SPACING>
-            <Heading content="Pointers" />
+            <Text style=TextStyle::HEADING string="Pointers" />
             <Show condition={none}>
-                <Caption content="No pointer is connected to this session." />
+                <Text style=TextStyle::CAPTION string="No pointer is connected to this session." />
             </Show>
             <Select
                 options={view! {
@@ -456,7 +461,7 @@ fn SliderSetting(
     let moved = on_change;
     view! {
         <List spacing=LABEL_SPACING>
-            <Caption content={label} />
+            <Text style=TextStyle::CAPTION string={label} />
             <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
                 <Slider
                     @sizing=ItemSize::Percent(100.0)
@@ -468,7 +473,7 @@ fn SliderSetting(
                     @test_id={format!("input-settings.{id}")}
                     on_change={move |value: f32| moved.call(Some(value))}
                 />
-                <Body @sizing=ItemSize::Fixed(VALUE_WIDTH) content={shown} />
+                <Text @sizing=ItemSize::Fixed(VALUE_WIDTH) string={shown} />
                 <ResetButton
                     unset={unset}
                     read_only={read_only}
@@ -493,7 +498,7 @@ fn SwitchSetting(
     let switched = on_change;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
-            <Body @sizing=ItemSize::Percent(100.0) content={label} />
+            <Text @sizing=ItemSize::Percent(100.0) string={label} />
             <Switch
                 on={on}
                 indeterminate={mixed}

@@ -6,8 +6,8 @@ use block_editor_beui::beui::reactive::{
     view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, IconButton, ModalSheet, Popover, Scroll,
-    Separator, TextInput, ToggleButton, use_theme,
+    Button, ButtonVariant, IconButton, ModalSheet, Popover, Scroll, Separator, TextInput,
+    ToggleButton,
 };
 use block_editor_beui::narrow_chrome;
 use uuid::Uuid;
@@ -15,6 +15,7 @@ use uuid::Uuid;
 use crate::database_view::app::data::Data;
 use crate::database_view::app::display::DisplayOptions;
 use crate::database_view::app::filters::{FilterBar, FilterList};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const GUTTER: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -28,7 +29,6 @@ pub fn ViewHeader(data: Data) -> NodeId {
     let failed = create_memo(move || data.error.with(Option::is_some));
     let message = create_memo(move || data.error.get().unwrap_or_default());
     let dismiss = move || data.dismiss_error();
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
             <Show condition={wide}>
@@ -45,10 +45,10 @@ pub fn ViewHeader(data: Data) -> NodeId {
                 {move || view! {
                     <Frame padding_horizontal=GUTTER padding_vertical=6.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Body
+                            <Text
                                 @sizing=ItemSize::Percent(100.0)
-                                content={message}
-                                color={theme.danger}
+                                string={message}
+                                color=TextColor::Danger
                                 wrap=true
                             />
                             <Button
@@ -73,14 +73,14 @@ fn WideHeader(data: Data) -> NodeId {
         <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(6.0)}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Heading content={data.name} />
+                    <Text style=TextStyle::HEADING string={data.name} />
                     <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
                     <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={data} />
                     <NewRow data={data} compact=false />
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <FilterBar @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
-                    <Caption content={count} />
+                    <Text style=TextStyle::CAPTION string={count} />
                     <Popover
                         label="Display"
                         glyph={ICON_TUNE.to_owned()}
@@ -112,8 +112,12 @@ fn NarrowHeader(data: Data) -> NodeId {
         <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(8.0)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Heading @sizing=ItemSize::Percent(100.0) content={data.name} />
-                    <Caption content={count} />
+                    <Text
+                        style=TextStyle::HEADING
+                        @sizing=ItemSize::Percent(100.0)
+                        string={data.name}
+                    />
+                    <Text style=TextStyle::CAPTION string={count} />
                     <NewRow data={data} compact=true />
                 </List>
                 <Scroll direction=Direction::Horizontal>
@@ -137,9 +141,10 @@ fn NarrowHeader(data: Data) -> NodeId {
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Heading
+                                <Text
+                                    style=TextStyle::HEADING
                                     @sizing=ItemSize::Percent(100.0)
-                                    content="Filter and display"
+                                    string="Filter and display"
                                 />
                                 <Button
                                     label="Done"
@@ -148,7 +153,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                                     on_click={done}
                                 />
                             </List>
-                            <Caption content="Filters" />
+                            <Text style=TextStyle::CAPTION string="Filters" />
                             <FilterList data={data} />
                             <Separator />
                             <DisplayOptions data={data} />

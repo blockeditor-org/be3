@@ -7,16 +7,17 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, ButtonVariant, Caption, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
+    ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
 };
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::database::ChoiceMark;
 use uuid::Uuid;
 
-use crate::database_view::app::controls::MARK_SIZE;
+use crate::database_view::app::controls::MARK;
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{Parts, group_test_key, row_parts, row_title};
 use crate::database_view::groups::{Group, GroupKey};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const COLUMN_WIDTH: f32 = 272.0;
 const FOLDED_WIDTH: f32 = 48.0;
@@ -44,8 +45,9 @@ pub fn Kanban(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                        <Caption
-                            content="Choose the choice field whose options make the columns, under Display."
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Choose the choice field whose options make the columns, under Display."
                             wrap=true
                         />
                     </Frame>
@@ -123,8 +125,8 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
     view! {
         <Frame width=FOLDED_WIDTH color={theme.surface} radius=10 padding_vertical=10.0>
             <List align=Align::Center spacing=8.0>
-                <ChoiceMark option={option} size=MARK_SIZE />
-                <Caption content={count} />
+                <ChoiceMark option={option} size=MARK />
+                <Text style=TextStyle::CAPTION string={count} />
                 <IconButton
                     glyph={ICON_UNFOLD_MORE.to_owned()}
                     label={name}
@@ -212,9 +214,9 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                     align=Align::Center
                                     spacing=8.0
                                 >
-                                    <ChoiceMark option={option} size=MARK_SIZE />
-                                    <Body content={label} />
-                                    <Caption content={count} />
+                                    <ChoiceMark option={option} size=MARK />
+                                    <Text string={label} />
+                                    <Text style=TextStyle::CAPTION string={count} />
                                     <Frame @sizing=ItemSize::Percent(100.0) />
                                     <IconButton
                                         glyph={ICON_ADD.to_owned()}
@@ -329,8 +331,8 @@ fn CardLines(data: Data, row: usize) -> NodeId {
     });
     view! {
         <List spacing=6.0>
-            <Caption content={code} />
-            <Body content={title} wrap=true />
+            <Text style=TextStyle::CAPTION string={code} />
+            <Text string={title} wrap=true />
             <List direction=Direction::Horizontal spacing=0.0 wrap=true>
                 <Parts parts={parts} keys={keys} />
             </List>

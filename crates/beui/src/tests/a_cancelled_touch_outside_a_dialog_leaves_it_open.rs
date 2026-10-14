@@ -17,7 +17,7 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
                         width=300.0
                         on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
-                        <Text string="Body" font_size=14.0 color=Color32::WHITE />
+                        <Text string="Body" color=Color32::WHITE />
                     </Dialog>
                 </List>
             }

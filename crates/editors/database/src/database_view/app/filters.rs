@@ -13,10 +13,9 @@ use block_editor_beui::beui::reactive::{
     create_signal, view,
 };
 use block_editor_beui::beui::styled::popover::PopoverPanel;
-use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
+use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
-    Body, ButtonVariant, Caption, Checkbox, IconButton, IconButtonSize, IconSized, Scroll, Select,
-    TextInput, use_theme,
+    ButtonVariant, Checkbox, IconButton, IconButtonSize, Scroll, Select, TextInput, use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopoverTriggerHandle};
 use block_editor_beui::block_ui::database::{
@@ -25,8 +24,10 @@ use block_editor_beui::block_ui::database::{
 use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
 use uuid::Uuid;
 
-use crate::database_view::app::controls::{ControlFace, MARK_SIZE};
+use crate::database_view::app::controls::{ControlFace, MARK};
 use crate::database_view::app::data::Data;
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const SPACING: f32 = 6.0;
 const EDITOR_WIDTH: f32 = 300.0;
@@ -247,7 +248,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                         let text = text;
                         view! {
                             <ControlFace handle={handle.button}>
-                                <Caption content={text} />
+                                <Text style=TextStyle::CAPTION string={text} />
                             </ControlFace>
                         }
                     }}
@@ -295,12 +296,10 @@ fn AddFilter(data: Data) -> NodeId {
             trigger={move |handle: PopoverTriggerHandle| view! {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <IconSized
-                            glyph={ICON_FILTER_LIST.to_owned()}
-                            font_size={FONT_SMALL + 2.0}
-                            color={use_theme().text_muted}
-                        />
-                        <Caption content="Filter" />
+                        <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph={ICON_FILTER_LIST.to_owned()} />
+                        </Text>
+                        <Text style=TextStyle::CAPTION string="Filter" />
                     </List>
                 </ControlFace>
             }}
@@ -356,7 +355,7 @@ fn FieldChoices(
     });
     view! {
         <List spacing=2.0>
-            <Caption content="Filter by" />
+            <Text style=TextStyle::CAPTION string="Filter by" />
             <ForEach keys={keys}>
                 {move |field: Uuid| {
                     let on_pick = on_pick;
@@ -388,7 +387,7 @@ fn FieldChoices(
                                 let name = name;
                                 view! {
                                     <ControlFace handle={handle}>
-                                        <Body content={name} />
+                                        <Text string={name} />
                                     </ControlFace>
                                 }
                             }}
@@ -490,7 +489,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         <Frame width=EDITOR_WIDTH>
             <List spacing={SPACING * 1.5}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Body content={name} />
+                    <Text string={name} />
                     <Frame @sizing=ItemSize::Percent(100.0)>
                         <Select
                             options={view! {
@@ -697,7 +696,7 @@ fn ValueChoices(
                                     spacing=SPACING
                                 >
                                     <Frame visible={marked}>
-                                        <ChoiceMark option={option} size=MARK_SIZE />
+                                        <ChoiceMark option={option} size=MARK />
                                     </Frame>
                                     <Checkbox
                                         @sizing={block_editor_beui::beui::reactive::ItemSize::Percent(100.0).shrink(1.0)}
@@ -707,7 +706,7 @@ fn ValueChoices(
                                         @test_id={test_id}
                                         on_change={toggle}
                                     />
-                                    <Caption content={count} />
+                                    <Text style=TextStyle::CAPTION string={count} />
                                 </List>
                             }
                         }}
@@ -741,7 +740,7 @@ pub fn FilterList(data: Data) -> NodeId {
     view! {
         <List spacing={SPACING * 2.0}>
             <Show condition={none}>
-                <Caption content="Every row is shown." />
+                <Text style=TextStyle::CAPTION string="Every row is shown." />
             </Show>
             <ForEach keys={keys}>
                 {move |id: ObjectId| {
@@ -763,11 +762,9 @@ pub fn FilterList(data: Data) -> NodeId {
                 }}
             </ForEach>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <IconSized
-                    glyph={ICON_ADD.to_owned()}
-                    font_size=18.0
-                    color={use_theme().text_muted}
-                />
+                <Text color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph={ICON_ADD.to_owned()} />
+                </Text>
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <Select
                         options={view! {

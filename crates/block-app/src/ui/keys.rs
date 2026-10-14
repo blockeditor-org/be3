@@ -3,12 +3,11 @@ use beui::reactive::{
     Align, Direction, ItemSize, List, Show, Spacer, component, create_effect, create_memo,
     create_signal, untrack, view,
 };
-use beui::styled::{
-    Button, ButtonVariant, Caption, Card, Dialog, Heading, Paragraph, Spinner, TextInput, Title,
-};
+use beui::styled::{Button, ButtonVariant, Card, Dialog, Spinner, TextInput};
 
 use super::onboarding::{Column, ErrorText};
 use super::{AppViewStore, UiCommand, send};
+use beui::styled::{Text, TextStyle};
 
 #[component]
 pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
@@ -70,32 +69,36 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
     let submit = confirm;
     view! {
         <Column>
-            <Title content={title} />
+            <Text style=TextStyle::TITLE string={title} />
             <Show condition={replacing}>
-                <Paragraph
-                    content="Once you save this phrase, your old one stops working. Every workspace key sealed to the old phrase is sealed to this one instead."
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="Once you save this phrase, your old one stops working. Every workspace key sealed to the old phrase is sealed to this one instead."
+                    wrap=true
                 />
             </Show>
-            <Paragraph
-                content="Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
+                wrap=true
             />
             <Card>
-                <Paragraph content={phrase} />
+                <Text style=TextStyle::PARAGRAPH string={phrase} wrap=true />
             </Card>
-            <Heading content="Check that you saved them" />
-            <Caption content={first_label} />
+            <Text style=TextStyle::HEADING string="Check that you saved them" />
+            <Text style=TextStyle::CAPTION string={first_label} />
             <TextInput
                 value={first}
                 label={first_label}
                 on_change={move |value: String| set_first.set(value)}
             />
-            <Caption content={second_label} />
+            <Text style=TextStyle::CAPTION string={second_label} />
             <TextInput
                 value={second}
                 label={second_label}
                 on_change={move |value: String| set_second.set(value)}
             />
-            <Caption content={third_label} />
+            <Text style=TextStyle::CAPTION string={third_label} />
             <TextInput
                 value={third}
                 label={third_label}
@@ -153,12 +156,16 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
     let submit = open;
     view! {
         <Column>
-            <Title content={title} />
-            <Paragraph content="This device does not have the key to this workspace yet." />
+            <Text style=TextStyle::TITLE string={title} />
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="This device does not have the key to this workspace yet."
+                wrap=true
+            />
             <Show condition={sealed}>
                 {move || view! {
                     <List spacing=8.0>
-                        <Heading content="With your recovery phrase" />
+                        <Text style=TextStyle::HEADING string="With your recovery phrase" />
                         <TextInput
                             value={phrase}
                             label="Recovery phrase"
@@ -179,16 +186,20 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 }}
             </Show>
             <Show condition={unsealed}>
-                <Paragraph
-                    content="No key for this workspace is sealed to your recovery phrase yet. It will be once a member opens the workspace on a device that has the key."
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="No key for this workspace is sealed to your recovery phrase yet. It will be once a member opens the workspace on a device that has the key."
+                    wrap=true
                 />
             </Show>
-            <Heading content="With another device" />
+            <Text style=TextStyle::HEADING string="With another device" />
             <Show condition={idle}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Paragraph
+                    <Text
+                        style=TextStyle::PARAGRAPH
                         @sizing=ItemSize::Percent(100.0)
-                        content="Open any workspace on a device that already has this one, and it will ask for a code."
+                        string="Open any workspace on a device that already has this one, and it will ask for a code."
+                        wrap=true
                     />
                     <Button
                         label="Show a code"
@@ -200,11 +211,15 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Show condition={waiting}>
                 {move || view! {
                     <List spacing=8.0>
-                        <Paragraph content="Type this code on the other device:" />
-                        <Title content={code} />
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string="Type this code on the other device:"
+                            wrap=true
+                        />
+                        <Text style=TextStyle::TITLE string={code} />
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
-                            <Caption content="Waiting for the other device…" />
+                            <Text style=TextStyle::CAPTION string="Waiting for the other device…" />
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                             <Button
                                 label="Cancel"
@@ -267,7 +282,7 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
     view! {
         <Dialog open={open} title="Add a device" width=340.0 on_dismiss={dismiss}>
             <List spacing=10.0>
-                <Paragraph content={message} />
+                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
                 <TextInput
                     value={code}
                     label="Code"

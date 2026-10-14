@@ -11,12 +11,12 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef,
-    ReadSignal, Show, Spacer, Text, WriteSignal, component, create_memo, create_signal, view,
+    ReadSignal, Show, Spacer, WriteSignal, component, create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS};
+use block_editor_beui::beui::styled::theme::{CARD_RADIUS, RADIUS};
 use block_editor_beui::beui::styled::{
-    ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, IconMenuButton,
-    IconSized, ListRow, Scroll, TextInput, Title, use_theme,
+    ActionRow, Button, ButtonVariant, IconButton, IconMenuButton, ListRow, Scroll, TextInput,
+    use_theme,
 };
 use block_editor_beui::beui::unstyled::{BackSlide, Edge, Floating, MenuItem};
 use block_editor_beui::block_ui::BlockTypes;
@@ -26,11 +26,12 @@ use uuid::Uuid;
 use super::export::{Exporter, exportable};
 use super::rows::{Inspection, Placement, Row, RowKey, Tree as FileTree, describe};
 use super::ui::{Picker, menu_action};
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 2.0;
 const TILE_SIDE: f32 = 40.0;
-const TILE_GLYPH: f32 = 22.0;
 const ROW_INNER_SPACING: f32 = 14.0;
 const RECENT_WIDTH: f32 = 132.0;
 const RECENT_HEIGHT: f32 = 96.0;
@@ -310,14 +311,14 @@ fn Header(
                             padding_horizontal=PADDING
                             padding_vertical=4.0
                         >
-                            <Title content="Files" />
+                            <Text style=TextStyle::TITLE string="Files" />
                         </Frame>
                     </Show>
                     <Show condition={named}>
                         {move || view! {
                             <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                                <Caption content={path} ellipsis=true />
-                                <Heading content={name} />
+                                <Text style=TextStyle::CAPTION string={path} ellipsis=true />
+                                <Text style=TextStyle::HEADING string={name} />
                             </List>
                         }}
                     </Show>
@@ -348,18 +349,16 @@ fn Header(
 
 #[component]
 fn SearchSoon() -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame padding_horizontal=32.0 padding_vertical=48.0 @test_id={"file-tree.search.todo"}>
             <List spacing=10.0 align=Align::Center>
-                <IconSized
-                    glyph={ICON_SEARCH_OFF.to_owned()}
-                    font_size=40.0
-                    color={theme.text_muted}
-                />
-                <Heading content="Search is coming soon" />
-                <Caption
-                    content="It isn't built yet. Open folders to find a file for now."
+                <Text size=TextSize::Xl3 color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph={ICON_SEARCH_OFF.to_owned()} />
+                </Text>
+                <Text style=TextStyle::HEADING string="Search is coming soon" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="It isn't built yet. Open folders to find a file for now."
                     wrap=true
                 />
             </List>
@@ -402,7 +401,7 @@ fn Recents(editor: Editor) -> NodeId {
                 {move || view! {
                     <List spacing=6.0>
                         <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                            <Caption content="Recent" />
+                            <Text style=TextStyle::CAPTION string="Recent" />
                         </Frame>
                         <Scroll direction=Direction::Horizontal>
                             <ForEach keys={keys}>
@@ -420,7 +419,7 @@ fn Recents(editor: Editor) -> NodeId {
                             </ForEach>
                         </Scroll>
                         <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                            <Caption content="All files" />
+                            <Text style=TextStyle::CAPTION string="All files" />
                         </Frame>
                     </List>
                 }}
@@ -457,16 +456,13 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
                     <Frame height={RECENT_HEIGHT - 8.0} padding_vertical=6.0>
                         <List spacing=6.0>
                             <List direction=Direction::Horizontal spacing=0.0>
-                                <Icon glyph color={theme.accent} />
+                                <Text color=TextColor::Accent align=TextAlign::Center>
+                                    <Icon glyph={glyph} />
+                                </Text>
                             </List>
                             <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <Text
-                                string={name}
-                                font_size=FONT_BODY
-                                color={theme.text}
-                                ellipsis=true
-                            />
-                            <Caption content={kind} ellipsis=true />
+                            <Text string={name} ellipsis=true />
+                            <Text style=TextStyle::CAPTION string={kind} ellipsis=true />
                         </List>
                     </Frame>
                 </ListRow>
@@ -542,7 +538,7 @@ fn LevelRows(
         <List spacing=ROW_SPACING>
             <Show condition={loading}>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                    <Caption content="Loading…" />
+                    <Text style=TextStyle::CAPTION string="Loading…" />
                 </Frame>
             </Show>
             <Show condition={empty}>
@@ -551,7 +547,7 @@ fn LevelRows(
                     padding_vertical=24.0
                     @test_id={"file-tree.empty"}
                 >
-                    <Caption content={empty_text} wrap=true />
+                    <Text style=TextStyle::CAPTION string={empty_text} wrap=true />
                 </Frame>
             </Show>
             <ForEach keys={keys}>
@@ -625,8 +621,8 @@ fn PhoneRow(
     });
     let muted = create_memo(move || row.get().is_none_or(|row| row.automatic));
     let color = create_memo(move || match muted.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     let folder = create_memo(move || row.get().is_some_and(|row| drills_in(&row)));
     let holds = create_memo(move || {
@@ -659,7 +655,7 @@ fn PhoneRow(
             }
         }
     };
-    let muted_icon = theme.text_muted;
+    let muted_icon = TextColor::Muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
             <ListRow @sizing=ItemSize::Percent(100.0) @test_id={open_id} on_click={tapped}>
@@ -677,14 +673,18 @@ fn PhoneRow(
                             align_horizontal=Align::Center
                             align_vertical=Align::Center
                         >
-                            <IconSized glyph font_size=TILE_GLYPH color={theme.accent} />
+                            <Text size=TextSize::Lg color=TextColor::Accent align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
                         </Frame>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Text string={name} font_size=FONT_BODY color={color} ellipsis=true />
-                            <Caption content={detail} ellipsis=true />
+                            <Text string={name} color={color} ellipsis=true />
+                            <Text style=TextStyle::CAPTION string={detail} ellipsis=true />
                         </List>
                         <Show condition={folder}>
-                            <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={muted_icon} />
+                            <Text color={muted_icon} align=TextAlign::Center>
+                                <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
+                            </Text>
                         </Show>
                     </List>
                 </Frame>

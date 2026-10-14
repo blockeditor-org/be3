@@ -450,14 +450,31 @@ whatever places it - a `Frame` with a width and a height, or a `CanvasItem` -
 unless it is given a `size`, which it measures to, scaled down to the width it
 is offered and keeping its shape, as an image does.
 
-Text is never one of those. A `Text`'s content is its children: string
-literals and `Prop<String>`s in its own style, `Span`s - value children with no
-node, each overriding the `font`, `color`, `underline` or `strikethrough` of
-its `text`, and marking a wrap opportunity with `break_after` - and `TextItem`s,
-whose child is laid inline as if it were one character (U+FFFC in the text),
-and `Gap`s, room of a given width that holds no bytes, so the indices on either
-side of one are the same.
-`string` is a leading span in the Text's own style. Computed runs are a
+Text is never one of those. A base `Text` takes concrete values and knows
+nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
+given), a `color` and `underline`, and the props that shape the paragraph -
+alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`
+and `carets`. Its content is its children: string literals and
+`Prop<String>`s in its own style, `Span`s - value children with no node, each
+overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
+`italic`, and its `color`, `underline` or `strikethrough`, and marking a wrap
+opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
+inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
+given width that holds no bytes, so the indices on either side of one are the
+same. An unset span prop takes its Text's.
+`string` is a leading span in the Text's own style.
+
+An `Icon` is a span that paints one glyph from the icon font and, like a
+`Gap`, holds no bytes, so the caret steps over it, a selection never covers it
+and a copy never carries it, and `<Text><Icon glyph=ICON_SAVE />"Save"</Text>`
+reads and copies as "Save". `Document::text_icons` lists a text's icons. An
+icon is its Text's font size times `scale` unless given a `size`, is centred
+in its line rather than set on the baseline, and makes its line no taller than
+text of the size it scales from would. It keeps `spacing_em` (a fraction of
+its own size) from whatever sits beside it on its line, so the gap between an
+icon and its label is layout rather than a space a selection could take, and
+an icon alone keeps none; an icon whose glyph is empty takes no room at all.
+Underline and strikethrough never cross one. Computed runs are a
 `ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
 and wraps them itself, breaking after whitespace, `-`, `/` or `\`, or after a
 `break_after` span, and between letters when no such break fits,
@@ -483,7 +500,7 @@ the document has been shown once. It is how a component measures text outside
 is - and the galleys it returns are cached, so asking for the same word twice
 costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
 and family; both are synthesised by FreeType rather than loaded as separate
-faces, and `Text` takes them as props.
+faces.
 
 `unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
@@ -1722,7 +1739,7 @@ wgpu renderer. A standalone app builds its document once and implements
 use beui::reactive::{
     Frame, List, build, component, create_memo, create_signal, view,
 };
-use beui::styled::{Button, ButtonVariant, Display, DocumentTheme, use_theme};
+use beui::styled::{Button, ButtonVariant, DocumentTheme, Text, TextStyle, use_theme};
 use beui::{App, Color32, Context, Document, NodeId, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -1738,7 +1755,7 @@ fn Counter() -> NodeId {
     view! {
         <Frame color={theme.background}>
             <List spacing=8.0>
-                <Display content={label} />
+                <Text style=TextStyle::DISPLAY string={label} />
                 <Button
                     label="Decrease"
                     variant=ButtonVariant::Secondary
@@ -2112,7 +2129,7 @@ way; `children: Children<NodeId>` takes any
 number of plain nodes, as `Scroll` does; `children: Children<CanvasItem>` takes
 only the items a `Canvas` can place; `children: Child` and
 `children: Option<Child>` take one node. A plain node converts into whatever a
-slot asks for that takes one, so `<List><Text content="hi" /></List>` needs no
+slot asks for that takes one, so `<List><Text string="hi" /></List>` needs no
 ceremony. Writing
 `@sizing` on the child of a slot that does not size its children is a compile
 error rather than an attribute that quietly does nothing.
@@ -2124,7 +2141,7 @@ stay in one place:
 
 ```rust
 <List spacing=4.0>
-    <Heading content="Cards" />
+    <Text style=TextStyle::HEADING string="Cards" />
     <ForEach keys={card_ids()}>
         {move |id: Uuid| view! { <CardRow id /> }}
     </ForEach>
@@ -2457,16 +2474,63 @@ Read colors from the nearest theme with `styled::use_theme()`, which returns a
 `ThemeStore` — one `ReadSignal` per token. Bind a token straight to a prop with
 `theme.accent`, or read tokens inside a memo that also reads interaction
 state, so the control repaints when either changes. Because each token is its
-own signal, a component wakes only for the colors it actually uses. Sizes,
-radii, and font sizes are constants in `styled::theme`. Add a field to `Theme`,
+own signal, a component wakes only for the colors it actually uses. Radii and
+spacing are constants in `styled::theme`. Add a field to `Theme`,
 with a value in every built-in theme, when a color is part of the theme rather
 than unique to one component.
 
 Styled controls must visibly expose keyboard focus, and must keep labels and
 accessible roles stable when visual state changes. Use glyphs from `beui::icons`
-with `styled::Icon` or `styled::IconSized`; do not use Unicode characters as
+in a `styled::Icon` inside a `styled::Text`; do not use Unicode characters as
 ad-hoc icons. The [keyboard guide](beui_keyboard.md) records the expected
 behavior for each control family.
+
+### Text
+
+Styled text is written in tokens, never pixels or colors. `styled::Text`,
+`styled::Span` and `styled::Icon` take the same children as the base ones and
+resolve their tokens into a base `Text`'s `font` and `color`:
+
+- `size`, a `TextSize` on a scale from `Xs` to `Xl5`; `TextSize::px` is the
+  point size, for the rare layout that must measure against it.
+- `weight` (`Weight::Normal`, `Weight::Bold`), `family` (`Family::Sans`,
+  `Family::Mono`) and `italic`.
+- `color`, a `TextColor` role (`Default`, `Muted`, `Faint`, `Accent`,
+  `OnAccent`, `Danger`, `Warning`, `Success`) resolved through the nearest
+  theme, so the text follows a theme change. `TextColor::Custom(color)` is for
+  colors that are data rather than design - a user's label color, a map
+  marker, a terminal's ANSI palette - and a memo that picks a color by state
+  returns a `TextColor`.
+- `style`, a `TextStyle` preset: `BODY`, `CAPTION` (small and muted),
+  `HEADING`, `TITLE`, `DISPLAY`, `CODE` (small and monospace) and `PARAGRAPH`
+  (muted); give a paragraph `wrap=true` as well. A prop given beside a preset
+  wins over it.
+
+A styled `Icon` is sized from the text it sits in, `ICON_SCALE` times its font
+size, unless given a `size` token, and keeps `ICON_SPACING_EM` from its
+neighbours, so an icon beside a label is one `Text`, not a row of two:
+
+```rust
+view! {
+    <Text style=TextStyle::CAPTION>
+        <Icon glyph=ICON_SCHEDULE />
+        "Edited five minutes ago"
+    </Text>
+}
+```
+
+A lone icon is a `Text` holding only an `Icon`; give it `align=TextAlign::Center`
+when it is placed in a box bigger than itself.
+
+`TextStyleProvider` gives every styled text created within it a style its own
+props override, the way a disabled section mutes everything in it. It is
+context, so it reaches what is created inside it, which is not always what is
+laid out inside it: text a render callback builds for an overlay takes the
+provider around where the callback was written. A `Span` or `Icon` written
+inside a `Text` takes what it does not set from that `Text` instead.
+
+Raw pixel sizes and `Color32`s belong to base `Text`, for text that is drawn
+rather than designed: labels on a zoomable canvas, a terminal, a game board.
 
 ### Themes
 

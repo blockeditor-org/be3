@@ -16,7 +16,7 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
                     enabled={nested}
                     on_back={move || set_depth.set(depth.get_untracked() - 1)}
                 >
-                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
+                    <Text string="Page" color=Color32::WHITE @node_ref={&page} />
                 </BackSlide>
             }
         }

@@ -14,8 +14,8 @@ use beui::reactive::{
     Show, Spacer, component, create_effect, create_memo, create_signal, view,
 };
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, DateTimeField, IconButton,
-    NumberDrag, NumberInput, Select, TextInput,
+    Button, ButtonVariant, Checkbox, ColorInput, DateTimeField, IconButton, NumberDrag,
+    NumberInput, Select, Text, TextInput, TextStyle,
 };
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
@@ -115,7 +115,7 @@ fn DatabaseValueRow(
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={headings}>
-                    <Caption content={heading} />
+                    <Text style=TextStyle::CAPTION string={heading} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
@@ -595,7 +595,11 @@ fn RelationValue(
     view! {
         <List spacing=SPACING>
             <Show condition={unlinked}>
-                <Caption content="Choose the database this column links to." wrap=true />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Choose the database this column links to."
+                    wrap=true
+                />
             </Show>
             <Select
                 options={view! {
@@ -705,7 +709,7 @@ fn LinksValue(
                     };
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                            <Text @sizing=ItemSize::Percent(100.0) string={label} />
                             <IconButton
                                 glyph={ICON_CLEAR.to_owned()}
                                 label="Remove link"
@@ -886,7 +890,7 @@ pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
     });
     view! {
         <Frame padding_horizontal=SPACING>
-            <Body content={text} align={align} />
+            <Text string={text} align={align} />
         </Frame>
     }
 }

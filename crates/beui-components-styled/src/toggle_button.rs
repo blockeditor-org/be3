@@ -2,16 +2,17 @@ use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
-use crate::text::Icon;
-use crate::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor};
+use crate::theme::{RADIUS, ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, Text, create_memo,
+    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, create_memo,
 };
 
 #[component]
@@ -60,8 +61,8 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let named = create_memo(move || !icon_only.get());
     let text_color = create_memo(move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     let icon_color = text_color;
     let fill_color = create_memo(move || fill_for(&theme, checked.get(), hovered.get()));
@@ -87,10 +88,12 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph} color={icon_color} />
+                        <Text color={icon_color} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
                     </Show>
                     <Show condition={named}>
-                        <Text string={label} font_size=FONT_BODY color={text_color} />
+                        <Text string={label} color={text_color} />
                     </Show>
                 </List>
             </Frame>

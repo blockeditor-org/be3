@@ -5,7 +5,8 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::{
     Align, Direction, Justify, List, Memo, component, create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Dialog, MenuButton, Paragraph};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Dialog, MenuButton};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::{Editor, Power, PowerAction, PowerAvailability};
 
@@ -121,7 +122,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             />
             <Dialog open title on_dismiss={dismiss}>
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Paragraph content={explained} />
+                    <Text style=TextStyle::PARAGRAPH string={explained} wrap=true />
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center

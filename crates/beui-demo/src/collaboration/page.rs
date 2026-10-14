@@ -11,7 +11,7 @@ use beui::reactive::{
     Align, Callback, List, Memo, ReadSignal, Timer, create_effect, create_memo, create_signal,
     create_timer, now, store, untrack, view,
 };
-use beui::styled::{Caption, IconButton, Slider, TextArea, ToggleButton};
+use beui::styled::{IconButton, Slider, TextArea, ToggleButton};
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
@@ -20,6 +20,7 @@ use text_editor_core::{CursorPosition, EditorCommand, TextLanguage};
 use super::{Caret, Side, SideDocument, Simulation};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
+use beui::styled::{Text, TextStyle};
 
 const TEXT: &str = "# Shared notes\n\nType on both sides. Each side keeps its own copy and \
 sends its edits over a simulated network.\n\n- [ ] type at the same place on both sides\n";
@@ -193,8 +194,9 @@ fn ConcurrentEditing() -> NodeId {
 
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption
-                content="The left side orders every edit, as a session's owner does. The right \
+            <Text
+                style=TextStyle::CAPTION
+                string="The left side orders every edit, as a session's owner does. The right \
                 side shows its own edits at once and holds them until the left has ordered \
                 them. Pause the network to type on both sides, then send each side's edits \
                 when you like. Runs shows where each run of text starts, named by the client \
@@ -216,7 +218,7 @@ fn ConcurrentEditing() -> NodeId {
                     pressed={runs_pressed}
                     on_change={move |on: bool| set_runs.set(on)}
                 />
-                <Caption content={latency_label} />
+                <Text style=TextStyle::CAPTION string={latency_label} />
             </List>
             <Slider
                 value={latency}
@@ -243,7 +245,7 @@ fn ConcurrentEditing() -> NodeId {
                     runs
                 />
             </unstyled::Stack>
-            <Caption content={status} wrap=true />
+            <Text style=TextStyle::CAPTION string={status} wrap=true />
         </List>
     }
 }
@@ -349,7 +351,7 @@ fn EditorPane(
 ) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
-            <Caption content={title} />
+            <Text style=TextStyle::CAPTION string={title} />
             <TextArea
                 @test_id=id
                 @sizing=ItemSize::Fixed(EDITOR_HEIGHT)

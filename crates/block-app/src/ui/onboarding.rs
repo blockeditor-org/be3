@@ -7,8 +7,8 @@ use beui::reactive::{
     copy_text, create_effect, create_memo, create_signal, untrack, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Card, Dialog, Heading, Icon, IconButton, MenuButton, Paragraph,
-    Scroll, Spinner, SplitButton, Switch, Tabs, TextInput, Title, Tooltip, use_theme,
+    Button, ButtonVariant, Card, Dialog, IconButton, MenuButton, Scroll, Spinner, SplitButton,
+    Switch, Tabs, TextInput, Tooltip,
 };
 use beui::unstyled::{ChoiceOption, MenuItem};
 use beui::{NodeId, TextAlign};
@@ -17,18 +17,23 @@ use uuid::Uuid;
 use super::{AccountForm, AccountRow, AppViewStore, ErrorAction, UiCommand, WorkspacesState, send};
 use crate::platform;
 use crate::root_settings::{SESSION_TYPES, session_type_name};
+use beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const COLUMN_WIDTH: f32 = 460.0;
 
 #[component]
 pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
-    let theme = use_theme();
     let shown = create_memo(move || text.get().is_some());
     let content = create_memo(move || text.get().unwrap_or_default());
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Paragraph content={content} color={theme.danger} />
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string={content}
+                    color=TextColor::Danger
+                    wrap=true
+                />
             </Show>
         </List>
     }
@@ -81,10 +86,10 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
     });
     view! {
         <Column>
-            <Title content="Something went wrong" align=TextAlign::Center />
+            <Text style=TextStyle::TITLE string="Something went wrong" align=TextAlign::Center />
             <Frame height=240.0>
                 <Scroll>
-                    <Paragraph content={message} />
+                    <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
                 </Scroll>
             </Frame>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
@@ -121,7 +126,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
             </List>
             <Dialog open={asking} title={title} on_dismiss={|| send(UiCommand::CancelErrorAction)}>
                 <List spacing=12.0>
-                    <Paragraph content={confirmation} />
+                    <Text style=TextStyle::PARAGRAPH string={confirmation} wrap=true />
                     <List direction=Direction::Horizontal spacing=8.0>
                         <Button
                             label="Delete"
@@ -157,8 +162,8 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
     let accounts = view.accounts;
     view! {
         <Column>
-            <Title content="Block Editor" />
-            <Caption content="Choose an account to continue." />
+            <Text style=TextStyle::TITLE string="Block Editor" />
+            <Text style=TextStyle::CAPTION string="Choose an account to continue." />
             <ForEach keys={keys}>
                 {move |key: String| {
                     let accounts = accounts;
@@ -176,7 +181,10 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
             </ForEach>
             <Show condition={empty}>
                 <Card>
-                    <Caption content="No accounts yet. Add one to get started." />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="No accounts yet. Add one to get started."
+                    />
                 </Card>
             </Show>
             <Button
@@ -206,7 +214,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
         <Card>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Heading @sizing=ItemSize::Percent(100.0) content={name} />
+                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) string={name} />
                     <MenuButton
                         label="Account options"
                         glyph={ICON_MORE_HORIZ.to_owned()}
@@ -255,10 +263,12 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
     });
     view! {
         <List spacing=2.0>
-            <Caption content={email} />
+            <Text style=TextStyle::CAPTION string={email} />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <Icon glyph={glyph} text_size=12.0 />
-                <Caption content={server} />
+                <Text size=TextSize::Sm align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
+                <Text style=TextStyle::CAPTION string={server} />
             </List>
         </List>
     }
@@ -333,7 +343,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                         <ChoiceOption label="Register" />
                     }}
                 />
-                <Caption content="Server" />
+                <Text style=TextStyle::CAPTION string="Server" />
                 <Show condition={platform::HAS_EMBEDDED_SERVER}>
                     {move || view! {
                         <Tabs
@@ -369,7 +379,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                         </List>
                     }}
                 </Show>
-                <Caption content="Email address" />
+                <Text style=TextStyle::CAPTION string="Email address" />
                 <TextInput
                     value={email}
                     placeholder="you@example.com"
@@ -379,7 +389,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                 <Show condition={register}>
                     {move || view! {
                         <List spacing=10.0>
-                            <Caption content="Display name" />
+                            <Text style=TextStyle::CAPTION string="Display name" />
                             <TextInput
                                 value={display_name}
                                 label="Display name"
@@ -388,7 +398,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                         </List>
                     }}
                 </Show>
-                <Caption content="Password" />
+                <Text style=TextStyle::CAPTION string="Password" />
                 <TextInput
                     value={password}
                     label="Password"
@@ -401,7 +411,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                     <Show condition={pending}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
-                            <Caption content="Contacting server…" />
+                            <Text style=TextStyle::CAPTION string="Contacting server…" />
                         </List>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -455,7 +465,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
     view! {
         <Column>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Title @sizing=ItemSize::Percent(100.0) content="Workspaces" />
+                <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0) string="Workspaces" />
                 <MenuButton
                     label="Account options"
                     glyph={ICON_MORE_HORIZ.to_owned()}
@@ -476,7 +486,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <List @sizing=ItemSize::Percent(100.0) spacing=4.0>
-                        <Heading content={name} />
+                        <Text style=TextStyle::HEADING string={name} />
                         <AccountDetails account />
                     </List>
                     <Button
@@ -487,7 +497,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                     />
                 </List>
             </Card>
-            <Heading content="Open a workspace" />
+            <Text style=TextStyle::HEADING string="Open a workspace" />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
                     let rows = rows;
@@ -526,8 +536,10 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             </Show>
             <Show condition={has_invitations}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                    <Icon glyph={ICON_GROUP_ADD.to_owned()} />
-                    <Heading content="Invitations" />
+                    <Text align=TextAlign::Center>
+                        <Icon glyph={ICON_GROUP_ADD.to_owned()} />
+                    </Text>
+                    <Text style=TextStyle::HEADING string="Invitations" />
                 </List>
             </Show>
             <ForEach keys={invitation_keys}>
@@ -553,8 +565,8 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                         <Card>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                                    <Heading content={workspace} />
-                                    <Caption content={role} />
+                                    <Text style=TextStyle::HEADING string={workspace} />
+                                    <Text style=TextStyle::CAPTION string={role} />
                                 </List>
                                 <Button
                                     label="Accept"
@@ -573,7 +585,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                     }
                 }}
             </ForEach>
-            <Heading content="Create a workspace" />
+            <Text style=TextStyle::HEADING string="Create a workspace" />
             <CreateWorkspace busy={busy} created />
             <ErrorText text={error} />
             <ReauthDialog view />
@@ -611,16 +623,17 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
     let (sessions, profiles) = (status, status);
     view! {
         <Column>
-            <Title content={title} />
+            <Text style=TextStyle::TITLE string={title} />
             <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
-                    <Caption content="Loading sessions and profiles…" />
+                    <Text style=TextStyle::CAPTION string="Loading sessions and profiles…" />
                 </List>
             </Show>
-            <Heading content="Settings profile" />
-            <Caption
-                content="The settings this device uses. Each device starts with a profile of its own."
+            <Text style=TextStyle::HEADING string="Settings profile" />
+            <Text
+                style=TextStyle::CAPTION
+                string="The settings this device uses. Each device starts with a profile of its own."
             />
             <ForEach keys={profile_keys}>
                 {move |id: Uuid| {
@@ -656,16 +669,17 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 on_click={|| send(UiCommand::NewProfile)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Heading @sizing=ItemSize::Percent(100.0) content="Session" />
-                <Caption content="Show every type" />
+                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) string="Session" />
+                <Text style=TextStyle::CAPTION string="Show every type" />
                 <Switch
                     on={every_type}
                     label="Show sessions of every type"
                     on_change={|every: bool| send(UiCommand::EverySessionType(every))}
                 />
             </List>
-            <Caption
-                content="The blocks you had open. Start a new session to begin again with the same settings."
+            <Text
+                style=TextStyle::CAPTION
+                string="The blocks you had open. Start a new session to begin again with the same settings."
             />
             <ForEach keys={session_keys}>
                 {move |id: Uuid| {
@@ -738,11 +752,14 @@ fn WorkspacesPlaceholder(state: Memo<WorkspacesState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={loaded}>
-                <Caption content="You do not have any workspaces yet. Create one below." />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="You do not have any workspaces yet. Create one below."
+                />
             </Show>
             <Show condition={failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Caption content="Could not load workspaces." />
+                    <Text style=TextStyle::CAPTION string="Could not load workspaces." />
                     <Button
                         label="Retry"
                         variant=ButtonVariant::Secondary
@@ -753,7 +770,7 @@ fn WorkspacesPlaceholder(state: Memo<WorkspacesState>) -> NodeId {
             <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
-                    <Caption content="Loading workspaces…" />
+                    <Text style=TextStyle::CAPTION string="Loading workspaces…" />
                 </List>
             </Show>
         </List>
@@ -828,8 +845,8 @@ fn ReauthDialog(view: AppViewStore) -> NodeId {
             on_dismiss={|| send(UiCommand::ReauthClose)}
         >
             <List spacing=10.0>
-                <Paragraph content={message} />
-                <Caption content="Password" />
+                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
+                <Text style=TextStyle::CAPTION string="Password" />
                 <TextInput
                     value={password}
                     label="Password"
@@ -842,7 +859,7 @@ fn ReauthDialog(view: AppViewStore) -> NodeId {
                     <Show condition={busy}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
-                            <Caption content="Signing in…" />
+                            <Text style=TextStyle::CAPTION string="Signing in…" />
                         </List>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />

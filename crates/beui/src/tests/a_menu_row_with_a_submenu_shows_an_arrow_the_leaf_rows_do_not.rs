@@ -48,8 +48,11 @@ fn a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not() {
 }
 
 fn arrow(document: &Document, row: NodeId) -> Option<NodeId> {
-    let wanted = format!("\"{ICON_CHEVRON_RIGHT}\"");
-    if document.node_detail(row).as_deref() == Some(wanted.as_str()) {
+    let shows_arrow = document
+        .arena
+        .kind_of(row)
+        .is_some_and(|text| document.text_icons(text) == [ICON_CHEVRON_RIGHT]);
+    if shows_arrow {
         return Some(row);
     }
     document

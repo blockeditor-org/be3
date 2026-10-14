@@ -5,12 +5,14 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::theme::RADIUS;
-use block_editor_beui::beui::styled::{Body, use_theme};
+use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::styled::{Text, TextColor, TextSize};
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
 use uuid::Uuid;
 
-pub const MARK_SIZE: f32 = 16.0;
+pub const MARK: TextSize = TextSize::Sm;
+pub const MARK_SIZE: f32 = MARK.icon_px();
 
 #[component]
 pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
@@ -65,10 +67,9 @@ pub fn ChoicePicker(
             })
         }),
     });
-    let theme = use_theme();
     let color = create_memo(move || match option.with(Option::is_some) {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let keys = create_memo(move || {
         field.with(|field| {
@@ -127,8 +128,8 @@ pub fn ChoicePicker(
                     view! {
                         <ControlFace handle={handle.button}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <ChoiceMark option={option} size=MARK_SIZE />
-                                <Body content={label} color={color} />
+                                <ChoiceMark option={option} size=MARK />
+                                <Text string={label} color={color} />
                             </List>
                         </ControlFace>
                     }

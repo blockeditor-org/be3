@@ -7,8 +7,8 @@ use crate::dock::DockMenu;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::list_row::ListRow;
 use crate::sheet::ModalSheet;
-use crate::text::{Caption, Heading, Icon};
-use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, FONT_SMALL, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
+use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, SHEET_STOPS, TabId,
@@ -18,8 +18,7 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Text, Track, create_memo,
-    focus_ring,
+    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Track, create_memo, focus_ring,
 };
 
 const BAR_PADDING: f32 = 4.0;
@@ -80,14 +79,14 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             spacing=TITLE_SPACING
                         >
                             <Show condition={pictured}>
-                                <Icon glyph={icon} color={theme.accent} />
+                                <Text color=TextColor::Accent align=TextAlign::Center>
+                                    <Icon glyph={icon} />
+                                </Text>
                             </Show>
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
                                 @test_id={"dock.title"}
                                 string={title}
-                                font_size=FONT_BODY
-                                color={theme.text}
                                 ellipsis=true
                             />
                         </List>
@@ -147,12 +146,7 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                             outline_width=COUNT_OUTLINE
                             outline_visible=true
                         >
-                            <Text
-                                string={shown}
-                                font_size=FONT_SMALL
-                                color={theme.text}
-                                align=TextAlign::Center
-                            />
+                            <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
                         </Frame>
                     </Frame>
                 }
@@ -182,12 +176,12 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
                 <Frame padding_horizontal=SHEET_PADDING>
-                    <Heading content="Open tabs" />
+                    <Text style=TextStyle::HEADING string="Open tabs" />
                 </Frame>
                 <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
                     <List spacing=CARD_SPACING>
                         <Show condition={none}>
-                            <Caption content="Nothing else is open." />
+                            <Text style=TextStyle::CAPTION string="Nothing else is open." />
                         </Show>
                         <Grid
                             columns={vec![Track::Fraction(1.0), Track::Fraction(1.0)]}
@@ -256,14 +250,11 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     <Frame padding_vertical=CARD_PADDING>
                         <List spacing=CARD_LINES>
                             <List direction=Direction::Horizontal spacing=0.0>
-                                <Icon glyph={icon} color={theme.accent} />
+                                <Text color=TextColor::Accent align=TextAlign::Center>
+                                    <Icon glyph={icon} />
+                                </Text>
                             </List>
-                            <Text
-                                string={title}
-                                font_size=FONT_BODY
-                                color={theme.text}
-                                ellipsis=true
-                            />
+                            <Text string={title} ellipsis=true />
                         </List>
                     </Frame>
                 </ListRow>

@@ -1,6 +1,7 @@
 use beui::NodeId;
 use beui::reactive::{Frame, List, Show, component, create_memo, view};
-use beui::styled::{Caption, Checkbox, use_theme};
+use beui::styled::{Checkbox, use_theme};
+use beui::styled::{Text, TextStyle};
 use block_editor_beui::be_block::compiled_logic::CompiledLogic;
 use block_editor_beui::be_block::{
     ArtifactSource, BlockContent, CompiledLogicContent, CompiledLogicDocument, LogicGridContent,
@@ -113,7 +114,7 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
                     />
                 </Show>
                 <Show condition={unreadable}>
-                    <Caption content="These settings cannot be read." />
+                    <Text style=TextStyle::CAPTION string="These settings cannot be read." />
                 </Show>
             </List>
         </Frame>

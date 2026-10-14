@@ -5,7 +5,7 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::icon_button::IconButton;
-use crate::text::{Body, Caption, Display, Title};
+use crate::text::{Text, TextColor, TextStyle};
 use crate::text_input::TextInput;
 use crate::theme::use_theme;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -133,7 +133,6 @@ fn LockCard(
     on_submit: Callback<String>,
     on_action: Callback<usize>,
 ) -> NodeId {
-    let theme = use_theme();
     let left = create_memo(move || Some(place.get().left()));
     let top = create_memo(move || Some(place.get().top()));
     let width = create_memo(move || Some(place.get().width()));
@@ -165,11 +164,11 @@ fn LockCard(
             >
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
-                        <Display content={time} />
-                        <Body content={date} color={theme.text_muted} />
+                        <Text style=TextStyle::DISPLAY string={time} />
+                        <Text string={date} color=TextColor::Muted />
                     </List>
                     <List spacing=SPACING align=Align::Center>
-                        <Title content={user} />
+                        <Text style=TextStyle::TITLE string={user} />
                         <Frame width=FIELD_WIDTH>
                             <TextInput
                                 value={password}
@@ -184,12 +183,13 @@ fn LockCard(
                             />
                         </Frame>
                         <Show condition={checking}>
-                            <Caption content="Checking…" />
+                            <Text style=TextStyle::CAPTION string="Checking…" />
                         </Show>
                         <Show condition={failed}>
-                            <Caption
-                                content={reason}
-                                color={theme.danger}
+                            <Text
+                                style=TextStyle::CAPTION
+                                string={reason}
+                                color=TextColor::Danger
                                 @test_id={error_id.clone()}
                             />
                         </Show>

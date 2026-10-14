@@ -7,16 +7,13 @@ use beui::icons::{
 #[cfg(target_os = "android")]
 use beui::reactive::Portal;
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, component,
     create_memo, view,
 };
 use beui::reactive::{held_modifiers, with_document};
 #[cfg(not(target_os = "android"))]
 use beui::styled::Separator;
-use beui::styled::theme::{FONT_BODY, FONT_SMALL};
-use beui::styled::{
-    Caption, Heading, Icon, IconButton, ListRow, Scroll, Spinner, Tabs, TextInput, use_theme,
-};
+use beui::styled::{IconButton, ListRow, Scroll, Spinner, Tabs, TextInput, use_theme};
 #[cfg(target_os = "android")]
 use beui::unstyled::BackSlide;
 use beui::unstyled::ChoiceOption;
@@ -32,6 +29,8 @@ use crate::time::{now, relative};
 use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
 use crate::workspace::{MainActions, Workspace};
+use beui::TextAlign;
+use beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
@@ -127,7 +126,6 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 
 #[component]
 fn Sidebar(model: Model) -> NodeId {
-    let theme = use_theme();
     let repository = create_memo(move || match model.repository.get() {
         Loaded::Loading => "Connecting to GitHub".to_owned(),
         Loaded::Ready(name) => name,
@@ -183,8 +181,8 @@ fn Sidebar(model: Model) -> NodeId {
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Heading content="Pull requests" />
-                            <Caption content={repository} />
+                            <Text style=TextStyle::HEADING string="Pull requests" />
+                            <Text style=TextStyle::CAPTION string={repository} />
                         </List>
                         <IconButton
                             glyph=ICON_FRAME_INSPECT
@@ -203,7 +201,9 @@ fn Sidebar(model: Model) -> NodeId {
                         on_change={show}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
+                        <Text color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph=ICON_SEARCH />
+                        </Text>
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
                             value={query}
@@ -215,14 +215,14 @@ fn Sidebar(model: Model) -> NodeId {
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner width=20.0 label="Loading pull requests" />
-                            <Caption content="Loading pull requests" />
+                            <Text style=TextStyle::CAPTION string="Loading pull requests" />
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text string={error} font_size=FONT_BODY color={theme.danger} wrap=true />
+                        <Text string={error} color=TextColor::Danger wrap=true />
                     </Show>
                     <Show condition={empty}>
-                        <Caption content={empty_text} />
+                        <Text style=TextStyle::CAPTION string={empty_text} />
                     </Show>
                 </List>
             </Frame>
@@ -259,7 +259,6 @@ fn matches(pull_request: &PullRequest, query: &str) -> bool {
 
 #[component]
 fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
-    let theme = use_theme();
     let number = pull_request.get_untracked().number;
     let selected = model.selection.memo(Some(number));
     let title = create_memo(move || pull_request.get().title);
@@ -286,8 +285,8 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List direction=Direction::Horizontal spacing=8.0>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                    <Text string={title} font_size=FONT_BODY color={theme.text} wrap=true />
-                    <Caption content={details} />
+                    <Text string={title} wrap=true />
+                    <Text style=TextStyle::CAPTION string={details} />
                     <Show condition={has_tags}>
                         <Labels labels={labels} checked_out={checked_out} />
                     </Show>
@@ -299,16 +298,17 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 
 #[component]
 pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
-    let theme = use_theme();
     let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let color = create_memo(move || match state.get() {
-        State::Open => theme.success.get(),
-        State::Draft => theme.text_muted.get(),
-        State::Merged => MERGED,
-        State::Closed => theme.danger.get(),
+        State::Open => TextColor::Success,
+        State::Draft => TextColor::Muted,
+        State::Merged => TextColor::Custom(MERGED),
+        State::Closed => TextColor::Danger,
     });
     view! {
-        <Icon glyph color />
+        <Text color align=TextAlign::Center>
+            <Icon glyph={glyph} />
+        </Text>
     }
 }
 
@@ -347,7 +347,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
 
 #[component]
 fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
-    let ink = create_memo(move || readable_on(color.get()));
+    let ink = create_memo(move || TextColor::Custom(readable_on(color.get())));
     view! {
         <Frame
             color
@@ -355,7 +355,7 @@ fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
             padding_horizontal=CHIP_PADDING_HORIZONTAL
             padding_vertical=CHIP_PADDING_VERTICAL
         >
-            <Text string={text} font_size=FONT_SMALL color={ink} />
+            <Text string={text} size=TextSize::Sm color={ink} />
         </Frame>
     }
 }

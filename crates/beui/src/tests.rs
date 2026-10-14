@@ -1,4 +1,5 @@
 use super::*;
+use crate::FontId;
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_before_it_closes;
@@ -267,6 +268,7 @@ mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
 mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
+mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
@@ -343,6 +345,7 @@ mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_error_toast_stays_until_it_is_dismissed;
 mod an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there;
+mod an_icon_in_rich_text_takes_room_and_spacing_but_no_bytes;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
 mod an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes_few;
 mod an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile;
@@ -435,6 +438,7 @@ mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
 mod dragging_a_tab_within_a_window_bar_reorders_it;
 mod dragging_a_window_by_its_bar_moves_it;
 mod dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back;
+mod dragging_across_an_icon_and_its_label_copies_only_the_label;
 mod dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection;
 mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
@@ -1411,7 +1415,7 @@ pub(crate) fn MenuRegion() -> NodeId {
 pub(crate) fn ButtonFace(label: String) -> NodeId {
     view! {
         <Frame color=Color32::from_gray(60) radius=4 padding_horizontal=20.0 padding_vertical=12.0>
-            <Text string={label} font_size=14.0 color=Color32::WHITE />
+            <Text string={label} color=Color32::WHITE />
         </Frame>
     }
 }
@@ -1540,7 +1544,7 @@ pub(crate) fn hello_column() -> HelloColumn {
             view! {
                 <List spacing=0.0>
                     <Frame @node_ref=&padding padding_horizontal=4.0 padding_vertical=4.0>
-                        <Text @node_ref=&text string="Hello" font_size=14.0 color=Color32::WHITE />
+                        <Text @node_ref=&text string="Hello" color=Color32::WHITE />
                     </Frame>
                 </List>
             }
@@ -1818,6 +1822,19 @@ pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Opti
         .find_map(|child| text_within(document, child, text))
 }
 
+pub(crate) fn icon_within(document: &Document, root: NodeId, glyph: &str) -> Option<NodeId> {
+    if let Some(text) = document.arena.kind_of(root)
+        && document.text_icons(text).iter().any(|shown| shown == glyph)
+        && document.node_rect(root).is_some()
+    {
+        return Some(root);
+    }
+    document
+        .children(root)
+        .into_iter()
+        .find_map(|child| icon_within(document, child, glyph))
+}
+
 pub(crate) fn dock_tab(document: &Document, dock: NodeId, title: &str) -> NodeId {
     text_within(document, dock, title).unwrap_or_else(|| panic!("the dock shows {title}"))
 }
@@ -2004,7 +2021,11 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>
             {|index: usize| view! {
-                <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
+                <Text
+                    string={format!("Row {index}")}
+                    color=Color32::WHITE
+                    font={FontId::proportional(20.0)}
+                />
             }}
         </ForEach>
     }

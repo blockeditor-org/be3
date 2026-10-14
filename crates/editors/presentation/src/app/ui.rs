@@ -6,10 +6,10 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef, Prop, ReadSignal, Show,
-    Text, component, create_memo, create_selector, create_signal, view,
+    component, create_memo, create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, IconButton, Scroll, theme, use_theme,
+    Button, ButtonVariant, IconButton, Scroll, theme, use_theme,
 };
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
@@ -17,6 +17,7 @@ use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Edi
 use uuid::Uuid;
 
 use super::slides::Slides;
+use block_editor_beui::beui::styled::{Text, TextColor, TextSize, TextStyle};
 
 const FILMSTRIP_WIDTH: f32 = 210.0;
 const THUMBNAIL_WIDTH: f32 = 176.0;
@@ -156,7 +157,6 @@ fn Stage(
 
 #[component]
 fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
-    let theme = use_theme();
     let hidden = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
     let message = create_memo(move || {
         state.with(|state| match &state.error {
@@ -167,7 +167,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     });
     view! {
         <Frame visible={hidden}>
-            <Text string={message} font_size=theme::FONT_SMALL color={theme.text_muted} wrap=true />
+            <Text string={message} size=TextSize::Sm color=TextColor::Muted wrap=true />
         </Frame>
     }
 }
@@ -197,7 +197,11 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
             padding_vertical=PANEL_PADDING
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Caption content={position} @test_id={"presentation.position"} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string={position}
+                    @test_id={"presentation.position"}
+                />
                 <Button
                     @sizing=ItemSize::Percent(100.0)
                     label="Add slide"
@@ -261,7 +265,7 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
                         />
                         <Text
                             string={position}
-                            color=Color32::WHITE
+                            color={TextColor::Custom(Color32::WHITE)}
                             @test_id={"presentation.playback.position"}
                         />
                         <IconButton
@@ -310,7 +314,7 @@ fn Filmstrip(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
         >
             <List spacing=TILE_SPACING>
                 <Show condition={empty}>
-                    <Caption content="Add a slide to start this deck." />
+                    <Text style=TextStyle::CAPTION string="Add a slide to start this deck." />
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id={"presentation.filmstrip"}>
                     <ForEach keys={keys} view={tiles} />
@@ -384,7 +388,7 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                 padding_vertical=8.0
                 @test_id="presentation.slide-ghost"
             >
-                <Caption content={label} />
+                <Text style=TextStyle::CAPTION string={label} />
             </Frame>
         }
     };
@@ -431,8 +435,12 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                         }}
                     </DropTarget>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Caption content={number} />
-                        <Caption @sizing=ItemSize::Percent(100.0) content={name} />
+                        <Text style=TextStyle::CAPTION string={number} />
+                        <Text
+                            style=TextStyle::CAPTION
+                            @sizing=ItemSize::Percent(100.0)
+                            string={name}
+                        />
                         <IconButton
                             glyph={ICON_DELETE.to_owned()}
                             label="Detach slide"

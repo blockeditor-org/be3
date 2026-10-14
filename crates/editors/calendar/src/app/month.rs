@@ -4,10 +4,11 @@ use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
     Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, ListRow, use_theme};
+use block_editor_beui::beui::styled::{ListRow, use_theme};
 use block_ui::datetime::{civil_from_days, days_from_civil};
 
 use super::model::{Shown, WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const CELL_HEIGHT: f32 = 92.0;
 const CELL_SPACING: f32 = 2.0;
@@ -35,9 +36,9 @@ pub(crate) fn MonthGrid(
                 <ForEach keys={weekday_names()}>
                     {move |name: &'static str| {
                         view! {
-                            <Body
+                            <Text
                                 @sizing=ItemSize::Percent(100.0)
-                                content={name}
+                                string={name}
                                 align=TextAlign::Center
                             />
                         }
@@ -130,8 +131,8 @@ fn MonthCell(
         (false, false) => theme.background.get(),
     });
     let number_color = create_memo(move || match in_month.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let pick = move || on_pick_day.call(day);
     view! {
@@ -150,7 +151,11 @@ fn MonthCell(
                     on_click={pick}
                     on_activate={pick}
                 >
-                    <Caption content={day_number.to_string()} color={number_color} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={day_number.to_string()}
+                        color={number_color}
+                    />
                 </ListRow>
                 <ForEach keys={shown}>
                     {move |id: ObjectId| {
@@ -172,7 +177,7 @@ fn MonthCell(
                         }
                     }}
                 </ForEach>
-                <Caption content={overflow} />
+                <Text style=TextStyle::CAPTION string={overflow} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>
@@ -189,7 +194,7 @@ fn EventChip(
     view! {
         <Frame color={theme.accent} radius=3>
             <ListRow on_click={click} on_activate={on_click}>
-                <Caption content={title} color={theme.on_accent} />
+                <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
             </ListRow>
         </Frame>
     }

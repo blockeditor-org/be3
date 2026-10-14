@@ -8,10 +8,9 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList,
     component, create_memo, view,
 };
-use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
+use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
-    Body, ButtonVariant, Caption, IconButton, IconButtonSize, IconSized, ListRow, Scroll,
-    Separator, use_theme,
+    ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, Separator, TextColor, use_theme,
 };
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
@@ -23,11 +22,13 @@ use crate::database_view::app::data::Data;
 use crate::database_view::app::row::RowPanel;
 use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::sort::BlockLabels;
+use block_editor_beui::beui::styled::{Icon, Text, TextSize, TextStyle};
 
 const PANEL_WIDTH: f32 = 460.0;
 const LINE_HEIGHT: f32 = 38.0;
 const CODE_WIDTH: f32 = 76.0;
-const MARK_SIZE: f32 = 16.0;
+const MARK: TextSize = TextSize::Sm;
+const MARK_SIZE: f32 = MARK.icon_px();
 const SPACING: f32 = 10.0;
 const GUTTER: f32 = 12.0;
 const PAGE_PART: Uuid = Uuid::nil();
@@ -89,7 +90,7 @@ pub fn ListView(data: Data) -> NodeId {
                         <Show condition={empty}>
                             {move || view! {
                                 <Frame padding_horizontal={GUTTER * 1.5} padding_vertical=GUTTER>
-                                    <Caption content={blank} />
+                                    <Text style=TextStyle::CAPTION string={blank} />
                                 </Frame>
                             }}
                         </Show>
@@ -253,10 +254,10 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                     on_click={toggle}
                 />
                 <Frame visible={marked}>
-                    <ChoiceMark option={option} size=MARK_SIZE />
+                    <ChoiceMark option={option} size=MARK />
                 </Frame>
-                <Body content={label} />
-                <Caption content={count} />
+                <Text string={label} />
+                <Text style=TextStyle::CAPTION string={count} />
                 <Frame @sizing=ItemSize::Percent(100.0) />
                 <IconButton
                     glyph={ICON_ADD.to_owned()}
@@ -348,12 +349,12 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                     {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
-                                <Caption content={wide_code} ellipsis=true />
+                                <Text style=TextStyle::CAPTION string={wide_code} ellipsis=true />
                             </Frame>
                             <Marks data={data} entry={wide_entry} marks={wide_marks} />
-                            <Body
+                            <Text
                                 @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                                content={wide_title}
+                                string={wide_title}
                                 ellipsis=true
                             />
                             <Parts parts={wide_parts} keys={wide_keys} />
@@ -369,7 +370,7 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                                 spacing=SPACING
                             >
                                 <Marks data={data} entry={narrow_entry} marks={marks} />
-                                <Body @sizing=ItemSize::Percent(100.0) content={title} wrap=true />
+                                <Text @sizing=ItemSize::Percent(100.0) string={title} wrap=true />
                             </List>
                             <List
                                 direction=Direction::Horizontal
@@ -377,7 +378,7 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                                 spacing=8.0
                                 wrap=true
                             >
-                                <Caption content={code} />
+                                <Text style=TextStyle::CAPTION string={code} />
                                 <Parts parts={parts} keys={part_keys} />
                             </List>
                         </List>
@@ -410,7 +411,7 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
                     view! {
                         <Frame width=MARK_SIZE height=MARK_SIZE>
                             <Frame visible={set}>
-                                <ChoiceMark option={option} size=MARK_SIZE />
+                                <ChoiceMark option={option} size=MARK />
                             </Frame>
                         </Frame>
                     }
@@ -464,18 +465,16 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
     let dotted = create_memo(move || matches!(part.get(), Some(Part::Choice(_))));
     let linked = create_memo(move || matches!(part.get(), Some(Part::Links(..))));
     let plain_text = text;
-    let (page_color, link_color) = (theme.text_muted, theme.text_muted);
+    let (page_color, link_color) = (TextColor::Muted, TextColor::Muted);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={page}>
-                <IconSized
-                    glyph={ICON_DESCRIPTION.to_owned()}
-                    font_size=MARK_SIZE
-                    color={page_color}
-                />
+                <Text size=MARK color={page_color} align=TextAlign::Center>
+                    <Icon glyph={ICON_DESCRIPTION.to_owned()} />
+                </Text>
             </Frame>
             <Frame visible={plain}>
-                <Caption content={plain_text} ellipsis=true />
+                <Text style=TextStyle::CAPTION string={plain_text} ellipsis=true />
             </Frame>
             <Frame
                 visible={chip}
@@ -491,13 +490,11 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                         <Frame width=8.0 height=8.0 radius=2 color={dot} />
                     </Frame>
                     <Frame visible={linked}>
-                        <IconSized
-                            glyph={ICON_LINK.to_owned()}
-                            font_size=FONT_SMALL
-                            color={link_color}
-                        />
+                        <Text size=TextSize::Xs color={link_color} align=TextAlign::Center>
+                            <Icon glyph={ICON_LINK.to_owned()} />
+                        </Text>
                     </Frame>
-                    <Caption content={text} align=TextAlign::Start />
+                    <Text style=TextStyle::CAPTION string={text} align=TextAlign::Start />
                 </List>
             </Frame>
         </List>

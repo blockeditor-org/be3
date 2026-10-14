@@ -4,11 +4,12 @@ use crate::button::{ButtonFace, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::focus_ring::FocusRing;
 use crate::icon_button::{IconButtonFace, IconButtonSize};
-use crate::text::IconSized;
-use crate::theme::{ICON_SIZE, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextSize};
+use crate::theme::{RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{MenuButtonHandle, MenuItem, Picture};
+use beui_core::font::TextAlign;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::image::Image;
 use beui_core::input::ScrollGesture;
@@ -17,6 +18,7 @@ use beui_view::reactive::{
     Align, Callback, Children, ClickCallback, Frame, List, Memo, Prop, Show, create_memo,
 };
 
+const PICTURE_SIZE: f32 = TextSize::Base.icon_px();
 const PICTURE_PADDING: f32 = 6.0;
 const PICTURE_FOCUS_RING_OFFSET: f32 = 2.0;
 
@@ -97,7 +99,6 @@ pub fn PictureMenuButton(
     label: Prop<String>,
     image: Prop<Option<Image>>,
     #[prop(default = String::new())] glyph: Prop<String>,
-    #[prop(default = ICON_SIZE)] size: f32,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = true)] secondary_opens: Prop<bool>,
@@ -128,7 +129,7 @@ pub fn PictureMenuButton(
         let fill = create_memo(move || {
             ButtonVariant::Ghost.fill(&theme, disabled.get(), hovered.get(), pressed.get())
         });
-        let color = create_memo(move || ButtonVariant::Ghost.label(&theme, disabled.get()));
+        let color = create_memo(move || ButtonVariant::Ghost.label(disabled.get()));
         let (image, pictured, plain) = (image, pictured, plain);
         view! {
             <Tooltip label disabled={open}>
@@ -139,13 +140,15 @@ pub fn PictureMenuButton(
                         padding_horizontal=PICTURE_PADDING
                         padding_vertical=PICTURE_PADDING
                     >
-                        <Frame width=size height=size>
+                        <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                             <List spacing=0.0 align=Align::Center>
                                 <Show condition={pictured}>
-                                    <SizedPicture image={image} size />
+                                    <SizedPicture image={image} size=PICTURE_SIZE />
                                 </Show>
                                 <Show condition={plain}>
-                                    <IconSized glyph={glyph} font_size=size color={color} />
+                                    <Text color={color} align=TextAlign::Center>
+                                        <Icon glyph={glyph} />
+                                    </Text>
                                 </Show>
                             </List>
                         </Frame>

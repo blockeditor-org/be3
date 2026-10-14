@@ -8,7 +8,7 @@ use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
     NodeRef, Prop, Show, Spacer, component, create_effect, create_memo, view, with_document,
 };
-use block_editor_beui::beui::styled::{Body, Caption, Icon, Scroll, use_theme};
+use block_editor_beui::beui::styled::{Scroll, use_theme};
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
 use uuid::Uuid;
@@ -17,6 +17,7 @@ use crate::database_view::app::data::Data;
 use crate::database_view::sort::{
     DisplayRow, ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width, display_rows, next_sort,
 };
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const BORDER: f32 = 1.0;
 const CELL_PADDING: f32 = 6.0;
@@ -39,7 +40,7 @@ pub fn Spreadsheet(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={empty}>
                     <Frame padding_horizontal=12.0 padding_vertical=12.0>
-                        <Caption content="This database has no columns yet." />
+                        <Text style=TextStyle::CAPTION string="This database has no columns yet." />
                     </Frame>
                 </Show>
                 <Show condition={filled}>
@@ -175,10 +176,12 @@ fn HeaderCell(
             <Interactive on_click={on_click}>
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <Body content={label} color={theme.text} />
+                        <Text string={label} />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Show condition={marked}>
-                            <Icon glyph={glyph} color={theme.text_muted} />
+                            <Text color=TextColor::Muted align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
                         </Show>
                     </List>
                 </Frame>
@@ -224,7 +227,7 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
                 outline_width=BORDER
                 outline_visible=true
             >
-                <Caption content={number} align=TextAlign::Center />
+                <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
             <ForEach keys={keys}>
                 {move |id: Uuid| {
@@ -321,7 +324,7 @@ fn Cell(
         }
     });
     let theme = use_theme();
-    let glyph_color = theme.text;
+    let glyph_color = TextColor::Default;
     let fill = create_memo(move || match selected.get() {
         true => theme.accent_soft.get(),
         false => theme.background.get(),
@@ -344,7 +347,9 @@ fn Cell(
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>
-                            <Icon glyph={check_glyph} color={glyph_color} />
+                            <Text color={glyph_color} align=TextAlign::Center>
+                                <Icon glyph={check_glyph} />
+                            </Text>
                         </Show>
                         <Show condition={colored}>
                             <Frame
@@ -357,11 +362,10 @@ fn Cell(
                                 radius=2
                             />
                         </Show>
-                        <Body
+                        <Text
                             @sizing=ItemSize::Percent(100.0)
-                            content={text}
+                            string={text}
                             align={align}
-                            color={theme.text}
                             ellipsis=true
                         />
                     </List>

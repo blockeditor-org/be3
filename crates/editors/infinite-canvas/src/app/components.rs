@@ -7,13 +7,14 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Show, Spacer, component, create_memo, create_signal,
     view,
 };
-use block_editor_beui::beui::styled::{Accordion, Button, ButtonVariant, Caption, Separator};
+use block_editor_beui::beui::styled::{Accordion, Button, ButtonVariant, Separator};
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::{DatabaseValueEditor, RowValues, ValueLabels};
 use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SPACING: f32 = 10.0;
 
@@ -157,11 +158,11 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     let remove_id = format!("{prefix}.remove");
     view! {
         <List spacing=6.0>
-            <Caption content={named} />
+            <Text style=TextStyle::CAPTION string={named} />
             <Show condition={partial}>
                 {move || { let add_id = add_id.clone(); view! {
                     <List spacing=6.0>
-                        <Caption content={coverage} />
+                        <Text style=TextStyle::CAPTION string={coverage} />
                         <List direction=Direction::Horizontal spacing=4.0>
                             <Button
                                 label="Add to all"

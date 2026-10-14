@@ -5,12 +5,13 @@ use block_editor_beui::beui::reactive::{
     Frame, Func, ItemSize, List, ReadSignal, Show, component, create_effect, create_memo,
     create_signal, view,
 };
-use block_editor_beui::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
+use block_editor_beui::beui::styled::{Scroll, Tree, TreeRowFace};
 use block_editor_beui::beui::unstyled::TreeItem;
 use serde_json::Value;
 
 use super::panel::Info;
 use super::workspace::Workspace;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 2.0;
@@ -77,12 +78,15 @@ pub(crate) fn BlockData(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
         <Frame padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={waiting}>
-                    <Caption content="This block has not finished loading yet." />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="This block has not finished loading yet."
+                    />
                 </Show>
                 <Show condition={unparsed}>
                     {move || view! {
                         <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <Code content={raw} />
+                            <Text style=TextStyle::CODE string={raw} />
                         </Scroll>
                     }}
                 </Show>
@@ -112,7 +116,7 @@ pub(crate) fn BlockData(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                             })
                         });
                         view! {
-                            <Code content={label} />
+                            <Text style=TextStyle::CODE string={label} />
                         }
                     }}
                 </Tree>

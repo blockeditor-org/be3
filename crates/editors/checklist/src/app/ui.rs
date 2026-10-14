@@ -6,9 +6,9 @@ use block_editor_beui::beui::reactive::{
     create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,
-    ToggleButton, use_theme,
+    Button, ButtonVariant, Card, Checkbox, Progress, Scroll, TextInput, ToggleButton, use_theme,
 };
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor};
 
@@ -93,8 +93,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
         >
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
-                    <Heading content="Checklist" />
-                    <Caption content={summary} />
+                    <Text style=TextStyle::HEADING string="Checklist" />
+                    <Text style=TextStyle::CAPTION string={summary} />
                     <Progress value={progress} label="Checklist completion" />
                 </List>
                 <Card>
@@ -163,7 +163,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <Card @sizing=ItemSize::Percent(100.0)>
                     <List spacing=10.0>
                         <Show condition={empty}>
-                            <Body content="No tasks match this view." align=TextAlign::Center />
+                            <Text string="No tasks match this view." align=TextAlign::Center />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <List spacing=8.0>

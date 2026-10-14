@@ -455,7 +455,7 @@ path, a unary expression, and a reference to a path.
 
 ```rust
 <Frame color=SURFACE>
-<Caption content=count_text align=TextAlign::End />
+<Text style=TextStyle::CAPTION string=count_text align=TextAlign::End />
 <List direction=Direction::Horizontal />
 <Frame @node_ref=&panel width=TRIGGER_WIDTH height=HEIGHT>
 <Frame color=Color32::from_gray(40) radius=4>
@@ -774,7 +774,7 @@ returned `ItemSize::Percent` in a row, for instance.
 
 ```rust
 <Toolbar @sizing=ItemSize::Fixed(TOOLBAR_HEIGHT) />
-<Caption @sizing=ItemSize::Percent(100.0) content=count_text align=TextAlign::End />
+<Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION string=count_text align=TextAlign::End />
 <Card @sizing={rows_size}>
 ```
 

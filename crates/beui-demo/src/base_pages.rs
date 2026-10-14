@@ -7,6 +7,7 @@ use beui::reactive::{
     Dynamic, Fade, Gap, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay,
     Placement, ReadSignal, Shift, Track,
 };
+use beui::reactive::{Icon, Text};
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -148,6 +149,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             <Sample title="Spans" code={vec![TextRuns::SOURCE]}>
                 <TextRuns />
             </Sample>
+            <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
+                <TextIcons />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -159,12 +163,45 @@ fn TextStyles() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text string="Plain text" color={theme.text} />
-            <Text string="Bold text" color={theme.text} bold=true />
-            <Text string="Italic text" color={theme.text} italic=true />
+            <Text
+                string="Bold text"
+                color={theme.text}
+                font={FontId::proportional(14.0).bold(true)}
+            />
+            <Text
+                string="Italic text"
+                color={theme.text}
+                font={FontId::proportional(14.0).italic(true)}
+            />
             <Text string="Underlined text" color={theme.text} underline=true />
-            <Text string="Monospace text" color={theme.text} monospace=true />
-            <Text string="Large accent text" font_size=24.0 color={theme.accent} />
-            <Text string={ICON_STAR.to_owned()} font_size=24.0 color={theme.warning} icon=true />
+            <Text string="Monospace text" color={theme.text} font={FontId::monospace(14.0)} />
+            <Text
+                string="Large accent text"
+                color={theme.accent}
+                font={FontId::proportional(24.0)}
+            />
+            <Text color={theme.warning} font={FontId::proportional(24.0)}>
+                <Icon glyph={ICON_STAR.to_owned()} />
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TextIcons() -> NodeId {
+    let theme = use_theme();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text color={theme.text}>
+                <Icon glyph=ICON_STAR color={theme.warning} spacing_em=0.25 />
+                "An icon is a span that holds no bytes"
+            </Text>
+            <Text color={theme.text} font={FontId::proportional(20.0)} wrap=true>
+                "It takes its size from the text"
+                <Icon glyph=ICON_STAR scale=1.25 spacing_em=0.25 />
+                "scaled, and its room from both sides"
+            </Text>
         </List>
     }
 }
@@ -488,7 +525,12 @@ fn InteractiveCard() -> NodeId {
                     <Text string={log} color={theme.text} />
                 </Frame>
             </Interactive>
-            <Text string={state} color={theme.text_muted} monospace=true wrap=true />
+            <Text
+                string={state}
+                color={theme.text_muted}
+                wrap=true
+                font={FontId::monospace(14.0)}
+            />
         </List>
     }
 }
@@ -544,7 +586,11 @@ fn BadgedCard() -> NodeId {
                         align_horizontal=Align::Center
                         align_vertical=Align::Center
                     >
-                        <Text string="3" font_size=12.0 color={theme.on_accent} bold=true />
+                        <Text
+                            string="3"
+                            color={theme.on_accent}
+                            font={FontId::proportional(12.0).bold(true)}
+                        />
                     </Frame>
                 </Frame>
             </Layers>

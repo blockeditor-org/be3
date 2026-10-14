@@ -11,7 +11,6 @@ use block_editor_beui::beui::reactive::{
     Frame, ItemSize, List, Memo, ReadSignal, Spacer, Stored, WriteSignal, batch, component,
     create_effect, create_memo, create_signal, store, untrack, view,
 };
-use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::unstyled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
@@ -34,6 +33,7 @@ use super::tab::TabItem;
 use super::window::{
     WindowPanel, floating_window, shown_size, tab_window, window_picture, window_tab, window_title,
 };
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 pub const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -1197,17 +1197,15 @@ pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
 
 #[component]
 pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame visible={failed}>
-            <Caption content={reason} color={theme.danger} />
+            <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
         </Frame>
     }
 }
 
 #[component]
 pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
-    let theme = use_theme();
     let shown = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
     let message = create_memo(move || {
         state.with(|state| match &state.error {
@@ -1218,7 +1216,7 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
     view! {
         <Frame visible={shown} padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
-                <Caption content={message} color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string={message} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>

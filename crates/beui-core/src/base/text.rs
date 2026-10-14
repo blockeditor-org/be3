@@ -15,8 +15,8 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
-    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanStyle, TextCaret, TextMark,
-    handle_shape,
+    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanKind, SpanStyle, TextCaret,
+    TextMark, handle_shape,
 };
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
@@ -26,14 +26,51 @@ const SPAN_STRIKE_OFFSET: f32 = 0.32;
 const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct FontPatch {
+    pub size: Option<f32>,
+    pub family: Option<FontFamily>,
+    pub bold: Option<bool>,
+    pub italic: Option<bool>,
+}
+
+impl FontPatch {
+    pub fn apply(self, base: FontId) -> FontId {
+        FontId {
+            size: self.size.unwrap_or(base.size),
+            family: self.family.unwrap_or(base.family),
+            bold: self.bold.unwrap_or(base.bold),
+            italic: self.italic.unwrap_or(base.italic),
+        }
+    }
+}
+
+impl From<FontId> for FontPatch {
+    fn from(font: FontId) -> Self {
+        Self {
+            size: Some(font.size),
+            family: Some(font.family),
+            bold: Some(font.bold),
+            italic: Some(font.italic),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct IconSpan {
+    pub scale: f32,
+    pub spacing_em: f32,
+}
+
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct SpanContent {
     pub text: String,
-    pub font: Option<FontId>,
+    pub font: FontPatch,
     pub color: Option<Color32>,
     pub underline: Option<bool>,
     pub strikethrough: Option<bool>,
     pub break_after: bool,
+    pub icon: Option<IconSpan>,
 }
 
 impl SpanContent {
@@ -45,8 +82,12 @@ impl SpanContent {
     }
 
     fn style(&self, base: SpanStyle) -> SpanStyle {
+        let font = match self.icon {
+            Some(icon) => FontId::icons(self.font.size.unwrap_or(base.font.size * icon.scale)),
+            None => self.font.apply(base.font),
+        };
         SpanStyle {
-            font: self.font.unwrap_or(base.font),
+            font,
             color: self.color.unwrap_or(base.color),
             underline: self.underline.unwrap_or(base.underline),
             strikethrough: self.strikethrough.unwrap_or(base.strikethrough),
@@ -242,16 +283,12 @@ pub struct TextNode {
     string: SpanHandle,
     parts: ChildList<TextPart>,
     content: String,
-    font_size: f32,
+    font: FontId,
     line_height: Option<f32>,
     color: Color32,
     horizontal: TextAlign,
     vertical: TextAlign,
     wrap: bool,
-    monospace: bool,
-    bold: bool,
-    italic: bool,
-    icon: bool,
     clip: bool,
     underline: bool,
     ellipsis: bool,
@@ -288,13 +325,14 @@ enum Flow<'a> {
 
 impl TextNode {
     pub fn accessible_text(&self) -> Option<&str> {
-        if self.icon { None } else { Some(&self.content) }
+        (!self.content.is_empty()).then_some(&self.content)
     }
 
     fn refresh_content(&mut self) {
         let mut content = self.string.content().text.clone();
         for part in self.parts.iter() {
             match part {
+                TextPart::Span(span) if span.content().icon.is_some() => {}
                 TextPart::Span(span) => content.push_str(&span.content().text),
                 TextPart::Inline(_) => content.push_str(OBJECT),
                 TextPart::Anchored(_) | TextPart::Gap(_) => {}
@@ -303,20 +341,9 @@ impl TextNode {
         self.content = content;
     }
 
-    fn font(&self) -> FontId {
-        if self.icon {
-            return FontId::icons(self.font_size);
-        }
-        let family = match self.monospace {
-            true => FontId::monospace(self.font_size),
-            false => FontId::proportional(self.font_size),
-        };
-        family.bold(self.bold).italic(self.italic)
-    }
-
     fn style(&self) -> SpanStyle {
         SpanStyle {
-            font: self.font(),
+            font: self.font,
             color: Color32::TRANSPARENT,
             underline: false,
             strikethrough: false,
@@ -445,10 +472,21 @@ impl TextNode {
         let pieces: Vec<Piece> = flow
             .iter()
             .map(|flow| match flow {
-                Flow::Span(content) => Piece::Text {
-                    text: &content.text,
-                    style: content.style(style),
-                    break_after: content.break_after,
+                Flow::Span(content) => match content.icon {
+                    Some(icon) => {
+                        let style = content.style(style);
+                        Piece::Icon {
+                            glyph: &content.text,
+                            style,
+                            spacing: icon.spacing_em * style.font.size,
+                            text_size: style.font.size / icon.scale,
+                        }
+                    }
+                    None => Piece::Text {
+                        text: &content.text,
+                        style: content.style(style),
+                        break_after: content.break_after,
+                    },
                 },
                 Flow::Inline(index, size) => Piece::Inline {
                     index: *index,
@@ -485,7 +523,7 @@ impl TextNode {
     }
 
     fn truncates(&self) -> bool {
-        self.ellipsis && !self.wrap && !self.icon
+        self.ellipsis && !self.wrap
     }
 
     fn fitted(&self, painter: &Painter, layout: Rc<RichLayout>, rect: Rect) -> Rc<RichLayout> {
@@ -616,6 +654,9 @@ impl TextNode {
                 };
                 let left = origin.x + line.run_left(run);
                 let (color, underline, strikethrough) = paint_of(run.piece);
+                let decorated = run.kind == SpanKind::Text;
+                let (underline, strikethrough) =
+                    (underline && decorated, strikethrough && decorated);
                 painter.galley(
                     pos2(left, origin.y + line.run_top(run)),
                     galley.clone(),
@@ -751,11 +792,11 @@ impl Element for TextNode {
 
     fn properties(&self) -> Vec<(&'static str, String)> {
         let styles: Vec<&str> = [
-            (self.bold, "bold"),
-            (self.italic, "italic"),
+            (self.font.bold, "bold"),
+            (self.font.italic, "italic"),
             (self.underline, "underline"),
-            (self.monospace, "monospace"),
-            (self.icon, "icon"),
+            (self.font.family == FontFamily::Monospace, "monospace"),
+            (self.font.family == FontFamily::Icons, "icon"),
         ]
         .into_iter()
         .filter_map(|(on, name)| on.then_some(name))
@@ -775,12 +816,17 @@ impl Element for TextNode {
         let spans = self
             .parts
             .iter()
-            .filter(|part| matches!(part, TextPart::Span(_)))
+            .filter(|part| matches!(part, TextPart::Span(span) if span.content().icon.is_none()))
+            .count();
+        let icons = self
+            .parts
+            .iter()
+            .filter(|part| matches!(part, TextPart::Span(span) if span.content().icon.is_some()))
             .count();
         vec![
             ("content", self.content.clone()),
             ("characters", self.content.chars().count().to_string()),
-            ("font size", self.font_size.to_string()),
+            ("font size", self.font.size.to_string()),
             (
                 "line height",
                 self.line_height
@@ -794,6 +840,7 @@ impl Element for TextNode {
             ("style", none(styles)),
             ("overflow", none(overflow)),
             ("spans", spans.to_string()),
+            ("icons", icons.to_string()),
             (
                 "selection",
                 self.selection.as_ref().map_or_else(
@@ -826,16 +873,12 @@ impl Document {
             string: SpanHandle::new(SpanContent::new(content.clone())),
             parts: ChildList::default(),
             content,
-            font_size,
+            font: FontId::proportional(font_size),
             line_height: None,
             color,
             horizontal: TextAlign::Start,
             vertical: TextAlign::Start,
             wrap: false,
-            monospace: false,
-            bold: false,
-            italic: false,
-            icon: false,
             clip: false,
             underline: false,
             ellipsis: false,
@@ -870,7 +913,7 @@ impl Document {
         if *span.content() == content {
             return;
         }
-        let moved = span.content().text != content.text;
+        let moved = span.content().text != content.text || span.content().icon != content.icon;
         let painted_only = SpanContent {
             color: content.color,
             underline: content.underline,
@@ -896,6 +939,20 @@ impl Document {
         &self.arena.get_as::<TextNode>(id).content
     }
 
+    pub fn text_icons(&self, id: NodeOf<TextNode>) -> Vec<String> {
+        self.arena
+            .get_as::<TextNode>(id)
+            .parts
+            .iter()
+            .filter_map(|part| match part {
+                TextPart::Span(span) if span.content().icon.is_some() => {
+                    Some(span.content().text.clone())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
     pub fn text_shapings(&self, id: NodeOf<TextNode>) -> u64 {
         self.arena.get_as::<TextNode>(id).shapings.get()
     }
@@ -917,39 +974,15 @@ impl Document {
         }
     }
 
-    pub fn set_text_font_size(&mut self, text: NodeOf<TextNode>, font_size: f32) {
-        if self.arena.get_as::<TextNode>(text).font_size != font_size {
-            self.arena.get_mut_as::<TextNode>(text).font_size = font_size;
+    pub fn set_text_font(&mut self, text: NodeOf<TextNode>, font: FontId) {
+        if self.arena.get_as::<TextNode>(text).font != font {
+            self.arena.get_mut_as::<TextNode>(text).font = font;
         }
     }
 
     pub fn set_text_line_height(&mut self, text: NodeOf<TextNode>, line_height: Option<f32>) {
         if self.arena.get_as::<TextNode>(text).line_height != line_height {
             self.arena.get_mut_as::<TextNode>(text).line_height = line_height;
-        }
-    }
-
-    pub fn set_text_monospace(&mut self, text: NodeOf<TextNode>, monospace: bool) {
-        if self.arena.get_as::<TextNode>(text).monospace != monospace {
-            self.arena.get_mut_as::<TextNode>(text).monospace = monospace;
-        }
-    }
-
-    pub fn set_text_bold(&mut self, text: NodeOf<TextNode>, bold: bool) {
-        if self.arena.get_as::<TextNode>(text).bold != bold {
-            self.arena.get_mut_as::<TextNode>(text).bold = bold;
-        }
-    }
-
-    pub fn set_text_italic(&mut self, text: NodeOf<TextNode>, italic: bool) {
-        if self.arena.get_as::<TextNode>(text).italic != italic {
-            self.arena.get_mut_as::<TextNode>(text).italic = italic;
-        }
-    }
-
-    pub fn set_text_icon(&mut self, text: NodeOf<TextNode>, icon: bool) {
-        if self.arena.get_as::<TextNode>(text).icon != icon {
-            self.arena.get_mut_as::<TextNode>(text).icon = icon;
         }
     }
 
@@ -994,7 +1027,7 @@ impl Document {
             }
             if let Some(text) = self.arena.kind_of::<TextNode>(id) {
                 let node = self.arena.get_as(text);
-                if !node.icon && !node.content.is_empty() {
+                if !node.content.is_empty() {
                     found.push(text);
                 }
                 continue;
