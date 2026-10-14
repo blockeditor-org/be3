@@ -398,7 +398,6 @@ fn carry(drag: BlockDrag) {
 
 fn take_keyboard(state: Memo<RegionView>, catcher: &NodeRef) {
     let wants = create_memo(move || state.with(|view| view.wants_keyboard));
-    let before = Cell::new(None::<NodeId>);
     let catcher = *catcher;
     create_effect(move || {
         let wanted = wants.get();
@@ -406,23 +405,13 @@ fn take_keyboard(state: Memo<RegionView>, catcher: &NodeRef) {
             let Some(region) = catcher.try_get() else {
                 return;
             };
-            try_with_document(|document| {
-                let focused = document.focused_node();
-                match wanted {
-                    true if focused != Some(region) => {
-                        before.set(focused);
-                        document.focus_focusable(region);
-                    }
-                    true => {}
-                    false => {
-                        let back = before.take().filter(|back| document.contains(*back));
-                        if let Some(back) = back
-                            && focused == Some(region)
-                        {
-                            document.focus_focusable(back);
-                        }
-                    }
+            try_with_document(|document| match wanted {
+                true if document.focused_node() != Some(region) => {
+                    document.push_focus_scope(region);
+                    document.focus_focusable(region);
                 }
+                true => {}
+                false => document.pop_focus_scope(region),
             });
         });
     });

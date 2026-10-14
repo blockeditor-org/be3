@@ -1030,9 +1030,24 @@ themselves, so a select, the command palette and a dialog put the focus back on
 what opened them, and a forwarding catcher (a plugin's region, a Wayland
 window) gets the keyboard back.
 
+What a layer remembers is a focus scope, and the document keeps one stack of
+them (`base/focus_scope.rs`): an open layer pushes one and closing pops it.
+Anything else that takes the focus for a while and gives it back pushes its
+own with `Document::push_focus_scope(holder)` and pops it with
+`pop_focus_scope(holder)`, which refocuses what had the focus only if the focus
+is still inside `holder`; block-app's region does that when a plugin asks for
+the keyboard.
+
+Focus asked for beneath the topmost layer that traps it never lands there, so
+nothing beneath hears it gained the focus. It is remembered until the next
+input event: if the layer closes first, the focus goes there rather than back
+to what the layer remembered, which is how a dialog's button can close the
+dialog and focus something outside it in either order.
+
 The focus is checked when something that could take it away changes - a layer
 opening or closing, a frame hiding, a node being removed or moved - by walking
-up from the focused node, never by searching the tree.
+up from the focused node, never by searching the tree; a node whose parent
+link is gone is outside the tree.
 
 A base `BackHandler` only routes: it calls `on_back` when back completes, or
 hands every phase of the gesture to `on_gesture` if it has one, and moves

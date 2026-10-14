@@ -70,7 +70,9 @@ pub struct Document {
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
+    pub(crate) focus_scopes: crate::base::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
+    pub(crate) focus_wanted: Option<NodeId>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: RefCell<crate::timer::Timers>,
@@ -253,7 +255,9 @@ impl Document {
             placement: None,
             portal_holders: std::collections::HashMap::new(),
             layer_state: Default::default(),
+            focus_scopes: Default::default(),
             focus_dirty: false,
+            focus_wanted: None,
             back_handlers: Vec::new(),
             back_gesture: None,
             timers: RefCell::new(Vec::new()),
@@ -855,6 +859,7 @@ impl Document {
         self.arena.put_back(id, element);
         removed.extend(self.arena.remove(id));
         self.forget_layer(id);
+        self.forget_focus_scope(id);
         self.forget_back_gesture(id);
         self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
@@ -891,6 +896,9 @@ impl Document {
         }
         if self.focus_before == Some(id) {
             self.focus_before = None;
+        }
+        if self.focus_wanted == Some(id) {
+            self.focus_wanted = None;
         }
         if self.activated == Some(id) {
             self.activated = None;
