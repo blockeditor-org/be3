@@ -102,14 +102,6 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             }
         }
     });
-    let clones = fields.iter().map(|field| {
-        let Field { name, writer, .. } = field;
-        quote! {
-            #name: self.#name.clone(),
-            #writer: self.#writer.clone(),
-        }
-    });
-
     Ok(quote! {
         #visibility struct #store {
             #(#declarations)*
@@ -117,9 +109,11 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
 
         impl ::std::clone::Clone for #store {
             fn clone(&self) -> Self {
-                Self { #(#clones)* }
+                *self
             }
         }
+
+        impl ::std::marker::Copy for #store {}
 
         impl #store {
             #visibility fn new(value: #source) -> Self {

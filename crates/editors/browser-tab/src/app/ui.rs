@@ -1,58 +1,54 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
 use block_editor_beui::beui::reactive::{
-    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, clone, component, create_memo,
-    view,
+    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, IconButton, TextInput, use_theme,
-};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, TextInput, use_theme};
 use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
 
 use super::session::{PAGE, Session};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {
-    let session = Session::new(&editor);
+    let session = Session::new(editor);
     let address = session.address();
     let error = session.error();
     let back = session.back();
     let forward = session.forward();
 
-    let no_back = create_memo(clone!(back -> move || back.get().is_none()));
-    let no_forward = create_memo(clone!(forward -> move || forward.get().is_none()));
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
-    let page = create_memo(clone!(failed -> move || {
-        (!failed.get()).then_some(SubregionContent::WebView(PAGE))
-    }));
+    let no_back = create_memo(move || back.get().is_none());
+    let no_forward = create_memo(move || forward.get().is_none());
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
+    let page = create_memo(move || (!failed.get()).then_some(SubregionContent::WebView(PAGE)));
 
-    let go_back = clone!(session back -> move || {
+    let go_back = move || {
         if let Some(index) = back.get_untracked() {
             session.go(index);
         }
-    });
-    let go_forward = clone!(session forward -> move || {
+    };
+    let go_forward = move || {
         if let Some(index) = forward.get_untracked() {
             session.go(index);
         }
-    });
-    let reload = clone!(session -> move || session.reload());
-    let typed = clone!(session -> move |value: String| session.set_address(value));
-    let submit = clone!(session -> move |value: String| session.navigate(&value));
-    let navigate = clone!(session address -> move || session.navigate(&address.get_untracked()));
-    let focus_app = clone!(session -> move |focused: bool| {
+    };
+    let reload = move || session.reload();
+    let typed = move |value: String| session.set_address(value);
+    let submit = move |value: String| session.navigate(&value);
+    let navigate = move || session.navigate(&address.get_untracked());
+    let focus_app = move |focused: bool| {
         if focused {
             session.focus_app();
         }
-    });
+    };
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton
@@ -94,12 +90,13 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Layers>
-                        <Subregion editor={editor.clone()} placed={page} punch=false />
+                        <Subregion editor={editor} placed={page} punch=false />
                         <List align=Align::Center justify=Justify::Center spacing=0.0>
                             <Show condition={failed}>
-                                <Caption
-                                    content={reason.clone()}
-                                    color={theme.danger.clone()}
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={reason}
+                                    color=TextColor::Danger
                                     @test_id={"browser.error"}
                                 />
                             </Show>

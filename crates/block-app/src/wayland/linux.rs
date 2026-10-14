@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
@@ -20,17 +20,17 @@ struct Running {
 }
 
 thread_local! {
-    static WINDOWS: RefCell<Option<Windows>> = const { RefCell::new(None) };
+    static WINDOWS: Cell<Option<Windows>> = const { Cell::new(None) };
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn create() {
     let windows = Windows::new();
-    WINDOWS.with(|slot| *slot.borrow_mut() = Some(windows));
+    WINDOWS.set(Some(windows));
 }
 
 fn windows() -> Option<Windows> {
-    WINDOWS.with(|windows| windows.borrow().clone())
+    WINDOWS.get()
 }
 
 pub(crate) fn start(setup: &Setup) {
@@ -212,8 +212,7 @@ pub(crate) fn exiting() {
     with(|running| running.compositor.exiting());
     let running = RUNNING.with(|running| running.borrow_mut().take());
     drop(running);
-    let windows = WINDOWS.with(|windows| windows.borrow_mut().take());
-    drop(windows);
+    WINDOWS.set(None);
 }
 
 pub(crate) fn revision() -> u64 {
@@ -422,7 +421,7 @@ impl Programs {
 #[component]
 pub(crate) fn WindowActions() -> NodeId {
     if let Some(windows) = windows() {
-        be_wayland::register_restore_shortcuts(&windows);
+        be_wayland::register_restore_shortcuts(windows);
     }
     view! {
         <Frame />

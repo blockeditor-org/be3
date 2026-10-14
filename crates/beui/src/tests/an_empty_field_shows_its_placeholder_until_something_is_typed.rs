@@ -11,10 +11,9 @@ fn an_empty_field_shows_its_placeholder_until_something_is_typed() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let inner = input;
 
     assert_eq!(
-        unstyled::text_input_shown(harness.document(), inner),
+        unstyled::text_input_shown(harness.document(), input),
         "Search"
     );
 
@@ -22,5 +21,5 @@ fn an_empty_field_shows_its_placeholder_until_something_is_typed() {
     harness.type_text("a");
     harness.frame(Vec::new());
 
-    assert_eq!(unstyled::text_input_shown(harness.document(), inner), "a");
+    assert_eq!(unstyled::text_input_shown(harness.document(), input), "a");
 }

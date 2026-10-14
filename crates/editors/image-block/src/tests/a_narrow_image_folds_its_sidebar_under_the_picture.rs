@@ -6,7 +6,7 @@ fn a_narrow_image_folds_its_sidebar_under_the_picture() {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::<ImageApp>::new(editor).with_size(Vec2::new(390.0, 760.0));
     editor.hold(None, ImageContent::from_file("picture.png", png(8, 4)));
     editor.run();

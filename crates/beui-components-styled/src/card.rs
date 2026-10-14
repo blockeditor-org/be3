@@ -12,8 +12,8 @@ pub fn Card(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             radius=CARD_RADIUS
             outline_visible=true

@@ -4,8 +4,8 @@ use crate::styled::RadioGroup;
 
 #[test]
 fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [group, after]) = toolbar_of(|| {
         [
             view! {
@@ -17,7 +17,7 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
                     }}
                     selected=None
                     on_change={move |value| {
-                        sink.borrow_mut().push(value)
+                        set_changes.update(|changes| changes.push(value))
                     }}
                 />
             },
@@ -41,7 +41,7 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
         Some(2)
     );
     harness.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(*changes.borrow(), vec![Some(0), Some(2), Some(0)]);
+    assert_eq!(changes.get_untracked(), vec![Some(0), Some(2), Some(0)]);
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(after_focus.get());
 }

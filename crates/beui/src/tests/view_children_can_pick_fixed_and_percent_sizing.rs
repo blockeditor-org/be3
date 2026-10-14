@@ -3,10 +3,9 @@ use crate::reactive::{Direction, ItemSize, List, build, view, with_document};
 
 #[test]
 fn view_children_can_pick_fixed_and_percent_sizing() {
-    let left = Rc::new(Cell::new(None));
-    let right = Rc::new(Cell::new(None));
-    let sink_left = left.clone();
-    let sink_right = right.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (left, set_left) = create_signal(None);
+    let (right, set_right) = create_signal(None);
 
     let document = build(move || {
         let tree = view! {
@@ -16,13 +15,13 @@ fn view_children_can_pick_fixed_and_percent_sizing() {
             </List>
         };
         let children = with_document(|document| document.children(tree));
-        sink_left.set(Some(children[0]));
-        sink_right.set(Some(children[1]));
+        set_left.set(Some(children[0]));
+        set_right.set(Some(children[1]));
         tree
     });
 
-    let left = left.get().expect("fixed child was created");
-    let right = right.get().expect("percent child was created");
+    let left = left.get_untracked().expect("fixed child was created");
+    let right = right.get_untracked().expect("percent child was created");
 
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

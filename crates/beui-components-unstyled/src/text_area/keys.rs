@@ -40,14 +40,14 @@ pub(super) fn submit(cx: &Context) {
     cx.on_submit.call();
 }
 
-fn copy(state: &TextAreaState, mode: CopyMode) {
+fn copy(state: TextAreaState, mode: CopyMode) {
     let text = state.copy(mode);
     if !text.is_empty() {
         copy_text(text);
     }
 }
 
-fn selected(state: &TextAreaState) -> bool {
+fn selected(state: TextAreaState) -> bool {
     state
         .selection_ranges()
         .iter()
@@ -62,7 +62,7 @@ fn single_line_command(cx: &Context, press: KeyPress) -> bool {
             true
         }
         Key::Tab | Key::Escape => false,
-        Key::C | Key::X if modifiers.ctrl && !selected(&cx.state) => true,
+        Key::C | Key::X if modifiers.ctrl && !selected(cx.state) => true,
         Key::ArrowUp | Key::ArrowDown if modifiers.alt => false,
         Key::B | Key::I | Key::F | Key::H | Key::G | Key::D | Key::BracketLeft
             if modifiers.ctrl =>
@@ -74,7 +74,7 @@ fn single_line_command(cx: &Context, press: KeyPress) -> bool {
 }
 
 fn command(cx: &Context, press: KeyPress) -> bool {
-    let state = &cx.state;
+    let state = cx.state;
     let modifiers = press.modifiers;
     let command = modifiers.ctrl;
     match press.key {

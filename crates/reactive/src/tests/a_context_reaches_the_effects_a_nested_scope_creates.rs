@@ -6,6 +6,7 @@ struct Width(f32);
 
 #[test]
 fn a_context_reaches_the_effects_a_nested_scope_creates() {
+    let _root = RootScope::new();
     let seen = Rc::new(RefCell::new(Vec::new()));
     let scope = Scope::new();
     let (count, set_count) = create_signal(0);

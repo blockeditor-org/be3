@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2};
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -13,6 +13,7 @@ mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
+mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
 mod the_desktop_files_toolbar_opens_the_app_menu;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
@@ -67,7 +68,7 @@ impl Fixture {
         self.test
             .take_opens()
             .into_iter()
-            .map(|(id, _, _)| id)
+            .map(|open| open.block_id)
             .collect()
     }
 }
@@ -80,7 +81,7 @@ fn editor_sized(size: Option<Vec2>) -> Fixture {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), tree);
+    let editor = OwnedEditor::new(host.clone(), tree);
     let test = BeuiTest::new(editor);
     let test = match size {
         Some(size) => test.with_size(size),
@@ -96,7 +97,7 @@ fn viewed(view: EditorViewContent) -> Fixture {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_view_block(Some(tree));
-    let editor = Editor::new(host.clone(), tree);
+    let editor = OwnedEditor::new(host.clone(), tree);
     let mut fixture = Fixture {
         test: BeuiTest::new(editor),
         host,
@@ -110,7 +111,7 @@ fn phone() -> Fixture {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), tree);
+    let editor = OwnedEditor::new(host.clone(), tree);
     let test = BeuiTest::new(editor)
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();

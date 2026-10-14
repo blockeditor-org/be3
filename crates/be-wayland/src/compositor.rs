@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 
 use beui::reactive::with_reactive_scope;
 use beui::{
-    Context, CursorIcon, Document, Event, ForwardedInput, PointerButton, Pos2, Rect, Vec2, Waker,
+    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, NodeId, PointerButton,
+    PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
 };
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
@@ -197,7 +198,7 @@ impl Compositor {
             (std::mem::take(&mut self.relist) || self.fullscreen.is_some()).then(|| self.list());
         let raise = self.raise.take().or_else(|| self.windows.take_activation());
         let raise = raise.filter(|_| !self.locked);
-        let windows = self.windows.clone();
+        let windows = self.windows;
         with_reactive_scope(document, || {
             if let Some(list) = list {
                 windows.set_list(list);
@@ -209,7 +210,7 @@ impl Compositor {
     }
 
     pub fn windows(&self) -> Windows {
-        self.windows.clone()
+        self.windows
     }
 
     pub fn socket(&self) -> Option<String> {
@@ -324,7 +325,7 @@ impl Compositor {
         let mut changed = false;
         let mut fullscreen = Vec::new();
         let mut activated = None;
-        let windows = self.windows.clone();
+        let windows = self.windows;
         with_reactive_scope(document, || {
             for event in events {
                 match event {
@@ -357,7 +358,7 @@ impl Compositor {
         self.configured.retain(|id, _| open.contains(id));
         if changed {
             let list = self.list();
-            let windows = self.windows.clone();
+            let windows = self.windows;
             with_reactive_scope(document, || windows.set_list(list));
         }
         if !redraw.is_empty() {
@@ -439,7 +440,7 @@ impl Compositor {
             let callbacks = self.server.state.take_feedback(*id);
             self.server.state.presentation.drawn(*id, callbacks);
         }
-        let store = self.windows.clone();
+        let store = self.windows;
         with_reactive_scope(document, || {
             for (id, (drawing, popups)) in drawings {
                 store.draw(id, drawing, popups);
@@ -539,22 +540,18 @@ impl Compositor {
             if !self.server.state.windows().contains(&id) {
                 continue;
             }
-            if let Some(dialog) = self.windows.blocked_by(id) {
-                self.refuse(id, dialog, input, now);
-                continue;
-            }
             let hovered = inputs
                 .iter()
                 .any(|(other, input)| *other == id && input.hovered);
-            self.deliver(id, input, hovered, now);
+            match self.windows.blocked_by(id) {
+                Some(dialog) => self.refuse(id, dialog, input, now),
+                None => self.deliver(id, input, hovered, now),
+            }
         }
     }
 
     fn refuse(&mut self, id: WindowId, dialog: WindowId, input: &ForwardedInput, now: Instant) {
-        let pressed = input
-            .events
-            .iter()
-            .any(|event| matches!(event, Event::PointerButton { pressed: true, .. }));
+        let pressed = mouse(input).any(|event| matches!(event.phase, PointerPhase::Down(_)));
         if pressed {
             self.raise = Some(dialog);
         }
@@ -563,7 +560,13 @@ impl Compositor {
                 events: input
                     .events
                     .iter()
-                    .filter(|event| matches!(event, Event::PointerButton { pressed: false, .. }))
+                    .filter(|event| {
+                        matches!(
+                            event,
+                            Forwarded::Pointer { event, .. }
+                                if matches!(event.phase, PointerPhase::Up(_))
+                        )
+                    })
                     .cloned()
                     .collect(),
                 ..input.clone()
@@ -580,53 +583,55 @@ impl Compositor {
         let state = &mut self.server.state;
         let dragging = state.dragging();
         let windows = &self.windows;
-        let at = |index: usize, pos: Pos2| {
+        let at = |over: Option<NodeId>, pos: Pos2| {
             let (id, rect) = match dragging {
-                true => {
-                    let under = input.under.get(index).copied().flatten()?;
-                    windows
-                        .caught_at(under)
-                        .filter(|(target, _)| windows.blocked_by(*target).is_none())?
-                }
+                true => windows
+                    .caught_at(over?)
+                    .filter(|(target, _)| windows.blocked_by(*target).is_none())?,
                 false => (id, input.rect),
             };
             let local = pos - rect.min;
             Some((id, (f64::from(local.x), f64::from(local.y)).into()))
         };
-        for (index, event) in input.events.iter().enumerate() {
-            match *event {
-                Event::PhysicalKey { code, pressed } if state.keyboard_window() == Some(id) => {
-                    if pressed {
-                        state.ping(id, now);
-                    }
-                    state.key(code, pressed);
-                }
-                Event::PointerMoved(pos) => state.pointer_motion(at(index, pos)),
-                Event::PointerButton {
-                    pos,
-                    button,
-                    pressed,
+        for forwarded in &input.events {
+            match forwarded {
+                Forwarded::Input(Event::Key {
+                    press,
+                    code: Some(code),
                     ..
-                } => {
-                    state.pointer_motion(at(index, pos));
-                    if pressed {
+                }) if !press.repeat && state.keyboard_window() == Some(id) => {
+                    if press.pressed {
                         state.ping(id, now);
                     }
-                    state.pointer_button(button_code(button), pressed);
+                    state.key(*code, press.pressed);
                 }
-                Event::Scroll(delta) => {
-                    if state.pointer_window() != Some(id)
-                        && let Some(pos) = input.pointer
-                    {
-                        state.pointer_motion(at(index, pos));
+                Forwarded::Pointer { event, over } if event.pointer == PointerId::Mouse => {
+                    match event.phase {
+                        PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
+                        PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                            let pressed = matches!(event.phase, PointerPhase::Down(_));
+                            state.pointer_motion(at(*over, event.pos));
+                            if pressed {
+                                state.ping(id, now);
+                            }
+                            state.pointer_button(button_code(button), pressed);
+                        }
+                        PointerPhase::Scroll(delta) => {
+                            if state.pointer_window() != Some(id) {
+                                state.pointer_motion(at(*over, event.pos));
+                            }
+                            state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
+                        }
+                        _ => {}
                     }
-                    state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
+                }
+                Forwarded::Left
+                    if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) =>
+                {
+                    state.pointer_motion(None);
                 }
                 _ => {}
             }
-        }
-        if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
-            state.pointer_motion(None);
         }
     }
 
@@ -710,7 +715,7 @@ impl Compositor {
             CursorImageStatus::Named(icon) => cursor_icon(*icon),
             CursorImageStatus::Surface(_) => CursorIcon::Default,
         };
-        let windows = self.windows.clone();
+        let windows = self.windows;
         with_reactive_scope(document, || windows.set_cursor(cursor));
         self.reap();
     }
@@ -858,7 +863,7 @@ impl Compositor {
         }
         let idle = self.server.state.idle.blanked();
         if self.windows.idle().get_untracked() != idle {
-            let windows = self.windows.clone();
+            let windows = self.windows;
             with_reactive_scope(document, || windows.set_idle(idle));
         }
     }
@@ -948,3 +953,9 @@ mod clipboard;
 
 #[cfg(test)]
 mod tests;
+
+fn mouse(input: &ForwardedInput) -> impl Iterator<Item = &beui::PointerEvent> {
+    input
+        .pointer_events()
+        .filter(|event| event.pointer == PointerId::Mouse)
+}

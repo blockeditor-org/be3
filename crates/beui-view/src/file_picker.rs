@@ -30,7 +30,7 @@ pub fn create_file_picker(picked: impl Fn(Result<PickedFile, String>) + 'static)
 
 impl FilePicker {
     pub fn picking(&self) -> ReadSignal<bool> {
-        self.picking.clone()
+        self.picking
     }
 
     pub fn open(&self, filter: FileFilter) {
@@ -39,7 +39,7 @@ impl FilePicker {
         }
         self.set_picking.set(true);
         let owner = self.owner.clone();
-        let set_picking = self.set_picking.clone();
+        let set_picking = self.set_picking;
         let picked = Rc::clone(&self.picked);
         pick_file(filter, move |pick| {
             if owner.as_ref().is_some_and(|owner| !owner.is_alive()) {

@@ -9,9 +9,9 @@ const ROW_HEIGHT: f32 = 20.0;
 
 #[test]
 fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
+    let _root = crate::reactive::RootScope::new();
     let thumb = NodeRef::new();
     let document = build({
-        let thumb = thumb.clone();
         move || {
             let (position, set_position) = create_signal(ScrollPosition::ZERO);
             view! {
@@ -23,11 +23,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
                         <VirtualList keys={indices(ROWS)} item_size=ROW_HEIGHT>
                             {move |index: usize| view! {
                                 <Frame height=ROW_HEIGHT>
-                                    <Text
-                                        string={format!("Row {index}")}
-                                        font_size=14.0
-                                        color=Color32::WHITE
-                                    />
+                                    <Text string={format!("Row {index}")} color=Color32::WHITE />
                                 </Frame>
                             }}
                         </VirtualList>
@@ -39,12 +35,13 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
     });
 
     let mut harness = Harness::new(document);
-    harness.frame(Vec::new());
+    let output = harness.frame(Vec::new());
 
     let content = ROWS as f32 * ROW_HEIGHT;
     let viewport = VIEWPORT.y - BAR_HEIGHT;
-    let track = harness.rect(track_of(&harness, thumb.get())).height();
-    let painted = thumb_height(&harness, thumb.get());
+    let track = harness.rect(track_of(&harness, thumb.get()));
+    let painted = painted_thumb(&output, track).height();
+    let track = track.height();
     let wanted = track * (viewport / content);
     assert!(
         painted < track / 2.0,
@@ -61,11 +58,4 @@ fn track_of(harness: &Harness, bar: NodeId) -> NodeId {
     let interactive = harness.document().children(bar)[0];
     let inset = harness.document().children(interactive)[0];
     harness.document().children(inset)[0]
-}
-
-fn thumb_height(harness: &Harness, bar: NodeId) -> f32 {
-    let track = track_of(harness, bar);
-    let list = harness.document().children(track)[0];
-    let thumb = harness.document().children(list)[1];
-    harness.rect(thumb).height()
 }

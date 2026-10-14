@@ -14,6 +14,7 @@ fn pane(left: f32, top: f32, width: f32, height: f32, pixels_per_point: f32) -> 
         screen: SCREEN,
         pixels_per_point,
         format: wgpu::TextureFormat::Bgra8Unorm,
+        renderer: 0,
     }
 }
 

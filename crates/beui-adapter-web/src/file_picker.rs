@@ -5,17 +5,10 @@ use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlInputElement;
 
-use beui_core::context::Context;
-use beui_core::file_picker::{FileFilter, FilePick, FilePickRequest, PickedFile};
+use beui_core::file_picker::{FileFilter, FilePick, FilePickAnswer, FilePickRequest, PickedFile};
 
-pub(crate) fn open(context: &Context, request: FilePickRequest) {
-    let id = request.id;
-    let picked = context.clone();
-    let done = move |pick: FilePick| {
-        picked.file_picked(id, pick);
-        crate::schedule();
-    };
-    let done: Rc<dyn Fn(FilePick)> = Rc::new(done);
+pub(crate) fn open(request: FilePickRequest, answer: FilePickAnswer) {
+    let done: Rc<dyn Fn(FilePick)> = Rc::new(move |pick| answer.clone().send(pick));
     if let Err(error) = show(&request.filter, done.clone()) {
         done(Err(error));
     }

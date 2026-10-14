@@ -4,9 +4,9 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn tab_is_trapped_inside_an_open_context_menu() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [before, menu, after]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />
@@ -41,8 +41,7 @@ fn tab_is_trapped_inside_an_open_context_menu() {
     }]);
     harness.frame(Vec::new());
 
-    let inner = menu;
-    let content = unstyled::context_menu_menu(harness.document(), inner);
+    let content = unstyled::context_menu_menu(harness.document(), menu);
     let root_focusable = unstyled::menu_list_root_focusable(harness.document(), content);
 
     assert_eq!(harness.document().focused_node(), Some(root_focusable));

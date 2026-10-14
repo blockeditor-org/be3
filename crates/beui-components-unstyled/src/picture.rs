@@ -6,7 +6,7 @@ use beui_core::image::{Image, ImageFit, Thumbhash};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_macros::{component, view};
-use beui_view::reactive::{Draw, Drawing, Prop, clone, create_memo};
+use beui_view::reactive::{Draw, Drawing, Prop, create_memo};
 
 #[derive(Clone, PartialEq)]
 struct Shown {
@@ -50,11 +50,11 @@ pub fn Picture(
         }),
         (None, None) => None,
     });
-    let size = create_memo(clone!(shown source -> move || {
+    let size = create_memo(move || {
         let source = source.get();
         shown.with(|shown| shown.as_ref().map(|shown| cropped(shown.size, source)))
-    }));
-    let draw = Prop::Dynamic(Rc::new(move || -> Draw {
+    });
+    let draw = Prop::dynamic(move || -> Draw {
         let shown = shown.get();
         let source = source.get();
         let (fit, tint, radius) = (fit.get(), tint.get(), radius.get());
@@ -71,7 +71,7 @@ pub fn Picture(
                 shown.smooth,
             );
         })
-    }));
+    });
     view! {
         <Drawing draw size={size} />
     }

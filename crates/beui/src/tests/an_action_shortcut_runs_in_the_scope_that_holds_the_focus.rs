@@ -2,12 +2,12 @@ use super::*;
 use crate::reactive::{Action, Chord, NodeRef, action_scope, build, view};
 
 #[component]
-fn Scoped(name: String, hits: Rc<RefCell<Vec<String>>>) -> NodeId {
+fn Scoped(name: String, hits: WriteSignal<Vec<String>>) -> NodeId {
     let node = NodeRef::new();
     action_scope(&node);
     let ran = name.clone();
     Action::new(format!("{name}.go"), "Go", move || {
-        hits.borrow_mut().push(ran.clone())
+        hits.update(|hits| hits.push(ran.clone()))
     })
     .shortcut(Chord::ctrl(Key::G))
     .register();
@@ -22,13 +22,13 @@ fn Scoped(name: String, hits: Rc<RefCell<Vec<String>>>) -> NodeId {
 
 #[test]
 fn an_action_shortcut_runs_in_the_scope_that_holds_the_focus() {
-    let hits = Rc::new(RefCell::new(Vec::new()));
-    let (first, second) = (hits.clone(), hits.clone());
+    let _root = crate::reactive::RootScope::new();
+    let (hits, set_hits) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scoped name="first" hits={first} />
-                <Scoped name="second" hits={second} />
+                <Scoped name="first" hits={set_hits} />
+                <Scoped name="second" hits={set_hits} />
             </List>
         }
     });
@@ -54,7 +54,7 @@ fn an_action_shortcut_runs_in_the_scope_that_holds_the_focus() {
     harness.key(Key::G, Modifiers::NONE);
 
     assert_eq!(
-        *hits.borrow(),
+        hits.get_untracked(),
         vec!["second".to_owned(), "first".to_owned()]
     );
 }

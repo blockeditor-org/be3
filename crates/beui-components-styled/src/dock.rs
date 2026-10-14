@@ -7,8 +7,8 @@ use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
-use crate::text::{Body, IconSized};
-use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle, DockKey,
@@ -17,13 +17,14 @@ use beui_components_unstyled::{
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
+use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
-    ReadSignal, Show, Text, clone, create_memo, focus_ring,
+    ReadSignal, Show, create_memo, focus_ring,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -36,7 +37,6 @@ const BAR_SPACING: f32 = 4.0;
 const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
-const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
@@ -62,16 +62,16 @@ where
     K: DockKey,
 {
     let mode = create_memo(move || mode.get());
-    let padding = create_memo(clone!(mode -> move || match mode.get() {
+    let padding = create_memo(move || match mode.get() {
         DockMode::Tiled => DOCK_INSET,
         DockMode::Stacked => 0.0,
-    }));
+    });
     let theme = use_theme();
-    let backdrop = theme.background.clone();
-    let fill = create_memo(clone!(mode -> move || match mode.get() {
+    let backdrop = theme.background;
+    let fill = create_memo(move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
-    }));
+    });
     view! {
         <unstyled::Docking
             layout
@@ -84,10 +84,10 @@ where
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
-                <Frame color={fill.clone()}>{body}</Frame>
+                <Frame color={fill}>{body}</Frame>
             }}
             fullscreen={move |body: NodeId| view! {
-                <Frame color={backdrop.clone()}>{body}</Frame>
+                <Frame color={backdrop}>{body}</Frame>
             }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
@@ -161,7 +161,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
             dragged
             closable
             close_test_id={close_test_id(entry)}
-            close={move || close.call()}
+            close={close}
         />
     }
 }
@@ -183,25 +183,23 @@ fn DockTabChrome(
     close: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme selected hovered -> move || {
-        match (selected.get(), hovered.get() || active.get(), dragged.get()) {
-            (_, _, true) => theme.accent_soft.get(),
-            (true, _, false) => theme.background.get(),
-            (false, true, false) => theme.hover.get(),
-            (false, false, false) => theme.surface.get(),
-        }
-    }));
-    let label = create_memo(clone!(theme selected -> move || match selected.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
-    }));
-    let glyph = label.clone();
-    let shows_picture =
-        create_memo(clone!(picture -> move || !grouped && picture.with(Option::is_some)));
-    let pictured = create_memo(clone!(icon shows_picture -> move || {
-        !grouped && !shows_picture.get() && !icon.get().is_empty()
-    }));
-    let icon_color = label.clone();
+    let fill =
+        create_memo(
+            move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
+                (_, _, true) => theme.accent_soft.get(),
+                (true, _, false) => theme.background.get(),
+                (false, true, false) => theme.hover.get(),
+                (false, false, false) => theme.surface.get(),
+            },
+        );
+    let label = create_memo(move || match selected.get() {
+        true => TextColor::Default,
+        false => TextColor::Muted,
+    });
+    let glyph = label;
+    let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
+    let pictured = create_memo(move || !grouped && !shows_picture.get() && !icon.get().is_empty());
+    let icon_color = label;
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
         false => ItemSize::Intrinsic,
@@ -212,34 +210,28 @@ fn DockTabChrome(
             radius=RADIUS
             height=TAB_HEIGHT
             padding_horizontal=TAB_PADDING_HORIZONTAL
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_offset=1.0
             outline_visible={focus_ring(focused)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph.clone()} />
+                    <Text size=TextSize::Sm color={glyph} align=TextAlign::Center>
+                        <Icon glyph=ICON_TAB_GROUP />
+                    </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized
-                        glyph={icon.clone()}
-                        font_size=GROUP_GLYPH
-                        color={icon_color.clone()}
-                    />
+                    <Text size=TextSize::Sm color={icon_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
                 </Show>
                 <Show condition={shows_picture}>
-                    <TabPicture picture={picture.clone()} />
+                    <TabPicture picture={picture} />
                 </Show>
-                <Text
-                    string={title}
-                    font_size=FONT_BODY
-                    color={label}
-                    clip=true
-                    @sizing={title_size}
-                />
+                <Text string={title} color={label} clip=true @sizing={title_size} />
                 <Show condition={closable}>
-                    {move || clone!(close -> view! {
+                    {move || view! {
                         <IconButton
                             @test_id={close_test_id.clone()}
                             glyph=ICON_CLOSE
@@ -247,9 +239,9 @@ fn DockTabChrome(
                             size=IconButtonSize::Compact
                             variant=ButtonVariant::Ghost
                             capture_presses=true
-                            on_click={move || close.call()}
+                            on_click={close}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>
@@ -274,17 +266,17 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let outline = create_memo(clone!(theme focused -> move || match focused.get() {
+    let outline = create_memo(move || match focused.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
+    });
     let border = match barred {
         true => CHROME_BORDER,
         false => 0.0,
     };
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             outline={outline}
             outline_width=CHROME_BORDER
             outline_visible=barred
@@ -312,19 +304,17 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let outline = create_memo(clone!(theme focused -> move || {
-        match (attention.get(), focused.get()) {
-            (true, _) => theme.danger.get(),
-            (false, true) => theme.accent.get(),
-            (false, false) => theme.border.get(),
-        }
-    }));
-    let pictured = create_memo(clone!(icon -> move || !icon.get().is_empty()));
+    let outline = create_memo(move || match (attention.get(), focused.get()) {
+        (true, _) => theme.danger.get(),
+        (false, true) => theme.accent.get(),
+        (false, false) => theme.border.get(),
+    });
+    let pictured = create_memo(move || !icon.get().is_empty());
     let width = create_memo(move || size.get().x + 2.0 * CHROME_BORDER);
     view! {
         <Frame
             width
-            color={theme.background.clone()}
+            color={theme.background}
             outline={outline}
             outline_width=CHROME_BORDER
             outline_visible=true
@@ -334,27 +324,19 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         >
             <List spacing=0.0>
                 <Frame
-                    color={theme.surface.clone()}
+                    color={theme.surface}
                     height=TAB_HEIGHT
                     padding_horizontal=TAB_PADDING_HORIZONTAL
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                         <Show condition={pictured}>
-                            <IconSized
-                                glyph={icon.clone()}
-                                font_size=GROUP_GLYPH
-                                color={theme.text_muted.clone()}
-                            />
+                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
+                                <Icon glyph={icon} />
+                            </Text>
                         </Show>
-                        <Text
-                            string={title}
-                            font_size=FONT_BODY
-                            color={theme.text.clone()}
-                            clip=true
-                            @sizing=ItemSize::Percent(100.0)
-                        />
+                        <Text string={title} clip=true @sizing=ItemSize::Percent(100.0) />
                         <Show condition={closable}>
-                            {move || clone!(close -> view! {
+                            {move || view! {
                                 <IconButton
                                     @test_id={format!("dock.dialog.{}.close", tab.value())}
                                     glyph=ICON_CLOSE
@@ -362,9 +344,9 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                                     size=IconButtonSize::Compact
                                     variant=ButtonVariant::Ghost
                                     capture_presses=true
-                                    on_click={move || close.call()}
+                                    on_click={close}
                                 />
-                            })}
+                            }}
                         </Show>
                     </List>
                 </Frame>
@@ -381,6 +363,7 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
         grip,
         tabs,
         title,
+        vacant,
         closable,
         menu,
         close,
@@ -389,10 +372,10 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
     let close = move || close.call();
     match vertical {
         true => view! {
-            <DockSideBar grip tabs title menu closable close />
+            <DockSideBar grip tabs title vacant menu closable close />
         },
         false => view! {
-            <DockTitleBar grip tabs title menu closable close />
+            <DockTitleBar grip tabs title vacant menu closable close />
         },
     }
 }
@@ -402,30 +385,30 @@ fn DockTitleBar(
     grip: NodeId,
     tabs: Option<NodeId>,
     title: Prop<String>,
+    vacant: Memo<bool>,
     menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let titled = tabs.is_none();
+    let fill = bar_fill(vacant);
+    let rule = bar_rule(vacant);
     view! {
         <List spacing=0.0>
-            <Frame
-                color={theme.surface.clone()}
-                padding_vertical=BAR_PADDING
-                padding_horizontal=BAR_PADDING
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    {grip}
-                    {tabs} @sizing=ItemSize::Percent(100.0)
-                    <Show condition={titled}>
-                        <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
-                    </Show>
-                    <DockMenu menu />
-                    <DockClose closable close={move || close.call()} />
-                </List>
+            <Frame color={fill} padding_vertical=BAR_PADDING padding_horizontal=BAR_PADDING>
+                <Frame min_height=TAB_HEIGHT>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                        {grip}
+                        {tabs} @sizing=ItemSize::Percent(100.0)
+                        <Show condition={titled}>
+                            <Text string={title.clone()} @sizing=ItemSize::Percent(100.0) />
+                        </Show>
+                        <DockMenu menu />
+                        <DockClose closable close={close} />
+                    </List>
+                </Frame>
             </Frame>
-            <Frame color={theme.border.clone()} height=CHROME_BORDER />
+            <Frame color={rule} height=CHROME_BORDER />
         </List>
     }
 }
@@ -435,16 +418,18 @@ fn DockSideBar(
     grip: NodeId,
     tabs: Option<NodeId>,
     title: Prop<String>,
+    vacant: Memo<bool>,
     menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let titled = tabs.is_none();
+    let fill = bar_fill(vacant);
+    let rule = bar_rule(vacant);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
         <Frame
-            color={theme.surface.clone()}
+            color={fill}
             padding_vertical=BAR_PADDING
             padding_horizontal=BAR_PADDING
             @sizing=ItemSize::Percent(100.0)
@@ -459,16 +444,16 @@ fn DockSideBar(
                     {grip}
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         <DockMenu menu />
-                        <DockClose closable close={move || close.call()} />
+                        <DockClose closable close={close} />
                     </List>
                 </List>
                 {tabs} @sizing=ItemSize::Percent(100.0)
                 <Show condition={titled}>
-                    <Body content={title.clone()} />
+                    <Text string={title.clone()} />
                 </Show>
             </List>
         </Frame>
-        <Frame color={theme.border.clone()} width=CHROME_BORDER />
+        <Frame color={rule} width=CHROME_BORDER />
         </List>
     }
 }
@@ -478,20 +463,19 @@ pub(crate) fn DockMenu(
     menu: Memo<Vec<Action>>,
     #[prop(default = IconButtonSize::Compact)] size: IconButtonSize,
 ) -> DynamicSegment<ListChild> {
-    let offered = create_memo(clone!(menu -> move || menu.with(|items| !items.is_empty())));
-    let keys = create_memo(clone!(menu -> move || {
-        menu.with(|items| items.iter().map(Action::key).collect::<Vec<u64>>())
-    }));
+    let offered = create_memo(move || menu.with(|items| !items.is_empty()));
+    let keys =
+        create_memo(move || menu.with(|items| items.iter().map(Action::key).collect::<Vec<u64>>()));
     view! {
         <Show condition={offered}>
-            {move || clone!(menu -> view! {
+            {move || view! {
                 <IconMenuButton
                     @test_id={"dock.menu"}
                     label="More"
                     glyph=ICON_MORE_VERT
                     size
                     items={view! {
-                        <ForEach keys={keys.clone()}>
+                        <ForEach keys={keys}>
                             {move |key: u64| {
                                 let item = menu.with_untracked(|items| {
                                     items.iter().find(|action| action.key() == key).cloned()
@@ -508,7 +492,7 @@ pub(crate) fn DockMenu(
                         </ForEach>
                     }}
                 />
-            })}
+            }}
         </Show>
     }
 }
@@ -523,7 +507,7 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
                 size=IconButtonSize::Compact
                 variant=ButtonVariant::Ghost
                 capture_presses=true
-                on_click={move || close.call()}
+                on_click={close}
             />
         </Frame>
     }
@@ -532,14 +516,15 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
 #[component]
 fn DockGrip(handle: DockGripHandle) -> NodeId {
     let DockGripHandle { focused, .. } = handle;
-    let theme = use_theme();
-    let color = create_memo(clone!(theme -> move || match focused.get() {
-        true => theme.text_muted.get(),
-        false => theme.border.get(),
-    }));
+    let color = create_memo(move || match focused.get() {
+        true => TextColor::Muted,
+        false => TextColor::Faint,
+    });
     view! {
         <Frame width=GRIP_WIDTH padding_vertical=CONTROL_PADDING padding_horizontal=GRIP_PADDING>
-            <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
+            <Text size=TextSize::Sm color={color} align=TextAlign::Center>
+                <Icon glyph=ICON_DRAG_INDICATOR />
+            </Text>
         </Frame>
     }
 }
@@ -553,17 +538,15 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(
-        clone!(theme -> move || match (active.get(), hovered.get()) {
-            (true, _) => theme.accent.get(),
-            (false, true) => theme.border.get(),
-            (false, false) => theme.background.get(),
-        }),
-    );
+    let fill = create_memo(move || match (active.get(), hovered.get()) {
+        (true, _) => theme.accent.get(),
+        (false, true) => theme.border.get(),
+        (false, false) => theme.background.get(),
+    });
     view! {
         <Frame
             color={fill}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_visible={focus_ring(focused)}
         />
@@ -573,12 +556,12 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 #[component]
 fn DockDropHighlight() -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || translucent(theme.accent.get(), DROP_ALPHA)));
+    let fill = create_memo(move || translucent(theme.accent.get(), DROP_ALPHA));
     view! {
         <Frame
             @test_id={"dock.drop"}
             color={fill}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=RADIUS
@@ -589,15 +572,13 @@ fn DockDropHighlight() -> NodeId {
 #[component]
 fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(
-        clone!(theme -> move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA)),
-    );
-    let pictured = create_memo(clone!(icon -> move || !grouped && !icon.get().is_empty()));
-    let pictured_color = theme.text.clone();
+    let fill = create_memo(move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA));
+    let pictured = create_memo(move || !grouped && !icon.get().is_empty());
+    let pictured_color = TextColor::Default;
     view! {
         <Frame
             color={fill}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=RADIUS
@@ -606,20 +587,16 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized
-                        glyph=ICON_TAB_GROUP
-                        font_size=GROUP_GLYPH
-                        color={theme.text.clone()}
-                    />
+                    <Text size=TextSize::Sm align=TextAlign::Center>
+                        <Icon glyph=ICON_TAB_GROUP />
+                    </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized
-                        glyph={icon.clone()}
-                        font_size=GROUP_GLYPH
-                        color={pictured_color.clone()}
-                    />
+                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
                 </Show>
-                <Body content={title} />
+                <Text string={title} />
             </List>
         </Frame>
     }
@@ -630,6 +607,22 @@ fn close_test_id(entry: Entry) -> String {
         Entry::Tab(tab) => format!("dock.tab.{}.close", tab.value()),
         Entry::Group(_) => String::new(),
     }
+}
+
+fn bar_fill(vacant: Memo<bool>) -> Memo<Color32> {
+    let theme = use_theme();
+    create_memo(move || match vacant.get() {
+        true => theme.background.get(),
+        false => theme.surface.get(),
+    })
+}
+
+fn bar_rule(vacant: Memo<bool>) -> Memo<Color32> {
+    let theme = use_theme();
+    create_memo(move || match vacant.get() {
+        true => theme.background.get(),
+        false => theme.border.get(),
+    })
 }
 
 fn translucent(color: Color32, alpha: u8) -> Color32 {

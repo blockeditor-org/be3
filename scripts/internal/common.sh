@@ -257,22 +257,30 @@ buck2_path() {
     echo "$repository/target/tools/buck2-$buck2_version/buck2$(buck2_binary_suffix)"
 }
 
-# Which build this checkout makes, for buck/app's build-id file: the commit, and
-# when the working tree differs from it, a + and the start of the tree's hash.
-# The tree is hashed through a throwaway index, so untracked files count and
-# ignored ones do not, and the same tree always gives the same id.
+# Which build this checkout makes, for buck/app's build-id file: the hash of
+# the working tree, taken through a throwaway index so untracked files count
+# and ignored ones do not. It names the content rather than a commit, so a
+# merge queue's commit, or any other commit of the same tree, is the same
+# build, and everything that carries the id is cached across them.
 build_id() {
-    local commit index tree
-    commit="$(git -C "$repository" rev-parse HEAD 2> /dev/null)" || { echo unknown; return; }
+    local index tree
     index="$(mktemp)"
-    cp "$(git -C "$repository" rev-parse --path-format=absolute --git-path index)" "$index" 2> /dev/null || true
+    cp "$(git -C "$repository" rev-parse --path-format=absolute --git-path index 2> /dev/null)" "$index" 2> /dev/null || true
     tree="$(GIT_INDEX_FILE="$index" git -C "$repository" add -A 2> /dev/null &&
         GIT_INDEX_FILE="$index" git -C "$repository" write-tree 2> /dev/null)" || tree=''
     rm -f "$index"
-    if [[ -z "$tree" || "$tree" == "$(git -C "$repository" rev-parse 'HEAD^{tree}')" ]]; then
-        echo "$commit"
-    else
-        echo "$commit+${tree:0:12}"
+    echo "${tree:-unknown}"
+}
+
+# Writes the build id where //buck/app:build-id reads it, buck/app/build-id,
+# which git ignores. As a source file, a new id invalidates only what reads
+# it, and it is rewritten only when it changes.
+write_build_id() {
+    local path="$repository/buck/app/build-id" id
+    id="${BE3_BUILD_ID:-$(build_id)}"
+    if [[ "$(cat "$path" 2> /dev/null)" != "$id" ]]; then
+        printf '%s\n' "$id" > "$path.$$"
+        mv -f "$path.$$" "$path"
     fi
 }
 
@@ -321,6 +329,26 @@ buck2_release_sha256() {
         return 1
     fi
     echo "${!name}"
+}
+
+# The be release ./scripts/be runs: the tracker's command line tool
+# (guides/tracker.md), built from the same tree as the be-server the tracker
+# lives on. The release is that server's build id (its build-id file), which
+# install-be.sh writes beside be, so the server refuses this be once it is
+# deployed from another build. Each platform's :be bundle is uploaded to the
+# mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
+# named after, and its be is checked against these hashes. An empty hash is a platform with no
+# release uploaded yet.
+be_release='e83baa999f8f50c957ecb5f4843c99fd8cc7b3e6'
+be_sha256_x86_64_unknown_linux_gnu='9faed0cc247f6e12ee181e8dbfb3ba9c7e2cd4108d798c8c2e5bb89240f05c61'
+be_sha256_aarch64_unknown_linux_gnu='dc400e87b53356fe17fc8478cabad7d63dc9ed06ab6cde3874bb46137c08f3ec'
+be_sha256_x86_64_apple_darwin=''
+be_sha256_aarch64_apple_darwin=''
+
+# Where the pinned be is installed, under a directory named after the release
+# so that moving the release installs the new one.
+be_path() {
+    echo "$repository/target/tools/be-$be_release/be"
 }
 
 # The nsc release ./scripts/buck runs: Namespace's command-line tool, which

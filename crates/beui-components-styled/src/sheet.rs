@@ -5,7 +5,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SHEET_STOPS, SheetGripHandle};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Child, ClickCallback, Frame, List, Prop};
+use beui_view::reactive::{Align, Child, ClickCallback, Frame, List, Prop, Render};
 
 const HANDLE_HEIGHT: f32 = 24.0;
 const GRIP_WIDTH: f32 = 36.0;
@@ -35,7 +35,7 @@ pub fn Sheet(
             panel={|content: Child| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
-            on_close={move || on_close.call()}
+            on_close={on_close}
         >
             {children}
         </unstyled::Sheet>
@@ -49,7 +49,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     on_close: ClickCallback,
-    children: Child,
+    #[prop(children)] content: Render,
 ) -> NodeId {
     view! {
         <unstyled::ModalSheet
@@ -64,9 +64,9 @@ pub fn ModalSheet(
             panel={|content: Child| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
-            on_close={move || on_close.call()}
+            on_close={on_close}
         >
-            {children}
+            {move || content.call(())}
         </unstyled::ModalSheet>
     }
 }
@@ -75,7 +75,7 @@ pub fn ModalSheet(
 fn SheetPanel(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.surface.clone()}>{children}</Frame>
+        <Frame color={theme.surface}>{children}</Frame>
     }
 }
 
@@ -84,14 +84,9 @@ fn SheetGrip() -> NodeId {
     let theme = use_theme();
     view! {
         <List spacing=0.0>
-            <Frame height=BORDER_WIDTH color={theme.border.clone()} />
+            <Frame height=BORDER_WIDTH color={theme.border} />
             <Frame height=HANDLE_HEIGHT align_horizontal=Align::Center align_vertical=Align::Center>
-                <Frame
-                    width=GRIP_WIDTH
-                    height=GRIP_HEIGHT
-                    radius=2
-                    color={theme.text_muted.clone()}
-                />
+                <Frame width=GRIP_WIDTH height=GRIP_HEIGHT radius=2 color={theme.text_muted} />
             </Frame>
         </List>
     }

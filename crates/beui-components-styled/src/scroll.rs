@@ -1,14 +1,13 @@
 use beui_macros::{component, view};
 
 use crate::Scrollbar;
-use crate::text::IconSized;
-use crate::theme::{
-    BORDER_WIDTH, ICON_SIZE, SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme,
-};
+use crate::text::{Icon, Text};
+use crate::theme::{BORDER_WIDTH, SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
+use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
@@ -29,7 +28,7 @@ pub fn Scroll(
     children: Children<ListChild>,
 ) -> NodeId {
     let focus = focus_ring(focus_color);
-    let along = direction.clone();
+    let along = direction;
     let scroll = view! {
         <unstyled::Scroll
             offset
@@ -41,7 +40,7 @@ pub fn Scroll(
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />
             }}
-            on_change={move |reported: ScrollPosition| on_change.call(reported)}
+            on_change={on_change}
         >
             {children}
         </unstyled::Scroll>
@@ -90,14 +89,16 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
             width={Some(MARKER_SIZE)}
             height={Some(MARKER_SIZE)}
             radius=MARKER_RADIUS
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
         >
             <List align=Align::Center spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
-                <IconSized glyph font_size=ICON_SIZE color={theme.text.clone()} />
+                <Text align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
             </List>
         </Frame>

@@ -4,18 +4,17 @@ use crate::unstyled::{Edge, Floating};
 
 #[test]
 fn a_floating_overlay_follows_an_anchor_that_only_moves() {
+    let _root = crate::reactive::RootScope::new();
     let (banner, set_banner) = create_signal(0.0_f32);
     let stage = NodeRef::new();
     let pill = NodeRef::new();
-    let stage_ref = stage.clone();
-    let pill_ref = pill.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <Frame height={banner} />
-                <Frame height=100.0 @node_ref={&stage_ref} />
-                <Floating anchor={stage_ref.clone()} edge=Edge::TopEnd>
-                    <Frame width=40.0 height=20.0 @node_ref={&pill_ref} />
+                <Frame height=100.0 @node_ref={&stage} />
+                <Floating anchor={stage} edge=Edge::TopEnd>
+                    <Frame width=40.0 height=20.0 @node_ref={&pill} />
                 </Floating>
             </List>
         }

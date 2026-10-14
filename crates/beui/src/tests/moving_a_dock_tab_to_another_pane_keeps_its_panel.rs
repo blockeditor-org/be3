@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn moving_a_dock_tab_to_another_pane_keeps_its_panel() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

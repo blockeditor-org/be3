@@ -5,15 +5,15 @@ use crate::styled::Calendar;
 
 #[test]
 fn a_calendar_jumps_to_a_month_from_its_months_view() {
-    let picked = Rc::new(RefCell::new(Vec::new()));
-    let sink = picked.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (picked, set_picked) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Calendar
                 selected={Some(Date::new(2026, 1, 15))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
-                on_change={move |date| sink.borrow_mut().push(date)}
+                on_change={move |date| set_picked.update(|picked| picked.push(date))}
             />
         }
     });
@@ -30,8 +30,11 @@ fn a_calendar_jumps_to_a_month_from_its_months_view() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    assert!(picked.borrow().is_empty(), "choosing a month only shows it");
+    assert!(
+        picked.with_untracked(|picked| picked.is_empty()),
+        "choosing a month only shows it"
+    );
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(*picked.borrow(), [Date::new(2026, 5, 15)]);
+    assert_eq!(picked.get_untracked(), [Date::new(2026, 5, 15)]);
 }

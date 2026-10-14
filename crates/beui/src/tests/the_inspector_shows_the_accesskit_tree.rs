@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn the_inspector_shows_the_accesskit_tree() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();

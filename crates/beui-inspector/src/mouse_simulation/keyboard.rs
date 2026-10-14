@@ -1,10 +1,11 @@
+use beui_components_styled::TextSize;
 use beui_components_styled::Theme;
-use beui_components_styled::theme::{CHIP_RADIUS, FONT_BODY, ICON_SIZE};
+use beui_components_styled::theme::CHIP_RADIUS;
 use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::icons;
-use beui_core::input::{Event, Key, Modifiers};
+use beui_core::input::{Event, Key, KeyPress, Modifiers};
 use beui_core::painter::Painter;
 
 const ROW_HEIGHT: f32 = 36.0;
@@ -264,25 +265,19 @@ impl Keyboard {
     }
 
     fn type_key(&mut self, key: Option<Key>, text: Option<&str>, modifiers: Modifiers) {
-        if let Some(key) = key {
-            self.events.push(Event::Key {
-                key,
-                pressed: true,
-                repeat: false,
-                modifiers,
-            });
-        }
-        if let Some(text) = text.filter(|_| !modifiers.ctrl && !modifiers.alt) {
-            self.events.push(Event::Text(text.to_owned()));
-        }
-        if let Some(key) = key {
-            self.events.push(Event::Key {
-                key,
-                pressed: false,
-                repeat: false,
-                modifiers,
-            });
-        }
+        let text = text
+            .filter(|_| !modifiers.ctrl && !modifiers.alt)
+            .map(str::to_owned);
+        let Some(key) = key else {
+            self.events.extend(text.map(Event::Text));
+            return;
+        };
+        self.events.push(Event::Key {
+            press: KeyPress::down(key, modifiers),
+            code: None,
+            text,
+        });
+        self.events.push(Event::key(KeyPress::up(key, modifiers)));
     }
 
     pub fn paint(&self, painter: &Painter, rect: Rect) {
@@ -307,13 +302,19 @@ impl Keyboard {
             match cap.face {
                 Face::Named {
                     icon: Some(icon), ..
-                } => centered(painter, bounds, icon, FontId::icons(ICON_SIZE), color),
+                } => centered(
+                    painter,
+                    bounds,
+                    icon,
+                    FontId::icons(TextSize::Base.icon_px()),
+                    color,
+                ),
                 Face::Named { label, .. } | Face::Modifier { label, .. } => {
                     centered(
                         painter,
                         bounds,
                         label,
-                        FontId::proportional(FONT_BODY),
+                        FontId::proportional(TextSize::Base.px()),
                         color,
                     );
                 }
@@ -323,7 +324,7 @@ impl Keyboard {
                         painter,
                         bounds,
                         text,
-                        FontId::proportional(FONT_BODY),
+                        FontId::proportional(TextSize::Base.px()),
                         color,
                     );
                 }

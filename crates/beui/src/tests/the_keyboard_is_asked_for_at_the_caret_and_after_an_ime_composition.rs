@@ -21,6 +21,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     harness.key(Key::Home, Modifiers::NONE);
     let start = harness
         .frame(Vec::new())
+        .window
         .ime
         .expect("a focused text area asks for the keyboard");
     assert!(
@@ -31,6 +32,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     harness.key(Key::End, Modifiers::NONE);
     let end = harness
         .frame(Vec::new())
+        .window
         .ime
         .expect("the keyboard is still asked for");
     assert!(
@@ -42,6 +44,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
         .frame(vec![Event::Ime(ImeEvent::SetComposingText(
             "nihao".to_owned(),
         ))])
+        .window
         .ime
         .expect("the keyboard is asked for while composing");
     assert!(
@@ -51,6 +54,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
 
     let cleared = harness
         .frame(vec![Event::Ime(ImeEvent::SetComposingText(String::new()))])
+        .window
         .ime
         .expect("the keyboard is still asked for");
     assert_eq!(

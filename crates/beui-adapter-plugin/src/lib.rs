@@ -5,23 +5,22 @@ mod surface;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
-use std::time::Duration;
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
+use beui_core::input::Keyboard;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
+use beui_core::window::WindowState;
 use block_editor_plugin::{
     DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, NodeValue, Region,
     Toggled,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
-use block_plugin_api::CursorIcon;
 
-use input::Input;
 use platform::HostPlatform;
 use surface::{Surface, SurfaceRenderer};
 
@@ -55,7 +54,6 @@ pub struct PluginSurface {
     runner: Runner,
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
-    input: Input,
 }
 
 impl PluginSurface {
@@ -88,7 +86,6 @@ impl PluginSurface {
             runner,
             platform: HostPlatform::new(host),
             surface,
-            input: Input::default(),
         }
     }
 
@@ -134,9 +131,8 @@ impl PluginSurface {
     }
 
     pub fn input(&mut self, region: &Region, event: &InputEvent) {
-        let context = self.runner.context().clone();
-        for event in self.input.translate(&context, region, event) {
-            self.runner.push(event);
+        if let Some(input) = input::translate(region, event) {
+            self.runner.push(input);
         }
     }
 
@@ -158,14 +154,15 @@ impl PluginSurface {
             surface.size = Some((width, height));
             resized
         };
-        if resized && let Some(renderers) = self.runner.renderers() {
-            renderers.resize(width, height);
+        if resized {
+            self.runner.reports().resized(width, height);
         }
+        self.runner.reports().scaled(region.scale_factor);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
+            beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
         }
-        self.platform.deliver_picks(self.runner.context());
-        let ratio = self.ratio(region);
+        self.platform.deliver_picks();
         let scale = region.scale_factor;
         let rect = region.rect;
         let area = SafeArea {
@@ -178,41 +175,17 @@ impl PluginSurface {
             self.runner.keep_accessibility();
             self.runner.context().set_automated(true);
         }
-        let Some(frame) = self.runner.frame(&mut self.platform, scale, area) else {
-            return Frame::default();
+        let Some(frame) = self.runner.frame(&mut self.platform, area) else {
+            return Frame {
+                stopped: self.runner.exited().then(|| match self.runner.failure() {
+                    Some(failure) => block_plugin_api::Stopped::Failed(failure.to_owned()),
+                    None => block_plugin_api::Stopped::Closed,
+                }),
+                ..Frame::default()
+            };
         };
         let description = region.describe.then(|| self.describe(region));
-        let unscale = ratio.recip();
-        let cursor = match self.runner.context().touch_emulation() {
-            true => CursorIcon::Crosshair,
-            false => self.platform.cursor,
-        };
-        Frame {
-            changed: frame.pending,
-            repaint_after: match frame.again() {
-                true => Some(Duration::ZERO),
-                false => (frame.repaint_after < Duration::MAX).then_some(frame.repaint_after),
-            },
-            cursor,
-            content: None,
-            painted: Vec::new(),
-            floating: Vec::new(),
-            claims: Vec::new(),
-            ime: self
-                .platform
-                .ime
-                .as_ref()
-                .map(|area| block_editor_plugin::Ime {
-                    rect: area.rect.scaled(unscale),
-                    cursor: area.cursor.scaled(unscale),
-                    text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
-                    keyboard: area.keyboard,
-                }),
-            handles_back: self.platform.handles_back,
-            wants_keyboard: self.platform.wants_keyboard,
-            intercepted_keys: self.platform.intercepted_keys.clone(),
-            description,
-        }
+        frame_for(self.runner.window(), &frame, description)
     }
 
     fn describe(&self, region: &Region) -> Description {
@@ -242,22 +215,11 @@ impl PluginSurface {
                             .iter()
                             .map(|action| format!("{action:?}"))
                             .collect(),
+                        test_ids: line.test_ids.clone(),
                     })
                     .collect()
             })
             .unwrap_or_default();
-        let mut test_ids: Vec<(String, Rect)> = self
-            .runner
-            .output()
-            .map(|output| {
-                output
-                    .test_ids()
-                    .iter()
-                    .map(|(id, rect)| (id.clone(), self.to_region(region, *rect)))
-                    .collect()
-            })
-            .unwrap_or_default();
-        test_ids.sort_by(|a, b| a.0.cmp(&b.0));
         let actions = self
             .runner
             .output()
@@ -277,20 +239,12 @@ impl PluginSurface {
                     .collect()
             })
             .unwrap_or_default();
-        Description {
-            nodes,
-            test_ids,
-            actions,
-        }
+        Description { nodes, actions }
     }
 
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {
         let context = self.runner.context();
         rect.scaled(context.pixels_per_point() / region.scale_factor)
-    }
-
-    pub fn pointer_locked(&self) -> bool {
-        self.platform.locked
     }
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
@@ -302,6 +256,48 @@ impl PluginSurface {
         self.surface.borrow_mut().aim(target);
         self.runner.present();
         self.surface.borrow_mut().take_drawn()
+    }
+}
+
+fn frame_for(
+    window: &WindowState,
+    frame: &beui_core::runner::Frame,
+    description: Option<Description>,
+) -> Frame {
+    Frame {
+        changed: frame.pending,
+        repaint_after: frame.wait(),
+        content: None,
+        painted: Vec::new(),
+        floating: Vec::new(),
+        claims: Vec::new(),
+        window: block_editor_plugin::WindowRequests {
+            cursor: beui_plugin_input::protocol_cursor(window.cursor),
+            pointer_locked: window.pointer_locked,
+            ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
+                rect: area.rect,
+                cursor: area.cursor,
+                text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
+                keyboard: match area.keyboard {
+                    Keyboard::Held => block_plugin_api::Keyboard::Held,
+                    Keyboard::Shown { asks } => block_plugin_api::Keyboard::Shown { asks },
+                },
+            }),
+            handles_back: window.handles_back,
+            wants_keyboard: window.wants_keyboard,
+            intercepted_keys: window
+                .intercepted_keys
+                .iter()
+                .filter_map(|chord| beui_plugin_input::protocol_chord(*chord))
+                .collect(),
+            pastes: window
+                .paste_kinds
+                .iter()
+                .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
+                .collect(),
+        },
+        description,
+        stopped: None,
     }
 }
 

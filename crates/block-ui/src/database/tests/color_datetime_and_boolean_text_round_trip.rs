@@ -10,7 +10,7 @@ fn color_datetime_and_boolean_text_round_trip() {
         alpha: 0x40,
     });
     assert_eq!(
-        database_value_text(&color, &color_field, &HashMap::new()),
+        database_value_text(&color, &color_field, &ValueLabels::new()),
         "#10203040"
     );
     assert_eq!(parse_cell_value("#10203040", &color_field), Some(color));
@@ -18,7 +18,7 @@ fn color_datetime_and_boolean_text_round_trip() {
     let datetime_field = field(DatabaseFieldType::Datetime);
     let datetime = parse_cell_value("2024-02-29 23:45", &datetime_field).unwrap();
     assert_eq!(
-        database_value_text(&datetime, &datetime_field, &HashMap::new()),
+        database_value_text(&datetime, &datetime_field, &ValueLabels::new()),
         "2024-02-29 23:45"
     );
 
@@ -26,7 +26,7 @@ fn color_datetime_and_boolean_text_round_trip() {
     for text in ["true", "false"] {
         let value = parse_cell_value(text, &boolean_field).unwrap();
         assert_eq!(
-            database_value_text(&value, &boolean_field, &HashMap::new()),
+            database_value_text(&value, &boolean_field, &ValueLabels::new()),
             text
         );
     }

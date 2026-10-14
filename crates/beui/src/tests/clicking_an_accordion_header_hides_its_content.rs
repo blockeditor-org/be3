@@ -4,16 +4,15 @@ use crate::styled::Accordion;
 
 #[test]
 fn clicking_an_accordion_header_hides_its_content() {
+    let _root = crate::reactive::RootScope::new();
     let body = NodeRef::new();
     let (document, [accordion]) = toolbar_of({
-        let body = body.clone();
         move || {
             [view! {
                 <Accordion title="About" open=true>
                     <Text
                         @node_ref=&body
                         string="beui keeps a retained tree of nodes."
-                        font_size=14.0
                         color=Color32::WHITE
                     />
                 </Accordion>

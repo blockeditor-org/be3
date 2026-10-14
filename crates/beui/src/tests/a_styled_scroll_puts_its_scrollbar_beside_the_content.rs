@@ -9,19 +9,19 @@ const CONTENT_HEIGHT: f32 = 2000.0;
 
 #[test]
 fn a_styled_scroll_puts_its_scrollbar_beside_the_content() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let held = scroll.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&held @sizing=ItemSize::Percent(100.0)>
+                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame height=CONTENT_HEIGHT />
                 </Scroll>
             </List>
         }
     });
     let mut harness = Harness::new(document);
-    harness.frame(Vec::new());
+    let output = harness.frame(Vec::new());
 
     let children = harness.document().children(scroll.get());
     assert_eq!(children.len(), 2, "the scroll built something unexpected");
@@ -46,8 +46,7 @@ fn a_styled_scroll_puts_its_scrollbar_beside_the_content() {
     assert_eq!(painted.top(), whole.top() + SCROLLBAR_INSET);
     assert_eq!(painted.bottom(), whole.bottom() - SCROLLBAR_INSET);
 
-    let list = document.children(track)[0];
-    let thumb = harness.rect(document.children(list)[1]);
+    let thumb = painted_thumb(&output, painted);
     let wanted = painted.height() * (whole.height() / CONTENT_HEIGHT);
     assert!(
         (thumb.height() - wanted).abs() <= 1.0,

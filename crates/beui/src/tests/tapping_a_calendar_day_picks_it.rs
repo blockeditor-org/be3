@@ -7,14 +7,14 @@ use crate::styled::Calendar;
 
 #[test]
 fn tapping_a_calendar_day_picks_it() {
-    let picked = Rc::new(RefCell::new(Vec::new()));
-    let sink = picked.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (picked, set_picked) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Calendar
                 selected=None
                 today={Some(Date::new(2026, 1, 1))}
-                on_change={move |date| sink.borrow_mut().push(date)}
+                on_change={move |date| set_picked.update(|picked| picked.push(date))}
             />
         }
     });
@@ -35,5 +35,5 @@ fn tapping_a_calendar_day_picks_it() {
     harness.touch(TouchPhase::End, centre);
     harness.frame(Vec::new());
 
-    assert_eq!(*picked.borrow(), [Date::new(2026, 1, 16)]);
+    assert_eq!(picked.get_untracked(), [Date::new(2026, 1, 16)]);
 }

@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it() {
+    let _root = crate::reactive::RootScope::new();
     let panels = three_panels();
     let (list, middle) = (panels.list, panels.middle);
     let mut harness = Harness::new(panels.document);

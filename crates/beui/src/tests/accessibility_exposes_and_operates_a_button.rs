@@ -1,20 +1,17 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use accesskit::{Action, ActionRequest, Role, TreeId};
 
-use super::{Harness, VIEWPORT, build, styled, view};
+use super::{Harness, VIEWPORT, build, create_signal, styled, view};
 
 #[test]
 fn accessibility_exposes_and_operates_a_button() {
-    let clicks = Rc::new(Cell::new(0));
-    let count = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let document = build(move || {
         view! {
             <styled::Button
                 label="Save"
                 variant=styled::ButtonVariant::Primary
-                on_click={move || count.set(count.get() + 1)}
+                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
             />
         }
     });
@@ -45,6 +42,6 @@ fn accessibility_exposes_and_operates_a_button() {
     let output = harness.frame(Vec::new());
     let tree = output.accessibility_tree("Test", VIEWPORT);
 
-    assert_eq!(clicks.get(), 1);
+    assert_eq!(clicks.get_untracked(), 1);
     assert_eq!(tree.focus, button_id);
 }

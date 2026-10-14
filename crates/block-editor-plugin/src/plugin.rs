@@ -97,22 +97,29 @@ impl Region {
 pub struct Frame {
     pub changed: bool,
     pub repaint_after: Option<Duration>,
-    pub cursor: CursorIcon,
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
     pub claims: Vec<Claim>,
+    pub window: WindowRequests,
+    pub description: Option<Description>,
+    pub stopped: Option<block_plugin_api::Stopped>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WindowRequests {
+    pub cursor: CursorIcon,
+    pub pointer_locked: bool,
     pub ime: Option<Ime>,
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
-    pub description: Option<Description>,
+    pub pastes: Vec<block_plugin_api::PasteKind>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
-    pub test_ids: Vec<(String, Rect)>,
     pub actions: Vec<block_plugin_api::DescribedAction>,
 }
 
@@ -127,6 +134,7 @@ pub struct DescribedNode {
     pub focused: bool,
     pub rect: Option<Rect>,
     pub actions: Vec<String>,
+    pub test_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -140,7 +148,7 @@ pub struct Ime {
     pub rect: Rect,
     pub cursor: Rect,
     pub text: Option<block_plugin_api::ImeText>,
-    pub keyboard: bool,
+    pub keyboard: block_plugin_api::Keyboard,
 }
 
 #[cfg(target_arch = "wasm32")]

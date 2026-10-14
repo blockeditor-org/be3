@@ -46,7 +46,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
 }
 
 fn forwarded(
-    events: Vec<beui::Event>,
+    events: Vec<beui::Forwarded>,
     pointer: Option<Pos2>,
     focused: bool,
 ) -> beui::ForwardedInput {
@@ -57,8 +57,22 @@ fn forwarded(
         hovered: pointer.is_some_and(|pointer| rect.contains(pointer)),
         focused,
         pointer,
-        under: Vec::new(),
         modifiers: beui::Modifiers::NONE,
+    }
+}
+
+fn moved(pos: Pos2) -> beui::Forwarded {
+    beui::Forwarded::Pointer {
+        event: beui::PointerEvent {
+            pointer: beui::PointerId::Mouse,
+            phase: beui::PointerPhase::Move,
+            pos,
+            modifiers: beui::Modifiers::NONE,
+            clicks: 0,
+            force: None,
+            source: 0,
+        },
+        over: None,
     }
 }
 
@@ -131,6 +145,7 @@ mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
 mod a_restarted_plugin_hears_its_childrens_statuses_again;
 mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
+mod a_restarted_plugin_no_longer_shows_its_regions_stopped;
 mod a_shell_only_host_value_reaches_only_the_shell;
 mod a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard;
 mod after_the_first_snapshot_an_editor_is_sent_operations;

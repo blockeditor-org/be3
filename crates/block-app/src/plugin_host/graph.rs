@@ -53,6 +53,7 @@ pub(crate) fn grants_of(
                     email: entry.email,
                     display_name: entry.display_name,
                     administrator: matches!(entry.role, be_protocol::WorkspaceRole::Administrator),
+                    author: entry.author,
                     granted: entry.granted.map(level_of),
                     effective: level_of(entry.effective),
                 })

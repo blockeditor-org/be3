@@ -1,19 +1,21 @@
 use super::*;
+use crate::KeyAt;
 use crate::KeyPress;
 use crate::reactive::{Action, Chord, build, on_shortcut, view};
 
 #[test]
 fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {
-    let seen = Rc::new(RefCell::new(Vec::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (seen, set_seen) = create_signal(Vec::new());
     let document = build({
-        let seen = Rc::clone(&seen);
         move || {
             Action::new("test.global", "Global", || {})
                 .shortcut(Chord::logo(Key::G))
-                .global()
+                .at(KeyAt::Window)
+                .capture()
                 .register();
             on_shortcut(move |press: KeyPress| {
-                seen.borrow_mut().push((press.key, press.pressed));
+                set_seen.update(|seen| seen.push((press.key, press.pressed)));
                 false
             });
             view! {
@@ -33,7 +35,7 @@ fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {
     harness.key(Key::G, Modifiers::NONE);
 
     assert_eq!(
-        *seen.borrow(),
+        seen.get_untracked(),
         [(Key::G, true), (Key::G, false)],
         "the G after focus was lost reaches the document whole"
     );

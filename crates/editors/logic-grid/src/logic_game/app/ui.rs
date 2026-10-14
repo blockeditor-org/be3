@@ -1,16 +1,14 @@
-use std::rc::Rc;
 use uuid::Uuid;
 
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
 use block_editor_beui::beui::reactive::ClickCallback;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone,
-    component, create_effect, create_memo, create_selector, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, component,
+    create_effect, create_memo, create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, Icon, IconButton, Link, ListRow, Scroll,
-    use_theme,
+    Button, ButtonVariant, IconButton, Link, ListRow, Scroll, use_theme,
 };
 use block_editor_beui::beui::{NodeId, Vec2};
 use logicgame::challenges::{ChallengeId, generate_challenge};
@@ -18,6 +16,8 @@ use logicgame::challenges::{ChallengeId, generate_challenge};
 use crate::logic_game::binary_addition::ui::BinaryAddition;
 
 use super::game::{Game, Level, Solution};
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const PADDING: f32 = 16.0;
 const ROW_SPACING: f32 = 8.0;
@@ -30,13 +30,12 @@ const INTRINSIC_WIDTH: f32 = 720.0;
 #[component]
 pub fn LogicGameEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<block_editor_beui::be_block::LogicGameContent>();
-    let game = Rc::new(Game::watch(&editor, Rc::clone(&block)));
+    let game = Game::watch(editor, block);
     let levels = game.levels();
     let hotbar = game.hotbar();
     let (expanded, set_expanded) = create_signal(None::<ChallengeId>);
 
-    let sized = editor.clone();
-    create_effect(clone!(levels expanded -> move || {
+    create_effect(move || {
         let open = expanded.get();
         let rows = levels.with(|levels| {
             levels.len()
@@ -50,34 +49,39 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
             true => QUIZ_HEIGHT,
             false => 0.0,
         };
-        sized.set_intrinsic_size(Some(Vec2::new(
+        editor.set_intrinsic_size(Some(Vec2::new(
             INTRINSIC_WIDTH,
             CHROME_HEIGHT + ROW_HEIGHT * rows as f32 + quiz,
         )));
-    }));
+    });
 
-    let has_hotbar = create_memo(clone!(hotbar -> move || hotbar.get().is_some()));
-    let open_hotbar = clone!(game -> move || game.open_hotbar());
-    let keys = create_memo(clone!(levels -> move || {
-        levels.with(|levels| levels.iter().map(|level| level.challenge).collect::<Vec<_>>())
-    }));
-    let open = create_selector(clone!(expanded -> move || expanded.get()));
+    let has_hotbar = create_memo(move || hotbar.get().is_some());
+    let open_hotbar = move || game.open_hotbar();
+    let keys = create_memo(move || {
+        levels.with(|levels| {
+            levels
+                .iter()
+                .map(|level| level.challenge)
+                .collect::<Vec<_>>()
+        })
+    });
+    let open = create_selector(move || expanded.get());
 
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Frame @node_ref={&content} padding_horizontal=PADDING padding_vertical=PADDING>
                 <List spacing=ROW_SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <Heading content="Levels" />
+                        <Text style=TextStyle::HEADING string="Levels" />
                         <Show condition={has_hotbar}>
                             <IconButton
                                 glyph={ICON_WIDGETS.to_owned()}
                                 label="Hotbar"
                                 @test_id={"logic-game.hotbar"}
-                                on_click={open_hotbar.clone()}
+                                on_click={open_hotbar}
                             />
                         </Show>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -86,17 +90,17 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                         <List spacing=4.0>
                             <ForEach keys={keys}>
                                 {move |challenge: ChallengeId| {
-                                    let level = level_of(levels.clone(), challenge);
+                                    let level = level_of(levels, challenge);
                                     let here = open.memo(Some(challenge));
-                                    let toggle = clone!(expanded set_expanded -> move || {
+                                    let toggle = move || {
                                         let shown = expanded.get_untracked() == Some(challenge);
                                         set_expanded.set((!shown).then_some(challenge));
-                                    });
+                                    };
                                     view! {
                                         <LevelRow
-                                            editor={editor.clone()}
-                                            block={Rc::clone(&block)}
-                                            game={Rc::clone(&game)}
+                                            editor={editor}
+                                            block={block}
+                                            game={game}
                                             challenge={challenge}
                                             level={level}
                                             expanded={here}
@@ -117,61 +121,59 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
 fn LevelRow(
     editor: Editor,
     block: crate::logic_game::app::GameBlock,
-    game: Rc<Game>,
+    game: Game,
     challenge: ChallengeId,
     level: Memo<Option<Level>>,
     expanded: Memo<bool>,
     on_toggle: ClickCallback,
 ) -> NodeId {
-    let completed = create_memo(clone!(level -> move || {
-        level.get().is_some_and(|level| level.completed)
-    }));
-    let attempts = create_memo(clone!(level -> move || {
+    let completed = create_memo(move || level.get().is_some_and(|level| level.completed));
+    let attempts = create_memo(move || {
         let count = level.get().map_or(0, |level| level.solutions.len());
         format!("{count} attempts")
-    }));
+    });
     let quiz = challenge == ChallengeId::BinaryAddition;
-    let shows_quiz = create_memo(clone!(expanded -> move || expanded.get() && quiz));
-    let shows_solutions = create_memo(clone!(expanded -> move || expanded.get() && !quiz));
+    let shows_quiz = create_memo(move || expanded.get() && quiz);
+    let shows_solutions = create_memo(move || expanded.get() && !quiz);
     let goal = generate_challenge(challenge).goal;
-    let solving = editor.clone();
-    let theme = use_theme();
     view! {
         <List spacing=4.0>
             <ListRow
-                selected={expanded.clone()}
+                selected={expanded}
                 @test_id={format!("logic-game.level.{}", challenge as usize)}
-                on_click={move || on_toggle.call()}
+                on_click={on_toggle}
                 on_activate={move || {}}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Body content={challenge.name()} />
+                    <Text string={challenge.name()} />
                     <Show condition={completed}>
-                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success.clone()} />
+                        <Text color=TextColor::Success align=TextAlign::Center>
+                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                        </Text>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Caption content={attempts} />
+                    <Text style=TextStyle::CAPTION string={attempts} />
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                {move || clone!(block editor game goal level shows_quiz shows_solutions solving -> view! {
+                {move || { let goal = goal.clone(); view! {
                     <Frame padding_left=INDENT>
                         <List spacing=ROW_SPACING>
-                            <Caption content={goal} wrap=true />
+                            <Text style=TextStyle::CAPTION string={goal} wrap=true />
                             <Show condition={shows_quiz}>
-                                <BinaryAddition editor={editor.clone()} block={block.clone()} />
+                                <BinaryAddition editor={editor} block={block} />
                             </Show>
                             <Show condition={shows_solutions}>
                                 <Solutions
-                                    editor={solving.clone()}
-                                    game={game.clone()}
+                                    editor={editor}
+                                    game={game}
                                     challenge={challenge}
-                                    level={level.clone()}
+                                    level={level}
                                 />
                             </Show>
                         </List>
                     </Frame>
-                })}
+                } }}
             </Show>
         </List>
     }
@@ -180,28 +182,34 @@ fn LevelRow(
 #[component]
 fn Solutions(
     editor: Editor,
-    game: Rc<Game>,
+    game: Game,
     challenge: ChallengeId,
     level: Memo<Option<Level>>,
 ) -> NodeId {
     let read_only = editor.read_only();
-    let keys = create_memo(clone!(level -> move || {
+    let keys = create_memo(move || {
         level.get().map_or_else(Vec::new, |level| {
-            level.solutions.iter().map(|solution| solution.reference).collect::<Vec<Uuid>>()
+            level
+                .solutions
+                .iter()
+                .map(|solution| solution.reference)
+                .collect::<Vec<Uuid>>()
         })
-    }));
-    let start = clone!(game level -> move || {
-        let index = level.get_untracked().map_or(0, |level| level.solutions.len());
-        game.start(challenge, index);
     });
+    let start = move || {
+        let index = level
+            .get_untracked()
+            .map_or(0, |level| level.solutions.len());
+        game.start(challenge, index);
+    };
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
                 {move |reference: Uuid| {
-                    let solution = solution_of(level.clone(), reference);
+                    let solution = solution_of(level, reference);
                     view! {
                         <SolutionRow
-                            game={Rc::clone(&game)}
+                            game={game}
                             challenge={challenge}
                             reference={reference}
                             solution={solution}
@@ -226,32 +234,32 @@ fn Solutions(
 
 #[component]
 fn SolutionRow(
-    game: Rc<Game>,
+    game: Game,
     challenge: ChallengeId,
     reference: Uuid,
     solution: Memo<Option<Solution>>,
 ) -> NodeId {
-    let name = create_memo(clone!(solution -> move || {
-        solution.get().map(|solution| solution.name).unwrap_or_default()
-    }));
-    let missing = create_memo(clone!(solution -> move || {
-        solution.get().is_none_or(|solution| solution.id.is_none())
-    }));
-    let passed = create_memo(clone!(solution -> move || {
-        solution.get().is_some_and(|solution| solution.completed)
-    }));
-    let open = clone!(game solution -> move || {
+    let name = create_memo(move || {
+        solution
+            .get()
+            .map(|solution| solution.name)
+            .unwrap_or_default()
+    });
+    let missing = create_memo(move || solution.get().is_none_or(|solution| solution.id.is_none()));
+    let passed = create_memo(move || solution.get().is_some_and(|solution| solution.completed));
+    let open = move || {
         if let Some(id) = solution.get_untracked().and_then(|solution| solution.id) {
             game.open_solution(id);
         }
-    });
-    let remove = clone!(game -> move || game.remove(challenge, reference));
-    let theme = use_theme();
+    };
+    let remove = move || game.remove(challenge, reference);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Link label={name} disabled={missing} on_click={open} />
             <Show condition={passed}>
-                <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success.clone()} />
+                <Text color=TextColor::Success align=TextAlign::Center>
+                    <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton

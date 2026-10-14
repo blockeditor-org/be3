@@ -2,13 +2,13 @@ use std::cell::RefCell;
 
 use beui::NodeId;
 use beui::reactive::{
-    Memo, Prop, ReadSignal, clone, component, create_effect, create_memo, create_signal, view,
+    Memo, Prop, ReadSignal, component, create_effect, create_memo, create_signal, view,
 };
 use beui::styled::Link;
-use beui::styled::theme::FONT_BODY;
 use block_ui::{BlockLabel, BlockTypes};
 
 use crate::{BlockInfo, BlockList, BlockQuery, ChildTarget, Editor};
+use beui::styled::TextSize;
 
 #[derive(Clone, Default, PartialEq)]
 pub struct BlockDisplay {
@@ -20,14 +20,14 @@ pub struct BlockDisplay {
 }
 
 pub fn watch_block_label(
-    editor: &Editor,
+    editor: Editor,
     target: Memo<Option<ChildTarget>>,
 ) -> ReadSignal<BlockDisplay> {
     let (shown, set_shown) = create_signal(BlockDisplay::default());
-    let shown_now = shown.clone();
+    let shown_now = shown;
     let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
     let blocks = editor.blocks();
-    let catalog = editor.host().clone();
+    let catalog = editor.host();
     create_effect(move || {
         let Some(next) = target.get() else {
             opened.borrow_mut().take();
@@ -71,32 +71,26 @@ pub fn BlockLink(
     editor: Editor,
     block: Prop<Option<ChildTarget>>,
     #[prop(default = String::from("Loading…"))] fallback: Prop<String>,
-    #[prop(default = FONT_BODY)] font_size: Prop<f32>,
+    #[prop(default = TextSize::Base)] size: Prop<TextSize>,
 ) -> NodeId {
     let target = create_memo(move || block.get());
-    let shown = watch_block_label(&editor, target.clone());
-    let host = editor.host().clone();
-    let label = create_memo(clone!(shown -> move || {
+    let shown = watch_block_label(editor, target);
+    let host = editor.host();
+    let label = create_memo(move || {
         let name = shown.with(|shown| shown.name.clone());
         match name.is_empty() {
             true => fallback.get(),
             false => name,
         }
-    }));
-    let glyph = create_memo(clone!(shown -> move || shown.with(|shown| shown.glyph.clone())));
-    let missing = create_memo(clone!(target -> move || target.get().is_none()));
-    let open = clone!(target -> move || {
+    });
+    let glyph = create_memo(move || shown.with(|shown| shown.glyph.clone()));
+    let missing = create_memo(move || target.get().is_none());
+    let open = move || {
         if let Some(target) = target.get_untracked() {
             host.open_block(target.id, target.block_type);
         }
-    });
+    };
     view! {
-        <Link
-            label={label}
-            glyph={glyph}
-            disabled={missing}
-            font_size={font_size}
-            on_click={open}
-        />
+        <Link label={label} glyph={glyph} disabled={missing} size on_click={open} />
     }
 }

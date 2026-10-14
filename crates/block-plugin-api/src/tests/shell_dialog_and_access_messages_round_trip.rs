@@ -27,6 +27,7 @@ fn shell_dialog_and_access_messages_round_trip() {
                 email: "friend@example.org".into(),
                 display_name: "Friend".into(),
                 administrator: false,
+                author: false,
                 granted: Some(AccessLevel::View),
                 effective: AccessLevel::View,
             }])),

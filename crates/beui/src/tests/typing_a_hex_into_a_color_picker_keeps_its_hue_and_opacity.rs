@@ -4,14 +4,14 @@ use crate::styled::ColorPicker;
 
 #[test]
 fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let changed = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <ColorPicker
                     value={Color32::from_rgba_unmultiplied(0x20, 0x40, 0x80, 0x80)}
-                    on_change={move |color| changed.borrow_mut().push(color)}
+                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
                 />
             </List>
         }
@@ -25,7 +25,7 @@ fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {
     harness.type_text("#ff8800");
 
     assert_eq!(
-        changes.borrow().last(),
+        changes.get_untracked().last(),
         Some(&Color32::from_rgba_unmultiplied(0xFF, 0x88, 0x00, 0x80))
     );
 }

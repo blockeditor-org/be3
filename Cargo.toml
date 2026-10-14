@@ -1,10 +1,12 @@
 [workspace]
 members = [
     "crates/be-block",
+    "crates/be-cli",
     "crates/be-client",
     "crates/be-commit",
     "crates/be-dmabuf",
     "crates/be-drive",
+    "crates/be-frozen",
     "crates/be-graph",
     "crates/be-keys",
     "crates/be-launcher",
@@ -45,6 +47,7 @@ members = [
     "crates/block-gpu-host",
     "crates/block-gpu-shim",
     "crates/block-plugin-api",
+    "crates/block-plugin-sdk",
     "crates/block-shell",
     "crates/block-ui",
     "crates/block-ui-test",
@@ -53,6 +56,7 @@ members = [
     "crates/build-id",
     "crates/cvl2",
     "crates/editors/audio-block",
+    "crates/editors/block-debug",
     "crates/editors/browser-tab",
     "crates/editors/calendar",
     "crates/editors/checklist",
@@ -83,9 +87,9 @@ members = [
     "crates/editors/workspace-index",
     "crates/editors/workspace-ui",
     "crates/fix-rust-source",
-    "crates/fuzz-runner",
     "crates/geometry",
     "crates/ghostty-vt",
+    "crates/local-tools",
     "crates/logicgame",
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
@@ -103,8 +107,9 @@ members = [
     "crates/tabletop-games/rules/crazy-8s",
     "crates/tabletop-games/rules/tic-tac-toe",
     "crates/text-editor-core",
-    "crates/verify",
     "crates/wasi-threads",
+    "crates/wasm-dylink",
+    "crates/wasm-link",
 ]
 resolver = "3"
 

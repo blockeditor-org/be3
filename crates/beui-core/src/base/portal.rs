@@ -2,7 +2,7 @@ use std::any::Any;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub struct PortalNode {
@@ -10,6 +10,10 @@ pub struct PortalNode {
 }
 
 impl Element for PortalNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
@@ -37,21 +41,14 @@ impl Element for PortalNode {
         false
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.child);
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn borrowed(&self) -> Vec<NodeId> {

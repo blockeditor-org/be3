@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn memo_writes_are_rejected_even_when_untracked() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (_, write) = create_signal(0);
     assert!(

@@ -4,6 +4,7 @@ use crate::unstyled::dock_state;
 
 #[test]
 fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

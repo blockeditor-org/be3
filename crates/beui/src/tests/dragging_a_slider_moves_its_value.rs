@@ -4,11 +4,11 @@ use crate::styled::Slider;
 
 #[test]
 fn dragging_a_slider_moves_its_value() {
-    let reported = Rc::new(Cell::new(0.0));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(0.0);
     let (document, [slider]) = toolbar_of(|| {
         [view! {
-            <Slider value=0.0 on_change={move |value| sink.set(value)} />
+            <Slider value=0.0 on_change={move |value| set_reported.set(value)} />
         }]
     });
     let mut harness = Harness::new(document);
@@ -21,5 +21,5 @@ fn dragging_a_slider_moves_its_value() {
 
     let value = styled::slider_value(harness.document(), slider);
     assert!((value - 0.5).abs() < 0.01, "the slider read {value}");
-    assert_eq!(reported.get(), value);
+    assert_eq!(reported.get_untracked(), value);
 }

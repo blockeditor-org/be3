@@ -1,13 +1,13 @@
 use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_plugin_api::ImeArea as PluginImeArea;
+use block_plugin_api::WindowRequests;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
     FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
+    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -47,8 +47,6 @@ pub(super) struct Instances {
     replies: Replies,
     epoch: u64,
     graph_seen: Option<u64>,
-    pasted: HashSet<EditorInstanceId>,
-    pastes: Pastes,
     audio_changes: AudioChanges,
     published: Published,
     shell: Option<EditorInstanceId>,
@@ -60,18 +58,6 @@ struct AudioChanges {
 }
 
 impl Default for AudioChanges {
-    fn default() -> Self {
-        let (sender, receiver) = host::waking_channel();
-        Self { sender, receiver }
-    }
-}
-
-struct Pastes {
-    sender: host::WakingSender<(u64, EditorInstanceId, String)>,
-    receiver: std::sync::mpsc::Receiver<(u64, EditorInstanceId, String)>,
-}
-
-impl Default for Pastes {
     fn default() -> Self {
         let (sender, receiver) = host::waking_channel();
         Self { sender, receiver }
@@ -122,7 +108,6 @@ struct Instance {
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
-    text_pastes: Vec<block_plugin_api::InputEvent>,
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
     block_picks: Vec<BlockPickRequest>,
@@ -137,7 +122,6 @@ struct Instance {
     presenting: bool,
     reported_presenting: bool,
     host_values: Watched,
-    grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
@@ -240,7 +224,7 @@ impl ContentLink {
     }
 }
 
-pub(super) type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+pub(super) type OpenRequest = crate::editors::BlockOpen;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Focus {
@@ -296,7 +280,6 @@ impl Instance {
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
-            text_pastes: Vec::new(),
             audio: None,
             reported_size: None,
             block_picks: Vec::new(),
@@ -311,7 +294,6 @@ impl Instance {
             presenting: false,
             reported_presenting: false,
             host_values: Watched::default(),
-            grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
             replacements: HashMap::new(),
@@ -467,8 +449,8 @@ struct Screen {
     report: Option<FrameReport>,
     dragging: bool,
     file_dropping: bool,
-    cursor: CursorIcon,
-    ime: Option<PluginImeArea>,
+    window: WindowRequests,
+    stopped: Option<Stopped>,
     children: ChildTable,
     reported_statuses: HashMap<ChildId, ChildStatus>,
     revoked: HashSet<ChildId>,
@@ -692,7 +674,7 @@ impl Instances {
                     instance,
                     region,
                     metrics: viewport_metrics(size, visible, scale_factor, Vec::new()),
-                    frame: frame.clone(),
+                    frame,
                 },
                 last_seen: pass,
                 mounted: 0,
@@ -702,8 +684,8 @@ impl Instances {
                 report: None,
                 dragging: false,
                 file_dropping: false,
-                cursor: CursorIcon::Default,
-                ime: None,
+                window: WindowRequests::default(),
+                stopped: None,
                 children: ChildTable::default(),
                 reported_statuses: HashMap::new(),
                 revoked: HashSet::new(),
@@ -783,6 +765,19 @@ impl Instances {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
         }
+    }
+
+    pub(super) fn stopped(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&Stopped> {
+        self.entries
+            .get(&instance)?
+            .screens
+            .get(&region)?
+            .stopped
+            .as_ref()
     }
 
     pub(super) fn placement(
@@ -871,11 +866,12 @@ impl Instances {
         else {
             return Vec::new();
         };
+        let Some(key) = beui_plugin_input::protocol_key(key) else {
+            return Vec::new();
+        };
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
-            events: vec![block_plugin_api::InputEvent::InterceptedTap {
-                key: beui_plugin_input::protocol_key(key),
-            }],
+            events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
         })]
     }
 
@@ -914,27 +910,14 @@ impl Instances {
             return (Vec::new(), false);
         }
         let id = screen.request.screen;
-        let pressed = input.events.iter().any(|event| {
-            matches!(
-                event,
-                beui::Event::PointerButton { pressed: true, .. }
-                    | beui::Event::Touch {
-                        phase: beui::TouchPhase::Start,
-                        ..
-                    }
-            )
-        });
+        let pressed = input
+            .pointer_events()
+            .any(|event| matches!(event.phase, beui::PointerPhase::Down(_)));
         let escaped = input.focused
-            && input.events.iter().any(|event| {
-                matches!(
-                    event,
-                    beui::Event::Key {
-                        key: beui::Key::Escape,
-                        pressed: true,
-                        ..
-                    }
-                )
-            });
+            && input
+                .inputs()
+                .filter_map(beui::Event::press)
+                .any(|press| press.key == beui::Key::Escape && press.pressed);
         let mut messages = screen.input.forward(input, id);
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));
@@ -1177,6 +1160,9 @@ impl Instances {
             for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
                 link.sent = None;
                 link.peers_sent = None;
+            }
+            for screen in entry.screens.values_mut() {
+                screen.stopped = None;
             }
             entry.stale = true;
         }
@@ -1528,10 +1514,12 @@ impl Instances {
                     block_id,
                     block_type,
                     view_block,
+                    editor,
                 } => super::HostContent::Block {
                     block_id: Uuid::from_bytes(*block_id),
                     block_type: Uuid::from_bytes(*block_type),
                     view_block: view_block.map(Uuid::from_bytes),
+                    editor: editor.map(Uuid::from_bytes),
                 },
                 ChildContent::Host(panel) => super::HostContent::Panel(*panel),
                 ChildContent::Window(window) => super::HostContent::Window(*window),
@@ -2059,7 +2047,10 @@ impl Instances {
     }
 
     pub(super) fn grabbing(&self) -> bool {
-        self.entries.values().any(|entry| entry.grabbed)
+        self.entries
+            .values()
+            .flat_map(|entry| entry.screens.values())
+            .any(|screen| screen.window.pointer_locked)
     }
 
     pub(super) fn ime(
@@ -2069,7 +2060,7 @@ impl Instances {
         rect: Rect,
     ) -> Option<ImeArea> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        let area = screen.ime.as_ref()?;
+        let area = screen.window.ime.as_ref()?;
         let origin = rect.min.to_vec2();
         let stretch = vec2(
             ratio(rect.width(), screen.request.metrics.logical_width),
@@ -2079,8 +2070,20 @@ impl Instances {
             rect: host_rect(area.rect, origin, stretch),
             cursor: host_rect(area.cursor, origin, stretch),
             text: area.text.as_ref().map(beui_plugin_input::beui_ime_text),
-            keyboard: area.keyboard,
+            keyboard: match area.keyboard {
+                block_plugin_api::Keyboard::Held => beui::Keyboard::Held,
+                block_plugin_api::Keyboard::Shown { asks } => beui::Keyboard::Shown { asks },
+            },
         })
+    }
+
+    pub(super) fn window(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&WindowRequests> {
+        let screen = self.entries.get(&instance)?.screens.get(&region)?;
+        Some(&screen.window)
     }
 
     pub(super) fn cursor(
@@ -2089,7 +2092,7 @@ impl Instances {
         region: EditorRegion,
     ) -> Option<beui::CursorIcon> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        Some(match screen.cursor {
+        Some(match screen.window.cursor {
             CursorIcon::Default => beui::CursorIcon::Default,
             CursorIcon::None => beui::CursorIcon::None,
             CursorIcon::Pointer => beui::CursorIcon::PointingHand,
@@ -2125,6 +2128,7 @@ impl Instances {
             CursorIcon::ResizeNorthWest => beui::CursorIcon::ResizeNorthWest,
             CursorIcon::ResizeSouthEast => beui::CursorIcon::ResizeSouthEast,
             CursorIcon::ResizeSouthWest => beui::CursorIcon::ResizeSouthWest,
+            CursorIcon::Touch => beui::CursorIcon::Touch,
         })
     }
 
@@ -2171,38 +2175,6 @@ impl Instances {
                     instance: reply.instance,
                     request_id: reply.request_id,
                     reply: reply.reply,
-                }));
-            }
-        }
-        while let Ok((epoch, instance, text)) = self.pastes.receiver.try_recv() {
-            if epoch != self.epoch {
-                continue;
-            }
-            if let Some(entry) = self.entries.get_mut(&instance) {
-                entry
-                    .text_pastes
-                    .extend(block_plugin_api::paste_events(&text));
-                self.pasted.insert(instance);
-            }
-        }
-        let mut pasted: Vec<_> = std::mem::take(&mut self.pasted).into_iter().collect();
-        pasted.sort_by_key(|instance| instance.0);
-        for instance in pasted {
-            let Some(entry) = self.entries.get_mut(&instance) else {
-                continue;
-            };
-            let texts = std::mem::take(&mut entry.text_pastes);
-            if !texts.is_empty()
-                && let Some(screen) = entry
-                    .screens
-                    .values()
-                    .find(|screen| screen.input.focused())
-                    .or_else(|| entry.screens.get(&EditorRegion::Frame))
-                    .map(|screen| screen.request.screen)
-            {
-                messages.push(Message::Input(block_plugin_api::InputBatch {
-                    screen,
-                    events: texts,
                 }));
             }
         }
@@ -2275,9 +2247,6 @@ impl Instances {
                     }));
                 });
             }
-            HostRequest::PasteImage => reply(HostReply::ImagePasted(
-                super::clipboard::read_clipboard_image(),
-            )),
             HostRequest::Fetch(url) => {
                 let fetched = move |body: Result<Vec<u8>, String>| {
                     reply(HostReply::Fetched(fetch_result(body)));
@@ -2374,15 +2343,17 @@ impl Instances {
                 block_id,
                 block_type,
                 via,
+                editor,
             } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.opens.push((
-                    Uuid::from_bytes(block_id),
-                    Uuid::from_bytes(block_type),
-                    via.map(Uuid::from_bytes),
-                ));
+                entry.opens.push(OpenRequest {
+                    id: Uuid::from_bytes(block_id),
+                    block_type: Uuid::from_bytes(block_type),
+                    via: via.map(Uuid::from_bytes),
+                    editor: editor.map(Uuid::from_bytes),
+                });
                 true
             }
             EditorMessage::Focused {
@@ -2674,13 +2645,6 @@ impl Instances {
                     .command(command);
                 true
             }
-            EditorMessage::GrabCursor { instance, grabbed } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.grabbed = grabbed;
-                true
-            }
             EditorMessage::CreationReady { instance, ready } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -2699,10 +2663,10 @@ impl Instances {
                 });
                 true
             }
-            EditorMessage::Ime {
+            EditorMessage::Window {
                 instance,
                 region,
-                area,
+                window,
             } => {
                 let Some(screen) = self
                     .entries
@@ -2711,8 +2675,8 @@ impl Instances {
                 else {
                     return false;
                 };
-                let changed = screen.ime != area;
-                screen.ime = area;
+                let changed = screen.window != window;
+                screen.window = window;
                 changed
             }
             EditorMessage::CopyText { instance, text } => {
@@ -2722,17 +2686,11 @@ impl Instances {
                 host::copy_text(text);
                 false
             }
-            EditorMessage::PasteText { instance } => {
+            EditorMessage::Paste { instance } => {
                 if !self.entries.contains_key(&instance) {
                     return false;
                 }
-                let sender = self.pastes.sender.clone();
-                let epoch = self.epoch;
-                host::read_clipboard(move |text| {
-                    if let Some(text) = text {
-                        let _ = sender.send((epoch, instance, text));
-                    }
-                });
+                host::request_paste();
                 false
             }
             EditorMessage::ChildReplaced {
@@ -2757,22 +2715,6 @@ impl Instances {
                     .replacements
                     .insert(key, Replacement::Answered(replaced));
                 true
-            }
-            EditorMessage::Cursor {
-                instance,
-                region,
-                cursor,
-            } => {
-                let Some(screen) = self
-                    .entries
-                    .get_mut(&instance)
-                    .and_then(|entry| entry.screens.get_mut(&region))
-                else {
-                    return false;
-                };
-                let changed = screen.cursor != cursor;
-                screen.cursor = cursor;
-                changed
             }
             EditorMessage::ArtifactDescribed {
                 instance,
@@ -2806,6 +2748,21 @@ impl Instances {
                 instance,
                 presenting,
             } => self.set_presenting(instance, presenting),
+            EditorMessage::Stopped {
+                instance,
+                region,
+                stopped,
+            } => {
+                let Some(screen) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.screens.get_mut(&region))
+                else {
+                    return false;
+                };
+                screen.stopped = Some(stopped);
+                true
+            }
             EditorMessage::LeaveFrame { instance } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -2961,18 +2918,17 @@ impl Instances {
     pub(super) fn show_block(
         &mut self,
         instance: EditorInstanceId,
-        block_id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
+        open: OpenRequest,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
         vec![Message::Editor(EditorMessage::ShowBlock {
             instance,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
-            via: via.map(Uuid::into_bytes),
+            block_id: open.id.into_bytes(),
+            block_type: open.block_type.into_bytes(),
+            via: open.via.map(Uuid::into_bytes),
+            editor: open.editor.map(Uuid::into_bytes),
         })]
     }
 

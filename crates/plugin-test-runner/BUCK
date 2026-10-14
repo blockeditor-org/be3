@@ -6,7 +6,7 @@ cargo_binary()
 # crates/block-app precompiles each platform's plugins with it.
 configured_alias(
     name = "precompiler",
-    actual = ":plugin-test-runner-bin",
+    actual = ":bin",
     platform = "root//buck/platforms:linux_x86_64",
     visibility = ["PUBLIC"],
 )

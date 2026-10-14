@@ -1,21 +1,22 @@
 use super::*;
-use crate::GlobalKeyPress;
+use crate::KeyEvent;
 use crate::reactive::{build, create_effect, held_modifiers, on_global_key, view};
 use crate::styled::TextInput;
 
 #[test]
 fn held_modifiers_and_key_releases_reach_global_listeners() {
-    let seen = Rc::new(RefCell::new(Vec::new()));
-    let holds = Rc::new(RefCell::new(Vec::new()));
-    let (keys, held) = (seen.clone(), holds.clone());
+    let _root = crate::reactive::RootScope::new();
+    let (seen, set_seen) = create_signal(Vec::new());
+    let (holds, set_holds) = create_signal(Vec::new());
     let document = build(move || {
-        on_global_key(move |global: GlobalKeyPress| {
-            keys.borrow_mut()
-                .push((global.press.key, global.press.pressed));
+        on_global_key(move |event: KeyEvent| {
+            if let Some(press) = event.press() {
+                set_seen.update(|seen| seen.push((press.key, press.pressed)));
+            }
             false
         });
         let modifiers = held_modifiers();
-        create_effect(move || held.borrow_mut().push(modifiers.get()));
+        create_effect(move || set_holds.update(|holds| holds.push(modifiers.get())));
         view! {
             <List spacing=0.0>
                 <TextInput @test_id={"field"} value="" />
@@ -31,12 +32,12 @@ fn held_modifiers_and_key_releases_reach_global_listeners() {
     harness.frame(vec![Event::Modifiers(Modifiers::NONE)]);
 
     assert_eq!(
-        *seen.borrow(),
+        seen.get_untracked(),
         vec![(Key::Tab, true), (Key::Tab, false)],
         "a listener sees the press and the release, though a text field has the focus"
     );
     assert_eq!(
-        *holds.borrow(),
+        holds.get_untracked(),
         vec![Modifiers::NONE, Modifiers::ALT, Modifiers::NONE],
         "the held modifiers follow the keyboard"
     );

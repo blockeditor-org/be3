@@ -6,9 +6,19 @@ fn a_block_shown_on_the_desktop_opens_in_its_own_window() {
     fixture.settle();
     let (first, second) = (Uuid::new_v4(), Uuid::new_v4());
 
-    fixture.host.show_block(first, SHOWN_TYPE, None);
+    fixture.host.show_block(block_editor_beui::ShowRequest {
+        block_id: first,
+        block_type: SHOWN_TYPE,
+        via: None,
+        editor: None,
+    });
     fixture.settle();
-    fixture.host.show_block(second, SHOWN_TYPE, None);
+    fixture.host.show_block(block_editor_beui::ShowRequest {
+        block_id: second,
+        block_type: SHOWN_TYPE,
+        via: None,
+        editor: None,
+    });
     fixture.settle();
 
     let placed = fixture.placed_blocks();

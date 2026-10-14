@@ -1,0 +1,11 @@
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
+
+frozen_srcs = glob(["src/**/*"])
+
+cargo_library(srcs = frozen_srcs)
+
+cargo_test(srcs = frozen_srcs)
+
+# Saves a new snapshot of a server's data:
+# `./scripts/buck run //crates/be-frozen:example-freeze -- $PWD/crates/be-frozen/src/snapshots NAME`.
+cargo_example("freeze")

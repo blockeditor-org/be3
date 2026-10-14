@@ -18,7 +18,7 @@ fn the_level_display_shows_on_every_screen() {
             muted: true,
         });
         view! {
-            <Frame color={theme.background.clone()}>
+            <Frame color={theme.background}>
                 <LevelOsd level={level} shown=1_u64 />
             </Frame>
         }

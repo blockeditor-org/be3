@@ -114,7 +114,6 @@ impl Turn {
 
 pub struct Quads {
     pub list: Vec<Quad>,
-    pub filtered: usize,
 }
 
 pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
@@ -126,22 +125,11 @@ pub fn quads_within(
     pixels_per_point: f32,
     damaged: Option<&[[f32; 4]]>,
 ) -> Quads {
-    let (shapes, boundary) = output.filtered_shapes();
-    let mut filtered = 0;
     let mut quads = Vec::new();
-    for (index, shape) in shapes.iter().enumerate() {
-        if boundary == Some(index) {
-            filtered = quads.len();
-        }
-        push_quads(shape, pixels_per_point, damaged, &mut quads);
+    for shape in output.shapes() {
+        push_quads(&shape, pixels_per_point, damaged, &mut quads);
     }
-    if boundary.is_some_and(|boundary| boundary >= shapes.len()) {
-        filtered = quads.len();
-    }
-    Quads {
-        list: quads,
-        filtered,
-    }
+    Quads { list: quads }
 }
 
 pub fn push_quads(
@@ -202,15 +190,28 @@ pub fn push_quads(
                 return;
             }
             for glyph in galley.glyphs() {
-                if glyph.image.width == 0 || glyph.image.height == 0 {
+                let [left, top, right, bottom] = glyph.bounds();
+                let near = [
+                    origin.x + left,
+                    origin.y + top,
+                    origin.x + right,
+                    origin.y + bottom,
+                ];
+                if skipped(damaged, turn.swept(near), clip) {
                     continue;
                 }
-                let min = origin + glyph.offset;
+                let (Some(image), Some(offset)) = (glyph.image(), glyph.offset()) else {
+                    continue;
+                };
+                if image.width == 0 || image.height == 0 {
+                    continue;
+                }
+                let min = origin + offset;
                 let rect = [
                     min.x,
                     min.y,
-                    min.x + glyph.image.width as f32,
-                    min.y + glyph.image.height as f32,
+                    min.x + image.width as f32,
+                    min.y + image.height as f32,
                 ];
                 if skipped(damaged, turn.swept(rect), clip) {
                     continue;

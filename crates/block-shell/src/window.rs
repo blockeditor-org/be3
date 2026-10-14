@@ -1,10 +1,11 @@
 use std::cell::Cell;
 
 use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, clone, component,
-    create_effect, create_memo, create_signal, untrack, view,
+    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, component, create_effect,
+    create_memo, create_signal, untrack, view,
 };
-use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
+use block_editor_beui::beui::styled::Text;
+use block_editor_beui::beui::styled::{Button, ButtonVariant, WINDOW_CHROME, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
 use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{
@@ -71,38 +72,38 @@ pub(crate) fn WindowPanel(
     size: Memo<Option<Vec2>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
-        create_effect(clone!(tab -> move || {
+        create_effect(move || {
             if let Some(size) = size.get().and_then(own_size) {
                 untrack(|| tab.resize_window(size + WINDOW_CHROME));
             }
-        }));
-        create_effect(clone!(tab focused -> move || {
+        });
+        create_effect(move || {
             if focused.get() {
                 untrack(|| tab.show());
             }
-        }));
-        let shown = create_memo(clone!(tab -> move || tab.focused()));
-        let host = editor.host().clone();
+        });
+        let shown = create_memo(move || tab.focused());
+        let host = editor.host();
         let settled = Cell::new(false);
-        create_effect(clone!(focused -> move || {
+        create_effect(move || {
             let shown = shown.get();
             if settled.replace(true) && shown && !focused.get_untracked() {
                 host.act(WindowAction::Focus(window));
             }
-        }));
-        create_effect(clone!(tab fullscreen -> move || match fullscreen.get() {
+        });
+        create_effect(move || match fullscreen.get() {
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
-        }));
-        let called = create_memo(clone!(tab -> move || tab.attention()));
-        let host = editor.host().clone();
+        });
+        let called = create_memo(move || tab.attention());
+        let host = editor.host();
         create_effect(move || {
             if called.get().is_some() {
                 host.act(WindowAction::Focus(window));
             }
         });
-        let shown = create_memo(clone!(tab -> move || tab.fullscreen()));
-        let host = editor.host().clone();
+        let shown = create_memo(move || tab.fullscreen());
+        let host = editor.host();
         create_effect(move || {
             let shown = shown.get();
             if shown != fullscreen.get_untracked().is_some() {
@@ -115,14 +116,13 @@ pub(crate) fn WindowPanel(
     }
     let panel = NodeRef::new();
     let (waited, set_waited) = create_signal(false);
-    create_effect(clone!(responding set_waited -> move || {
+    create_effect(move || {
         if responding.get() {
             set_waited.set(false);
         }
-    }));
-    let banner = create_memo(clone!(responding -> move || !responding.get() && !waited.get()));
-    let anchor = panel.clone();
-    let host = editor.host().clone();
+    });
+    let banner = create_memo(move || !responding.get() && !waited.get());
+    let host = editor.host();
     view! {
         <Layers>
             <Subregion
@@ -132,7 +132,7 @@ pub(crate) fn WindowPanel(
                 @test_id={"workspace.window"}
                 @node_ref=&panel
             />
-            <Floating anchor edge=Edge::Top open={banner}>
+            <Floating anchor={panel} edge=Edge::Top open={banner}>
                 <NotResponding
                     name
                     on_wait={move || set_waited.set(true)}
@@ -153,8 +153,8 @@ fn NotResponding(
     let message = create_memo(move || format!("{} is not responding", name.get()));
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=BANNER_RADIUS
@@ -165,18 +165,18 @@ fn NotResponding(
             @test_id={"workspace.window.not_responding"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BANNER_SPACING>
-                <Body content={message} />
+                <Text string={message} />
                 <Button
                     label="Wait"
                     variant=ButtonVariant::Secondary
                     @test_id={"workspace.window.wait"}
-                    on_click={move || on_wait.call()}
+                    on_click={on_wait}
                 />
                 <Button
                     label="Force close"
                     variant=ButtonVariant::Primary
                     @test_id={"workspace.window.force_close"}
-                    on_click={move || on_force_close.call()}
+                    on_click={on_force_close}
                 />
             </List>
         </Frame>

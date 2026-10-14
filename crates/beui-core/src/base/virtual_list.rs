@@ -1,5 +1,5 @@
+use foldhash::HashMap;
 use std::any::Any;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -7,9 +7,9 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
-use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
+use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
@@ -25,9 +25,9 @@ struct Row<K> {
 struct Metrics {
     count: usize,
     estimated: f32,
-    entries: Vec<(usize, f32)>,
-    prefix: Vec<f32>,
-    valid: usize,
+    lengths: HashMap<usize, f32>,
+    counts: Vec<u32>,
+    sums: Vec<f64>,
     measured: f32,
 }
 
@@ -37,14 +37,18 @@ impl Metrics {
     }
 
     fn measured(count: usize, estimated: f32, entries: Vec<(usize, f32)>) -> Self {
-        Self {
+        let mut metrics = Self {
             count,
             estimated: estimated.max(0.0),
-            prefix: vec![0.0; entries.len() + 1],
-            valid: 0,
-            measured: entries.iter().map(|(_, length)| length).sum(),
-            entries,
+            lengths: HashMap::default(),
+            counts: vec![0; count + 1],
+            sums: vec![0.0; count + 1],
+            measured: 0.0,
+        };
+        for (index, length) in entries {
+            metrics.record(index, length);
         }
+        metrics
     }
 
     fn record(&mut self, index: usize, length: f32) {
@@ -52,57 +56,45 @@ impl Metrics {
             return;
         }
         let length = length.max(0.0);
-        let at = self.entries.partition_point(|(held, _)| *held < index);
-        match self.entries.get_mut(at) {
-            Some((held, stored)) if *held == index => {
-                if *stored == length {
-                    return;
-                }
-                self.measured += length - *stored;
-                *stored = length;
+        let (added, change) = match self.lengths.insert(index, length) {
+            Some(stored) if stored == length => return,
+            Some(stored) => {
+                self.measured += length - stored;
+                (0, f64::from(length) - f64::from(stored))
             }
-            _ => {
-                self.entries.insert(at, (index, length));
-                self.prefix.push(0.0);
+            None => {
                 self.measured += length;
+                (1, f64::from(length))
             }
+        };
+        let mut at = index + 1;
+        while at <= self.count {
+            self.counts[at] += added;
+            self.sums[at] += change;
+            at += at.isolate_lowest_one();
         }
-        self.valid = self.valid.min(at);
     }
 
     fn height(&self, index: usize) -> f32 {
-        let at = self.entries.partition_point(|(held, _)| *held < index);
-        match self.entries.get(at) {
-            Some((held, length)) if *held == index => *length,
-            _ => self.estimated,
+        self.lengths.get(&index).copied().unwrap_or(self.estimated)
+    }
+
+    fn position(&self, index: usize) -> f32 {
+        let (mut measured, mut sum) = (0_usize, 0.0_f64);
+        let mut at = index.min(self.count);
+        while at > 0 {
+            measured += self.counts[at] as usize;
+            sum += self.sums[at];
+            at &= at - 1;
         }
-    }
-
-    fn measured_before(&mut self, at: usize) -> f32 {
-        while self.valid < at {
-            self.prefix[self.valid + 1] = self.prefix[self.valid] + self.entries[self.valid].1;
-            self.valid += 1;
-        }
-        self.prefix[at]
-    }
-
-    fn position(&mut self, index: usize) -> f32 {
-        let at = self.entries.partition_point(|(held, _)| *held < index);
-        let measured = self.measured_before(at);
-        (index - at) as f32 * self.estimated + measured
-    }
-
-    fn estimate(&self, index: usize) -> f32 {
-        let at = self.entries.partition_point(|(held, _)| *held < index);
-        let measured: f32 = self.entries[..at].iter().map(|(_, length)| length).sum();
-        (index - at) as f32 * self.estimated + measured
+        (index - measured) as f32 * self.estimated + sum as f32
     }
 
     fn total(&self) -> f32 {
-        (self.count - self.entries.len()) as f32 * self.estimated + self.measured
+        (self.count - self.lengths.len()) as f32 * self.estimated + self.measured
     }
 
-    fn index_at(&mut self, position: f32) -> usize {
+    fn index_at(&self, position: f32) -> usize {
         if self.count == 0 {
             return 0;
         }
@@ -135,8 +127,8 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         Self {
             direction: Direction::Vertical,
             keys: Vec::new(),
-            indices: HashMap::new(),
-            sizes: HashMap::new(),
+            indices: HashMap::default(),
+            sizes: HashMap::default(),
             metrics: Metrics::new(0, 0.0),
             rows: Rc::new(KeyedItems::new(build)),
             owner: owner_scope(),
@@ -145,7 +137,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         }
     }
 
-    fn set_keys(&mut self, keys: Vec<K>) -> Vec<NodeId> {
+    fn set_keys(&mut self, keys: Vec<K>) {
         let indices: HashMap<K, usize> = keys
             .iter()
             .enumerate()
@@ -176,7 +168,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         self.keys = keys;
         self.indices = indices;
         let kept: Vec<K> = self.placed.iter().map(|row| row.key.clone()).collect();
-        self.rows.retain(&kept)
+        self.rows.retain(&kept);
     }
 
     fn window(&self, doc: &Document, painter: &Painter, start: f32, main: f32) -> (f32, f32) {
@@ -192,26 +184,28 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         (first, last)
     }
 
-    fn build(&self, key: K) -> NodeId {
+    fn build(&self, doc: &mut Document, list: NodeId, key: K) -> NodeId {
         if let Some(node) = self.rows.get(&key) {
             return node;
         }
         let rows = self.rows.clone();
-        match self.owner.as_ref().filter(|owner| owner.is_alive()) {
-            Some(owner) => settle(|| owner.run(|| rows.entry(key))),
-            None => settle(|| rows.entry(key)),
-        }
+        let owner = self.owner.clone().filter(ScopeContext::is_alive);
+        doc.build_within(list, move || match owner {
+            Some(owner) => owner.run(|| rows.entry_owned(key)),
+            None => rows.entry_owned(key),
+        })
     }
 
     fn measured_row(
         &mut self,
         doc: &mut Document,
+        list: NodeId,
         painter: &Painter,
         index: usize,
         cross: f32,
     ) -> (K, NodeId, f32) {
         let key = self.keys[index].clone();
-        let node = self.build(key.clone());
+        let node = self.build(doc, list, key.clone());
         let offer = self.direction.axes(f32::INFINITY, cross);
         let length = self
             .direction
@@ -238,24 +232,26 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     fn realize(
         &mut self,
         doc: &mut Document,
+        list: NodeId,
         painter: &Painter,
         window: (f32, f32),
-        main: f32,
+        main: Option<f32>,
         cross: f32,
     ) -> f32 {
         let (first, last) = window;
         if self.metrics.count == 0 || last <= first {
             self.origin = None;
-            self.keep(doc, Vec::new());
+            self.keep(Vec::new());
             return 0.0;
         }
         let (index, position) = self.anchor(window);
+        let before = self.metrics.total();
         let mut below = Vec::new();
         let (mut cursor, mut at, mut scanned) = (position, index, 0);
-        while at < self.metrics.count && cursor < last && scanned < ROW_LIMIT {
+        while at < self.metrics.count && cursor < self.reach(last, main) && scanned < ROW_LIMIT {
             let estimate = self.metrics.height(at);
             let row = match cursor + estimate > first {
-                true => Some(self.measured_row(doc, painter, at, cross)),
+                true => Some(self.measured_row(doc, list, painter, at, cross)),
                 false => None,
             };
             let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
@@ -274,14 +270,19 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             at += 1;
             scanned += 1;
         }
+        let shrunk = (before - self.metrics.total()).max(0.0);
+        let deficit = match at >= self.metrics.count {
+            true => (last - cursor).clamp(0.0, shrunk),
+            false => 0.0,
+        };
         let mut above = Vec::new();
         let (mut cursor, mut at, mut scanned) = (position, index, 0);
-        while at > 0 && cursor > first && scanned < ROW_LIMIT {
+        while at > 0 && cursor > first - deficit && scanned < ROW_LIMIT {
             at -= 1;
             scanned += 1;
             let estimate = self.metrics.height(at);
             let row = match cursor - estimate < last {
-                true => Some(self.measured_row(doc, painter, at, cross)),
+                true => Some(self.measured_row(doc, list, painter, at, cross)),
                 false => None,
             };
             let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
@@ -301,7 +302,9 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         above.reverse();
         above.extend(below);
         let mut rows = above;
-        let shifted = self.edge_shift(&rows, window, main);
+        let end = self.metrics.total();
+        let main = main.map_or(end, |main| main.min(end));
+        let shifted = self.edge_shift(&rows, (first, last.min(main)), main);
         if shifted != 0.0 {
             for row in &mut rows {
                 row.position += shifted;
@@ -319,8 +322,15 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 0.0
             }
         };
-        self.keep(doc, rows);
+        self.keep(rows);
         shift
+    }
+
+    fn reach(&self, last: f32, main: Option<f32>) -> f32 {
+        match main {
+            Some(_) => last,
+            None => last.min(self.metrics.total()),
+        }
     }
 
     fn edge_shift(&self, rows: &[Row<K>], window: (f32, f32), main: f32) -> f32 {
@@ -337,12 +347,10 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         0.0
     }
 
-    fn keep(&mut self, doc: &mut Document, rows: Vec<Row<K>>) {
+    fn keep(&mut self, rows: Vec<Row<K>>) {
         let kept: Vec<K> = rows.iter().map(|row| row.key.clone()).collect();
         self.placed = rows;
-        for node in self.rows.retain(&kept) {
-            doc.remove_node(node);
-        }
+        self.rows.retain(&kept);
     }
 }
 
@@ -362,18 +370,15 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let node = doc.laying_out();
+        let Some(node) = doc.laying_out() else {
+            return;
+        };
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
-        let live = doc.delivering();
         let total = self.metrics.total();
-        let shift = match live {
-            true => {
-                let window = self.window(doc, painter, start, main);
-                self.realize(doc, painter, window, main, cross)
-            }
-            false => 0.0,
-        };
+        let main = (doc.pixel_grid().snap(total) != main).then_some(main);
+        let window = self.window(doc, painter, start, main.unwrap_or(f32::INFINITY));
+        let shift = self.realize(doc, node, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
             let placed = item_rect(
@@ -384,22 +389,16 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
             );
             crate::layout::layout(doc, painter, row.node, placed, out);
         }
-        if !live {
-            return;
+        doc.arena.adopt_children(node);
+        if self.metrics.total() != total {
+            doc.invalidate_after_layout(node);
         }
-        if let Some(node) = node
-            && self.metrics.total() != total
-        {
-            doc.invalidate_measurement(node);
-        }
-        if shift != 0.0 {
-            doc.record_scroll_shift(shift);
-        }
+        doc.report_anchor_shift(shift);
     }
 
-    fn unplaced(&mut self, doc: &mut Document) {
+    fn unplaced(&mut self, _doc: &mut Document) {
         self.origin = None;
-        self.keep(doc, Vec::new());
+        self.keep(Vec::new());
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
@@ -410,21 +409,12 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.placed.iter().map(|row| row.node));
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.placed.iter().map(|row| row.node).collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        self.placed.retain(|row| row.node != child);
     }
 
     fn kind(&self) -> &'static str {
@@ -503,13 +493,9 @@ impl Document {
         if self.arena.get_as::<VirtualListNode<(K, usize)>>(list).keys == keys {
             return;
         }
-        let evicted = self
-            .arena
+        self.arena
             .get_mut_as::<VirtualListNode<(K, usize)>>(list)
             .set_keys(keys);
-        for row in evicted {
-            self.remove_node(row);
-        }
     }
 
     pub fn virtual_list_offset<K: Clone + Hash + Eq + 'static>(
@@ -520,7 +506,7 @@ impl Document {
         let list = self.arena.kind_of::<VirtualListNode<(K, usize)>>(list)?;
         let node = self.arena.get_as(list);
         let index = *node.indices.get(&(key.clone(), 0))?;
-        Some(node.metrics.estimate(index))
+        Some(node.metrics.position(index))
     }
 
     pub fn set_virtual_list_item_size<K: Clone + Hash + Eq + 'static>(

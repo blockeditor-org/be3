@@ -94,6 +94,18 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+#[cfg(target_arch = "wasm32")]
+fn backtrace() -> String {
+    if let Ok(error) = js_sys::Reflect::get(&js_sys::global(), &"Error".into()) {
+        let _ = js_sys::Reflect::set(&error, &"stackTraceLimit".into(), &64.into());
+    }
+    js_sys::Reflect::get(&js_sys::Error::new(""), &"stack".into())
+        .ok()
+        .and_then(|stack| stack.as_string())
+        .unwrap_or_default()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn backtrace() -> String {
     let trace = std::backtrace::Backtrace::force_capture().to_string();
     #[cfg(target_os = "android")]

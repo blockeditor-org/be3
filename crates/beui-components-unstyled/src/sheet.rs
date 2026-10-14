@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -13,14 +14,14 @@ use beui_core::base::Direction;
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, vec2};
+use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
 use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    BackHandler, Callback, Child, ClickCallback, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    Offset, Prop, ReadSignal, Render, Shift, Spacer, Timer, WriteSignal, clone, component_size,
-    create_effect, create_memo, create_signal, create_timer, on_cleanup, untrack, with_document,
+    BackHandler, Callback, Child, ClickCallback, Frame, Interactive, ItemSize, LayoutBuilder, List,
+    Memo, NodeRef, Offset, Prop, ReadSignal, Render, Shift, Spacer, Timer, WriteSignal,
+    create_effect, create_memo, create_signal, create_timer, store, untrack, with_document,
 };
 
 pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
@@ -98,21 +99,20 @@ struct Held {
     stepped: Instant,
 }
 
-#[derive(Clone)]
 struct Motion {
     extent: Memo<f32>,
     shares: Rc<[f32]>,
     resting: Rest,
     fit: bool,
     rest_at: ReadSignal<Rest>,
-    shifted: Rc<Cell<f32>>,
+    shifted: Cell<f32>,
     slot: NodeRef,
-    chrome: Rc<Cell<f32>>,
+    chrome: Cell<f32>,
     set_rest: WriteSignal<Rest>,
     set_dragging: WriteSignal<bool>,
     content: NodeRef,
-    held: Rc<RefCell<Held>>,
-    animation: Rc<RefCell<Option<Timer>>>,
+    held: RefCell<Held>,
+    animation: Cell<Option<Timer>>,
     open: Prop<bool>,
     set_shift: WriteSignal<f32>,
     set_gone: WriteSignal<bool>,
@@ -439,7 +439,7 @@ impl Motion {
     }
 
     fn kick(&self) {
-        let Some(animation) = self.animation.borrow().clone() else {
+        let Some(animation) = self.animation.get() else {
             return;
         };
         if !animation.running() {
@@ -577,7 +577,7 @@ impl Motion {
         if matches!(held.phase, Phase::Still) {
             return;
         }
-        let Some(animation) = self.animation.borrow().clone() else {
+        let Some(animation) = self.animation.get() else {
             return;
         };
         if !animation.running() {
@@ -781,27 +781,27 @@ pub fn Sheet(
     let (dragging, set_dragging) = create_signal(false);
     let (shift, set_shift) = create_signal(HIDDEN_SHIFT);
     let (gone, set_gone) = create_signal(true);
-    let sizing = create_memo(clone!(extent rest_at -> move || match rest_at.get() {
+    let sizing = create_memo(move || match rest_at.get() {
         _ if gone.get() => ItemSize::Fixed(0.0).into(),
         Rest::Share(share) => ItemSize::Intrinsic.max(share * extent.get()).shrink(1.0),
         Rest::Fitted => ItemSize::Intrinsic.shrink(1.0),
         Rest::Free(height) => ItemSize::Fixed(height).shrink(1.0),
-    }));
+    });
     let content = NodeRef::new();
     let slot = NodeRef::new();
-    let motion = Motion {
+    let motion = store(Motion {
         extent,
         shares,
         resting,
         fit,
         rest_at,
-        shifted: Rc::new(Cell::new(HIDDEN_SHIFT)),
-        slot: slot.clone(),
-        chrome: Rc::default(),
+        shifted: Cell::new(HIDDEN_SHIFT),
+        slot,
+        chrome: Cell::default(),
         set_rest,
         set_dragging,
-        content: content.clone(),
-        held: Rc::new(RefCell::new(Held {
+        content,
+        held: RefCell::new(Held {
             travel: None,
             handle: None,
             phase: Phase::Still,
@@ -809,62 +809,62 @@ pub fn Sheet(
             flung: 0.0,
             backing: false,
             stepped: beui_core::timer::now(),
-        })),
-        animation: Rc::default(),
-        open: open.clone(),
+        }),
+        animation: Cell::default(),
+        open,
         set_shift,
         set_gone,
         on_presence,
         on_gone,
         on_close,
-    };
-    let animation = create_timer(clone!(motion -> move || motion.step()));
-    motion.animation.replace(Some(animation));
-    on_cleanup(clone!(motion -> move || drop(motion.animation.take())));
-    let shown = open.clone();
+    });
+    let animation = create_timer(move || motion.get().step());
+    motion.with(|motion| motion.animation.set(Some(animation)));
+    let shown = open;
     let was_open = Cell::new(false);
-    create_effect(clone!(motion -> move || {
+    create_effect(move || {
         let open = shown.get();
         if open == was_open.replace(open) {
             return;
         }
         untrack(|| match open {
-            true => motion.enter(),
-            false => motion.leave(),
+            true => motion.get().enter(),
+            false => motion.get().leave(),
         });
-    }));
+    });
     let shifted = create_memo(move || vec2(0.0, shift.get()));
     let axis = create_memo(|| Some(Direction::Vertical));
-    let (tapped, stopped) = (motion.clone(), motion.clone());
-    let (wheeled, dragged) = (motion.clone(), motion.clone());
-    let (pressed, handled) = (motion.clone(), motion.clone());
-    let (cancelled, released) = (motion.clone(), motion.clone());
+    let catcher = NodeRef::new();
+    let catcher_rect = catcher;
     let grip = grip.call(SheetGripHandle { dragging });
     view! {
         <List spacing=0.0>
             <BackHandler
                 @sizing={sizing}
                 enabled={open}
-                on_gesture={move |gesture: BackGesture| motion.back(gesture)}
+                on_gesture={move |gesture: BackGesture| motion.get().back(gesture)}
             >
                 <Shift @node_ref=&slot by={shifted}>
                     {panel.call(view! {
                         <Frame>
                             <Interactive
                                 scroll_axis={axis}
-                                intercept_at={move |_: Pos2| tapped.flinging()}
-                                on_press={move |_: PointerPress| stopped.stop_fling()}
-                                on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
-                                on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                                @node_ref=&catcher
+                                claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                                    motion.get().flinging() && super::scroll::under(&catcher_rect, pos)
+                                }}
+                                on_press={move |_: PointerPress| motion.get().stop_fling()}
+                                on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
+                                on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
                             >
                                 <List spacing=0.0>
                                     <Interactive
                                         @test_id={"sheet.handle"}
                                         cursor=CursorIcon::ResizeVertical
-                                        on_press={move |press: PointerPress| pressed.handle_press(press)}
-                                        on_drag={move |press: PointerPress| handled.handle_drag(press)}
-                                        on_cancel={move || cancelled.handle_cancel()}
-                                        on_active_change={move |active: bool| released.handle_active(active)}
+                                        on_press={move |press: PointerPress| motion.get().handle_press(press)}
+                                        on_drag={move |press: PointerPress| motion.get().handle_drag(press)}
+                                        on_cancel={move || motion.get().handle_cancel()}
+                                        on_active_change={move |active: bool| motion.get().handle_active(active)}
                                         children={Some(grip)}
                                     />
                                     <Offset
@@ -894,19 +894,19 @@ pub fn ModalSheet(
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_close: ClickCallback,
-    children: Child,
+    #[prop(children)] content: Render,
 ) -> NodeId {
-    let dismiss = on_close.clone();
+    let dismiss = on_close;
     let (gone, set_gone) = create_signal(true);
     let (presence, set_presence) = create_signal(0.0_f32);
-    let opened = open.clone();
-    let appearing = set_gone.clone();
+    let opened = open;
+    let appearing = set_gone;
     create_effect(move || {
         if opened.get() {
             appearing.set(false);
         }
     });
-    let shown = create_memo(clone!(open -> move || open.get() || !gone.get()));
+    let shown = create_memo(move || open.get() || !gone.get());
     let faded = create_memo(move || scrim.scale_alpha(presence.get()));
     view! {
         <Overlay
@@ -914,22 +914,23 @@ pub fn ModalSheet(
             open={shown}
             placement=Placement::Fill
             scrim={faded}
-            on_dismiss={move || dismiss.call()}
-        >
-            <ModalSheetBody
-                open
-                rest
-                stops
-                fit
-                grip
-                panel
-                on_presence={move |presence: f32| set_presence.set(presence)}
-                on_gone={move || set_gone.set(true)}
-                on_close={move || on_close.call()}
-            >
-                {children}
-            </ModalSheetBody>
-        </Overlay>
+            on_dismiss={move |_: Dismiss| dismiss.call()}
+            content={move || view! {
+                <ModalSheetBody
+                    open
+                    rest
+                    stops
+                    fit
+                    grip
+                    panel
+                    on_presence={move |presence: f32| set_presence.set(presence)}
+                    on_gone={move || set_gone.set(true)}
+                    on_close={on_close}
+                >
+                    {content.call(())}
+                </ModalSheetBody>
+            }}
+        />
     }
 }
 
@@ -946,38 +947,39 @@ fn ModalSheetBody(
     on_close: ClickCallback,
     children: Child,
 ) -> NodeId {
-    let size = component_size();
-    let extent = create_memo(move || size.get().y);
-    let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
-    let room = create_memo(clone!(extent -> move || {
-        ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
-    }));
-    let outside = on_close.clone();
-    let closing = on_close;
     view! {
-        <List spacing=0.0>
-            <Interactive
-                @sizing={room}
-                @test_id={"sheet.outside"}
-                on_click={move || outside.call()}
-            >
-                <Spacer />
-            </Interactive>
-            <Sheet
-                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                extent
-                open
-                rest
-                stops
-                fit
-                grip
-                panel
-                on_presence={move |presence: f32| on_presence.call(presence)}
-                on_gone={move || on_gone.call()}
-                on_close={move || closing.call()}
-            >
-                {children}
-            </Sheet>
-        </List>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let extent = create_memo(move || size.get().y);
+                let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
+                let room = create_memo(move || {
+                    ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
+                });
+                let outside = on_close;
+                let closing = on_close;
+                view! {
+                    <List spacing=0.0>
+                        <Interactive @sizing={room} @test_id={"sheet.outside"} on_click={outside}>
+                            <Spacer />
+                        </Interactive>
+                        <Sheet
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            extent
+                            open
+                            rest
+                            stops
+                            fit
+                            grip
+                            panel
+                            on_presence={move |presence: f32| on_presence.call(presence)}
+                            on_gone={on_gone}
+                            on_close={closing}
+                        >
+                            {children}
+                        </Sheet>
+                    </List>
+                }
+            }}
+        </LayoutBuilder>
     }
 }

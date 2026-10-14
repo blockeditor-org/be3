@@ -2,12 +2,13 @@ use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::focus_ring::FocusRing;
-use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextSize};
+use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
+use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Action, ClickCallback, Frame, Prop, clone, create_memo};
+use beui_view::reactive::{Action, ClickCallback, Frame, Prop, create_memo};
 
 const PADDING: f32 = 8.0;
 const COMPACT_PADDING: f32 = 2.0;
@@ -28,10 +29,10 @@ impl IconButtonSize {
         }
     }
 
-    fn glyph(self) -> f32 {
+    fn glyph(self) -> TextSize {
         match self {
-            IconButtonSize::Compact => FONT_BODY,
-            IconButtonSize::Regular => ICON_SIZE,
+            IconButtonSize::Compact => TextSize::Xs,
+            IconButtonSize::Regular => TextSize::Base,
         }
     }
 
@@ -63,9 +64,9 @@ pub fn IconButton(
             disabled
             capture_presses
             press_focus
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle: unstyled::ButtonHandle| view! {
-                <Tooltip label={handle.tooltip.clone()}>
+                <Tooltip label={handle.tooltip}>
                     <IconButtonFace handle variant size />
                 </Tooltip>
             }}
@@ -88,22 +89,23 @@ pub(crate) fn IconButtonFace(
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(clone!(theme disabled -> move || {
-        variant.fill(&theme, disabled.get(), hovered.get(), active.get())
-    }));
-    let icon_color = create_memo(clone!(theme -> move || variant.label(&theme, disabled.get())));
+    let fill_color =
+        create_memo(move || variant.fill(&theme, disabled.get(), hovered.get(), active.get()));
+    let icon_color = create_memo(move || variant.label(disabled.get()));
     view! {
         <FocusRing focused radius={RADIUS + 4} offset={size.focus_ring_offset()}>
             <Frame
                 color={fill_color}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible={variant == ButtonVariant::Secondary}
                 padding_horizontal={size.padding()}
                 padding_vertical={size.padding()}
             >
-                <IconSized glyph={glyph} font_size={size.glyph()} color={icon_color} />
+                <Text size={size.glyph()} color={icon_color} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
             </Frame>
         </FocusRing>
     }

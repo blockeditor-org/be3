@@ -1,0 +1,24 @@
+#builtin.build .= () => std.Folder: [
+  "walk.txt" .= std.File: describe(3 + 4)
+  "stroll.txt" .= std.File: describe(2)
+]
+
+Meters :: std.Type[
+  .statics .= [
+    std.type.repr .= kw.int
+    std.literal.number .= (n: kw.int) => std.type.wrap(Meters, n)
+    std.operator.slot("+") .= (a: Meters, b: Meters) => std.type.wrap(Meters, std.type.unwrap(a) + std.type.unwrap(b))
+  ]
+  .methods .= [
+    std.operator.lhs(">") .= (a: Meters, b: Meters) => std.type.unwrap(a) > std.type.unwrap(b)
+  ]
+]
+
+describe :: (distance: Meters) => std.File: :return {
+  kw.if (distance > 5) {
+    return: "walk"
+  }
+  -> "stroll"
+}
+std :: #builtin.std
+kw :: std.kw

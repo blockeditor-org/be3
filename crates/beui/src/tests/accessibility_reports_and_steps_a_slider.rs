@@ -1,20 +1,17 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use accesskit::{Action, ActionRequest, Role, TreeId};
 
-use super::{Harness, VIEWPORT, build, styled, view};
+use super::{Harness, VIEWPORT, build, create_signal, styled, view};
 
 #[test]
 fn accessibility_reports_and_steps_a_slider() {
-    let changed = Rc::new(Cell::new(None));
-    let reported = changed.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changed, set_changed) = create_signal(None);
     let document = build(move || {
         view! {
             <styled::Slider
                 value=0.5
                 label="Volume"
-                on_change={move |value| reported.set(Some(value))}
+                on_change={move |value| set_changed.set(Some(value))}
             />
         }
     });
@@ -46,7 +43,7 @@ fn accessibility_reports_and_steps_a_slider() {
         .find_map(|(id, node)| (*id == slider_id).then_some(node))
         .expect("slider disappeared from the accessibility tree");
 
-    assert_eq!(changed.get(), Some(0.55));
+    assert_eq!(changed.get_untracked(), Some(0.55));
     let value = slider
         .numeric_value()
         .expect("slider lost its numeric value");

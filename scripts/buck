@@ -14,7 +14,7 @@
 # Usage:
 #   ./scripts/buck build //crates/...
 #   ./scripts/buck test //crates/...
-#   ./scripts/buck run //crates/block-app:app
+#   ./scripts/buck run //crates/block-app:native
 
 set -euo pipefail
 
@@ -30,13 +30,11 @@ configure_build_server "$buck2"
 
 command="${1:-}"
 
-# Every command that reads the configuration is given the build id, the same
-# for all of them so that buck2 does not reevaluate what reads it between one
-# command and the next.
+# Every command that builds or queries first brings buck/app/build-id up to
+# date (write_build_id in common.sh).
 case "$command" in
     build | run | test | bxl | install | targets | query | cquery | uquery | aquery | audit)
-        shift
-        set -- "$command" -c "be3.build_id=${BE3_BUILD_ID:-$(build_id)}" "$@"
+        write_build_id
         ;;
 esac
 

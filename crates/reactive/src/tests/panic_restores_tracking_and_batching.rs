@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn panic_restores_tracking_and_batching() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(0);
     let seen = Rc::new(RefCell::new(Vec::new()));

@@ -4,10 +4,10 @@ use crate::styled::ModalSheet;
 
 #[test]
 fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
+    let _root = crate::reactive::RootScope::new();
     let rows = NodeRef::new();
     let (open, set_open) = create_signal(false);
     let document = build({
-        let rows = rows.clone();
         move || {
             view! {
                 <List spacing=0.0>

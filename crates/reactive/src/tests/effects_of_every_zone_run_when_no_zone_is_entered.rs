@@ -3,6 +3,7 @@ use crate::enter_zone;
 
 #[test]
 fn effects_of_every_zone_run_when_no_zone_is_entered() {
+    let _root = RootScope::new();
     let seen = Rc::new(Cell::new(0));
     let (count, set_count) = create_signal(0);
     let scope = Scope::new();

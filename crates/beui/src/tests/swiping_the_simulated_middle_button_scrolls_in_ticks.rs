@@ -5,12 +5,12 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(100)}>
                         {|index: usize| view! {
                             <LabelledButton label={format!("Row {index}")} />

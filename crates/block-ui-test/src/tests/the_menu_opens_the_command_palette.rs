@@ -30,7 +30,7 @@ fn Tidy(editor: Editor) -> NodeId {
 fn the_menu_opens_the_command_palette() {
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut test = BeuiTest::<PaletteApp>::new(Editor::new(host, Uuid::new_v4()))
+    let mut test = BeuiTest::<PaletteApp>::new(OwnedEditor::new(host, Uuid::new_v4()))
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
     assert!(!test.shown("command-palette.search"));

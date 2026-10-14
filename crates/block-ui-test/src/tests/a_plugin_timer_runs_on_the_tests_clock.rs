@@ -37,7 +37,7 @@ fn Alarm() -> NodeId {
 #[test]
 fn a_plugin_timer_runs_on_the_tests_clock() {
     let mut test: BeuiTest<AlarmApp> =
-        BeuiTest::new(Editor::new(EditorHost::default(), Uuid::new_v4()));
+        BeuiTest::new(OwnedEditor::new(EditorHost::default(), Uuid::new_v4()));
     test.run();
     assert_eq!(test.label("alarm"), "waiting");
 

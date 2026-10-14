@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn memo_panic_can_be_retried() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(0);
     let memo = scope.run(|| {

@@ -3,9 +3,9 @@ use crate::reactive::{Direction, Frame, ItemSize, List, NodeRef, view};
 
 #[test]
 fn a_percent_child_stops_at_its_max_and_hands_the_rest_on() {
+    let _root = crate::reactive::RootScope::new();
     let (capped, open) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (capped, open) = (capped.clone(), open.clone());
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>

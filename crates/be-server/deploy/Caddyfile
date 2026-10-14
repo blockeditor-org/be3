@@ -6,6 +6,7 @@ notes.example.com {
 		header {
 			Cross-Origin-Opener-Policy same-origin
 			Cross-Origin-Embedder-Policy require-corp
+			Cache-Control no-cache
 		}
 		file_server {
 			root /srv/be3-web

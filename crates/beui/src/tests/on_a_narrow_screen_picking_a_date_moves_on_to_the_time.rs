@@ -8,20 +8,19 @@ use crate::unstyled::Container;
 
 #[test]
 fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let field = NodeRef::new();
-    let named = field.clone();
     let document = build(move || {
         view! {
             <Container>
                 {move |_| view! {
                     <List spacing=0.0>
                         <DateTimeField
-                            @node_ref=&named
+                            @node_ref=&field
                             value={Some(DateTime::new(Date::new(2026, 9, 27), Time::new(9, 0)))}
                             today={Some(Date::new(2026, 1, 1))}
-                            on_change={move |value| sink.borrow_mut().push(value)}
+                            on_change={move |value| set_reported.update(|reported| reported.push(value))}
                         />
                     </List>
                 }}
@@ -64,7 +63,7 @@ fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        reported.borrow().last(),
+        reported.get_untracked().last(),
         Some(&Some(DateTime::new(
             Date::new(2026, 9, 28),
             Time::new(10, 0)

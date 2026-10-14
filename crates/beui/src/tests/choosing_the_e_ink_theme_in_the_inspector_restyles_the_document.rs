@@ -1,17 +1,18 @@
 use super::*;
 use crate::reactive::view;
-use crate::styled::{Caption, Card, Theme};
+use crate::styled::{Card, Theme};
+use crate::styled::{Text, TextStyle};
 
 #[test]
 fn choosing_the_e_ink_theme_in_the_inspector_restyles_the_document() {
     let (document, [_card]) = toolbar_of(|| {
         [view! {
             <Card>
-                <Caption content="Themed" />
+                <Text style=TextStyle::CAPTION string="Themed" />
             </Card>
         }]
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, TALL_VIEWPORT);
     let captions = |output: &crate::FrameOutput| {
         output
             .shapes()
@@ -27,7 +28,7 @@ fn choosing_the_e_ink_theme_in_the_inspector_restyles_the_document() {
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(vec![]);
-    harness.click(harness.theme_option_center(1));
+    harness.click(harness.theme_option_center(3));
     let restyled = harness.frame(vec![]);
     assert_eq!(harness.document().theme(), Theme::EINK);
     assert_eq!(captions(&restyled), 1);
