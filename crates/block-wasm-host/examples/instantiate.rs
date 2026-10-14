@@ -45,7 +45,13 @@ fn main() {
         check(plugin.step());
         report("fetched", &mut plugin);
     }
-    send(&mut plugin, Message::DrawFrame { now_micros: 0 });
+    send(
+        &mut plugin,
+        Message::DrawFrame {
+            now_micros: 0,
+            seen: true,
+        },
+    );
     check(plugin.step());
     let drawn = report("draw", &mut plugin).drawn;
     match plugin.surface(SCREENS_SURFACE) {

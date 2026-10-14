@@ -1404,8 +1404,10 @@ and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
 
 How the windows stack is the document's layer order alone (`Document::layers()`),
-not anything in `DockState`: a press on a window and the focus moving into one
-raise its layer, a fullscreen tab is raised again over it each time, and a drop
+not anything in `DockState`: a press on a window, the focus moving into one and
+showing a tab of the window that has the focus (`DockState::show`, so a host can bring
+back a window something else covered) raise its layer (over a fullscreen tab too, unless
+the focus is in that tab), and a drop
 target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
@@ -1426,11 +1428,12 @@ that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
 at its top. Windows resize from any of
-their eight grips and are raised by whatever takes the focus inside them. The grips, and
-the bar between two panes, reach `HANDLE_REACH` points past what they draw: a window's
-overlay is that much larger than the window on every side, and a splitter's item that much
-wider than its face on both sides, so they can be grabbed without changing how they look,
-and they capture the press over whatever lies beneath. A
+their eight grips and are raised by whatever takes the focus inside them. The grips lie
+wholly outside the window, in a ring `HANDLE_REACH` points wide (a window's overlay is that
+much larger than the window on every side), with each corner's grip running `GRIP_CORNER`
+points along both edges, and the bar between two panes takes presses only in the gap it
+draws: neither ever reaches over a pane's or a window's content, which gets every press
+right up to its edge (a program's window included). A
 split keeps each side at least `MIN_PANE_LENGTH` where the area has room for
 both, and a window is drawn no larger than the dock, so a layout made on a wide
 screen stays usable on a phone. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
@@ -1535,6 +1538,13 @@ background), so it covers the tab bars, the other panes, the dock's windows
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
+Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
+its content) raises the fullscreen overlay above the floating windows, its own pane's window
+included, so a window brought in front of it and then left goes behind it again. The pane
+it left draws Docking's `away` render prop (styled: a note that it is full screen and a Leave
+full screen button), seen where the fullscreen area does not cover it, such as another screen.
+A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
+to the tab's right-click menu; only content that has its own way out should.
 
 ### Spinners
 
@@ -1930,8 +1940,16 @@ paint, accessibility, the driver), but the runner hands each one's output to
 what the frame damaged, so the wgpu `Target` draws the union of every unseen
 frame's damage into its retained frame the next time it does draw; a renderer
 without `note` prepares as usual. The headless adapter is always occluded, so it
-draws only for a driver's `shot`: the frame that takes one prepares and
-presents, and is read back.
+draws only for a driver's `shot`.
+
+`Context::seen` tells the app whether the frame it is running will be drawn. A
+`shot` makes an occluded window seen until it is taken, and it is taken in the
+first frame whose app says through `App::drawing` that it has nothing still to
+draw. block-app answers with its plugins: each `DrawFrame` carries `seen`, an
+unseen plugin runs its frames (layout, its description, children) without
+encoding or presenting them, and keeps what they damaged; when the host is seen
+again it asks each plugin that drew unseen for a frame, which paints all of it,
+and `drawing` holds the shot until those frames have arrived.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,

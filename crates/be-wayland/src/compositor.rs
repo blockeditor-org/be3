@@ -51,6 +51,7 @@ pub struct Compositor {
     relist: bool,
     input_frames: u64,
     forced: bool,
+    listed: u64,
     locked: bool,
     clipboard: clipboard::Clipboard,
     gtk_profile: Option<std::path::PathBuf>,
@@ -87,6 +88,7 @@ impl Compositor {
             relist: false,
             input_frames: 0,
             forced: false,
+            listed: 0,
             locked: false,
             clipboard: clipboard::Clipboard::default(),
             gtk_profile,
@@ -610,9 +612,13 @@ impl Compositor {
                         PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
                         PointerPhase::Down(button) | PointerPhase::Up(button) => {
                             let pressed = matches!(event.phase, PointerPhase::Down(_));
-                            state.pointer_motion(at(*over, event.pos));
+                            let target = at(*over, event.pos);
+                            state.pointer_motion(target);
                             if pressed {
                                 state.ping(id, now);
+                                if let Some((target, _)) = target {
+                                    windows.pressed(target);
+                                }
                             }
                             state.pointer_button(button_code(button), pressed);
                         }
@@ -845,6 +851,7 @@ impl Compositor {
             .collect();
         self.server.state.set_screens(screens);
         self.publish(document);
+        self.listed = self.windows.revision();
     }
 
     fn watch_idle(&mut self, context: &Context, document: &mut Document) {
@@ -883,7 +890,7 @@ impl Compositor {
         self.apply(now, document);
         self.server.flush();
         self.watch_pings(context);
-        if std::mem::take(&mut self.forced) {
+        if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
             context.request_repaint();
         }
         if let Some(watch) = &self.watch {

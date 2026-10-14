@@ -76,6 +76,7 @@ pub struct Region {
     pub spec: FrameSpec,
     pub monitors: Vec<RegionMonitor>,
     pub describe: Option<u64>,
+    pub seen: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]

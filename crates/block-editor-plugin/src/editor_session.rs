@@ -878,6 +878,7 @@ impl EditorSession {
             describe: state
                 .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
                 .map(|state| state.epoch),
+            seen: crate::screens::seen(),
         }
     }
 
