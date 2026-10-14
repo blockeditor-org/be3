@@ -1136,7 +1136,7 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
                 Group::Scroll {
                     viewport, offset, ..
                 } => area.intersect(viewport).translate(-offset),
-                Group::Mask(_) | Group::Filter(_) => area,
+                Group::Mask { .. } | Group::Filter(_) => area,
             };
             within.is_positive() && overlaps_besides(inner, roots, within)
         }

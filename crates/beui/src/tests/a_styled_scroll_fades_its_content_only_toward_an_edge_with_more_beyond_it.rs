@@ -84,7 +84,7 @@ fn collect(parts: &[Part], fades: &mut Vec<[f32; 4]>) {
             Part::Shapes { .. } => {}
             Part::Child(_, _, child) => collect(&child.parts, fades),
             Part::Group(group, inner) => {
-                if let Group::Mask(fade) = group
+                if let Group::Mask { fade, .. } = group
                     && !fade.is_none()
                 {
                     fades.push(fade.widths);

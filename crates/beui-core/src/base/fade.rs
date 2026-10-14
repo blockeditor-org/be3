@@ -3,12 +3,13 @@ use std::any::Any;
 use crate::base::frame::Sides;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
 use crate::painter::Painter;
 
 pub struct FadeNode {
     child: NodeId,
     edges: Sides,
+    mask: Option<SpaceId>,
 }
 
 impl Element for FadeNode {
@@ -35,7 +36,10 @@ impl Element for FadeNode {
             right,
             bottom,
         } = self.edges;
-        let faded = painter.faded(rect, [left, top, right, bottom]);
+        let Some(mask) = self.mask else {
+            return;
+        };
+        let faded = painter.faded(mask, rect, [left, top, right, bottom]);
         crate::paint::paint(doc, &faded, rects, self.child);
     }
 
@@ -73,10 +77,21 @@ impl Element for FadeNode {
 
 impl Document {
     pub fn create_fade(&mut self, child: NodeId) -> NodeOf<FadeNode> {
-        self.arena.insert(FadeNode {
+        let fade = self.arena.insert(FadeNode {
             child,
             edges: Sides::default(),
-        })
+            mask: None,
+        });
+        let id = NodeId::from(fade);
+        if let Some(node) = self
+            .arena
+            .state_mut(id)
+            .as_any_mut()
+            .downcast_mut::<FadeNode>()
+        {
+            node.mask = Some(SpaceId::of(id));
+        }
+        fade
     }
 
     pub fn set_fade(&mut self, fade: NodeOf<FadeNode>, edges: Sides) {

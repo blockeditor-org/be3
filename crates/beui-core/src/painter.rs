@@ -307,8 +307,14 @@ impl Painter {
         )
     }
 
-    pub fn faded(&self, rect: Rect, widths: [f32; 4]) -> Self {
-        self.grouped(self.state, Group::Mask(Fade::new(rect, widths)))
+    pub fn faded(&self, space: SpaceId, rect: Rect, widths: [f32; 4]) -> Self {
+        self.grouped(
+            self.state,
+            Group::Mask {
+                space,
+                fade: Fade::new(rect, widths),
+            },
+        )
     }
 
     pub fn in_document(&self) -> Self {

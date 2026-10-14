@@ -20,7 +20,7 @@ pub enum Group {
         viewport: Rect,
         offset: Vec2,
     },
-    Mask(Fade),
+    Mask { space: SpaceId, fade: Fade },
     Filter(Filter),
 }
 
@@ -32,7 +32,7 @@ impl Group {
             Self::Scroll {
                 viewport, offset, ..
             } => rect.translate(offset).intersect(viewport),
-            Self::Mask(_) => rect,
+            Self::Mask { .. } => rect,
             Self::Filter(filter) => match filter.blur > 0.0 && rect.is_positive() {
                 true => rect.union(rect.expand(filter.blur * 3.0).intersect(filter.region)),
                 false => rect,
@@ -52,7 +52,7 @@ impl Group {
                     ..
                 },
             ) => space == other_space && viewport == other_viewport,
-            (Self::Mask(_), Self::Mask(_)) => true,
+            (Self::Mask { space, .. }, Self::Mask { space: other, .. }) => space == other,
             _ => self == other,
         }
     }
@@ -72,7 +72,7 @@ impl Group {
             Self::Scroll {
                 viewport, offset, ..
             } => *shape = placed_shape(shape, offset, viewport),
-            Self::Mask(_) | Self::Filter(_) => {}
+            Self::Mask { .. } | Self::Filter(_) => {}
         }
     }
 }
@@ -190,7 +190,9 @@ impl Display {
                             push_shown(into, placed_shape(&shape, at + offset, clip));
                         }
                     }
-                    Group::Mask(_) | Group::Filter(_) => self.flatten_parts(inner, at, clip, into),
+                    Group::Mask { .. } | Group::Filter(_) => {
+                        self.flatten_parts(inner, at, clip, into)
+                    }
                 },
             }
         }

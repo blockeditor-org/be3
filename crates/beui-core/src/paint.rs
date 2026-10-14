@@ -433,18 +433,18 @@ impl PaintCache {
                 self.damage.add(absolute(child.placed, now));
             }
         }
-        if before.masks.len() == after.masks.len() {
-            for (was, now_mask) in before.masks.iter().zip(&after.masks) {
-                if was.1 == now_mask.1 {
-                    continue;
-                }
-                for band in was.1.bands() {
-                    stale(&mut self.stale, (before.place(was.0, band), was.2));
-                }
-                for band in now_mask.1.bands() {
-                    self.damage
-                        .add(absolute(after.place(now_mask.0, band), now));
-                }
+        for mask in &after.masks {
+            let Some(was) = before.masks.iter().find(|was| was.space == mask.space) else {
+                continue;
+            };
+            if was.fade == mask.fade {
+                continue;
+            }
+            for band in was.fade.bands() {
+                stale(&mut self.stale, (before.place(was.path, band), was.scroll));
+            }
+            for band in mask.fade.bands() {
+                self.damage.add(absolute(after.place(mask.path, band), now));
             }
         }
         for scroll in &after.scrolls {
@@ -481,7 +481,7 @@ struct Elements<'a> {
     shapes: Vec<(usize, u32, u32, Rect)>,
     children: Vec<Placed>,
     scrolls: Vec<Scrolled>,
-    masks: Vec<(usize, Fade, Option<SpaceId>)>,
+    masks: Vec<Masked>,
 }
 
 struct Placed {
@@ -489,6 +489,13 @@ struct Placed {
     path: usize,
     at: Vec2,
     placed: Rect,
+    scroll: Option<SpaceId>,
+}
+
+struct Masked {
+    space: SpaceId,
+    path: usize,
+    fade: Fade,
     scroll: Option<SpaceId>,
 }
 
@@ -555,8 +562,13 @@ impl<'a> Elements<'a> {
                     });
                     self.paths.push(nested);
                     let within = self.paths.len() - 1;
-                    if let Group::Mask(fade) = group {
-                        self.masks.push((path, *fade, scroll));
+                    if let Group::Mask { space, fade } = *group {
+                        self.masks.push(Masked {
+                            space,
+                            path,
+                            fade,
+                            scroll,
+                        });
                     }
                     let scroll = match *group {
                         Group::Scroll {
@@ -843,7 +855,7 @@ impl Fixed {
                     Group::Transform { offset, scale: 1.0 } => {
                         self.parts(display, inner, at + offset, clip)
                     }
-                    Group::Mask(fade) => {
+                    Group::Mask { fade, .. } => {
                         for band in fade.translate(at).bands() {
                             self.both(band.intersect(clip));
                         }

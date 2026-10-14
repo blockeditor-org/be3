@@ -526,7 +526,7 @@ impl Walk {
                     fade: self.fade,
                 }
             }
-            Group::Mask(fade) => {
+            Group::Mask { fade, .. } => {
                 let fade = self.fade.within(
                     fade.translate(self.offset)
                         .scaled(self.factor, Vec2::new(self.origin[0], self.origin[1])),
