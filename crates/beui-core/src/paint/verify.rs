@@ -281,7 +281,8 @@ impl Compare<'_> {
             }
             for ((_, old), (_, new)) in shifted.iter().zip(&shown) {
                 if let Some(parts) = evenly_moved(old, new, landed) {
-                    let parts: Vec<Rect> = parts.iter().map(|rect| rect.intersect(landed)).collect();
+                    let parts: Vec<Rect> =
+                        parts.iter().map(|rect| rect.intersect(landed)).collect();
                     self.need(parts, Why::Changed(id));
                 }
             }

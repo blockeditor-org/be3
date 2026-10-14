@@ -12,13 +12,11 @@ fn merging_regions_counts_the_damage_a_merge_swallows() {
     }
     let region = damage.take(rect(0.0, 0.0, 700.0, 200.0));
 
-    let damaged: f32 = region
-        .rects()
-        .iter()
-        .map(|rect| rect.width() * rect.height())
-        .sum();
     assert!(
-        damaged < 100.0 * 100.0 / 2.0,
+        !region
+            .rects()
+            .iter()
+            .any(|damaged| damaged.intersects(rect(10.0, 10.0, 90.0, 70.0))),
         "joining the bottom rows would swallow the strip along the left and fill the square: {:?}",
         region.rects()
     );
