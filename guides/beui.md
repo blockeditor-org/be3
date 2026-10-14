@@ -1399,7 +1399,7 @@ shut out rather than answering a press through it.
 
 How the windows stack is the document's layer order alone (`Document::layers()`),
 not anything in `DockState`: a press on a window and the focus moving into one
-raise its layer, a fullscreen tab is raised again over it each time, and a drop
+raise its layer (over a fullscreen tab too, unless the focus is in that tab), and a drop
 target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
@@ -1529,6 +1529,13 @@ background), so it covers the tab bars, the other panes, the dock's windows
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
+Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
+its content) raises the fullscreen overlay above the floating windows, its own pane's window
+included, so a window brought in front of it and then left goes behind it again. The pane
+it left draws Docking's `away` render prop (styled: a note that it is full screen and a Leave
+full screen button), seen where the fullscreen area does not cover it, such as another screen.
+A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
+to the tab's right-click menu; only content that has its own way out should.
 
 ### Spinners
 

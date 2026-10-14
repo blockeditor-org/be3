@@ -321,6 +321,9 @@ fn EditCounter() -> NodeId {
 #[component]
 fn FullscreenTab() -> NodeId {
     let control = use_dock_tab();
+    if let Some(control) = control.as_ref() {
+        control.offer_fullscreen();
+    }
     let shown = create_memo(move || control.as_ref().is_some_and(|control| control.fullscreen()));
     let label = create_memo(move || match shown.get() {
         true => "Leave fullscreen".to_owned(),
@@ -356,7 +359,8 @@ fn FullscreenTab() -> NodeId {
             <Text
                 style=TextStyle::CAPTION
                 string="The tab covers the whole window, its bar and every pane around it. \
-                 Escape or the same button brings it back."
+                 Escape or the same button brings it back. Full screen in the tab's \
+                 right-click menu shows it the same way."
                 wrap=true
             />
         </List>
