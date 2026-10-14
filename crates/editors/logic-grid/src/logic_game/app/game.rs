@@ -56,7 +56,7 @@ impl Game {
         let work = Rc::new(RefCell::new(Work::default()));
         let working = Rc::clone(&work);
         let blocks = editor.blocks();
-        let host = editor.host().clone();
+        let host = editor.host();
         create_effect(move || {
             let mut work = working.borrow_mut();
             let Work { grids, hotbar } = &mut *work;

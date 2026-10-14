@@ -2,7 +2,7 @@ use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
 use beui::reactive::Func;
 use beui::reactive::{
     Align, Canvas, CanvasItem, Child, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    ReadSignal, Show, Spacer, Text, clone, component, create_memo, create_signal, view,
+    ReadSignal, Show, Spacer, Text, component, create_memo, create_signal, store, view,
 };
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Select,
@@ -262,9 +262,8 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
 
 #[component]
 fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
-    let shown = create_memo(clone!(path -> move || {
-        session.read(|model| model.slot_view(&path))
-    }));
+    let path = store(path);
+    let shown = create_memo(move || session.read(|model| model.slot_view(&path.get())));
     let label = create_memo(move || shown.get().map(|slot| slot.label).unwrap_or_default());
     let menu_disabled = create_memo(move || {
         !shown
@@ -274,26 +273,23 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
     let not_component = create_memo(move || !shown.get().is_some_and(|slot| slot.component));
     let not_folder = create_memo(move || !shown.get().is_some_and(|slot| slot.folder));
     let not_removable = create_memo(move || !shown.get().is_some_and(|slot| slot.removable));
-    let chose = clone!(path -> move |chosen: Vec<usize>| match chosen.first() {
-        Some(0) => session.update(|model| model.remove_hotbar_slot(&path)),
-        Some(1) => session.update(|model| model.toggle_hotbar_folder(path.clone())),
-        Some(2) => session.update(|model| model.remove_hotbar_folder(&path)),
+    let chose = move |chosen: Vec<usize>| match chosen.first() {
+        Some(0) => session.update(|model| model.remove_hotbar_slot(&path.get())),
+        Some(1) => session.update(|model| model.toggle_hotbar_folder(path.get().to_vec())),
+        Some(2) => session.update(|model| model.remove_hotbar_folder(&path.get())),
         _ => {}
-    });
+    };
     let (hovered, set_hovered) = create_signal(false);
     let disabled = create_memo(move || shown.get().is_none_or(|slot| slot.disabled));
-    let payload = create_memo(clone!(path -> move || {
-        (!disabled.get()).then(|| path.clone())
-    }));
-    let clicked = clone!(path -> move || {
+    let payload = create_memo(move || (!disabled.get()).then(|| path.get().to_vec()));
+    let clicked = move || {
         if !disabled.get_untracked() {
-            session.update(|model| model.click_hotbar_slot(path.clone()));
+            session.update(|model| model.click_hotbar_slot(path.get().to_vec()));
         }
-    });
-    let carried = clone!(path -> move |dragging: bool| {
-        session.update(|model| model.hotbar_drag = dragging.then(|| path.clone()));
-    });
-    let on_activate = clicked.clone();
+    };
+    let carried = move |dragging: bool| {
+        session.update(|model| model.hotbar_drag = dragging.then(|| path.get().to_vec()));
+    };
     let ghost = move |dragged: Vec<usize>| {
         let shown = create_memo(move || {
             session
@@ -311,10 +307,11 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
             </Frame>
         }
     };
-    let target = create_memo(clone!(path -> move || path.clone()));
+    let target = create_memo(move || path.get().to_vec());
     let test_id = format!(
         "logic-grid.slot.{}",
-        path.iter()
+        path.get()
+            .iter()
             .map(usize::to_string)
             .collect::<Vec<_>>()
             .join(".")
@@ -333,7 +330,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                 <Tooltip label={label}>
                     <Interactive
                         focusable=true
-                        on_activate={on_activate}
+                        on_activate={clicked}
                         on_hover_change={move |over: bool| set_hovered.set(over)}
                     >
                         <Draggable

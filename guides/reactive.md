@@ -120,19 +120,21 @@ whose scope is gone does nothing, as `set` on a freed signal does.
 
 Signals, memos, selectors, stored values, callbacks, node refs, and structs
 made of them are `Copy`, so a `move` closure takes them without ceremony, and a
-closure that captures only `Copy` values is itself `Copy`. For the `Rc` handles
-that remain, a `move` closure that keeps one has to own its own clone. `clone!`
-writes those clones for you: it takes the names to clone, an arrow, and the
-expression they are in scope for.
+closure that captures only `Copy` values is itself `Copy`. A closure that needs
+its own copy of an owned value (a `String`, a `Vec`, a `Prop<String>`) clones
+it in a block around the closure:
 
 ```rust
-create_effect(clone!(texture -> move || texture.show(count.get())));
+let accessibility = create_memo({
+    let label = label.clone();
+    move || named(label.get())
+});
 ```
 
-`clone!(a b -> expr)` expands to `{ let a = a.clone(); let b = b.clone(); expr }`,
-so the originals stay usable afterwards and the last closure that needs a handle
-can still take it by move. Don't name `Copy` values in it: clippy cannot see
-inside the macro to flag the pointless clone.
+A value several closures share is better stored once with `store` than cloned
+into each. For a `Copy` value they read and write, such as the point a gesture
+started at, `StoredCell::new(value)` is a `Copy` cell with `get`, `set`,
+`replace`, `take` and `update`, owned by the scope like a `Stored`.
 
 ## Selectors
 
@@ -376,7 +378,7 @@ for it, whether or not it is paused itself. This is what keeps a hidden
 ## beui integration
 
 `beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_memo`,
-`create_selector`, `clone!`, `Scope`, `batch`, `untrack`, `on_cleanup`,
+`create_selector`, `store`, `Scope`, `batch`, `untrack`, `on_cleanup`,
 `provide_context`, and `use_context` from this crate) binds signals and
 memos directly to `Document` nodes. Nothing in a view takes a `&mut Document`
 parameter, so tags nest the way JSX or solidjs would nest them: write the tree
@@ -622,8 +624,7 @@ closure receives the handle. A slot whose handle is `()`, like `show`'s `then`,
 takes tags instead: `view!` wraps them in the closure itself, so they stay
 unbuilt until the component asks for them. A `RenderFn` slot, like `Show`'s,
 may run that closure more than once, so the block clones what it hands on
-rather than moving it; when a block moves several values, clone them all at
-once with `{move || clone!(a b -> view! { ... })}`.
+rather than moving it: `{move || { let a = a.clone(); view! { ... } }}`.
 
 ```rust
 <Show condition={tab.memo(0)}><ListControls rows={list_rows.clone()} /></Show>

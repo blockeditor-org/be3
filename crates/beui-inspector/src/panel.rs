@@ -1,6 +1,4 @@
-use std::cell::Cell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::time::Duration;
 
 use accesskit::{Node, Role};
@@ -24,7 +22,7 @@ use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, RootScope,
-    Scope, Show, ShowKeepAlive, Spacer, Stored, WriteSignal, clone, component, create_memo,
+    Scope, Show, ShowKeepAlive, Spacer, Stored, StoredCell, WriteSignal, component, create_memo,
     create_signal, view,
 };
 
@@ -558,14 +556,14 @@ enum Swipe {
 #[component]
 fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
     let (progress, set_progress) = create_signal(0.0_f32);
-    let swipe = Rc::new(Cell::new(Swipe::Idle));
-    let dragging = Rc::new(Cell::new(false));
+    let swipe = StoredCell::new(Swipe::Idle);
+    let dragging = StoredCell::new(false);
     let (from_right, set_from_right) = create_signal(false);
     let caption = create_memo(move || match handles_back.get() {
         true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
         false => "Nothing in the app takes back: the system would leave it.".to_owned(),
     });
-    let moved = clone!(swipe dragging -> move |value: f32| {
+    let moved = move |value: f32| {
         set_progress.set(value);
         match swipe.get() {
             Swipe::Done => return,
@@ -593,7 +591,7 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
             state.get().simulate_back(BackGesture::Cancelled);
             swipe.set(Swipe::Idle);
         }
-    });
+    };
     let released = move |held: bool| {
         dragging.set(held);
         if held {

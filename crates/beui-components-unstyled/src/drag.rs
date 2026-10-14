@@ -1,6 +1,5 @@
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::any::Any;
-use std::cell::Cell;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
@@ -16,8 +15,8 @@ use beui_core::tree::component_node;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, ClickCallback, Dynamic, Frame, Func, Interactive, IntoProp, List, Memo, Prop,
-    ReadSignal, Render, RenderFn, clone, create_memo, create_signal, on_cleanup, provide_context,
-    use_context, with_document,
+    ReadSignal, Render, RenderFn, StoredCell, create_memo, create_signal, on_cleanup,
+    provide_context, store, use_context, with_document,
 };
 
 pub const DRAG_THRESHOLD: f32 = 4.0;
@@ -59,14 +58,14 @@ pub fn Draggable<P>(
 where
     P: Clone + PartialEq + 'static,
 {
-    let board = board();
-    let pressed_at = Rc::new(Cell::new(None::<Pos2>));
+    let board = store(board());
+    let pressed_at = StoredCell::new(None::<Pos2>);
     let (carried, set_carried) = create_signal(None::<P>);
     let (pointer, set_pointer) = create_signal(Pos2::ZERO);
     let (touched, set_touched) = create_signal(false);
     let dragging = create_memo(move || carried.with(Option::is_some));
 
-    let moved = clone!(board pressed_at payload -> move |point: DragPoint| {
+    let moved = move |point: DragPoint| {
         let Some(origin) = pressed_at.get() else {
             return;
         };
@@ -76,7 +75,7 @@ where
         };
         if carried.with_untracked(Option::is_some)
             || (point.pos - origin).length() < threshold
-            || board.carrying()
+            || board.get().carrying()
         {
             return;
         }
@@ -86,31 +85,31 @@ where
         let follow = set_pointer;
         set_carried.set(Some(payload.clone()));
         on_drag_change.call(true);
-        board.begin(
-            Rc::new(payload),
-            point,
-            Rc::new(move |pos| follow.set(pos)),
-        );
-    });
+        board
+            .get()
+            .begin(Rc::new(payload), point, Rc::new(move |pos| follow.set(pos)));
+    };
     let moved: Pending = Rc::new(moved);
-    let pressed = clone!(board pressed_at moved -> move |press: PointerPress| {
+    let pending = Rc::clone(&moved);
+    let pressed = move |press: PointerPress| {
         pressed_at.set(Some(press.pos));
         set_touched.set(press.touch);
         if !press.touch {
-            board.press(Rc::clone(&moved));
+            board.get().press(Rc::clone(&pending));
         }
-    });
+    };
     let dragged = move |press: PointerPress| moved(DragPoint::of(press));
     let clicked = move |_: PointerPress| {
         if carried.with_untracked(Option::is_none) {
             on_click.call();
         }
     };
-    let released = clone!(board pressed_at -> move |active: bool| {
+    let released = move |active: bool| {
         if active {
             return;
         }
         pressed_at.set(None);
+        let board = board.get();
         board.release();
         if carried.with_untracked(Option::is_none) {
             return;
@@ -118,12 +117,12 @@ where
         board.finish();
         set_carried.set(None);
         on_drag_change.call(false);
-    });
-    on_cleanup(clone!(board -> move || {
+    };
+    on_cleanup(move || {
         if carried.with_untracked(Option::is_some) {
-            board.end(None);
+            board.get().end(None);
         }
-    }));
+    });
 
     let anchor = create_memo(move || {
         let offset = match touched.get() {
@@ -221,7 +220,7 @@ where
             }
         }),
     });
-    on_cleanup(clone!(board -> move || board.unregister(id)));
+    on_cleanup(move || board.unregister(id));
     let carrying = create_memo(move || carrying.get());
     let over = create_memo(move || pointer.with(Option::is_some));
     let face = content.call(DropHandle {

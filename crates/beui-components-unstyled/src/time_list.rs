@@ -11,7 +11,7 @@ use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Children, ForEach, ItemSize, List, ListChild, Memo, Prop, ReadSignal, RenderFn,
-    WriteSignal, clone, component_accessibility, create_effect, create_memo, create_signal,
+    WriteSignal, component_accessibility, create_effect, create_memo, create_signal,
     set_component_state,
 };
 
@@ -189,12 +189,15 @@ fn TimeOption(
     let selected = create_memo(move || state.selected.get() == Some(time));
     let tab_stop = create_memo(move || state.anchor.get() == minutes);
     let focused = create_memo(move || state.focus.get() == Some(minutes));
-    let accessibility = create_memo(clone!(label -> move || {
-        let mut node = Node::new(Role::ListBoxOption);
-        node.set_label(label.clone());
-        node.set_selected(selected.get());
-        node
-    }));
+    let accessibility = create_memo({
+        let label = label.clone();
+        move || {
+            let mut node = Node::new(Role::ListBoxOption);
+            node.set_label(label.clone());
+            node.set_selected(selected.get());
+            node
+        }
+    });
     view! {
         <unstyled::Button
             tab_stop

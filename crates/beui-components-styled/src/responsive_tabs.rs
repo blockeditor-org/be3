@@ -7,8 +7,8 @@ use beui_components_unstyled::{ChoiceOption, narrower_than};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Children, List, Prop, ReadSignal, Show, clone, create_effect, create_memo,
-    create_signal, set_component_state,
+    Callback, Children, List, Prop, ReadSignal, Show, create_effect, create_memo, create_signal,
+    set_component_state,
 };
 
 #[component]
@@ -36,7 +36,7 @@ pub fn ResponsiveTabs(
         <List spacing=0.0>
             <Show
                 condition={wide}
-                then={move || clone!(tab_options -> view! {
+                then={move || { let tab_options = tab_options.clone(); view! {
                     <Tabs
                         options={tab_options}
                         selected={tab_selected}
@@ -45,11 +45,11 @@ pub fn ResponsiveTabs(
                             tab_change.call(index);
                         }}
                     />
-                })}
+                } }}
             />
             <Show
                 condition={narrow}
-                then={move || clone!(options -> view! {
+                then={move || { let options = options.clone(); view! {
                     <Select
                         options
                         selected={highlighted}
@@ -60,7 +60,7 @@ pub fn ResponsiveTabs(
                             }
                         }}
                     />
-                })}
+                } }}
             />
         </List>
     }

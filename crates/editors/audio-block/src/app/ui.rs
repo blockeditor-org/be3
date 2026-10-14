@@ -86,7 +86,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let reason =
         create_memo(move || status.with(|status| status.error.clone().unwrap_or_default()));
 
-    let played = editor.host().clone();
+    let played = editor.host();
     let block = editor.block_id();
     let toggle = move || played.play_audio(block);
 
@@ -142,7 +142,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
 #[component]
 fn AudioPanel(editor: Editor) -> NodeId {
     let chooser = FileChooser::new(filter(), decode);
-    let host = editor.host().clone();
+    let host = editor.host();
     let block = editor.block_id();
     chooser.on_chosen(move |chooser| {
         if let Some(replacement) = chooser.take() {

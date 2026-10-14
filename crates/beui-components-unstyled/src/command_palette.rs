@@ -13,9 +13,8 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Child, ClickCallback, ForEach, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Render,
-    RenderFn, Selector, Stored, WriteSignal, active_actions_from, clone, create_effect,
-    create_memo, create_selector, create_signal, on_key, set_component_state, store, untrack,
-    with_document,
+    RenderFn, Selector, Stored, WriteSignal, active_actions_from, create_effect, create_memo,
+    create_selector, create_signal, on_key, set_component_state, store, untrack, with_document,
 };
 
 use crate as unstyled;
@@ -168,14 +167,17 @@ fn CommandRow(
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();
-    let accessibility = create_memo(clone!(label -> move || {
-        let mut node = Node::new(Role::ListBoxOption);
-        node.set_label(label.get());
-        if disabled.get() {
-            node.set_disabled();
+    let accessibility = create_memo({
+        let label = label.clone();
+        move || {
+            let mut node = Node::new(Role::ListBoxOption);
+            node.set_label(label.get());
+            if disabled.get() {
+                node.set_disabled();
+            }
+            node
         }
-        node
-    }));
+    });
     let glyph = action.glyph().to_owned();
     let shortcut = action.shortcut_label();
     let face_disabled = disabled;

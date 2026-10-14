@@ -4,8 +4,8 @@ use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Show, Spacer, clone, component, create_memo,
-    create_signal, view,
+    Align, Direction, ForEach, ItemSize, List, Show, Spacer, component, create_memo, create_signal,
+    view,
 };
 use block_editor_beui::beui::styled::{Accordion, Button, ButtonVariant, Caption, Separator};
 use block_editor_beui::block_ui::BlockLabel;
@@ -159,7 +159,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
         <List spacing=6.0>
             <Caption content={named} />
             <Show condition={partial}>
-                {move || clone!(add_id -> view! {
+                {move || { let add_id = add_id.clone(); view! {
                     <List spacing=6.0>
                         <Caption content={coverage} />
                         <List direction=Direction::Horizontal spacing=4.0>
@@ -172,7 +172,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                         </List>
                     </List>
-                })}
+                } }}
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <Button

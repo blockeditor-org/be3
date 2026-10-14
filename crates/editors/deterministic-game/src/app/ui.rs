@@ -4,7 +4,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
-    Stored, Text, clone, component, create_effect, create_memo, create_signal, view,
+    Stored, Text, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, IconButton, IconButtonSize, Paragraph,
@@ -494,7 +494,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                 }}
             </Show>
             <Show condition={confirming}>
-                {move || clone!(confirm effect question -> view! {
+                {move || { let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Caption content={question} />
                         <IconButton
@@ -511,7 +511,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                             on_click={move || cancel.set(false)}
                         />
                     </List>
-                })}
+                } }}
             </Show>
         </List>
     }

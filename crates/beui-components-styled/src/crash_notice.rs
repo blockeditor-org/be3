@@ -6,9 +6,7 @@ use crate::theme::{FONT_SMALL, use_theme};
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_ERROR, ICON_REFRESH};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, ClickCallback, Frame, List, Prop, Show, Text, clone, create_memo,
-};
+use beui_view::reactive::{Align, ClickCallback, Frame, List, Prop, Show, Text, create_memo};
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;
@@ -26,7 +24,10 @@ pub fn CrashNotice(
     let reload_id = format!("{id}.reload");
     let theme = use_theme();
     let reloadable = create_memo(move || reloadable.get());
-    let has_detail = create_memo(clone!(detail -> move || !detail.get().is_empty()));
+    let has_detail = create_memo({
+        let detail = detail.clone();
+        move || !detail.get().is_empty()
+    });
     view! {
         <Frame @test_id={id} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=SPACING align=Align::Center>
@@ -34,7 +35,7 @@ pub fn CrashNotice(
                 <Heading content={title} align=TextAlign::Center />
                 <Show condition={has_detail}>
                     <Text
-                        string={create_memo(clone!(detail -> move || detail.get()))}
+                        string={create_memo({ let detail = detail.clone(); move || detail.get() })}
                         font_size=FONT_SMALL
                         color={theme.text_muted}
                         align=TextAlign::Center
@@ -42,7 +43,7 @@ pub fn CrashNotice(
                     />
                 </Show>
                 <Show condition={reloadable}>
-                    {move || clone!(reload_label reload_id -> view! {
+                    {move || { let reload_label = reload_label.clone(); let reload_id = reload_id.clone(); view! {
                         <Button
                             @test_id={reload_id}
                             label={reload_label}
@@ -50,7 +51,7 @@ pub fn CrashNotice(
                             variant=ButtonVariant::Secondary
                             on_click={on_reload}
                         />
-                    })}
+                    } }}
                 </Show>
             </List>
         </Frame>

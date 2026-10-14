@@ -7,13 +7,17 @@ fn a_paused_scope_defers_its_effects_until_it_resumes() {
     let computed = Rc::new(Cell::new(0));
     let seen = Rc::new(RefCell::new(Vec::new()));
     let scope = Scope::detached().pausable();
-    scope.run(clone!(computed seen -> move || {
-        let doubled = create_memo(move || {
-            computed.set(computed.get() + 1);
-            count.get() * 2
-        });
-        create_effect(move || seen.borrow_mut().push(doubled.get()));
-    }));
+    scope.run({
+        let computed = computed.clone();
+        let seen = seen.clone();
+        move || {
+            let doubled = create_memo(move || {
+                computed.set(computed.get() + 1);
+                count.get() * 2
+            });
+            create_effect(move || seen.borrow_mut().push(doubled.get()));
+        }
+    });
     assert_eq!(*seen.borrow(), vec![0]);
 
     scope.pause();

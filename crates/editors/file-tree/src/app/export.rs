@@ -57,7 +57,7 @@ impl Exporter {
                 saving.borrow_mut().save(&editor.host(), file);
             });
         });
-        let host = editor.host().clone();
+        let host = editor.host();
         editor.on_reply(move || {
             if let Some(Err(error)) = saver.borrow_mut().poll(&host) {
                 set_error.set(Some(error));

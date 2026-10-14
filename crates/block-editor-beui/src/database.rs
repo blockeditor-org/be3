@@ -11,7 +11,7 @@ use beui::datetime::DateTime;
 use beui::icons::ICON_CLEAR;
 use beui::reactive::{
     Align, Callback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal,
-    Show, Spacer, clone, component, create_effect, create_memo, create_signal, view,
+    Show, Spacer, component, create_effect, create_memo, create_signal, view,
 };
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, DateTimeField, IconButton,
@@ -673,7 +673,7 @@ fn LinksValue(
             continuous: false,
         });
     };
-    let added = clone!(emit -> move |index: Option<usize>| {
+    let added = move |index: Option<usize>| {
         let Some(link) = index.and_then(|index| {
             addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
         }) else {
@@ -682,7 +682,7 @@ fn LinksValue(
         let mut links = linked.get_untracked();
         links.push(link);
         emit(links);
-    });
+    };
     let names = addable;
     let chip_labels = labels;
     let add_id = format!("{id}.add");
@@ -695,14 +695,14 @@ fn LinksValue(
                     let label = create_memo(move || {
                         chip_labels.with(|labels| labels.row(&link))
                     });
-                    let remove = clone!(emit -> move || {
+                    let remove = move || {
                         let links = linked
                             .get_untracked()
                             .into_iter()
                             .filter(|held| *held != link)
                             .collect();
                         emit(links);
-                    });
+                    };
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Body @sizing=ItemSize::Percent(100.0) content={label} />

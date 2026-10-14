@@ -1,6 +1,4 @@
-use std::cell::Cell;
 use std::f32::consts::TAU;
-use std::rc::Rc;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -11,7 +9,7 @@ use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, StoredCell, component_accessibility,
     create_effect, create_memo, create_signal, set_component_state,
 };
 
@@ -258,9 +256,9 @@ pub fn ColorWheel(
             .map(|(part, centre, _)| (part, centre))
         }
     };
-    let part = Rc::new(Cell::new(Part::Triangle));
-    let grab = Rc::new(Cell::new(Vec2::ZERO));
-    let grabbed = clone!(part grab -> move |press: PointerPress| {
+    let part = StoredCell::new(Part::Triangle);
+    let grab = StoredCell::new(Vec2::ZERO);
+    let grabbed = move |press: PointerPress| {
         let (pressed, offset) = match over_thumb(press) {
             Some((pressed, centre)) => (pressed, centre - press.local),
             None => match geometry(press.size).on_ring(press.local) {
@@ -270,7 +268,7 @@ pub fn ColorWheel(
         };
         part.set(pressed);
         grab.set(offset);
-    });
+    };
     let drag_point = point;
     let dragged_to = move |press: PointerPress| {
         let wheel = geometry(press.size);

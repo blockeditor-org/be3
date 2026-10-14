@@ -3,8 +3,7 @@ use block_editor_beui::beui::icons::{
     ICON_RADIO_BUTTON_UNCHECKED, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, DynamicSegment, ForEach, List, Memo, clone, component, create_memo,
-    view,
+    Align, Callback, Direction, DynamicSegment, ForEach, List, Memo, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::PictureMenuButton;
 use block_editor_beui::beui::unstyled::MenuItem;
@@ -74,9 +73,18 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
 
 #[component]
 fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> NodeId {
-    let item = create_memo(clone!(id -> move || {
-        listed.with(|items| items.iter().find(|item| item.id == id).cloned().unwrap_or_default())
-    }));
+    let item = create_memo({
+        let id = id.clone();
+        move || {
+            listed.with(|items| {
+                items
+                    .iter()
+                    .find(|item| item.id == id)
+                    .cloned()
+                    .unwrap_or_default()
+            })
+        }
+    });
     let label = create_memo(move || {
         item.with(
             |item| match item.tooltip.is_empty() || item.tooltip == item.title {

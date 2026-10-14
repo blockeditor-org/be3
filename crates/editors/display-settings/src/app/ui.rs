@@ -3,8 +3,8 @@ use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layer
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, clone,
-    component, create_memo, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component,
+    create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, Scroll, Select, use_theme,
@@ -93,10 +93,14 @@ fn DisplaySection(
     displays: Memo<Vec<HostDisplay>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let display = create_memo(clone!(id -> move || {
-        displays.with(|displays| displays.iter().find(|display| display.id == id).cloned())
-    }));
-    let wanted = create_memo(clone!(id -> move || merged.get().mode(&id)));
+    let display = create_memo({
+        let id = id.clone();
+        move || displays.with(|displays| displays.iter().find(|display| display.id == id).cloned())
+    });
+    let wanted = create_memo({
+        let id = id.clone();
+        move || merged.get().mode(&id)
+    });
     let chosen = create_memo(move || {
         display.with(|display| {
             display
@@ -143,7 +147,10 @@ fn DisplaySection(
             None => String::new(),
         })
     });
-    let unset = create_memo(clone!(id -> move || root.get().mode(&id).is_none()));
+    let unset = create_memo({
+        let id = id.clone();
+        move || root.get().mode(&id).is_none()
+    });
     let connector = display.with_untracked(|display| {
         display
             .as_ref()
@@ -152,9 +159,9 @@ fn DisplaySection(
     });
     let resolution_id = format!("display-settings.{connector}.resolution");
     let refresh_id = format!("display-settings.{connector}.refresh");
-    let set = Callback::new(clone!(id -> move |mode: Option<HostDisplayMode>| {
+    let set = Callback::new(move |mode: Option<HostDisplayMode>| {
         settings.operate(DisplaySettings::set_mode(&id, mode.map(saved)));
-    }));
+    });
     let (size_off, rate_off) = (read_only, read_only);
     let picked_size = size_list;
     let picked_rate = rate_list;

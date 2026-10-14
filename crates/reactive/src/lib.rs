@@ -21,15 +21,7 @@ pub use scope::{
 };
 pub use selector::{Selector, create_selector};
 pub use signal::{OwnedSignal, ReadSignal, WriteSignal, create_signal};
-pub use stored::{OwnedStored, Stored, store};
-
-#[macro_export]
-macro_rules! clone {
-    ($($name:ident)* -> $body:expr) => {{
-        $(let $name = $name.clone();)*
-        $body
-    }};
-}
+pub use stored::{OwnedStored, Stored, StoredCell, store};
 
 #[cfg(test)]
 mod tests;

@@ -8,8 +8,8 @@ use beui::icons::{
 };
 use beui::reactive::{
     Action, Chord, ClickCallback, ItemSize, List, Memo, OwnedSignal, ReadSignal, Stored,
-    WriteSignal, clone, component, create_effect, create_memo, create_signal, menu_actions,
-    on_finger_tap, on_key, provide_context, store, untrack, use_context, view,
+    WriteSignal, component, create_effect, create_memo, create_signal, menu_actions, on_finger_tap,
+    on_key, provide_context, store, untrack, use_context, view,
 };
 use beui::styled::CommandPalette;
 use beui::{Document, Key, KeyAt, KeyPhase};
@@ -262,7 +262,6 @@ fn frame_actions(
     closable: Memo<bool>,
     on_exit: ClickCallback,
 ) -> FrameActions {
-    let host = editor.host();
     let id = editor.block_id();
     let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
     FrameActions {
@@ -281,27 +280,21 @@ fn frame_actions(
         .shortcut(Chord::ctrl(Key::Y))
         .enabled(can(|state| state.can_redo))
         .register(),
-        rename: Action::new(
-            "editor.rename",
-            "Rename",
-            clone!(host -> move || host.rename_block(id)),
-        )
+        rename: Action::new("editor.rename", "Rename", move || {
+            editor.host().rename_block(id)
+        })
         .glyph(ICON_DRIVE_FILE_RENAME_OUTLINE)
         .enabled(can(|state| state.can_rename))
         .register(),
-        share: Action::new(
-            "editor.share",
-            "Share",
-            clone!(host -> move || host.share_block(id)),
-        )
+        share: Action::new("editor.share", "Share", move || {
+            editor.host().share_block(id)
+        })
         .glyph(ICON_SHARE)
         .enabled(can(|state| state.can_share))
         .register(),
-        details: Action::new(
-            "editor.details",
-            "File details",
-            clone!(host -> move || host.bar_action(BarAction::Details)),
-        )
+        details: Action::new("editor.details", "File details", move || {
+            editor.host().bar_action(BarAction::Details)
+        })
         .glyph(ICON_INFO)
         .register(),
         close: Action::new("editor.close", "Close", move || on_exit.call())

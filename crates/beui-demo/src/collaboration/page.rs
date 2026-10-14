@@ -8,8 +8,8 @@ use beui::icons::{
     ICON_KEYBOARD_DOUBLE_ARROW_RIGHT, ICON_KEYBOARD_DOUBLE_ARROW_UP, ICON_PAUSE, ICON_PLAY_ARROW,
 };
 use beui::reactive::{
-    Align, Callback, List, Memo, ReadSignal, Timer, clone, create_effect, create_memo,
-    create_signal, create_timer, now, store, untrack, view,
+    Align, Callback, List, Memo, ReadSignal, Timer, create_effect, create_memo, create_signal,
+    create_timer, now, store, untrack, view,
 };
 use beui::styled::{Caption, IconButton, Slider, TextArea, ToggleButton};
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
@@ -91,7 +91,7 @@ fn ConcurrentEditing() -> NodeId {
     let published = Cell::new([None::<Caret>, None]);
     let timer = store(Cell::new(None::<Timer>));
 
-    let pump = Callback::new(clone!(simulation -> move |force: Option<(Side, Amount)>| {
+    let pump = Callback::new(move |force: Option<(Side, Amount)>| {
         let now = now();
         let delay = Duration::from_millis(latency.get_untracked() as u64);
         let held = paused.get_untracked();
@@ -121,8 +121,14 @@ fn ConcurrentEditing() -> NodeId {
                 None => {}
             }
             (
-                [simulation.take_external(Side::Left), simulation.take_external(Side::Right)],
-                (simulation.in_flight(Side::Left), simulation.in_flight(Side::Right)),
+                [
+                    simulation.take_external(Side::Left),
+                    simulation.take_external(Side::Right),
+                ],
+                (
+                    simulation.in_flight(Side::Left),
+                    simulation.in_flight(Side::Right),
+                ),
                 simulation.text(Side::Left) == simulation.text(Side::Right),
                 [simulation.seen(Side::Left), simulation.seen(Side::Right)],
                 (!held).then(|| simulation.next_due(delay)).flatten(),
@@ -146,7 +152,7 @@ fn ConcurrentEditing() -> NodeId {
         if let (Some(due), Some(timer)) = (due, timer.with(Cell::get)) {
             timer.start(due.saturating_duration_since(now));
         }
-    }));
+    });
     let pumping = create_timer(move || {
         pump.call(None);
         None

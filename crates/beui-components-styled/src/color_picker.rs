@@ -18,7 +18,7 @@ use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_view::reactive::{
-    Callback, Draw, Drawing, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track, clone,
+    Callback, Draw, Drawing, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track,
     create_memo, focus_ring,
 };
 
@@ -99,13 +99,13 @@ pub fn ColorPicker(
                 </List>
                 <ColorFields picker={picker} alpha />
                 <Show condition=has_swatches>
-                    {move || clone!(swatches -> view! {
+                    {move || { let swatches = swatches.clone(); view! {
                         <Swatches picker={picker} swatches>
                             {|handle: SwatchHandle| view! {
                                 <SwatchFace handle />
                             }}
                         </Swatches>
-                    })}
+                    } }}
                 </Show>
             </List>
         </Frame>
@@ -141,7 +141,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     on_submit={move |typed: String| hex.submit(typed)}
                 />
                 <Show condition=alpha>
-                    {move || clone!(set_opacity -> view! {
+                    {move || view! {
                         <NumberInput
                             @sizing=ItemSize::Fixed(ALPHA_WIDTH)
                             value={opacity}
@@ -150,7 +150,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                             label="Opacity percent"
                             on_change={set_opacity}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
             <Grid
@@ -272,14 +272,20 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
     let SliderHandle {
         fraction, focused, ..
     } = handle;
-    let knob = create_memo(clone!(strip -> move || match &strip {
-        Strip::Hue => Hsva::new(fraction.get() * 360.0, 1.0, 1.0, 1.0).to_color(),
-        Strip::Alpha(color) => color.get().to_color(),
-    }));
-    let image = create_memo(clone!(strip -> move || match &strip {
-        Strip::Hue => hue_image(),
-        Strip::Alpha(color) => alpha_image(color.get().opaque().to_color()),
-    }));
+    let knob = create_memo({
+        let strip = strip.clone();
+        move || match &strip {
+            Strip::Hue => Hsva::new(fraction.get() * 360.0, 1.0, 1.0, 1.0).to_color(),
+            Strip::Alpha(color) => color.get().to_color(),
+        }
+    });
+    let image = create_memo({
+        let strip = strip.clone();
+        move || match &strip {
+            Strip::Hue => hue_image(),
+            Strip::Alpha(color) => alpha_image(color.get().opaque().to_color()),
+        }
+    });
     let checkered = matches!(strip, Strip::Alpha(_));
     let draw = Prop::dynamic(move || {
         let image = image.get();

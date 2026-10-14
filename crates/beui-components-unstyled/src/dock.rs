@@ -41,7 +41,7 @@ use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
     Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
-    ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, WriteSignal, clone,
+    ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, StoredCell, WriteSignal,
     component_accessibility, create_effect, create_memo, create_signal, create_timer, node_scope,
     on_cleanup, on_shortcut, owner_scope, provide_context, set_component_state, store,
     try_with_document, use_context, with_document,
@@ -2393,16 +2393,17 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let area = dock.rect;
     let (overshoot, set_overshoot) = create_signal(Vec2::ZERO);
     let grip_ref = NodeRef::new();
-    let reach: Rc<dyn Fn() -> f32> = Rc::new(move || grip_reach(&frame, &grip_ref));
-    let placed = create_memo(clone!(reach -> move || {
+    let reach = move || grip_reach(&frame, &grip_ref);
+    let placed = create_memo(move || {
         let bounds = area.get().size();
         let rect = Rect::from_min_size(rect.get().min, fitted(rect.get().size(), bounds));
         let origin = reachable_origin(rect, bounds, reach());
         Rect::from_min_size(origin, rect.size())
-    }));
+    });
     let origin = create_memo(move || area.get().min + placed.get().min.to_vec2() + overshoot.get());
-    let band = Rc::new(RefCell::new(Band::new(WINDOW_SPRING)));
-    let bounce = create_timer(clone!(band reach -> move || {
+    let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+    let bounce = create_timer(move || {
+        let band = band.get();
         let mut band = band.borrow_mut();
         let window = placed.get_untracked();
         let bounds = area.get_untracked().size();
@@ -2422,7 +2423,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         }
         set_overshoot.set(band.offset);
         band.moving().then_some(Duration::ZERO)
-    }));
+    });
     let outset = vec2(HANDLE_REACH, HANDLE_REACH);
     let anchor = create_memo(move || origin.get() - outset)
         .into_prop()
@@ -2482,13 +2483,11 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         };
         with_document(|document| document.raise_overlay(overlay));
     });
-    let grabbed: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
+    let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
     let bar_rect = placed;
     let pressed = dock;
     let captor = dock;
-    let start = grabbed.clone();
     let moved = dock;
-    let (held, stretched, released) = (band.clone(), band.clone(), band);
     let set_stretch = set_overshoot;
     let claimed = dock.drag_modifier;
     let resized = modifier_resize(dock, Resized::Window(surface));
@@ -2517,10 +2516,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         on_press={move |press: PointerPress| {
                                             let carried = pressed.modifier_held(press.modifiers);
                                             let bar = carried || pressed.over_window_bar(surface, press.pos);
-                                            start.set(bar.then(|| {
+                                            grabbed.set(bar.then(|| {
                                                 let window = bar_rect.get_untracked();
                                                 let dimensions = pressed.rect.get_untracked().size();
-                                                let stretched = held.borrow_mut().grab(dimensions);
+                                                let stretched = band.get().borrow_mut().grab(dimensions);
                                                 (window.translate(stretched), press.pos)
                                             }));
                                             let titled = carried
@@ -2551,7 +2550,8 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                             let bounds = moved.rect.get_untracked().size();
                                             let origin = reachable_origin(placed, bounds, reach());
                                             let banding = with_document(|document| document.rubber_banding());
-                                            let mut band = stretched.borrow_mut();
+                                            let band = band.get();
+                                            let mut band = band.borrow_mut();
                                             band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
                                             set_stretch.set(band.offset);
                                             moved.edit(|state| {
@@ -2565,7 +2565,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                             if active {
                                                 return;
                                             }
-                                            released.borrow_mut().release(beui_core::timer::now());
+                                            band.get().borrow_mut().release(beui_core::timer::now());
                                             bounce.start(Duration::ZERO);
                                         }}
                                     >

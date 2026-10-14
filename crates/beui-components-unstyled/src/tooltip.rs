@@ -8,7 +8,7 @@ use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, Interactive, List, NodeRef, Prop, ReadSignal, Render, clone, create_memo, create_signal,
+    Child, Interactive, List, NodeRef, Prop, ReadSignal, Render, create_memo, create_signal,
     create_timer,
 };
 
@@ -29,9 +29,10 @@ pub fn Tooltip(
 ) -> NodeId {
     let anchor = NodeRef::new();
     let (shown, set_shown) = create_signal(false);
-    let wanted = create_memo(clone!(label -> move || {
-        !disabled.get() && !label.get().is_empty()
-    }));
+    let wanted = create_memo({
+        let label = label.clone();
+        move || !disabled.get() && !label.get().is_empty()
+    });
     let open = create_memo(move || shown.get() && wanted.get());
 
     let dwell = create_timer(move || {

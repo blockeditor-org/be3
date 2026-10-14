@@ -19,7 +19,7 @@ use text_editor_core::{EditorCommand, MarkdownCommand};
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, ForEach, Frame, IntoChild, List, Memo, NodeRef, Portal, RenderFn,
-    Show, Span, Text, TextChild, TextItem, VirtualList, clone, component_placed, create_effect,
+    Show, Span, Text, TextChild, TextItem, VirtualList, component_placed, create_effect,
     create_memo, on_cleanup, untrack, with_document,
 };
 
@@ -264,7 +264,7 @@ fn RowText(
 ) -> NodeId {
     let node = NodeRef::new();
     let placed = component_placed();
-    create_effect(clone!(text -> move || {
+    create_effect(move || {
         placed.get();
         if layer != Layer::Handles
             && text.borrow().is_none()
@@ -275,7 +275,7 @@ fn RowText(
                 Some(document.text_geometry(text))
             });
         }
-    }));
+    });
     let keys = create_memo(move || piece_keys(&model.get(), layer));
     let padding = match cx.single_line {
         true => (0.0, 0.0),

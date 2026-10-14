@@ -22,7 +22,7 @@ use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop,
-    ReadSignal, Show, Text, WriteSignal, clone, create_effect, create_memo, create_signal, on_key,
+    ReadSignal, Show, Text, WriteSignal, create_effect, create_memo, create_signal, on_key,
     untrack,
 };
 
@@ -206,14 +206,17 @@ pub fn Launcher(
             set_searching.set(opened);
         });
     });
-    let ranked = create_memo(clone!(items -> move || {
-        let items = items.get();
-        let query = query.get();
-        launcher_rank(&items, &query)
-            .into_iter()
-            .map(|index| items[index].key.clone())
-            .collect::<Vec<_>>()
-    }));
+    let ranked = create_memo({
+        let items = items.clone();
+        move || {
+            let items = items.get();
+            let query = query.get();
+            launcher_rank(&items, &query)
+                .into_iter()
+                .map(|index| items[index].key.clone())
+                .collect::<Vec<_>>()
+        }
+    });
     let rows = create_memo(move || {
         let command = runs_commands.get() && !query.get().trim().is_empty();
         ranked
@@ -332,19 +335,28 @@ fn LauncherSearch(handle: TextInputHandle) -> NodeId {
 
 #[component]
 fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> NodeId {
-    let item = create_memo(clone!(row -> move || match &row {
-        Row::Item(key) => items.get().iter().find(|item| item.key == *key).cloned(),
-        Row::Run => None,
-    }));
+    let item = create_memo({
+        let row = row.clone();
+        move || match &row {
+            Row::Item(key) => items.get().iter().find(|item| item.key == *key).cloned(),
+            Row::Run => None,
+        }
+    });
     let query = state.query;
-    let title = create_memo(clone!(row -> move || match &row {
-        Row::Item(_) => item.get().map(|item| item.title).unwrap_or_default(),
-        Row::Run => format!("Run \u{201c}{}\u{201d}", query.get().trim()),
-    }));
-    let detail = create_memo(clone!(row -> move || match &row {
-        Row::Item(_) => item.get().map(|item| item.detail).unwrap_or_default(),
-        Row::Run => "Run it as a command".to_owned(),
-    }));
+    let title = create_memo({
+        let row = row.clone();
+        move || match &row {
+            Row::Item(_) => item.get().map(|item| item.title).unwrap_or_default(),
+            Row::Run => format!("Run \u{201c}{}\u{201d}", query.get().trim()),
+        }
+    });
+    let detail = create_memo({
+        let row = row.clone();
+        move || match &row {
+            Row::Item(_) => item.get().map(|item| item.detail).unwrap_or_default(),
+            Row::Run => "Run it as a command".to_owned(),
+        }
+    });
     let image = create_memo(move || item.get().and_then(|item| item.image));
     let test_id = match &row {
         Row::Item(key) => format!("launcher.item.{key}"),
@@ -355,7 +367,10 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         Row::Run => ICON_TERMINAL,
     };
     let highlighted = state.highlighted;
-    let lit = create_memo(clone!(row -> move || highlighted.get().as_ref() == Some(&row)));
+    let lit = create_memo({
+        let row = row.clone();
+        move || highlighted.get().as_ref() == Some(&row)
+    });
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(title.get());
@@ -370,11 +385,11 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             press_focus=false
             content={move |handle: ButtonHandle| {
                 let hovered = handle.hovered;
-                create_effect(clone!(hover_row -> move || {
+                create_effect(move || {
                     if hovered.get() {
                         state.set_highlighted.set(Some(hover_row.clone()));
                     }
-                }));
+                });
                 view! {
                     <LauncherRowFace
                         title={title}

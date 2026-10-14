@@ -2,7 +2,7 @@ use beui::NodeId;
 use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
 use beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, Keyed, List, Memo, ReadSignal, Show,
-    Spacer, Text, Track, clone, component, create_memo, view,
+    Spacer, Text, Track, component, create_memo, view,
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
@@ -561,18 +561,21 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
         alt
     };
     let missing = format!("Could not load {described}");
-    let open = clone!(url -> move || model.open(&url));
+    let open = {
+        let url = url.clone();
+        move || model.open(&url)
+    };
     let enlarge = move || model.view_image(&url);
     let accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
     view! {
         <List spacing=4.0>
             <Show condition={waiting}>
-                {move || clone!(described -> view! {
+                {move || { let described = described.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner width=18.0 label="Loading an image" />
                         <Caption content={described} />
                     </List>
-                })}
+                } }}
             </Show>
             <Show condition={failed}>
                 <Link label={missing.clone()} on_click={open.clone()} />
