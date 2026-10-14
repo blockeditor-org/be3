@@ -40,6 +40,7 @@ pub enum Piece<'a> {
         index: usize,
         size: Vec2,
     },
+    Gap(f32),
 }
 
 impl<'a> Piece<'a> {
@@ -55,6 +56,7 @@ impl<'a> Piece<'a> {
         match self {
             Piece::Text { text, .. } => text.len(),
             Piece::Inline { .. } => OBJECT.len(),
+            Piece::Gap(_) => 0,
         }
     }
 
@@ -67,6 +69,7 @@ impl<'a> Piece<'a> {
 pub enum SpanKind {
     Text,
     Inline(usize, Vec2),
+    Gap(f32),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -295,10 +298,26 @@ impl Builder<'_> {
         let mut x = 0.0;
         let first = self
             .spans
-            .partition_point(|span| span.range.end <= from)
+            .partition_point(|span| {
+                span.range.end < from || (span.range.end == from && !span.range.is_empty())
+            })
             .min(self.spans.len());
         for index in first..self.spans.len() {
             let span = &self.spans[index];
+            if span.range.is_empty() {
+                let at = span.range.start;
+                let last = at == to && to == self.paragraph.end;
+                if at >= from && (at < to || last) {
+                    let run = self.run(index, at..at, x);
+                    x += run.width;
+                    runs.push(run);
+                    continue;
+                }
+                if at >= to {
+                    break;
+                }
+                continue;
+            }
             if span.range.start >= to {
                 break;
             }
@@ -361,6 +380,16 @@ impl Builder<'_> {
                 height: size.y,
                 galley: None,
             },
+            SpanKind::Gap(width) => RichRun {
+                piece,
+                range,
+                style,
+                kind,
+                x,
+                width,
+                height: 0.0,
+                galley: None,
+            },
         }
     }
 
@@ -401,7 +430,15 @@ impl Builder<'_> {
             .len()
             .checked_sub(1)
             .filter(|last| wrap - (fits[*last].1 - origin) < wrap * WRAP_FALLBACK_REMAINING_WIDTH);
-        let chosen = good.or(fallback)?;
+        let Some(chosen) = good.or(fallback) else {
+            if !fits.is_empty() {
+                return None;
+            }
+            let (byte, x) = stops[first..]
+                .iter()
+                .find(|(byte, x)| *byte < to && *x > origin)?;
+            return Some((*byte, 0.0, x - origin));
+        };
         let (byte, x) = fits[chosen];
         let reach = x - origin;
         let mut limit = stops[first + chosen + 1..]
@@ -459,8 +496,9 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
                 text.push_str(OBJECT);
                 (fallback, SpanKind::Inline(inline, size), false)
             }
+            Piece::Gap(width) => (fallback, SpanKind::Gap(width), false),
         };
-        if text.len() > start {
+        if text.len() > start || matches!(kind, SpanKind::Gap(_)) {
             spans.push(TextSpan {
                 piece: index,
                 range: start..text.len(),

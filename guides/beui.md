@@ -454,10 +454,13 @@ Text is never one of those. A `Text`'s content is its children: string
 literals and `Prop<String>`s in its own style, `Span`s - value children with no
 node, each overriding the `font`, `color`, `underline` or `strikethrough` of
 its `text`, and marking a wrap opportunity with `break_after` - and `TextItem`s,
-whose child is laid inline as if it were one character (U+FFFC in the text).
+whose child is laid inline as if it were one character (U+FFFC in the text),
+and `Gap`s, room of a given width that holds no bytes, so the indices on either
+side of one are the same.
 `string` is a leading span in the Text's own style. Computed runs are a
 `ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
-and wraps them itself, breaking after whitespace or after a `break_after` span,
+and wraps them itself, breaking after whitespace, `-`, `/` or `\`, or after a
+`break_after` span, and between letters when no such break fits,
 with `line_padding` above and below each line, and aligns, truncates with an
 ellipsis and spaces lines by `line_height` whatever its content. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
@@ -470,8 +473,8 @@ floats beside a position in the text. `Document::text_geometry` answers where an
 under a point from the node's last layout, without a document installed.
 `unstyled::TextArea` is built from exactly this: a row per document line in a
 `VirtualList`, each a `ForEach` of the row's spans, a gutter of `Text`s beside
-it, and checkboxes, embedded widgets, table spacers and the caret's anchor as
-`TextItem`s.
+it, checkboxes, embedded widgets and the caret's anchor as `TextItem`s, and
+table spacers as `Gap`s.
 
 The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until

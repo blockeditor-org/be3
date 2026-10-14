@@ -46,7 +46,7 @@ use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
 use rows::{
     BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, RowOptions, TableSpacers,
-    galley, line_of, rich_layout, table_spacers,
+    galley, line_of, table_spacers,
 };
 use state::{AreaGeometry, Grab};
 
@@ -120,6 +120,7 @@ struct Held {
     registered: Cell<u64>,
     rects: Rc<Rects>,
     reveal_attempts: Cell<u8>,
+    row_cache: RefCell<lines::RowCache>,
 }
 
 #[derive(Clone, Copy)]
@@ -155,6 +156,8 @@ struct Surface {
     disabled: Memo<bool>,
     remote_cursors: Memo<Vec<RemoteTextCursor>>,
     drop_caret: Memo<Option<usize>>,
+    text_extent: ReadSignal<Vec2>,
+    set_text_extent: WriteSignal<Vec2>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
@@ -457,16 +460,7 @@ impl Surface {
     }
 
     fn text_size(&self) -> Vec2 {
-        let Some(entry) = self.entry(0) else {
-            return Vec2::ZERO;
-        };
-        rich_layout(
-            &entry.row(),
-            self.font_size.get_untracked(),
-            (0.0, 0.0),
-            f32::INFINITY,
-        )
-        .map_or(Vec2::ZERO, |layout| layout.size)
+        self.text_extent.get_untracked()
     }
 
     fn room(&self) -> f32 {
@@ -1034,6 +1028,7 @@ pub fn TextArea(
                         let colors = create_memo(move || colors.get());
                         let remote_cursors = create_memo(move || remote_cursors.get());
                         let drop_caret = create_memo(move || drop_caret.get());
+                        let (text_extent, set_text_extent) = create_signal(Vec2::ZERO);
                         let view_width = create_memo(move || placed.get().width());
                         let client_colors = create_memo(move || client_colors.get());
                         create_effect(move || {
@@ -1105,10 +1100,11 @@ pub fn TextArea(
                         let wrap_width = create_memo(move || {
                             (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
                         });
+                        let table_cache = std::cell::RefCell::new(rows::TableCache::default());
                         let tables = create_memo(
                             move || {
                                 content.get();
-                                scale.get();
+                                let scale = scale.get();
                                 attached.get();
                                 let wrap_width = wrap_width.get();
                                 let starts = starts.get();
@@ -1127,6 +1123,8 @@ pub fn TextArea(
                                         colors: &colors,
                                         options,
                                         starts: &starts,
+                                        scale,
+                                        cache: &table_cache,
                                     }),
                                     false => HashMap::new(),
                                 }))
@@ -1180,6 +1178,7 @@ pub fn TextArea(
                                 registered: Cell::new(0),
                                 rects: with_document(|document| Rc::clone(&document.rects)),
                                 reveal_attempts: Cell::new(0),
+                                row_cache: RefCell::default(),
                             }),
                             starts,
                             visible,
@@ -1209,6 +1208,8 @@ pub fn TextArea(
                             disabled,
                             remote_cursors,
                             drop_caret,
+                            text_extent,
+                            set_text_extent,
                             block,
                             selected_widget,
                             checkbox,
@@ -1227,9 +1228,9 @@ pub fn TextArea(
 
                         if single_line {
                             create_effect(move || {
-                                content.get();
+                                let width = text_extent.get().x;
                                 view_width.get();
-                                let (room, width) = untrack(|| (cx.room(), cx.text_size().x));
+                                let room = untrack(|| cx.room());
                                 let most = (width - room).max(0.0);
                                 if shift.get_untracked() > most {
                                     set_shift.set(most);

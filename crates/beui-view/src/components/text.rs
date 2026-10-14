@@ -86,6 +86,7 @@ pub fn Text(
 
 pub enum TextChild {
     Span(Span),
+    Gap(Gap),
     Item(TextItem),
 }
 
@@ -101,6 +102,7 @@ impl SlotChild for TextChild {
                  it cannot be kept in a run of children away from one"
             ),
             TextChild::Item(item) => item.store(),
+            TextChild::Gap(gap) => TextPart::Gap(gap.width),
         }
     }
 }
@@ -112,6 +114,7 @@ impl SlotHost<TextChild> for TextHost {
         match child {
             TextChild::Span(span) => TextPart::Span(span.bind(self.0)),
             TextChild::Item(item) => item.store(),
+            TextChild::Gap(gap) => TextPart::Gap(gap.width),
         }
     }
 
@@ -289,6 +292,29 @@ pub fn Span(
         underline,
         strikethrough,
         break_after,
+    }
+}
+
+pub struct Gap {
+    width: f32,
+}
+
+impl ChildValue for Gap {}
+
+#[component]
+pub fn Gap(width: f32) -> Gap {
+    Gap { width }
+}
+
+impl IntoChild<TextChild> for Gap {
+    fn into_child(self) -> TextChild {
+        TextChild::Gap(self)
+    }
+}
+
+impl IntoSegment<TextChild> for Gap {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::One(TextChild::Gap(self))
     }
 }
 

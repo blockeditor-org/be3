@@ -84,12 +84,13 @@ pub enum TextPart {
     Span(SpanHandle),
     Inline(NodeId),
     Anchored(NodeId),
+    Gap(f32),
 }
 
 impl ChildItem for TextPart {
     fn node(&self) -> Option<NodeId> {
         match self {
-            TextPart::Span(_) => None,
+            TextPart::Span(_) | TextPart::Gap(_) => None,
             TextPart::Inline(node) | TextPart::Anchored(node) => Some(*node),
         }
     }
@@ -97,6 +98,7 @@ impl ChildItem for TextPart {
     fn same(&self, other: &Self) -> bool {
         match (self, other) {
             (TextPart::Span(left), TextPart::Span(right)) => Rc::ptr_eq(&left.0, &right.0),
+            (TextPart::Gap(left), TextPart::Gap(right)) => left == right,
             _ => self.node().is_some() && self.node() == other.node(),
         }
     }
@@ -114,6 +116,7 @@ struct Placed {
 enum Entry {
     Span(SpanHandle, u64),
     Inline(Vec2),
+    Gap(f32),
 }
 
 impl PartialEq for Entry {
@@ -123,6 +126,7 @@ impl PartialEq for Entry {
                 Rc::ptr_eq(&left.0, &right.0) && at == other
             }
             (Entry::Inline(left), Entry::Inline(right)) => left == right,
+            (Entry::Gap(left), Entry::Gap(right)) => left == right,
             _ => false,
         }
     }
@@ -279,6 +283,7 @@ impl ChildHost for TextNode {
 enum Flow<'a> {
     Span(Ref<'a, SpanContent>),
     Inline(usize, Vec2),
+    Gap(f32),
 }
 
 impl TextNode {
@@ -292,7 +297,7 @@ impl TextNode {
             match part {
                 TextPart::Span(span) => content.push_str(&span.content().text),
                 TextPart::Inline(_) => content.push_str(OBJECT),
-                TextPart::Anchored(_) => {}
+                TextPart::Anchored(_) | TextPart::Gap(_) => {}
             }
         }
         self.content = content;
@@ -349,6 +354,7 @@ impl TextNode {
                     *item,
                     Vec2::splat(f32::INFINITY),
                 ))),
+                TextPart::Gap(width) => entries.push(Entry::Gap(*width)),
                 TextPart::Anchored(_) => {}
             }
         }
@@ -432,6 +438,7 @@ impl TextNode {
                         inline += 1;
                         Flow::Inline(inline - 1, *size)
                     }
+                    Entry::Gap(width) => Flow::Gap(*width),
                 })
                 .collect()
         };
@@ -447,6 +454,7 @@ impl TextNode {
                     index: *index,
                     size: *size,
                 },
+                Flow::Gap(width) => Piece::Gap(*width),
             })
             .collect();
         let mut galleys = self.galleys.borrow_mut();
@@ -544,7 +552,7 @@ impl TextNode {
             .flat_map(|shaped| &shaped.entries)
             .map(|entry| match entry {
                 Entry::Span(span, _) => Some(span.clone()),
-                Entry::Inline(_) => None,
+                Entry::Inline(_) | Entry::Gap(_) => None,
             })
             .collect();
         *self.placed.borrow_mut() = Some(Placed {

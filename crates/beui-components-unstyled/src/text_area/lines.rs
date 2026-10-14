@@ -18,15 +18,16 @@ use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ForEach, Frame, IntoChild, List, Memo, NodeRef, Portal, RenderFn,
-    Show, Span, Text, TextChild, TextItem, VirtualList, component_placed, create_effect,
+    Callback, Canvas, CanvasItem, ForEach, Frame, Gap, IntoChild, List, Memo, NodeRef, Portal,
+    RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList, component_placed, create_effect,
     create_memo, on_cleanup, untrack, with_document,
 };
 
+use super::colors::TextAreaColors;
 use super::rows::{
     BODY_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
-    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowOptions,
-    SpanKind, build_row, galley, line_range, rich_layout,
+    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowKey,
+    RowOptions, SpanKind, build_row, galley, line_range, rich_layout, row_key,
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
@@ -79,6 +80,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
     });
+    create_effect(move || cx.set_text_extent.set(text.get()));
     let canvas_width = create_memo(move || text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH);
     let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
     let x = create_memo(move || cx.padding.get().x - cx.shift.get());
@@ -250,55 +252,117 @@ fn row_cursors(cx: Context, model: Memo<Rc<Row>>, layer: Layer) -> Memo<RowCurso
     })
 }
 
+#[derive(Clone, PartialEq)]
+struct RowEnv {
+    colors: TextAreaColors,
+    metrics: (f32, u64),
+    options: RowOptions,
+    client_colors: Vec<(u64, Color32)>,
+}
+
+const ROW_CACHE_LIMIT: usize = 1024;
+
+#[derive(Default)]
+pub(super) struct RowCache {
+    env: Option<RowEnv>,
+    rows: HashMap<u64, Vec<(RowKey, Rc<Row>)>>,
+    count: usize,
+}
+
+impl RowCache {
+    fn find(&mut self, env: &RowEnv, key: &RowKey) -> Option<Rc<Row>> {
+        if self.env.as_ref() != Some(env) {
+            self.env = Some(env.clone());
+            self.rows.clear();
+            self.count = 0;
+            return None;
+        }
+        self.rows
+            .get(&bytes_hash(key.bytes()))?
+            .iter()
+            .find(|(held, _)| held == key)
+            .map(|(_, row)| Rc::clone(row))
+    }
+
+    fn remember(&mut self, key: RowKey, row: Rc<Row>) {
+        if self.count >= ROW_CACHE_LIMIT {
+            self.rows.clear();
+            self.count = 0;
+        }
+        self.count += 1;
+        self.rows
+            .entry(bytes_hash(key.bytes()))
+            .or_default()
+            .push((key, row));
+    }
+}
+
+fn bytes_hash(bytes: &[u8]) -> u64 {
+    use std::hash::{BuildHasher, Hash, Hasher};
+
+    foldhash::fast::FixedState::with_seed(0).hash_one(&bytes)
+}
+
 fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
     let content = cx.state.content();
     create_memo(move || {
         content.get();
-        cx.metrics.get();
-        cx.state.count_row_built();
         let starts = cx.starts.get();
         let tables = cx.tables.get();
         let widgets = cx.widgets.get();
-        let client_colors = cx.client_colors.get();
-        let colors = cx.colors.get();
         let composition = cx.composition.get();
         let placeholder = cx.placeholder.get();
-        let options = RowOptions {
-            body_size: cx.font_size.get(),
-            mask: cx.masked.get(),
-            single_line: cx.single_line,
+        let env = RowEnv {
+            colors: cx.colors.get(),
+            metrics: cx.metrics.get(),
+            options: RowOptions {
+                body_size: cx.font_size.get(),
+                mask: cx.masked.get(),
+                single_line: cx.single_line,
+            },
+            client_colors: cx.client_colors.get(),
         };
-        Rc::new(cx.state.with_snapshot(|snapshot| {
+        cx.state.with_snapshot(|snapshot| {
             let (start, end, newline) =
                 line_range(&snapshot.bytes, &starts, line).unwrap_or((0, 0, false));
             let spacers = tables.get(&start).map_or(&[][..], Vec::as_slice);
             let placeholder = (snapshot.bytes.is_empty() && !placeholder.is_empty() && line == 0)
                 .then_some(placeholder.as_str());
             if !snapshot.loaded || snapshot.highlight.is_none() {
-                return Row {
+                return Rc::new(Row {
                     line,
                     start,
                     end,
                     ..Row::default()
+                });
+            }
+            let inputs = RowInputs {
+                snapshot,
+                widgets: &widgets,
+                client_colors: &env.client_colors,
+                composition: composition.as_ref(),
+                colors: &env.colors,
+                options: env.options,
+                spacers,
+                placeholder,
+            };
+            let key = row_key(&inputs, start, end, newline);
+            let held = cx.held.get();
+            if let Some(key) = &key
+                && let Some(row) = held.row_cache.borrow_mut().find(&env, key)
+            {
+                return match row.line == line && row.start == start {
+                    true => row,
+                    false => Rc::new(row.moved(line, start)),
                 };
             }
-            build_row(
-                &RowInputs {
-                    snapshot,
-                    widgets: &widgets,
-                    client_colors: &client_colors,
-                    composition: composition.as_ref(),
-                    colors: &colors,
-                    options,
-                    spacers,
-                    placeholder,
-                },
-                line,
-                start,
-                end,
-                newline,
-            )
-        }))
+            cx.state.count_row_built();
+            let row = Rc::new(build_row(&inputs, line, start, end, newline));
+            if let Some(key) = key {
+                held.row_cache.borrow_mut().remember(key, Rc::clone(&row));
+            }
+            row
+        })
     })
 }
 
@@ -527,9 +591,7 @@ fn row_piece(
             .into_child()
         }
         PieceKey::Space(width) => view! {
-            <TextItem>
-                <Frame width={Some(f32::from_bits(width))} height=Some(0.0) />
-            </TextItem>
+            <Gap width={f32::from_bits(width)} />
         }
         .into_child(),
         PieceKey::Inline(item) if layer == Layer::Handles => {
