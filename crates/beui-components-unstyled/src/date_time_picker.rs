@@ -230,7 +230,7 @@ pub fn DateTimePicker(
                                     set_outer_focus.set(None);
                                 }
                             }}
-                            on_open={move |segment: DateSegment| open_at.call(segment)}
+                            on_open={open_at}
                             on_press={move || pressed.restart(Duration::ZERO)}
                         />
                     </Frame>
@@ -281,11 +281,11 @@ fn FieldBox(
                                 label
                                 disabled={field_disabled}
                                 focus_segment={focus}
-                                on_change={move |next| report.call(next)}
+                                on_change={report}
                                 on_focus_change={move |inside: bool| set_within.set(inside)}
-                                on_segment_focus={move |segment| on_segment_focus.call(segment)}
-                                on_draft={move |draft| on_draft.call(draft)}
-                                on_open={move |segment| on_open.call(segment)}
+                                on_segment_focus={on_segment_focus}
+                                on_draft={on_draft}
+                                on_open={on_open}
                                 segment
                                 literal
                             />

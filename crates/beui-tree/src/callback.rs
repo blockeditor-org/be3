@@ -88,3 +88,35 @@ impl ClickCallback {
         }
     }
 }
+
+pub trait IntoCallback<V, R> {
+    fn into_callback(self) -> Callback<V, R>;
+}
+
+impl<V: 'static, R: 'static, F: FnMut(V) -> R + 'static> IntoCallback<V, R> for F {
+    fn into_callback(self) -> Callback<V, R> {
+        Callback::new(self)
+    }
+}
+
+impl<V, R> IntoCallback<V, R> for Callback<V, R> {
+    fn into_callback(self) -> Callback<V, R> {
+        self
+    }
+}
+
+pub trait IntoClickCallback {
+    fn into_click_callback(self) -> ClickCallback;
+}
+
+impl<F: FnMut() + 'static> IntoClickCallback for F {
+    fn into_click_callback(self) -> ClickCallback {
+        ClickCallback::new(self)
+    }
+}
+
+impl IntoClickCallback for ClickCallback {
+    fn into_click_callback(self) -> ClickCallback {
+        self
+    }
+}

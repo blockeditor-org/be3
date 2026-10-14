@@ -69,7 +69,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                                 glyph=ICON_ARROW_BACK
                                 label="Back"
                                 variant=ButtonVariant::Ghost
-                                on_click={move || back.call()}
+                                on_click={back}
                             />
                         }}
                     </Show>
@@ -99,7 +99,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             <DockTabCount
                                 count={others}
                                 label={switch_label}
-                                on_click={move || open_switcher.call()}
+                                on_click={open_switcher}
                             />
                         }}
                     </Show>
@@ -118,7 +118,7 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
         <unstyled::Button
             @test_id={"dock.switch"}
             label
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle: unstyled::ButtonHandle| {
                 let unstyled::ButtonHandle { hovered, focused, .. } = handle;
                 let theme = theme;
@@ -179,7 +179,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         icon => icon,
     });
     view! {
-        <ModalSheet open rest={SHEET_STOPS[2]} on_close={move || close.call()}>
+        <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
                 <Frame padding_horizontal=SHEET_PADDING>
                     <Heading content="Open tabs" />
@@ -209,7 +209,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                                 @test_id={"dock.switcher.home"}
                                 label={home_title}
                                 glyph={home_glyph}
-                                on_click={move || go_home.call()}
+                                on_click={go_home}
                             />
                         </Frame>
                     }}
@@ -251,7 +251,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                 <ListRow
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={format!("dock.switcher.tab.{id}")}
-                    on_click={move || pick.call()}
+                    on_click={pick}
                 >
                     <Frame padding_vertical=CARD_PADDING>
                         <List spacing=CARD_LINES>
@@ -274,7 +274,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                             glyph=ICON_CLOSE
                             label="Close tab"
                             variant=ButtonVariant::Ghost
-                            on_click={move || close.call()}
+                            on_click={close}
                         />
                     }}
                 </Show>

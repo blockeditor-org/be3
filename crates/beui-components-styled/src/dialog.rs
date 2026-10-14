@@ -42,7 +42,7 @@ pub fn Dialog(
         >
             <BackSlide
                 enters=false
-                on_back={move || closing.call()}
+                on_back={closing}
                 on_presence={move |presence: f32| set_presence.set(presence)}
             >
                 <DialogSurface width={width} title={title}>{children}</DialogSurface>

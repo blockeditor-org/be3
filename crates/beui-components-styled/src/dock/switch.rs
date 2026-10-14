@@ -54,7 +54,7 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
         <ListRow
             @test_id={format!("dock.switch.{}", tab.value())}
             selected={chosen}
-            on_click={move || pick.call()}
+            on_click={pick}
         >
             <Frame padding_vertical=ROW_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>

@@ -335,7 +335,7 @@ fn BitCell(
                 label={label}
                 variant=ButtonVariant::Secondary
                 disabled={read_only}
-                on_click={move || on_click.call()}
+                on_click={on_click}
             />
         </Frame>
     }

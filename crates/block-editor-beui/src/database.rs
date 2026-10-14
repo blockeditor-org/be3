@@ -677,7 +677,7 @@ fn LinksValue(
             continuous: false,
         });
     };
-    let added = clone!(; emit -> move |index: Option<usize>| {
+    let added = clone!(emit -> move |index: Option<usize>| {
         let Some(link) = index.and_then(|index| {
             addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
         }) else {
@@ -700,7 +700,7 @@ fn LinksValue(
                     let label = create_memo(move || {
                         chip_labels.with(|labels| labels.row(&link))
                     });
-                    let remove = clone!(; emit -> move || {
+                    let remove = clone!(emit -> move || {
                         let links = linked
                             .get_untracked()
                             .into_iter()

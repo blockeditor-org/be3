@@ -2109,12 +2109,12 @@ fn DockTabView(
                     has_next
                     held
                     closable
-                    close={move || close.call()}
-                    float={move || float.call()}
-                    group={move || group.call()}
-                    split={move || split.call()}
-                    ungroup={move || ungroup.call()}
-                    toggle_held={move || toggle_held.call()}
+                    close={close}
+                    float={float}
+                    group={group}
+                    split={split}
+                    ungroup={ungroup}
+                    toggle_held={toggle_held}
                 >
                     {face}
                 </TabMenu>

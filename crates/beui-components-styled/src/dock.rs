@@ -161,7 +161,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
             dragged
             closable
             close_test_id={close_test_id(entry)}
-            close={move || close.call()}
+            close={close}
         />
     }
 }
@@ -241,7 +241,7 @@ fn DockTabChrome(
                             size=IconButtonSize::Compact
                             variant=ButtonVariant::Ghost
                             capture_presses=true
-                            on_click={move || close.call()}
+                            on_click={close}
                         />
                     }}
                 </Show>
@@ -354,7 +354,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                                     size=IconButtonSize::Compact
                                     variant=ButtonVariant::Ghost
                                     capture_presses=true
-                                    on_click={move || close.call()}
+                                    on_click={close}
                                 />
                             }}
                         </Show>
@@ -414,7 +414,7 @@ fn DockTitleBar(
                             <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
                         </Show>
                         <DockMenu menu />
-                        <DockClose closable close={move || close.call()} />
+                        <DockClose closable close={close} />
                     </List>
                 </Frame>
             </Frame>
@@ -454,7 +454,7 @@ fn DockSideBar(
                     {grip}
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         <DockMenu menu />
-                        <DockClose closable close={move || close.call()} />
+                        <DockClose closable close={close} />
                     </List>
                 </List>
                 {tabs} @sizing=ItemSize::Percent(100.0)
@@ -517,7 +517,7 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
                 size=IconButtonSize::Compact
                 variant=ButtonVariant::Ghost
                 capture_presses=true
-                on_click={move || close.call()}
+                on_click={close}
             />
         </Frame>
     }

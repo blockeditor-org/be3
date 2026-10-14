@@ -530,7 +530,7 @@ pub fn Scroll(
             focus_color
             scrollbar
             marker
-            on_change={move |position: ScrollPosition| on_change.call(position)}
+            on_change={on_change}
         >
             {move |report: Callback<ScrollPosition>| {
                 view! {

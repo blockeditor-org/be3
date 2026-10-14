@@ -171,11 +171,11 @@ pub fn NumberInput(
         }
         on_preview.call(None);
     };
-    let submitted = clone!(; finish -> move |_: String| {
+    let submitted = clone!(finish -> move |_: String| {
         set_refocus.set(true);
         finish(true);
     });
-    let focus_changed = clone!(; finish -> move |focused: bool| {
+    let focus_changed = clone!(finish -> move |focused: bool| {
         if !focused {
             finish(true);
         }
@@ -183,7 +183,7 @@ pub fn NumberInput(
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
-        clone!(; finish -> move |event: KeyEvent| {
+        clone!(finish -> move |event: KeyEvent| {
             let escaped = event.press().is_some_and(|press| press.pressed && press.key == Key::Escape);
             if !escaped || !editing.get_untracked() {
                 return false;

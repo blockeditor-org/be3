@@ -925,7 +925,7 @@ pub fn ModalSheet(
                 panel
                 on_presence={move |presence: f32| set_presence.set(presence)}
                 on_gone={move || set_gone.set(true)}
-                on_close={move || on_close.call()}
+                on_close={on_close}
             >
                 {children}
             </ModalSheetBody>
@@ -961,7 +961,7 @@ fn ModalSheetBody(
                         <Interactive
                             @sizing={room}
                             @test_id={"sheet.outside"}
-                            on_click={move || outside.call()}
+                            on_click={outside}
                         >
                             <Spacer />
                         </Interactive>
@@ -975,8 +975,8 @@ fn ModalSheetBody(
                             grip
                             panel
                             on_presence={move |presence: f32| on_presence.call(presence)}
-                            on_gone={move || on_gone.call()}
-                            on_close={move || closing.call()}
+                            on_gone={on_gone}
+                            on_close={closing}
                         >
                             {children}
                         </Sheet>

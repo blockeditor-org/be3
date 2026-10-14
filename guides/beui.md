@@ -158,18 +158,22 @@ rebuild a subtree to show a new value. A `Prop<T>` takes a plain `T`, a
 `ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
 writes just that one property when the value changes.
 
-A `Prop<T>` is a handle rather than a value, so it clones for the price of an
-`Rc`, but unlike a signal it is not `Copy`: a component that needs one in more
-than one place clones it with `clone!`:
+A `Prop<T>` is `Copy` whenever `T` is, like the signal behind it, so a
+component reads one in as many places as it needs. A `Prop<String>` or other
+non-`Copy` prop clones for the price of an `Rc` with `clone!`:
 
 ```rust
-let color = create_memo(clone!(value -> move || paint(value.get())));
+let color = create_memo(move || paint(value.get()));
 view! {
     <Frame color>
         <Text string={value} />
     </Frame>
 }
 ```
+
+A callback prop (`Callback<V, R>` or `ClickCallback`) takes either a closure or
+a callback the component already has, so a wrapper passes its own `on_change`
+straight on rather than wrapping it in a closure that calls it.
 
 Do not wrap a prop in a `create_memo` just to read it twice. A memo adds a
 node to the graph, and a `T` that is not `PartialEq` cannot go in one at all.
@@ -2323,7 +2327,7 @@ visual primitives:
 #[component]
 pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
     view! {
-        <Toggle checked label on_change={move |checked| on_change.call(checked)}>
+        <Toggle checked label on_change>
             {move |handle: ToggleHandle| {
                 view! {
                     <CheckboxFace handle />

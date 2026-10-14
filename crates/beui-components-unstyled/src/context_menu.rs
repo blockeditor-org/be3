@@ -96,7 +96,7 @@ pub fn ContextMenu(
                         set_open.set(false);
                         on_close.call();
                     }}
-                    on_select={move |path: Vec<usize>| on_select.call(path)}
+                    on_select={on_select}
                 />
             </List>
         </Interactive>

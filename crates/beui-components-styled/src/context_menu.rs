@@ -55,8 +55,8 @@ pub fn ContextMenu(
             open_at_focuses
             open_at_pointer
             selection
-            on_close={move || on_close.call()}
-            on_select={move |path| on_select.call(path)}
+            on_close={on_close}
+            on_select={on_select}
         >
             {children}
         </unstyled::ContextMenu>
@@ -214,7 +214,7 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
             open={open}
             rest={SHEET_STOPS[0]}
             stops={SHEET_STOPS.to_vec()}
-            on_close={move || on_close.call()}
+            on_close={on_close}
         >
             <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>{menu}</Frame>
         </ModalSheet>

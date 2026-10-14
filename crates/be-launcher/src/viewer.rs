@@ -114,24 +114,24 @@ pub(crate) fn ViewerBar(
                 glyph=ICON_CHEVRON_LEFT
                 label="Previous image"
                 disabled={first}
-                on_click={move || on_previous.call()}
+                on_click={on_previous}
             />
             <IconButton
                 glyph=ICON_CHEVRON_RIGHT
                 label="Next image"
                 disabled={last}
-                on_click={move || on_next.call()}
+                on_click={on_next}
             />
             <IconButton
                 glyph=ICON_OPEN_IN_NEW
                 label="Open in the browser"
-                on_click={move || on_browse.call()}
+                on_click={on_browse}
             />
             <IconButton
                 @test_id={"viewer.close"}
                 glyph=ICON_CLOSE
                 label="Close"
-                on_click={move || on_close.call()}
+                on_click={on_close}
             />
         </List>
     }

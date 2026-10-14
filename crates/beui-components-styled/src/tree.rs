@@ -84,10 +84,10 @@ where
                         selected
                         ancestors
                         spacing
-                        on_select={move |key| on_select.call(key)}
-                        on_expand={move |expansion| on_expand.call(expansion)}
-                        on_hover_change={move |hover| on_hover_change.call(hover)}
-                        on_drag_start={move |key| on_drag_start.call(key)}
+                        on_select={on_select}
+                        on_expand={on_expand}
+                        on_hover_change={on_hover_change}
+                        on_drag_start={on_drag_start}
                     >
                         {move |handle: TreeRowHandle<K>| {
                             let named = row_test_id.call(handle.key.clone());
@@ -101,7 +101,7 @@ where
             <unstyled::TreeReveal
                 tree={rows}
                 viewport={viewport}
-                on_reveal={move |key: K| on_reveal.call(key)}
+                on_reveal={on_reveal}
                 button={move |handle: TreeRevealHandle| view! {
                     <RevealButton handle named={reveal_test_id} />
                 }}
@@ -128,7 +128,7 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
                 glyph={glyph}
                 label={label}
                 variant=ButtonVariant::Secondary
-                on_click={move || reveal.call()}
+                on_click={reveal}
             />
         </Frame>
     }
@@ -195,7 +195,7 @@ where
                 <Chevron
                     item={item}
                     marked={marked}
-                    toggle={move || toggle.call()}
+                    toggle={toggle}
                     named={chevron_id(&named)}
                 />
                 <Frame
@@ -226,7 +226,7 @@ fn Chevron(
     view! {
         <Frame width=CHEVRON_WIDTH>
             <List spacing=0.0>
-                <unstyled::TreeToggle item toggle={move || toggle.call()} button_test_id=named>
+                <unstyled::TreeToggle item toggle={toggle} button_test_id=named>
                     {move |handle: TreeToggleHandle| view! {
                         <ChevronFace handle marked={marked} />
                     }}

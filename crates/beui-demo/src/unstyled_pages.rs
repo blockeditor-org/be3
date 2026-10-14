@@ -1126,9 +1126,9 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             focused={editing}
             select_on_focus=true
             style={underlined_style()}
-            on_change={move |typed| on_change.call(typed)}
-            on_submit={move |typed| on_submit.call(typed)}
-            on_focus_change={move |focused| on_focus_change.call(focused)}
+            on_change={on_change}
+            on_submit={on_submit}
+            on_focus_change={on_focus_change}
         >
             {move |handle: TextInputHandle| view! {
                 <UnderlinedField handle />
@@ -1314,7 +1314,7 @@ fn FolderTree() -> NodeId {
                         let reveal = handle.reveal;
                         view! {
                             <unstyled::Button
-                                on_click={move || reveal.call()}
+                                on_click={reveal}
                                 content={move |handle: ButtonHandle| view! {
                                     <PillFace handle label="Show the selection" />
                                 }}
@@ -1357,7 +1357,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
             <Spacer @sizing={indent} />
             <Frame width=16.0>
                 <List spacing=0.0>
-                    <unstyled::TreeToggle item={item} toggle={move || toggle.call()}>
+                    <unstyled::TreeToggle item={item} toggle={toggle}>
                         {move |handle: TreeToggleHandle| {
                             let marker = create_memo(move || match handle.expanded.get() {
                                 true => "-".to_owned(),
@@ -1700,13 +1700,13 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
                 {preset("In a month", start.add_months(1))}
                 <List direction=Direction::Horizontal spacing=8.0>
                     <unstyled::Button
-                        on_click={move || now.call()}
+                        on_click={now}
                         content={move |handle: ButtonHandle| view! {
                             <PillFace handle label=now_label />
                         }}
                     />
                     <unstyled::Button
-                        on_click={move || clear.call()}
+                        on_click={clear}
                         content={move |handle: ButtonHandle| view! {
                             <PillFace handle label="Clear" />
                         }}

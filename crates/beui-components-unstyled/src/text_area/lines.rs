@@ -596,7 +596,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             capture_presses=true
             tab_stop=false
             press_focus=false
-            on_change={move |checked: bool| on_change.call(checked)}
+            on_change={on_change}
         >
             {move |handle: ToggleHandle| view! {
                 <CheckboxBox cx handle />

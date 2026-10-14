@@ -28,7 +28,7 @@ pub fn Link(
             glyph
             role=Role::Link
             disabled
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle| view! {
                 <LinkFace handle font_size />
             }}

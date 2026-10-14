@@ -208,14 +208,14 @@ fn KeepChangesCard(
                                     label="Revert"
                                     variant=ButtonVariant::Secondary
                                     @test_id={format!("{id}.revert")}
-                                    on_click={move || on_revert.call()}
+                                    on_click={on_revert}
                                 />
                                 <Button
                                     label="Keep"
                                     variant=ButtonVariant::Primary
                                     focused={focused}
                                     @test_id={format!("{id}.keep")}
-                                    on_click={move || on_keep.call()}
+                                    on_click={on_keep}
                                 />
                             </List>
                         </List>

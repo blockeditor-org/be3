@@ -94,7 +94,7 @@ pub fn DateTimeField(
                     <PickerPanel handle clearable first_weekday step_minutes />
                 </PopoverPanel>
             }}
-            on_change={move |next| on_change.call(next)}
+            on_change={on_change}
         />
     }
 }
@@ -280,7 +280,7 @@ fn PickerPanel(
                                 calendar
                                 times
                                 page
-                                show_page={move |chosen: usize| show_page.call(chosen)}
+                                show_page={show_page}
                                 width={width}
                                 first_weekday
                                 step_minutes
@@ -297,14 +297,14 @@ fn PickerPanel(
                     <Button
                         label=now_label
                         variant=ButtonVariant::Secondary
-                        on_click={move || now.call()}
+                        on_click={now}
                     />
                     <Show condition=clearable>
                         {move || view! {
                             <Button
                                 label="Clear"
                                 variant=ButtonVariant::Ghost
-                                on_click={move || clear.call()}
+                                on_click={clear}
                             />
                         }}
                     </Show>
@@ -374,7 +374,7 @@ fn PanelBody(
                                 <ChoiceOption label="Time" />
                             }}
                             selected={page}
-                            on_change={move |chosen: usize| show_page.call(chosen)}
+                            on_change={show_page}
                         />
                         <Show condition={dates}>
                             {move || view! {
@@ -432,7 +432,7 @@ fn CalendarPane(
             focused
             show={shown}
             width
-            on_change={move |date| pick.call(date)}
+            on_change={pick}
         />
     }
 }
@@ -466,7 +466,7 @@ fn TimePane(
                 option={move |handle: TimeOptionHandle| view! {
                     <TimeOptionFace handle centred />
                 }}
-                on_change={move |time| pick.call(time)}
+                on_change={pick}
             />
         </Frame>
     }

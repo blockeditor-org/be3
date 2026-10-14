@@ -328,7 +328,7 @@ fn Header(
                                 @test_id={"file-tree.app-menu"}
                                 glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
                                 label="Account and settings"
-                                on_click={move || on_menu.call()}
+                                on_click={on_menu}
                             />
                         }}
                     </Show>
@@ -640,7 +640,7 @@ fn PhoneRow(
             set_level.set(next);
         }
     });
-    let tapped = clone!(; entering -> move || {
+    let tapped = clone!(entering -> move || {
         let Some(shown) = row.get_untracked() else {
             return;
         };

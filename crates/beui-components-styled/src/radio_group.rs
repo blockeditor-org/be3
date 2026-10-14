@@ -17,7 +17,7 @@ pub fn RadioGroup(
             options
             selected
             kind=Kind::Radio
-            on_change={move |selected| on_change.call(selected)}
+            on_change={on_change}
         >
             {|handle| view! {
                 <OptionFace kind=Kind::Radio handle />

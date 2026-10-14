@@ -37,7 +37,7 @@ pub fn Checkbox(
             capture_presses
             tab_stop
             press_focus
-            on_change={move |checked| on_change.call(checked)}
+            on_change={on_change}
         >
             {move |handle: ToggleHandle| {
                 view! {

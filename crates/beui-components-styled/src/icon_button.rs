@@ -63,7 +63,7 @@ pub fn IconButton(
             disabled
             capture_presses
             press_focus
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle: unstyled::ButtonHandle| view! {
                 <Tooltip label={handle.tooltip}>
                     <IconButtonFace handle variant size />

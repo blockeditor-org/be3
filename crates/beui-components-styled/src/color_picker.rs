@@ -141,7 +141,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     on_submit={move |typed: String| hex.submit(typed)}
                 />
                 <Show condition=alpha>
-                    {move || clone!(; set_opacity -> view! {
+                    {move || clone!(set_opacity -> view! {
                         <NumberInput
                             @sizing=ItemSize::Fixed(ALPHA_WIDTH)
                             value={opacity}

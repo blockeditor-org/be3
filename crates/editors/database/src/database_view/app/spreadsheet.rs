@@ -49,7 +49,7 @@ pub fn Spreadsheet(data: Data) -> NodeId {
                         header={data}
                         display={display}
                         keys={keys}
-                        on_key={move |press: KeyPress| keyboard.call(press)}
+                        on_key={keyboard}
                     />
                 </Show>
             </List>
@@ -69,7 +69,7 @@ fn Grid(
         <List spacing=0.0>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Scroll direction=Direction::Horizontal>
-                    <Interactive focusable=true on_key={move |press: KeyPress| on_key.call(press)}>
+                    <Interactive focusable=true on_key={on_key}>
                         <List spacing=0.0>
                             <HeaderRow data={header} />
                             <ForEach keys={keys}>
@@ -172,7 +172,7 @@ fn HeaderCell(
             outline_width=BORDER
             outline_visible=true
         >
-            <Interactive on_click={move || on_click.call()}>
+            <Interactive on_click={on_click}>
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Body content={label} color={theme.text} />

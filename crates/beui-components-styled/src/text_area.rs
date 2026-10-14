@@ -74,10 +74,10 @@ pub fn TextArea(
                         password
                         show_runs
                         client_colors
-                        on_widget_press={move |widget: usize| on_widget_press.call(widget)}
-                        on_focus_change={move |focused: bool| on_focus_change.call(focused)}
+                        on_widget_press={on_widget_press}
+                        on_focus_change={on_focus_change}
                         pastes_images
-                        on_image_paste={move |image: PickedFile| on_image_paste.call(image)}
+                        on_image_paste={on_image_paste}
                         on_menu={move |at: Pos2| open_menu.call(at)}
                         block={block}
                         selected_widget={selected_widget}
@@ -108,7 +108,7 @@ fn inline_checkbox() -> RenderFn<TextCheckbox> {
                 capture_presses=true
                 tab_stop=false
                 press_focus=false
-                on_change={move |checked: bool| on_change.call(checked)}
+                on_change={on_change}
             />
         }
     })

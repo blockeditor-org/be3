@@ -24,7 +24,7 @@ pub fn ListRow(
     view! {
         <Button
             accessibility
-            on_click={move || on_click.call()}
+            on_click={on_click}
             on_click_at={move |press: PointerPress| {
                 if press.clicks >= 2 {
                     double_click.call();

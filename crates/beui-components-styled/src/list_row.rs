@@ -24,8 +24,8 @@ pub fn ListRow(
         <unstyled::ListRow
             selected
             activates
-            on_click={move || on_click.call()}
-            on_activate={move || on_activate.call()}
+            on_click={on_click}
+            on_activate={on_activate}
         >
             {move |handle: ButtonHandle| view! {
                 <ListRowFace handle selected={face}>{children}</ListRowFace>

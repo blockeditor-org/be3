@@ -5,7 +5,7 @@ use block_editor_beui::beui::reactive::{
     List, Memo, ReadSignal, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
-use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::beui::{NodeId, PointerPress, Vec2};
 use block_ui::datetime::civil_from_days;
 
 use super::model::{
@@ -63,8 +63,8 @@ pub(crate) fn Timeline(
                     first_day={first_day}
                     days={days}
                     events={events}
-                    on_pick_slot={move |slot| on_pick_slot.call(slot)}
-                    on_pick_event={move |event| on_pick_event.call(event)}
+                    on_pick_slot={on_pick_slot}
+                    on_pick_event={on_pick_event}
                 />
             </Scroll>
         </List>
@@ -123,7 +123,7 @@ fn Grid(
                 let rule_width = column_width;
                 view! {
                     <Frame height=CONTENT_HEIGHT>
-                        <Interactive on_click_at={move |press| slot(press.local)}>
+                        <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
                             <Canvas>
                                 <ForEach keys={hours}>
                                     {move |hour: u8| {

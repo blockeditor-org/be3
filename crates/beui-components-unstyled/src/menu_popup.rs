@@ -116,7 +116,7 @@ pub(crate) fn MenuPopup(
                         row
                         panel={panel}
                         active
-                        on_select={move |path: Vec<usize>| choose.call(path)}
+                        on_select={choose}
                     />
                 })}
             />
@@ -133,7 +133,7 @@ pub(crate) fn MenuPopup(
                                 row
                                 panel={sheet_panel}
                                 active={raised}
-                                on_select={move |path: Vec<usize>| choose.call(path)}
+                                on_select={choose}
                             />
                         },
                     })

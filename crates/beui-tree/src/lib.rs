@@ -8,7 +8,7 @@ pub mod control;
 pub mod prop;
 
 pub mod reactive {
-    pub use crate::callback::{Callback, ClickCallback};
+    pub use crate::callback::{Callback, ClickCallback, IntoCallback, IntoClickCallback};
     pub use crate::child_list::{ChildList, SlotId};
     pub use crate::children::{
         AtMostOneChild, ChildSegment, ChildSlot, Children, ChildrenSlot, DynamicSegment,

@@ -41,7 +41,7 @@ pub fn Scroll(
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />
             }}
-            on_change={move |reported: ScrollPosition| on_change.call(reported)}
+            on_change={on_change}
         >
             {children}
         </unstyled::Scroll>

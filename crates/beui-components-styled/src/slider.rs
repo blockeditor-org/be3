@@ -41,8 +41,8 @@ pub fn Slider(
             thumb=KNOB_SIZE
             disabled
             label
-            on_change={move |value| on_change.call(value)}
-            on_drag_change={move |dragging| on_drag_change.call(dragging)}
+            on_change={on_change}
+            on_drag_change={on_drag_change}
         >
             {move |handle: SliderHandle| {
                 view! {

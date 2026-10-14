@@ -29,7 +29,7 @@ pub fn Popover(
             label
             glyph
             disabled
-            on_open_change={move |open| on_open_change.call(open)}
+            on_open_change={on_open_change}
             trigger={move |handle: PopoverTriggerHandle| {
                 let PopoverTriggerHandle { open, button } = handle;
                 let quiet = create_memo(move || !icon_only.get() || open.get());

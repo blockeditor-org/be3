@@ -172,8 +172,8 @@ where
                             state={state}
                             nodes={nodes}
                             row={row}
-                            on_hover_change={move |change| hover.call(change)}
-                            on_drag_start={move |key| dragging.call(key)}
+                            on_hover_change={hover}
+                            on_drag_start={dragging}
                         />
                     }
                 }}
@@ -249,7 +249,7 @@ where
                 set_has_focus.set(focused);
                 track_focus(state, &blur_key, focused);
             }}
-            on_activate={move || chosen.call()}
+            on_activate={chosen}
             on_key={move |event: KeyPress| key_press(state, &press_key, event)}
             on_text={move |text: String| typeahead(state, &typed_key, &text)}
         >
@@ -302,7 +302,7 @@ pub fn TreeToggle(
                         tab_stop=false
                         press_focus=false
                         accessibility
-                        on_click={move || toggle.call()}
+                        on_click={toggle}
                         content={move |button: ButtonHandle| content.call(TreeToggleHandle {
                             button,
                             expanded,

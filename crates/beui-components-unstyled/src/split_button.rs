@@ -38,7 +38,7 @@ pub fn SplitButton(
                 label
                 glyph
                 disabled={disabled}
-                on_click={move || on_click.call()}
+                on_click={on_click}
                 content={main}
             />
             <unstyled::MenuButton
@@ -47,7 +47,7 @@ pub fn SplitButton(
                 disabled
                 menu
                 trigger={arrow}
-                on_select={move |path: Vec<usize>| on_select.call(path)}
+                on_select={on_select}
             />
         </List>
     }

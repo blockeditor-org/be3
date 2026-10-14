@@ -474,7 +474,7 @@ fn AddChild(
                             tab_stop=false
                             capture_presses=true
                             accessibility={add_child_accessibility()}
-                            on_click={move || on_click.call()}
+                            on_click={on_click}
                             content={move |button: ButtonHandle| view! {
                                 <AddChildFace handle={button} />
                             }}

@@ -131,8 +131,8 @@ create_effect(clone!(texture -> move || texture.show(count.get())));
 
 `clone!(a b -> expr)` expands to `{ let a = a.clone(); let b = b.clone(); expr }`,
 so the originals stay usable afterwards and the last closure that needs a handle
-can still take it by move. Naming a value whose clone is `Copy` is a compile
-error that names it; drop it from the list.
+can still take it by move. Don't name `Copy` values in it: clippy cannot see
+inside the macro to flag the pointless clone.
 
 ## Selectors
 

@@ -48,7 +48,7 @@ pub fn CrashNotice(
                             label={reload_label}
                             glyph={ICON_REFRESH.to_owned()}
                             variant=ButtonVariant::Secondary
-                            on_click={move || on_reload.call()}
+                            on_click={on_reload}
                         />
                     })}
                 </Show>

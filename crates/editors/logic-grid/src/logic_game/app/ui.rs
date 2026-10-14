@@ -142,7 +142,7 @@ fn LevelRow(
             <ListRow
                 selected={expanded}
                 @test_id={format!("logic-game.level.{}", challenge as usize)}
-                on_click={move || on_toggle.call()}
+                on_click={on_toggle}
                 on_activate={move || {}}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>

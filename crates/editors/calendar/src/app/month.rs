@@ -188,7 +188,7 @@ fn EventChip(
     let click = on_click;
     view! {
         <Frame color={theme.accent} radius=3>
-            <ListRow on_click={move || click.call()} on_activate={move || on_click.call()}>
+            <ListRow on_click={click} on_activate={on_click}>
                 <Caption content={title} color={theme.on_accent} />
             </ListRow>
         </Frame>

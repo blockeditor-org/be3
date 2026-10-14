@@ -50,9 +50,9 @@ pub fn TextInput(
             select_on_focus
             label
             style={text_input_style()}
-            on_change={move |value| on_change.call(value)}
-            on_submit={move |value| on_submit.call(value)}
-            on_focus_change={move |focused| on_focus_change.call(focused)}
+            on_change={on_change}
+            on_submit={on_submit}
+            on_focus_change={on_focus_change}
         >
             {move |handle| view! {
                 <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} />
@@ -120,7 +120,7 @@ fn TextInputFrame(
                                     label="Clear"
                                     size=IconButtonSize::Compact
                                     press_focus=false
-                                    on_click={move || clear.call()}
+                                    on_click={clear}
                                 />
                             </Frame>
                         }}

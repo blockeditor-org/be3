@@ -66,7 +66,7 @@ pub(crate) fn LabelledSwitch(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Switch label on on_change={move |on: bool| on_change.call(on)} />
+            <Switch label on on_change={on_change} />
             <Body content={label} />
         </List>
     }
@@ -2093,7 +2093,7 @@ fn FullscreenBody(on_close: ClickCallback) -> NodeId {
                     <Button
                         label="Close"
                         variant=ButtonVariant::Secondary
-                        on_click={move || on_close.call()}
+                        on_click={on_close}
                     />
                 </List>
                 <Paragraph content="This covers the whole window. Escape closes it too." />
@@ -2276,7 +2276,7 @@ fn ScrollRow(
     let selected = selection.memo(Some(index));
     view! {
         <unstyled::Button
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle| view! {
                 <ScrollRowFace index handle selected timings compact />
             }}
@@ -2691,7 +2691,7 @@ fn scale_in(view: &mut PanZoomView) {
 #[component]
 fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) -> NodeId {
     view! {
-        <PanZoom view on_change={move |view| on_change.call(view)}>
+        <PanZoom view on_change={on_change}>
             {move |handle: PanZoomHandle| {
                 let PanZoomHandle { view, scale, focused, .. } = handle;
                 view! {

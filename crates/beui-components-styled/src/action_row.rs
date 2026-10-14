@@ -30,7 +30,7 @@ pub fn ActionRow(
             glyph
             action
             disabled
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle: unstyled::ButtonHandle| {
                 let unstyled::ButtonHandle {
                     hovered,

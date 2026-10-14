@@ -1484,7 +1484,7 @@ fn Editing(field: Field) -> NodeId {
             on_click_at={move |event: PointerPress| tap(&cx, event)}
             on_drag={move |event: PointerPress| extend(&cx, event)}
             on_active_change={move |active: bool| release(&cx, active)}
-            on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}
+            on_hover_change={on_hover_change}
             on_hover_move={move |event: PointerPress| {
                 set_cursor.set(hover_cursor(&cx, event.pos));
             }}

@@ -169,13 +169,13 @@ fn NotResponding(
                     label="Wait"
                     variant=ButtonVariant::Secondary
                     @test_id={"workspace.window.wait"}
-                    on_click={move || on_wait.call()}
+                    on_click={on_wait}
                 />
                 <Button
                     label="Force close"
                     variant=ButtonVariant::Primary
                     @test_id={"workspace.window.force_close"}
-                    on_click={move || on_force_close.call()}
+                    on_click={on_force_close}
                 />
             </List>
         </Frame>

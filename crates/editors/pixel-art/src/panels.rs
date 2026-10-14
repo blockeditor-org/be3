@@ -393,7 +393,7 @@ fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback
         false => theme.border.get(),
     });
     view! {
-        <Pressable on_click={move || on_click.call()}>
+        <Pressable on_click={on_click}>
             <Frame
                 width=SWATCH
                 height=SWATCH

@@ -50,7 +50,7 @@ pub fn Calendar(
                 focused
                 show
                 spacing=SPACING
-                on_change={move |date| on_change.call(date)}
+                on_change={on_change}
                 header={|handle: CalendarHeaderHandle| view! {
                     <CalendarHeader handle />
                 }}
@@ -147,7 +147,7 @@ fn HeaderToggle(
         <unstyled::Button
             label
             accessibility
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |button: unstyled::ButtonHandle| view! {
                 <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={glyph} />
             }}

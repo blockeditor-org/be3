@@ -233,7 +233,7 @@ fn BlockChild(
             mode=ChildMode::Live
             own_frame=true
             top_bar={top_bar}
-            on_bar={move |action: BarAction| on_bar.call(action)}
+            on_bar={on_bar}
             @test_id={"workspace.block"}
         >
             {move |handle: ChildBlockHandle| {

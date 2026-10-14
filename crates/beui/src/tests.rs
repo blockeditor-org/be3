@@ -1396,7 +1396,7 @@ pub(crate) fn ButtonFace(label: String) -> NodeId {
 #[component]
 pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
     view! {
-        <unstyled::Button on_click={move || on_click.call()}>
+        <unstyled::Button on_click={on_click}>
             <ButtonFace label />
         </unstyled::Button>
     }
@@ -1408,7 +1408,7 @@ pub(crate) fn PanZoomStage(
     on_change: crate::reactive::Callback<unstyled::PanZoomView>,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom @test_id="stage" view on_change={move |view| on_change.call(view)}>
+        <unstyled::PanZoom @test_id="stage" view on_change={on_change}>
             {move |handle: unstyled::PanZoomHandle| {
                 let unstyled::PanZoomHandle { view, .. } = handle;
                 view! {

@@ -138,7 +138,7 @@ pub fn MenuButton(
                 open={shown}
                 touched
                 on_dismiss={move || set_open.set(false)}
-                on_select={move |path: Vec<usize>| on_select.call(path)}
+                on_select={on_select}
             />
         </List>
     }
