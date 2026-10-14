@@ -33,10 +33,10 @@ If a function returns a `NodeId`, or a value built around one such as a
 `CanvasItem`, annotate it `#[component]` and name it in `CamelCase`. The
 attribute is what makes the function usable as a tag, gives it `@test_id`,
 `@node_ref` and `@sizing`, makes `component_state`, `component_accessibility`
-and `component_placed` available inside it, and gives it a scope of its own for
-the contexts it provides. `./scripts/verify` reports a function outside an
-`impl` that writes a `view!` and returns a node or a child value without the
-attribute.
+and `component_placed` available inside it (they panic anywhere else), and
+gives it a scope of its own, so the contexts it provides reach only what it
+builds rather than its siblings. Nothing checks for the attribute; a plain
+function that writes a `view!` builds into its caller's scope.
 
 Nodes and effects live and die together whether or not a function is a
 component: a node belongs to the reactive scope it was created in, and
@@ -52,13 +52,13 @@ nothing), so each is a distinct type and a child built for one parent does not
 fit another. A new parent implements `ParentKind` for its node type, and
 `BareChild` too when a bare `NodeId` should go in it unchanged.
 
-A child needs no node at all. A `ChildValue` that is no node keeps a
-`ChildScope` field instead, which the component's scope is moved into, so
-dropping the value disposes exactly the effects that building it created and
-the owner tree does the rest. That is how an item made of data rather than
-nodes — a label, a key, a callback — can still be a component, with its own
-scope, context, memos and cleanups, and still be written as a tag. Such a
-component has nothing for `component_state`, `component_accessibility`,
+A child needs no node at all. A component that returns a value rather than a
+node still runs in a scope of its own, which lives as long as the scope that
+built it, exactly as a node's does: a value built inside a `show` branch or a
+`for_each` row goes with that branch or row, whatever happens to the value.
+That is how an item made of data rather than nodes — a label, a key, a
+callback — can still be a component, with its own scope, context, memos and
+cleanups, and still be written as a tag. Such a component has nothing for `component_state`, `component_accessibility`,
 or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
@@ -67,8 +67,9 @@ disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
-with `value_child_type!` rather than `child_type!`, which additionally says how
-a run of it is kept, so a `show` or a `for_each` can build one.
+with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
+is kept, so a `show` or a `for_each` can build one; a generic type names its
+parameters first, as in `value_child_type!(<K> DockNode<K>)`.
 
 Functions that build no part of a view are ordinary functions. Deriving a
 colour from theme tokens and interaction state, mapping a value to a label,
@@ -2395,7 +2396,9 @@ base implementation has three parts:
 
 - A node struct containing its retained state and child ids.
 - An `Element` implementation for measurement, layout, painting, interaction,
-  child traversal, and inspector metadata.
+  child traversal, and inspector metadata. Its `remove_child` lets go of a
+  child whose scope went while the node still held it, so a node holding one
+  child keeps it in an `Option`; a `ChildHost` hands it to `remove_hosted`.
 - `Document::create_*` and `Document::set_*` methods beside the node, plus a
   public `#[component]` wrapper in `beui-view`. The wrapper creates the node
   with `with_document` and binds reactive props to setters with `create_effect`.

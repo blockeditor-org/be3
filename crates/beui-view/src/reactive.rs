@@ -74,13 +74,6 @@ pub fn request_paste() {
     with_document(Document::request_paste);
 }
 
-pub fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Scope {
-    owner
-        .or_else(owner_scope)
-        .and_then(|owner| owner.child())
-        .unwrap_or_else(|| document.reactive_scope().context().run(Scope::new))
-}
-
 pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }

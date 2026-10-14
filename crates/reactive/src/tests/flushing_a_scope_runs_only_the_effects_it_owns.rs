@@ -14,9 +14,7 @@ fn flushing_a_scope_runs_only_the_effects_it_owns() {
         let seen = Rc::clone(&inside);
         let watched = value;
         child.run(|| {
-            let nested = Scope::new();
-            nested.run(|| create_effect(move || seen.set(watched.get())));
-            nested.into_parent();
+            crate::child_scope(|| create_effect(move || seen.set(watched.get())));
         });
         child
     });

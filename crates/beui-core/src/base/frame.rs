@@ -302,6 +302,12 @@ impl Element for FrameNode {
         self.child.into_iter().collect()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
+    }
+
     fn pointer_children(&self) -> Vec<NodeId> {
         self.shown().into_iter().collect()
     }

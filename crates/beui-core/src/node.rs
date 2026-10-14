@@ -107,6 +107,8 @@ pub trait Element: Any {
 
     fn children(&self) -> Vec<NodeId>;
 
+    fn remove_child(&mut self, child: NodeId);
+
     fn live_children(&self) -> Vec<NodeId> {
         self.children()
     }

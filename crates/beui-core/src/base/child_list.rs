@@ -24,6 +24,14 @@ pub trait ChildHost: crate::node::Element {
     fn children_changed(&mut self) {}
 }
 
+pub fn remove_hosted<H: ChildHost>(host: &mut H, child: NodeId) {
+    let children = ChildHost::children(host);
+    if children.contains(child) {
+        children.remove(child);
+        host.children_changed();
+    }
+}
+
 pub trait NodeChildren<T> {
     fn nodes(&self) -> Vec<NodeId>;
     fn find(&self, child: NodeId) -> Option<&T>;

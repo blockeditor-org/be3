@@ -671,6 +671,10 @@ impl Element for TextNode {
         self.parts.nodes()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        crate::base::child_list::remove_hosted(self, child);
+    }
+
     fn kind(&self) -> &'static str {
         "text"
     }
@@ -980,6 +984,12 @@ impl Element for TextItemNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {
