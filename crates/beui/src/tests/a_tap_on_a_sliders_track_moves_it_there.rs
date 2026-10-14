@@ -4,11 +4,14 @@ use crate::styled::Slider;
 
 #[test]
 fn a_tap_on_a_sliders_track_moves_it_there() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let changed = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [slider]) = toolbar_of(|| {
         [view! {
-            <Slider value=0.3 on_change={move |value| changed.borrow_mut().push(value)} />
+            <Slider
+                value=0.3
+                on_change={move |value| set_changes.update(|changes| changes.push(value))}
+            />
         }]
     });
     let mut harness = Harness::new(document);
@@ -34,7 +37,7 @@ fn a_tap_on_a_sliders_track_moves_it_there() {
             modifiers: Modifiers::NONE,
         },
     ]);
-    let moved = changes.borrow().clone();
+    let moved = changes.get_untracked();
     assert!(
         matches!(moved[..], [value] if (value - 0.8).abs() < 0.01),
         "a press and release that land in one frame, as a touchpad tap does, still move the knob once: {moved:?}"

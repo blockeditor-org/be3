@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn panicking_update_still_invalidates_mutated_value() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(1);
     let memo = scope.run(|| create_memo(move || value.get() * 2));

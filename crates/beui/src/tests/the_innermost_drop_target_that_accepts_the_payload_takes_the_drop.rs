@@ -4,10 +4,8 @@ use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 
 #[test]
 fn the_innermost_drop_target_that_accepts_the_payload_takes_the_drop() {
-    let landed = Rc::new(RefCell::new(Vec::<(&str, u32)>::new()));
-    let outer = Rc::clone(&landed);
-    let inner = Rc::clone(&landed);
-    let refused = Rc::clone(&landed);
+    let _root = crate::reactive::RootScope::new();
+    let (landed, set_landed) = create_signal(Vec::<(&str, u32)>::new());
     let (document, [first, second, target]) = toolbar_of(move || {
         [
             view! {
@@ -26,18 +24,18 @@ fn the_innermost_drop_target_that_accepts_the_payload_takes_the_drop() {
             },
             view! {
                 <DropTarget
-                    on_drop={move |(payload, _): (u32, DragPoint)| outer.borrow_mut().push(("outer", payload))}
+                    on_drop={move |(payload, _): (u32, DragPoint)| set_landed.update(|landed| landed.push(("outer", payload)))}
                 >
                     {move |_: DropHandle| view! {
                         <Frame padding_horizontal=20.0 padding_vertical=20.0>
                             <DropTarget
                                 accepts={Func::new(|payload: u32| payload == 1)}
-                                on_drop={move |(payload, _): (u32, DragPoint)| inner.borrow_mut().push(("inner", payload))}
+                                on_drop={move |(payload, _): (u32, DragPoint)| set_landed.update(|landed| landed.push(("inner", payload)))}
                             >
                                 {move |_: DropHandle| view! {
                                     <DropTarget
                                         accepts={Func::new(|_: String| true)}
-                                        on_drop={move |(_, _): (String, DragPoint)| refused.borrow_mut().push(("text", 0))}
+                                        on_drop={move |(_, _): (String, DragPoint)| set_landed.update(|landed| landed.push(("text", 0)))}
                                     >
                                         {|_: DropHandle| view! {
                                             <Frame width=60.0 height=60.0 />
@@ -59,7 +57,7 @@ fn the_innermost_drop_target_that_accepts_the_payload_takes_the_drop() {
     harness.drag(harness.center(second), middle);
 
     assert_eq!(
-        *landed.borrow(),
+        landed.get_untracked(),
         [("inner", 1), ("outer", 2)],
         "the inner target takes what it accepts and leaves the rest to the one around it"
     );

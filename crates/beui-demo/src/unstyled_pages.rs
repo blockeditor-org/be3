@@ -2,11 +2,12 @@ use super::*;
 use beui::Pos2;
 use beui::reactive::IntoProp;
 use beui::reactive::NodeRef;
+use beui::styled::{Text, TextColor, Weight};
 use beui::unstyled::{
     ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
     DropHandle, MenuButtonHandle, MenuRowHandle, PopoverTriggerHandle, ScrollHandle,
     ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle,
-    TooltipHandle, thumb_length, thumb_start,
+    TooltipHandle,
 };
 use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
 use beui::unstyled::{
@@ -70,14 +71,14 @@ fn PressCounter() -> NodeId {
     let (presses, set_presses) = create_signal(0u32);
     let (hovered, set_hovered) = create_signal(false);
     let (active, set_active) = create_signal(false);
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
         }
-    }));
+    });
     let label = create_memo(move || format!("Pressed {} times", presses.get()));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -92,7 +93,7 @@ fn PressCounter() -> NodeId {
                     padding_horizontal=FACE_PADDING_HORIZONTAL
                     padding_vertical=FACE_PADDING_VERTICAL
                 >
-                    <Text string={label} color={theme.text.clone()} />
+                    <Text string={label} />
                 </Frame>
             </unstyled::Pressable>
         </List>
@@ -103,7 +104,6 @@ fn PressCounter() -> NodeId {
 #[component]
 fn PillButton() -> NodeId {
     let (launched, set_launched) = create_signal("Not launched".to_owned());
-    let theme = use_theme();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -114,7 +114,7 @@ fn PillButton() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={launched} color={theme.text_muted.clone()} />
+            <Text string={launched} color=TextColor::Muted />
         </List>
     }
 }
@@ -129,26 +129,26 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.accent_active,
             (false, true) => theme.accent_hover,
             (false, false) => theme.accent,
         }
-    }));
+    });
     view! {
         <Frame
             color={fill}
             radius=PILL_RADIUS
-            outline={theme.text.clone()}
+            outline={theme.text}
             outline_width=2.0
             outline_offset=2.0
             outline_visible={focus_ring(focused)}
             padding_horizontal=FACE_PADDING_HORIZONTAL
             padding_vertical=FACE_PADDING_VERTICAL
         >
-            <Text string={label.to_owned()} color={theme.on_accent.clone()} bold=true />
+            <Text string={label.to_owned()} color=TextColor::OnAccent weight=Weight::Bold />
         </Frame>
     }
 }
@@ -177,13 +177,13 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let border = create_memo(clone!(theme -> move || match hovered.get() {
+    let border = create_memo(move || match hovered.get() {
         true => theme.accent.get(),
         false => theme.text_muted.get(),
-    }));
+    });
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             outline_offset=2.0
             radius=RADIUS
@@ -202,11 +202,11 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
                     <Frame
                         width=MARK_SIZE
                         height=MARK_SIZE
-                        color={theme.accent.clone()}
+                        color={theme.accent}
                         visible={checked}
                     />
                 </Frame>
-                <Text string={label.to_owned()} color={theme.text.clone()} />
+                <Text string={label.to_owned()} />
             </List>
         </Frame>
     }
@@ -256,10 +256,7 @@ pub(crate) fn ValuesPage() -> NodeId {
 #[component]
 fn VolumeMeter() -> NodeId {
     let (volume, set_volume) = create_signal(0.3f32);
-    let theme = use_theme();
-    let volume_text = create_memo(clone!(volume -> move || {
-        format!("Volume {}%", (volume.get() * 100.0).round())
-    }));
+    let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Slider value={volume} on_change={move |value| set_volume.set(value)}>
@@ -267,7 +264,7 @@ fn VolumeMeter() -> NodeId {
                     <MeterFace handle />
                 }}
             </unstyled::Slider>
-            <Text string={volume_text} color={theme.text_muted.clone()} />
+            <Text string={volume_text} color=TextColor::Muted />
         </List>
     }
 }
@@ -279,25 +276,20 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
         fraction, focused, ..
     } = handle;
     let theme = use_theme();
-    let filled = create_memo(clone!(fraction -> move || ItemSize::Percent(fraction.get() * 100.0)));
+    let filled = create_memo(move || ItemSize::Percent(fraction.get() * 100.0));
     let rest = create_memo(move || ItemSize::Percent((1.0 - fraction.get()) * 100.0));
     view! {
         <Frame
             height=METER_HEIGHT
-            color={theme.track.clone()}
+            color={theme.track}
             radius=RADIUS
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             outline_offset=2.0
             outline_visible={focus_ring(focused)}
         >
             <List direction=Direction::Horizontal spacing=0.0>
-                <Frame
-                    @sizing={filled}
-                    height=METER_HEIGHT
-                    color={theme.accent.clone()}
-                    radius=RADIUS
-                />
+                <Frame @sizing={filled} height=METER_HEIGHT color={theme.accent} radius=RADIUS />
                 <Spacer @sizing={rest} />
             </List>
         </Frame>
@@ -316,10 +308,10 @@ fn UnderlinedInput() -> NodeId {
                 placeholder="Search the docs"
                 style={TextInputStyle {
                     font_size: Prop::Static(16.0),
-                    color: theme.text.clone().into_prop(),
-                    placeholder_color: theme.text_muted.clone().into_prop(),
-                    selection_color: theme.accent_soft.clone().into_prop(),
-                    caret_color: theme.accent.clone().into_prop(),
+                    color: theme.text.into_prop(),
+                    placeholder_color: theme.text_muted.into_prop(),
+                    selection_color: theme.accent_soft.into_prop(),
+                    caret_color: theme.accent.into_prop(),
                     ..TextInputStyle::default()
                 }}
                 on_submit={move |value: String| set_submitted.set(format!("Searched for {value}"))}
@@ -328,7 +320,7 @@ fn UnderlinedInput() -> NodeId {
                     <UnderlinedField handle />
                 }}
             </unstyled::TextInput>
-            <Text string={submitted} color={theme.text_muted.clone()} />
+            <Text string={submitted} color=TextColor::Muted />
         </List>
     }
 }
@@ -343,12 +335,10 @@ fn UnderlinedField(handle: TextInputHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let line = create_memo(
-        clone!(theme -> move || match focused.get() || hovered.get() {
-            true => theme.accent.get(),
-            false => theme.border.get(),
-        }),
-    );
+    let line = create_memo(move || match focused.get() || hovered.get() {
+        true => theme.accent.get(),
+        false => theme.border.get(),
+    });
     view! {
         <List spacing=6.0>
             {field}
@@ -404,7 +394,7 @@ fn SegmentedControl() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
-                color={theme.surface_raised.clone()}
+                color={theme.surface_raised}
                 radius=PILL_RADIUS
                 padding_horizontal=4.0
                 padding_vertical=4.0
@@ -439,23 +429,23 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme selected -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), hovered.get()) {
             (true, _) => theme.accent,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
         }
-    }));
-    let ink = create_memo(clone!(theme -> move || match selected.get() {
-        true => theme.on_accent.get(),
-        false => theme.text.get(),
-    }));
+    });
+    let ink = create_memo(move || match selected.get() {
+        true => TextColor::OnAccent,
+        false => TextColor::Default,
+    });
     view! {
         <Frame
             color={fill}
             radius=PILL_RADIUS
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             outline_visible={focus_ring(focused)}
             padding_horizontal=14.0
@@ -470,7 +460,6 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn SizeRadios() -> NodeId {
     let sizes = ["Small", "Medium", "Large"];
-    let theme = use_theme();
     let (chosen, set_chosen) = create_signal("Medium".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
@@ -492,7 +481,7 @@ fn SizeRadios() -> NodeId {
                     <RadioFace handle />
                 }}
             </unstyled::Choice>
-            <Text string={chosen} color={theme.text_muted.clone()} />
+            <Text string={chosen} color=TextColor::Muted />
         </List>
     }
 }
@@ -509,7 +498,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             radius=RADIUS
             outline_visible={focus_ring(focused)}
@@ -521,7 +510,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                     width=BOX_SIZE
                     height=BOX_SIZE
                     radius=10
-                    outline={theme.text_muted.clone()}
+                    outline={theme.text_muted}
                     outline_width=2.0
                     outline_visible=true
                     align_horizontal=Align::Center
@@ -531,11 +520,11 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                         width=MARK_SIZE
                         height=MARK_SIZE
                         radius=5
-                        color={theme.accent.clone()}
+                        color={theme.accent}
                         visible={selected}
                     />
                 </Frame>
-                <Text string={label} color={theme.text.clone()} />
+                <Text string={label} />
             </List>
         </Frame>
     }
@@ -545,21 +534,21 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn DetailsDisclosure() -> NodeId {
     let theme = use_theme();
-    let body = theme.text_muted.clone();
+    let body = TextColor::Muted;
     view! {
         <unstyled::Disclosure
             spacing=8.0
             open=false
             header={move |handle: DisclosureHandle| {
                 let DisclosureHandle { open, hovered, .. } = handle;
-                let title = create_memo(clone!(open -> move || match open.get() {
+                let title = create_memo(move || match open.get() {
                     true => "Hide the details".to_owned(),
                     false => "Show the details".to_owned(),
-                }));
-                let ink = create_memo(clone!(theme -> move || match hovered.get() {
-                    true => theme.accent_hover.get(),
-                    false => theme.accent.get(),
-                }));
+                });
+                let ink = create_memo(move || match hovered.get() {
+                    true => TextColor::Custom(theme.accent_hover.get()),
+                    false => TextColor::Accent,
+                });
                 view! {
                     <Text string={title} color={ink} underline=true />
                 }
@@ -633,8 +622,8 @@ fn PopupPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=PANEL_WIDTH
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=CARD_RADIUS
@@ -649,7 +638,6 @@ fn PopupPanel(children: Child) -> NodeId {
 #[sample]
 #[component]
 fn InfoPopover() -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Popover
@@ -665,7 +653,6 @@ fn InfoPopover() -> NodeId {
                             <List spacing=SECTION_SPACING>
                                 <Text
                                     string="A popover places its content below the trigger and closes on Escape or a click outside."
-                                    color={theme.text.clone()}
                                     wrap=true
                                 />
                                 <unstyled::Button
@@ -687,7 +674,7 @@ fn InfoPopover() -> NodeId {
 #[component]
 fn HintTooltip() -> NodeId {
     let theme = use_theme();
-    let ink = theme.text.clone();
+    let ink = TextColor::Default;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Tooltip
@@ -695,18 +682,18 @@ fn HintTooltip() -> NodeId {
                 content={move |handle: TooltipHandle| view! {
                     <Frame padding_vertical=4.0>
                         <PopupPanel>
-                            <Text string={handle.label} color={ink.clone()} />
+                            <Text string={handle.label} color={ink} />
                         </PopupPanel>
                     </Frame>
                 }}
             >
                 <Frame
-                    color={theme.surface_raised.clone()}
+                    color={theme.surface_raised}
                     radius=RADIUS
                     padding_horizontal=FACE_PADDING_HORIZONTAL
                     padding_vertical=FACE_PADDING_VERTICAL
                 >
-                    <Text string="Hover me" color={theme.text.clone()} />
+                    <Text string="Hover me" />
                 </Frame>
             </unstyled::Tooltip>
         </List>
@@ -716,7 +703,6 @@ fn HintTooltip() -> NodeId {
 #[sample]
 #[component]
 fn ExportMenu() -> NodeId {
-    let theme = use_theme();
     let (exported, set_exported) = create_signal("Nothing exported".to_owned());
     let formats = ["PDF", "PNG", "Markdown"];
     view! {
@@ -746,7 +732,7 @@ fn ExportMenu() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={exported} color={theme.text_muted.clone()} />
+            <Text string={exported} color=TextColor::Muted />
         </List>
     }
 }
@@ -754,9 +740,8 @@ fn ExportMenu() -> NodeId {
 #[sample]
 #[component]
 fn RunSplit() -> NodeId {
-    let theme = use_theme();
     let (ran, set_ran) = create_signal("Nothing run".to_owned());
-    let picked = set_ran.clone();
+    let picked = set_ran;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -787,7 +772,7 @@ fn RunSplit() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={ran} color={theme.text_muted.clone()} />
+            <Text string={ran} color=TextColor::Muted />
         </List>
     }
 }
@@ -802,15 +787,13 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(
-        clone!(theme -> move || match hovered.get() || focused.get() {
-            true => theme.hover.get(),
-            false => Color32::TRANSPARENT,
-        }),
-    );
+    let fill = create_memo(move || match hovered.get() || focused.get() {
+        true => theme.hover.get(),
+        false => Color32::TRANSPARENT,
+    });
     view! {
         <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
-            <Text string={label} color={theme.text.clone()} />
+            <Text string={label} />
         </Frame>
     }
 }
@@ -833,10 +816,10 @@ pub(crate) fn DraggingPage() -> NodeId {
 #[component]
 fn FruitBins() -> NodeId {
     let (bins, set_bins) = create_signal(vec![0usize, 0, 0, 1, 1, 1]);
-    let moves = set_bins.clone();
+    let moves = set_bins;
     view! {
         <List direction=Direction::Horizontal spacing=ROW_SPACING>
-            <FruitBin @sizing=ItemSize::Percent(50.0) bin=0 bins={bins.clone()} set_bins=moves />
+            <FruitBin @sizing=ItemSize::Percent(50.0) bin=0 bins={bins} set_bins=moves />
             <FruitBin @sizing=ItemSize::Percent(50.0) bin=1 bins set_bins />
         </List>
     }
@@ -857,10 +840,10 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
         >
             {move |handle: DropHandle| {
                 let DropHandle { over, .. } = handle;
-                let edge = create_memo(clone!(theme -> move || match over.get() {
+                let edge = create_memo(move || match over.get() {
                     true => theme.accent.get(),
                     false => theme.border.get(),
-                }));
+                });
                 view! {
                     <Frame
                         height=BIN_HEIGHT
@@ -872,8 +855,8 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
                         padding_vertical=12.0
                     >
                         <List spacing=8.0>
-                            <Text string={BINS[bin].to_owned()} color={theme.text_muted.clone()} />
-                            <ForEach keys={fruits.clone()}>
+                            <Text string={BINS[bin].to_owned()} color=TextColor::Muted />
+                            <ForEach keys={fruits}>
                                 {move |fruit: usize| view! {
                                     <unstyled::Draggable
                                         payload={Some(fruit)}
@@ -899,13 +882,13 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
 #[component]
 fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || match lifted.get() {
+    let fill = create_memo(move || match lifted.get() {
         true => theme.accent_soft.get(),
         false => theme.surface_raised.get(),
-    }));
+    });
     view! {
         <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
-            <Text string={PRODUCE[fruit].to_owned()} color={theme.text.clone()} />
+            <Text string={PRODUCE[fruit].to_owned()} />
         </Frame>
     }
 }
@@ -929,12 +912,7 @@ pub(crate) fn ScrollingPage() -> NodeId {
 fn ThinScroll() -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame
-            outline={theme.border.clone()}
-            outline_width=1.0
-            outline_visible=true
-            radius=CARD_RADIUS
-        >
+        <Frame outline={theme.border} outline_width=1.0 outline_visible=true radius=CARD_RADIUS>
             <List spacing=0.0>
                 <unstyled::Scroll
                     @sizing=ItemSize::Fixed(SCROLL_HEIGHT)
@@ -944,10 +922,7 @@ fn ThinScroll() -> NodeId {
                         <List spacing=6.0>
                             <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>
                                 {move |line: usize| view! {
-                                    <Text
-                                        string={format!("Line {line}")}
-                                        color={theme.text.clone()}
-                                    />
+                                    <Text string={format!("Line {line}")} />
                                 }}
                             </ForEach>
                         </List>
@@ -986,44 +961,32 @@ fn thin_scrollbar() -> ScrollbarStyle {
 fn ThinThumb(bar: ScrollbarHandle) -> NodeId {
     let ScrollbarHandle {
         position,
+        direction,
         hovered,
         dragging,
-        ..
     } = bar;
     let theme = use_theme();
-    let before = create_memo(
-        clone!(position -> move || ItemSize::Percent(thumb_start(position.get()) * 100.0)),
-    );
-    let length = create_memo(
-        clone!(position -> move || ItemSize::Percent(thumb_length(position.get()) * 100.0)),
-    );
-    let color = create_memo(
-        clone!(theme -> move || match hovered.get() || dragging.get() {
-            true => theme.scroll_thumb_hover.get(),
-            false => theme.scroll_thumb.get(),
-        }),
-    );
+    let color = create_memo(move || match hovered.get() || dragging.get() {
+        true => theme.scroll_thumb_hover.get(),
+        false => theme.scroll_thumb.get(),
+    });
     view! {
-        <List spacing=0.0>
-            <Spacer @sizing={before} />
-            <Frame @sizing={length} color={color} radius=3 />
-        </List>
+        <unstyled::ScrollbarThumb position direction color radius=3.0 />
     }
 }
 
 #[sample]
 #[component]
 fn OpenableFiles() -> NodeId {
-    let theme = use_theme();
     let (chosen, set_chosen) = create_signal(0usize);
     let (opened, set_opened) =
         create_signal("Double-click a file, or press Enter on it".to_owned());
     let row = move |index: usize, name: &'static str| {
-        let selected = create_memo(clone!(chosen -> move || chosen.get() == index));
-        let (choose, open) = (set_chosen.clone(), set_opened.clone());
+        let selected = create_memo(move || chosen.get() == index);
+        let (choose, open) = (set_chosen, set_opened);
         view! {
             <unstyled::ListRow
-                selected={selected.clone()}
+                selected={selected}
                 on_click={move || choose.set(index)}
                 on_activate={move || open.set(format!("Opened {name}"))}
             >
@@ -1042,7 +1005,7 @@ fn OpenableFiles() -> NodeId {
                     {row(2, "photo.png")}
                 </List>
             </Frame>
-            <Text string={opened} color={theme.text_muted.clone()} />
+            <Text string={opened} color=TextColor::Muted />
         </List>
     }
 }
@@ -1054,25 +1017,25 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
         hovered, focused, ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), hovered.get()) {
             (true, _) => theme.accent_soft,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
         }
-    }));
+    });
     view! {
         <Frame
             color={fill}
             radius=RADIUS
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             outline_visible={focus_ring(focused)}
             padding_horizontal=10.0
             padding_vertical=6.0
         >
-            <Text string={name.to_owned()} color={theme.text.clone()} />
+            <Text string={name.to_owned()} />
         </Frame>
     }
 }
@@ -1080,9 +1043,8 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
 #[sample]
 #[component]
 fn ScrubbedNumber() -> NodeId {
-    let theme = use_theme();
     let (gap, set_gap) = create_signal(12.0f64);
-    let shown = create_memo(clone!(gap -> move || format!("Gap {} px", gap.get())));
+    let shown = create_memo(move || format!("Gap {} px", gap.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <Frame width=NUMBER_WIDTH>
@@ -1100,7 +1062,7 @@ fn ScrubbedNumber() -> NodeId {
                     on_change={move |value: f64| set_gap.set(value)}
                 />
             </Frame>
-            <Text string={shown} color={theme.text_muted.clone()} />
+            <Text string={shown} color=TextColor::Muted />
         </List>
     }
 }
@@ -1116,25 +1078,25 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
         }
-    }));
+    });
     view! {
         <Frame
             color={fill}
             radius=RADIUS
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             outline_visible={focus_ring(focused)}
             padding_horizontal=FACE_PADDING_HORIZONTAL
             padding_vertical=FACE_PADDING_VERTICAL
         >
-            <Text string={text} color={theme.text.clone()} align=TextAlign::Center />
+            <Text string={text} align=TextAlign::Center />
         </Frame>
     }
 }
@@ -1148,7 +1110,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
         on_change,
         on_submit,
         on_focus_change,
-        on_key,
     } = handle;
     view! {
         <unstyled::TextInput
@@ -1157,10 +1118,9 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             focused={editing}
             select_on_focus=true
             style={underlined_style()}
-            on_change={move |typed| on_change.call(typed)}
-            on_submit={move |typed| on_submit.call(typed)}
-            on_focus_change={move |focused| on_focus_change.call(focused)}
-            on_key_override={move |press| on_key.call(press)}
+            on_change={on_change}
+            on_submit={on_submit}
+            on_focus_change={on_focus_change}
         >
             {move |handle: TextInputHandle| view! {
                 <UnderlinedField handle />
@@ -1173,10 +1133,10 @@ fn underlined_style() -> TextInputStyle {
     let theme = use_theme();
     TextInputStyle {
         font_size: Prop::Static(16.0),
-        color: theme.text.clone().into_prop(),
-        placeholder_color: theme.text_muted.clone().into_prop(),
-        selection_color: theme.accent_soft.clone().into_prop(),
-        caret_color: theme.accent.clone().into_prop(),
+        color: theme.text.into_prop(),
+        placeholder_color: theme.text_muted.into_prop(),
+        selection_color: theme.accent_soft.into_prop(),
+        caret_color: theme.accent.into_prop(),
         ..TextInputStyle::default()
     }
 }
@@ -1192,14 +1152,11 @@ fn HueAndHex() -> NodeId {
         Callback::default(),
     );
     let shown = picker.shown();
-    let picked = picker.clone();
-    let (hue_picker, swatch_picker) = (picker.clone(), picker.clone());
     let hex = HexText::new(
-        shown.clone(),
+        shown,
         false,
-        Callback::new(move |color: Color32| picked.pick(color)),
+        Callback::new(move |color: Color32| picker.pick(color)),
     );
-    let (edit, submit) = (hex.clone(), hex.clone());
     view! {
         <List spacing=SECTION_SPACING>
             <ColorPickerArea picker>
@@ -1207,12 +1164,12 @@ fn HueAndHex() -> NodeId {
                     <PadFace handle />
                 }}
             </ColorPickerArea>
-            <HueSlider picker={hue_picker}>
+            <HueSlider picker={picker}>
                 {move |handle: SliderHandle| view! {
                     <MeterFace handle />
                 }}
             </HueSlider>
-            <Swatches picker={swatch_picker} swatches={SWATCHES.to_vec()}>
+            <Swatches picker={picker} swatches={SWATCHES.to_vec()}>
                 {|handle: SwatchHandle| view! {
                     <SwatchDot handle />
                 }}
@@ -1224,8 +1181,8 @@ fn HueAndHex() -> NodeId {
                     value={hex.text()}
                     placeholder={hex.placeholder()}
                     style={underlined_style()}
-                    on_change={move |typed: String| edit.edit(typed)}
-                    on_submit={move |typed: String| submit.submit(typed)}
+                    on_change={move |typed: String| hex.edit(typed)}
+                    on_submit={move |typed: String| hex.submit(typed)}
                 >
                     {move |handle: TextInputHandle| view! {
                         <UnderlinedField handle />
@@ -1256,7 +1213,7 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
             padding_horizontal=8.0
             padding_vertical=8.0
         >
-            <Text string={place} color={Color32::WHITE} />
+            <Text string={place} color={TextColor::Custom(Color32::WHITE)} />
         </Frame>
     }
 }
@@ -1278,7 +1235,7 @@ fn SwatchDot(handle: SwatchHandle) -> NodeId {
             height=DOT_SIZE
             color
             radius=PILL_RADIUS
-            outline={theme.text.clone()}
+            outline={theme.text}
             outline_width=2.0
             outline_offset=2.0
             outline_visible={ring}
@@ -1300,13 +1257,13 @@ const OUTLINE: [(&str, usize, Option<usize>); 6] = [
 fn FolderTree() -> NodeId {
     let (expanded, set_expanded) = create_signal(vec![0usize]);
     let (selected, set_selected) = create_signal(Some(4usize));
-    let keys = create_memo(clone!(expanded -> move || {
+    let keys = create_memo(move || {
         let open = expanded.get();
         (0..OUTLINE.len())
             .filter(|key| OUTLINE[*key].2.is_none_or(|parent| open.contains(&parent)))
             .collect::<Vec<usize>>()
-    }));
-    let item = Func::new(clone!(expanded -> move |key: usize| {
+    });
+    let item = Func::new(move |key: usize| {
         let (label, depth, parent) = OUTLINE[key];
         TreeItem {
             label: label.to_owned(),
@@ -1314,10 +1271,10 @@ fn FolderTree() -> NodeId {
             expandable: parent.is_none(),
             expanded: expanded.get().contains(&key),
         }
-    }));
+    });
     let tree = NodeRef::new();
     let viewport = NodeRef::new();
-    let rows = tree.clone();
+    let rows = tree;
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=0.0>
@@ -1349,7 +1306,7 @@ fn FolderTree() -> NodeId {
                         let reveal = handle.reveal;
                         view! {
                             <unstyled::Button
-                                on_click={move || reveal.call()}
+                                on_click={reveal}
                                 content={move |handle: ButtonHandle| view! {
                                     <PillFace handle label="Show the selection" />
                                 }}
@@ -1376,10 +1333,9 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let indent =
-        create_memo(clone!(item -> move || ItemSize::Fixed(item.get().depth as f32 * 16.0)));
-    let label = create_memo(clone!(item -> move || item.get().label));
-    let fill = create_memo(clone!(theme -> move || {
+    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * 16.0));
+    let label = create_memo(move || item.get().label);
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), marked.get(), hovered.get()) {
             (true, _, _) => theme.accent_soft,
@@ -1387,20 +1343,20 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
             (false, false, true) => theme.hover,
             (false, false, false) => Color32::TRANSPARENT,
         }
-    }));
+    });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Spacer @sizing={indent} />
             <Frame width=16.0>
                 <List spacing=0.0>
-                    <unstyled::TreeToggle item={item.clone()} toggle>
+                    <unstyled::TreeToggle item={item} toggle={toggle}>
                         {move |handle: TreeToggleHandle| {
                             let marker = create_memo(move || match handle.expanded.get() {
                                 true => "-".to_owned(),
                                 false => "+".to_owned(),
                             });
                             view! {
-                                <Text string={marker} color={theme.text_muted.clone()} />
+                                <Text string={marker} color=TextColor::Muted />
                             }
                         }}
                     </unstyled::TreeToggle>
@@ -1410,14 +1366,14 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                 @sizing=ItemSize::Percent(100.0)
                 color={fill}
                 radius=RADIUS
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=2.0
                 outline_visible={focus_ring(focused)}
                 padding_horizontal=6.0
                 padding_vertical=3.0
             >
                 <unstyled::TreeRowArea target>
-                    <Text string={label} color={theme.text.clone()} />
+                    <Text string={label} />
                 </unstyled::TreeRowArea>
             </Frame>
         </List>
@@ -1431,18 +1387,17 @@ fn PlainNote() -> NodeId {
         b"Right-click for Copy and Paste, or type :tada",
     )) as Arc<dyn text_editor_core::Document>;
     let state = TextAreaState::new(document);
-    let menu_state = state.clone();
     let theme = use_theme();
     view! {
         <Frame
             height=NOTE_HEIGHT
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=RADIUS
         >
             <unstyled::TextContextMenu
-                state={menu_state}
+                state
                 menu={MenuStyle::new(
                     |handle: MenuRowHandle| view! {
                         <MenuRow handle />
@@ -1488,13 +1443,13 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
             .map(|item| format!("{} {}", item.insert, item.label))
             .unwrap_or_default()
     });
-    let fill = create_memo(clone!(theme -> move || match highlighted.get() {
+    let fill = create_memo(move || match highlighted.get() {
         true => theme.hover.get(),
         false => Color32::TRANSPARENT,
-    }));
+    });
     view! {
         <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=4.0>
-            <Text string={label} color={theme.text.clone()} />
+            <Text string={label} />
         </Frame>
     }
 }
@@ -1504,9 +1459,9 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
 fn PullUpSheet() -> NodeId {
     let theme = use_theme();
     let (open, set_open) = create_signal(false);
-    let closing = set_open.clone();
-    let done = set_open.clone();
-    let ink = theme.text.clone();
+    let closing = set_open;
+    let done = set_open;
+    let ink = TextColor::Default;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Button
@@ -1523,7 +1478,7 @@ fn PullUpSheet() -> NodeId {
                     <SheetGrip />
                 }}
                 panel={move |content: Child| view! {
-                    <Frame color={theme.surface.clone()} radius=CARD_RADIUS>{content}</Frame>
+                    <Frame color={theme.surface} radius=CARD_RADIUS>{content}</Frame>
                 }}
                 on_close={move || closing.set(false)}
             >
@@ -1560,24 +1515,24 @@ fn FolderPages() -> NodeId {
     }
     let theme = use_theme();
     let (depth, set_depth) = create_signal(0_u32);
-    let nested = create_memo(clone!(depth -> move || depth.get() > 0));
-    let rising = set_depth.clone();
-    let page = theme.background.clone();
-    let ink = theme.text.clone();
-    let above = clone!(depth page ink -> move || {
+    let nested = create_memo(move || depth.get() > 0);
+    let rising = set_depth;
+    let page = theme.background;
+    let ink = TextColor::Default;
+    let above = move || {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
-        let (page, ink) = (page.clone(), ink.clone());
+        let (page, ink) = (page, ink);
         view! {
             <Frame color={page} radius=0>
                 <Text string={label} color={ink} wrap=true />
             </Frame>
         }
-    });
-    let label = create_memo(clone!(depth -> move || folder_label(depth.get())));
+    };
+    let label = create_memo(move || folder_label(depth.get()));
     view! {
         <unstyled::BackSlide
             enabled={nested}
-            on_back={clone!(depth -> move || rising.set(depth.get_untracked().saturating_sub(1)))}
+            on_back={move || rising.set(depth.get_untracked().saturating_sub(1))}
             behind={above}
         >
             <Frame color={page} radius=0>
@@ -1603,7 +1558,7 @@ fn SheetGrip() -> NodeId {
     let theme = use_theme();
     view! {
         <Frame height=24.0 align_horizontal=Align::Center align_vertical=Align::Center>
-            <Frame width=36.0 height=4.0 radius=2 color={theme.text_muted.clone()} />
+            <Frame width=36.0 height=4.0 radius=2 color={theme.text_muted} />
         </Frame>
     }
 }
@@ -1611,12 +1566,11 @@ fn SheetGrip() -> NodeId {
 #[sample]
 #[component]
 fn DeadlinePicker() -> NodeId {
-    let theme = use_theme();
     let (deadline, set_deadline) = create_signal(None::<DateTime>);
-    let shown = create_memo(clone!(deadline -> move || match deadline.get() {
+    let shown = create_memo(move || match deadline.get() {
         Some(deadline) => format!("Due {}", deadline.date.label()),
         None => "No deadline".to_owned(),
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -1628,7 +1582,7 @@ fn DeadlinePicker() -> NodeId {
                         <DateSegmentFace handle />
                     }}
                     literal={move |text: String| view! {
-                        <Text string={text} color={use_theme().text_muted.clone()} />
+                        <Text string={text} color=TextColor::Muted />
                     }}
                     segments={move |segments: Child| view! {
                         <Frame padding_horizontal=10.0 padding_vertical=6.0>{segments}</Frame>
@@ -1645,7 +1599,7 @@ fn DeadlinePicker() -> NodeId {
                     on_change={move |next: Option<DateTime>| set_deadline.set(next)}
                 />
             </List>
-            <Text string={shown} color={theme.text_muted.clone()} />
+            <Text string={shown} color=TextColor::Muted />
         </List>
     }
 }
@@ -1660,14 +1614,14 @@ fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || match focused.get() {
+    let fill = create_memo(move || match focused.get() {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
-    }));
-    let ink = create_memo(clone!(theme -> move || match placeholder.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
-    }));
+    });
+    let ink = create_memo(move || match placeholder.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
     view! {
         <Frame color={fill} radius=3 padding_horizontal=2.0>
             <Text string={text} color={ink} />
@@ -1685,10 +1639,10 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let line = create_memo(clone!(theme -> move || match focused.get() {
+    let line = create_memo(move || match focused.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
+    });
     view! {
         <Frame
             outline={line}
@@ -1719,7 +1673,7 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     } = handle;
     let start = today.get_untracked().unwrap_or_else(Date::today);
     let preset = move |label: &'static str, date: Date| {
-        let pick = pick.clone();
+        let pick = pick;
         view! {
             <unstyled::Button
                 on_click={move || pick.call(date)}
@@ -1737,13 +1691,13 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
                 {preset("In a month", start.add_months(1))}
                 <List direction=Direction::Horizontal spacing=8.0>
                     <unstyled::Button
-                        on_click={move || now.call()}
+                        on_click={now}
                         content={move |handle: ButtonHandle| view! {
                             <PillFace handle label=now_label />
                         }}
                     />
                     <unstyled::Button
-                        on_click={move || clear.call()}
+                        on_click={clear}
                         content={move |handle: ButtonHandle| view! {
                             <PillFace handle label="Clear" />
                         }}

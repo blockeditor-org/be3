@@ -5,9 +5,9 @@ const PANEL_HEIGHT: f32 = 200.0;
 
 #[test]
 fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
+    let _root = crate::reactive::RootScope::new();
     let (panel, text) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let (panel, text) = (panel.clone(), text.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -23,14 +23,18 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
     let (_, paints) = counted(&mut document, text);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let settled = paints.get();
+    let settled = paints.get_untracked();
 
     harness
         .document_mut()
         .set_frame_color(panel, Color32::from_gray(90));
     let output = harness.frame(Vec::new());
 
-    assert_eq!(paints.get(), settled, "the drawing is outside the damage");
+    assert_eq!(
+        paints.get_untracked(),
+        settled,
+        "the drawing is outside the damage"
+    );
     assert!(
         output.repaint_after < Duration::MAX,
         "a skipped element must still ask for the repaint it was waiting on"

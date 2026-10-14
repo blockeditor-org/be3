@@ -7,12 +7,12 @@ const EDGE: f32 = 2.0;
 
 #[test]
 fn clicking_the_scrollbar_track_pages_the_scroll_towards_the_click() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let held = scroll.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&held @sizing=ItemSize::Percent(100.0)>
+                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame height=CONTENT_HEIGHT />
                 </Scroll>
             </List>

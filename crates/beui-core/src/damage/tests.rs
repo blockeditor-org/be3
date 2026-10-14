@@ -1,5 +1,6 @@
 use super::*;
 
+mod damage_close_together_is_drawn_as_one_region;
 mod damage_far_apart_stays_in_separate_regions;
 mod damage_that_overlaps_what_is_held_merges_into_it;
 mod damaging_everything_covers_the_whole_viewport;

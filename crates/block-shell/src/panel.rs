@@ -1,14 +1,12 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::profile::VIEW_EDITORS;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::{
-    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component, create_effect,
+    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, component, create_effect,
     create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::{Caption, Heading};
 use block_editor_beui::beui::unstyled::{TabId, dock_menu};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -18,12 +16,12 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use super::artifact::ArtifactBar;
-use super::block_data::BlockData;
 use super::linked::LinkedBar;
 use super::phone::DetailsSheet;
 use super::status::StatusBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
@@ -37,11 +35,11 @@ pub(crate) struct Refs {
 #[derive(Clone, PartialEq)]
 pub(crate) struct Info {
     pub(crate) item: TabItem,
+    pub(crate) editor: Option<Uuid>,
     pub(crate) view: Option<Uuid>,
     pub(crate) access: AccessLevel,
     pub(crate) ceiling: AccessLevel,
     pub(crate) can_edit: bool,
-    pub(crate) debugging: bool,
     pub(crate) dynamic_artifact: bool,
     pub(crate) type_name: String,
     pub(crate) parent: Option<BlockParent>,
@@ -55,7 +53,6 @@ pub(crate) struct Info {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Content {
     Block,
-    Debug,
     Denied,
 }
 
@@ -97,10 +94,6 @@ pub(crate) fn read_info(
     watched.follow(&workspace.blocks(), item.id);
     let access = workspace.access(item.id);
     let ceiling = workspace.ceiling(item.id);
-    let debugging = workspace.is_debugged(item.id);
-    if debugging && !ceiling.can_view() {
-        workspace.debug(item.id, false);
-    }
     let parent = workspace.info(item.id).map(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let references = refs(watched.references.as_ref());
@@ -118,12 +111,12 @@ pub(crate) fn read_info(
         .display_name(item.block_type)
         .map_or_else(|| item.block_type.to_string(), str::to_owned);
     Some(Info {
+        editor: workspace.editor_of(&item),
         item,
         view: workspace.view_of(tab),
         access,
         ceiling,
         can_edit: workspace.can_edit(item.id),
-        debugging: debugging && ceiling.can_view(),
         dynamic_artifact: workspace
             .info(item.id)
             .is_some_and(|info| info.is_artifact()),
@@ -141,59 +134,38 @@ pub(crate) fn read_info(
 }
 
 #[component]
-pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
+pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
     let (info, set_info) = create_signal(None::<Info>);
-    let reading = Rc::downgrade(&workspace);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
-        let Some(workspace) = reading.upgrade() else {
-            return;
-        };
         set_info.set(read_info(&workspace, tab, &watched));
     });
-    let content = create_memo(clone!(info -> move || match info.get() {
-        Some(info) if info.debugging => Content::Debug,
+    let content = create_memo(move || match info.get() {
         Some(info) if !info.access.can_view() => Content::Denied,
         Some(_) | None => Content::Block,
-    }));
-    let editor = workspace.editor().clone();
-    let branch = Rc::clone(&workspace);
-    let branch_info = info.clone();
-    let phone = workspace.phone.clone();
-    let top_bar = create_memo(clone!(phone -> move || match phone.get() {
+    });
+    let editor = workspace.editor();
+    let phone = workspace.phone;
+    let top_bar = create_memo(move || match phone.get() {
         true => TopBar::Phone,
         false => TopBar::Shown,
-    }));
+    });
     let session = workspace
         .tab(tab)
         .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
     let desktop = create_memo(move || !phone.get() && !session);
-    let details = Rc::clone(&workspace);
-    let (artifact, artifact_info) = (Rc::clone(&workspace), info.clone());
-    let (linked, linked_info) = (Rc::clone(&workspace), info.clone());
     view! {
         <Frame>
             <List spacing=0.0>
                 <Show condition={!session}>
-                    <ArtifactBar workspace={Rc::clone(&artifact)} info={artifact_info.clone()} />
+                    <ArtifactBar workspace={workspace} info={info} />
                 </Show>
                 <Show condition={!session}>
-                    <LinkedBar workspace={Rc::clone(&linked)} info={linked_info.clone()} />
+                    <LinkedBar workspace={workspace} info={info} />
                 </Show>
                 <Dynamic value={content}>
                     {move |content: Content| {
-                        let workspace = Rc::clone(&branch);
-                        let info = branch_info.clone();
-                        let editor = editor.clone();
-                        let top_bar = top_bar.clone();
                         match content {
-                            Content::Debug => view! {
-                                <BlockData
-                                    @sizing=ItemSize::Percent(100.0)
-                                    workspace={workspace}
-                                    info={info}
-                                />
-                            },
                             Content::Denied => view! {
                                 <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
                             },
@@ -214,9 +186,9 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                     }}
                 </Dynamic>
                 <Show condition={desktop}>
-                    <StatusBar workspace={workspace.clone()} info={info.clone()} />
+                    <StatusBar workspace={workspace} info={info} />
                 </Show>
-                <DetailsSheet workspace={details} tab={tab} />
+                <DetailsSheet workspace={workspace} tab={tab} />
             </List>
         </Frame>
     }
@@ -232,7 +204,8 @@ fn BlockChild(
     let target = create_memo(move || {
         info.with(|info| {
             info.as_ref().map(|info| {
-                let target = ChildTarget::new(info.item.id, info.item.block_type);
+                let target =
+                    ChildTarget::new(info.item.id, info.item.block_type).edited_with(info.editor);
                 match info.view {
                     Some(view) => target.viewed_by(view),
                     None => target,
@@ -247,7 +220,7 @@ fn BlockChild(
             mode=ChildMode::Live
             own_frame=true
             top_bar={top_bar}
-            on_bar={move |action: BarAction| on_bar.call(action)}
+            on_bar={on_bar}
             @test_id={"workspace.block"}
         >
             {move |handle: ChildBlockHandle| {
@@ -262,24 +235,24 @@ fn BlockChild(
 
 #[component]
 fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
-    let simulated = create_memo(clone!(info -> move || {
+    let simulated = create_memo(move || {
         info.with(|info| info.as_ref().is_some_and(|info| info.ceiling.can_view()))
-    }));
-    let first = create_memo(clone!(simulated -> move || match simulated.get() {
+    });
+    let first = create_memo(move || match simulated.get() {
         true => "An account that only knows this block exists cannot open it.".to_owned(),
         false => "You do not have permission to open this block.".to_owned(),
-    }));
-    let second = create_memo(clone!(simulated -> move || match simulated.get() {
+    });
+    let second = create_memo(move || match simulated.get() {
         true => "Switch back to Can view or Can edit to see it.".to_owned(),
         false => "Ask someone who can edit it to share it with you.".to_owned(),
-    }));
+    });
     let heading = format!("{ICON_LOCK} No access");
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Heading content={heading} />
-                <Caption content={first} />
-                <Caption content={second} />
+                <Text style=TextStyle::HEADING string={heading} />
+                <Text style=TextStyle::CAPTION string={first} />
+                <Text style=TextStyle::CAPTION string={second} />
             </List>
         </Frame>
     }

@@ -18,13 +18,35 @@ plugin_data = rule(
     impl = _plugin_data_impl,
 )
 
+# One action a module, so that the thirty-odd compiles run side by side on as
+# many workers rather than one after another.
+def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
+    artifact = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + ".cwasm")
+    ctx.actions.run(
+        cmd_args(
+            ctx.attrs.precompiler[RunInfo],
+            "--precompile-to",
+            "--target",
+            ctx.attrs.precompile_target,
+            artifact.as_output(),
+            wasm,
+        ),
+        category = "wasm_precompile",
+        identifier = wasm.basename,
+    )
+    return artifact
+
 # The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
 # beside it every plugin, each module precompiled for precompile_target in an
-# action of its own by plugin-test-runner, block-wasm-host's own engine, which
-# runs on the workers whatever the app is built for. With no binary it
-# is the plugins alone. The web bundle is this rule too: `bindgen` runs
-# wasm-bindgen over each module, and `index` writes the plugins.json a browser
-# finds the plugins through.
+# action of its own by the precompiler, plugin-test-runner as the workers run
+# it, whatever the app is built for, and the plugin SDK they are linked against
+# (guides/plugin_sdk.md), with its .cwasm; with no precompiler, each plugin is
+# its module alone. With no binary it
+# is the plugins alone. `index` writes the plugins.json the app finds the
+# plugins through. The web bundle is this rule too: `bindgen` runs
+# wasm-bindgen over each module. `buck2 run` runs the executable, or for a
+# bundle without one, `run_with` followed by the bundle, which is how the web
+# bundle serves itself.
 def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name, dir = True)
     command = cmd_args("sh", ctx.attrs._stage, out.as_output())
@@ -35,34 +57,21 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
         name = ctx.attrs.executable_name + executable.extension
         command.add(cmd_args("--executable=", executable, "=", name, delimiter = ""))
-    for extra_name, binary in ctx.attrs.extra_binaries.items():
-        extra = binary[DefaultInfo].default_outputs[0]
-        command.add(cmd_args("--executable=", extra, "=", extra_name + extra.extension, delimiter = ""))
     for file in ctx.attrs.files:
         command.add(cmd_args("--file=", file, delimiter = ""))
+    if ctx.attrs.sdk:
+        sdk = ctx.attrs.sdk[DefaultInfo].default_outputs[0]
+        command.add(cmd_args("--sdk=", sdk, delimiter = ""))
+        if ctx.attrs.precompiler:
+            command.add(cmd_args("--sdk-artifact=", _precompile(ctx, sdk), delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     for manifest, module, files in zip(ctx.attrs.manifests, ctx.attrs.modules, data):
         wasm = module[DefaultInfo].default_outputs[0]
         command.add(cmd_args(manifest, wasm, delimiter = "="))
         if files:
             command.add(cmd_args("--data=", files, delimiter = ""))
-        if ctx.attrs.precompile:
-            # One action a module, so that the thirty-odd compiles run side by
-            # side on as many workers rather than one after another.
-            artifact = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + ".cwasm")
-            ctx.actions.run(
-                cmd_args(
-                    ctx.attrs.precompiler[RunInfo],
-                    "--precompile-to",
-                    "--target",
-                    ctx.attrs.precompile_target,
-                    artifact.as_output(),
-                    wasm,
-                ),
-                category = "wasm_precompile",
-                identifier = wasm.basename,
-            )
-            command.add(cmd_args("--artifact=", artifact, delimiter = ""))
+        if ctx.attrs.precompiler:
+            command.add(cmd_args("--artifact=", _precompile(ctx, wasm), delimiter = ""))
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
         bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
@@ -86,6 +95,8 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     providers = [DefaultInfo(default_output = out)]
     if name:
         providers.append(RunInfo(args = cmd_args(out.project(name))))
+    elif ctx.attrs.run_with:
+        providers.append(RunInfo(args = cmd_args(ctx.attrs.run_with, out)))
     return providers
 
 app = rule(
@@ -98,31 +109,61 @@ app = rule(
         # Each plugin's read-only data (plugin_data), in the order of manifests.
         "data": attrs.list(attrs.source(), default = []),
         "executable_name": attrs.string(default = ""),
-        # More executables to put beside the app, by the name cargo gives each.
-        "extra_binaries": attrs.dict(attrs.string(), attrs.dep(), default = {}),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
-        "precompile": attrs.bool(default = True),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
-        "precompiler": attrs.dep(providers = [RunInfo]),
+        "precompiler": attrs.option(attrs.dep(providers = [RunInfo]), default = None),
+        # What `buck2 run` runs a bundle without an executable with, followed
+        # by the bundle.
+        "run_with": attrs.list(attrs.arg(), default = []),
+        # The plugin SDK the modules are linked against, staged under the name
+        # they find it by.
+        "sdk": attrs.option(attrs.dep(), default = None),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.sh")),
     },
     impl = _app_impl,
 )
 
-# The build-id file a program reads beside its executable: the commit, and when
-# the tree differs from it a hash of the tree after a +. scripts/buck passes it
-# as be3.build_id; only this action and the ones that copy its output read it,
-# so a new id rebuilds nothing else.
-def _build_id_impl(ctx: AnalysisContext) -> list[Provider]:
-    return [DefaultInfo(default_output = ctx.actions.write("build-id", ctx.attrs.id + "\n"))]
+# The native smoke test (buck/app/smoke.sh): the app headless on a worker,
+# driven by be-drive until its tree shows `wait`, then closed, which it must
+# exit cleanly from. The whole app directory is an input, since the app finds
+# its plugins beside it.
+def _smoke_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    command = cmd_args(
+        "sh",
+        ctx.attrs._smoke,
+        ctx.attrs.app[DefaultInfo].default_outputs[0],
+        ctx.attrs.executable,
+        ctx.attrs.drive[RunInfo],
+        ctx.attrs.library_path,
+        ctx.attrs.wait,
+        ctx.attrs.args,
+    )
+    return [
+        DefaultInfo(),
+        RunInfo(args = command),
+        ExternalRunnerTestInfo(
+            command = [command],
+            env = ctx.attrs.env,
+            run_from_project_root = True,
+            type = "custom",
+            use_project_relative_paths = True,
+        ),
+    ]
 
-build_id = rule(
+smoke_test = rule(
     attrs = {
-        "id": attrs.string(),
+        "app": attrs.dep(),
+        "args": attrs.list(attrs.string(), default = []),
+        "drive": attrs.dep(providers = [RunInfo]),
+        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
+        "executable": attrs.string(),
+        "library_path": attrs.arg(),
+        "wait": attrs.string(),
+        "_smoke": attrs.default_only(attrs.source(default = "root//buck/app:smoke.sh")),
     },
-    impl = _build_id_impl,
+    impl = _smoke_test_impl,
 )

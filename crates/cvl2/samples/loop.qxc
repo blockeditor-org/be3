@@ -1,0 +1,55 @@
+#builtin.build .= () => std.Folder: [
+  "sum.txt" .= std.File: check(sum_to(10) == 55)
+  "fact.txt" .= std.File: check(fact(5) == 120)
+  "collatz.txt" .= std.File: check(collatz_steps(27) == 111)
+  "count.txt" .= std.File: check(count_down(4) == 4)
+]
+
+sum_to :: (n: kw.int) => kw.int: {
+  total := kw.mut(kw.int).new: 0
+  kw.for (i := kw.range(1, n + 1)) {
+    total += i
+  }
+  -> total.*
+}
+
+fact :: (n: kw.int) => kw.int: :return {
+  kw.if (n == 0) {
+    return: 1
+  }
+  -> n * fact(n - 1)
+}
+
+collatz_steps :: (start: kw.int) => kw.int: :return {
+  n := kw.mut(kw.int).new: start
+  steps := kw.mut(kw.int).new: 0
+  kw.loop {
+    kw.if (n.* == 1) {
+      return: steps.*
+    }
+    kw.if (n.* % 2 == 0) {
+      n /= 2
+    } .else {
+      n = n.* * 3 + 1
+    }
+    steps += 1
+  }
+}
+
+count_down :: (n: kw.int) => {
+  -> kw.int: :return {
+    kw.if (n == 0) {
+      return: 0
+    }
+    -> 1 + count_down(n - 1)
+  }
+}
+
+check :: (ok: kw.bool) => std.File: :return {
+  kw.if (ok) {
+    return: "yes"
+  }
+  -> "no"
+}
+std :: #builtin.std
+kw :: std.kw

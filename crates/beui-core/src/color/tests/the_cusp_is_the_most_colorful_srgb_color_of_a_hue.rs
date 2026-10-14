@@ -8,6 +8,10 @@ fn the_cusp_is_the_most_colorful_srgb_color_of_a_hue() {
     assert!((yellow.lightness - 0.968).abs() < 0.005, "{yellow:?}");
     for hue in (0..360).step_by(15) {
         let cusp = Oklch::cusp(hue as f32);
+        assert!(
+            (Oklch::max_chroma(cusp.lightness, hue as f32) - cusp.chroma).abs() < 1e-3,
+            "the cusp is on the edge of sRGB: {cusp:?}"
+        );
         for step in 1..20 {
             let lightness = step as f32 / 20.0;
             assert!(Oklch::max_chroma(lightness, hue as f32) <= cusp.chroma + 1e-4);

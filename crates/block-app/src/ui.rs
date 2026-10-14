@@ -9,7 +9,7 @@ use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
 use beui::reactive::{
-    Dynamic, Frame, List, NodeRef, Store, clone, component, copy_text, create_memo, view,
+    Dynamic, Frame, List, NodeRef, Store, component, copy_text, create_memo, view,
 };
 use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
 use beui::unstyled::Edge;
@@ -37,6 +37,15 @@ pub(crate) fn take_commands() -> Vec<UiCommand> {
     COMMANDS.with(|commands| std::mem::take(&mut *commands.borrow_mut()))
 }
 
+pub(crate) fn styled_theme(theme: be_block::Theme) -> beui::styled::Theme {
+    match theme {
+        be_block::Theme::Dark => beui::styled::Theme::DARK,
+        be_block::Theme::OledDark => beui::styled::Theme::OLED,
+        be_block::Theme::Light => beui::styled::Theme::LIGHT,
+        be_block::Theme::EInk => beui::styled::Theme::EINK,
+    }
+}
+
 pub(crate) fn account_key(account: &SavedAccount) -> String {
     format!("{}\u{0}{}", account.server.key(), account.id)
 }
@@ -49,7 +58,7 @@ pub(crate) enum Screen {
     Workspaces,
     Recovery,
     Unlock,
-    Profiles,
+    Sessions,
     Workspace,
 }
 
@@ -115,6 +124,7 @@ pub(crate) struct AccountForm {
     pub(crate) register: bool,
     pub(crate) remote: bool,
     pub(crate) remote_url: String,
+    pub(crate) authorization: String,
     pub(crate) email: String,
     pub(crate) display_name: String,
     pub(crate) password: String,
@@ -157,18 +167,26 @@ pub(crate) struct StatusView {
     pub(crate) changes_saved: bool,
     pub(crate) workspace: String,
     pub(crate) signed_in_as: String,
+    pub(crate) sessions: Vec<SessionRow>,
     pub(crate) profiles: Vec<ProfileRow>,
-    pub(crate) profiles_loaded: bool,
-    pub(crate) every_profile_type: bool,
+    pub(crate) settings_loaded: bool,
+    pub(crate) every_session_type: bool,
     pub(crate) session_type: Uuid,
     pub(crate) can_close: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct SessionRow {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) kind: Option<String>,
+    pub(crate) current: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ProfileRow {
     pub(crate) id: Uuid,
     pub(crate) name: String,
-    pub(crate) kind: Option<String>,
     pub(crate) current: bool,
 }
 
@@ -178,6 +196,30 @@ pub(crate) struct InviteView {
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
     pub(crate) sent: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct AgentRow {
+    pub(crate) account: Uuid,
+    pub(crate) name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct CreatedAgent {
+    pub(crate) name: String,
+    pub(crate) server: String,
+    pub(crate) workspace: String,
+    pub(crate) token: String,
+    pub(crate) phrase: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct AgentsView {
+    pub(crate) workspace: String,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
+    pub(crate) agents: Vec<AgentRow>,
+    pub(crate) created: Option<CreatedAgent>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -212,6 +254,7 @@ pub(crate) struct AppView {
     pub(crate) reauth: Option<ReauthView>,
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
+    pub(crate) agents: Option<AgentsView>,
     pub(crate) about: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
@@ -237,10 +280,14 @@ pub(crate) enum UiCommand {
     CloseAddAccount,
     ReloadWorkspaces,
     OpenWorkspace(Uuid),
-    ChooseProfile(Uuid),
-    OpenProfile(Uuid),
-    OpenNewProfile(Uuid),
-    EveryProfileType(bool),
+    ChooseSession(Uuid),
+    SwitchSession,
+    CloseSessions,
+    OpenSession(Uuid),
+    OpenNewSession(Uuid),
+    EverySessionType(bool),
+    UseProfile(Uuid),
+    NewProfile,
     RespondInvitation(Uuid, bool),
     CreateWorkspace(String),
     SwitchAccount,
@@ -257,6 +304,10 @@ pub(crate) enum UiCommand {
     AppMenu(bool),
     SendInvite(String, WorkspaceRole),
     CloseInvite,
+    OpenAgents,
+    CloseAgents,
+    CreateAgent(String),
+    RemoveAgent(Uuid),
     Discard,
     CancelDiscard,
     Debug(DebugCommand),
@@ -282,21 +333,21 @@ pub(crate) enum UiCommand {
 #[component]
 pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
-    let screen = view.screen.clone();
-    let toasts = view.toasts.clone();
-    let keep_display = view.keep_display.clone();
-    let asking = create_memo(clone!(keep_display -> move || keep_display.get().is_some()));
+    let screen = view.screen;
+    let toasts = view.toasts;
+    let keep_display = view.keep_display;
+    let asking = create_memo(move || keep_display.get().is_some());
     let round = create_memo(move || keep_display.get().unwrap_or_default());
-    let keeping = round.clone();
-    let reverting = round.clone();
-    let locking = view.clone();
+    let keeping = round;
+    let reverting = round;
+    let locking = view;
     let area = NodeRef::new();
     view! {
-        <Frame @node_ref=&area color={theme.background.clone()}>
+        <Frame @node_ref=&area color={theme.background}>
             <List spacing=0.0>
                 <Dynamic value={screen}>
                     {move |screen: Screen| {
-                        let view = view.clone();
+                        let view = view;
                         match screen {
                             Screen::Error => view! {
                                 <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />
@@ -316,8 +367,8 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                             Screen::Unlock => view! {
                                 <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
                             },
-                            Screen::Profiles => view! {
-                                <onboarding::ProfilesScreen @sizing=ItemSize::Percent(100.0) view />
+                            Screen::Sessions => view! {
+                                <onboarding::SessionsScreen @sizing=ItemSize::Percent(100.0) view />
                             },
                             Screen::Workspace => view! {
                                 <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />
@@ -326,7 +377,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     }}
                 </Dynamic>
                 <Toasts
-                    anchor={area.clone()}
+                    anchor={area}
                     edge=Edge::TopEnd
                     toasts={toasts}
                     on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}

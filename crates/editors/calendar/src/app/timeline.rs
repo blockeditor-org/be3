@@ -1,17 +1,18 @@
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
-    Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    clone, component, component_rect, component_size, create_memo, view,
+    Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, LayoutBuilder,
+    List, Memo, ReadSignal, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
+use block_editor_beui::beui::styled::{ListRow, Scroll, use_theme};
+use block_editor_beui::beui::{NodeId, PointerPress, Vec2};
 use block_ui::datetime::civil_from_days;
 
 use super::model::{
     SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
     weekday_from_days,
 };
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const HEADER_HEIGHT: f32 = 22.0;
 const HOUR_HEIGHT: f32 = 40.0;
@@ -39,9 +40,11 @@ pub(crate) fn Timeline(
     on_pick_slot: Callback<(i64, u8)>,
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
-    let columns = create_memo(clone!(first_day -> move || {
-        (0..days as i64).map(|offset| first_day.get() + offset).collect::<Vec<i64>>()
-    }));
+    let columns = create_memo(move || {
+        (0..days as i64)
+            .map(|offset| first_day.get() + offset)
+            .collect::<Vec<i64>>()
+    });
     let theme = use_theme();
     view! {
         <List spacing=0.0>
@@ -55,14 +58,14 @@ pub(crate) fn Timeline(
                     }}
                 </ForEach>
             </List>
-            <Frame height=RULE color={theme.border.clone()} radius=0 />
+            <Frame height=RULE color={theme.border} radius=0 />
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Grid
                     first_day={first_day}
                     days={days}
                     events={events}
-                    on_pick_slot={move |slot| on_pick_slot.call(slot)}
-                    on_pick_event={move |event| on_pick_event.call(event)}
+                    on_pick_slot={on_pick_slot}
+                    on_pick_event={on_pick_event}
                 />
             </Scroll>
         </List>
@@ -73,14 +76,13 @@ pub(crate) fn Timeline(
 fn DayHeader(day: i64) -> NodeId {
     let (_, _, number) = civil_from_days(day);
     let label = format!("{} {number}", WEEKDAY_ABBR[weekday_from_days(day) as usize]);
-    let theme = use_theme();
     let color = match day == today_days_since_epoch() {
-        true => theme.accent.clone(),
-        false => theme.text.clone(),
+        true => TextColor::Accent,
+        false => TextColor::Default,
     };
     view! {
         <Frame height=HEADER_HEIGHT>
-            <Body content={label} align=TextAlign::Center color={color} />
+            <Text string={label} align=TextAlign::Center color={color} />
         </Frame>
     }
 }
@@ -93,110 +95,123 @@ fn Grid(
     on_pick_slot: Callback<(i64, u8)>,
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
-    let size = component_size();
-    let rect = component_rect();
-    let column_width = create_memo(clone!(size -> move || {
-        ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH)
-    }));
-    let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
-    let rules = create_memo(move || (0..=days).collect::<Vec<usize>>());
-    let placed = placements(first_day.clone(), days, events, column_width.clone());
-    let keys = create_memo(clone!(placed -> move || {
-        placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
-    }));
-    let slot = clone!(column_width first_day rect on_pick_slot -> move |at: block_editor_beui::beui::Pos2| {
-        let origin = rect.get_untracked().min;
-        let x = at.x - origin.x - GUTTER;
-        if x < 0.0 {
-            return;
-        }
-        let column = (x / column_width.get_untracked()).floor() as i64;
-        let hour = ((at.y - origin.y) / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
-        let day = first_day.get_untracked() + column.min(days as i64 - 1);
-        on_pick_slot.call((day, hour));
-    });
-    let theme = use_theme();
-    let hour_border = theme.border.clone();
-    let rule_border = theme.border.clone();
-    let rule_width = column_width.clone();
     view! {
-        <Frame height=CONTENT_HEIGHT>
-            <Interactive on_click_at={move |press| slot(press.pos)}>
-                <Canvas>
-                    <ForEach keys={hours.clone()}>
-                        {move |hour: u8| {
-                            let top = f32::from(hour) * HOUR_HEIGHT;
-                            let color = hour_border.clone();
-                            view! {
-                                <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                    <Frame color={color} radius=0 />
-                                </CanvasItem>
-                            }
-                        }}
-                    </ForEach>
-                    <ForEach keys={hours}>
-                        {move |hour: u8| {
-                            let top = f32::from(hour) * HOUR_HEIGHT + 2.0;
-                            let label = match hour < 24 {
-                                true => format!("{hour:02}:00"),
-                                false => String::new(),
-                            };
-                            view! {
-                                <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
-                                    <Caption content={label} />
-                                </CanvasItem>
-                            }
-                        }}
-                    </ForEach>
-                    <ForEach keys={rules}>
-                        {move |index: usize| {
-                            let width = rule_width.clone();
-                            let x = create_memo(move || GUTTER + index as f32 * width.get());
-                            let color = rule_border.clone();
-                            view! {
-                                <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
-                                    <Frame color={color} radius=0 />
-                                </CanvasItem>
-                            }
-                        }}
-                    </ForEach>
-                    <ForEach keys={keys}>
-                        {move |key: (ObjectId, i64)| {
-                            let item = item_of(placed.clone(), key);
-                            view! {
-                                <EventBlock item={item} on_pick={forward(on_pick_event.clone())} />
-                            }
-                        }}
-                    </ForEach>
-                </Canvas>
-            </Interactive>
-        </Frame>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let column_width = create_memo(move || {
+                    ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH)
+                });
+                let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
+                let rules = create_memo(move || (0..=days).collect::<Vec<usize>>());
+                let placed = placements(first_day, days, events, column_width);
+                let keys = create_memo(move || {
+                    placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
+                });
+                let slot = move |at: block_editor_beui::beui::Pos2| {
+                    let x = at.x - GUTTER;
+                    if x < 0.0 {
+                        return;
+                    }
+                    let column = (x / column_width.get_untracked()).floor() as i64;
+                    let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
+                    let day = first_day.get_untracked() + column.min(days as i64 - 1);
+                    on_pick_slot.call((day, hour));
+                };
+                let theme = use_theme();
+                let hour_border = theme.border;
+                let rule_border = theme.border;
+                let rule_width = column_width;
+                view! {
+                    <Frame height=CONTENT_HEIGHT>
+                        <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
+                            <Canvas>
+                                <ForEach keys={hours}>
+                                    {move |hour: u8| {
+                                        let top = f32::from(hour) * HOUR_HEIGHT;
+                                        let color = hour_border;
+                                        view! {
+                                            <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
+                                                <Frame color={color} radius=0 />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={hours}>
+                                    {move |hour: u8| {
+                                        let top = f32::from(hour) * HOUR_HEIGHT + 2.0;
+                                        let label = match hour < 24 {
+                                            true => format!("{hour:02}:00"),
+                                            false => String::new(),
+                                        };
+                                        view! {
+                                            <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
+                                                <Text style=TextStyle::CAPTION string={label} />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={rules}>
+                                    {move |index: usize| {
+                                        let width = rule_width;
+                                        let x = create_memo(move || GUTTER + index as f32 * width.get());
+                                        let color = rule_border;
+                                        view! {
+                                            <CanvasItem
+                                                x={x}
+                                                y=0.0
+                                                width=RULE
+                                                height=CONTENT_HEIGHT
+                                            >
+                                                <Frame color={color} radius=0 />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={keys}>
+                                    {move |key: (ObjectId, i64)| {
+                                        let item = item_of(placed, key);
+                                        view! {
+                                            <EventBlock
+                                                item={item}
+                                                on_pick={forward(on_pick_event)}
+                                            />
+                                        }
+                                    }}
+                                </ForEach>
+                            </Canvas>
+                        </Interactive>
+                    </Frame>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 
 #[component]
 fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasItem {
-    let x = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.x)));
-    let y = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.y)));
-    let width = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.width)));
-    let height = create_memo(clone!(item -> move || item.get().map_or(0.0, |item| item.height)));
-    let title = create_memo(clone!(item -> move || {
-        item.get().map(|item| item.event.value.title).unwrap_or_default()
-    }));
+    let x = create_memo(move || item.get().map_or(0.0, |item| item.x));
+    let y = create_memo(move || item.get().map_or(0.0, |item| item.y));
+    let width = create_memo(move || item.get().map_or(0.0, |item| item.width));
+    let height = create_memo(move || item.get().map_or(0.0, |item| item.height));
+    let title = create_memo(move || {
+        item.get()
+            .map(|item| item.event.value.title)
+            .unwrap_or_default()
+    });
     let test_id = item.get_untracked().map_or_else(String::new, |item| {
         format!("calendar.event.{}", item.event.id)
     });
-    let open = clone!(item on_pick -> move || {
+    let open = move || {
         if let Some(item) = item.get_untracked() {
             on_pick.call(item.event);
         }
-    });
+    };
     let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame color={theme.accent.clone()} radius=3>
-                <ListRow @test_id={test_id} on_click={open.clone()} on_activate={open}>
-                    <Caption content={title} color={theme.on_accent.clone()} />
+            <Frame color={theme.accent} radius=3>
+                <ListRow @test_id={test_id} on_click={open} on_activate={open}>
+                    <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
                 </ListRow>
             </Frame>
         </CanvasItem>

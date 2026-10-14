@@ -3,8 +3,8 @@ use crate::reactive::{Canvas, CanvasItem, CanvasView, build, view, with_document
 
 #[test]
 fn a_canvas_places_its_items_at_the_view_it_is_given() {
-    let items = Rc::new(RefCell::new(Vec::new()));
-    let sink = items.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (items, set_items) = create_signal(Vec::new());
 
     let document = build(move || {
         let canvas = view! {
@@ -13,14 +13,14 @@ fn a_canvas_places_its_items_at_the_view_it_is_given() {
                 <CanvasItem x=30.0 y=40.0 width=20.0 height=5.0 />
             </Canvas>
         };
-        sink.replace(with_document(|document| document.children(canvas)));
+        set_items.set(with_document(|document| document.children(canvas)));
         canvas
     });
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let items = items.borrow();
+    let items = items.get_untracked();
     assert_eq!(
         harness.rect(items[0]),
         Rect::from_min_size(pos2(50.0, 20.0), Vec2::new(20.0, 20.0))

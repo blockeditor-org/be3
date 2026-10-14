@@ -35,6 +35,7 @@ fn pick(harness: &mut Harness, dock: NodeId, row: &str) {
 
 #[test]
 fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane() {
+    let _root = crate::reactive::RootScope::new();
     let layout = DockingLayout::<u64>::new();
     let dock = NodeRef::new();
     let document = {
@@ -64,12 +65,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
         text_within(harness.document(), dock, "Full screen").is_none(),
         "a tab whose content does not offer fullscreen has no such entry"
     );
-    harness.frame(vec![Event::Key {
-        key: Key::Escape,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::NONE,
-    }]);
+    harness.key(Key::Escape, Modifiers::NONE);
     harness.settle();
 
     right_click(&mut harness, dock, "Offered");

@@ -7,9 +7,9 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let (sink, slot) = (held.clone(), area.clone());
     let document = build(move || {
         let lines = (1..=40)
             .map(|line| format!("line {line}"))
@@ -18,16 +18,16 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
         let document =
             Arc::new(TextBuffer::new(lines.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        set_held.update(|held| *held = Some(state));
         view! {
             <Frame height=120.0>
-                <TextArea @node_ref=&slot state={state} />
+                <TextArea @node_ref=&area state={state} />
             </Frame>
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
     let surface = text_area_surface(harness.document(), area.get());
     let visible = harness.rect(surface);
     let start = pos2(visible.center().x, visible.top() + 16.0);

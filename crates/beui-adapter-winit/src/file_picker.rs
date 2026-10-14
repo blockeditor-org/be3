@@ -1,44 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Receiver, Sender};
 
-use beui_core::context::Context;
-use beui_core::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest, PickedFile};
+use beui_core::file_picker::{FileFilter, FilePick, FilePickAnswer, FilePickRequest, PickedFile};
 
-pub struct FilePicker {
-    sender: Sender<(FilePickId, FilePick)>,
-    receiver: Receiver<(FilePickId, FilePick)>,
-}
-
-impl FilePicker {
-    pub fn new() -> Self {
-        let (sender, receiver) = mpsc::channel();
-        Self { sender, receiver }
-    }
-
-    pub fn open(&self, request: FilePickRequest, wake: impl Fn() + Send + 'static) {
-        let sender = self.sender.clone();
-        let id = request.id;
-        let spawned = std::thread::Builder::new()
-            .name("beui-file-picker".into())
-            .spawn(move || {
-                let _ = sender.send((id, pick(&request.filter)));
-                wake();
-            });
-        if let Err(error) = spawned {
-            let _ = self
-                .sender
-                .send((id, Err(format!("Could not open a file picker: {error}"))));
-        }
-    }
-
-    pub fn deliver(&self, context: &Context) -> bool {
-        let mut delivered = false;
-        while let Ok((id, pick)) = self.receiver.try_recv() {
-            context.file_picked(id, pick);
-            delivered = true;
-        }
-        delivered
+pub fn open(request: FilePickRequest, answer: FilePickAnswer) {
+    let unanswered = answer.clone();
+    let spawned = std::thread::Builder::new()
+        .name("beui-file-picker".into())
+        .spawn(move || answer.send(pick(&request.filter)));
+    if let Err(error) = spawned {
+        unanswered.send(Err(format!("Could not open a file picker: {error}")));
     }
 }
 

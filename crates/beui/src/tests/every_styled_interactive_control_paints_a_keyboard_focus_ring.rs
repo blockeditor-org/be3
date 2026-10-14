@@ -74,14 +74,14 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
         || {
             view! {
                 <Accordion title="Header" open=false>
-                    <Text string="Content" font_size=14.0 color=Color32::WHITE />
+                    <Text string="Content" color=Color32::WHITE />
                 </Accordion>
             }
         },
         || {
             view! {
                 <ListRow>
-                    <Text string="Row" font_size=14.0 color=Color32::WHITE />
+                    <Text string="Row" color=Color32::WHITE />
                 </ListRow>
             }
         },

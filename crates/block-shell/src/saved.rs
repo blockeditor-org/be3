@@ -23,6 +23,7 @@ struct SavedTab {
     view: usize,
     block: Uuid,
     block_type: Uuid,
+    editor: Option<Uuid>,
 }
 
 pub(crate) struct Restored {
@@ -51,6 +52,7 @@ pub(crate) fn save(
                 view: refs.len() - 1,
                 block: item.id,
                 block_type: item.block_type,
+                editor: item.editor,
             })
         })
         .collect();
@@ -70,10 +72,7 @@ pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
         .tabs
         .iter()
         .filter_map(|tab| {
-            let item = TabItem {
-                id: tab.block,
-                block_type: tab.block_type,
-            };
+            let item = TabItem::new(tab.block, tab.block_type).edited_with(tab.editor);
             Some((TabId::new(tab.tab), (item, referenced(tab.view)?)))
         })
         .collect();

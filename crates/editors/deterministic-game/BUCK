@@ -6,7 +6,6 @@ load("@root//buck/wasm:defs.bzl", "editor")
 # games/<game>.wasm, which the creation dialog offers to copy into the
 # workspace.
 editor(
-    name = "deterministic_game",
     data = {"games/{}.wasm".format(package.split("/")[-1].replace("-", "_")): "//{}:module".format(package) for package in game_packages()},
     module = "deterministic_game",
     test_env = {

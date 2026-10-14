@@ -20,7 +20,8 @@ Usage:
   --allow-registration      Let anyone who reaches the server make an account; without it,
                             accounts are made with --add-account
   --build-id-file FILE      The build this server is, which every client must match; by
-                            default the build-id file beside the executable
+                            default the build-id file beside the executable, and with
+                            neither it does not start
   --add-account             Make an account that owns a new workspace, reading its password
                             from the first line of standard input
 
@@ -115,13 +116,14 @@ async fn run() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    let build = build_id::current()?;
     let listener = TcpListener::bind(address).await?;
     tracing::info!(
         address = %listener.local_addr()?,
         data = %data_dir.display(),
         login = config.allow_login,
         registration = config.allow_registration,
-        build = build_id::current(),
+        build,
         "be-server listening"
     );
     be_server::serve_with_config(listener, data_dir, config, shutdown()).await?;

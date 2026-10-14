@@ -7,15 +7,15 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab() {
+    let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
-    let slot = area.clone();
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"line")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
             <List spacing=8.0>
                 <Frame height=100.0>
-                    <TextArea @node_ref=&slot state={state} />
+                    <TextArea @node_ref=&area state={state} />
                 </Frame>
                 <Button label="After" variant=ButtonVariant::Secondary />
             </List>

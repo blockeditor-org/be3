@@ -32,12 +32,18 @@ pub(super) struct WorkflowRun {
     pub(super) id: u64,
     pub(super) run_number: u64,
     pub(super) head_sha: String,
+    pub(super) head_commit: Option<HeadCommit>,
     pub(super) head_branch: String,
     pub(super) event: String,
     pub(super) status: String,
     pub(super) conclusion: Option<String>,
     pub(super) created_at: String,
     pub(super) html_url: String,
+}
+
+#[derive(Clone, Deserialize)]
+pub(super) struct HeadCommit {
+    pub(super) tree_id: String,
 }
 
 #[derive(Deserialize)]

@@ -5,9 +5,9 @@ use beui_core::rich::{CaretHandle, handle_center};
 
 #[test]
 fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
+    let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (first, second, region) = (first.clone(), second.clone(), region.clone());
         move || {
             view! {
                 <SelectableText @node_ref=&region>

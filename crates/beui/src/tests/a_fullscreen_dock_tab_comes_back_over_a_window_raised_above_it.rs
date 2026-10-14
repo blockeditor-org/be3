@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use super::*;
 use crate::reactive::{Interactive, with_reactive_scope};
 use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
@@ -16,6 +18,7 @@ fn hover(harness: &mut Harness, pos: Pos2) {
 
 #[test]
 fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
+    let _root = crate::reactive::RootScope::new();
     let program = Rc::new(Cell::new(false));
     let other = Rc::new(Cell::new(false));
     let layout = DockingLayout::<u64>::new();

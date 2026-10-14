@@ -77,6 +77,15 @@ picks the editor to run: the block's own type, the type of the editor whose
 template is being made, or the type of the block an artifact was generated
 from.
 
+A manifest may declare an editor for every block type (block type "any"),
+which the plugin runs for any type no other editor of its own names. One block
+type may have editors in several plugins; the host's catalog lists each editor
+by its id (`editor_id` of its plugin's id) with the block type it edits, or the
+nil type for every type. A child placement, a request to open a block and a
+request to show one may name an editor; the host opens the block in it when it
+edits the block's type, and otherwise in the type's built-in editor, the first
+plugin found that names the type.
+
 Every block is made from a template the plugin's manifest declares, and an
 instance opened to make one is opened as a creation instance instead of on a
 block, naming the template it makes: it has a client of its own but no block,
@@ -242,12 +251,13 @@ nothing else, and on the drop it is told the same position along with each
 file's name and the bytes the host read. Only the host can read a file on
 every platform, so a plugin never sees a path.
 
-An editor instance may ask the host for the image on the clipboard, which
-only the host can read on any platform. A paste reaches the instance as a
-paste event of its own rather than as ordinary typed text, so an editor that
-takes images can tell one from the other; the request is answered exactly
-once, with the image the host read, with nothing when the clipboard holds no
-image, or with why it could not be read.
+Only the host can read the clipboard on any platform. Each frame an editor
+instance reports the kinds of paste its focus takes (text, images), in the
+order it prefers them, and the host pastes the first of those the clipboard
+holds into the focused instance as a paste event of its own rather than as
+ordinary typed text: text, split into pieces under the text limit, or an
+image's name and bytes. The host pastes on the paste shortcut it sees itself,
+and when an instance asks it to paste, as a menu's Paste does.
 
 An editor instance may ask the host to play the audio in one of its blocks,
 which only the host can do: a plugin has no sound device on any platform, and
@@ -299,8 +309,8 @@ alongside the events it already sends, since there is no position to report.
 An editor instance may ask the host to put text on the clipboard, which only
 the host can reach: the plugin's own ui context has no window under it. The
 text an instance copied while drawing is sent as it is drawn and the host puts
-it on the clipboard for it; a paste comes back the other way as an ordinary
-paste event.
+it on the clipboard for it; a paste comes back the other way as a paste
+event.
 
 The host describes its registered block types once per plugin runtime, before
 the first editor instance is opened, so an editor can name and illustrate

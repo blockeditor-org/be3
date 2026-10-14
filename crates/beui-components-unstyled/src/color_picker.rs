@@ -12,7 +12,7 @@ use beui_core::geometry::{Rect, pos2};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ForEach, Memo, Prop, ReadSignal, Render, RenderFn, WriteSignal, clone, create_effect,
+    Callback, ForEach, Memo, Prop, ReadSignal, Render, RenderFn, WriteSignal, create_effect,
     create_memo, create_signal,
 };
 
@@ -45,7 +45,7 @@ impl ColorModel for Oklch {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ColorPickerState<Model: ColorModel = Hsva> {
     color: ReadSignal<Model>,
     set_color: WriteSignal<Model>,
@@ -69,12 +69,12 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         let (color, set_color) = create_signal(Model::from_color_keeping(first, Model::default()));
         let (reported, set_reported) = create_signal(first);
         let (dragging, set_dragging) = create_signal(false);
-        create_effect(clone!(color set_color set_reported -> move || {
+        create_effect(move || {
             let next = value.get();
             set_reported.set(next);
             let held = color.get_untracked();
             set_color.set(Model::from_color_keeping(next, held));
-        }));
+        });
         Self {
             color,
             set_color,
@@ -89,16 +89,16 @@ impl<Model: ColorModel> ColorPickerState<Model> {
     }
 
     pub fn color(&self) -> ReadSignal<Model> {
-        self.color.clone()
+        self.color
     }
 
     pub fn shown(&self) -> Memo<Color32> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || color.get().to_color())
     }
 
     pub fn disabled(&self) -> Memo<bool> {
-        self.disabled.clone()
+        self.disabled
     }
 
     pub fn apply(&self, next: Model) {
@@ -169,27 +169,27 @@ impl ColorPickerState<Hsva> {
     }
 
     pub fn channel(&self, index: usize) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from(color.get().to_color().to_array()[index]))
     }
 
     pub fn opacity_percent(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || (f64::from(color.get().to_color().alpha()) * 100.0 / 255.0).round())
     }
 
     pub fn hue_degrees(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from(color.get().hue.round()))
     }
 
     pub fn saturation_percent(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from((color.get().saturation * 100.0).round()))
     }
 
     pub fn value_percent(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from((color.get().value * 100.0).round()))
     }
 
@@ -206,7 +206,7 @@ impl ColorPickerState<Hsva> {
     }
 
     pub fn hue_accessibility(&self) -> Memo<Node> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || {
             let mut node = Node::new(Role::Slider);
             node.set_label("Hue");
@@ -216,7 +216,7 @@ impl ColorPickerState<Hsva> {
     }
 
     pub fn alpha_accessibility(&self) -> Memo<Node> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || {
             let mut node = Node::new(Role::Slider);
             node.set_label("Opacity");
@@ -226,7 +226,7 @@ impl ColorPickerState<Hsva> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct HexText {
     text: ReadSignal<String>,
     set_text: WriteSignal<String>,
@@ -238,12 +238,12 @@ pub struct HexText {
 impl HexText {
     pub fn new(shown: Memo<Color32>, alpha: bool, apply: Callback<Color32>) -> Self {
         let (text, set_text) = create_signal(hex_text(shown.get_untracked(), alpha));
-        create_effect(clone!(shown text set_text -> move || {
+        create_effect(move || {
             let next = shown.get();
             if parse_typed(&text.get_untracked(), next) != Some(next) {
                 set_text.set(hex_text(next, alpha));
             }
-        }));
+        });
         Self {
             text,
             set_text,
@@ -254,7 +254,7 @@ impl HexText {
     }
 
     pub fn text(&self) -> ReadSignal<String> {
-        self.text.clone()
+        self.text
     }
 
     pub fn placeholder(&self) -> &'static str {
@@ -314,15 +314,14 @@ pub fn ColorPickerArea(
     #[prop(default = 0.0)] thumb: f32,
     #[prop(children)] content: Render<ColorAreaHandle>,
 ) -> NodeId {
-    let (changed, dragged) = (picker.clone(), picker.clone());
     view! {
         <ColorArea
             value={picker.color()}
             thumb
             focused
             disabled={picker.disabled()}
-            on_change={move |next: Hsva| changed.apply(next)}
-            on_drag_change={move |dragging: bool| dragged.drag(dragging)}
+            on_change={move |next: Hsva| picker.apply(next)}
+            on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
     }
@@ -336,7 +335,6 @@ pub fn HueSlider(
 ) -> NodeId {
     let color = picker.color();
     let hue = create_memo(move || color.get().hue);
-    let (changed, dragged) = (picker.clone(), picker.clone());
     view! {
         <Slider
             value={hue}
@@ -345,8 +343,8 @@ pub fn HueSlider(
             thumb
             disabled={picker.disabled()}
             accessibility={picker.hue_accessibility()}
-            on_change={move |hue: f32| changed.set_hue(hue)}
-            on_drag_change={move |dragging: bool| dragged.drag(dragging)}
+            on_change={move |hue: f32| picker.set_hue(hue)}
+            on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
     }
@@ -360,15 +358,14 @@ pub fn AlphaSlider(
 ) -> NodeId {
     let color = picker.color();
     let alpha = create_memo(move || color.get().alpha);
-    let (changed, dragged) = (picker.clone(), picker.clone());
     view! {
         <Slider
             value={alpha}
             thumb
             disabled={picker.disabled()}
             accessibility={picker.alpha_accessibility()}
-            on_change={move |alpha: f32| changed.set_alpha(alpha)}
-            on_drag_change={move |dragging: bool| dragged.drag(dragging)}
+            on_change={move |alpha: f32| picker.set_alpha(alpha)}
+            on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
     }

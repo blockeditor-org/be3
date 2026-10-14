@@ -4,14 +4,14 @@ use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
-    let zoom = Rc::new(Cell::new(1.0_f32));
+    let _root = crate::reactive::RootScope::new();
+    let (zoom, set_zoom) = create_signal(1.0_f32);
     let document = build({
-        let zoom = zoom.clone();
         move || {
             view! {
                 <Interactive
                     @test_id={"surface"}
-                    on_zoom={move |gesture: ZoomGesture| zoom.set(zoom.get() * gesture.factor)}
+                    on_zoom={move |gesture: ZoomGesture| set_zoom.set(zoom.get_untracked() * gesture.factor)}
                 >
                     <Frame width=300.0 height=300.0 />
                 </Interactive>
@@ -24,17 +24,17 @@ fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
         .ask(&["pinch", "#surface", "2"])
         .expect("two fingers spread");
     assert!(
-        (zoom.get() - 2.0).abs() < 0.01,
+        (zoom.get_untracked() - 2.0).abs() < 0.01,
         "spreading doubled the zoom to {}",
-        zoom.get()
+        zoom.get_untracked()
     );
     driven
         .ask(&["zoom", "#surface", "0.5"])
         .expect("the touchpad pinches");
     assert!(
-        (zoom.get() - 1.0).abs() < 0.01,
+        (zoom.get_untracked() - 1.0).abs() < 0.01,
         "the touchpad halved it to {}",
-        zoom.get()
+        zoom.get_untracked()
     );
 
     driven
@@ -50,8 +50,8 @@ fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
         .expect("both fingers move in one frame");
     driven.ask(&["touch", "up"]).expect("every finger lifts");
     assert!(
-        (zoom.get() - 2.0).abs() < 0.01,
+        (zoom.get_untracked() - 2.0).abs() < 0.01,
         "the fingers doubled it again to {}",
-        zoom.get()
+        zoom.get_untracked()
     );
 }

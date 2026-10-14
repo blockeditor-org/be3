@@ -3,6 +3,7 @@ use crate::unstyled::{TabId, dock_state};
 
 #[test]
 fn a_tab_split_out_of_a_window_keeps_its_panel_on_screen() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

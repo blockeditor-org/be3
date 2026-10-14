@@ -3,6 +3,7 @@ use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

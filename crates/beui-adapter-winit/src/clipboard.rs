@@ -1,3 +1,10 @@
+use beui_core::file_picker::PickedFile;
+#[cfg(not(target_os = "ios"))]
+use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
+
+#[cfg(not(target_os = "ios"))]
+const PASTED_NAME: &str = "Pasted Image.png";
+
 #[derive(Default)]
 pub struct Clipboard {
     #[cfg(not(target_os = "ios"))]
@@ -30,5 +37,37 @@ impl Clipboard {
         }
         #[cfg(target_os = "ios")]
         let _ = text;
+    }
+
+    pub fn image(&mut self) -> Option<PickedFile> {
+        #[cfg(not(target_os = "ios"))]
+        {
+            let image = match self.inner.as_mut()?.get_image() {
+                Ok(image) => image,
+                Err(arboard::Error::ContentNotAvailable) => return None,
+                Err(error) => {
+                    eprintln!("beui: could not read the clipboard's image: {error}");
+                    return None;
+                }
+            };
+            let mut data = Vec::new();
+            if let Err(error) = PngEncoder::new(&mut data).write_image(
+                image.bytes.as_ref(),
+                image.width as u32,
+                image.height as u32,
+                ExtendedColorType::Rgba8,
+            ) {
+                eprintln!("beui: could not encode the clipboard's image: {error}");
+                return None;
+            }
+            Some(PickedFile {
+                name: PASTED_NAME.to_owned(),
+                data,
+            })
+        }
+        #[cfg(target_os = "ios")]
+        {
+            None
+        }
     }
 }

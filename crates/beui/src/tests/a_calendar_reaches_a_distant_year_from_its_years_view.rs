@@ -5,15 +5,15 @@ use crate::styled::Calendar;
 
 #[test]
 fn a_calendar_reaches_a_distant_year_from_its_years_view() {
-    let picked = Rc::new(RefCell::new(Vec::new()));
-    let sink = picked.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (picked, set_picked) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Calendar
                 selected={Some(Date::new(2026, 1, 15))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
-                on_change={move |date| sink.borrow_mut().push(date)}
+                on_change={move |date| set_picked.update(|picked| picked.push(date))}
             />
         }
     });
@@ -34,10 +34,10 @@ fn a_calendar_reaches_a_distant_year_from_its_years_view() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
     assert!(
-        picked.borrow().is_empty(),
+        picked.with_untracked(|picked| picked.is_empty()),
         "choosing a year and a month only shows them"
     );
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(*picked.borrow(), [Date::new(1982, 4, 15)]);
+    assert_eq!(picked.get_untracked(), [Date::new(1982, 4, 15)]);
 }

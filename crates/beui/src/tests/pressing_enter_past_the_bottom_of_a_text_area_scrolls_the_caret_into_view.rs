@@ -7,23 +7,22 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view() {
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let sink = held.clone();
-    let slot = area.clone();
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"top")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        set_held.update(|held| *held = Some(state));
         view! {
             <Frame height=120.0>
-                <TextArea @node_ref=&slot state={state} />
+                <TextArea @node_ref=&area state={state} />
             </Frame>
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
     let visible = harness.rect(area.get());
 
     harness.click(pos2(300.0, 16.0));

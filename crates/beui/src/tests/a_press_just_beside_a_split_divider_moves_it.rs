@@ -4,6 +4,7 @@ use crate::unstyled::SPLITTER_THICKNESS;
 
 #[test]
 fn a_press_just_beside_a_split_divider_moves_it() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document, presses, ..
     } = split_dock(None);
@@ -16,7 +17,7 @@ fn a_press_just_beside_a_split_divider_moves_it() {
 
     let beside = pos2(edge + 3.0, right.center().y);
     let output = harness.frame(vec![Event::PointerMoved(beside)]);
-    assert_eq!(output.cursor_icon, CursorIcon::ResizeHorizontal);
+    assert_eq!(output.window.cursor, CursorIcon::ResizeHorizontal);
 
     harness.drag(beside, beside + vec2(50.0, 0.0));
     harness.frame(Vec::new());
@@ -28,7 +29,7 @@ fn a_press_just_beside_a_split_divider_moves_it() {
         moved.width()
     );
     assert_eq!(
-        presses.get(),
+        presses.get_untracked(),
         0,
         "the pane beside the divider never heard the press"
     );
@@ -36,7 +37,7 @@ fn a_press_just_beside_a_split_divider_moves_it() {
     let right = harness.rect(harness.find("content.2"));
     let far = pos2(edge + 50.0 + 12.0, right.center().y);
     let output = harness.frame(vec![Event::PointerMoved(far)]);
-    assert_ne!(output.cursor_icon, CursorIcon::ResizeHorizontal);
+    assert_ne!(output.window.cursor, CursorIcon::ResizeHorizontal);
     harness.drag(far, far + vec2(50.0, 0.0));
     harness.frame(Vec::new());
     assert_eq!(
@@ -44,5 +45,9 @@ fn a_press_just_beside_a_split_divider_moves_it() {
         moved.width(),
         "a press farther out leaves the divider alone"
     );
-    assert_eq!(presses.get(), 1, "the pane hears a press farther out");
+    assert_eq!(
+        presses.get_untracked(),
+        1,
+        "the pane hears a press farther out"
+    );
 }

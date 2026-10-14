@@ -3,8 +3,8 @@ use block_editor_beui::be_block::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent,
 };
 use block_editor_beui::{
-    BeuiApp, ConflictSide, Editor, EditorHost, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionStatus,
+    BeuiApp, ConflictSide, EditorHost, OwnedEditor, VersionBranch, VersionChange,
+    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -22,7 +22,7 @@ const TEXT: Uuid = Uuid::from_u128(0x7465_7874);
 fn editor<A: BeuiApp, C: LiveEdit>(content: C, status: VersionStatus) -> BeuiTest<A> {
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, Uuid::new_v4());
+    let editor = OwnedEditor::new(host, Uuid::new_v4());
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, content);
     editor.set_version_status(status);

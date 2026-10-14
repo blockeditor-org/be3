@@ -3,13 +3,13 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::focus_ring::FocusRing;
-use crate::text::Icon;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor};
+use crate::theme::{BORDER_WIDTH, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_core::base::TextAlign;
+use beui_core::base::{ItemSize, TextAlign};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+    Action, Align, ClickCallback, Direction, Frame, List, Prop, Show, create_memo,
 };
 
 const GLYPH_SPACING: f32 = 6.0;
@@ -46,13 +46,13 @@ impl ButtonVariant {
         }
     }
 
-    pub fn label(self, theme: &ThemeStore, disabled: bool) -> Color32 {
+    pub fn label(self, disabled: bool) -> TextColor {
         if disabled {
-            return theme.text_muted.get();
+            return TextColor::Muted;
         }
         match self {
-            ButtonVariant::Primary => theme.on_accent.get(),
-            ButtonVariant::Secondary | ButtonVariant::Ghost => theme.text.get(),
+            ButtonVariant::Primary => TextColor::OnAccent,
+            ButtonVariant::Secondary | ButtonVariant::Ghost => TextColor::Default,
         }
     }
 }
@@ -74,7 +74,7 @@ pub fn Button(
             action
             disabled
             focused
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle| view! {
                 <ButtonFace handle variant />
             }}
@@ -99,24 +99,23 @@ pub fn ButtonFace(
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(clone!(theme disabled -> move || {
-        variant.fill(&theme, disabled.get(), hovered.get(), active.get())
-    }));
-    let label_color = create_memo(clone!(theme -> move || variant.label(&theme, disabled.get())));
-    let icon_color = label_color.clone();
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let fill_color =
+        create_memo(move || variant.fill(&theme, disabled.get(), hovered.get(), active.get()));
+    let label_color = create_memo(move || variant.label(disabled.get()));
+    let icon_color = label_color;
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let shown_label = create_memo(move || match icon_only.get() {
         true => String::new(),
         false => label.get(),
     });
     let trailing = create_memo(move || trailing_glyph.get());
-    let has_trailing = create_memo(clone!(trailing -> move || !trailing.get().is_empty()));
-    let trailing_color = label_color.clone();
+    let has_trailing = create_memo(move || !trailing.get().is_empty());
+    let trailing_color = label_color;
     view! {
         <FocusRing focused radius={RADIUS + 4} offset=FOCUS_RING_OFFSET>
             <Frame
                 color={fill_color}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible={variant == ButtonVariant::Secondary}
@@ -125,16 +124,21 @@ pub fn ButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph.clone()} color={icon_color.clone()} />
+                        <Text color={icon_color} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
                     </Show>
                     <Text
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
                         string={shown_label}
-                        font_size=FONT_BODY
                         color={label_color}
                         align=TextAlign::Center
+                        ellipsis=true
                     />
                     <Show condition={has_trailing}>
-                        <Icon glyph={trailing.clone()} color={trailing_color.clone()} />
+                        <Text color={trailing_color} align=TextAlign::Center>
+                            <Icon glyph={trailing} />
+                        </Text>
                     </Show>
                 </List>
             </Frame>

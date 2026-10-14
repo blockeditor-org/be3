@@ -63,7 +63,7 @@ jobs:
   # The paint previews are every painting a pull request changes, drawn
   # before, after, and with what changed marked, for one comment on the pull
   # request that each run edits rather than adding to, which also counts the
-  # lines the pull request adds and removes outside its tests. The paintings
+  # lines of Rust the pull request adds and removes outside its tests. The paintings
   # compared are the ones committed on the head, so a painting the autofix job
   # accepts shows up in the run its commit starts. A fork's run has no Namespace
   # token to build with and no token to comment with, so it has no previews.
@@ -321,8 +321,8 @@ jobs:
   # request's code, so it is only ever data here: files to upload and text to
   # post.
   #
-  # Every pull request gets the one comment, which each run edits: the lines it
-  # adds and removes outside its tests, and the paintings it changes, if any.
+  # Every pull request gets the one comment, which each run edits: the lines of
+  # Rust it adds and removes outside its tests, and the paintings it changes, if any.
   # The comment is found again by the marker this job puts at its top, rather
   # than one the pull request's code writes.
   publish-summary:

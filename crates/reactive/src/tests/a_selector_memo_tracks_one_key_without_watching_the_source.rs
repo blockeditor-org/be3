@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_selector_memo_tracks_one_key_without_watching_the_source() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (selected, set_selected) = create_signal(0usize);
     let calls = Rc::new(Cell::new(0));
@@ -14,7 +15,6 @@ fn a_selector_memo_tracks_one_key_without_watching_the_source() {
     scope.run({
         let calls = calls.clone();
         let seen = seen.clone();
-        let first = first.clone();
         move || {
             create_effect(move || {
                 calls.set(calls.get() + 1);

@@ -1,3 +1,4 @@
+use beui::KeyAt;
 use block_editor_beui::beui::icons::{
     ICON_BRIGHTNESS_HIGH, ICON_BRIGHTNESS_LOW, ICON_MIC, ICON_MIC_OFF, ICON_PLAY_PAUSE,
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_STOP, ICON_VOLUME_DOWN, ICON_VOLUME_OFF,
@@ -160,8 +161,7 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
     let (shown, set_shown) = create_signal(None);
     let (shows, set_shows) = create_signal(0_u64);
     for (key, media_key) in BINDINGS {
-        let editor = editor.clone();
-        let (set_shown, set_shows) = (set_shown.clone(), set_shows.clone());
+        let (set_shown, set_shows) = (set_shown, set_shows);
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
             editor.act(request);
@@ -172,7 +172,8 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
         })
         .glyph(media_key.glyph())
         .shortcut(Chord::key(key))
-        .intercepts()
+        .at(KeyAt::Window)
+        .capture()
         .register();
     }
     let level = create_memo(move || osd_level(shown.get()?, levels.get()));

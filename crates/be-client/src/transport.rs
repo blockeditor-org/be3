@@ -12,5 +12,7 @@ pub(crate) enum Frame {
     Binary(Vec<u8>),
     #[cfg(not(target_arch = "wasm32"))]
     Ping(Vec<u8>),
+    #[cfg(not(target_arch = "wasm32"))]
+    Failed(String),
     Closed,
 }

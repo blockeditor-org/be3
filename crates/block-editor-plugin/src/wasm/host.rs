@@ -1,9 +1,18 @@
 use block_gpu_abi as abi;
 
+macro_rules! transport_imports {
+    ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
+        #[link(wasm_import_module = "be3_host")]
+        unsafe extern "C" {
+            $(fn $name($($argument: $kind),*) $(-> $result)?;)+
+        }
+    };
+}
+
+block_gpu_abi::transport_functions!(transport_imports);
+
 #[link(wasm_import_module = "be3_host")]
 unsafe extern "C" {
-    fn host_send(pointer: u32, length: u32);
-    fn host_receive(pointer: u32, capacity: u32) -> i64;
     fn host_wake();
     fn host_panic(pointer: u32, length: u32);
 }

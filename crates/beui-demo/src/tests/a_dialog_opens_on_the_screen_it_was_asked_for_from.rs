@@ -1,8 +1,9 @@
 use beui::reactive::{Frame, List, build, create_signal, view};
-use beui::styled::{Button, ButtonVariant, Dialog, Paragraph, use_theme};
+use beui::styled::{Button, ButtonVariant, Dialog, use_theme};
 use beui::{Justify, Rect, Screen};
 
 use super::*;
+use beui::styled::{Text, TextStyle};
 
 #[test]
 fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
@@ -11,9 +12,9 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
     let document = build(move || {
         let theme = use_theme();
         let (open, set_open) = create_signal(false);
-        let closing = set_open.clone();
+        let closing = set_open;
         view! {
-            <Frame color={theme.background.clone()}>
+            <Frame color={theme.background}>
                 <List direction=beui::Direction::Horizontal justify=Justify::End spacing=0.0>
                     <Button
                         label="About"
@@ -27,9 +28,11 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
                         width=320.0
                         on_dismiss={move || closing.set(false)}
                     >
-                        <Paragraph
-                            content="Shown on the screen it was asked for from."
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string="Shown on the screen it was asked for from."
                             @test_id={"test.body"}
+                            wrap=true
                         />
                     </Dialog>
                 </List>

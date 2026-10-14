@@ -22,6 +22,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
                 block_id: [1; 16],
                 block_type: [0; 16],
                 view_block: None,
+                editor: None,
             },
             rect: ChildRect {
                 x: 0.0,

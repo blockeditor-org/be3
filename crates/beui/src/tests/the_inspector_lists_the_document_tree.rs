@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn the_inspector_lists_the_document_tree() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 

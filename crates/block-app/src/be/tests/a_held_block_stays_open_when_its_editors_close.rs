@@ -1,12 +1,12 @@
 use super::*;
 
-use be_block::{UiSettings as Settings, UiSettingsContent};
+use be_block::{Theme, UiSettings as Settings, UiSettingsContent};
 
-fn zoom_of(shared: &Shared, block: Uuid) -> Option<f32> {
+fn theme_of(shared: &Shared, block: Uuid) -> Option<Theme> {
     let held = shared.blocks.get(&block)?;
     UiSettingsContent::decode(&held.bytes)
         .ok()
-        .map(|settings| settings.root().zoom())
+        .map(|settings| settings.root().theme())
 }
 
 #[test]
@@ -18,15 +18,15 @@ fn a_held_block_stays_open_when_its_editors_close() {
     hold(block, UiSettingsContent::CONTENT_TYPE);
     hold(block, UiSettingsContent::CONTENT_TYPE);
     wait_until("opened the held block", |shared| {
-        zoom_of(shared, block) == Some(1.0)
+        theme_of(shared, block) == Some(Theme::Dark)
     });
     close(block);
 
     operate(
         block,
-        UiSettingsContent::encode_operation(&Settings::set_zoom(1.5)),
+        UiSettingsContent::encode_operation(&Settings::set_theme(Some(Theme::Light))),
     );
     wait_until("kept the held block live", |shared| {
-        zoom_of(shared, block) == Some(1.5)
+        theme_of(shared, block) == Some(Theme::Light)
     });
 }

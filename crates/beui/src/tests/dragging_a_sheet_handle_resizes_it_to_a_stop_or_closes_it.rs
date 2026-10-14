@@ -1,6 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use super::*;
 use crate::input::BackGesture;
 use crate::reactive::{Frame, List, build, view};
@@ -8,10 +5,10 @@ use crate::styled::Sheet;
 
 #[test]
 fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
+    let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let closed = Rc::new(Cell::new(0));
+    let (closed, set_closed) = create_signal(0);
     let document = build({
-        let (sheet, closed) = (sheet.clone(), closed.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -19,7 +16,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
                     <Sheet
                         @node_ref=&sheet
                         extent=600.0
-                        on_close={move || closed.set(closed.get() + 1)}
+                        on_close={move || set_closed.update(|closed| *closed += 1)}
                     >
                         <Frame height=1000.0 />
                     </Sheet>
@@ -65,17 +62,17 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
         Some(540.0),
         "a small drag settles back on the nearest stop"
     );
-    assert_eq!(closed.get(), 0);
+    assert_eq!(closed.get_untracked(), 0);
 
     let from = handle(&harness);
     harness.drag(from, from + Vec2::new(0.0, 500.0));
     harness.settle();
     assert_eq!(
-        closed.get(),
+        closed.get_untracked(),
         1,
         "dragged nearly to the bottom, the sheet closes"
     );
 
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
-    assert_eq!(closed.get(), 2, "going back closes an open sheet");
+    assert_eq!(closed.get_untracked(), 2, "going back closes an open sheet");
 }

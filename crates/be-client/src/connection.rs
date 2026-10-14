@@ -85,7 +85,7 @@ impl Connection {
 }
 
 async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientError> {
-    let ours = build_id::current();
+    let ours = build_id::current().map_err(ClientError::NoBuild)?;
     writer
         .send(hello(ours))
         .await
@@ -97,7 +97,7 @@ async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientErr
     };
     let theirs = read_hello(&bytes).ok_or_else(|| ClientError::Incompatible {
         ours: ours.to_owned(),
-        theirs: build_id::UNKNOWN.to_owned(),
+        theirs: "a build that does not greet".to_owned(),
     })?;
     if build_id::compatible(ours, &theirs) {
         Ok(())
@@ -121,6 +121,7 @@ async fn next_binary(
                 .pong(payload)
                 .await
                 .map_err(ClientError::Disconnected)?,
+            Some(Frame::Failed(reason)) => return Err(ClientError::Disconnected(reason)),
             Some(Frame::Closed) | None => return Ok(None),
         }
     }
@@ -189,6 +190,8 @@ async fn carry(
                         return;
                     }
                 }
+                #[cfg(not(target_arch = "wasm32"))]
+                Some(Frame::Failed(_)) => return,
                 Some(Frame::Closed) | None => return,
             },
         }

@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_narrow_inspector_puts_its_close_button_beside_its_tabs() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 

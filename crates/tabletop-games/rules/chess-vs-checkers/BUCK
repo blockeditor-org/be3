@@ -10,7 +10,7 @@ cargo_library()
 # target_compatible_with says: asking for it on the host is a configuration
 # error rather than a link failure.
 cargo_library(
-    name = "chess_vs_checkers_wasm",
+    name = "wasm",
     preferred_linkage = "shared",
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
 )
@@ -19,7 +19,7 @@ cargo_library(
 # for it is built for.
 wasm32_module(
     name = "module",
-    library = ":chess_vs_checkers_wasm",
+    library = ":wasm",
     visibility = ["PUBLIC"],
 )
 

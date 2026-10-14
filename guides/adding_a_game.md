@@ -28,9 +28,8 @@ side of the WebAssembly boundary it runs on:
   with underscores. It needs `crate-type = ["cdylib", "rlib"]`, `game-api`
   as a dependency, and `game-host` as a dev dependency so the tests can run
   the module.
-- `crates/tabletop-games/rules/foo/BUCK` — copy `tic_tac_toe`'s, renaming
-  its `tic_tac_toe_wasm` library. It builds the crate natively for the tests,
-  a second time for wasm32 as the `module` target, and points the tests'
+- `crates/tabletop-games/rules/foo/BUCK` — copy `tic_tac_toe`'s as it is. It
+  builds the crate natively for the tests, a second time for wasm32 as the `module` target, and points the tests'
   `GAME_WASM` at that module.
 - `crates/tabletop-games/rules/foo/src/lib.rs` — the game, ending in
   `game_api::game!("Foo", foo);`. The first argument is the name the module

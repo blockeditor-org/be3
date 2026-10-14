@@ -1,22 +1,18 @@
 use super::*;
-use crate::reactive::{
-    NodeRef, Portal, Show, clone, create_signal, in_new_scope, with_reactive_scope,
-};
+use crate::reactive::{NodeRef, Portal, Show, create_signal, with_reactive_scope};
 
 #[test]
 fn a_portal_shows_a_subtree_it_does_not_own() {
+    let _root = crate::reactive::RootScope::new();
     let held = NodeRef::new();
     let (first, set_first) = create_signal(None);
     let (second, set_second) = create_signal(None);
     let (kept, set_kept) = create_signal(true);
     let document = {
-        let held = held.clone();
         build(move || {
-            let node = in_new_scope(|| {
-                view! {
-                    <Frame @node_ref=&held @test_id="held" height=20.0 />
-                }
-            });
+            let node = view! {
+                <Frame @node_ref=&held @test_id="held" height=20.0 />
+            };
             set_first.set(Some(node));
             view! {
                 <List spacing=0.0>
@@ -24,11 +20,11 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
                         <Portal node={first} />
                     </Frame>
                     <Show condition={kept}>
-                        {move || clone!(second -> view! {
+                        {move || view! {
                             <Frame @test_id="second" height=40.0>
                                 <Portal node={second} />
                             </Frame>
-                        })}
+                        }}
                     </Show>
                 </List>
             }

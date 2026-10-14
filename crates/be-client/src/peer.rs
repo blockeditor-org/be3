@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{ClientError, connection::Connection};
 
+#[derive(Clone)]
 pub enum Credentials {
     Register {
         email: String,
@@ -119,11 +120,21 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
         let connection = Connection::connect(&config.url).await?;
         let response = connection
-            .request(|request| config.credentials.message(request))
+            .request(|request| config.credentials.clone().message(request))
             .await?;
         let ServerMessage::Authenticated { account, token, .. } = response else {
             return Err(ClientError::Unexpected);
         };
+        Self::signed_in(connection, account, token, config, store).await
+    }
+
+    pub async fn signed_in(
+        connection: Arc<Connection>,
+        account: Uuid,
+        token: String,
+        config: PeerConfig,
+        store: S,
+    ) -> Result<Self, ClientError> {
         let workspace = match config.workspace {
             Some(workspace) => workspace,
             None => {
@@ -349,23 +360,26 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        let mut missing = Vec::new();
         for hash in hashes {
-            if self.commits.vault().store().has(*hash)? {
-                continue;
+            if !self.commits.vault().store().has(*hash)? && !missing.contains(hash) {
+                missing.push(*hash);
             }
-            let response = self
-                .connection
-                .request(|request| ClientMessage::GetObject {
-                    request,
-                    hash: *hash,
-                })
-                .await?;
-            let ServerMessage::Object { bytes, .. } = response else {
+        }
+        let responses = futures_util::future::join_all(missing.iter().map(|hash| {
+            self.connection.request(|request| ClientMessage::GetObject {
+                request,
+                hash: *hash,
+            })
+        }))
+        .await;
+        for (hash, response) in missing.into_iter().zip(responses) {
+            let ServerMessage::Object { bytes, .. } = response? else {
                 return Err(ClientError::Unexpected);
             };
-            let bytes = bytes.ok_or(ClientError::MissingObject(*hash))?;
-            if self.commits.vault().store().put(&bytes)? != *hash {
-                return Err(ClientError::Tampered(*hash));
+            let bytes = bytes.ok_or(ClientError::MissingObject(hash))?;
+            if self.commits.vault().store().put(&bytes)? != hash {
+                return Err(ClientError::Tampered(hash));
             }
         }
         Ok(())
@@ -614,6 +628,11 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Saved::Unchanged(expected.expect("a previous commit")));
         }
         let mut parents: Vec<_> = expected.into_iter().collect();
+        let mut chunks = manifest.chunk_hashes();
+        for parent in &extra_parents {
+            chunks.push(parent.hash());
+            chunks.extend(self.commits.get(*parent)?.manifest.chunk_hashes());
+        }
         parents.extend(extra_parents);
         let kind = if parents.len() > 1 {
             be_commit::CommitKind::Merge
@@ -629,7 +648,6 @@ impl<S: ObjectStore> Peer<S> {
             .with_metadata(encoded);
         let id = self.commits.put(&commit)?;
 
-        let chunks = manifest.chunk_hashes();
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
         self.push(&objects).await?;

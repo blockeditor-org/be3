@@ -6,8 +6,8 @@ use crate::unstyled::DateTimeParts;
 
 #[test]
 fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <DateTimeField
@@ -15,7 +15,7 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
                 parts=DateTimeParts::Time
                 hour_cycle=HourCycle::H12
                 on_change={move |value: Option<crate::datetime::DateTime>| {
-                    sink.borrow_mut().push(value.map(|value| value.time))
+                    set_reported.update(|reported| reported.push(value.map(|value| value.time)))
                 }}
             />
         }
@@ -30,7 +30,7 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
     harness.key(Key::ArrowUp, Modifiers::NONE);
 
     assert_eq!(
-        *reported.borrow(),
+        reported.get_untracked(),
         [Some(Time::new(21, 30)), Some(Time::new(9, 30))]
     );
 }

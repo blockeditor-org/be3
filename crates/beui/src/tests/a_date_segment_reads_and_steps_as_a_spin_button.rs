@@ -8,8 +8,8 @@ use crate::unstyled::DateTimeParts;
 
 #[test]
 fn a_date_segment_reads_and_steps_as_a_spin_button() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <DateTimeField
@@ -17,7 +17,7 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
                 parts=DateTimeParts::Date
                 label="Due"
                 on_change={move |value: Option<DateTime>| {
-                    sink.borrow_mut().push(value.map(|value| value.date))
+                    set_reported.update(|reported| reported.push(value.map(|value| value.date)))
                 }}
             />
         }
@@ -46,5 +46,5 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
     });
     harness.frame(Vec::new());
 
-    assert_eq!(*reported.borrow(), [Some(Date::new(2026, 10, 27))]);
+    assert_eq!(reported.get_untracked(), [Some(Date::new(2026, 10, 27))]);
 }

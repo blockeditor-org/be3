@@ -6,10 +6,15 @@ use block_editor_beui::database::create_database;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
+pub(crate) mod controls;
 pub(crate) mod data;
+pub(crate) mod display;
+pub(crate) mod filters;
+pub(crate) mod header;
 pub(crate) mod kanban;
+pub(crate) mod list;
+pub(crate) mod row;
 pub(crate) mod scatter;
-pub(crate) mod sidebar;
 pub(crate) mod spreadsheet;
 mod ui;
 

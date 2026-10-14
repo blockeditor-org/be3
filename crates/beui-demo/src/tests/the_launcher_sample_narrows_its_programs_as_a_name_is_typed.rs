@@ -21,11 +21,13 @@ fn the_launcher_sample_narrows_its_programs_as_a_name_is_typed() {
     test.frame(
         [true, false]
             .into_iter()
-            .map(|pressed| Event::Key {
-                key: Key::Enter,
-                pressed,
-                repeat: false,
-                modifiers: Modifiers::NONE,
+            .map(|pressed| {
+                Event::key(beui::KeyPress {
+                    key: Key::Enter,
+                    pressed,
+                    repeat: false,
+                    modifiers: Modifiers::NONE,
+                })
             })
             .collect(),
     );

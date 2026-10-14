@@ -13,8 +13,8 @@ use beui_components_unstyled::{
 use beui_core::base::ItemSize;
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::file_picker::PickedFile;
 use beui_core::geometry::Pos2;
-use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, set_component_state,
@@ -36,9 +36,10 @@ pub fn TextArea(
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = true)] emoji: bool,
+    #[prop(default = false)] pastes_images: bool,
     on_widget_press: Callback<usize, bool>,
-    on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
+    on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
     let theme = use_theme();
     let colors = create_memo(move || TextAreaColors {
@@ -46,18 +47,17 @@ pub fn TextArea(
         caret: theme.accent.get(),
         ..TextAreaColors::DEFAULT
     });
-    let masked = password.clone();
-    let menu_state = state.clone();
+    let masked = password;
     let surface = NodeRef::new();
-    set_component_state(surface.clone());
+    set_component_state(surface);
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
     view! {
         <List spacing=0.0>
-            <FindBar state={state.clone()} />
+            <FindBar state={state} />
             <unstyled::TextContextMenu
                 @sizing=ItemSize::Percent(100.0)
-                state={menu_state}
+                state={state}
                 menu={menu_style()}
                 masked
                 child_size=ItemSize::Percent(100.0)
@@ -74,9 +74,10 @@ pub fn TextArea(
                         password
                         show_runs
                         client_colors
-                        on_widget_press={move |widget: usize| on_widget_press.call(widget)}
-                        on_key_override={move |press: KeyPress| on_key_override.call(press)}
-                        on_focus_change={move |focused: bool| on_focus_change.call(focused)}
+                        on_widget_press={on_widget_press}
+                        on_focus_change={on_focus_change}
+                        pastes_images
+                        on_image_paste={on_image_paste}
                         on_menu={move |at: Pos2| open_menu.call(at)}
                         block={block}
                         selected_widget={selected_widget}
@@ -107,7 +108,7 @@ fn inline_checkbox() -> RenderFn<TextCheckbox> {
                 capture_presses=true
                 tab_stop=false
                 press_focus=false
-                on_change={move |checked: bool| on_change.call(checked)}
+                on_change={on_change}
             />
         }
     })

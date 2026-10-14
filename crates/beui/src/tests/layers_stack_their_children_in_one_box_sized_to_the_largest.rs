@@ -3,9 +3,9 @@ use crate::reactive::{Align, Direction, Frame, Layers, List, NodeRef, view};
 
 #[test]
 fn layers_stack_their_children_in_one_box_sized_to_the_largest() {
+    let _root = crate::reactive::RootScope::new();
     let (layers, wide, tall) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (layers, wide, tall) = (layers.clone(), wide.clone(), tall.clone());
         move || {
             view! {
                 <List direction=Direction::Horizontal align=Align::Start spacing=0.0>

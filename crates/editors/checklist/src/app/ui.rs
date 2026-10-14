@@ -1,23 +1,21 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::{
     Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone, component,
-    create_memo, create_selector, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component, create_memo,
+    create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,
-    ToggleButton, use_theme,
+    Button, ButtonVariant, Card, Checkbox, Progress, Scroll, TextInput, ToggleButton, use_theme,
 };
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor};
 
 const PAGE_PADDING: f32 = 24.0;
 const SECTION_SPACING: f32 = 18.0;
 
-type List = Rc<ContentProjection<ChecklistContent>>;
+type List = ContentProjection<ChecklistContent>;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum Filter {
@@ -49,12 +47,12 @@ pub fn Checklist(editor: Editor) -> NodeId {
     });
     let done_count = checklist.project(|checklist| checklist.root().done_count());
     let ids = checklist.ids(ObjectId::ROOT, ChecklistModel::ITEMS);
-    let total = create_memo(clone!(ids -> move || ids.with(Vec::len)));
+    let total = create_memo(move || ids.with(Vec::len));
 
     let (draft, set_draft) = create_signal(String::new());
     let (filter, set_filter) = create_signal(Filter::All);
-    let selected_filter = create_selector(clone!(filter -> move || filter.get()));
-    let visible = create_memo(clone!(flags filter -> move || {
+    let selected_filter = create_selector(move || filter.get());
+    let visible = create_memo(move || {
         let filter = filter.get();
         flags.with(|flags| {
             flags
@@ -63,47 +61,40 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 .map(|(id, _)| *id)
                 .collect::<Vec<ObjectId>>()
         })
-    }));
-    let progress = create_memo(clone!(done_count total -> move || {
-        match total.get() {
-            0 => 0.0,
-            total => done_count.get() as f32 / total as f32,
-        }
-    }));
-    let summary = create_memo(clone!(done_count total -> move || {
-        match total.get() {
-            0 => "Add your first task below".to_owned(),
-            total => format!("{} of {total} complete", done_count.get()),
-        }
-    }));
-    let empty = create_memo(clone!(visible -> move || visible.get().is_empty()));
-    let clear_disabled = create_memo(clone!(done_count -> move || done_count.get() == 0));
-
-    let submit_checklist = checklist.clone();
-    let submit_draft = set_draft.clone();
-    let add_checklist = checklist.clone();
-    let add_draft = draft.clone();
-    let add_set_draft = set_draft.clone();
-    let clear_checklist = checklist.clone();
-    let set_open_filter = set_filter.clone();
-    let set_done_filter = set_filter.clone();
-    let rows = clone!(checklist -> move |id: ObjectId| {
-        view! {
-            <ChecklistRow checklist={checklist.clone()} id />
-        }
     });
+    let progress = create_memo(move || match total.get() {
+        0 => 0.0,
+        total => done_count.get() as f32 / total as f32,
+    });
+    let summary = create_memo(move || match total.get() {
+        0 => "Add your first task below".to_owned(),
+        total => format!("{} of {total} complete", done_count.get()),
+    });
+    let empty = create_memo(move || visible.get().is_empty());
+    let clear_disabled = create_memo(move || done_count.get() == 0);
+
+    let submit_draft = set_draft;
+    let add_draft = draft;
+    let add_set_draft = set_draft;
+    let set_open_filter = set_filter;
+    let set_done_filter = set_filter;
+    let rows = move |id: ObjectId| {
+        view! {
+            <ChecklistRow checklist={checklist} id />
+        }
+    };
 
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
-                    <Heading content="Checklist" />
-                    <Caption content={summary} />
+                    <Text style=TextStyle::HEADING string="Checklist" />
+                    <Text style=TextStyle::CAPTION string={summary} />
                     <Progress value={progress} label="Checklist completion" />
                 </List>
                 <Card>
@@ -117,7 +108,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 @test_id={"checklist.draft"}
                                 on_change={move |value| set_draft.set(value)}
                                 on_submit={move |value| {
-                                    add_item(&submit_checklist, &submit_draft, value);
+                                    add_item(&checklist, submit_draft, value);
                                 }}
                             />
                             <Button
@@ -125,7 +116,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 variant=ButtonVariant::Primary
                                 @test_id={"checklist.add"}
                                 on_click={move || {
-                                    add_item(&add_checklist, &add_set_draft, add_draft.get());
+                                    add_item(&checklist, add_set_draft, add_draft.get());
                                 }}
                             />
                         </List>
@@ -161,8 +152,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 disabled={clear_disabled}
                                 @test_id={"checklist.clear-done"}
                                 on_click={move || {
-                                    if let Some(edit) = clear_checklist.read(|content| content.root().clear_done()) {
-                                        clear_checklist.operate(edit);
+                                    if let Some(edit) = checklist.read(|content| content.root().clear_done()) {
+                                        checklist.operate(edit);
                                     }
                                 }}
                             />
@@ -172,7 +163,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <Card @sizing=ItemSize::Percent(100.0)>
                     <List spacing=10.0>
                         <Show condition={empty}>
-                            <Body content="No tasks match this view." align=TextAlign::Center />
+                            <Text string="No tasks match this view." align=TextAlign::Center />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <List spacing=8.0>
@@ -186,7 +177,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
     }
 }
 
-fn add_item(checklist: &List, set_draft: &WriteSignal<String>, value: String) {
+fn add_item(checklist: &List, set_draft: WriteSignal<String>, value: String) {
     let text = value.trim().to_owned();
     if text.is_empty() {
         return;
@@ -198,21 +189,17 @@ fn add_item(checklist: &List, set_draft: &WriteSignal<String>, value: String) {
 #[component]
 fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
     let item = checklist.object::<ChecklistItem>(id);
-    let label = create_memo(clone!(item -> move || {
-        item.with(|item| item.as_ref().map(|item| item.text.clone()).unwrap_or_default())
-    }));
-    let done = create_memo(clone!(item -> move || {
-        item.with(|item| item.as_ref().is_some_and(|item| item.done))
-    }));
-    let toggle = checklist.clone();
+    let label = create_memo(move || {
+        item.with(|item| {
+            item.as_ref()
+                .map(|item| item.text.clone())
+                .unwrap_or_default()
+        })
+    });
+    let done = create_memo(move || item.with(|item| item.as_ref().is_some_and(|item| item.done)));
     let theme = use_theme();
     view! {
-        <Frame
-            color={theme.surface_raised.clone()}
-            radius=6
-            padding_horizontal=12.0
-            padding_vertical=10.0
-        >
+        <Frame color={theme.surface_raised} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)
@@ -220,7 +207,7 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
                     checked={done}
                     @test_id={format!("checklist.item.{id}.done")}
                     on_change={move |done| {
-                        toggle.operate(ChecklistModel::set_done(id, done));
+                        checklist.operate(ChecklistModel::set_done(id, done));
                     }}
                 />
                 <Button

@@ -3,6 +3,7 @@ use crate::{enter_zone, zone_pending};
 
 #[test]
 fn an_effect_waits_for_its_zone_while_another_zone_is_entered() {
+    let _root = RootScope::new();
     let seen = Rc::new(RefCell::new(Vec::new()));
     let (count, set_count) = create_signal(0);
     let scope = Scope::new();

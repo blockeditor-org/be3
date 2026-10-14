@@ -28,6 +28,7 @@ fn grip_above(harness: &Harness, dock: NodeId, first_tab: &str) -> Pos2 {
 
 #[test]
 fn dock_tabs_moved_into_a_sidebar_stack_beside_the_panel() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

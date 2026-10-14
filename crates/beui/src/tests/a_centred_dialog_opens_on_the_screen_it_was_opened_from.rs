@@ -6,13 +6,13 @@ use crate::styled::{Button, ButtonVariant, Dialog};
 
 #[test]
 fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
+    let _root = crate::reactive::RootScope::new();
     let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0));
     let right = Rect::from_min_size(pos2(700.0, 0.0), vec2(500.0, 400.0));
     let (open, set_open) = create_signal(false);
     let body = NodeRef::new();
     let document = build({
-        let body = body.clone();
-        let (opening, reopening) = (set_open.clone(), set_open.clone());
+        let (opening, reopening) = (set_open, set_open);
         move || {
             view! {
                 <List spacing=0.0>
@@ -31,7 +31,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
                         />
                     </List>
                     <Dialog open={open} title="About" width=300.0 on_dismiss={|| {}}>
-                        <Text string="Body" font_size=14.0 color=Color32::WHITE @node_ref={&body} />
+                        <Text string="Body" color=Color32::WHITE @node_ref={&body} />
                     </Dialog>
                 </List>
             }
@@ -65,10 +65,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
         "the dialog is centred on its screen"
     );
 
-    with_reactive_scope(harness.document_mut(), {
-        let set_open = set_open.clone();
-        move || set_open.set(false)
-    });
+    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
     harness.frame(Vec::new());
     let button = harness.center(harness.find("left"));
     harness.click(button);
@@ -80,10 +77,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     );
     assert!((shown.center().x - left.center().x).abs() < 2.0);
 
-    with_reactive_scope(harness.document_mut(), {
-        let set_open = set_open.clone();
-        move || set_open.set(false)
-    });
+    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
     harness.frame(vec![Event::PointerMoved(right.center())]);
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
     harness.frame(Vec::new());

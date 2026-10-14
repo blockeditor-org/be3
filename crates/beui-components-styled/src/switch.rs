@@ -9,7 +9,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Callback, Frame, Prop, clone, create_memo};
+use beui_view::reactive::{Align, Callback, Frame, Prop, create_memo};
 
 const WIDTH: f32 = 42.0;
 const HEIGHT: f32 = 24.0;
@@ -34,7 +34,7 @@ pub fn Switch(
             label
             disabled
             role=Role::Switch
-            on_change={move |on| on_change.call(on)}
+            on_change={on_change}
         >
             {move |handle: ToggleHandle| {
                 view! {
@@ -56,11 +56,15 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let knob_align =
-        create_memo(clone!(checked mixed -> move || knob_align(checked.get(), mixed.get())));
-    let track_color = create_memo(clone!(theme -> move || {
-        track_fill(&theme, disabled.get(), checked.get() && !mixed.get(), hovered.get())
-    }));
+    let knob_align = create_memo(move || knob_align(checked.get(), mixed.get()));
+    let track_color = create_memo(move || {
+        track_fill(
+            &theme,
+            disabled.get(),
+            checked.get() && !mixed.get(),
+            hovered.get(),
+        )
+    });
 
     view! {
         <FocusRing focused offset=FOCUS_RING_OFFSET>
@@ -80,7 +84,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    color={theme.knob.clone()}
+                    color={theme.knob}
                     outline={control_outline(&theme)}
                     outline_width=BORDER_WIDTH
                     outline_visible={control_outline_visible(&theme)}

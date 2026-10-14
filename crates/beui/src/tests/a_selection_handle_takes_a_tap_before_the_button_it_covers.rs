@@ -4,9 +4,9 @@ use crate::styled::TextInput;
 
 #[test]
 fn a_selection_handle_takes_a_tap_before_the_button_it_covers() {
-    let clicks = Rc::new(Cell::new(0));
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [input, _button]) = toolbar_of({
-        let clicks = clicks.clone();
         move || {
             [
                 view! {
@@ -15,7 +15,7 @@ fn a_selection_handle_takes_a_tap_before_the_button_it_covers() {
                 view! {
                     <LabelledButton
                         label={"Below".to_owned()}
-                        on_click={move || clicks.set(clicks.get() + 1)}
+                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                     />
                 },
             ]
@@ -40,7 +40,7 @@ fn a_selection_handle_takes_a_tap_before_the_button_it_covers() {
     harness.touch(TouchPhase::End, lower_edge_of_the_handle);
     harness.frame(Vec::new());
 
-    assert_eq!(clicks.get(), 0);
+    assert_eq!(clicks.get_untracked(), 0);
     assert!(unstyled::text_input_focused(harness.document(), input).get_untracked());
     assert_eq!(
         unstyled::text_input_selection(harness.document(), input).first(),

@@ -2,7 +2,7 @@ use block_editor_beui::be_block::BlockContent;
 
 use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
 use block_editor_beui::beui::{Pos2, Vec2};
-use block_editor_beui::{Creation, Editor, EditorHost};
+use block_editor_beui::{Creation, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use game_api::{GameAction, GameActionOption};
 use game_host::Game;
@@ -57,7 +57,7 @@ fn placed(
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_account_id(ACCOUNT);
-    let mut harness = BeuiTest::new(Editor::new(host.clone(), block));
+    let mut harness = BeuiTest::new(OwnedEditor::new(host.clone(), block));
     if in_viewport {
         harness = harness.in_viewport();
     }

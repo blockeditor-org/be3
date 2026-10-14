@@ -1,0 +1,134 @@
+#builtin.build .= () => std.Folder: [
+  "clamp.c" .= std.File: emit_fn("clamp", std.reflect.function(toy, clamp))
+  "poly.c" .= std.File: emit_fn("poly", std.reflect.function(toy, poly))
+]
+
+toy :: std.Target: "toy"
+c_int :: std.type.base(std.c.int)
+
+Op :: std.Enum["add", "mul", "constant" .= kw.int]
+
+num :: std.Type[
+  .statics .= [
+    std.literal.number .= (n: kw.int) => std.emit(num, Op.constant(n), ())
+    std.operator.slot("+") .= (a: num, b: num) => std.emit(num, Op.add, (a, b))
+    std.operator.slot("*") .= (a: num, b: num) => std.emit(num, Op.mul, (a, b))
+  ]
+]
+
+poly :: (x: num) => num: x * x + 3 * x + 1
+
+clamp :: (a: std.c.int, b: std.c.int) => std.c.int: :return {
+  std.c.if (a > b) {
+    return: b
+  }
+  -> a + b * 2
+}
+
+c_type :: (at: std.reflect.Value, ty: std.Type) => kw.text: :return {
+  kw.if (std.type.base(ty) == c_int) {
+    return: "int"
+  } .else_if (ty == num) {
+    return: "long"
+  }
+  -> std.reflect.fail(at, "toy doesn't support " + std.type.name(ty))
+}
+
+fresh_names :: (n: kw.int, hint: kw.string) => kw.list(kw.text): {
+  names := kw.mut(kw.list(kw.text)).new: ()
+  kw.for (_ := kw.range(0, n)) {
+    names = names.*.push(kw.text.fresh(hint))
+  }
+  -> names.*
+}
+
+operand :: (names: kw.list(kw.text), o: std.reflect.Operand) => kw.text: :return {
+  kw.match (o) [
+    .value .= (v) => {
+      return: names.get(v.index)
+    }
+    .constant .= (c) => {
+      return: "\(c.int.?)"
+    }
+  ]
+}
+
+signature :: (name: kw.string, f: std.reflect.Function, params: kw.list(kw.text)) => kw.text: {
+  at := f.lines.get(0).args.?.at
+  parts := kw.mut(kw.list(kw.text)).new: ()
+  kw.for (i := kw.range(0, params.len)) {
+    parts = parts.*.push(c_type(at, f.params.get(i)) + " " + params.get(i))
+  }
+  -> "\(c_type(at, f.ret)) \(name)(" + parts.*.join(", ") + ") {\n"
+}
+
+emit_line :: (f: std.reflect.Function, names: kw.list(kw.text), params: kw.list(kw.text), line: std.reflect.Line) => kw.text: :return {
+  name := (v: std.reflect.Value) #inline => kw.text: names.get(v.index)
+  declare := (v: std.reflect.Value) #inline => kw.text: "  \(c_type(v, v.ty)) \(names.get(v.index)) = "
+  kw.match (line) [
+    .args .= (_) => {
+      return: ""
+    }
+    .tuple .= (_) => {
+      return: ""
+    }
+    .tuple_get .= (l) => {
+      kw.if (t := f.lines.get(l.tuple.value.?.index).tuple) {
+        return: declare(l.at) + "\(operand(names, t.items.get(l.index)));\n"
+      }
+      return: declare(l.at) + "\(params.get(l.index));\n"
+    }
+    .c_binary .= (l) => {
+      return: declare(l.at) + "\(operand(names, l.lhs)) \(l.op) \(operand(names, l.rhs));\n"
+    }
+    .label_begin .= (l) => {
+      return: "  \(c_type(l.at, l.ty)) \(name(l.at));\n  {\n"
+    }
+    .label_end .= (l) => {
+      label := name(l.label)
+      return: "  \(label) = \(operand(names, l.value));\n  }\n  \(label)_end:;\n" + declare(l.at) + "\(label);\n"
+    }
+    .break .= (l) => {
+      label := name(l.label)
+      return: "  \(label) = \(operand(names, l.value));\n  goto \(label)_end;\n"
+    }
+    .c_if .= (l) => {
+      return: "  if (\(operand(names, l.cond))) {\n"
+    }
+    .end .= (_) => {
+      return: "  }\n"
+    }
+    .emit .= (l) => {
+      kw.match (l.data.as(Op).?) [
+        .constant .= (n) => {
+          return: declare(l.at) + "\(n);\n"
+        }
+        .add .= () => {
+          return: declare(l.at) + "\(operand(names, l.operands.get(0))) + \(operand(names, l.operands.get(1)));\n"
+        }
+        .mul .= () => {
+          return: declare(l.at) + "\(operand(names, l.operands.get(0))) * \(operand(names, l.operands.get(1)));\n"
+        }
+      ]
+    }
+    .call .= (l) => {
+      return: std.reflect.fail(l.at, "toy doesn't support calls yet")
+    }
+    .other .= (l) => {
+      return: std.reflect.fail(l.at, "toy doesn't support " + l.name)
+    }
+  ]
+}
+
+emit_fn :: (name: kw.string, f: std.reflect.Function) => kw.text: {
+  names := fresh_names(f.lines.len, "v")
+  params := fresh_names(f.params.len, "p")
+  out := kw.mut(kw.text).new: signature(name, f, params)
+  kw.for (line := f.lines) {
+    out += emit_line(f, names, params, line)
+  }
+  -> out.* + "  return \(operand(names, f.result));\n}\n"
+}
+
+std :: #builtin.std
+kw :: std.kw

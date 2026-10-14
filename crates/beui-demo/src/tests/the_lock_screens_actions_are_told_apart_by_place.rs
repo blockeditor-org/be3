@@ -19,7 +19,7 @@ fn the_lock_screens_actions_are_told_apart_by_place() {
                 glyph: ICON_BEDTIME.to_owned(),
             };
             view! {
-                <Frame color={theme.background.clone()}>
+                <Frame color={theme.background}>
                     <LockScreen
                         open=true
                         time="09:41"

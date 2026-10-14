@@ -9,7 +9,7 @@ pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             radius={corner_radius}
             outline_offset=0.0
@@ -37,9 +37,9 @@ pub fn Separator(
     #[prop(default = None)] length: Prop<Option<f32>>,
 ) -> NodeId {
     let theme = use_theme();
-    let width = measurement_along(Direction::Horizontal, direction.clone(), length.clone());
+    let width = measurement_along(Direction::Horizontal, direction, length);
     let height = measurement_along(Direction::Vertical, direction, length);
     view! {
-        <Frame color={theme.border.clone()} width={width} height={height} radius=0 />
+        <Frame color={theme.border} width={width} height={height} radius=0 />
     }
 }

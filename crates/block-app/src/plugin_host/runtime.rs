@@ -20,7 +20,7 @@ use crate::host;
 use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
-    backend::{Availability, Backend, Deadline, Platform, ShownFrame},
+    backend::{Availability, Backend, Deadline, ShownFrame},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
@@ -135,7 +135,7 @@ impl Host {
 
 pub(super) struct Runtime {
     plugin: PluginManifest,
-    pub(super) backend: Platform,
+    pub(super) backend: Backend,
     session: HostSession,
     queued: Vec<Message>,
     pub(super) instances: Instances,
@@ -240,7 +240,7 @@ impl Presents {
 
 impl Runtime {
     fn new(plugin: &PluginManifest, surface: u32) -> Self {
-        let mut backend = Platform::new(plugin);
+        let mut backend = Backend::new(plugin);
         backend.start(plugin);
         let mut instances = Instances::default();
         instances.allow_network(plugin.network.clone());
@@ -537,21 +537,21 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
-        if let Some(mut frame) = self.backend.received_frame() {
-            if let Some(took) = self.backend.took() {
-                let id = &self.plugin.identity.id;
-                for (name, duration) in [
-                    ("step", took.step),
-                    ("GPU calls", took.gpu),
-                    ("submit", took.submit),
-                ] {
-                    crate::performance::record_group_duration(
-                        PACING,
-                        &format!("{id} {name}"),
-                        duration,
-                    );
-                }
+        if let Some(took) = self.backend.took() {
+            let id = &self.plugin.identity.id;
+            for (name, duration) in [
+                ("step", took.step),
+                ("GPU calls", took.gpu),
+                ("submit", took.submit),
+            ] {
+                crate::performance::record_group_duration(
+                    PACING,
+                    &format!("{id} {name}"),
+                    duration,
+                );
             }
+        }
+        if let Some(mut frame) = self.backend.received_frame() {
             frame.set_damage(self.presents.damage_through(frame.presents()));
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
             self.frames += 1;
@@ -667,12 +667,7 @@ impl Runtime {
         if !presented {
             return;
         }
-        let frame = self.backend.frame(&self.layout, self.pass);
-        if frame.is_some() {
-            self.frames += 1;
-            mark(&self.plugin.identity.id);
-        }
-        self.shared.borrow_mut().publish(&self.layout, frame);
+        self.shared.borrow_mut().publish(&self.layout, None);
     }
 
     fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
@@ -1188,14 +1183,10 @@ pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: Hos
 pub(crate) fn show_block(
     plugin_id: &str,
     instance: EditorInstanceId,
-    block_id: Uuid,
-    block_type: Uuid,
-    via: Option<Uuid>,
+    open: crate::editors::BlockOpen,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime
-            .instances
-            .show_block(instance, block_id, block_type, via);
+        let messages = runtime.instances.show_block(instance, open);
         runtime.send(messages);
     });
 }
@@ -1438,7 +1429,7 @@ fn session() -> HostSession {
 }
 
 fn theme() -> Theme {
-    Theme { dark: host::dark() }
+    host::theme()
 }
 
 thread_local! {
@@ -1699,7 +1690,7 @@ pub(crate) struct RegionView {
     pub(crate) handles_back: bool,
     pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
-    pub(crate) grabbed: bool,
+    pub(crate) pastes: Vec<beui::PasteKind>,
 }
 
 impl RegionView {
@@ -1722,7 +1713,7 @@ impl RegionView {
             handles_back: false,
             wants_keyboard: false,
             intercepted_keys: Vec::new(),
-            grabbed: false,
+            pastes: Vec::new(),
         }
     }
 
@@ -1803,6 +1794,15 @@ fn placed_view(
     region: EditorRegion,
 ) -> RegionView {
     {
+        if let Some(stopped) = runtime.instances.stopped(instance, region) {
+            let error = match stopped {
+                block_plugin_api::Stopped::Closed => "The editor closed".to_owned(),
+                block_plugin_api::Stopped::Failed(failure) => {
+                    format!("The editor stopped after a panic: {failure}")
+                }
+            };
+            return RegionView::failed(error, true);
+        }
         let Some(placement) = runtime.instances.placement(instance, region) else {
             return RegionView::waiting();
         };
@@ -1836,7 +1836,8 @@ fn placed_view(
                 })
                 .unwrap_or_default(),
         };
-        let handles_back = report.is_some_and(|report| report.handles_back);
+        let window = runtime.instances.window(instance, region);
+        let handles_back = window.is_some_and(|window| window.handles_back);
         let claims = report
             .map(|report| {
                 report
@@ -1858,9 +1859,9 @@ fn placed_view(
                     .collect()
             })
             .unwrap_or_default();
-        let intercepted_keys = report
+        let intercepted_keys = window
             .iter()
-            .flat_map(|report| &report.intercepted_keys)
+            .flat_map(|window| &window.intercepted_keys)
             .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
             .collect();
         let base: Vec<Rect> = match floating_rects.is_empty() {
@@ -1902,9 +1903,17 @@ fn placed_view(
             },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
-            wants_keyboard: report.is_some_and(|report| report.wants_keyboard),
+            wants_keyboard: window.is_some_and(|window| window.wants_keyboard),
             intercepted_keys,
-            grabbed: runtime.instances.grabbing(),
+            pastes: window
+                .map(|window| {
+                    window
+                        .pastes
+                        .iter()
+                        .map(|kind| beui_plugin_input::beui_paste_kind(*kind))
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
     }
 }
@@ -1920,12 +1929,8 @@ pub(crate) fn take_region_actions(
     use crate::editors::EditorAction;
     with(plugin_id, |runtime| {
         let mut actions = Vec::new();
-        while let Some((id, block_type, via)) = runtime.instances.take_open(instance) {
-            actions.push(EditorAction::OpenBlock {
-                id,
-                block_type,
-                via,
-            });
+        while let Some(open) = runtime.instances.take_open(instance) {
+            actions.push(EditorAction::OpenBlock(open));
         }
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
             actions.push(EditorAction::Command { id, command });

@@ -1,51 +1,11 @@
-use crate::reactive::{
-    BuildsNode, Child, ChildValue, Children, ComponentContext, NodeSlot, Prop, Scope, SlotChild,
-    create_effect, with_document,
-};
+use crate::reactive::{Child, Children, Placed, Prop, create_effect, with_document};
 use beui_core::base::canvas::{CanvasNode, CanvasView};
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, pos2};
 use beui_core::node::NodeId;
-use beui_core::tree::remove_stored_node;
 use beui_macros::component;
 
-pub struct CanvasItem {
-    node: NodeId,
-}
-
-impl BuildsNode for CanvasItem {
-    fn built_node(&self) -> NodeId {
-        self.node
-    }
-}
-
-impl ChildValue for CanvasItem {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.node.adopt_scope(scope);
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
-        self.node.finish_component(component, scope);
-    }
-}
-
-crate::child_type!(CanvasItem);
-
-impl SlotChild for CanvasItem {
-    type Stored = NodeId;
-
-    fn store(self) -> NodeId {
-        self.node
-    }
-
-    fn discard(stored: &NodeId) {
-        remove_stored_node(*stored);
-    }
-}
-
-impl NodeSlot for CanvasItem {
-    type Host = CanvasNode;
-}
+pub type CanvasItem = Placed<CanvasNode>;
 
 #[component]
 pub fn Canvas(
@@ -88,5 +48,5 @@ pub fn CanvasItem(
     create_effect(move || {
         with_document(|document| document.set_canvas_item_clip(item, clip.get()))
     });
-    CanvasItem { node: item.id() }
+    CanvasItem::new(item.id(), ())
 }

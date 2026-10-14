@@ -15,6 +15,9 @@ pub const INTRINSIC_NAME: MetaKey<String> =
 pub const THUMBHASH: MetaKey<Thumbhash> =
     MetaKey::derived(0x6be3_6d65_7461_5400_8a1e_7468_756d_0001, "thumbhash");
 
+pub const ROW_PREFIX: MetaKey<String> =
+    MetaKey::derived(0x6be3_6d65_7461_5000_8a1e_7072_6566_0001, "row_prefix");
+
 pub const SCHEMA: MetaKey<String> =
     MetaKey::derived(0x6be3_6d65_7461_5300_8a1e_7363_6865_0001, "schema");
 

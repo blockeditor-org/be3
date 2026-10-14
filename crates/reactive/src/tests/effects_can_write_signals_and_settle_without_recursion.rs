@@ -2,9 +2,10 @@ use super::*;
 
 #[test]
 fn effects_can_write_signals_and_settle_without_recursion() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(0);
-    let observed = value.clone();
+    let observed = value;
     scope.run(|| {
         create_effect(move || {
             let value = observed.get();

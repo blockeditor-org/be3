@@ -4,10 +4,10 @@ use crate::styled::TextInput;
 
 #[test]
 fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {
+    let _root = crate::reactive::RootScope::new();
     let value = "a value that is much wider than the field";
     let input = NodeRef::new();
     let (document, [_sized]) = toolbar_of({
-        let input = input.clone();
         move || {
             [view! {
                 <Frame width=80.0>
@@ -23,12 +23,11 @@ fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {
     harness.type_text(value);
     harness.frame(Vec::new());
 
-    let inner = input;
-    let text = unstyled::text_input_text(harness.document(), inner);
+    let text = unstyled::text_input_text(harness.document(), input);
     let rect = harness.rect(text);
     let caret = unstyled::text_input_index_at(
         harness.document(),
-        inner,
+        input,
         pos2(rect.right() - 1.0, rect.center().y),
     );
 

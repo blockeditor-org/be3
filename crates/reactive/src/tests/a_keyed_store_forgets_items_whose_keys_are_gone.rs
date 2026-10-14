@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_keyed_store_forgets_items_whose_keys_are_gone() {
-    let store: KeyedStore<u32, u32> = KeyedStore::new();
+    let store = OwnedKeyedStore::<u32, u32>::new();
     store.reconcile_owned((0..5).map(|index| (index, index * 10)));
     assert_eq!(store.tracked_keys(), 5);
     let kept = store.get(&3);

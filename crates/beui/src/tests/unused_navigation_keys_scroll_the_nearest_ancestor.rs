@@ -5,9 +5,9 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn unused_navigation_keys_scroll_the_nearest_ancestor() {
+    let _root = crate::reactive::RootScope::new();
     let (scroll, tabs, slider) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, tabs, slider) = (scroll.clone(), tabs.clone(), slider.clone());
         move || {
             view! {
                 <Scroll @node_ref=&scroll>
@@ -22,7 +22,7 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
                     <Slider @node_ref=&slider value=0.5 />
                     <ForEach keys={indices(20)}>
                         {|_: usize| view! {
-                            <Text string="Content" font_size=14.0 color=Color32::WHITE />
+                            <Text string="Content" color=Color32::WHITE />
                         }}
                     </ForEach>
                 </Scroll>

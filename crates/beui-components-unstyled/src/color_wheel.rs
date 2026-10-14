@@ -1,6 +1,4 @@
-use std::cell::Cell;
 use std::f32::consts::TAU;
-use std::rc::Rc;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -11,8 +9,8 @@ use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
-    component_rect, create_effect, create_memo, create_signal, set_component_state,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, StoredCell, component_accessibility,
+    create_effect, create_memo, create_signal, set_component_state,
 };
 
 const STEP: f32 = 0.01;
@@ -194,20 +192,24 @@ pub fn ColorWheel(
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let (point, set_point) = create_signal(value.peek());
-    create_effect(clone!(set_point -> move || set_point.set(value.get())));
+    create_effect(move || set_point.set(value.get()));
     let (dragging, set_dragging) = create_signal(false);
     let (hovered, set_hovered) = create_signal(false);
     let (has_focus, set_has_focus) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    set_component_state(point.clone());
+    set_component_state(point);
 
     match accessibility {
         Some(accessibility) => component_accessibility(accessibility),
-        None => component_accessibility(create_memo(clone!(point disabled -> move || {
+        None => component_accessibility(create_memo(move || {
             let point = point.get();
             let mut node = Node::new(Role::Slider);
             let label = label.get();
-            node.set_label(if label.is_empty() { "Color wheel".to_owned() } else { label });
+            node.set_label(if label.is_empty() {
+                "Color wheel".to_owned()
+            } else {
+                label
+            });
             node.set_numeric_value(f64::from(point.hue.round()));
             node.set_min_numeric_value(0.0);
             node.set_max_numeric_value(360.0);
@@ -222,12 +224,10 @@ pub fn ColorWheel(
                 node.set_disabled();
             }
             node
-        }))),
+        })),
     }
 
     let set = {
-        let point = point.clone();
-        let disabled = disabled.clone();
         move |next: WheelPoint| {
             if disabled.get_untracked() {
                 return;
@@ -238,13 +238,12 @@ pub fn ColorWheel(
             }
         }
     };
-    let (drag_set, key_set, step_set) = (set.clone(), set.clone(), set);
-    let placed = component_rect();
-    let geometry = move |rect: Rect| WheelGeometry::new(rect, ring_width);
+    let (drag_set, key_set, step_set) = (set, set, set);
+    let geometry =
+        move |size: Vec2| WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, size), ring_width);
     let over_thumb = {
-        let point = point.clone();
-        move |rect: Rect, pos: Pos2| {
-            let wheel = geometry(rect);
+        move |press: PointerPress| {
+            let (wheel, pos) = (geometry(press.size), press.local);
             let point = point.get_untracked();
             [
                 (Part::Triangle, wheel.point(point)),
@@ -257,55 +256,66 @@ pub fn ColorWheel(
             .map(|(part, centre, _)| (part, centre))
         }
     };
-    let part = Rc::new(Cell::new(Part::Triangle));
-    let grab = Rc::new(Cell::new(Vec2::ZERO));
-    let grabbed = clone!(part grab placed over_thumb -> move |press: PointerPress| {
-        let rect = placed.get_untracked();
-        let (pressed, offset) = match over_thumb(rect, press.pos) {
-            Some((pressed, centre)) => (pressed, centre - press.pos),
-            None => match geometry(rect).on_ring(press.pos) {
+    let part = StoredCell::new(Part::Triangle);
+    let grab = StoredCell::new(Vec2::ZERO);
+    let grabbed = move |press: PointerPress| {
+        let (pressed, offset) = match over_thumb(press) {
+            Some((pressed, centre)) => (pressed, centre - press.local),
+            None => match geometry(press.size).on_ring(press.local) {
                 true => (Part::Ring, Vec2::ZERO),
                 false => (Part::Triangle, Vec2::ZERO),
             },
         };
         part.set(pressed);
         grab.set(offset);
-    });
-    let drag_point = point.clone();
-    let dragged_to = clone!(placed -> move |press: PointerPress| {
-        let wheel = geometry(placed.get_untracked());
-        let target = press.pos + grab.get();
+    };
+    let drag_point = point;
+    let dragged_to = move |press: PointerPress| {
+        let wheel = geometry(press.size);
+        let target = press.local + grab.get();
         let current = drag_point.get_untracked();
         match part.get() {
-            Part::Ring => WheelPoint { hue: wheel.hue_at(target), ..current },
+            Part::Ring => WheelPoint {
+                hue: wheel.hue_at(target),
+                ..current
+            },
             Part::Triangle => match wheel.triangle_at(current.hue, target) {
-                Some((saturation, value)) => WheelPoint { saturation, value, ..current },
-                None => WheelPoint { value: 0.0, ..current },
+                Some((saturation, value)) => WheelPoint {
+                    saturation,
+                    value,
+                    ..current
+                },
+                None => WheelPoint {
+                    value: 0.0,
+                    ..current
+                },
             },
         }
-    });
-    let (pointer, set_pointer) = create_signal(None::<Pos2>);
-    let cursor = create_memo(clone!(point placed dragging hovered -> move || {
+    };
+    let (pointer, set_pointer) = create_signal(None::<PointerPress>);
+    let cursor = create_memo(move || {
         if dragging.get() {
             return CursorIcon::Grabbing;
         }
         let _ = point.get();
         let over = hovered.get()
-            && pointer.get().is_some_and(|pos| over_thumb(placed.get(), pos).is_some());
+            && pointer
+                .get()
+                .is_some_and(|press| over_thumb(press).is_some());
         match over {
             true => CursorIcon::Grab,
             false => CursorIcon::Crosshair,
         }
-    }));
-    let (key_point, step_point) = (point.clone(), point.clone());
+    });
+    let (key_point, step_point) = (point, point);
     let content_node = content.call(ColorWheelHandle {
         point,
-        dragging: dragging.clone(),
+        dragging,
         hovered,
         focused: has_focus,
-        disabled: disabled.clone(),
+        disabled,
     });
-    let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
+    let tab_stop = create_memo(move || !disabled.get());
     view! {
         <Interactive
             focusable=true
@@ -342,7 +352,7 @@ pub fn ColorWheel(
             cursor
             touch_drags=true
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press.pos))}
+            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| drag_set(dragged_to(press))}
             on_active_change={move |active: bool| {

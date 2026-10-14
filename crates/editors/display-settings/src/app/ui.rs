@@ -1,16 +1,12 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
-use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent};
+use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, clone,
-    component, create_memo, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component,
+    create_memo, view,
 };
-use block_editor_beui::beui::styled::{
-    Body, Caption, Heading, IconButton, Scroll, Select, use_theme,
-};
+use block_editor_beui::beui::styled::{IconButton, Scroll, Select, use_theme};
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Displays, Editor, HostDisplay, HostDisplayMode};
 
@@ -18,6 +14,7 @@ use super::modes::{
     LOCK_AFTER, SCREEN_OFF, Size, effective, lock_after_label, mode_label, rate_label, rates,
     saved, screen_off_label, size_label, size_of, sizes,
 };
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 20.0;
 const SECTION_SPACING: f32 = 18.0;
@@ -25,7 +22,7 @@ const ROW_SPACING: f32 = 8.0;
 const LABEL_SPACING: f32 = 4.0;
 const COLUMN_SPACING: f32 = 12.0;
 
-type Settings = Rc<ContentProjection<DisplaySettingsContent>>;
+type Settings = ContentProjection<DisplaySettingsContent>;
 
 #[component]
 pub fn DisplaySettingsView(editor: Editor) -> NodeId {
@@ -33,39 +30,50 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let displays = editor.host_value::<Displays>();
     let root = settings.project(|content| content.root());
-    let ids = create_memo(clone!(displays -> move || {
-        displays.with(|displays| displays.iter().map(|display| display.id.clone()).collect::<Vec<String>>())
-    }));
-    let none = create_memo(clone!(displays -> move || displays.with(Vec::is_empty)));
+    let inherited = editor.inherited_settings::<DisplaySettings>();
+    let merged = create_memo(move || root.get().over(&inherited.get()));
+    let ids = create_memo(move || {
+        displays.with(|displays| {
+            displays
+                .iter()
+                .map(|display| display.id.clone())
+                .collect::<Vec<String>>()
+        })
+    });
+    let none = create_memo(move || displays.with(Vec::is_empty));
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Scroll>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <List spacing=SECTION_SPACING>
                         <List spacing=ROW_SPACING>
-                            <Heading content="Displays" />
-                            <Caption
-                                content="Each display keeps its own mode. A display without one uses its preferred resolution at its fastest refresh rate."
+                            <Text style=TextStyle::HEADING string="Displays" />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="Each display keeps its own mode. A display without one uses its preferred resolution at its fastest refresh rate."
                             />
                             <Show condition={none}>
-                                <Caption content="No display is connected to this session." />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string="No display is connected to this session."
+                                />
                             </Show>
                         </List>
                         <ScreenOffSection
-                            settings={settings.clone()}
-                            root={root.clone()}
-                            read_only={read_only.clone()}
+                            settings={settings}
+                            merged={merged}
+                            read_only={read_only}
                         />
                         <ForEach keys={ids}>
                             {move |id: String| {
-                                let (settings, root) = (settings.clone(), root.clone());
-                                let (displays, read_only) = (displays.clone(), read_only.clone());
+                                let (displays, read_only) = (displays, read_only);
                                 view! {
                                     <DisplaySection
                                         id={id}
                                         settings={settings}
                                         root={root}
+                                        merged={merged}
                                         displays={displays}
                                         read_only={read_only}
                                     />
@@ -84,44 +92,68 @@ fn DisplaySection(
     id: String,
     settings: Settings,
     root: ReadSignal<DisplaySettings>,
+    merged: Memo<DisplaySettings>,
     displays: Memo<Vec<HostDisplay>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let display = create_memo(clone!(id -> move || {
-        displays.with(|displays| displays.iter().find(|display| display.id == id).cloned())
-    }));
-    let wanted = create_memo(clone!(id -> move || root.get().mode(&id)));
-    let chosen = create_memo(clone!(display wanted -> move || {
-        display.with(|display| display.as_ref().map(|display| effective(display, wanted.get())))
-    }));
-    let offered = create_memo(clone!(display -> move || {
-        display.with(|display| display.as_ref().map(|display| display.modes.clone()).unwrap_or_default())
-    }));
-    let size_list = create_memo(clone!(offered -> move || offered.with(|modes| sizes(modes))));
-    let rate_list = create_memo(clone!(offered chosen -> move || {
-        match chosen.get() {
-            Some(chosen) => offered.with(|modes| rates(modes, size_of(chosen))),
-            None => Vec::new(),
-        }
-    }));
-    let size_selected = create_memo(clone!(size_list chosen -> move || {
+    let display = create_memo({
+        let id = id.clone();
+        move || displays.with(|displays| displays.iter().find(|display| display.id == id).cloned())
+    });
+    let wanted = create_memo({
+        let id = id.clone();
+        move || merged.get().mode(&id)
+    });
+    let chosen = create_memo(move || {
+        display.with(|display| {
+            display
+                .as_ref()
+                .map(|display| effective(display, wanted.get()))
+        })
+    });
+    let offered = create_memo(move || {
+        display.with(|display| {
+            display
+                .as_ref()
+                .map(|display| display.modes.clone())
+                .unwrap_or_default()
+        })
+    });
+    let size_list = create_memo(move || offered.with(|modes| sizes(modes)));
+    let rate_list = create_memo(move || match chosen.get() {
+        Some(chosen) => offered.with(|modes| rates(modes, size_of(chosen))),
+        None => Vec::new(),
+    });
+    let size_selected = create_memo(move || {
         let size = size_of(chosen.get()?);
         size_list.with(|sizes| sizes.iter().position(|known| *known == size))
-    }));
-    let rate_selected = create_memo(clone!(rate_list chosen -> move || {
+    });
+    let rate_selected = create_memo(move || {
         let chosen = chosen.get()?;
         rate_list.with(|rates| rates.iter().position(|known| *known == chosen))
-    }));
-    let name = create_memo(clone!(display -> move || {
-        display.with(|display| display.as_ref().map(|display| display.name.clone()).unwrap_or_default())
-    }));
-    let showing = create_memo(clone!(display -> move || {
+    });
+    let name = create_memo(move || {
+        display.with(|display| {
+            display
+                .as_ref()
+                .map(|display| display.name.clone())
+                .unwrap_or_default()
+        })
+    });
+    let showing = create_memo(move || {
         display.with(|display| match display {
-            Some(display) => format!("{}, showing {}", display.connector, mode_label(display.current)),
+            Some(display) => format!(
+                "{}, showing {}",
+                display.connector,
+                mode_label(display.current)
+            ),
             None => String::new(),
         })
-    }));
-    let unset = create_memo(clone!(wanted -> move || wanted.get().is_none()));
+    });
+    let unset = create_memo({
+        let id = id.clone();
+        move || root.get().mode(&id).is_none()
+    });
     let connector = display.with_untracked(|display| {
         display
             .as_ref()
@@ -130,28 +162,27 @@ fn DisplaySection(
     });
     let resolution_id = format!("display-settings.{connector}.resolution");
     let refresh_id = format!("display-settings.{connector}.refresh");
-    let set = Rc::new(clone!(settings id -> move |mode: Option<HostDisplayMode>| {
+    let set = Callback::new(move |mode: Option<HostDisplayMode>| {
         settings.operate(DisplaySettings::set_mode(&id, mode.map(saved)));
-    }));
-    let (sized, rated, reset) = (set.clone(), set.clone(), set);
-    let (size_off, rate_off) = (read_only.clone(), read_only.clone());
-    let picked_size = size_list.clone();
-    let picked_rate = rate_list.clone();
+    });
+    let (size_off, rate_off) = (read_only, read_only);
+    let picked_size = size_list;
+    let picked_rate = rate_list;
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
                 <List @sizing=ItemSize::Percent(100.0) spacing=LABEL_SPACING>
-                    <Body content={name} />
-                    <Caption content={showing} />
+                    <Text string={name} />
+                    <Text style=TextStyle::CAPTION string={showing} />
                 </List>
                 <ResetButton
                     unset={unset}
                     read_only={read_only}
                     id={connector}
-                    on_reset={move |_: ()| reset(None)}
+                    on_reset={move |_: ()| set.call(None)}
                 />
             </List>
-            <Caption content="Resolution" />
+            <Text style=TextStyle::CAPTION string="Resolution" />
             <Select
                 options={view! {
                     <ForEach keys={size_list}>
@@ -164,17 +195,17 @@ fn DisplaySection(
                 label="Resolution"
                 disabled={size_off}
                 @test_id={resolution_id}
-                on_change={clone!(offered -> move |index: Option<usize>| {
+                on_change={move |index: Option<usize>| {
                     let Some(size) = index.and_then(|index| picked_size.with_untracked(|sizes| sizes.get(index).copied())) else {
                         return;
                     };
                     let fastest = offered.with_untracked(|modes| rates(modes, size).first().copied());
                     if fastest.is_some() {
-                        sized(fastest);
+                        set.call(fastest);
                     }
-                })}
+                }}
             />
-            <Caption content="Refresh rate" />
+            <Text style=TextStyle::CAPTION string="Refresh rate" />
             <Select
                 options={view! {
                     <ForEach keys={rate_list}>
@@ -190,7 +221,7 @@ fn DisplaySection(
                 on_change={move |index: Option<usize>| {
                     let mode = index.and_then(|index| picked_rate.with_untracked(|rates| rates.get(index).copied()));
                     if mode.is_some() {
-                        rated(mode);
+                        set.call(mode);
                     }
                 }}
             />
@@ -201,22 +232,21 @@ fn DisplaySection(
 #[component]
 fn ScreenOffSection(
     settings: Settings,
-    root: ReadSignal<DisplaySettings>,
+    merged: Memo<DisplaySettings>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let selected = create_memo(clone!(root -> move || {
-        let chosen = root.get().screen_off();
+    let selected = create_memo(move || {
+        let chosen = merged.get().screen_off();
         SCREEN_OFF.iter().position(|offered| *offered == chosen)
-    }));
+    });
     let locks = create_memo(move || {
-        let chosen = root.get().lock_after();
+        let chosen = merged.get().lock_after();
         LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
-    let locking = settings.clone();
-    let lock_off = read_only.clone();
+    let lock_off = read_only;
     view! {
         <List spacing=ROW_SPACING>
-            <Caption content="Turn off screens after" />
+            <Text style=TextStyle::CAPTION string="Turn off screens after" />
             <Select
                 options={view! {
                     <ForEach keys={SCREEN_OFF.to_vec()}>
@@ -235,7 +265,7 @@ fn ScreenOffSection(
                     }
                 }}
             />
-            <Caption content="Lock the screen after" />
+            <Text style=TextStyle::CAPTION string="Lock the screen after" />
             <Select
                 options={view! {
                     <ForEach keys={LOCK_AFTER.to_vec()}>
@@ -250,7 +280,7 @@ fn ScreenOffSection(
                 @test_id={"display-settings.lock-after"}
                 on_change={move |index: Option<usize>| {
                     if let Some(lock_after) = index.and_then(|index| LOCK_AFTER.get(index)) {
-                        locking.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
+                        settings.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
                     }
                 }}
             />

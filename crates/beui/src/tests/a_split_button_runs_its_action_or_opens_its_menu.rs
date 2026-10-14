@@ -7,9 +7,9 @@ use crate::unstyled::MenuItem;
 
 #[test]
 fn a_split_button_runs_its_action_or_opens_its_menu() {
-    let clicks = Rc::new(Cell::new(0));
-    let picked = Rc::new(RefCell::new(Vec::new()));
-    let (clicked, chosen) = (clicks.clone(), picked.clone());
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
+    let (picked, set_picked) = create_signal(Vec::new());
     let (document, [split]) = toolbar_of(|| {
         [view! {
             <SplitButton
@@ -20,8 +20,8 @@ fn a_split_button_runs_its_action_or_opens_its_menu() {
                     <MenuItem label="Run with fresh data" />
                     <MenuItem label="Install its launcher" />
                 }}
-                on_click={move || clicked.set(clicked.get() + 1)}
-                on_select={move |path: Vec<usize>| chosen.borrow_mut().push(path)}
+                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                on_select={move |path: Vec<usize>| set_picked.update(|picked| picked.push(path))}
             />
         }]
     });
@@ -49,8 +49,8 @@ fn a_split_button_runs_its_action_or_opens_its_menu() {
         .copied()
         .expect("the split button can take the focus");
     harness.click(harness.center(first));
-    assert_eq!(clicks.get(), 1);
-    assert!(picked.borrow().is_empty());
+    assert_eq!(clicks.get_untracked(), 1);
+    assert!(picked.with_untracked(|picked| picked.is_empty()));
 
     harness.click(pos2(
         rect.left() + harness.rect(first).width() + 12.0,
@@ -63,9 +63,9 @@ fn a_split_button_runs_its_action_or_opens_its_menu() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        clicks.get(),
+        clicks.get_untracked(),
         1,
         "the arrow opens the menu without running the action"
     );
-    assert_eq!(*picked.borrow(), [vec![1]]);
+    assert_eq!(picked.get_untracked(), [vec![1]]);
 }

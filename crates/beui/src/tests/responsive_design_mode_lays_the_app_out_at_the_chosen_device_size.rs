@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn responsive_design_mode_lays_the_app_out_at_the_chosen_device_size() {
+    let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
     let root = harness.document().root().expect("the column was built");
 

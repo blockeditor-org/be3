@@ -3,6 +3,7 @@ use crate::flash;
 
 #[test]
 fn flashing_repaints_paints_no_fill() {
+    let _root = crate::reactive::RootScope::new();
     let panels = stacked_panels();
     let lower = panels.lower;
     let mut harness = Harness::sized(panels.document, WIDE_VIEWPORT);

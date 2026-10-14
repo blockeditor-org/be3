@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn untracked_reads_do_not_subscribe() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (trigger, set_trigger) = create_signal(0);
     let (incidental, set_incidental) = create_signal(1);

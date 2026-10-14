@@ -31,20 +31,18 @@ pub(crate) fn DesktopToasts(notifications: DesktopNotifications, bar: NodeRef) -
         OverlayAnchor::Rect(above_bar(screen.unwrap_or(Rect::ZERO), bar))
     });
     let toasts = notifications.toasts();
-    let dismissing = notifications.clone();
-    let acting = notifications.clone();
     view! {
         <Toasts
             anchor={anchor}
             toasts={toasts}
             on_dismiss={move |toast: u64| {
                 if let Some(id) = notification(toast) {
-                    dismissing.dismiss(&[id]);
+                    notifications.dismiss(&[id]);
                 }
             }}
             on_action={move |(toast, key): (u64, String)| {
                 if let Some(id) = notification(toast) {
-                    acting.invoke(id, &key);
+                    notifications.invoke(id, &key);
                 }
             }}
             on_activate={move |toast: u64| {

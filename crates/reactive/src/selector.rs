@@ -1,13 +1,14 @@
+use foldhash::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
+use crate::arena::{self, Key};
 use crate::computation::create_effect;
 use crate::memo::{Memo, create_memo};
 use crate::runtime::tracking;
 use crate::scope::on_cleanup;
-use crate::signal::Source;
+use crate::signal::{Source, track};
 
 struct Watched {
     source: Rc<Source>,
@@ -18,13 +19,13 @@ type Keys<K> = Rc<RefCell<HashMap<K, Watched>>>;
 
 pub struct Selector<K> {
     value: Memo<K>,
-    keys: Keys<K>,
+    keys: Key,
 }
 
 pub fn create_selector<K: Clone + Eq + Hash + 'static>(
     mut source: impl FnMut() -> K + 'static,
 ) -> Selector<K> {
-    let keys: Keys<K> = Rc::new(RefCell::new(HashMap::new()));
+    let keys: Keys<K> = Rc::new(RefCell::new(HashMap::default()));
     let value = {
         let keys = keys.clone();
         let mut previous: Option<K> = None;
@@ -39,9 +40,11 @@ pub fn create_selector<K: Clone + Eq + Hash + 'static>(
             next
         })
     };
-    let pull = value.clone();
-    create_effect(move || pull.with(|_| ()));
-    Selector { value, keys }
+    create_effect(move || value.with(|_| ()));
+    Selector {
+        value,
+        keys: arena::insert_owned(keys),
+    }
 }
 
 fn notify<K: Eq + Hash>(keys: &Keys<K>, key: &K) {
@@ -53,12 +56,11 @@ fn notify<K: Eq + Hash>(keys: &Keys<K>, key: &K) {
 
 impl<K> Clone for Selector<K> {
     fn clone(&self) -> Self {
-        Self {
-            value: self.value.clone(),
-            keys: self.keys.clone(),
-        }
+        *self
     }
 }
+
+impl<K> Copy for Selector<K> {}
 
 impl<K: Clone + Eq + Hash + 'static> Selector<K> {
     pub fn is_selected(&self, key: &K) -> bool {
@@ -68,16 +70,21 @@ impl<K: Clone + Eq + Hash + 'static> Selector<K> {
     }
 
     pub fn memo(&self, key: K) -> Memo<bool> {
-        let selector = self.clone();
+        let selector = *self;
         create_memo(move || selector.is_selected(&key))
+    }
+
+    fn keys(&self) -> Keys<K> {
+        arena::get(self.keys).expect("selector used after the scope that owns it was disposed")
     }
 
     fn watch(&self, key: &K) {
         if !tracking() {
             return;
         }
+        let keys = self.keys();
         let source = {
-            let mut keys = self.keys.borrow_mut();
+            let mut keys = keys.borrow_mut();
             let watched = keys.entry(key.clone()).or_insert_with(|| Watched {
                 source: Rc::new(Source::default()),
                 watchers: 0,
@@ -85,8 +92,7 @@ impl<K: Clone + Eq + Hash + 'static> Selector<K> {
             watched.watchers += 1;
             watched.source.clone()
         };
-        source.track();
-        let keys = self.keys.clone();
+        track(source);
         let key = key.clone();
         on_cleanup(move || {
             let mut keys = keys.borrow_mut();
@@ -102,6 +108,6 @@ impl<K: Clone + Eq + Hash + 'static> Selector<K> {
 
     #[cfg(test)]
     pub(crate) fn watched_keys(&self) -> usize {
-        self.keys.borrow().len()
+        self.keys().borrow().len()
     }
 }
