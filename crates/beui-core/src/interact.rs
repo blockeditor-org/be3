@@ -11,7 +11,7 @@ use crate::base::overlay::OverlayNode;
 use crate::context::Context;
 use crate::geometry::Vec2;
 use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
-use crate::keys::{AtNode, Holder, KeyEvent, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
+use crate::keys::{AtNode, KeyEvent, KeyHandler, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
 use crate::layer::Dismiss;
 
 use crate::current::run_in;
@@ -108,14 +108,6 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
     {
         doc.set_modifiers(modifiers);
     }
-    if let Event::Key { press, .. } = event
-        && press.pressed
-        && press.key == Key::V
-        && press.modifiers.ctrl
-        && !press.modifiers.alt
-    {
-        ctx.paste_shortcut();
-    }
     match event {
         Event::Focus(true) => doc.keyboard = true,
         Event::Focus(false) => {
@@ -128,18 +120,24 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
         }
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
-            offer_from_app(doc, KeyInput::Press(*press));
+            from_app(doc, KeyInput::Press(*press));
             return Ok(false);
         }
         Event::InterceptedTap(key) => {
-            offer_from_app(doc, KeyInput::Tap(*key));
+            from_app(doc, KeyInput::Tap(*key));
             return Ok(false);
         }
         Event::Key { press, .. } => {
             if press.pressed {
                 doc.acted = Acted::Keys;
             }
-            return Err(key_press(doc, *press));
+            let asked = doc.paste_requested();
+            let fate = key_press(doc, *press);
+            let asks = matches!(fate, Fate::App | Fate::Unheard) || doc.paste_requested() && !asked;
+            if asks && pastes(*press) {
+                ctx.paste_shortcut();
+            }
+            return Err(fate);
         }
         Event::Text(text) if !forward::takes_keys(doc) => {
             doc.text_focused(text);
@@ -162,6 +160,10 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
     Ok(true)
 }
 
+fn pastes(press: KeyPress) -> bool {
+    press.pressed && press.key == Key::V && press.modifiers.ctrl && !press.modifiers.alt
+}
+
 fn key_pressed(doc: &mut Document, event: &Event, fate: Fate, tap: bool) -> bool {
     let Event::Key { press, text, .. } = event else {
         return true;
@@ -174,7 +176,11 @@ fn key_pressed(doc: &mut Document, event: &Event, fate: Fate, tap: bool) -> bool
         doc.reveal_focus();
     }
     if tap && fate != Fate::Taken {
-        offer_tap(doc, press.key);
+        let route = route(doc, press.key);
+        if !route.inhibited {
+            let event = event_for(KeyInput::Tap(press.key), &route);
+            let _ = answer(outer(doc, &route, KeyPhase::Capture), event);
+        }
     }
     fate == Fate::App
 }
@@ -227,52 +233,129 @@ fn route(doc: &Document, key: Key) -> Route {
     }
 }
 
-fn offer(doc: &Document, stop: Stop, phase: KeyPhase, event: KeyEvent) -> Option<Placed> {
-    let offered = KeyEvent { phase, ..event };
-    doc.keys
-        .at(stop, phase)
-        .into_iter()
-        .find(|placed| (placed.handler)(offered))
+fn event_for(input: KeyInput, route: &Route) -> KeyEvent {
+    KeyEvent {
+        input,
+        phase: KeyPhase::Capture,
+        target: route.target,
+    }
 }
 
-fn hold(doc: &mut Document, press: KeyPress, holder: Holder) {
+fn answer(placed: Vec<Placed>, event: KeyEvent) -> Option<Placed> {
+    placed.into_iter().find(|placed| (placed.handler)(event))
+}
+
+fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
+    let own = |handler: fn(KeyEvent) -> bool| Placed {
+        handler: Rc::new(handler),
+        reveal: true,
+    };
+    let listening = |stop: Stop| match route.window && !(stop == Stop::Window && route.inhibited) {
+        true => doc.keys.at(stop, phase),
+        false => Vec::new(),
+    };
+    let mut placed = Vec::new();
+    match phase {
+        KeyPhase::Capture => {
+            placed.push(own(builtin::autoscroll));
+            placed.extend(listening(Stop::Host));
+            placed.extend(listening(Stop::Window));
+            if route.window && !route.inhibited {
+                placed.push(own(builtin::cycle));
+            }
+        }
+        _ => {
+            placed.push(own(builtin::dismiss));
+            placed.extend(listening(Stop::Window));
+            placed.extend(listening(Stop::Host));
+            placed.push(own(builtin::defaults));
+            for placed in &mut placed {
+                placed.reveal = true;
+            }
+        }
+    }
+    placed
+}
+
+mod builtin {
+    use super::{BackGesture, Dismiss, Key, KeyEvent, KeyPhase, autoscroll, cycle_step, forward};
+    use crate::current::with_document;
+
+    pub(super) fn autoscroll(event: KeyEvent) -> bool {
+        event.phase != KeyPhase::Held
+            && event.press().is_some_and(|press| {
+                press.pressed
+                    && !press.key.is_modifier()
+                    && with_document(autoscroll::end)
+                    && press.key == Key::Escape
+            })
+    }
+
+    pub(super) fn cycle(event: KeyEvent) -> bool {
+        let Some(press) = event.press().filter(|press| press.pressed) else {
+            return event.held();
+        };
+        let step = cycle_step(press.modifiers);
+        match event.held() {
+            true => with_document(|doc| {
+                if !(forward::takes_keys(doc) && forward::shortcuts_inhibited(doc)) {
+                    forward::cycle_focus(doc, step);
+                }
+                true
+            }),
+            false => press.key == Key::F6 && with_document(|doc| forward::cycle_focus(doc, step)),
+        }
+    }
+
+    pub(super) fn dismiss(event: KeyEvent) -> bool {
+        event.press().is_some_and(|press| {
+            press.pressed
+                && press.key == Key::Escape
+                && with_document(|doc| doc.dismiss(Dismiss::Escape))
+        })
+    }
+
+    pub(super) fn defaults(event: KeyEvent) -> bool {
+        let Some(press) = event.press().filter(|press| press.pressed) else {
+            return false;
+        };
+        let modifiers = press.modifiers;
+        with_document(|doc| match press.key {
+            Key::Tab if !modifiers.ctrl && !modifiers.alt => {
+                match modifiers.shift {
+                    true => doc.focus_previous(),
+                    false => doc.focus_next(),
+                }
+                true
+            }
+            Key::Escape => {
+                doc.cancel_focus_activation();
+                true
+            }
+            Key::BrowserBack => {
+                doc.back(BackGesture::Invoked);
+                true
+            }
+            _ => false,
+        })
+    }
+}
+
+fn hold(doc: &mut Document, press: KeyPress, handler: Rc<KeyHandler>) {
     if press.pressed && !press.repeat {
-        doc.keys.held.push((press.key, holder));
+        doc.keys.held.push((press.key, handler));
     }
 }
 
 fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
-    if press.pressed && !press.key.is_modifier() && autoscroll::end(doc) && press.key == Key::Escape
-    {
-        return Fate::Taken;
-    }
     if let Some(fate) = held_key(doc, press) {
         return fate;
     }
     let route = route(doc, press.key);
-    let event = KeyEvent {
-        input: KeyInput::Press(press),
-        phase: KeyPhase::Capture,
-        target: route.target,
-    };
-    if route.window {
-        for stop in [Stop::Host, Stop::Window] {
-            if stop == Stop::Window && route.inhibited {
-                break;
-            }
-            if let Some(placed) = offer(doc, stop, KeyPhase::Capture, event) {
-                hold(doc, press, Holder::Listener(placed.handler));
-                return Fate::Taken;
-            }
-            if stop == Stop::Window
-                && press.pressed
-                && press.key == Key::F6
-                && forward::cycle_focus(doc, cycle_step(press.modifiers))
-            {
-                hold(doc, press, Holder::Cycle);
-                return Fate::Taken;
-            }
-        }
+    let event = event_for(KeyInput::Press(press), &route);
+    if let Some(placed) = answer(outer(doc, &route, KeyPhase::Capture), event) {
+        hold(doc, press, placed.handler);
+        return Fate::Taken;
     }
     if route.target.app {
         return Fate::App;
@@ -284,13 +367,9 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
         doc.set_focus_visible(true);
     }
     let tree = Tree::gather(doc, &route);
-    if let Some(placed) = tree
-        .capture
-        .into_iter()
-        .find(|placed| (placed.handler)(event))
-    {
+    if let Some(placed) = answer(tree.capture, event) {
         let reveal = placed.reveal;
-        hold(doc, press, Holder::Listener(placed.handler));
+        hold(doc, press, placed.handler);
         return Fate::Handled { reveal };
     }
     if let Some(node) = route.target.node
@@ -302,35 +381,14 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
         phase: KeyPhase::Bubble,
         ..event
     };
-    if let Some(placed) = tree
-        .bubble
-        .into_iter()
-        .find(|placed| (placed.handler)(bubbled))
-    {
-        return Fate::Handled {
+    let mut bubble = tree.bubble;
+    bubble.extend(outer(doc, &route, KeyPhase::Bubble));
+    match answer(bubble, bubbled) {
+        Some(placed) => Fate::Handled {
             reveal: placed.reveal,
-        };
-    }
-    if press.pressed && press.key == Key::Escape && doc.dismiss(Dismiss::Escape) {
-        return Fate::Handled { reveal: true };
-    }
-    if route.window
-        && (offer(doc, Stop::Window, KeyPhase::Bubble, event).is_some()
-            || offer(doc, Stop::Host, KeyPhase::Bubble, event).is_some())
-    {
-        return Fate::Handled { reveal: true };
-    }
-    let modifiers = press.modifiers;
-    match press.key {
-        Key::Tab if press.pressed && !modifiers.ctrl && !modifiers.alt => match modifiers.shift {
-            true => doc.focus_previous(),
-            false => doc.focus_next(),
         },
-        Key::Escape if press.pressed => doc.cancel_focus_activation(),
-        Key::BrowserBack if press.pressed => doc.back(BackGesture::Invoked),
-        _ => return Fate::Unheard,
+        None => Fate::Unheard,
     }
-    Fate::Handled { reveal: true }
 }
 
 fn held_key(doc: &mut Document, press: KeyPress) -> Option<Fate> {
@@ -344,29 +402,15 @@ fn held_key(doc: &mut Document, press: KeyPress) -> Option<Fate> {
         return None;
     }
     let route = route(doc, press.key);
-    let holder = match press.pressed {
-        true => match &doc.keys.held[at].1 {
-            Holder::Listener(handler) => Some(Rc::clone(handler)),
-            Holder::Cycle => None,
-        },
-        false => match doc.keys.held.remove(at).1 {
-            Holder::Listener(handler) => Some(handler),
-            Holder::Cycle => None,
-        },
+    let handler = match press.pressed {
+        true => Rc::clone(&doc.keys.held[at].1),
+        false => doc.keys.held.remove(at).1,
     };
-    match holder {
-        Some(handler) => {
-            handler(KeyEvent {
-                input: KeyInput::Press(press),
-                phase: KeyPhase::Held,
-                target: route.target,
-            });
-        }
-        None if press.pressed && !route.inhibited => {
-            forward::cycle_focus(doc, cycle_step(press.modifiers));
-        }
-        None => {}
-    }
+    handler(KeyEvent {
+        input: KeyInput::Press(press),
+        phase: KeyPhase::Held,
+        target: route.target,
+    });
     Some(Fate::Taken)
 }
 
@@ -424,36 +468,20 @@ fn scattered(doc: &Document, route: &Route) -> impl Fn(NodeId) -> bool {
     }
 }
 
-fn offer_from_app(doc: &mut Document, input: KeyInput) {
-    let layers = doc.layers();
-    if layers.locks_window() && !matches!(input, KeyInput::Press(press) if press.key.is_media()) {
-        return;
-    }
-    let event = KeyEvent {
-        input,
-        phase: KeyPhase::Capture,
+fn from_app(doc: &mut Document, input: KeyInput) {
+    let media = matches!(input, KeyInput::Press(press) if press.key.is_media());
+    let route = Route {
         target: KeyTarget {
             node: None,
             typing: true,
             app: true,
         },
+        nodes: Vec::new(),
+        window: !doc.layers().locks_window() || media,
+        inhibited: false,
     };
-    let _ = offer(doc, Stop::Host, KeyPhase::Capture, event).is_some()
-        || offer(doc, Stop::Window, KeyPhase::Capture, event).is_some();
-}
-
-fn offer_tap(doc: &mut Document, key: Key) {
-    let route = route(doc, key);
-    if !route.window || route.inhibited {
-        return;
-    }
-    let event = KeyEvent {
-        input: KeyInput::Tap(key),
-        phase: KeyPhase::Capture,
-        target: route.target,
-    };
-    let _ = offer(doc, Stop::Host, KeyPhase::Capture, event).is_some()
-        || offer(doc, Stop::Window, KeyPhase::Capture, event).is_some();
+    let event = event_for(input, &route);
+    let _ = answer(outer(doc, &route, KeyPhase::Capture), event);
 }
 
 fn is_activity(event: &Event) -> bool {

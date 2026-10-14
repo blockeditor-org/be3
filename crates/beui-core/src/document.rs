@@ -741,6 +741,10 @@ impl Document {
         self.paste_requested = true;
     }
 
+    pub(crate) fn paste_requested(&self) -> bool {
+        self.paste_requested
+    }
+
     pub fn pick_file(&mut self, filter: FileFilter, picked: impl FnOnce(FilePick) + 'static) {
         self.unsent_file_picks.push((filter, Box::new(picked)));
     }
