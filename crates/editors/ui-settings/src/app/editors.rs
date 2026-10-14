@@ -1,12 +1,14 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::{EditorSettings, EditorSettingsContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, view};
+use block_editor_beui::beui::reactive::{
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, view,
+};
 use block_editor_beui::beui::styled::{Scroll, Select, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 20.0;
 const SPACING: f32 = 8.0;
@@ -46,9 +48,15 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
                     <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                         <List spacing=SPACING>
                             <Text style=TextStyle::HEADING string="Default editors" />
-                            <Text style=TextStyle::CAPTION string="The editor a block of each type opens in. Open with, in Files, opens one in another." />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="The editor a block of each type opens in. Open with, in Files, opens one in another."
+                            />
                             <Show condition={empty}>
-                                <Text style=TextStyle::CAPTION string="Every block type has one editor." />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string="Every block type has one editor."
+                                />
                             </Show>
                             <ForEach keys={types}>
                                 {move |block_type: Uuid| view! {

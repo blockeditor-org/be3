@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{Frame, Func, ItemSize, List, component, create_memo, create_signal, view};
+use block_editor_beui::beui::reactive::{
+    Frame, Func, ItemSize, List, component, create_memo, create_signal, view,
+};
 use block_editor_beui::beui::styled::{Tree, TreeRowFace, use_theme};
 use block_editor_beui::beui::unstyled::TreeItem;
 use block_editor_beui::{BlockQuery, Editor};
