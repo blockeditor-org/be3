@@ -9,6 +9,7 @@ use crate::{EditorHost, HostContent};
 
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
 mod a_snapshot_carries_where_removed_items_were;
+mod an_edit_before_the_content_arrives_is_dropped;
 mod an_edit_coming_back_as_mine_runs_nothing_again;
 mod an_operation_runs_only_the_watchers_of_what_it_touched;
 mod an_undecodable_operation_asks_for_a_fresh_snapshot;

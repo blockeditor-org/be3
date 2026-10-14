@@ -72,6 +72,7 @@ pub struct ViewData {
     pub selected: Memo<Option<Selection>>,
     pub error: Memo<Option<String>>,
     pub read_only: Memo<bool>,
+    pub loaded: Memo<bool>,
 }
 
 impl ViewData {
@@ -101,7 +102,8 @@ impl ViewData {
                 .collect::<Vec<ObjectId>>()
         });
         let row_ids = create_memo(move || row_ids.get());
-        let inverses = watch_inverses(editor, database_id);
+        let found_inverses = watch_inverses(editor, database_id);
+        let inverses = create_memo(move || found_inverses.get().unwrap_or_default());
         let rows = create_memo(move || {
             let ids = row_ids.get();
             let inverses = inverses.get();
@@ -161,14 +163,33 @@ impl ViewData {
         });
         let targets = create_memo(move || fields.with(|fields| relation_targets(fields)));
         let row_labels = watch_row_labels(editor, targets);
-        let labels = watch_labels(editor, database_id, rows, row_labels);
+        let (labels, labels_loaded) = watch_labels(editor, database_id, rows, row_labels.labels);
 
         let (selected, set_selected) = create_signal(None::<Selection>);
         let (error, set_error) = create_signal(None::<String>);
         let (search, set_search) = create_signal(String::new());
         let (toggled, set_toggled) = create_signal(HashSet::<GroupKey>::new());
-        let views = watch_views(editor, database_id);
-        let name = watch_name(editor, database_id);
+        let (views, views_loaded) = watch_views(editor, database_id);
+        let (name, name_loaded) = watch_name(editor, database_id);
+        let view_loaded = view.loaded();
+        let database_settled = database.settled();
+        let schema_settled = schema.settled();
+        let (loaded, set_loaded) = create_signal(false);
+        create_effect(move || {
+            let ready = view_loaded.get()
+                && database_id.get().is_none_or(|_| {
+                    database_settled.get()
+                        && (schema_id.get().is_none() || schema_settled.get())
+                        && found_inverses.with(Option::is_some)
+                        && row_labels.loaded.get()
+                        && labels_loaded.get()
+                        && views_loaded.get()
+                        && name_loaded.get()
+                });
+            if ready {
+                set_loaded.set(true);
+            }
+        });
         let search = create_memo(move || search.get());
         let groups = create_memo(move || {
             let search = search.get();
@@ -239,6 +260,7 @@ impl ViewData {
             selected: create_memo(move || selected.get()),
             error: create_memo(move || error.get()),
             read_only: editor.read_only(),
+            loaded: create_memo(move || loaded.get()),
         }
     }
 
@@ -577,8 +599,9 @@ fn watch_labels(
     database_id: Memo<Option<Uuid>>,
     rows: Memo<Vec<DatabaseRow>>,
     row_labels: Memo<std::collections::BTreeMap<RowRef, String>>,
-) -> Memo<BlockLabels> {
+) -> (Memo<BlockLabels>, Memo<bool>) {
     let (labels, set_labels) = create_signal(HashMap::<Uuid, BlockLabel>::new());
+    let (loaded, set_loaded) = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     create_effect(move || {
@@ -592,7 +615,7 @@ fn watch_labels(
                 client.watch(BlockQuery::References(database_id)),
             ));
         }
-        let Some((_, references)) = watched.as_ref() else {
+        let Some((_, references)) = watched.as_ref().filter(|(_, list)| list.is_loaded()) else {
             return;
         };
         let types = editor.block_types();
@@ -607,15 +630,21 @@ fn watch_labels(
                 .filter_map(|reference| Some((reference, known.get(&reference)?.clone())))
                 .collect()
         }));
+        set_loaded.set(true);
     });
-    create_memo(move || BlockLabels {
+    let labels = create_memo(move || BlockLabels {
         blocks: labels.get(),
         rows: row_labels.get(),
-    })
+    });
+    (labels, create_memo(move || loaded.get()))
 }
 
-fn watch_views(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uuid, String)>> {
+fn watch_views(
+    editor: Editor,
+    database_id: Memo<Option<Uuid>>,
+) -> (Memo<Vec<(Uuid, String)>>, Memo<bool>) {
     let (views, set_views) = create_signal(Vec::<(Uuid, String)>::new());
+    let (loaded, set_loaded) = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     let own = editor.block_id();
@@ -627,7 +656,7 @@ fn watch_views(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uui
         if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
             *watched = Some((database_id, client.watch(BlockQuery::Backrefs(database_id))));
         }
-        let Some((_, backrefs)) = watched.as_ref() else {
+        let Some((_, backrefs)) = watched.as_ref().filter(|(_, list)| list.is_loaded()) else {
             return;
         };
         let mut found: Vec<(Uuid, String)> = backrefs
@@ -650,12 +679,17 @@ fn watch_views(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uui
             }
         }
         set_views.set(found);
+        set_loaded.set(true);
     });
-    create_memo(move || views.get())
+    (
+        create_memo(move || views.get()),
+        create_memo(move || loaded.get()),
+    )
 }
 
-fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
+fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> (Memo<String>, Memo<bool>) {
     let (name, set_name) = create_signal(String::new());
+    let (loaded, set_loaded) = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     create_effect(move || {
@@ -666,7 +700,7 @@ fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
         if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
             *watched = Some((database_id, client.watch(BlockQuery::Block(database_id))));
         }
-        let Some((_, block)) = watched.as_ref() else {
+        let Some((_, block)) = watched.as_ref().filter(|(_, list)| list.is_loaded()) else {
             return;
         };
         let named = block
@@ -676,8 +710,12 @@ fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
             .and_then(|info| info.name())
             .filter(|name| !name.trim().is_empty());
         set_name.set(named.unwrap_or_else(|| "Database".to_owned()));
+        set_loaded.set(true);
     });
-    create_memo(move || name.get())
+    (
+        create_memo(move || name.get()),
+        create_memo(move || loaded.get()),
+    )
 }
 
 fn row_references(rows: &[DatabaseRow]) -> Vec<Uuid> {

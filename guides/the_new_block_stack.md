@@ -758,8 +758,9 @@ the confirmed state and the pending edits. Applying an operation reports what it
 touched (`LiveEdit::apply_touching`), and a projection only runs when something
 it watches was touched; `guides/reactive.md` says how `project`, `field`, `ids`
 and `object` narrow that. `ContentProjection::read` answers `None` until the
-host has sent the content once, `loaded()` is a signal that turns true when it
-has, and `revision()` counts the changes an editor has seen, for code like the
+host has sent the content once, `operate` drops an edit made before then,
+`loaded()` is a signal that turns true when it has (`guides/reactive.md` says
+what an editor shows until it does), and `revision()` counts the changes an editor has seen, for code like the
 PDF pane that re-renders on a change rather than projecting.
 
 `block_editor_beui` re-exports `be_block`, so an editor names its content type
