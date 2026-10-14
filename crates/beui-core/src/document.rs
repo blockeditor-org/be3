@@ -118,6 +118,7 @@ pub struct Document {
     pub placed_pass: NodeMap<u64>,
     pub reached_pass: NodeMap<u64>,
     layout_pass: u64,
+    focus_line: FocusLine,
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
     pub(crate) reveals: NodeMap<NodeId>,
@@ -158,6 +159,14 @@ struct Placing {
 }
 
 const REMEMBERED_MEASUREMENTS: usize = 4;
+
+#[derive(Default)]
+struct FocusLine {
+    key: Option<(u64, NodeId)>,
+    epoch: u64,
+    ancestors: NodeMap<u64>,
+    within: NodeMap<(u64, bool)>,
+}
 
 #[derive(Clone, Copy)]
 struct Measurement {
@@ -308,6 +317,7 @@ impl Document {
             placed_pass: NodeMap::default(),
             reached_pass: NodeMap::default(),
             layout_pass: 0,
+            focus_line: FocusLine::default(),
             scroll_hosts: Vec::new(),
             scroll_shifts: NodeMap::default(),
             reveals: NodeMap::default(),
@@ -1789,15 +1799,52 @@ impl Document {
         self.painters.get(&id).is_some_and(|held| held.culled)
     }
 
-    pub fn culls(&self, id: NodeId, size: Vec2, own: PainterState) -> bool {
+    pub fn culls(&mut self, id: NodeId, size: Vec2, own: PainterState) -> bool {
         !Sight::shows(size, own) && !self.holds_focus(id)
     }
 
-    fn holds_focus(&self, id: NodeId) -> bool {
+    fn holds_focus(&mut self, id: NodeId) -> bool {
         let Some(focused) = self.focused else {
             return false;
         };
-        self.descends(focused, id) || self.descends(id, focused)
+        let key = (self.layout_pass, focused);
+        let line = &mut self.focus_line;
+        if line.key != Some(key) {
+            line.key = Some(key);
+            line.epoch += 1;
+            let mut current = Some(focused);
+            for _ in 0..ANCESTOR_LIMIT {
+                let Some(node) = current else { break };
+                line.ancestors.insert(node, line.epoch);
+                current = self.arena.parent(node);
+            }
+        }
+        let epoch = line.epoch;
+        if line.ancestors.get(&id) == Some(&epoch) {
+            return true;
+        }
+        let mut walked = Vec::new();
+        let mut current = Some(id);
+        let mut within = false;
+        for _ in 0..ANCESTOR_LIMIT {
+            let Some(node) = current else { break };
+            if let Some(&(stamp, known)) = line.within.get(&node)
+                && stamp == epoch
+            {
+                within = known;
+                break;
+            }
+            if node == focused {
+                within = true;
+                break;
+            }
+            walked.push(node);
+            current = self.arena.parent(node);
+        }
+        for node in walked {
+            line.within.insert(node, (epoch, within));
+        }
+        within
     }
 
     pub fn culled_ancestor(&self, id: NodeId) -> Option<NodeId> {
@@ -1810,18 +1857,6 @@ impl Document {
             current = self.arena.parent(node);
         }
         None
-    }
-
-    fn descends(&self, node: NodeId, from: NodeId) -> bool {
-        let mut current = Some(node);
-        for _ in 0..ANCESTOR_LIMIT {
-            match current {
-                Some(node) if node == from => return true,
-                Some(node) => current = self.arena.parent(node),
-                None => return false,
-            }
-        }
-        false
     }
 
     pub fn note_space_reads(&mut self, id: NodeId, reads: bool, base: usize) {
