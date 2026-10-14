@@ -28,11 +28,11 @@ use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::color::Color32;
 use beui_core::document::Document;
-use beui_core::layer::Dismiss;
 use beui_core::file_picker::PickedFile;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
+use beui_core::layer::Dismiss;
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{

@@ -373,7 +373,12 @@ fn down(
         press_down(doc, frame, down);
         return None;
     }
-    doc.pressed_outside(frame.rects, &down.hit.outside, event.pos, role == Role::Press);
+    doc.pressed_outside(
+        frame.rects,
+        &down.hit.outside,
+        event.pos,
+        role == Role::Press,
+    );
     Some(down)
 }
 

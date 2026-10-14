@@ -1,6 +1,6 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::LayerPolicy;
+use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::reactive::{Frame, Overlay, build, on_finger_tap, view, with_reactive_scope};
 
 #[test]

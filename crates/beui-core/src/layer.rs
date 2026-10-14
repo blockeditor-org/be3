@@ -229,11 +229,7 @@ impl Document {
     }
 
     pub fn layers(&self) -> Layers {
-        let key = (
-            self.arena.revision,
-            self.layer_state.generation,
-            self.root,
-        );
+        let key = (self.arena.revision, self.layer_state.generation, self.root);
         if let Some((cached, layers)) = &*self.layer_state.cache.borrow()
             && *cached == key
             && layers.iter().skip(1).all(|layer| {
@@ -364,7 +360,6 @@ impl Document {
     pub fn locked(&self) -> bool {
         self.layers().locked()
     }
-
 
     pub fn open_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
         if self.arena.get_as::<OverlayNode>(overlay).open {

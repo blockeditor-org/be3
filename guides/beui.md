@@ -1298,7 +1298,9 @@ of the saved layout. Escape cancels it, with whatever modifiers are held and
 wherever the focus is (a program's window included): the overlay holds no focus
 for Escape to find it by, so the dock listens for Escape at the window while it
 is open and asks the overlay to close (`Document::dismiss_overlay`), as a press
-outside or back does. The dock binds no other key: whoever binds it decides the
+outside or back does. A dock in a plugin only hears a key a program has the
+keyboard for when it intercepts the chord, so linux-desktop also registers
+Alt+Escape as an intercepting action that cancels. The dock binds no other key: whoever binds it decides the
 keys, usually a chord that begins or steps the switch while a modifier is held,
 and `held_modifiers()` letting go of that modifier to commit,
 as linux-desktop does with Alt+Tab and the demo with Alt+Q.

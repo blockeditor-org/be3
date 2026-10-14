@@ -48,5 +48,9 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
         "Escape plays the slide-away a back gesture plays"
     );
     harness.settle();
-    assert_eq!(dismissed.get_untracked(), 1, "and dismisses once it is gone");
+    assert_eq!(
+        dismissed.get_untracked(),
+        1,
+        "and dismisses once it is gone"
+    );
 }

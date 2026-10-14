@@ -77,7 +77,10 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     with_reactive_scope(&mut document, move || set_menu.set(true));
     frame(&mut document, Vec::new());
     document.focus_focusable(item.get());
-    frame(&mut document, vec![key(Key::Escape, true), key(Key::Escape, false)]);
+    frame(
+        &mut document,
+        vec![key(Key::Escape, true), key(Key::Escape, false)],
+    );
     frame(&mut document, Vec::new());
     assert!(!menu.get_untracked(), "Escape closes a menu open over it");
     assert_eq!(stopped.get(), 0, "and leaves the presentation up");

@@ -50,5 +50,8 @@ fn back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar() {
     assert!(state.find_open().get_untracked());
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     harness.frame(Vec::new());
-    assert!(!state.find_open().get_untracked(), "back closes the find bar");
+    assert!(
+        !state.find_open().get_untracked(),
+        "back closes the find bar"
+    );
 }

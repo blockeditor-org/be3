@@ -1,6 +1,6 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::LayerPolicy;
+use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::reactive::{Frame, NodeRef, Overlay, build, view, with_reactive_scope};
 
 #[test]

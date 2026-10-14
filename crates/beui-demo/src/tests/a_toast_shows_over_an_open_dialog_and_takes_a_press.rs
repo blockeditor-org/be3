@@ -33,7 +33,9 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
                         width=720.0
                         on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
-                        <Paragraph content="The toast stays bright over the scrim of this dialog." />
+                        <Paragraph
+                            content="The toast stays bright over the scrim of this dialog."
+                        />
                     </Dialog>
                     <Toasts
                         anchor={area}
