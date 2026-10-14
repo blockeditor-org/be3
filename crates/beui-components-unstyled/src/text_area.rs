@@ -37,8 +37,8 @@ use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, LayoutBuilder, List,
     Memo, NodeRef, PlacementBuilder, Prop, ReadSignal, Render, RenderFn, Show, Stored, WriteSignal,
-    action_scope, component_accessibility, create_effect, create_memo, create_signal,
-    create_timer, pixels_per_point, set_component_state, store, try_with_document, untrack, with_document,
+    action_scope, component_accessibility, create_effect, create_memo, create_signal, create_timer,
+    pixels_per_point, set_component_state, store, try_with_document, untrack, with_document,
 };
 
 use completion::{Completions, Query, query};
@@ -647,7 +647,10 @@ fn begin_handle_drag(cx: &Context, handle: CaretHandle, pos: Pos2) {
                 CaretHandle::Start => (range.end, range.start),
                 _ => (range.start, range.end),
             };
-            (Grab::Selection(cx.state.with_core(|core| core.position(fixed))), moving)
+            (
+                Grab::Selection(cx.state.with_core(|core| core.position(fixed))),
+                moving,
+            )
         }
     };
     let offset = cx

@@ -119,9 +119,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
         alpha,
         Callback::new(move |color: Color32| picker.pick(color)),
     );
-    let setter = |set: fn(&ColorPickerState, f64)| {
-        move |typed: f64| set(&picker, typed)
-    };
+    let setter = |set: fn(&ColorPickerState, f64)| move |typed: f64| set(&picker, typed);
     let set_hue = setter(|picker, typed| picker.set_hue(typed as f32));
     let set_saturation = setter(ColorPickerState::set_saturation_percent);
     let set_value = setter(ColorPickerState::set_value_percent);

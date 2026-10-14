@@ -91,64 +91,62 @@ fn ConcurrentEditing() -> NodeId {
     let published = Cell::new([None::<Caret>, None]);
     let timer = store(Cell::new(None::<Timer>));
 
-    let pump = Callback::new(
-        clone!(simulation -> move |force: Option<(Side, Amount)>| {
-            let now = now();
-            let delay = Duration::from_millis(latency.get_untracked() as u64);
-            let held = paused.get_untracked();
-            let (external, counts, matching, carets, due) = {
-                let mut simulation = simulation
-                    .write()
-                    .expect("the collaboration simulation was poisoned");
-                simulation.hold(held, now);
-                let mut sent = published.get();
-                for (side, state) in [(Side::Left, &left), (Side::Right, &right)] {
-                    let current = caret(state);
-                    if let Some(current) = current
-                        && sent[side.index()] != Some(current)
-                    {
-                        simulation.publish(side, current, now);
-                        sent[side.index()] = Some(current);
-                    }
+    let pump = Callback::new(clone!(simulation -> move |force: Option<(Side, Amount)>| {
+        let now = now();
+        let delay = Duration::from_millis(latency.get_untracked() as u64);
+        let held = paused.get_untracked();
+        let (external, counts, matching, carets, due) = {
+            let mut simulation = simulation
+                .write()
+                .expect("the collaboration simulation was poisoned");
+            simulation.hold(held, now);
+            let mut sent = published.get();
+            for (side, state) in [(Side::Left, &left), (Side::Right, &right)] {
+                let current = caret(state);
+                if let Some(current) = current
+                    && sent[side.index()] != Some(current)
+                {
+                    simulation.publish(side, current, now);
+                    sent[side.index()] = Some(current);
                 }
-                published.set(sent);
-                match force {
-                    Some((from, Amount::One)) => simulation.step(from, now),
-                    Some((from, Amount::All)) => simulation.deliver(from, now, None),
-                    None if !held => {
-                        simulation.deliver(Side::Left, now, Some(delay));
-                        simulation.deliver(Side::Right, now, Some(delay));
-                    }
-                    None => {}
+            }
+            published.set(sent);
+            match force {
+                Some((from, Amount::One)) => simulation.step(from, now),
+                Some((from, Amount::All)) => simulation.deliver(from, now, None),
+                None if !held => {
+                    simulation.deliver(Side::Left, now, Some(delay));
+                    simulation.deliver(Side::Right, now, Some(delay));
                 }
-                (
-                    [simulation.take_external(Side::Left), simulation.take_external(Side::Right)],
-                    (simulation.in_flight(Side::Left), simulation.in_flight(Side::Right)),
-                    simulation.text(Side::Left) == simulation.text(Side::Right),
-                    [simulation.seen(Side::Left), simulation.seen(Side::Right)],
-                    (!held).then(|| simulation.next_due(delay)).flatten(),
-                )
-            };
-            if external[0] {
-                left.external_edit();
+                None => {}
             }
-            if external[1] {
-                right.external_edit();
-            }
-            if flight.get_untracked() != counts {
-                set_flight.set(counts);
-            }
-            if same.get_untracked() != matching {
-                set_same.set(matching);
-            }
-            if seen.get_untracked() != carets {
-                set_seen.set(carets);
-            }
-            if let (Some(due), Some(timer)) = (due, timer.with(Cell::get)) {
-                timer.start(due.saturating_duration_since(now));
-            }
-        }),
-    );
+            (
+                [simulation.take_external(Side::Left), simulation.take_external(Side::Right)],
+                (simulation.in_flight(Side::Left), simulation.in_flight(Side::Right)),
+                simulation.text(Side::Left) == simulation.text(Side::Right),
+                [simulation.seen(Side::Left), simulation.seen(Side::Right)],
+                (!held).then(|| simulation.next_due(delay)).flatten(),
+            )
+        };
+        if external[0] {
+            left.external_edit();
+        }
+        if external[1] {
+            right.external_edit();
+        }
+        if flight.get_untracked() != counts {
+            set_flight.set(counts);
+        }
+        if same.get_untracked() != matching {
+            set_same.set(matching);
+        }
+        if seen.get_untracked() != carets {
+            set_seen.set(carets);
+        }
+        if let (Some(due), Some(timer)) = (due, timer.with(Cell::get)) {
+            timer.start(due.saturating_duration_since(now));
+        }
+    }));
     let pumping = create_timer(move || {
         pump.call(None);
         None
@@ -299,9 +297,7 @@ fn SendButtons(
         })
     };
     let (from_left, from_right) = (held(Side::Left), held(Side::Right));
-    let press = |from: Side, amount: Amount| {
-        move || send.call(Some((from, amount)))
-    };
+    let press = |from: Side, amount: Amount| move || send.call(Some((from, amount)));
     view! {
         <List direction align=Align::Center spacing=ROW_SPACING>
             <IconButton

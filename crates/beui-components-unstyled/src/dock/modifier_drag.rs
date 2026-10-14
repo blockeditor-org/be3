@@ -4,7 +4,7 @@ use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Modifiers, SecondaryDrag};
 
-use super::{DockLayout, Grip, State, SplitId, SurfaceId, fraction_moved, layout_tree};
+use super::{DockLayout, Grip, SplitId, State, SurfaceId, fraction_moved, layout_tree};
 
 const EDGE_MARGIN: f32 = 4.0;
 

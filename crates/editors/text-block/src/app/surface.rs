@@ -86,7 +86,7 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
     let typing = state.set_typing;
     view! {
         <TextArea
-            state={state.text.clone()}
+            state={state.text}
             widgets={widgets}
             remote_cursors={remote_cursors}
             drop_caret={drop_caret}

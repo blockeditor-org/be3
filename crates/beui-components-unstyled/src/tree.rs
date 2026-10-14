@@ -382,11 +382,20 @@ where
         let key = shown.get()?;
         keys.with(|_| ());
         node_rect(list).get();
-        let row = state.nodes.get().borrow().get(&key).and_then(NodeRef::try_get)?;
+        let row = state
+            .nodes
+            .get()
+            .borrow()
+            .get(&key)
+            .and_then(NodeRef::try_get)?;
         if !node_placed(row).get() || !node_placed(scroll).get() {
             return None;
         }
-        stray_edge(node_rect(row).get(), node_rect(scroll).get(), buried.get().is_some())
+        stray_edge(
+            node_rect(row).get(),
+            node_rect(scroll).get(),
+            buried.get().is_some(),
+        )
     });
     let (pending, set_pending) = create_signal(None::<K>);
     create_effect(move || {
@@ -395,7 +404,13 @@ where
         };
         keys.with(|_| ());
         node_rect(list).get();
-        let Some(row) = state.nodes.get().borrow().get(&key).and_then(NodeRef::try_get) else {
+        let Some(row) = state
+            .nodes
+            .get()
+            .borrow()
+            .get(&key)
+            .and_then(NodeRef::try_get)
+        else {
             return;
         };
         if !node_placed(row).get() {

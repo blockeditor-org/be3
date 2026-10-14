@@ -48,8 +48,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let list = cx.list;
     let keys = cx.visible;
     let top = create_memo(move || Some(cx.padding.get().y));
-    let bottom =
-        create_memo(move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)));
+    let bottom = create_memo(move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)));
     let estimate = cx.row_estimate();
     view! {
         <Frame @node_ref=&canvas min_height={fill}>
@@ -74,14 +73,13 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
         let row = model.get();
         cx.metrics.get();
         let size = cx.font_size.get();
-        let body = galley("", FontId::proportional(size)).map_or(0.0, |galley| galley.line_height());
+        let body =
+            galley("", FontId::proportional(size)).map_or(0.0, |galley| galley.line_height());
         let laid = rich_layout(&row, size, (0.0, 0.0), f32::INFINITY)
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
     });
-    let canvas_width = create_memo(move || {
-        text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH
-    });
+    let canvas_width = create_memo(move || text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH);
     let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
     let x = create_memo(move || cx.padding.get().x - cx.shift.get());
     let y = create_memo(move || {
@@ -309,7 +307,8 @@ fn RowText(
             let range = remote.selection;
             if range.start < range.end && range.start <= row.end && range.end > row.start {
                 let [red, green, blue, _] = remote.color.to_array();
-                let fill = Color32::from_rgba_unmultiplied(red, green, blue, REMOTE_SELECTION_ALPHA);
+                let fill =
+                    Color32::from_rgba_unmultiplied(red, green, blue, REMOTE_SELECTION_ALPHA);
                 marks.push(TextMark::new(row.display_range(&range), fill));
             }
         }
@@ -347,7 +346,11 @@ fn RowText(
             }
         }
         if let Some(byte) = cx.drop_caret.get().filter(|byte| contains(*byte)) {
-            carets.push(TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH));
+            carets.push(TextCaret::new(
+                row.to_display(byte),
+                colors.caret,
+                CARET_WIDTH,
+            ));
         }
         if focused {
             for byte in cx.state.caret_indices() {
@@ -573,8 +576,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             return;
         };
         let position = cx.state.with_core(|core| core.position(line_start));
-        cx
-            .state
+        cx.state
             .execute(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
                 position,
             )));
@@ -684,7 +686,10 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             return false;
         };
         let ranges = cx.state.selection_ranges();
-        cx.selected_widget.is_some() && ranges.len() == 1 && ranges[0] == widget.range && !widget.block()
+        cx.selected_widget.is_some()
+            && ranges.len() == 1
+            && ranges[0] == widget.range
+            && !widget.block()
     });
     let pill = NodeRef::new();
     let overlay_anchor = pill;

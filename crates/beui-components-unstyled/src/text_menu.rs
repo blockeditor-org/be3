@@ -45,7 +45,10 @@ pub fn TextContextMenu(
     let cursors = state.cursors();
     let actions = create_memo(move || {
         cursors.get();
-        let selected = state.selection_ranges().iter().any(|range| !range.is_empty());
+        let selected = state
+            .selection_ranges()
+            .iter()
+            .any(|range| !range.is_empty());
         match selected && !masked.get() {
             true => vec![
                 MenuAction::Copy,

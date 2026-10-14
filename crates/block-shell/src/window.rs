@@ -1,8 +1,8 @@
 use std::cell::Cell;
 
 use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, component,
-    create_effect, create_memo, create_signal, untrack, view,
+    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, component, create_effect,
+    create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};

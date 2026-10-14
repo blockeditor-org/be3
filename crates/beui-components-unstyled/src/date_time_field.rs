@@ -10,9 +10,9 @@ use beui_core::document::Document;
 use beui_core::input::{CursorIcon, Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ForEach, Interactive, List, Memo, Prop, ReadSignal, RenderFn, Show, Timer,
-    Stored, WriteSignal, component_accessibility, create_effect, create_memo, create_signal,
-    create_timer, set_component_state, store,
+    Callback, ForEach, Interactive, List, Memo, Prop, ReadSignal, RenderFn, Show, Stored, Timer,
+    WriteSignal, component_accessibility, create_effect, create_memo, create_signal, create_timer,
+    set_component_state, store,
 };
 
 const LEAP_YEAR: i32 = 2000;
@@ -482,9 +482,11 @@ fn compose(state: State, values: &Values, base: Option<DateTime>) -> Option<Date
 }
 
 fn empty(state: State, values: &Values) -> bool {
-    state
-        .order
-        .with(|order| order.iter().all(|segment| values[segment.index()].is_none()))
+    state.order.with(|order| {
+        order
+            .iter()
+            .all(|segment| values[segment.index()].is_none())
+    })
 }
 
 fn commit(state: State, mut values: Values) {

@@ -24,8 +24,8 @@ use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, RootScope,
-    Scope, Show, ShowKeepAlive, Spacer, Stored, WriteSignal, clone, component, create_memo, create_signal,
-    view,
+    Scope, Show, ShowKeepAlive, Spacer, Stored, WriteSignal, clone, component, create_memo,
+    create_signal, view,
 };
 
 use super::tree::{Entry, Key};
@@ -453,7 +453,11 @@ pub fn build_bar(state: Stored<State>) -> Bar {
 }
 
 #[component]
-fn SimulationPanel(state: Stored<State>, responsive: Memo<bool>, handles_back: Memo<bool>) -> NodeId {
+fn SimulationPanel(
+    state: Stored<State>,
+    responsive: Memo<bool>,
+    handles_back: Memo<bool>,
+) -> NodeId {
     let simulated = state.get().simulated_pixels_per_point.get();
     let selected = PIXEL_RATIOS
         .iter()

@@ -22,7 +22,6 @@ fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
     harness.frame(Vec::new());
     let state = (*held.borrow()).expect("the text area was built");
     let status = |harness: &mut Harness| {
-        let state = state;
         with_reactive_scope(harness.document_mut(), move || state.find_status())
     };
 

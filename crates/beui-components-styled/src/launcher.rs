@@ -297,11 +297,7 @@ pub fn Launcher(
                         >
                             <ForEach keys={rows}>
                                 {move |row: Row| view! {
-                                    <LauncherRow
-                                        state={state}
-                                        items={items.clone()}
-                                        row
-                                    />
+                                    <LauncherRow state={state} items={items.clone()} row />
                                 }}
                             </ForEach>
                         </unstyled::Scroll>

@@ -112,9 +112,9 @@ fn select_byte(state: &Shared, index: usize) {
         true => index + 1,
         false => index,
     };
-    let (anchor, focus) = state.text.with_core(|core| {
-        (core.position(index), core.position(focus_index))
-    });
+    let (anchor, focus) = state
+        .text
+        .with_core(|core| (core.position(index), core.position(focus_index)));
     state
         .text
         .execute(EditorCommand::SetSelection { anchor, focus });
@@ -124,8 +124,9 @@ fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
     let len = document_len(state);
     let anchor_byte = anchor_byte.min(len);
     let target_byte = target_byte.min(len);
-    let (anchor, focus) = state.text.with_core(|core| {
-        match target_byte >= anchor_byte {
+    let (anchor, focus) = state
+        .text
+        .with_core(|core| match target_byte >= anchor_byte {
             true => (
                 core.position(anchor_byte),
                 core.position((target_byte + 1).min(len)),
@@ -134,8 +135,7 @@ fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
                 core.position((anchor_byte + 1).min(len)),
                 core.position(target_byte),
             ),
-        }
-    });
+        });
     state
         .text
         .execute(EditorCommand::SetSelection { anchor, focus });

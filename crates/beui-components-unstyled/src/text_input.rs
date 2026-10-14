@@ -28,7 +28,8 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, create_effect, create_memo, create_signal, set_component_state, store,
+    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, create_effect,
+    create_memo, create_signal, set_component_state, store,
 };
 
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);

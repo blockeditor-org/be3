@@ -18,8 +18,8 @@ use beui_core::icons::{
 };
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, ClickCallback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
-    RenderFn, Spacer, clone, create_memo, focus_ring, set_component_state,
+    Align, Callback, ClickCallback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop,
+    ReadSignal, RenderFn, Spacer, clone, create_memo, focus_ring, set_component_state,
 };
 
 const INDENT: f32 = 12.0;
@@ -192,7 +192,12 @@ where
         <Frame height=ROW_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Spacer @sizing={indent} />
-                <Chevron item={item} marked={marked} toggle={move || toggle.call()} named={chevron_id(&named)} />
+                <Chevron
+                    item={item}
+                    marked={marked}
+                    toggle={move || toggle.call()}
+                    named={chevron_id(&named)}
+                />
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}

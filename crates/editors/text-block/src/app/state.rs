@@ -238,7 +238,10 @@ impl State {
             }
             return;
         }
-        if let Some(cursor) = self.text.with_core(|core| core.cursor_positions().first().copied()) {
+        if let Some(cursor) = self
+            .text
+            .with_core(|core| core.cursor_positions().first().copied())
+        {
             let color = self.published_cursor.get().map_or_else(
                 || {
                     pick_free_color(
@@ -280,7 +283,9 @@ impl State {
             .iter()
             .find(|(id, _)| *id == client_id)
             .map(|(_, cursor)| *cursor)?;
-        let focus = self.text.with_core(|core| core.position_index(cursor.focus))?;
+        let focus = self
+            .text
+            .with_core(|core| core.position_index(cursor.focus))?;
         self.text.layout().get_untracked().caret_rect(focus)
     }
 

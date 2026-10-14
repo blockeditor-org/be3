@@ -38,9 +38,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     };
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
-    let control = (*control
-        .borrow())
-        .expect("the tab's content has its control");
+    let control = (*control.borrow()).expect("the tab's content has its control");
     let left = Rect::from_min_size(
         Pos2::ZERO,
         Vec2::new(WIDE_VIEWPORT.x / 2.0, WIDE_VIEWPORT.y),

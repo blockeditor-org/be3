@@ -835,7 +835,9 @@ impl Inspector {
         let commands = self.state().take_commands();
         self.reader
             .show(target, ctx, content, commands, !panel_has_focus);
-        if self.state().screen_reader.get() && !self.parked && self.document.focused_node().is_some()
+        if self.state().screen_reader.get()
+            && !self.parked
+            && self.document.focused_node().is_some()
         {
             self.blur();
         }

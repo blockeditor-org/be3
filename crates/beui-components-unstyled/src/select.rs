@@ -193,9 +193,7 @@ pub fn Select(
 
     let reveal = reveal_reader(state);
     on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
-        event
-            .press()
-            .is_some_and(|press| navigate(state, press))
+        event.press().is_some_and(|press| navigate(state, press))
     });
 
     view! {
@@ -293,7 +291,13 @@ fn SelectRow(
 
 fn reveal_reader(state: State) -> Prop<Option<usize>> {
     Prop::dynamic(move || {
-        let visible: Vec<_> = state.rows.get().borrow().iter().map(|row| row.visible).collect();
+        let visible: Vec<_> = state
+            .rows
+            .get()
+            .borrow()
+            .iter()
+            .map(|row| row.visible)
+            .collect();
         for row in visible {
             row.get();
         }
@@ -324,7 +328,11 @@ pub fn select_search(document: &Document, select: NodeId) -> NodeId {
 }
 
 pub fn select_option_button(document: &Document, select: NodeId, index: usize) -> NodeId {
-    document.component_state::<State>(select).rows.get().borrow()[index]
+    document
+        .component_state::<State>(select)
+        .rows
+        .get()
+        .borrow()[index]
         .button
         .get()
 }
@@ -390,7 +398,8 @@ fn filter(state: State, text: &str) {
     let query = text.to_lowercase();
     let mut first_visible = None;
     let rows: Vec<_> = state
-        .rows.get()
+        .rows
+        .get()
         .borrow()
         .iter()
         .map(|row| (row.label.get_untracked(), row.set_visible))
@@ -404,7 +413,8 @@ fn filter(state: State, text: &str) {
     }
     let still_visible = state.highlighted.get_untracked().is_some_and(|index| {
         state
-            .rows.get()
+            .rows
+            .get()
             .borrow()
             .get(index)
             .is_some_and(|row| row.visible.get_untracked())
@@ -419,7 +429,8 @@ fn navigate(state: State, press: KeyPress) -> bool {
         return false;
     }
     let visible: Vec<usize> = state
-        .rows.get()
+        .rows
+        .get()
         .borrow()
         .iter()
         .enumerate()

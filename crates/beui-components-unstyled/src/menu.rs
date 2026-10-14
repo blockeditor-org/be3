@@ -11,8 +11,8 @@ use crate as unstyled;
 use crate::button::ButtonHandle;
 use beui_view::reactive::{
     Action, Callback, Child, ChildScope, ChildValue, Children, ClickCallback, Interactive,
-    IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show,
-    Stored, WriteSignal, action_disabled, action_glyph, action_label, clone, create_effect, create_memo,
+    IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, Stored,
+    WriteSignal, action_disabled, action_glyph, action_label, clone, create_effect, create_memo,
     create_selector, create_signal, set_component_state, store, with_document,
 };
 use std::cell::RefCell;
@@ -354,7 +354,12 @@ fn select(state: State, path: Vec<usize>) {
 }
 
 pub fn menu_list_len(document: &Document, menu: NodeId) -> usize {
-    document.component_state::<State>(menu).rows.get().borrow().len()
+    document
+        .component_state::<State>(menu)
+        .rows
+        .get()
+        .borrow()
+        .len()
 }
 
 pub fn menu_list_row_button(document: &Document, menu: NodeId, index: usize) -> NodeId {
@@ -420,7 +425,8 @@ fn hover_row(state: State, index: usize) {
 
 fn leave_row(state: State, index: usize) {
     let open = state
-        .rows.get()
+        .rows
+        .get()
         .borrow()
         .get(index)
         .is_some_and(|row| row.submenu.open.get_untracked());
@@ -440,7 +446,8 @@ fn row_count(state: State) -> usize {
 
 fn has_submenu(state: State, index: usize) -> bool {
     state
-        .rows.get()
+        .rows
+        .get()
         .borrow()
         .get(index)
         .is_some_and(Row::has_children)

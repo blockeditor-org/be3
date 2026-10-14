@@ -13,8 +13,9 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Child, ClickCallback, ForEach, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Render,
-    RenderFn, Selector, Stored, WriteSignal, active_actions_from, clone, create_effect, create_memo,
-    create_selector, create_signal, on_key, set_component_state, store, untrack, with_document,
+    RenderFn, Selector, Stored, WriteSignal, active_actions_from, clone, create_effect,
+    create_memo, create_selector, create_signal, on_key, set_component_state, store, untrack,
+    with_document,
 };
 
 use crate as unstyled;
@@ -101,9 +102,7 @@ pub fn CommandPalette(
     let keys = create_memo(move || shown.get());
     let reveal = reveal_reader(state);
     on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
-        event
-            .press()
-            .is_some_and(|press| navigate(state, press))
+        event.press().is_some_and(|press| navigate(state, press))
     });
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::Dialog);
@@ -145,12 +144,7 @@ pub fn CommandPalette(
                         <ForEach keys={keys}>
                             {move |key: u64| {
                                 view! {
-                                    <CommandRow
-                                        state={state}
-                                        key
-                                        row={row}
-                                        highlight={highlight}
-                                    />
+                                    <CommandRow state={state} key row={row} highlight={highlight} />
                                 }
                             }}
                         </ForEach>
@@ -215,7 +209,8 @@ fn CommandRow(
 
 fn find(state: State, key: u64) -> Option<Action> {
     state
-        .actions.get()
+        .actions
+        .get()
         .borrow()
         .iter()
         .find(|action| action.key() == key)
@@ -358,7 +353,8 @@ pub fn command_palette_highlighted(document: &Document, palette: NodeId) -> Opti
 pub fn command_palette_row(document: &Document, palette: NodeId, id: &str) -> Option<NodeId> {
     let state = *document.component_state::<State>(palette);
     let key = state
-        .actions.get()
+        .actions
+        .get()
         .borrow()
         .iter()
         .find(|action| action.id() == id)

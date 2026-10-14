@@ -145,7 +145,8 @@ impl super::State {
             return;
         };
         let Some(frame) = self
-            .dialog_bodies.get()
+            .dialog_bodies
+            .get()
             .borrow()
             .get(&tab)
             .and_then(NodeRef::try_get)

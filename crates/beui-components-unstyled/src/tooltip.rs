@@ -38,13 +38,11 @@ pub fn Tooltip(
         set_shown.set(true);
         None
     });
-    let hover = move |hovered: bool| {
-        match hovered {
-            true => dwell.restart(delay),
-            false => {
-                dwell.stop();
-                set_shown.set(false);
-            }
+    let hover = move |hovered: bool| match hovered {
+        true => dwell.restart(delay),
+        false => {
+            dwell.stop();
+            set_shown.set(false);
         }
     };
     let press = move |_: PointerPress| {

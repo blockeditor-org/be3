@@ -10,49 +10,33 @@ use super::TextAreaState;
 
 pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
     let editable = create_memo(move || !disabled.get());
-    Action::new(
-        "text.find",
-        "Find",
-        move || state.open_find(false),
-    )
-    .glyph(ICON_SEARCH)
-    .shortcut(Chord::ctrl(Key::F))
-    .register();
-    Action::new(
-        "text.replace",
-        "Find and replace",
-        move || state.open_find(true),
-    )
+    Action::new("text.find", "Find", move || state.open_find(false))
+        .glyph(ICON_SEARCH)
+        .shortcut(Chord::ctrl(Key::F))
+        .register();
+    Action::new("text.replace", "Find and replace", move || {
+        state.open_find(true)
+    })
     .glyph(ICON_FIND_REPLACE)
     .shortcut(Chord::ctrl(Key::H))
     .enabled(editable)
     .in_menu()
     .register();
-    Action::new(
-        "text.find-next",
-        "Find the next match",
-        move || {
-            state.find_step(FindDirection::Next);
-        },
-    )
+    Action::new("text.find-next", "Find the next match", move || {
+        state.find_step(FindDirection::Next);
+    })
     .glyph(ICON_ARROW_DOWNWARD)
     .shortcut(Chord::ctrl(Key::G))
     .register();
-    Action::new(
-        "text.find-previous",
-        "Find the previous match",
-        move || {
-            state.find_step(FindDirection::Previous);
-        },
-    )
+    Action::new("text.find-previous", "Find the previous match", move || {
+        state.find_step(FindDirection::Previous);
+    })
     .glyph(ICON_ARROW_UPWARD)
     .shortcut(Chord::ctrl(Key::G).shift())
     .register();
-    Action::new(
-        "text.duplicate-line",
-        "Duplicate the line",
-        move || edit(state, EditorCommand::DuplicateLine(UDDirection::Down)),
-    )
+    Action::new("text.duplicate-line", "Duplicate the line", move || {
+        edit(state, EditorCommand::DuplicateLine(UDDirection::Down))
+    })
     .glyph(ICON_CONTENT_COPY)
     .shortcut(Chord::ctrl(Key::D).shift())
     .enabled(editable)
@@ -65,17 +49,13 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
     .glyph(ICON_SELECT_ALL)
     .shortcut(Chord::ctrl(Key::D))
     .register();
-    Action::new(
-        "text.fold",
-        "Fold or unfold the line",
-        move || {
-            let command = match state.cursor_line_collapsed() {
-                true => EditorCommand::Uncollapse,
-                false => EditorCommand::Collapse,
-            };
-            edit(state, command);
-        },
-    )
+    Action::new("text.fold", "Fold or unfold the line", move || {
+        let command = match state.cursor_line_collapsed() {
+            true => EditorCommand::Uncollapse,
+            false => EditorCommand::Collapse,
+        };
+        edit(state, command);
+    })
     .glyph(ICON_UNFOLD_LESS)
     .shortcut(Chord::ctrl(Key::BracketLeft).shift())
     .register();

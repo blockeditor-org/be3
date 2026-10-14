@@ -1,4 +1,3 @@
-
 use beui_components_styled::{
     ButtonVariant, Caption, IconButton, NumberInput, Select, Separator, Theme, select_open,
 };
@@ -68,7 +67,8 @@ impl Toolbar {
 
 pub fn build(state: Stored<State>) -> Toolbar {
     let owner = RootScope::new();
-    let (screen, set_screen) = create_signal(state.get().screen_simulation.get().unwrap_or(DEFAULT));
+    let (screen, set_screen) =
+        create_signal(state.get().screen_simulation.get().unwrap_or(DEFAULT));
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
     let document = beui_view::reactive::build(move || {
         view! {

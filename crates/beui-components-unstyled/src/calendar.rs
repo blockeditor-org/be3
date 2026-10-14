@@ -202,12 +202,8 @@ pub fn Calendar(
         mode,
         previous: Callback::new(move |()| page(state, -1)),
         next: Callback::new(move |()| page(state, 1)),
-        show_months: Callback::new(
-            move |()| show_mode(state, CalendarMode::Months),
-        ),
-        show_years: Callback::new(
-            move |()| show_mode(state, CalendarMode::Years),
-        ),
+        show_months: Callback::new(move |()| show_mode(state, CalendarMode::Months)),
+        show_years: Callback::new(move |()| show_mode(state, CalendarMode::Years)),
         can_previous,
         can_next,
         previous_label,
@@ -267,12 +263,7 @@ pub fn Calendar(
                         <CalendarGrid label=months_label spacing>
                             <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>
                                 {move |row: usize| view! {
-                                    <CalendarMonthRow
-                                        state={state}
-                                        row
-                                        spacing
-                                        month={month}
-                                    />
+                                    <CalendarMonthRow state={state} row spacing month={month} />
                                 }}
                             </ForEach>
                         </CalendarGrid>
@@ -339,7 +330,10 @@ fn CalendarYear(
 ) -> NodeId {
     let year = create_memo(move || first_year.get() + offset);
     let selected = create_memo(move || {
-        state.selected.get().is_some_and(|selected| selected.year == year.get())
+        state
+            .selected
+            .get()
+            .is_some_and(|selected| selected.year == year.get())
     });
     let current = create_memo(move || state.today.year == year.get());
     let disabled = create_memo(move || {
@@ -457,9 +451,7 @@ fn CalendarDay(
     let date = create_memo(move || grid_start.get().add_days(offset));
     let selected = create_memo(move || state.selected.get() == Some(date.get()));
     let today = create_memo(move || date.get() == state.today);
-    let outside = create_memo(move || {
-        !date.get().same_month(state.active.get())
-    });
+    let outside = create_memo(move || !date.get().same_month(state.active.get()));
     let disabled = create_memo(move || !in_range(state, date.get()));
     let tab_stop = create_memo(move || state.active.get() == date.get());
     let focused = create_memo(move || state.day_focus.get() == Some(date.get()));
@@ -542,18 +534,22 @@ fn CalendarMonthRow(
 fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -> NodeId {
     let month = create_memo(move || Date::new(state.active.get().year, number, 1));
     let selected = create_memo(move || {
-        state.selected.get().is_some_and(|selected| selected.same_month(month.get()))
+        state
+            .selected
+            .get()
+            .is_some_and(|selected| selected.same_month(month.get()))
     });
     let current = create_memo(move || state.today.same_month(month.get()));
     let disabled = create_memo(move || {
         let month = month.get();
-        state.min.get().is_some_and(|min| month.last_of_month() < min)
+        state
+            .min
+            .get()
+            .is_some_and(|min| month.last_of_month() < min)
             || state.max.get().is_some_and(|max| month > max)
     });
     let tab_stop = create_memo(move || state.active.get().month == number);
-    let focused = create_memo(move || {
-        state.month_focus.get() == Some(month.get())
-    });
+    let focused = create_memo(move || state.month_focus.get() == Some(month.get()));
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::GridCell);
         node.set_label(month.get().month_label());

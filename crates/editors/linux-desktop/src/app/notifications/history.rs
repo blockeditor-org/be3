@@ -97,7 +97,7 @@ fn NotificationList(
                 <NotificationRows
                     notifications={notifications.clone()}
                     listed={listed}
-                    popover={popover.clone()}
+                    popover={popover}
                 />
             </Show>
         </List>
@@ -117,7 +117,7 @@ fn NotificationRows(
                     <NotificationRow
                         notifications={notifications.clone()}
                         shown
-                        popover={popover.clone()}
+                        popover={popover}
                     />
                 }}
             </ForEach>

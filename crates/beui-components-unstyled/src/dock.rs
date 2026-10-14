@@ -41,10 +41,10 @@ use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
     Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
-    ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, WriteSignal, clone, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut,
-    owner_scope, provide_context, set_component_state, store, try_with_document, use_context,
-    with_document,
+    ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, WriteSignal, clone,
+    component_accessibility, create_effect, create_memo, create_signal, create_timer, node_scope,
+    on_cleanup, on_shortcut, owner_scope, provide_context, set_component_state, store,
+    try_with_document, use_context, with_document,
 };
 
 pub use dialog::DockDialogHandle;
@@ -512,7 +512,8 @@ impl State {
 
     fn keep_panels(&self, tabs: &[TabId]) {
         let dropped: Vec<TabId> = self
-            .panels.get()
+            .panels
+            .get()
             .borrow()
             .keys()
             .filter(|tab| !tabs.contains(tab))
@@ -535,7 +536,8 @@ impl State {
 
     fn surface_rect(&self, surface: SurfaceId) -> Option<Rect> {
         let window = self
-            .windows.get()
+            .windows
+            .get()
             .borrow()
             .get(&surface)
             .and_then(NodeRef::try_get);
@@ -547,7 +549,8 @@ impl State {
 
     fn tab_rects(&self, leaf: LeafId) -> Vec<Rect> {
         let Some(node) = self
-            .bars.get()
+            .bars
+            .get()
             .borrow()
             .get(&leaf)
             .and_then(|bar| bar.tabs.try_get())
@@ -1313,13 +1316,7 @@ fn DockStack(dock: State) -> NodeId {
         .stack
         .map(|stack| stack.call(stack_handle(dock, shown, away, tabs, set_switching)));
     let switcher = dock.switcher.map(|switcher| {
-        switcher.call(switcher_handle(
-            dock,
-            shown,
-            tabs,
-            switching,
-            set_switching,
-        ))
+        switcher.call(switcher_handle(dock, shown, tabs, switching, set_switching))
     });
     let barred = create_memo(move || bar.is_some() && occupied.get());
     let empty = dock.empty;
@@ -1451,12 +1448,7 @@ fn switcher_handle(
         close: ClickCallback::new(move || set_switching.set(false)),
         tabs,
         card: Func::new(move |tab: TabId| {
-            let (titled, pictured, picked, closed) = (
-                carded,
-                carded,
-                carded,
-                carded,
-            );
+            let (titled, pictured, picked, closed) = (carded, carded, carded, carded);
             let set_switching = set_switching;
             DockSwitcherCardHandle {
                 tab,
@@ -1596,7 +1588,10 @@ fn DockTreeView(
     on_cleanup(move || {
         dock.panes.try_with(|panes| {
             let mut panes = panes.borrow_mut();
-            if panes.get(&tree).is_some_and(|current| current.try_get() == canvas.try_get()) {
+            if panes
+                .get(&tree)
+                .is_some_and(|current| current.try_get() == canvas.try_get())
+            {
                 panes.remove(&tree);
             }
         });
@@ -1913,7 +1908,10 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     on_cleanup(move || {
         dock.bars.try_with(|bars| {
             let mut bars = bars.borrow_mut();
-            if bars.get(&leaf).is_some_and(|current| current.strip.try_get() == strip.try_get()) {
+            if bars
+                .get(&leaf)
+                .is_some_and(|current| current.strip.try_get() == strip.try_get())
+            {
                 bars.remove(&leaf);
             }
         });
@@ -2005,11 +2003,10 @@ fn DockTabView(
         })
     });
     let dragged = create_memo(move || {
-        dock.drag
-            .with(|drag| {
-                drag.as_ref()
-                    .is_some_and(|drag| drag.dragged == DockDragged::Entry(entry))
-            })
+        dock.drag.with(|drag| {
+            drag.as_ref()
+                .is_some_and(|drag| drag.dragged == DockDragged::Entry(entry))
+        })
     });
     let close = ClickCallback::new(move || dock.close_entry(entry));
     let float = ClickCallback::new(move || dock.float_entry(entry));
@@ -2385,7 +2382,8 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let frame = NodeRef::new();
     dock.windows.get().borrow_mut().insert(surface, frame);
     on_cleanup(move || {
-        dock.windows.try_with(|windows| windows.borrow_mut().remove(&surface));
+        dock.windows
+            .try_with(|windows| windows.borrow_mut().remove(&surface));
     });
     let state = dock.state;
     let rect = create_memo(move || {
@@ -2604,11 +2602,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     };
                                                     let tabs = hoisted.map(|leaf| {
                                                         view! {
-                                                            <DockTabBar
-                                                                dock={dock}
-                                                                leaf
-                                                                vertical
-                                                            />
+                                                            <DockTabBar dock={dock} leaf vertical />
                                                         }
                                                     });
                                                     let pane = view! {
@@ -2624,10 +2618,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                         focused,
                                                         sidebar_width,
                                                         sidebar_splitter: hoisted.filter(|_| vertical).map(|leaf| view! {
-                                                            <DockSidebarSplitter
-                                                                dock={dock}
-                                                                leaf
-                                                            />
+                                                            <DockSidebarSplitter dock={dock} leaf />
                                                         }),
                                                         bar: Some(DockBarHandle {
                                                             floating: true,
