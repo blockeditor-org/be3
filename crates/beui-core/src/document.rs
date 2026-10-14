@@ -107,7 +107,8 @@ pub struct Document {
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
-    measurements: NodeMap<Vec<(Vec2, Vec2)>>,
+    measurements: NodeMap<Vec<Measurement>>,
+    offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
@@ -157,6 +158,13 @@ struct Placing {
 }
 
 const REMEMBERED_MEASUREMENTS: usize = 4;
+
+#[derive(Clone, Copy)]
+struct Measurement {
+    offered: Vec2,
+    size: Vec2,
+    offer_dependent: bool,
+}
 
 fn same_size(left: Vec2, right: Vec2) -> bool {
     left.x.to_bits() == right.x.to_bits() && left.y.to_bits() == right.y.to_bits()
@@ -290,6 +298,7 @@ impl Document {
             interaction_done: None,
             laid_out: None,
             measurements: NodeMap::default(),
+            offer_dependent: false,
             baselines: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
@@ -1449,20 +1458,39 @@ impl Document {
             return None;
         }
         let held = self.measurements.get(&id)?;
-        held.iter()
-            .find(|(offered, _)| same_size(*offered, available))
+        let found = held
+            .iter()
+            .find(|held| same_size(held.offered, available))
             .or_else(|| {
-                held.iter()
-                    .find(|(offered, size)| still_fits(*offered, *size, available))
+                held.iter().find(|held| {
+                    !held.offer_dependent && still_fits(held.offered, held.size, available)
+                })
             })
-            .map(|(_, size)| *size)
+            .copied()?;
+        self.offer_dependent |= found.offer_dependent;
+        Some(found.size)
     }
 
-    pub fn remember_measurement(
+    pub fn note_offer_dependent(&mut self) {
+        self.offer_dependent = true;
+    }
+
+    pub(crate) fn enter_offer(&mut self) -> bool {
+        std::mem::take(&mut self.offer_dependent)
+    }
+
+    pub(crate) fn leave_offer(&mut self, outer: bool) -> bool {
+        let dependent = self.offer_dependent;
+        self.offer_dependent |= outer;
+        dependent
+    }
+
+    pub(crate) fn remember_measurement(
         &mut self,
         id: NodeId,
         available: Vec2,
         size: Vec2,
+        offer_dependent: bool,
         watermark: u64,
     ) {
         if self.arena.layout_revision != watermark {
@@ -1470,11 +1498,15 @@ impl Document {
         }
         self.arena.clear_stale(id);
         let held = self.measurements.get_or_default(id);
-        held.retain(|(offered, _)| !same_size(*offered, available));
+        held.retain(|held| !same_size(held.offered, available));
         if held.len() >= REMEMBERED_MEASUREMENTS {
             held.remove(0);
         }
-        held.push((available, size));
+        held.push(Measurement {
+            offered: available,
+            size,
+            offer_dependent,
+        });
     }
 
     pub fn measured_baseline(&self, id: NodeId, available: Vec2) -> Option<Option<f32>> {

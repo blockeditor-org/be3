@@ -76,6 +76,10 @@ pub struct Extent {
 }
 
 impl Extent {
+    fn scales_with(self, available: f32) -> bool {
+        self.exact.is_none() && self.fraction.is_some() && available.is_finite()
+    }
+
     fn within(self, available: f32, intrinsic: f32) -> f32 {
         let fraction = self
             .fraction
@@ -217,6 +221,9 @@ impl Element for FrameNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         if !self.visible {
             return Vec2::ZERO;
+        }
+        if self.width.scales_with(available.x) || self.height.scales_with(available.y) {
+            doc.note_offer_dependent();
         }
         let grid = doc.pixel_grid();
         let padding = self.padding(grid).amount();
