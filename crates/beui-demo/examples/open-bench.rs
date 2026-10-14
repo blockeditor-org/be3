@@ -191,6 +191,37 @@ mod bench {
                 modifiers: Modifiers::NONE,
             }])];
             frames.extend(self.settle());
+            if std::env::var_os("UNPLACED").is_some() {
+                let document = &self.app.document;
+                let mut stack: Vec<_> = document.root().into_iter().collect();
+                let mut found = std::collections::HashMap::<String, (usize, usize)>::new();
+                fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
+                    1 + document.children(node).into_iter().map(|child| size(document, child)).sum::<usize>()
+                }
+                while let Some(node) = stack.pop() {
+                    if document.node_rect(node).is_none() {
+                        let mut name = document.component_names(node).join("<");
+                        let mut parent = document.arena.parent(node);
+                        for _ in 0..4 {
+                            let Some(at) = parent else { break };
+                            if let Some(first) = document.component_names(at).first() {
+                                name = format!("{name} in {first}");
+                            }
+                            parent = document.arena.parent(at);
+                        }
+                        let entry = found.entry(name).or_default();
+                        entry.0 += 1;
+                        entry.1 += size(document, node);
+                        continue;
+                    }
+                    stack.extend(document.children(node));
+                }
+                let mut found: Vec<_> = found.into_iter().collect();
+                found.sort_by_key(|(_, (_, nodes))| std::cmp::Reverse(*nodes));
+                for (name, (roots, nodes)) in found.into_iter().take(25) {
+                    println!("unplaced {nodes:5} nodes in {roots:3} roots: {name}");
+                }
+            }
             (frames, crate::counting::allocations() - allocations)
         }
     }
