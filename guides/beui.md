@@ -964,7 +964,9 @@ those that do not, and otherwise are ordered by when they were opened or raised
 (`Document::raise_overlay`), so raising a window never lifts it over a dialog;
 children sit above their parent and rise with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
 every layer of a lower level: `Top` for things that must float over every
-window, such as a drag preview or a volume OSD, and `Lock` for the lock screen.
+window and dialog, such as a drag preview, a volume OSD or `styled::Toasts` (so
+a toast stays readable and pressable while a dialog is open), and `Lock` for
+the lock screen.
 Opening a layer raises it and every layer it hangs in, so a menu opened in a
 window that was covered comes up with its window; an inert layer rises alone,
 so a tooltip shown over a covered window leaves the window where it was.

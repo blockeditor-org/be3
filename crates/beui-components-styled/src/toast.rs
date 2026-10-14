@@ -1,4 +1,4 @@
-use beui_core::layer::LayerPolicy;
+use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -82,6 +82,7 @@ pub fn Toasts(
             anchor
             placement={placement}
             policy=LayerPolicy::Pass
+            level=LayerLevel::Top
             traps_focus=false
             open={open}
         >
