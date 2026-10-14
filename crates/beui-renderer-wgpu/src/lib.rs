@@ -283,10 +283,7 @@ impl Repainting for FrameOutput {
     }
 
     fn repaint_moving(&self, background: Color32) -> (Repaint, Option<Moved>) {
-        match (
-            self.moved,
-            self.damage.is_empty() || !self.filters().is_empty(),
-        ) {
+        match (self.moved, self.damage.is_empty()) {
             (None, _) | (Some(_), true) => (self.repaint(background), None),
             (Some(moved), false) => (
                 Repaint::Region {
@@ -982,29 +979,29 @@ impl Renderer {
             .iter()
             .map(|filter: &Filter| filter::Prepared::new(filter, pixels_per_point, screen))
             .collect();
-        let repaint = match prepared == self.filters {
-            true => repaint,
-            false => Repaint::Everything,
-        };
+        let mut restyled = Vec::new();
+        for index in 0..prepared.len().max(self.filters.len()) {
+            let (now, was) = (prepared.get(index), self.filters.get(index));
+            if now != was {
+                let origin = [self.origin.x, self.origin.y];
+                restyled.extend(
+                    [now, was]
+                        .into_iter()
+                        .flatten()
+                        .map(|filter| translated(filter.region(), origin)),
+                );
+            }
+        }
         let damaged: Option<Vec<[f32; 4]>> = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, .. } => {
-                let regions: Vec<[f32; 4]> = match !prepared.is_empty() {
-                    true => vec![physical(
-                        region.bounds(),
-                        self.origin,
-                        screen,
-                        pixels_per_point,
-                    )],
-                    false => region
-                        .rects()
-                        .iter()
-                        .map(|rect| physical(*rect, self.origin, screen, pixels_per_point))
-                        .collect(),
-                };
+                let regions = region
+                    .rects()
+                    .iter()
+                    .map(|rect| physical(*rect, self.origin, screen, pixels_per_point))
+                    .chain(restyled);
                 Some(
                     regions
-                        .into_iter()
                         .map(|region: [f32; 4]| {
                             prepared
                                 .iter()
@@ -1705,10 +1702,10 @@ impl Renderer {
         if self.empty() {
             return;
         }
-        let scissor = self
-            .scissors
-            .as_ref()
-            .and_then(|scissors| scissors.first().copied());
+        let scissors: Vec<Option<[u32; 4]>> = match &self.scissors {
+            Some(scissors) => scissors.iter().copied().map(Some).collect(),
+            None => vec![None],
+        };
         let format = self.format;
         self.effects.truncate(self.filters.len());
         while self.effects.len() < self.filters.len() {
@@ -1718,7 +1715,11 @@ impl Renderer {
             effects.ensure(device, size);
         }
         let steps = std::mem::take(&mut self.steps);
-        self.render_steps(device, queue, encoder, target, load, scissor, &steps);
+        let mut load = load;
+        for scissor in scissors {
+            self.render_steps(device, queue, encoder, target, load, scissor, &steps);
+            load = wgpu::LoadOp::Load;
+        }
         self.steps = steps;
     }
 

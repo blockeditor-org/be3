@@ -1926,10 +1926,12 @@ by the chain's reach - the sum of what every pass can move a sample - clipped to
 the filter's own region, once for each filter. The scene textures and the blur chains are retained the
 way the frame is, and every pass is scissored to the widened rectangle: what
 lies outside it was left correct by the frame before, because the reach bounds
-what a change can touch at every level. `Renderer::prepare` returns the repaint
-it settled on, and it upgrades a partial one to the whole frame when the filters
-themselves changed - a new radius or a filter switched off restyles everything the
-region covers, damage or no damage. A frame with a filter is never copied.
+what a change can touch at every level. Each damaged rectangle is drawn through
+the whole chain as a pass of its own. A filter that changed - a new radius, or
+one switched on or off - damages the region it covers and nothing else: the
+`Context` reports the regions of the filters that differ from the frame before,
+and the renderer adds those of the filters it prepared differently. A scroll is
+copied unless what it moves overlaps a filter's region.
 
 ### The screen reader simulation
 

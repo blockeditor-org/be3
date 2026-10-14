@@ -37,6 +37,7 @@ mod text_at_a_fractional_origin_lands_on_whole_pixels;
 mod text_paints_glyphs_over_the_background;
 mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
 mod two_filters_each_change_the_region_they_cover;
+mod two_regions_repainted_under_a_blur_match_a_full_repaint;
 
 use std::cell::RefCell;
 

@@ -304,19 +304,6 @@ pub enum Layer {
 }
 
 impl Layer {
-    pub fn same(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Shape(left), Self::Shape(right)) => left == right,
-            (Self::Display(at, display), Self::Display(other_at, other)) => {
-                at == other_at && Rc::ptr_eq(display, other)
-            }
-            (Self::Group(group, layers), Self::Group(other_group, others)) => {
-                group == other_group && same_layers(layers, others)
-            }
-            _ => false,
-        }
-    }
-
     pub fn bounds(&self) -> Rect {
         match self {
             Self::Shape(shape) => crate::damage::bounds(shape),
@@ -356,14 +343,6 @@ impl Layer {
             }
         }
     }
-}
-
-pub fn same_layers(layers: &[Layer], others: &[Layer]) -> bool {
-    layers.len() == others.len()
-        && layers
-            .iter()
-            .zip(others)
-            .all(|(layer, other)| layer.same(other))
 }
 
 pub fn flatten(layers: &[Layer]) -> Vec<Shape> {

@@ -454,41 +454,30 @@ impl Context {
         }
         let layers = Rc::new(std::mem::take(&mut *self.inner.layers.borrow_mut()));
         let scale = self.pixels_per_point();
-        let filter = crate::display::filters(&layers);
+        let filters = crate::display::filters(&layers);
         let moved = self.settle_moves(&layers, scale);
+        let previous = self.inner.previous.replace(Some(Previous {
+            pixels_per_point: scale,
+            filters: filters.clone(),
+        }));
+        if let Some(old) = &previous {
+            for index in 0..old.filters.len().max(filters.len()) {
+                let (was, now) = (old.filters.get(index), filters.get(index));
+                if was != now {
+                    for filter in [was, now].into_iter().flatten() {
+                        self.report_damage(filter.region);
+                    }
+                }
+            }
+        }
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
         let damage = reported
             .iter()
             .fold(Region::NOTHING, |region, rect| region.union((*rect).into()));
-        let mut previous = self.inner.previous.borrow_mut();
-        let changed = match previous.as_ref() {
-            None => true,
-            Some(old) if old.pixels_per_point != scale || old.filter != filter => true,
-            Some(old) => {
-                let same = crate::display::same_layers(&old.layers, &layers);
-                if reported.is_empty() && !same {
-                    let shown = self.inner.shown.get();
-                    let visible = |layers: &[Layer]| {
-                        let mut shapes = crate::display::flatten(layers);
-                        if let Some(shown) = shown {
-                            shapes.retain(|shape| damage::bounds(shape).intersects(shown));
-                        }
-                        shapes
-                    };
-                    debug_assert!(
-                        visible(&old.layers) == visible(&layers),
-                        "a frame that reported no damage changed the shapes it painted"
-                    );
-                }
-                (!reported.is_empty() || moved.is_some()) && !same
-            }
+        let changed = match previous {
+            Some(old) if old.pixels_per_point == scale => !damage.is_empty() || moved.is_some(),
+            _ => true,
         };
-        *previous = Some(Previous {
-            layers: Rc::clone(&layers),
-            pixels_per_point: scale,
-            filter,
-        });
-        drop(previous);
         let copied_text = self.inner.copied_text.borrow_mut().take();
         if let Some(text) = &copied_text {
             let watchers = self.inner.copy_watchers.borrow().clone();
@@ -1135,7 +1124,9 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
             !roots.iter().any(|root| Rc::ptr_eq(root, display))
                 && display.bounds.translate(*at).intersects(area)
         }
-        Layer::Group(Group::Filter(_), _) => true,
+        Layer::Group(Group::Filter(filter), inner) => {
+            filter.region.intersects(area) || overlaps_besides(inner, roots, area)
+        }
         Layer::Group(group, inner) => {
             let within = match *group {
                 Group::Transform { offset, scale } if scale > 0.0 => {
@@ -1154,9 +1145,8 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
 }
 
 struct Previous {
-    layers: Rc<Vec<Layer>>,
     pixels_per_point: f32,
-    filter: Vec<Filter>,
+    filters: Vec<Filter>,
 }
 
 struct PaintFrame {
