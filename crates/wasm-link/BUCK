@@ -2,7 +2,7 @@ load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test"
 
 # rust-lld for every wasm link, and the two links that make plugins share one
 # copy of what they have in common: the plugin SDK's and a plugin's
-# (guides/plugin_sdk.md).
+# (guides/plugins/sdk.md).
 
 cargo_library()
 

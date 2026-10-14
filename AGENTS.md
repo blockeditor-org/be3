@@ -3,26 +3,31 @@ BE3 project
 You are inside of an Ubuntu VM. You may install and remove programs as needed, and free up disk space if it runs out.
 
 Guides:
-- guides/adding_a_block.md
-- guides/adding_a_game.md
-- guides/adding_a_plugin_editor.md
-- guides/beui.md
-- guides/beui_keyboard.md
-- guides/buck2.md
-- guides/build_server.md
-- guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
-- guides/hosting.md
-- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
-- guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
+- guides/running/drive.md: how to run and drive any app headless; read this first
+- guides/running/native.md, web.md, android.md: a real window, the browser, the Android emulator
+- guides/buck2.md: building with buck2, adding crates, dependencies and targets, platforms and bundles
+- guides/build_server.md: the remote execution servers, their keys, and what to do when a build hangs
+- guides/testing.md: running tests, writing GUI tests, and paintings (snapshots)
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
-- guides/plugin_sdk.md: the shared module every plugin is linked against, and how hosts link them
-- guides/reactive.md: the reactive graph under beui
-- guides/running/drive.md: how to run and test any app; read this first
-- guides/running/native.md
-- guides/running/web.md
-- guides/running/android.md
-- guides/testing_a_gui.md
-- guides/the_new_block_stack.md: the `be-*` crates every block lives in
+- guides/beui/overview.md: beui, the UI framework; the entry point to the other beui guides
+- guides/beui/views.md: writing views and layout
+- guides/beui/components.md: the catalog of beui components (scrolling, overlays, docking, drag and drop, ...)
+- guides/beui/writing_components.md: developing unstyled, styled and base components, text and themes
+- guides/beui/apps.md: beui in a standalone app, runners and adapters, the inspector and debugging tools
+- guides/beui/reactive.md: the reactive graph under beui
+- guides/beui/input.md: keyboard and input: actions, shortcuts, focus, touch, text
+- guides/blocks/stack.md: the `be-*` crates every block lives in
+- guides/blocks/adding_a_block.md: adding a block's content type, and its stored form
+- guides/blocks/in_the_app.md: how block-app hosts block content, the graph, settings and keys
+- guides/blocks/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
+- guides/plugins/adding_an_editor.md: adding a plugin editor, and the manifest
+- guides/plugins/editor_api.md: what an editor can do: content, chrome, children, creation, host calls and values
+- guides/plugins/architecture.md: how plugins run underneath: the framework crates, the host, frames, the GPU path
+- guides/plugins/sdk.md: the shared module every plugin is linked against, and how hosts link them
+- guides/plugins/pan_and_zoom.md: the camera a plugin editor is handed by its host
+- guides/games.md: writing a deterministic game
+- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
+- guides/hosting.md: running be-server on a VPS, deploying, backups
 - guides/tracker.md: the issue tracker in block-app, and `be`, the command line tool agents use to read and change it
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
@@ -47,14 +52,14 @@ Design principles:
 - Do not edit this list.
 - If a request seems to require violating one of these, confirm with the user using AskUserQuestion before going ahead.
 - General:
-  - Keep reading whatever a frozen format saved, forever (guides/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data.
+  - Keep reading whatever a frozen format saved, forever (guides/blocks/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data.
   - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.
   - Do not edit files named README.md.
   - Write guides for agents. Add something to a guide only if a summary of that area written from scratch would include it. Put notes that only help humans in the PR description, the handoff message, or both.
   - Don't repeat in other files what AGENTS.md already says; every agent reads it at startup.
 - Testing:
   - Don't sleep in tests. Wait on an explicit signal, and read time from the frame clock (`ctx.now()` or `timer::now()`), never `Instant::now()`, so tests can advance time instead.
-  - Add a painting that demonstrates each visual change or feature (see guides/testing_a_gui.md). If an existing painting already shows the change, that's enough.
+  - Add a painting that demonstrates each visual change or feature (see guides/testing.md). If an existing painting already shows the change, that's enough.
 - beui:
   - beui is retained-mode and fine-grained reactive, like SolidJS. It is not like React or an immediate-mode UI: a component runs once, and changes reach the UI through signals. Use that reactivity rather than working around it: push changes, never poll for them, and don't rebuild trees to update them.
   - Keep a full layout from scratch O(n) in the number of nodes. Incremental relayout may do less, but don't add anything that makes a full layout worse than linear.

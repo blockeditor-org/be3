@@ -83,7 +83,7 @@ positional.
 Landed: random workspace keys kept on each device, a recovery phrase per account
 whose public half seals every workspace key on the server, unlocking a new
 device with the phrase or a code typed on an open device (SPAKE2 over the
-server's relay), and sealing for invited members. `guides/the_new_block_stack.md`
+server's relay), and sealing for invited members. `guides/blocks/stack.md`
 (Keys) describes it.
 
 It differs from the first design in one way: there are no device key pairs.
@@ -335,7 +335,7 @@ and deleting a database stops being a fix.
     them.
   - A test fails if a frozen type's encoding of a known value changes.
   - This turns "keep text and folder working" from a promise into a check.
-- **A short format section in `guides/the_new_block_stack.md`.** It names
+- **A short format section in `guides/blocks/stack.md`.** It names
   what is frozen and how to evolve it: new variant, never edit one.
 
 ## Suggested order

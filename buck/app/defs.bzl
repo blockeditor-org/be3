@@ -40,7 +40,7 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
 # beside it every plugin, each module precompiled for precompile_target in an
 # action of its own by the precompiler, plugin-test-runner as the workers run
 # it, whatever the app is built for, and the plugin SDK they are linked against
-# (guides/plugin_sdk.md), with its .cwasm; with no precompiler, each plugin is
+# (guides/plugins/sdk.md), with its .cwasm; with no precompiler, each plugin is
 # its module alone. With no binary it
 # is the plugins alone. `index` writes the plugins.json the app finds the
 # plugins through. The web bundle is this rule too: `bindgen` runs

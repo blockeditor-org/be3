@@ -1,6 +1,6 @@
 // Linking a plugin to the plugin SDK, in a browser.
 //
-// A plugin built against the plugin SDK (guides/plugin_sdk.md) is a
+// A plugin built against the plugin SDK (guides/plugins/sdk.md) is a
 // position-independent module that imports everything the SDK has: its
 // functions by name from "env", the addresses of its data through "GOT.mem"
 // and the table slots of its functions through "GOT.func". This instantiates

@@ -91,7 +91,7 @@ quietly() {
 # buck2 runs every test locally, whatever its executor says, until it is told
 # otherwise. This tells it to send the ones it calls compatible: a test that
 # runs from the project root with project-relative paths, which is every Rust
-# test and none of the plugin tests. guides/buck2.md says why those stay here.
+# test and none of the plugin tests. guides/testing.md says why those stay here.
 #
 # Outside CI, and unless BE3_VERBOSE is set, its output is cut down by
 # quiet.awk to the failures, with buck2's progress kept on one line at a

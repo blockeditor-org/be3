@@ -103,7 +103,7 @@ wasi_app_flags = plugin_exports + [
     "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
 
-# The plugin SDK (guides/plugin_sdk.md): every crate the plugins have in
+# The plugin SDK (guides/plugins/sdk.md): every crate the plugins have in
 # common, linked whole into one module that exports all of it, which each
 # plugin is linked against and the host links it to when it loads. Its
 # :module is what a plugin's identity names, so the plugins are relinked when

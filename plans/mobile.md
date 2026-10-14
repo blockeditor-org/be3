@@ -76,7 +76,7 @@ under the phone breakpoint.
 
 Each phase is shippable alone and adds phone-size tests. Use
 `with_size(Vec2::new(390.0, 800.0))` and `with_scale_factor(2.0)` with
-`.paint` snapshots, per `guides/testing_a_gui.md`.
+`.paint` snapshots, per `guides/testing.md`.
 
 ### 1. Foundations
 
