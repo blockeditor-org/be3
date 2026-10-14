@@ -1,4 +1,42 @@
 #[cfg(not(target_arch = "wasm32"))]
+mod counting {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+
+    struct Counting;
+
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+            unsafe { System.alloc(layout) }
+        }
+
+        unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+            ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+            unsafe { System.alloc_zeroed(layout) }
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            unsafe { System.dealloc(ptr, layout) }
+        }
+
+        unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, size: usize) -> *mut u8 {
+            ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+            unsafe { System.realloc(ptr, layout, size) }
+        }
+    }
+
+    #[global_allocator]
+    static GLOBAL: Counting = Counting;
+
+    pub fn allocations() -> u64 {
+        ALLOCATIONS.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 mod bench {
     use std::time::{Duration, Instant};
 
@@ -111,7 +149,7 @@ mod bench {
             document.node_rect(node).expect("the row was laid out")
         }
 
-        fn open(&mut self, title: &str) -> Vec<Timed> {
+        fn open(&mut self, title: &str) -> (Vec<Timed>, u64) {
             let catalog = self.row("Text").center();
             for _ in 0..40 {
                 let rect = self.row(title);
@@ -144,7 +182,8 @@ mod bench {
         }
 
         #[inline(never)]
-        fn release(&mut self, pos: Pos2) -> Vec<Timed> {
+        fn release(&mut self, pos: Pos2) -> (Vec<Timed>, u64) {
+            let allocations = crate::counting::allocations();
             let mut frames = vec![self.frame(vec![Event::PointerButton {
                 pos,
                 button: PointerButton::Primary,
@@ -152,11 +191,53 @@ mod bench {
                 modifiers: Modifiers::NONE,
             }])];
             frames.extend(self.settle());
-            frames
+            let allocations = crate::counting::allocations() - allocations;
+            if std::env::var_os("UNPLACED").is_some() {
+                let document = &self.app.document;
+                let mut stack: Vec<_> = document.root().into_iter().collect();
+                let mut found = std::collections::HashMap::<String, (usize, usize)>::new();
+                fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
+                    1 + document
+                        .children(node)
+                        .into_iter()
+                        .map(|child| size(document, child))
+                        .sum::<usize>()
+                }
+                while let Some(node) = stack.pop() {
+                    if document.node_rect(node).is_none() {
+                        let mut name = document.component_names(node).join("<");
+                        let mut parent = document.arena.parent(node);
+                        for _ in 0..4 {
+                            let Some(at) = parent else { break };
+                            if let Some(first) = document.component_names(at).first() {
+                                name = format!("{name} in {first}");
+                            }
+                            parent = document.arena.parent(at);
+                        }
+                        let entry = found.entry(name).or_default();
+                        entry.0 += 1;
+                        entry.1 += size(document, node);
+                        continue;
+                    }
+                    stack.extend(document.children(node));
+                }
+                let mut found: Vec<_> = found.into_iter().collect();
+                found.sort_by_key(|(_, (_, nodes))| std::cmp::Reverse(*nodes));
+                for (name, (roots, nodes)) in found.into_iter().take(25) {
+                    println!("unplaced {nodes:5} nodes in {roots:3} roots: {name}");
+                }
+            }
+            (frames, allocations)
         }
     }
 
-    fn report(label: &str, title: &str, frames: &[Timed], verbose: bool) -> Duration {
+    fn report(
+        label: &str,
+        title: &str,
+        frames: &[Timed],
+        allocations: u64,
+        verbose: bool,
+    ) -> Duration {
         let worst = frames
             .iter()
             .max_by_key(|timed| timed.took + timed.prepare)
@@ -177,7 +258,7 @@ mod bench {
             .max()
             .unwrap_or_default();
         println!(
-            "{label:<6} {title:<16} worst {:>8.2?} prepare {prepare:>8.2?} present {present:>8.2?} total {:>8.2?} frames {:>3}  [show {:>7.2?} interact {:>7.2?} layout {:>7.2?} paint {:>7.2?} a11y {:>7.2?} other {:>7.2?}] nodes {:>5} shapes {:>5} measured {:>5} placed {:>5} painted {:>5}",
+            "{label:<6} {title:<16} worst {:>8.2?} prepare {prepare:>8.2?} present {present:>8.2?} total {:>8.2?} frames {:>3}  [show {:>7.2?} interact {:>7.2?} layout {:>7.2?} paint {:>7.2?} a11y {:>7.2?} other {:>7.2?}] nodes {:>5} shapes {:>5} measured {:>5} placed {:>5} painted {:>5} allocations {allocations:>6}",
             worst.took,
             total,
             frames.len(),
@@ -218,9 +299,9 @@ mod bench {
         let repeat: usize = std::env::var("REPEAT")
             .ok()
             .and_then(|n| n.parse().ok())
-            .unwrap_or(1);
+            .unwrap_or(10);
         let verbose = std::env::var_os("VERBOSE").is_some();
-        let mut summary: Vec<(&str, Duration, Vec<Duration>)> = Vec::new();
+        let mut summary: Vec<Summary> = Vec::new();
         for round in 0..=repeat {
             let label = if round == 0 { "cold" } else { "warm" };
             for title in PAGES {
@@ -233,30 +314,64 @@ mod bench {
                 let mut bench = Bench::new(context.clone(), gpu.take());
                 bench.frame(Vec::new());
                 bench.settle();
-                let frames = bench.open(title);
+                let (frames, allocations) = bench.open(title);
                 gpu = bench.gpu.take();
-                let worst = report(label, title, &frames, verbose);
-                match summary.iter_mut().find(|(held, _, _)| *held == title) {
-                    Some((_, _, warm)) => warm.push(worst),
-                    None => summary.push((title, worst, Vec::new())),
+                let worst = report(label, title, &frames, allocations, verbose);
+                match summary.iter_mut().find(|held| held.title == title) {
+                    Some(held) => {
+                        held.warm.push(worst);
+                        held.allocations = allocations;
+                    }
+                    None => summary.push(Summary {
+                        title,
+                        cold: worst,
+                        warm: Vec::new(),
+                        allocations,
+                    }),
                 }
             }
         }
         println!(
-            "{:<16} {:>9} {:>9} {:>9}",
-            "page", "cold", "warm p50", "warm max"
+            "{:<16} {:>9} {:>9} {:>9} {:>9} {:>12}",
+            "page", "cold", "warm min", "warm p50", "warm max", "allocations"
         );
-        for (title, cold, mut warm) in summary {
+        let ms = |duration: Duration| duration.as_secs_f64() * 1e3;
+        let mut logs = [0.0; 4];
+        for Summary {
+            title,
+            cold,
+            mut warm,
+            allocations,
+        } in summary.iter().cloned()
+        {
             warm.sort();
+            let min = warm.first().copied().unwrap_or_default();
             let median = warm.get(warm.len() / 2).copied().unwrap_or_default();
             let max = warm.last().copied().unwrap_or_default();
+            for (log, duration) in logs.iter_mut().zip([cold, min, median, max]) {
+                *log += ms(duration).max(1e-3).ln();
+            }
             println!(
-                "{title:<16} {:>9.2} {:>9.2} {:>9.2}",
-                cold.as_secs_f64() * 1e3,
-                median.as_secs_f64() * 1e3,
-                max.as_secs_f64() * 1e3
+                "{title:<16} {:>9.2} {:>9.2} {:>9.2} {:>9.2} {allocations:>12}",
+                ms(cold),
+                ms(min),
+                ms(median),
+                ms(max),
             );
         }
+        let [cold, min, median, max] = logs.map(|log| (log / summary.len().max(1) as f64).exp());
+        println!(
+            "{:<16} {cold:>9.2} {min:>9.2} {median:>9.2} {max:>9.2}",
+            "geomean"
+        );
+    }
+
+    #[derive(Clone)]
+    struct Summary {
+        title: &'static str,
+        cold: Duration,
+        warm: Vec<Duration>,
+        allocations: u64,
     }
 }
 

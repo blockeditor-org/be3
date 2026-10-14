@@ -85,7 +85,10 @@ pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
 impl ChildValue for NodeId {
     fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         let root = *self;
-        let bindings = component.extension::<NodeBindings>();
+        let Some(bindings) = component.find_extension::<NodeBindings>() else {
+            with_document(|document| document.name_component(root, component.name()));
+            return;
+        };
         bindings.target.set(Some(root));
         let states = bindings.states.take();
         let accessibility = bindings.accessibility.take();

@@ -18,7 +18,7 @@ fn breaks(galley: &Galley) -> Breaks {
         galley
             .glyphs()
             .iter()
-            .map(|glyph| (glyph.id, glyph.offset.x, glyph.offset.y))
+            .map(|glyph| (glyph.id, glyph.origin.x, glyph.origin.y))
             .collect(),
     )
 }

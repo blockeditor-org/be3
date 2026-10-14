@@ -559,7 +559,7 @@ impl Document {
     }
 
     pub fn set_interactive_key_active(&mut self, id: NodeOf<InteractiveNode>, key_active: bool) {
-        if !self.contains(id) {
+        if !self.contains(id) || self.arena.get_as::<InteractiveNode>(id).key_active == key_active {
             return;
         }
         let interactive = self.arena.touch_mut_as::<InteractiveNode>(id);

@@ -16,7 +16,21 @@ impl<T: Clone> Clone for Prop<T> {
 
 impl<T: Copy> Copy for Prop<T> {}
 
-pub struct Getter<T>(Stored<Box<dyn Fn() -> T>>);
+pub struct Getter<T>(Source<T>);
+
+enum Source<T> {
+    Function(Stored<Box<dyn Fn() -> T>>),
+    Signal(ReadSignal<T>, fn(&ReadSignal<T>) -> T),
+    Memo(Memo<T>, fn(&Memo<T>) -> T),
+}
+
+impl<T> Clone for Source<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for Source<T> {}
 
 impl<T> Clone for Getter<T> {
     fn clone(&self) -> Self {
@@ -28,11 +42,29 @@ impl<T> Copy for Getter<T> {}
 
 impl<T: 'static> Getter<T> {
     pub fn new(read: impl Fn() -> T + 'static) -> Self {
-        Self(store(Box::new(read)))
+        Self(Source::Function(store(Box::new(read))))
+    }
+
+    pub fn of_signal(signal: ReadSignal<T>) -> Self
+    where
+        T: Clone,
+    {
+        Self(Source::Signal(signal, ReadSignal::get))
+    }
+
+    pub fn of_memo(memo: Memo<T>) -> Self
+    where
+        T: Clone + PartialEq,
+    {
+        Self(Source::Memo(memo, Memo::get))
     }
 
     pub fn get(&self) -> T {
-        self.0.with(|read| read())
+        match &self.0 {
+            Source::Function(read) => read.with(|read| read()),
+            Source::Signal(signal, read) => read(signal),
+            Source::Memo(memo, read) => read(memo),
+        }
     }
 }
 
@@ -90,13 +122,13 @@ impl<T: 'static> IntoProp<T> for Prop<T> {
 
 impl<T: Clone + 'static> IntoProp<T> for ReadSignal<T> {
     fn into_prop(self) -> Prop<T> {
-        Prop::dynamic(move || self.get())
+        Prop::Dynamic(Getter::of_signal(self))
     }
 }
 
 impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     fn into_prop(self) -> Prop<T> {
-        Prop::dynamic(move || self.get())
+        Prop::Dynamic(Getter::of_memo(self))
     }
 }
 

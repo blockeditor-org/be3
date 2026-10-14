@@ -2,8 +2,9 @@ use foldhash::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use foldhash::fast::FixedState;
+use std::cell::OnceCell;
 use std::ops::Range;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::color::Color32;
@@ -118,11 +119,76 @@ pub struct GlyphImage {
     pub color: bool,
 }
 
+pub trait GlyphRasterizer {
+    fn rasterize(&self, id: GlyphId) -> Option<GlyphImage>;
+}
+
+struct Rasterized;
+
+impl GlyphRasterizer for Rasterized {
+    fn rasterize(&self, _: GlyphId) -> Option<GlyphImage> {
+        None
+    }
+}
+
+pub struct GlyphRaster {
+    bounds: [f32; 4],
+    image: OnceCell<Option<GlyphImage>>,
+    rasterizer: Weak<dyn GlyphRasterizer>,
+}
+
+impl GlyphRaster {
+    pub fn lazy(bounds: [f32; 4], rasterizer: Weak<dyn GlyphRasterizer>) -> Self {
+        Self {
+            bounds,
+            image: OnceCell::new(),
+            rasterizer,
+        }
+    }
+
+    pub fn ready(image: GlyphImage) -> Self {
+        let (left, top) = (image.left as f32, -image.top as f32);
+        Self {
+            bounds: [
+                left,
+                top,
+                left + image.width as f32,
+                top + image.height as f32,
+            ],
+            image: OnceCell::from(Some(image)),
+            rasterizer: Weak::<Rasterized>::new(),
+        }
+    }
+
+    fn image(&self, id: GlyphId) -> Option<&GlyphImage> {
+        self.image
+            .get_or_init(|| self.rasterizer.upgrade()?.rasterize(id))
+            .as_ref()
+    }
+}
+
 #[derive(Clone)]
 pub struct Glyph {
     pub id: GlyphId,
-    pub image: Rc<GlyphImage>,
-    pub offset: Vec2,
+    pub origin: Vec2,
+    pub raster: Rc<GlyphRaster>,
+}
+
+impl Glyph {
+    pub fn image(&self) -> Option<&GlyphImage> {
+        self.raster.image(self.id)
+    }
+
+    pub fn offset(&self) -> Option<Vec2> {
+        let image = self.image()?;
+        Some(self.origin + vec2(image.left as f32, -image.top as f32))
+    }
+
+    pub fn bounds(&self) -> [f32; 4] {
+        let [left, top, right, bottom] = self.raster.bounds;
+        let Vec2 { x, y } = self.origin;
+        [x + left, y + top, x + right, y + bottom]
+    }
 }
 
 #[derive(Clone)]
@@ -245,7 +311,7 @@ impl Galley {
                     (top * pixels_per_point).round(),
                 );
                 glyphs.extend(galley.glyphs().iter().map(|glyph| Glyph {
-                    offset: glyph.offset + shift,
+                    origin: glyph.origin + shift,
                     ..glyph.clone()
                 }));
                 for (at, x) in galley.lines().iter().flat_map(|shaped| &shaped.cursors) {
@@ -322,7 +388,7 @@ impl Galley {
                     .glyphs
                     .iter()
                     .zip(&right.glyphs)
-                    .all(|(glyph, other)| glyph.id == other.id && glyph.offset == other.offset))
+                    .all(|(glyph, other)| glyph.id == other.id && glyph.origin == other.origin))
     }
 
     pub fn text(&self) -> &str {
@@ -435,8 +501,8 @@ impl Galley {
         );
         let glyphs = &self.inner.glyphs;
         let key = |glyph: &Glyph| {
-            let x = glyph.offset.x + glyph.image.width as f32 / 2.0;
-            let y = glyph.offset.y + glyph.image.height as f32 / 2.0;
+            let [min_x, min_y, max_x, max_y] = glyph.bounds();
+            let (x, y) = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0);
             match () {
                 _ if y < top => 0,
                 _ if y >= bottom => 4,
@@ -450,7 +516,7 @@ impl Galley {
         let glyphs = glyphs[first..last.max(first)]
             .iter()
             .map(|glyph| Glyph {
-                offset: glyph.offset - shift,
+                origin: glyph.origin - shift,
                 ..glyph.clone()
             })
             .collect();
@@ -597,10 +663,11 @@ fn pixel_bounds(glyphs: &[Glyph]) -> [f32; 4] {
         f32::NEG_INFINITY,
     ];
     for glyph in glyphs {
-        bounds[0] = bounds[0].min(glyph.offset.x);
-        bounds[1] = bounds[1].min(glyph.offset.y);
-        bounds[2] = bounds[2].max(glyph.offset.x + glyph.image.width as f32);
-        bounds[3] = bounds[3].max(glyph.offset.y + glyph.image.height as f32);
+        let [left, top, right, bottom] = glyph.bounds();
+        bounds[0] = bounds[0].min(left);
+        bounds[1] = bounds[1].min(top);
+        bounds[2] = bounds[2].max(right);
+        bounds[3] = bounds[3].max(bottom);
     }
     bounds
 }

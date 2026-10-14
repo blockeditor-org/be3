@@ -238,6 +238,24 @@ pub struct TextItemNode {
     at: Option<usize>,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct TextStyle {
+    pub font_size: f32,
+    pub line_height: Option<f32>,
+    pub color: Color32,
+    pub horizontal: TextAlign,
+    pub vertical: TextAlign,
+    pub wrap: bool,
+    pub monospace: bool,
+    pub bold: bool,
+    pub italic: bool,
+    pub icon: bool,
+    pub clip: bool,
+    pub underline: bool,
+    pub ellipsis: bool,
+    pub padding: (f32, f32),
+}
+
 pub struct TextNode {
     string: SpanHandle,
     parts: ChildList<TextPart>,
@@ -899,6 +917,23 @@ impl Document {
     pub fn text_shapings(&self, id: NodeOf<TextNode>) -> u64 {
         self.arena.get_as::<TextNode>(id).shapings.get()
     }
+    pub fn set_text_style(&mut self, text: NodeOf<TextNode>, style: TextStyle) {
+        self.set_text_font_size(text, style.font_size);
+        self.set_text_line_height(text, style.line_height);
+        self.set_text_color(text, style.color);
+        self.set_text_horizontal_align(text, style.horizontal);
+        self.set_text_vertical_align(text, style.vertical);
+        self.set_text_wrap(text, style.wrap);
+        self.set_text_monospace(text, style.monospace);
+        self.set_text_bold(text, style.bold);
+        self.set_text_italic(text, style.italic);
+        self.set_text_icon(text, style.icon);
+        self.set_text_clip(text, style.clip);
+        self.set_text_underline(text, style.underline);
+        self.set_text_ellipsis(text, style.ellipsis);
+        self.set_text_line_padding(text, style.padding);
+    }
+
     pub fn set_text_horizontal_align(&mut self, text: NodeOf<TextNode>, horizontal: TextAlign) {
         if self.arena.get_as::<TextNode>(text).horizontal != horizontal {
             self.arena.get_mut_as::<TextNode>(text).horizontal = horizontal;

@@ -7,7 +7,7 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::Modifiers;
 use crate::layer::LayerPolicy;
-use crate::node::{NodeId, NodeMap, NodeOf, Rects};
+use crate::node::{NodeId, NodeOf, Rects};
 
 use super::TOUCH_REACH;
 
@@ -314,7 +314,7 @@ fn walk(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Walk {
 
 fn bounds(doc: &mut Document, rects: &Rects, id: NodeId) -> Rect {
     if doc.interact_bounds_version != Some(rects.version()) {
-        doc.interact_bounds = NodeMap::default();
+        doc.interact_bounds.clear();
         doc.interact_bounds_version = Some(rects.version());
     }
     if let Some(bounds) = doc.interact_bounds.get(&id) {

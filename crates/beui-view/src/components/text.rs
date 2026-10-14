@@ -5,7 +5,7 @@ use crate::reactive::{
     IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId, create_binding,
     create_effect, with_document,
 };
-use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart};
+use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart, TextStyle};
 use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::node::{NodeId, NodeOf};
@@ -46,38 +46,25 @@ pub fn Text(
         document.create_text(String::new(), DEFAULT_FONT_SIZE, Color32::WHITE)
     });
     create_binding(move || {
-        with_document(|document| document.set_text_horizontal_align(node, align.get()))
-    });
-    create_binding(move || {
-        with_document(|document| document.set_text_vertical_align(node, vertical_align.get()))
-    });
-    create_binding(move || with_document(|document| document.set_text_wrap(node, wrap.get())));
-    create_binding(move || {
-        with_document(|document| document.set_text_monospace(node, monospace.get()))
-    });
-    create_binding(move || with_document(|document| document.set_text_bold(node, bold.get())));
-    create_binding(move || with_document(|document| document.set_text_italic(node, italic.get())));
-    create_binding(move || with_document(|document| document.set_text_icon(node, icon.get())));
-    create_binding(move || with_document(|document| document.set_text_clip(node, clip.get())));
-    create_binding(move || {
-        with_document(|document| document.set_text_underline(node, underline.get()))
-    });
-    create_binding(move || {
-        with_document(|document| document.set_text_ellipsis(node, ellipsis.get()))
+        let style = TextStyle {
+            font_size: font_size.get(),
+            line_height: line_height.as_ref().map(Prop::get),
+            color: color.get(),
+            horizontal: align.get(),
+            vertical: vertical_align.get(),
+            wrap: wrap.get(),
+            monospace: monospace.get(),
+            bold: bold.get(),
+            italic: italic.get(),
+            icon: icon.get(),
+            clip: clip.get(),
+            underline: underline.get(),
+            ellipsis: ellipsis.get(),
+            padding: line_padding.get(),
+        };
+        with_document(|document| document.set_text_style(node, style));
     });
     create_binding(move || with_document(|document| document.set_text(node, string.get())));
-    create_binding(move || {
-        with_document(|document| document.set_text_font_size(node, font_size.get()))
-    });
-    if let Some(line_height) = line_height {
-        create_binding(move || {
-            with_document(|document| document.set_text_line_height(node, Some(line_height.get())))
-        });
-    }
-    create_binding(move || with_document(|document| document.set_text_color(node, color.get())));
-    create_binding(move || {
-        with_document(|document| document.set_text_line_padding(node, line_padding.get()))
-    });
     create_binding(move || with_document(|document| document.set_text_marks(node, marks.get())));
     create_binding(move || with_document(|document| document.set_text_carets(node, carets.get())));
     children.mount(node);
