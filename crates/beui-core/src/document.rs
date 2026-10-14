@@ -137,7 +137,7 @@ pub struct Document {
     placements: NodeMap<::reactive::OwnedSignal<Rect>>,
     placed: NodeMap<::reactive::OwnedSignal<bool>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
-    component_names: HashMap<NodeId, Vec<&'static str>>,
+    component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
     pub accessibility: NodeMap<Node>,
     pub accessibility_tree: RefCell<AccessibilityTree>,
@@ -1437,11 +1437,23 @@ impl Document {
     }
 
     pub fn name_component(&mut self, id: NodeId, name: &'static str) {
-        self.component_names.entry(id).or_default().push(name);
+        let names = match self.component_names.remove(&id) {
+            None => ComponentNames::One(name),
+            Some(ComponentNames::One(first)) => ComponentNames::Many(vec![first, name]),
+            Some(ComponentNames::Many(mut names)) => {
+                names.push(name);
+                ComponentNames::Many(names)
+            }
+        };
+        self.component_names.insert(id, names);
     }
 
     pub fn component_names(&self, id: NodeId) -> &[&'static str] {
-        self.component_names.get(&id).map_or(&[], Vec::as_slice)
+        match self.component_names.get(&id) {
+            None => &[],
+            Some(ComponentNames::One(name)) => std::slice::from_ref(name),
+            Some(ComponentNames::Many(names)) => names,
+        }
     }
 
     pub fn set_component_state_dyn(&mut self, id: NodeId, state: Box<dyn Any>) {
@@ -2147,4 +2159,9 @@ impl Default for Document {
     fn default() -> Self {
         Self::new()
     }
+}
+
+enum ComponentNames {
+    One(&'static str),
+    Many(Vec<&'static str>),
 }

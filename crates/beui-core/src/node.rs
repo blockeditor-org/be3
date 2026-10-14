@@ -844,14 +844,15 @@ impl Arena {
     }
 
     fn adopt(&self) -> bool {
-        let pending = std::mem::take(&mut *self.adopting.borrow_mut());
+        let mut pending = std::mem::take(&mut *self.adopting.borrow_mut());
         if pending.is_empty() {
+            *self.adopting.borrow_mut() = pending;
             return false;
         }
         let mut moved = false;
         let mut parents = self.parents.borrow_mut();
         let mut adoption = self.adoption.borrow_mut();
-        for parent in pending {
+        for parent in pending.drain(..) {
             let Some(slot) = self.slot(parent) else {
                 continue;
             };
@@ -877,6 +878,10 @@ impl Arena {
             }
         }
         drop(parents);
+        let mut adopting = self.adopting.borrow_mut();
+        if adopting.is_empty() {
+            *adopting = pending;
+        }
         if moved {
             self.reparented.set(true);
         }
