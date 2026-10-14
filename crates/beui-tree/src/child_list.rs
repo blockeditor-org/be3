@@ -30,11 +30,13 @@ struct Slot<T> {
     items: SlotItems<T>,
 }
 
+type Positions = HashMap<u64, (usize, usize)>;
+
 pub struct ChildList<T> {
     next: u32,
     slots: Vec<Slot<T>>,
     revision: u64,
-    index: RefCell<Option<(u64, HashMap<u64, (usize, usize)>)>>,
+    index: RefCell<Option<(u64, Positions)>>,
 }
 
 impl<T> Default for ChildList<T> {
@@ -106,11 +108,7 @@ impl<T> ChildList<T> {
         self.slots[slot].items.as_slice().get(position)
     }
 
-    pub fn find_by_mut(
-        &mut self,
-        key: u64,
-        key_of: impl Fn(&T) -> Option<u64>,
-    ) -> Option<&mut T> {
+    pub fn find_by_mut(&mut self, key: u64, key_of: impl Fn(&T) -> Option<u64>) -> Option<&mut T> {
         let (slot, position) = self.locate(key, key_of)?;
         self.slots[slot].items.as_mut_slice().get_mut(position)
     }

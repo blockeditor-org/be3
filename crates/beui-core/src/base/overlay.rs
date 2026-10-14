@@ -252,7 +252,13 @@ fn resolve_rect(
 }
 
 impl OverlayNode {
-    fn place_content(&mut self, doc: &mut Document, painter: &Painter, content: NodeId, out: &Rects) {
+    fn place_content(
+        &mut self,
+        doc: &mut Document,
+        painter: &Painter,
+        content: NodeId,
+        out: &Rects,
+    ) {
         let viewport = doc.viewport_rect();
         let anchored = self.anchor_node().and_then(|id| out.get(&id));
         self.anchored = anchored;

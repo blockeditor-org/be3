@@ -71,7 +71,7 @@ impl Metrics {
         while at <= self.count {
             self.counts[at] += added;
             self.sums[at] += change;
-            at += at & at.wrapping_neg();
+            at += at.isolate_lowest_one();
         }
     }
 

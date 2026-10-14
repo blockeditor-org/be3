@@ -49,7 +49,9 @@ impl LayoutBuilderNode {
         set_size: WriteSignal<Vec2>,
         size: Vec2,
     ) {
-        let builder = doc.laying_out().expect("a layout builder is laid out as itself");
+        let builder = doc
+            .laying_out()
+            .expect("a layout builder is laid out as itself");
         let content = self.content.clone();
         doc.build_within(builder, move || {
             set_size.set(size);
