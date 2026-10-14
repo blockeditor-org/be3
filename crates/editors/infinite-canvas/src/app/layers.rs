@@ -1,9 +1,8 @@
-use std::rc::Rc;
 
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, create_memo,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::{
@@ -24,9 +23,9 @@ const ROW_RADIUS: u8 = 4;
 struct Layer(Uuid);
 
 #[component]
-pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
+pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
     let (open, set_open) = create_signal(true);
-    let ids = create_memo(clone!(state -> move || {
+    let ids = create_memo(move || {
         state
             .entities
             .get()
@@ -34,7 +33,7 @@ pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
             .rev()
             .map(|entity| entity.id)
             .collect::<Vec<Uuid>>()
-    }));
+    });
     let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
         <Accordion title="Layers" open={open} on_toggle={move |open| set_open.set(open)}>
@@ -44,7 +43,6 @@ pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
                 </Show>
                 <ForEach keys={ids}>
                     {move |id: Uuid| {
-                        let state = Rc::clone(&state);
                         view! {
                             <LayerRow state id />
                         }
@@ -56,17 +54,17 @@ pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
 }
 
 #[component]
-fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
-    let entity = create_memo(clone!(state -> move || {
+fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
+    let entity = create_memo(move || {
         state.entities.get().into_iter().find(|entity| entity.id == id)
-    }));
-    let label = create_memo(clone!(state -> move || {
+    });
+    let label = create_memo(move || {
         entity
             .get()
             .map(|entity| layer_label(&state, &entity))
             .unwrap_or_default()
-    }));
-    let selected = create_memo(clone!(state -> move || state.selection.get().contains(&id)));
+    });
+    let selected = create_memo(move || state.selection.get().contains(&id));
     let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.style.hidden));
     let glyph = create_memo(move || match hidden.get() {
         true => ICON_VISIBILITY_OFF.to_owned(),
@@ -81,12 +79,12 @@ fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
         true => theme.text_muted.get(),
         false => theme.text.get(),
     });
-    let toggle = clone!(state -> move || state.set_hidden(id, !hidden.get_untracked()));
-    let select = clone!(state -> move || state.select(id, false));
-    let dropped = clone!(state -> move |(Layer(moved), point): (Layer, DragPoint)| {
+    let toggle = move || state.set_hidden(id, !hidden.get_untracked());
+    let select = move || state.select(id, false);
+    let dropped = move |(Layer(moved), point): (Layer, DragPoint)| {
         let in_front = point.fraction.y < 0.5;
         state.move_layer(moved, id, in_front);
-    });
+    };
     let ghost = move |_: Layer| {
         view! {
             <LayerGhost label={label} />
@@ -115,14 +113,14 @@ fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
                                 variant=ButtonVariant::Ghost
                                 capture_presses=true
                                 @test_id={format!("infinite-canvas.layer.{id}.visibility")}
-                                on_click={toggle.clone()}
+                                on_click={toggle}
                             />
                             <Draggable
                                 @sizing=ItemSize::Percent(100.0)
                                 payload={Some(Layer(id))}
                                 cursor=CursorIcon::PointingHand
                                 preview={ghost}
-                                on_click={select.clone()}
+                                on_click={select}
                                 @test_id={format!("infinite-canvas.layer.{id}")}
                             >
                                 {move |_: DragHandle| view! {

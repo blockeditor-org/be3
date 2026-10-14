@@ -5,7 +5,7 @@ use block_editor_beui::be_block::PixelArtContent;
 use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::pixel_art::{PixelArtAnchor, PixelArtOperation, PixelColor};
 use block_editor_beui::beui::reactive::{
-    Memo, ReadSignal, WriteSignal, create_memo, create_signal,
+    Memo, ReadSignal, Stored, WriteSignal, create_memo, create_signal, store,
 };
 use block_editor_beui::{ContentProjection, Editor};
 
@@ -24,13 +24,19 @@ pub(crate) enum Dialog {
     Clear,
 }
 
-pub(crate) struct Tools {
-    editor: Editor,
+struct ToolsCells {
     block: ArtBlock,
     held: RefCell<Option<(u64, Rc<Artwork>)>>,
+    previous_drawing_tool: Cell<PixelTool>,
+    drawing: RefCell<Option<ActiveDrawing>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Tools {
+    cells: Stored<ToolsCells>,
+    editor: Editor,
     pub(crate) tool: ReadSignal<PixelTool>,
     set_tool: WriteSignal<PixelTool>,
-    previous_drawing_tool: Cell<PixelTool>,
     pub(crate) color: ReadSignal<PixelColor>,
     set_color: WriteSignal<PixelColor>,
     pub(crate) color_hex: ReadSignal<String>,
@@ -59,7 +65,6 @@ pub(crate) struct Tools {
     pub(crate) set_resize_anchor: WriteSignal<PixelArtAnchor>,
     pub(crate) export_error: ReadSignal<Option<String>>,
     pub(crate) set_export_error: WriteSignal<Option<String>>,
-    drawing: RefCell<Option<ActiveDrawing>>,
     drawn: ReadSignal<u64>,
     set_drawn: WriteSignal<u64>,
     constrained: ReadSignal<bool>,
@@ -67,7 +72,7 @@ pub(crate) struct Tools {
 }
 
 impl Tools {
-    pub(crate) fn new(editor: Editor, block: ArtBlock) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, block: ArtBlock) -> Self {
         let black = PixelColor::new(0, 0, 0, 255);
         let (tool, set_tool) = create_signal(PixelTool::Pencil);
         let (color, set_color) = create_signal(black);
@@ -86,13 +91,16 @@ impl Tools {
         let (export_error, set_export_error) = create_signal(None::<String>);
         let (drawn, set_drawn) = create_signal(0);
         let (constrained, set_constrained) = create_signal(false);
-        Rc::new(Self {
+        Self {
+            cells: store(ToolsCells {
+                block,
+                held: RefCell::new(None),
+                previous_drawing_tool: Cell::new(PixelTool::Pencil),
+                drawing: RefCell::default(),
+            }),
             editor,
-            block,
-            held: RefCell::new(None),
             tool,
             set_tool,
-            previous_drawing_tool: Cell::new(PixelTool::Pencil),
             color,
             set_color,
             color_hex,
@@ -121,24 +129,23 @@ impl Tools {
             set_resize_anchor,
             export_error,
             set_export_error,
-            drawing: RefCell::default(),
             drawn,
             set_drawn,
             constrained,
             set_constrained,
-        })
+        }
     }
 
     pub(crate) fn editor(&self) -> Editor {
         self.editor
     }
 
-    pub(crate) fn block(&self) -> &ArtBlock {
-        &self.block
+    pub(crate) fn block(&self) -> ArtBlock {
+        Rc::clone(&self.cells.get().block)
     }
 
     pub(crate) fn artwork(&self) -> Option<Rc<Artwork>> {
-        artwork_of(&self.block, &self.held)
+        self.cells.with(|cells| artwork_of(&cells.block, &cells.held))
     }
 
     pub(crate) fn pixel(&self, x: u16, y: u16) -> Option<PixelColor> {
@@ -153,10 +160,10 @@ impl Tools {
         if !self.editable() {
             return;
         }
-        if let Some(edit) = self.block.read(|art| art.root().edit_for(&operation))
+        if let Some(edit) = self.cells.get().block.read(|art| art.root().edit_for(&operation))
             && !edit.0.is_empty()
         {
-            self.block.operate(edit);
+            self.cells.get().block.operate(edit);
         }
     }
 
@@ -175,16 +182,16 @@ impl Tools {
         self.draw(|drawing| drawing.take());
         let current = self.tool.get_untracked();
         if current.is_drawing() {
-            self.previous_drawing_tool.set(current);
+            self.cells.get().previous_drawing_tool.set(current);
         }
         if tool.is_drawing() {
-            self.previous_drawing_tool.set(tool);
+            self.cells.get().previous_drawing_tool.set(tool);
         }
         self.set_tool.set(tool);
     }
 
     pub(crate) fn previous_drawing_tool(&self) -> PixelTool {
-        self.previous_drawing_tool.get()
+        self.cells.get().previous_drawing_tool.get()
     }
 
     pub(crate) fn set_active_color(&self, color: PixelColor, remember: bool) {
@@ -226,14 +233,14 @@ impl Tools {
     }
 
     pub(crate) fn draw<R>(&self, change: impl FnOnce(&mut Option<ActiveDrawing>) -> R) -> R {
-        let changed = change(&mut self.drawing.borrow_mut());
+        let changed = change(&mut self.cells.get().drawing.borrow_mut());
         self.set_drawn.update(|drawn| *drawn += 1);
         changed
     }
 
     pub(crate) fn drawing<R>(&self, read: impl FnOnce(Option<&ActiveDrawing>) -> R) -> R {
         self.drawn.get();
-        read(self.drawing.borrow().as_ref())
+        read(self.cells.get().drawing.borrow().as_ref())
     }
 }
 

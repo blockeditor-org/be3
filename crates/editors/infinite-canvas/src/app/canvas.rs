@@ -5,7 +5,7 @@ use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo, PasteKind,
-    Pasted, PlacementBuilder, ReadSignal, Show, clone, component, create_effect, create_memo,
+    Pasted, PlacementBuilder, ReadSignal, Show, component, create_effect, create_memo,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::use_theme;
@@ -23,56 +23,48 @@ use super::state::CanvasState;
 const ITEM_MARGIN: f32 = 2.0;
 
 #[component]
-pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
+pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
-                let held = Rc::clone(&state);
-                create_effect(clone!(held -> move || held.stage.set(placed.get())));
+                create_effect(move || state.set_stage(placed.get()));
 
                 let view = state.editor().canvas();
                 let world = state.editor().world();
-                let centred = Rc::clone(&state);
-                let camera = create_memo(clone!(centred -> move || {
-                    super::state::camera_view(view.get(), world.get(), placed.get(), centred.centre())
-                }));
-                let ids = create_memo(clone!(state -> move || {
+                let camera = create_memo(move || {
+                    super::state::camera_view(view.get(), world.get(), placed.get(), state.centre())
+                });
+                let ids = create_memo(move || {
                     state
                         .displayed()
                         .iter()
                         .map(|entity| entity.id)
                         .collect::<Vec<Uuid>>()
-                }));
+                });
                 let embeds = ids;
-                let surface = Rc::clone(&state);
-                let shapes = Rc::clone(&state);
-                let children = Rc::clone(&state);
-                let over = Rc::clone(&state);
                 let shape_camera = camera;
                 let overlay_camera = camera;
                 let overlay_stage = placed;
-                let backdrop = Rc::clone(&state);
                 let backdrop_camera = camera;
                 let backdrop_stage = placed;
                 let placement = camera;
                 let previewing = state.previewing();
                 view! {
                     <CanvasMenu disabled={previewing}>
-                        <CanvasSurface state={surface}>
+                        <CanvasSurface state={state}>
                             <Canvas
                                 view={create_memo(move || Some(placement.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
                                 <Show condition={!previewing}>
                                     <CanvasBackdrop
-                                        state={backdrop.clone()}
+                                        state={state}
                                         camera={backdrop_camera}
                                         stage={backdrop_stage}
                                     />
                                 </Show>
                                 <ForEach keys={ids}>
                                     {move |id: Uuid| {
-                                        let state = Rc::clone(&shapes);
                                         let camera = shape_camera;
                                         view! {
                                             <EntityShape state id camera />
@@ -81,7 +73,6 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                                 </ForEach>
                                 <ForEach keys={embeds}>
                                     {move |id: Uuid| {
-                                        let state = Rc::clone(&children);
                                         view! {
                                             <EntityEmbed state id />
                                         }
@@ -89,7 +80,7 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                                 </ForEach>
                                 <Show condition={!previewing}>
                                     <CanvasOverlay
-                                        state={over.clone()}
+                                        state={state}
                                         camera={overlay_camera}
                                         stage={overlay_stage}
                                     />
@@ -104,43 +95,34 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
 }
 
 #[component]
-fn CanvasSurface(state: Rc<CanvasState>, children: Option<Child>) -> NodeId {
-    let pressing = Rc::clone(&state);
-    let dragging = Rc::clone(&state);
-    let releasing = Rc::clone(&state);
-    let hovering = Rc::clone(&state);
-    let leaving = Rc::clone(&state);
-    let secondary = Rc::clone(&state);
-    let keying = Rc::clone(&state);
-    let texting = Rc::clone(&state);
-    let cancelling = Rc::clone(&state);
-    let cursor = create_memo(clone!(state -> move || state.cursor()));
+fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
+    let cursor = create_memo(move || state.cursor());
     let interactive = !state.previewing();
     view! {
         <Interactive
             focusable=true
             tab_stop={interactive}
-            on_key={move |press: KeyPress| keying.key(press)}
+            on_key={move |press: KeyPress| state.key(press)}
             pastes={vec![PasteKind::Image, PasteKind::Text]}
-            on_paste={move |pasted: Pasted| texting.take_paste(pasted)}
+            on_paste={move |pasted: Pasted| state.take_paste(pasted)}
             cursor={cursor}
             touch_drags={interactive}
-            on_cancel={move || cancelling.cancel()}
-            on_press={move |press: PointerPress| pressing.press(press)}
-            on_secondary_press={move |press: PointerPress| secondary.secondary_press(press)}
-            on_drag={move |press: PointerPress| dragging.drag(press)}
+            on_cancel={move || state.cancel()}
+            on_press={move |press: PointerPress| state.press(press)}
+            on_secondary_press={move |press: PointerPress| state.secondary_press(press)}
+            on_drag={move |press: PointerPress| state.drag(press)}
             on_hover_move={move |press: PointerPress| {
-                let at = hovering.world_at(press.pos);
-                hovering.hover(Some(at));
+                let at = state.world_at(press.pos);
+                state.hover(Some(at));
             }}
             on_hover_change={move |over: bool| {
                 if !over {
-                    leaving.hover(None);
+                    state.hover(None);
                 }
             }}
             on_active_change={move |active: bool| {
                 if !active {
-                    releasing.release();
+                    state.release();
                 }
             }}
             children={children}
@@ -150,28 +132,27 @@ fn CanvasSurface(state: Rc<CanvasState>, children: Option<Child>) -> NodeId {
 
 #[component]
 fn CanvasOverlay(
-    state: Rc<CanvasState>,
+    state: CanvasState,
     camera: Memo<CanvasView>,
     stage: ReadSignal<Rect>,
 ) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
-    let drawn = Rc::clone(&state);
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Overlay>);
-    create_effect(clone!(drawn -> move || {
+    create_effect(move || {
         let overlay = Overlay {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             palette: palette(&theme),
             stage: stage.get(),
-            empty: drawn.entities.get().is_empty(),
-            gesture: drawn.gesture.get(),
-            frame: super::state::selection_frame(&drawn.displayed(), &drawn.selection.get()),
-            resize: drawn.selection_handles().0,
-            rotatable: drawn.selection_has_unlocked() && drawn.selection_allows_rotation(),
-            presence: drawn.presence.get(),
-            tool: drawn.tool.get(),
-            pointer: drawn.pointer.get(),
+            empty: state.entities.get().is_empty(),
+            gesture: state.gesture.get(),
+            frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
+            resize: state.selection_handles().0,
+            rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
+            presence: state.presence.get(),
+            tool: state.tool.get(),
+            pointer: state.pointer.get(),
         };
         if shown.borrow().as_ref() == Some(&overlay) {
             return;
@@ -180,7 +161,7 @@ fn CanvasOverlay(
         set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             overlay.draw(&painter.in_document())
         }));
-    }));
+    });
     let x = create_memo(move || visible.get().left());
     let y = create_memo(move || visible.get().top());
     let width = create_memo(move || visible.get().width().max(1.0));
@@ -194,7 +175,7 @@ fn CanvasOverlay(
 
 #[component]
 fn CanvasBackdrop(
-    state: Rc<CanvasState>,
+    state: CanvasState,
     camera: Memo<CanvasView>,
     stage: ReadSignal<Rect>,
 ) -> CanvasItem {
@@ -202,7 +183,7 @@ fn CanvasBackdrop(
     let theme = use_theme();
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Backdrop>);
-    create_effect(clone!(state -> move || {
+    create_effect(move || {
         let artboards = state
             .displayed()
             .into_iter()
@@ -229,7 +210,7 @@ fn CanvasBackdrop(
         set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             backdrop.draw(&painter.in_document())
         }));
-    }));
+    });
     let x = create_memo(move || visible.get().left());
     let y = create_memo(move || visible.get().top());
     let width = create_memo(move || visible.get().width().max(1.0));
@@ -242,30 +223,28 @@ fn CanvasBackdrop(
 }
 
 #[component]
-fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
-    let entity = entity_of(&state, id);
+fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
+    let entity = entity_of(state, id);
     let bounds = create_memo(move || {
         entity
             .get()
             .map(|entity| item_bounds(&entity))
             .unwrap_or(Rect::ZERO)
     });
-    let hashed = Rc::clone(&state);
-    let thumbhash = create_memo(move || hashed.thumbhash_of(reference_of(&entity.get()?)?));
+    let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
-    let drawn = Rc::clone(&state);
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
-    create_effect(clone!(drawn -> move || {
+    create_effect(move || {
         let Some(entity) = entity.get() else {
             return;
         };
         let reference = reference_of(&entity);
-        let label = reference.and_then(|reference| drawn.label_of(reference));
+        let label = reference.and_then(|reference| state.label_of(reference));
         let loading = reference.is_some();
         let paint = EntityPaint {
-            covered: drawn.child_state(entity.id).available,
+            covered: state.child_state(entity.id).available,
             camera: Camera::of(Some(camera.get()), block_editor_beui::beui::Pos2::ZERO),
             palette: palette(&theme),
             title: label
@@ -290,7 +269,7 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
         set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             paint.draw(&painter.in_document())
         }));
-    }));
+    });
     view! {
         <CanvasItem
             x={create_memo(move || bounds.get().left())}
@@ -305,16 +284,15 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
 }
 
 #[component]
-fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
-    let entity = entity_of(&state, id);
+fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
+    let entity = entity_of(state, id);
     let bounds = create_memo(move || entity.get().map(content_bounds).unwrap_or(Rect::ZERO));
-    let resolving = Rc::clone(&state);
-    let target = create_memo(clone!(resolving -> move || {
+    let target = create_memo(move || {
         let entity = entity.get().filter(|entity| !entity.style.hidden)?;
         let id = reference_of(&entity)?;
-        let block_type = resolving.block_type_of(id)?;
+        let block_type = state.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
-    }));
+    });
     let rotation =
         create_memo(move || entity.get().map_or(0.0, |entity| entity.transform.rotation));
     let opacity = create_memo(move || {
@@ -322,13 +300,12 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
             .get()
             .map_or(1.0, |entity| entity.style.opacity.clamp(0.0, 1.0))
     });
-    let moded = Rc::clone(&state);
-    let mode = create_memo(clone!(moded -> move || match entity.get() {
+    let mode = create_memo(move || match entity.get() {
         Some(entity) => match entity.kind {
             CanvasEntityKind::DirectEditor { .. } => {
-                match moded.focused_editor.get() == Some(id) {
+                match state.focused_editor.get() == Some(id) {
                     true => ChildMode::Active,
-                    false => match moded.shows_preview(id) {
+                    false => match state.shows_preview(id) {
                         true => ChildMode::Preview,
                         false => ChildMode::Passive,
                     },
@@ -337,17 +314,13 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
             _ => ChildMode::Preview,
         },
         None => ChildMode::Preview,
-    }));
-    let sizing = Rc::clone(&state);
-    let intrinsic = create_memo(clone!(sizing -> move || {
+    });
+    let intrinsic = create_memo(move || {
         entity
             .get()
-            .and_then(|entity| sizing.assigned_intrinsic(&entity))
-    }));
-    let punching = Rc::clone(&state);
-    let punch = create_memo(clone!(punching -> move || punching.child_state(id).available));
-    let reporting = Rc::clone(&state);
-    let changing = Rc::clone(&state);
+            .and_then(|entity| state.assigned_intrinsic(&entity))
+    });
+    let punch = create_memo(move || state.child_state(id).available);
     let editor = state.editor();
     view! {
         <CanvasItem
@@ -364,16 +337,15 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
                 rotation={rotation}
                 opacity={opacity}
                 intrinsic={intrinsic}
-                on_state={move |child: ChildState| reporting.report_child(id, child)}
-                on_view_change={move |change: ViewChange| changing.apply_view_change(id, change)}
+                on_state={move |child: ChildState| state.report_child(id, child)}
+                on_view_change={move |change: ViewChange| state.apply_view_change(id, change)}
             />
         </CanvasItem>
     }
 }
 
-fn entity_of(state: &Rc<CanvasState>, id: Uuid) -> Memo<Option<CanvasEntity>> {
-    let held = Rc::clone(state);
-    create_memo(move || held.displayed().into_iter().find(|entity| entity.id == id))
+fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
+    create_memo(move || state.displayed().into_iter().find(|entity| entity.id == id))
 }
 
 fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {

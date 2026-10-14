@@ -6,7 +6,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef, Prop, ReadSignal, Show,
-    Text, clone, component, create_memo, create_selector, create_signal, view,
+    Text, component, create_memo, create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, Scroll, theme, use_theme,
@@ -46,9 +46,9 @@ pub fn PresentationView(editor: Editor) -> NodeId {
         true => Color32::BLACK,
         false => theme.background.get(),
     });
-    let keys = clone!(slides -> move |press: KeyPress| {
-        presenting.get_untracked() && navigate(&slides, press)
-    });
+    let keys = move |press: KeyPress| {
+        presenting.get_untracked() && navigate(slides, press)
+    };
 
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
@@ -57,18 +57,18 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                     <Filmstrip
                         @sizing=ItemSize::Fixed(FILMSTRIP_WIDTH)
                         editor={editor}
-                        slides={Rc::clone(&slides)}
+                        slides={slides}
                         shown={editing}
                     />
                     <Frame visible={editing} width=theme::BORDER_WIDTH color={theme.border} />
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Toolbar editor={editor} slides={Rc::clone(&slides)} shown={editing} />
+                        <Toolbar editor={editor} slides={slides} shown={editing} />
                         <Frame visible={editing} height=theme::BORDER_WIDTH color={theme.border} />
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
                             @node_ref={&stage}
                             editor={editor}
-                            slides={Rc::clone(&slides)}
+                            slides={slides}
                             selected={slides.selected()}
                             mode={mode}
                             own_frame={editing}
@@ -87,7 +87,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 pub fn PresentationPreview(editor: Editor) -> NodeId {
     let slides = Slides::new(editor);
     let first =
-        create_memo(clone!(slides -> move || slides.keys().with(|keys| keys.first().copied())));
+        create_memo(move || slides.keys().with(|keys| keys.first().copied()));
     view! {
         <Stage
             editor={editor}
@@ -101,7 +101,7 @@ pub fn PresentationPreview(editor: Editor) -> NodeId {
     }
 }
 
-fn navigate(slides: &Rc<Slides>, press: KeyPress) -> bool {
+fn navigate(slides: Slides, press: KeyPress) -> bool {
     if !press.pressed {
         return false;
     }
@@ -118,14 +118,14 @@ fn navigate(slides: &Rc<Slides>, press: KeyPress) -> bool {
 #[component]
 fn Stage(
     editor: Editor,
-    slides: Rc<Slides>,
+    slides: Slides,
     selected: Prop<Option<Uuid>>,
     mode: Prop<ChildMode>,
     own_frame: Prop<bool>,
     fit: Prop<bool>,
     report_size: bool,
 ) -> NodeId {
-    let target = create_memo(clone!(slides -> move || slides.target(selected.get())));
+    let target = create_memo(move || slides.target(selected.get()));
     let (ratio, set_ratio) = create_signal(DEFAULT_RATIO);
     let report = move |state: ChildState| {
         let ratio = state.aspect_ratio.unwrap_or(DEFAULT_RATIO);
@@ -176,21 +176,21 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
 }
 
 #[component]
-fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
+fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     let theme = use_theme();
     let read_only = editor.read_only();
-    let empty = create_memo(clone!(slides -> move || slides.count() == 0));
-    let position = create_memo(clone!(slides -> move || {
+    let empty = create_memo(move || slides.count() == 0);
+    let position = create_memo(move || {
         let count = slides.count();
         match slides.selected().get().and_then(|id| slides.index_of(id)) {
             Some(index) => format!("Slide {} of {count}", index + 1),
             None => "No slides".to_owned(),
         }
-    }));
-    let add = clone!(slides -> move || {
+    });
+    let add = move || {
         let index = slides.count();
         slides.add(index);
-    });
+    };
     let present = move || editor.present(true);
     view! {
         <Frame
@@ -222,9 +222,9 @@ fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
 }
 
 #[component]
-fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
+fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     let (over, set_over) = create_signal(false);
-    let position = create_memo(clone!(slides -> move || {
+    let position = create_memo(move || {
         let count = slides.count();
         let current = slides
             .selected()
@@ -232,16 +232,16 @@ fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
             .and_then(|id| slides.index_of(id))
             .map_or(0, |index| index + 1);
         format!("{current} / {count}")
-    }));
+    });
     let at_start = create_memo(
-        clone!(slides -> move || slides.selected().get().and_then(|id| slides.index_of(id)) == Some(0)),
+        move || slides.selected().get().and_then(|id| slides.index_of(id)) == Some(0),
     );
-    let at_end = create_memo(clone!(slides -> move || {
+    let at_end = create_memo(move || {
         let count = slides.count();
         slides.selected().get().and_then(|id| slides.index_of(id)) == count.checked_sub(1)
-    }));
-    let previous = clone!(slides -> move || slides.step(-1));
-    let next = clone!(slides -> move || slides.step(1));
+    });
+    let previous = move || slides.step(-1);
+    let next = move || slides.step(1);
     let stop = move || editor.present(false);
 
     view! {
@@ -289,21 +289,21 @@ fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
 }
 
 #[component]
-fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
+fn Filmstrip(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     let theme = use_theme();
     let keys = slides.keys();
-    let selection = create_selector(clone!(slides -> move || slides.selected().get()));
-    let empty = create_memo(clone!(slides -> move || slides.count() == 0));
-    let tiles = clone!(slides -> move |id: Uuid| {
+    let selection = create_selector(move || slides.selected().get());
+    let empty = create_memo(move || slides.count() == 0);
+    let tiles = move |id: Uuid| {
         view! {
             <SlideTile
                 editor={editor}
-                slides={Rc::clone(&slides)}
+                slides={slides}
                 selected={selection.memo(Some(id))}
                 id={id}
             />
         }
-    });
+    };
 
     view! {
         <Frame
@@ -325,22 +325,22 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
 }
 
 #[component]
-fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid) -> NodeId {
+fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> NodeId {
     let theme = use_theme();
     let editable = editor.editable();
     let read_only = editor.read_only();
     let (ratio, set_ratio) = create_signal(DEFAULT_RATIO);
-    let target = create_memo(clone!(slides -> move || slides.target(Some(id))));
-    let name = create_memo(clone!(slides -> move || {
+    let target = create_memo(move || slides.target(Some(id)));
+    let name = create_memo(move || {
         slides
             .slide(id)
             .map_or_else(|| "Loading…".to_owned(), |slide| slide.name)
-    }));
-    let number = create_memo(clone!(slides -> move || {
+    });
+    let number = create_memo(move || {
         slides
             .index_of(id)
             .map_or_else(String::new, |index| (index + 1).to_string())
-    }));
+    });
     let selected = create_memo(move || selected.get());
     let outline = create_memo(move || match selected.get() {
         true => theme.accent.get(),
@@ -351,10 +351,10 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
         false => 1.0_f32,
     });
 
-    let select = clone!(slides -> move || slides.select(Some(id)));
+    let select = move || slides.select(Some(id));
     let payload = create_memo(move || editable.get().then_some(id));
     let entered = Rc::new(Cell::new(false));
-    let over = clone!(slides -> move |over: Option<(Uuid, DragPoint)>| {
+    let over = move |over: Option<(Uuid, DragPoint)>| {
         let Some((held, _)) = over else {
             entered.set(false);
             return;
@@ -365,13 +365,13 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
         if let Some(index) = slides.index_of(id) {
             slides.move_to(held, index);
         }
-    });
-    let ghost = clone!(slides -> move |held: Uuid| {
-        let label = create_memo(clone!(slides -> move || {
+    };
+    let ghost = move |held: Uuid| {
+        let label = create_memo(move || {
             let number = slides.index_of(held).map_or(0, |index| index + 1);
             let name = slides.slide(held).map(|slide| slide.name).unwrap_or_default();
             format!("{number}  {name}")
-        }));
+        });
         let theme = use_theme();
         view! {
             <Frame
@@ -388,8 +388,8 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
                 <Caption content={label} />
             </Frame>
         }
-    });
-    let remove = clone!(slides -> move || slides.remove(id));
+    };
+    let remove = move || slides.remove(id);
 
     view! {
         <Frame padding_horizontal=TILE_INSET padding_vertical=TILE_INSET>
