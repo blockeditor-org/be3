@@ -760,6 +760,7 @@ impl Document {
         color: Color32,
     ) -> NodeOf<TextNode> {
         let content = content.into();
+        let since = Cell::new(self.now());
         self.arena.insert(TextNode {
             string: SpanHandle::new(SpanContent::new(content.clone())),
             parts: ChildList::default(),
@@ -780,7 +781,7 @@ impl Document {
             padding: (0.0, 0.0),
             marks: Vec::new(),
             carets: Vec::new(),
-            since: Cell::new(Instant::now()),
+            since,
             selection: None,
             handles: Vec::new(),
             placed: Rc::new(RefCell::new(None)),
