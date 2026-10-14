@@ -41,7 +41,7 @@ pub(crate) struct Game {
 }
 
 impl Game {
-    pub(crate) fn watch(editor: &Editor, block: crate::logic_game::app::GameBlock) -> Self {
+    pub(crate) fn watch(editor: Editor, block: crate::logic_game::app::GameBlock) -> Self {
         let stored = block.project(|game| {
             game.root()
                 .game()
@@ -57,14 +57,13 @@ impl Game {
         let blocks = editor.blocks();
         let host = editor.host().clone();
         let game = Rc::clone(&block);
-        let reader = editor.clone();
         create_effect(move || {
             let mut work = working.borrow_mut();
             let Work { grids, hotbar } = &mut *work;
-            hotbar.find(&reader, host.client_id());
+            hotbar.find(&editor, host.client_id());
             set_hotbar.set(hotbar.block());
 
-            let types = reader.block_types();
+            let types = editor.block_types();
             let mut listed = Vec::new();
             let rows: Vec<Level> = stored
                 .get()
@@ -80,7 +79,7 @@ impl Game {
                                 grids.entry(id).or_insert_with(|| {
                                     (
                                         blocks.watch(BlockQuery::Block(id)),
-                                        reader.content_of::<LogicGridContent>(id),
+                                        editor.content_of::<LogicGridContent>(id),
                                     )
                                 });
                             }
@@ -131,7 +130,7 @@ impl Game {
             set_levels.set(rows);
         });
         Self {
-            editor: editor.clone(),
+            editor,
             block,
             levels: create_memo(move || levels.get()),
             hotbar: create_memo(move || hotbar.get()),

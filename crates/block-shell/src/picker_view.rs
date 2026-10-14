@@ -589,7 +589,7 @@ fn CreationChild(workspace: Rc<Workspace>, pick: u64, creating: Memo<Option<Crea
                 .map(creation_content)
         })
     });
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     view! {
         <Frame width=1.0 height=1.0>
             <Subregion
@@ -692,7 +692,7 @@ fn CreateBody(
                 .map(creation_content)
         })
     });
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     let (create_act, cancel_act) = (Rc::clone(&act), act);
     view! {
         <List spacing=10.0>

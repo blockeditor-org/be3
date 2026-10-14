@@ -2,7 +2,7 @@ use block_editor_beui::be_block::BlockContent;
 
 use block_editor_beui::be_block::compiled_logic::{CompiledLogic, CompiledLogicDocument};
 use block_editor_beui::be_block::{CompiledLogicContent, LogicGridContent};
-use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_editor_beui::{BlockInfo, BlockParent, OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use logicgame::execution::{Instruction, UnlinkedComponent};
 use logicgame::grid::{ComponentPort, ComponentSide, ConnectionDirection, Scale, Size};
@@ -65,7 +65,7 @@ fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
     let mut grid = BlockInfo::new(source, LogicGridContent::CONTENT_TYPE, BlockParent::Root);
     if let Some(name) = name {

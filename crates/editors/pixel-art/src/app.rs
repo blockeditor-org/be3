@@ -93,7 +93,7 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
 #[component]
 fn PixelArtEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<PixelArtContent>();
-    let tools = Tools::new(&editor, Rc::clone(&block));
+    let tools = Tools::new(editor, Rc::clone(&block));
     let pane = Pane::new();
     let shown = pane.shown();
     let size = block.project(size_of);
@@ -105,7 +105,6 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
     let palette = create_memo(move || palette.get());
     let (hovered, set_hovered) = create_signal(None::<(u16, u16)>);
 
-    let sized = editor.clone();
     create_effect(move || {
         let (width, height) = size.get();
         if width == 0 || height == 0 {
@@ -115,7 +114,7 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
         let height = f32::from(height);
         let pixel =
             (EMBEDDED_LONG_SIDE / width.max(height)).max(EMBEDDED_SHORT_SIDE / width.min(height));
-        sized.set_intrinsic_size(Some(Vec2::new(width * pixel, height * pixel)));
+        editor.set_intrinsic_size(Some(Vec2::new(width * pixel, height * pixel)));
     });
 
     let chrome = editor.chrome_shown();

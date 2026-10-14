@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::database_schema::{DatabaseSchema, DatabaseSchemaContent};
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ fn editor() -> BeuiTest<DatabaseSchemaApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut harness = BeuiTest::new(editor);
     harness.hold(None, DatabaseSchemaContent::default());
     harness.run();

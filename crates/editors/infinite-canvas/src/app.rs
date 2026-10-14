@@ -53,13 +53,13 @@ impl block_editor_beui::BeuiApp for CanvasApp {
 
 #[component]
 fn CanvasEditor(editor: Editor) -> NodeId {
-    let state = CanvasState::new(&editor, false);
+    let state = CanvasState::new(editor, false);
     state.watch();
 
     let replacing = Rc::clone(&state);
     editor.on_replace_child(move |old, new| replacing.replace_referenced_block(old, new));
 
-    report_intrinsic_size(&editor, &state);
+    report_intrinsic_size(editor, &state);
 
     let content = NodeRef::new();
     editor.content(&content);
@@ -90,21 +90,20 @@ fn CanvasEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn CanvasPreview(editor: Editor) -> NodeId {
-    let state = CanvasState::new(&editor, true);
+    let state = CanvasState::new(editor, true);
     state.watch();
-    report_intrinsic_size(&editor, &state);
+    report_intrinsic_size(editor, &state);
     provide_context(canvas_actions(&state));
     view! {
         <CanvasStage state={state} />
     }
 }
 
-fn report_intrinsic_size(editor: &Editor, state: &Rc<CanvasState>) {
+fn report_intrinsic_size(editor: Editor, state: &Rc<CanvasState>) {
     let sized = Rc::clone(state);
-    let sizing = editor.clone();
     create_effect(move || {
         let region = embedded_region(&sized.entities.get()).size();
-        sizing.set_intrinsic_size(Some(Vec2::new(
+        editor.set_intrinsic_size(Some(Vec2::new(
             region.x.max(MIN_SIZE),
             region.y.max(MIN_SIZE),
         )));

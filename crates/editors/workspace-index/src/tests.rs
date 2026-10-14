@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::{BlockContent, CounterContent};
 
 use block_editor_beui::be_block::FolderContent;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -27,7 +27,7 @@ fn editor(entries: usize) -> (Fixture, Vec<Uuid>) {
     }
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, folder);
+    let editor = OwnedEditor::new(host, folder);
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, content);
     editor.run();

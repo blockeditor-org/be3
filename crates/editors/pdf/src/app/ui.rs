@@ -26,11 +26,10 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         .host()
         .performance(format!("PDF ({})", editor.block_id()));
 
-    let replacing = editor.clone();
     let reset = Rc::clone(&pages);
     chooser.on_chosen(move |chooser| {
         if let Some(pdf) = chooser.take() {
-            replacing.replace_content(replacing.block_id(), &pdf);
+            editor.replace_content(editor.block_id(), &pdf);
             reset.go(0);
         }
     });
@@ -52,11 +51,10 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         );
     });
 
-    let sized = editor.clone();
     let measured = shown;
     create_effect(move || {
         let size = measured.get().size();
-        sized.set_intrinsic_size(Some(size));
+        editor.set_intrinsic_size(Some(size));
     });
 
     let page_label = create_memo(move || {
@@ -75,8 +73,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     });
     let back = clone!(pages -> move || pages.go(pages.page().saturating_sub(1)));
     let forward = clone!(pages -> move || pages.go(pages.page() + 1));
-    let fitting = editor.clone();
-    let fit = move || fitting.fit();
+    let fit = move || editor.fit();
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
@@ -88,7 +85,6 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let source = block.project(|pdf| pdf.header().source_name.clone());
     let name = create_memo(move || source.get());
 
-    let panning = editor.clone();
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
@@ -123,7 +119,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             </Toolbar>
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Interactive on_pan_drag={move |delta: Vec2| panning.pan(delta)}>
+                    <Interactive on_pan_drag={move |delta: Vec2| editor.pan(delta)}>
                         <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
                 </Frame>

@@ -58,7 +58,7 @@ const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
 
 #[component]
 pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal<bool>) -> NodeId {
-    let editor = tools.editor().clone();
+    let editor = tools.editor();
     let tool = tools.tool;
     let label = create_memo(move || tool.get().label().to_owned());
     let dimensions = create_memo(move || {
@@ -69,12 +69,12 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
     let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let read_only = editor.read_only();
 
-    let zoom_out = clone!(editor -> move || editor.zoom(1.0 / ZOOM_STEP));
-    let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
-    let reset = clone!(editor -> move || {
+    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
+    let zoom_in = move || editor.zoom(ZOOM_STEP);
+    let reset = move || {
         editor.zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
-    });
-    let fit = clone!(editor -> move || editor.fit());
+    };
+    let fit = move || editor.fit();
     let grid = tools.show_grid;
     let set_grid = tools.set_show_grid;
     let toggle_grid = move |on: bool| set_grid.set(on);

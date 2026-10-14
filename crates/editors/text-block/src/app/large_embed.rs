@@ -114,7 +114,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                     {move || view! {
                         <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
-                            editor={report.editor.clone()}
+                            editor={report.editor}
                             block={Some(target)}
                             mode={mode}
                             on_state={clone!(report -> move |next: ChildState| {

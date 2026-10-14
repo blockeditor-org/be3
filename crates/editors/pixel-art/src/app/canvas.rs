@@ -36,7 +36,7 @@ pub(crate) fn ArtworkCanvas(
     hovered: ReadSignal<Option<(u16, u16)>>,
     set_hovered: WriteSignal<Option<(u16, u16)>>,
 ) -> NodeId {
-    let editor = tools.editor().clone();
+    let editor = tools.editor();
     let view = editor.canvas();
     let scale = editor.scale();
     view! {
@@ -67,7 +67,6 @@ pub(crate) fn ArtworkCanvas(
                 let press_size = size;
                 let press_view = view;
                 let press_artwork = artwork;
-                let press_editor = editor.clone();
                 let on_press = move |press: PointerPress| {
                     let (width, height) = press_size.get_untracked();
                     if width == 0 || pressing.busy() || !pressing.editable() {
@@ -77,7 +76,7 @@ pub(crate) fn ArtworkCanvas(
                     let Some(pixel) = pixel_of(
                         press.pos,
                         press_view.get_untracked(),
-                        press_editor.content_rect(),
+                        editor.content_rect(),
                         press_artwork.get_untracked(),
                         width,
                         height,
@@ -91,7 +90,6 @@ pub(crate) fn ArtworkCanvas(
                 let drag_size = size;
                 let drag_view = view;
                 let drag_artwork = artwork;
-                let drag_editor = editor.clone();
                 let on_drag = move |press: PointerPress| {
                     let (width, height) = drag_size.get_untracked();
                     if width == 0 || dragging.busy() || !dragging.editable() {
@@ -101,7 +99,7 @@ pub(crate) fn ArtworkCanvas(
                     let Some(pixel) = pixel_of(
                         press.pos,
                         drag_view.get_untracked(),
-                        drag_editor.content_rect(),
+                        editor.content_rect(),
                         drag_artwork.get_untracked(),
                         width,
                         height,
@@ -119,7 +117,6 @@ pub(crate) fn ArtworkCanvas(
                 let release_size = size;
                 let release_view = view;
                 let release_artwork = artwork;
-                let release_editor = editor.clone();
                 let on_click_at = move |press: PointerPress| {
                     let (width, height) = release_size.get_untracked();
                     if width == 0 || releasing.busy() || !releasing.editable() {
@@ -129,7 +126,7 @@ pub(crate) fn ArtworkCanvas(
                     if let Some(pixel) = pixel_of(
                         press.pos,
                         release_view.get_untracked(),
-                        release_editor.content_rect(),
+                        editor.content_rect(),
                         release_artwork.get_untracked(),
                         width,
                         height,
@@ -142,7 +139,6 @@ pub(crate) fn ArtworkCanvas(
                 let sample_size = size;
                 let sample_view = view;
                 let sample_artwork = artwork;
-                let sample_editor = editor.clone();
                 let on_secondary = move |press: PointerPress| {
                     let (width, height) = sample_size.get_untracked();
                     if width == 0 {
@@ -151,7 +147,7 @@ pub(crate) fn ArtworkCanvas(
                     if let Some(pixel) = pixel_of(
                         press.pos,
                         sample_view.get_untracked(),
-                        sample_editor.content_rect(),
+                        editor.content_rect(),
                         sample_artwork.get_untracked(),
                         width,
                         height,
@@ -164,7 +160,6 @@ pub(crate) fn ArtworkCanvas(
                 let hover_size = size;
                 let hover_view = view;
                 let hover_artwork = artwork;
-                let hover_editor = editor.clone();
                 let set_hover = set_hovered;
                 let on_hover_move = move |press: PointerPress| {
                     let (width, height) = hover_size.get_untracked();
@@ -175,7 +170,7 @@ pub(crate) fn ArtworkCanvas(
                     set_hover.set(pixel_of(
                         press.pos,
                         hover_view.get_untracked(),
-                        hover_editor.content_rect(),
+                        editor.content_rect(),
                         hover_artwork.get_untracked(),
                         width,
                         height,
@@ -205,8 +200,7 @@ pub(crate) fn ArtworkCanvas(
                 });
 
                 let keys = Rc::clone(&tools);
-                let key_editor = editor.clone();
-                let on_key = move |press: KeyPress| shortcut(&keys, &key_editor, press);
+                let on_key = move |press: KeyPress| shortcut(&keys, editor, press);
 
                 let content = NodeRef::new();
                 editor.content(&content);
@@ -242,7 +236,7 @@ pub(crate) fn ArtworkCanvas(
     }
 }
 
-fn shortcut(tools: &Rc<Tools>, editor: &block_editor_beui::Editor, press: KeyPress) -> bool {
+fn shortcut(tools: &Rc<Tools>, editor: block_editor_beui::Editor, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt || !press.pressed {
         return !matches!(shortcut_kind(press.key), Shortcut::None);
     }

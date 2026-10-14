@@ -19,7 +19,8 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
-                let world = state.editor().world();
+                let editor = state.editor();
+                let world = editor.world();
                 let artwork = create_memo(move || {
                     let available = world
                         .get()
@@ -34,12 +35,11 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 let pressing = Rc::clone(&state);
                 let press_artwork = artwork;
                 let press_view = state.editor().canvas();
-                let press_editor = state.editor().clone();
                 let on_press = move |press: PointerPress| {
                     let Some(at) = world_point(
                         press.pos,
                         &press_view,
-                        &press_editor,
+                        editor,
                         press_artwork.get_untracked(),
                     ) else {
                         return;
@@ -50,12 +50,11 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 let dragging = Rc::clone(&state);
                 let drag_artwork = artwork;
                 let drag_view = state.editor().canvas();
-                let drag_editor = state.editor().clone();
                 let on_drag = move |press: PointerPress| {
                     let Some(at) = world_point(
                         press.pos,
                         &drag_view,
-                        &drag_editor,
+                        editor,
                         drag_artwork.get_untracked(),
                     ) else {
                         return;
@@ -66,12 +65,11 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 let hovering = Rc::clone(&state);
                 let hover_artwork = artwork;
                 let hover_view = state.editor().canvas();
-                let hover_editor = state.editor().clone();
                 let on_hover_move = move |press: PointerPress| {
                     hovering.hover(world_point(
                         press.pos,
                         &hover_view,
-                        &hover_editor,
+                        editor,
                         hover_artwork.get_untracked(),
                     ));
                 };
@@ -143,7 +141,7 @@ fn world_point(
     view: &block_editor_beui::beui::reactive::ReadSignal<
         Option<block_editor_beui::beui::reactive::CanvasView>,
     >,
-    editor: &block_editor_beui::Editor,
+    editor: block_editor_beui::Editor,
     artwork: Rect,
 ) -> Option<block_editor_beui::be_block::pixel_ray_tracer::Point> {
     let camera = view.get_untracked()?;

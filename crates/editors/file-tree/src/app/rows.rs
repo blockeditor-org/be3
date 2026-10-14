@@ -109,7 +109,7 @@ pub(crate) struct Tree {
 }
 
 impl Tree {
-    pub(crate) fn watch(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn watch(editor: Editor) -> Rc<Self> {
         let client = editor.blocks();
         let roots = client.watch(BlockQuery::Roots);
         let watched = Rc::new(RefCell::new(Watched::default()));
@@ -165,14 +165,13 @@ impl Tree {
         });
 
         let restored = Rc::new(Cell::new(false));
-        let restoring = editor.clone();
         let adopted = Rc::clone(&restored);
         let (adopt_expanded, adopt_orphans) = (set_expanded, set_orphans_open);
         create_effect(move || {
             if adopted.get() {
                 return;
             }
-            let Some(view) = restoring.view_content() else {
+            let Some(view) = editor.view_content() else {
                 return;
             };
             let Some(opened) = view.read(|held| {
@@ -190,7 +189,6 @@ impl Tree {
                 });
             }
         });
-        let saving = editor.clone();
         let (open, orphans) = (expanded, orphans_open);
         create_effect(move || {
             let mut expanded: Vec<Uuid> = open.get().into_iter().collect();
@@ -200,7 +198,7 @@ impl Tree {
             }
             expanded.sort_unstable();
             let opened = ViewState::new(&Opened { expanded, orphans }, Vec::new());
-            untrack(|| saving.set_view_state(OPENED, Some(&opened)));
+            untrack(|| editor.set_view_state(OPENED, Some(&opened)));
         });
 
         Rc::new(Self {

@@ -35,9 +35,9 @@ const FIELD_SPACING: f32 = 2.0;
 
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
-    let tree = FileTree::watch(&editor);
-    let picker = picker(&editor, Rc::clone(&tree));
-    let exporter = Exporter::new(&editor);
+    let tree = FileTree::watch(editor);
+    let picker = picker(editor, Rc::clone(&tree));
+    let exporter = Exporter::new(editor);
     let exported = exporter.error();
     let held: Held = Rc::new(std::cell::Cell::new(None));
     let (inspecting, set_inspecting) = create_signal(None::<Inspection>);
@@ -50,7 +50,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let tree_ref = NodeRef::new();
     let (landing, set_landing) = create_signal(None::<(RowKey, bool)>);
     let dropping = (
-        editor.clone(),
+        editor,
         Rc::clone(&held),
         rows,
         tree_ref,
@@ -71,7 +71,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         }
     };
 
-    let open = clone!(tree editor -> move |key: RowKey| {
+    let open = clone!(tree -> move |key: RowKey| {
         let Some(row) = rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()) else {
             return;
         };
@@ -92,14 +92,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.toggle(&key, id, !expanded);
     });
 
-    let reveal = clone!(tree editor -> move |_: RowKey| {
+    let reveal = clone!(tree -> move |_: RowKey| {
         tree.show_orphans();
         tree.expand(editor.host().focused_block().via.iter().rev().copied());
     });
-    let app_menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
-    let add_root = clone!(picker editor -> move || {
+    let app_menu = move || editor.host().show_app_menu(editor.block_id());
+    let add_root = clone!(picker -> move || {
         picker.open(
-            &editor,
+            editor,
             None,
             [editor.block_id()].into_iter().collect::<HashSet<Uuid>>(),
         );
@@ -117,7 +117,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             false => theme.danger.get(),
         })
     };
-    let start = clone!(editor held -> move |key: RowKey| {
+    let start = clone!(held -> move |key: RowKey| {
         let carried = rows.with_untracked(|rows| {
             let row = rows.iter().find(|row| row.key == key)?;
             Some(Carried {
@@ -140,7 +140,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let toolbar = create_memo(move || chrome.get() && wide.get());
     let content = NodeRef::new();
     editor.content(&content);
-    let phone_editor = editor.clone();
     let phone_tree = Rc::clone(&tree);
     let phone_picker = Rc::clone(&picker);
     let phone_exporter = Rc::clone(&exporter);
@@ -148,7 +147,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let covered = create_memo(move || inspecting.get().is_some());
     create_effect(move || {
         let landed = arrival(
-            &dropping.0,
+            dropping.0,
             &dropping.1,
             dropping.2,
             &dropping.3,
@@ -179,7 +178,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         <Show condition={narrow}>
                             <PhoneFiles
                                 @sizing=ItemSize::Percent(100.0)
-                                editor={phone_editor.clone()}
+                                editor={editor}
                                 tree={phone_tree.clone()}
                                 picker={phone_picker.clone()}
                                 exporter={phone_exporter.clone()}
@@ -195,7 +194,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                             }}
                         </Show>
                         <Show condition={wide}>
-                            {move || clone!(editor exporter picker tree -> view! {
+                            {move || clone!(exporter picker tree -> view! {
                                 <Tree
                                     @sizing=ItemSize::Percent(100.0)
                                     @node_ref={&tree_ref}
@@ -217,7 +216,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         let row = tree.row(face.key.clone());
                                         view! {
                                             <TreeRow
-                                                editor={editor.clone()}
+                                                editor={editor}
                                                 tree={Rc::clone(&tree)}
                                                 picker={picker.clone()}
                                                 exporter={Rc::clone(&exporter)}
@@ -368,14 +367,14 @@ fn TreeRow(
             .is_none_or(|row| row.automatic || row.id.is_none())
     });
 
-    let add_child = clone!(picker editor -> move || {
+    let add_child = clone!(picker -> move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
         };
-        picker.open(&editor, Some(id), [id].into_iter().collect::<HashSet<Uuid>>());
+        picker.open(editor, Some(id), [id].into_iter().collect::<HashSet<Uuid>>());
     });
     let chose = menu_action(
-        editor.clone(),
+        editor,
         Rc::clone(&tree),
         picker,
         exporter,
@@ -558,7 +557,7 @@ pub(crate) struct Carried {
 pub(crate) type Held = Rc<std::cell::Cell<Option<Carried>>>;
 
 fn arrival(
-    editor: &Editor,
+    editor: Editor,
     held: &Held,
     rows: Memo<Vec<Row>>,
     tree: &NodeRef,
@@ -620,7 +619,7 @@ pub(crate) fn menu_action(
         };
         match path.as_slice() {
             [0] => picker.open(
-                &editor,
+                editor,
                 Some(id),
                 [id].into_iter().collect::<HashSet<Uuid>>(),
             ),
@@ -662,13 +661,13 @@ impl Picker {
         create_memo(move || error.get())
     }
 
-    pub(crate) fn open(&self, editor: &Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
+    pub(crate) fn open(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
         self.request(editor, parent, excluded, false);
     }
 
     pub(crate) fn open_placed(
         &self,
-        editor: &Editor,
+        editor: Editor,
         parent: Option<Uuid>,
         excluded: HashSet<Uuid>,
     ) {
@@ -677,7 +676,7 @@ impl Picker {
 
     fn request(
         &self,
-        editor: &Editor,
+        editor: Editor,
         parent: Option<Uuid>,
         excluded: HashSet<Uuid>,
         placed: bool,
@@ -686,7 +685,7 @@ impl Picker {
         self.target.set(parent);
         let place = parent.map_or(BlockParent::Root, BlockParent::Block);
         self.picker.borrow_mut().open(
-            editor.host(),
+            &editor.host(),
             BlockFilter {
                 name: "Block".to_owned(),
                 block_types: Vec::new(),
@@ -698,7 +697,7 @@ impl Picker {
     }
 }
 
-fn picker(editor: &Editor, tree: Rc<FileTree>) -> Rc<Picker> {
+fn picker(editor: Editor, tree: Rc<FileTree>) -> Rc<Picker> {
     let (error, set_error) = create_signal(None::<String>);
     let picker = Rc::new(Picker {
         picker: std::cell::RefCell::new(BlockPicker::default()),

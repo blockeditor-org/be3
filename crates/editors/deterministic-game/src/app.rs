@@ -459,7 +459,7 @@ pub struct DeterministicGameApp;
 
 impl block_editor_beui::BeuiApp for DeterministicGameApp {
     fn view(editor: Editor) -> NodeId {
-        let game = Rc::new(BlockGame::new(editor.clone()));
+        let game = Rc::new(BlockGame::new(editor));
         let (snapshot, set_snapshot) = create_signal(GameSnapshot::Loading);
         create_effect(clone!(game -> move || set_snapshot.set(game.snapshot())));
         let model: Rc<dyn GameModel> = game;

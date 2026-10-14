@@ -71,10 +71,10 @@ struct Shared {
 }
 
 impl DesktopNotifications {
-    pub(crate) fn new(editor: &Editor) -> Self {
+    pub(crate) fn new(editor: Editor) -> Self {
         let (revision, set_revision) = create_signal(0_u64);
         let shared = Rc::new(Shared {
-            editor: editor.clone(),
+            editor,
             center: RefCell::new(Center::default()),
             started: now(),
             handled: Cell::new(0),

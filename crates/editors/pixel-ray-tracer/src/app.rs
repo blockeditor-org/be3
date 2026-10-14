@@ -49,7 +49,7 @@ impl block_editor_beui::BeuiApp for PixelRayTracerApp {
 
 #[component]
 fn PixelRayTracerEditor(editor: Editor) -> NodeId {
-    let state = RayState::new(&editor);
+    let state = RayState::new(editor);
     state.watch();
 
     let chrome = editor.chrome_shown();
@@ -74,7 +74,7 @@ fn PixelRayTracerEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn PixelRayTracerPreview(editor: Editor) -> NodeId {
-    let state = RayState::new(&editor);
+    let state = RayState::new(editor);
     state.watch();
     let image = state.lighting;
     view! {
@@ -84,7 +84,7 @@ fn PixelRayTracerPreview(editor: Editor) -> NodeId {
 
 #[component]
 fn RayToolbar(state: Rc<RayState>, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
-    let fit = state.editor().clone();
+    let fit = state.editor();
     let reset = Rc::clone(&state);
     let theme = use_theme();
     let size = format!("{PIXEL_RAY_TRACER_SIZE} × {PIXEL_RAY_TRACER_SIZE}");

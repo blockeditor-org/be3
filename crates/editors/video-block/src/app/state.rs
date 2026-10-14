@@ -55,7 +55,7 @@ pub(crate) struct VideoState {
 }
 
 impl VideoState {
-    pub(crate) fn new(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor) -> Rc<Self> {
         let block = editor.block_content::<VideoContent>();
         let clips = block.project(|video| video.root().video().clips().to_vec());
         let duration = block.project(|video| video.root().video().duration());
@@ -71,7 +71,7 @@ impl VideoState {
             dependencies: editor
                 .blocks()
                 .watch(BlockQuery::References(editor.block_id())),
-            editor: editor.clone(),
+            editor,
             block,
             picker: RefCell::new(BlockPicker::default()),
             picker_attachment: Cell::new(None),
@@ -109,8 +109,8 @@ impl VideoState {
         state
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -208,7 +208,7 @@ impl VideoState {
         self.picker_attachment.set(attachment);
         self.picker
             .borrow_mut()
-            .open(self.editor.host(), BlockFilter::default());
+            .open(&self.editor.host(), BlockFilter::default());
     }
 
     pub(crate) fn split_selected(&self) {
@@ -335,7 +335,7 @@ impl VideoState {
     }
 
     fn take_pick(&self) {
-        let picked = self.picker.borrow_mut().poll(self.editor.host());
+        let picked = self.picker.borrow_mut().poll(&self.editor.host());
         let Some(Ok(picked)) = picked else {
             return;
         };

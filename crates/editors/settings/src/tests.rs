@@ -3,7 +3,7 @@ use block_editor_beui::be_block::{
 };
 
 use block_editor_beui::be_block::SettingsContent;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -26,7 +26,7 @@ fn editor_for(account: Uuid) -> BeuiTest<SettingsApp> {
     host.set_block_type(SettingsContent::CONTENT_TYPE);
     host.set_editable(true);
     host.set_client_id(Uuid::new_v4());
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, SettingsContent::default());
     editor.run();

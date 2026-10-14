@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::LogicGameContent;
 use block_editor_beui::be_block::logic_game::LogicGame;
 use block_editor_beui::beui::Vec2;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
@@ -19,7 +19,7 @@ fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = match size {
         Some(size) => BeuiTest::new(editor).with_size(size),
         None => BeuiTest::new(editor),

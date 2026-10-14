@@ -26,7 +26,7 @@ impl BeuiApp for ShortcutApp {
 fn a_shortcut_on_punctuation_reaches_the_editor() {
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut test = BeuiTest::<ShortcutApp>::new(Editor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<ShortcutApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
 
     test.key_press_modifiers(Modifiers::CTRL, Key::Slash);
     test.run();

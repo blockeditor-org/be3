@@ -13,7 +13,7 @@ use super::session::{PAGE, Session};
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {
-    let session = Session::new(&editor);
+    let session = Session::new(editor);
     let address = session.address();
     let error = session.error();
     let back = session.back();
@@ -92,7 +92,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Layers>
-                        <Subregion editor={editor.clone()} placed={page} punch=false />
+                        <Subregion editor={editor} placed={page} punch=false />
                         <List align=Align::Center justify=Justify::Center spacing=0.0>
                             <Show condition={failed}>
                                 <Caption

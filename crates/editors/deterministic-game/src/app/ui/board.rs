@@ -81,7 +81,7 @@ pub(crate) fn Stage(
     let (bar, set_bar) = create_signal(Rect::ZERO);
 
     let view_now = {
-        let (canvas, editor) = (canvas, editor.clone());
+        let (canvas, editor) = (canvas, editor);
         Rc::new(move || {
             canvas
                 .get_untracked()
@@ -195,7 +195,7 @@ pub(crate) fn Stage(
             panning: false,
         });
     });
-    let on_drag = clone!(press play hit in_bar editor -> move |pointer: PointerPress| {
+    let on_drag = clone!(press play hit in_bar -> move |pointer: PointerPress| {
         let mut held = press.borrow_mut();
         let Some(state) = held.as_mut() else {
             return;

@@ -383,7 +383,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
     let centred = Rc::clone(&state);
     let centred_point = point;
     let removed = Rc::clone(&state);
-    let editor = state.editor().clone();
+    let editor = state.editor();
     let latitude = create_memo(move || point.get().map_or(0.0, |point| point.position.latitude));
     let longitude = create_memo(move || point.get().map_or(0.0, |point| point.position.longitude));
     let moved = Rc::clone(&state);

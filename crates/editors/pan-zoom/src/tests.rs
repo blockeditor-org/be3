@@ -1,5 +1,5 @@
 use block_editor_beui::beui::{Rect, Vec2, pos2};
-use block_editor_beui::{Editor, EditorHost, ViewChange};
+use block_editor_beui::{Editor, OwnedEditor, EditorHost, ViewChange};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -17,8 +17,9 @@ fn editor() -> (BeuiTest<PanZoomApp>, Editor) {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, block);
-    (BeuiTest::new(editor.clone()), editor)
+    let owner = OwnedEditor::new(host, block);
+    let editor = *owner;
+    (BeuiTest::new(owner), editor)
 }
 
 fn shown(test: &mut BeuiTest<PanZoomApp>, test_id: &str) -> String {

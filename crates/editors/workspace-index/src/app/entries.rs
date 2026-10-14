@@ -48,7 +48,7 @@ pub(crate) struct Folder {
 
 impl Folder {
     pub(crate) fn watch(
-        editor: &Editor,
+        editor: Editor,
         index: &Rc<ContentProjection<FolderContent>>,
         sort: ReadSignal<FolderSort>,
         descending: ReadSignal<bool>,
@@ -57,14 +57,13 @@ impl Folder {
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         let referenced = index.project(|index| index.root().blocks());
-        let catalog = editor.clone();
         let entries = create_memo(move || {
             let metadata: HashMap<_, _> = references
                 .read()
                 .into_iter()
                 .map(|reference| (reference.id, reference))
                 .collect();
-            let types = catalog.block_types();
+            let types = editor.block_types();
             let mut entries: Vec<_> = referenced
                 .get()
                 .into_iter()

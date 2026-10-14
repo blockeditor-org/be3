@@ -84,10 +84,10 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let bar = Rc::clone(&workspace);
     let pickers = Rc::clone(&workspace);
     let shell_dialogs = Rc::clone(&workspace);
-    let editor = workspace.editor().clone();
-    let launcher = ProgramLauncher::new(editor.clone());
+    let editor = workspace.editor();
+    let launcher = ProgramLauncher::new(editor);
     let opener = launcher.clone();
-    let notifications = DesktopNotifications::new(&editor);
+    let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
     let theme = use_theme();
     view! {

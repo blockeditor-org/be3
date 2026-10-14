@@ -202,7 +202,7 @@ fn ArtifactSettingsDialog(workspace: Rc<Workspace>) -> NodeId {
                 .map_or(SETTINGS_HEIGHT, |size| size.y.max(1.0))
         })
     });
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     let (dismiss, cancel, apply) = (Rc::clone(&workspace), Rc::clone(&workspace), workspace);
     view! {
         <Dialog

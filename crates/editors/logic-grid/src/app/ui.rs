@@ -21,7 +21,7 @@ const ZOOM_STEP: f32 = 1.25;
 
 #[component]
 pub(super) fn LogicGridView(editor: Editor) -> NodeId {
-    let session = Session::new(&editor);
+    let session = Session::new(editor);
     let loaded = create_memo(clone!(session -> move || session.read(LogicGridEditor::loaded)));
     let waiting = create_memo(move || !loaded.get());
     let shortcuts = Rc::clone(&session);
@@ -87,9 +87,9 @@ fn shortcut(session: &Rc<Session>, press: KeyPress) -> bool {
 
 #[component]
 fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
-    let editor = session.editor().clone();
+    let editor = session.editor();
     let read_only = editor.read_only();
-    let compile = clone!(session editor -> move || {
+    let compile = clone!(session -> move || {
         if let Some((id, block_type)) = session.update(|model| model.compile()) {
             editor.host().open_block(id, block_type);
         }
@@ -115,9 +115,9 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
     let failed = create_memo(move || !compile_error.get().is_empty());
     let scale = editor.scale();
     let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
-    let zoom_out = clone!(editor -> move || editor.zoom(1.0 / ZOOM_STEP));
-    let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
-    let recenter = clone!(editor -> move || editor.fit());
+    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
+    let zoom_in = move || editor.zoom(ZOOM_STEP);
+    let recenter = move || editor.fit();
     let theme = use_theme();
     let problem_color = theme.danger;
     let error_color = theme.danger;
@@ -159,7 +159,7 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
 
 #[component]
 fn GridCanvas(session: Rc<Session>) -> NodeId {
-    let editor = session.editor().clone();
+    let editor = session.editor();
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {

@@ -29,11 +29,11 @@ pub(crate) struct Session {
 }
 
 impl Session {
-    pub(crate) fn new(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor) -> Rc<Self> {
         let (address, set_address) = create_signal("about:blank".to_owned());
         let (error, set_error) = create_signal(None::<String>);
         let session = Rc::new(Self {
-            editor: editor.clone(),
+            editor,
             tab: editor.block_content::<BrowserTabContent>(),
             navigation: RefCell::default(),
             address,

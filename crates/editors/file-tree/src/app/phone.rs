@@ -121,7 +121,7 @@ pub(crate) fn PhoneFiles(
     let can_create =
         create_memo(move || browsing.get() && level.get() != Level::Deleted && !covered.get());
     let page = NodeRef::new();
-    let creating = clone!(editor picker tree -> move || {
+    let creating = clone!(picker tree -> move || {
         let parent = level.with_untracked(|level| {
             level.container().filter(|crumb| {
                 editor.block_types().child_edits(crumb.block_type).add
@@ -130,16 +130,16 @@ pub(crate) fn PhoneFiles(
             .map(|crumb| crumb.id)
         });
         let excluded = parent.into_iter().collect::<HashSet<Uuid>>();
-        picker.open_placed(&editor, parent, excluded);
+        picker.open_placed(editor, parent, excluded);
     });
     let rising = move || set_level.set(level.get_untracked().up());
-    let menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
+    let menu = move || editor.host().show_app_menu(editor.block_id());
     let shelf = Shelf {
-        editor: editor.clone(),
+        editor,
         tree: Rc::clone(&tree),
         set_level,
         tools: RowTools {
-            editor: editor.clone(),
+            editor,
             tree: Rc::clone(&tree),
             picker: Rc::clone(&picker),
             exporter,
@@ -158,7 +158,7 @@ pub(crate) fn PhoneFiles(
             page_color,
             shelf.clone(),
             shelf.set_level,
-            menu.clone(),
+            menu,
         );
         view! {
             <Frame color radius=0>
@@ -230,17 +230,17 @@ struct Shelf {
 
 #[component]
 fn Folder(shelf: Shelf, level: ReadSignal<Level>, at_root: Memo<bool>) -> NodeId {
-    let recents_editor = shelf.editor.clone();
+    let recents_editor = shelf.editor;
     view! {
         <Scroll>
             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                 <List spacing=ROW_SPACING>
                     <Show condition={at_root}>
-                        <Recents editor={recents_editor.clone()} />
+                        <Recents editor={recents_editor} />
                     </Show>
                     <Dynamic value={level}>
                         {move |level: Level| {
-                            let editor = shelf.editor.clone();
+                            let editor = shelf.editor;
                             let tree = Rc::clone(&shelf.tree);
                             let set_level = shelf.set_level;
                             let tools = shelf.tools.clone();
@@ -404,7 +404,7 @@ fn Recents(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={any}>
-                {move || clone!(editor -> view! {
+                {move || view! {
                     <List spacing=6.0>
                         <Frame padding_horizontal=PADDING padding_vertical=4.0>
                             <Caption content="Recent" />
@@ -418,7 +418,6 @@ fn Recents(editor: Editor) -> NodeId {
                                             .find(|(other, _)| *other == id)
                                             .map_or_else(Uuid::nil, |(_, block_type)| *block_type)
                                     });
-                                    let editor = editor.clone();
                                     view! {
                                         <RecentCard editor id block_type />
                                     }
@@ -429,7 +428,7 @@ fn Recents(editor: Editor) -> NodeId {
                             <Caption content="All files" />
                         </Frame>
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }
@@ -439,7 +438,7 @@ fn Recents(editor: Editor) -> NodeId {
 fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
     let theme = use_theme();
     let target = create_memo(move || Some(ChildTarget::new(id, block_type)));
-    let shown = watch_block_label(&editor, target);
+    let shown = watch_block_label(editor, target);
     let resolved = create_memo(move || shown.with(|shown| shown.resolved));
     let name = create_memo(move || shown.with(|shown| shown.name.clone()));
     let glyph = create_memo(move || shown.with(|shown| shown.glyph.clone()));
@@ -491,11 +490,10 @@ fn LevelRows(
 ) -> NodeId {
     let listed = editor.watch_blocks(level.query());
     let describing = tree.clone();
-    let types = editor.clone();
     let described_level = level.clone();
     let rows = create_memo(move || {
         let listed = listed.get()?;
-        let types = types.block_types();
+        let types = editor.block_types();
         let mut block_types: HashMap<Uuid, Uuid> = describing.block_types();
         if let Level::Folder(crumbs) = &described_level {
             block_types.extend(crumbs.iter().map(|crumb| (crumb.id, crumb.block_type)));
@@ -569,7 +567,6 @@ fn LevelRows(
                             rows.iter().flatten().find(|row| row.id == Some(id)).cloned()
                         })
                     });
-                    let editor = editor.clone();
                     let level = level.clone();
                     let set_level = set_level;
                     let tools = tools.clone();
@@ -611,7 +608,6 @@ fn PhoneRow(
     let more_id = format!("file-tree.{id}.more");
     let name = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
-    let types = editor.clone();
     let detail = create_memo(move || {
         let Some(row) = row.get() else {
             return String::new();
@@ -626,7 +622,7 @@ fn PhoneRow(
                 "1" => "1 item".to_owned(),
                 count => format!("{count} items"),
             },
-            false => types
+            false => editor
                 .block_types()
                 .display_name(row.block_type)
                 .unwrap_or("Block")
@@ -729,13 +725,12 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
         set_level,
     } = tools;
     let adding = Rc::clone(&picker);
-    let chosen = menu_action(editor.clone(), tree, picker, exporter, inspect, row);
-    let add_editor = editor.clone();
+    let chosen = menu_action(editor, tree, picker, exporter, inspect, row);
     let add_inside = move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
         };
-        adding.open_placed(&add_editor, Some(id), [id].into_iter().collect());
+        adding.open_placed(editor, Some(id), [id].into_iter().collect());
     };
     let off =
         |test: fn(&Row) -> bool| create_memo(move || !row.get().is_some_and(|row| test(&row)));

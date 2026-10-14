@@ -1,6 +1,6 @@
 use beui::{Pos2, Vec2};
 use block_editor_beui::be_block::TextBlock;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -11,7 +11,7 @@ use crate::app::TextApp;
 fn a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens() {
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, Uuid::new_v4());
+    let editor = OwnedEditor::new(host, Uuid::new_v4());
     let mut editor = BeuiTest::<TextApp>::new(editor)
         .with_size(Vec2::new(390.0, 760.0))
         .on_phone();

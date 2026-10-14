@@ -81,7 +81,7 @@ pub(crate) struct MapState {
 }
 
 impl MapState {
-    pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, preview: bool) -> Rc<Self> {
         let block = editor.block_content::<MapContent>();
         let points = block.project(|map| map.root().points());
         let preview_region = block.project(|map| map.root().preview_region);
@@ -99,7 +99,7 @@ impl MapState {
             dependencies: editor
                 .blocks()
                 .watch(BlockQuery::References(editor.block_id())),
-            editor: editor.clone(),
+            editor,
             preview,
             block,
             worker: RefCell::new(None),
@@ -134,8 +134,8 @@ impl MapState {
         })
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -164,7 +164,7 @@ impl MapState {
 
     pub(crate) fn reload_tiles(&self) {
         if let Some(worker) = self.worker.borrow_mut().take() {
-            worker.forget(self.editor.host());
+            worker.forget(&self.editor.host());
         }
         self.tiles.borrow_mut().clear();
         self.used.borrow_mut().clear();
@@ -580,13 +580,13 @@ impl MapState {
         let mut worker = self.worker.borrow_mut();
         let worker = worker.get_or_insert_with(|| TileWorker::spawn(self.waker.borrow().clone()));
         worker.request(id);
-        worker.dispatch(host);
+        worker.dispatch(&host);
     }
 
     fn collect_tiles(&self) {
         let host = self.editor.host();
         let results = match self.worker.borrow_mut().as_mut() {
-            Some(worker) => worker.poll(host),
+            Some(worker) => worker.poll(&host),
             None => return,
         };
         if results.is_empty() {

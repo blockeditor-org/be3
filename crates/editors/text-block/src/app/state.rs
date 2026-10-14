@@ -134,7 +134,7 @@ impl State {
         state
     }
 
-    pub fn host(&self) -> &EditorHost {
+    pub fn host(&self) -> EditorHost {
         self.editor.host()
     }
 

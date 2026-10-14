@@ -66,7 +66,7 @@ impl block_editor_beui::BeuiApp for VideoApp {
 
 #[component]
 fn VideoEditor(editor: Editor) -> NodeId {
-    let state = VideoState::new(&editor);
+    let state = VideoState::new(editor);
 
     let chrome = editor.chrome_shown();
     let bar = Rc::clone(&state);
@@ -101,7 +101,7 @@ fn VideoEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn VideoPreview(editor: Editor) -> NodeId {
-    let state = VideoState::new(&editor);
+    let state = VideoState::new(editor);
     view! {
         <Player state={state} />
     }

@@ -91,11 +91,10 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let (descending, set_descending) = create_signal(false);
     let (selected, set_selected) = create_signal(None::<Uuid>);
 
-    let folder = Rc::new(Folder::watch(&editor, &index, sort, descending));
+    let folder = Rc::new(Folder::watch(editor, &index, sort, descending));
     let entries = folder.entries();
-    let drop = super::drop::watch(&editor, &folder);
+    let drop = super::drop::watch(editor, &folder);
 
-    let sized = editor.clone();
     create_effect(move || {
         let rows = entries.with(Vec::len).max(1);
         let height = match mode.get() {
@@ -103,7 +102,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
             FolderView::SmallGrid => SMALL_TILE.y * rows.div_ceil(5) as f32,
             FolderView::List => ROW_HEIGHT * rows as f32,
         };
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
     let empty = create_memo(move || entries.with(Vec::is_empty));
@@ -130,7 +129,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         set_descending.set(!descending.get_untracked());
     };
     let cells = Cells {
-        editor: editor.clone(),
+        editor,
         entries,
         selected,
         set_selected,

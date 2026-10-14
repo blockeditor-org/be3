@@ -41,7 +41,7 @@ impl block_editor_beui::BeuiApp for TextApp {
 
 #[component]
 pub fn TextEditor(editor: Editor) -> NodeId {
-    let state = State::new(editor.clone());
+    let state = State::new(editor);
     let replacing = state.clone();
     editor.on_replace_child(move |old, new| replacing.replace_child(old, new));
 
@@ -106,6 +106,6 @@ fn intrinsic_size(state: &Shared) {
             .collect::<Vec<_>>();
         state.text.measure(&widgets, width)
     }));
-    let editor = state.editor.clone();
+    let editor = state.editor;
     create_effect(move || editor.set_intrinsic_size(measured.get()));
 }

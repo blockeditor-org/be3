@@ -30,12 +30,11 @@ const INTRINSIC_WIDTH: f32 = 720.0;
 #[component]
 pub fn LogicGameEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<block_editor_beui::be_block::LogicGameContent>();
-    let game = Rc::new(Game::watch(&editor, Rc::clone(&block)));
+    let game = Rc::new(Game::watch(editor, Rc::clone(&block)));
     let levels = game.levels();
     let hotbar = game.hotbar();
     let (expanded, set_expanded) = create_signal(None::<ChallengeId>);
 
-    let sized = editor.clone();
     create_effect(move || {
         let open = expanded.get();
         let rows = levels.with(|levels| {
@@ -50,7 +49,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
             true => QUIZ_HEIGHT,
             false => 0.0,
         };
-        sized.set_intrinsic_size(Some(Vec2::new(
+        editor.set_intrinsic_size(Some(Vec2::new(
             INTRINSIC_WIDTH,
             CHROME_HEIGHT + ROW_HEIGHT * rows as f32 + quiz,
         )));
@@ -99,7 +98,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                                     };
                                     view! {
                                         <LevelRow
-                                            editor={editor.clone()}
+                                            editor={editor}
                                             block={Rc::clone(&block)}
                                             game={Rc::clone(&game)}
                                             challenge={challenge}
@@ -137,7 +136,6 @@ fn LevelRow(
     let shows_quiz = create_memo(move || expanded.get() && quiz);
     let shows_solutions = create_memo(move || expanded.get() && !quiz);
     let goal = generate_challenge(challenge).goal;
-    let solving = editor.clone();
     let theme = use_theme();
     view! {
         <List spacing=4.0>
@@ -157,16 +155,16 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                {move || clone!(block editor game goal solving -> view! {
+                {move || clone!(block game goal -> view! {
                     <Frame padding_left=INDENT>
                         <List spacing=ROW_SPACING>
                             <Caption content={goal} wrap=true />
                             <Show condition={shows_quiz}>
-                                <BinaryAddition editor={editor.clone()} block={block.clone()} />
+                                <BinaryAddition editor={editor} block={block.clone()} />
                             </Show>
                             <Show condition={shows_solutions}>
                                 <Solutions
-                                    editor={solving.clone()}
+                                    editor={editor}
                                     game={game.clone()}
                                     challenge={challenge}
                                     level={level}

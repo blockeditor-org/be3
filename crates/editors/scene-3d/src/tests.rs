@@ -1,4 +1,4 @@
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -13,6 +13,6 @@ fn editor() -> (BeuiTest<Scene3DApp>, EditorHost) {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(ACCOUNT);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     (BeuiTest::new(editor), host)
 }

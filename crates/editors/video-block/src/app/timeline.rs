@@ -332,7 +332,7 @@ fn Clip(
     let trim_scale = scale;
     let trimming_edge = Rc::clone(&state);
     let trim_edge_scale = scale;
-    let editor = state.editor().clone();
+    let editor = state.editor();
     let test_id = format!("video.clip.{}", row.id);
     let grabbed_at = Rc::new(Cell::new(None::<Pos2>));
     let grabbing = Rc::clone(&grabbed_at);

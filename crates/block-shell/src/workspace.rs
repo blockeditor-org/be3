@@ -239,8 +239,8 @@ impl Workspace {
         });
     }
 
-    pub fn editor(&self) -> &Editor {
-        &self.editor
+    pub fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub fn layout(&self) -> DockingLayout<TabId> {
@@ -301,7 +301,7 @@ impl Workspace {
         self.open(TabItem { id, block_type }, None);
     }
 
-    pub(crate) fn host(&self) -> &EditorHost {
+    pub(crate) fn host(&self) -> EditorHost {
         self.editor.host()
     }
 
@@ -1087,7 +1087,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
     });
     let picture = create_memo(move || icon.get().as_ref().and_then(window_picture));
     let closing = Rc::clone(&workspace);
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     view! {
         <DockTab
             id={window_tab(window)}
@@ -1097,7 +1097,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             on_close={move || closing.close(window_tab(window))}
         >
             <WindowPanel
-                editor={editor.clone()}
+                editor={editor}
                 window
                 fullscreen={fullscreen}
                 name={name}
@@ -1153,7 +1153,7 @@ pub fn AttachedWindow(
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let fullscreen = create_memo(|| None);
     let closing = Rc::clone(&workspace);
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     view! {
         <DockDialog
             id={window_tab(window)}
@@ -1165,7 +1165,7 @@ pub fn AttachedWindow(
             on_close={move || closing.close(window_tab(window))}
         >
             <WindowPanel
-                editor={editor.clone()}
+                editor={editor}
                 window
                 fullscreen={fullscreen}
                 name={title}
@@ -1181,7 +1181,7 @@ pub fn AttachedWindow(
 pub fn PanelWindow(workspace: Rc<Workspace>, panel: HostPanel) -> DockNode<TabId> {
     let key = format!("panel.{panel:?}");
     let closing = Rc::clone(&workspace);
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     view! {
         <DockWindow id={key.clone()} rect={panel_window(panel)}>
             <DockPane id={key}>
@@ -1191,7 +1191,7 @@ pub fn PanelWindow(workspace: Rc<Workspace>, panel: HostPanel) -> DockNode<TabId
                     icon={panel_icon(panel)}
                     on_close={move || closing.close(panel_tab(panel))}
                 >
-                    <HostPanelView editor={editor.clone()} panel />
+                    <HostPanelView editor={editor} panel />
                 </DockTab>
             </DockPane>
         </DockWindow>

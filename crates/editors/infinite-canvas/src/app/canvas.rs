@@ -348,7 +348,7 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
     let punch = create_memo(clone!(punching -> move || punching.child_state(id).available));
     let reporting = Rc::clone(&state);
     let changing = Rc::clone(&state);
-    let editor = state.editor().clone();
+    let editor = state.editor();
     view! {
         <CanvasItem
             x={create_memo(move || bounds.get().left())}

@@ -24,15 +24,14 @@ const CELL_EDITOR_HEIGHT: f32 = 40.0;
 
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
-    let data = ViewData::new(&editor);
-    let sized = editor.clone();
+    let data = ViewData::new(editor);
     let measured = data.clone();
     create_effect(move || {
         let size = match measured.kind.get() {
             DatabaseViewKind::Spreadsheet => Some(spreadsheet_size(&measured)),
             DatabaseViewKind::Kanban | DatabaseViewKind::Scatter | DatabaseViewKind::List => None,
         };
-        sized.set_intrinsic_size(size);
+        editor.set_intrinsic_size(size);
     });
 
     let spreadsheet = create_memo(clone!(data -> move || {
@@ -76,7 +75,7 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
 
 #[component]
 pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
-    let data = ViewData::new(&editor);
+    let data = ViewData::new(editor);
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>

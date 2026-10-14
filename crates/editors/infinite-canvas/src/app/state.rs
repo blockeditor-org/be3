@@ -274,7 +274,7 @@ pub(crate) struct CanvasState {
 }
 
 impl CanvasState {
-    pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, preview: bool) -> Rc<Self> {
         let content = editor.block_content::<CanvasContent>();
         let entities = content.project(|canvas| canvas.root().entities());
         let (tool, set_tool) = create_signal(Tool::Select);
@@ -294,7 +294,7 @@ impl CanvasState {
             dependencies: editor
                 .blocks()
                 .watch(BlockQuery::References(editor.block_id())),
-            editor: editor.clone(),
+            editor,
             preview,
             content,
             pending_image_center: Cell::new(None),
@@ -344,8 +344,8 @@ impl CanvasState {
         })
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn previewing(&self) -> bool {

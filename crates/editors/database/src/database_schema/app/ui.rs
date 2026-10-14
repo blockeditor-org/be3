@@ -80,7 +80,6 @@ pub fn SchemaView(editor: Editor) -> NodeId {
     });
     let read_only = editor.read_only();
 
-    let sized = editor.clone();
     create_effect(move || {
         let (lines, count) = rows.with(|rows| {
             (
@@ -89,7 +88,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
             )
         });
         let height = ROW_HEIGHT * lines as f32 + SECTION_SPACING * count as f32;
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
     let add = clone!(schema -> move || {
@@ -113,7 +112,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                                 });
                                 view! {
                                     <FieldRow
-                                        editor={editor.clone()}
+                                        editor={editor}
                                         schema={schema.clone()}
                                         id={id}
                                         field={field}
@@ -214,7 +213,6 @@ fn FieldRow(
     let (number_schema, enum_schema, block_schema, relation_schema) =
         (schema.clone(), schema.clone(), schema.clone(), schema);
     let (number_field, enum_field, block_field, relation_field) = (field, field, field, field);
-    let relation_editor = editor.clone();
     let (number_kind, enum_kind, block_kind, relation_kind) = (
         is(DatabaseFieldType::Number),
         is(DatabaseFieldType::Enum),
@@ -291,7 +289,7 @@ fn FieldRow(
             </Show>
             <Show condition={block_kind}>
                 <BlockOptions
-                    editor={editor.clone()}
+                    editor={editor}
                     schema={block_schema.clone()}
                     id={id}
                     field={block_field}
@@ -300,7 +298,7 @@ fn FieldRow(
             </Show>
             <Show condition={relation_kind}>
                 <RelationOptions
-                    editor={relation_editor.clone()}
+                    editor={editor}
                     schema={relation_schema.clone()}
                     id={id}
                     field={relation_field}
@@ -849,7 +847,7 @@ fn RelationOptions(
             })
             .map(|database| ChildTarget::new(database, DatabaseContent::CONTENT_TYPE))
     });
-    let shown = watch_block_label(&editor, target);
+    let shown = watch_block_label(editor, target);
     let label = create_memo(move || match target.get() {
         None => "Choose a database".to_owned(),
         Some(_) => shown.with(|shown| match shown.name.is_empty() {
@@ -865,7 +863,7 @@ fn RelationOptions(
                 .unwrap_or_default()
         })
     });
-    let choose = clone!(editor schema -> move || {
+    let choose = clone!(schema -> move || {
         let schema = schema.clone();
         let current = options.get_untracked();
         editor.pick_block(

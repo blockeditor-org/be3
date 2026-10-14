@@ -125,7 +125,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let wide = create_memo(move || !narrow.get());
     let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
     let (property_data, link_data) = (data.clone(), data.clone());
-    let editor = data.editor().clone();
+    let editor = data.editor();
     let theme = use_theme();
     view! {
         <BackHandler on_back={back}>
@@ -244,7 +244,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                     <Show condition={present}>
                         <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
-                            editor={editor.clone()}
+                            editor={editor}
                             block={target}
                             mode=ChildMode::Live
                             own_frame=true

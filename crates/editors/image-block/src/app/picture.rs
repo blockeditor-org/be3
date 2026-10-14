@@ -20,7 +20,7 @@ fn digest(data: &[u8]) -> u64 {
     hasher.finish()
 }
 
-pub(crate) fn watch(editor: &Editor, block: &Rc<ContentProjection<ImageContent>>) -> Memo<Shown> {
+pub(crate) fn watch(editor: Editor, block: &Rc<ContentProjection<ImageContent>>) -> Memo<Shown> {
     let (shown, set_shown) = create_signal(Shown::default());
     let key = block.project(|image| (image.header().clone(), digest(image.data())));
     let decoded: RefCell<Option<(u64, Shown)>> = RefCell::new(None);
@@ -84,7 +84,7 @@ pub(crate) fn watch(editor: &Editor, block: &Rc<ContentProjection<ImageContent>>
     create_memo(move || shown.get())
 }
 
-pub(crate) fn thumbhash(editor: &Editor) -> Memo<Option<Thumbhash>> {
+pub(crate) fn thumbhash(editor: Editor) -> Memo<Option<Thumbhash>> {
     let info = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
     create_memo(move || {
         info.get()?

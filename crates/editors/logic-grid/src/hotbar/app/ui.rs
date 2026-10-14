@@ -69,7 +69,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                                 view! {
                                     <SlotRow
                                         index={index}
-                                        editor={editor.clone()}
+                                        editor={editor}
                                         hotbar={hotbar.clone()}
                                         row={row}
                                         read_only={read_only}
@@ -166,7 +166,7 @@ fn SlotRow(
             </Show>
             <Show condition={is_component}>
                 <BlockLink
-                    editor={editor.clone()}
+                    editor={editor}
                     block={component}
                     fallback={name}
                     @test_id={format!("hotbar.slot.{index}")}

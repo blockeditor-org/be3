@@ -37,8 +37,9 @@ places (a toolbar and a dock, say) gives each copy its own id.
 3. Write the test
 
 Tests live inside the editor's crate, one test per file under src/tests/, like every other
-test in the repository. block-ui-test's BeuiTest is built from the same Editor the view is
-handed and runs it headless through the plugin's own session (block_editor_plugin::headless):
+test in the repository. block-ui-test's BeuiTest is built from an OwnedEditor, which owns the
+state behind the Copy Editor the view is handed (it derefs to one, so `let editor = *owner;`
+keeps a handle after the BeuiTest takes the owner), and runs it headless through the plugin's own session (block_editor_plugin::headless):
 the Screens and EditorSession the shipped plugin runs, fed the protocol messages the app's
 host would send, with every message in both directions encoded and decoded as it would be on
 the wire. Gestures are turned into the protocol's input events the way block-app turns
@@ -48,7 +49,7 @@ either, and a message the plugin refuses fails the test.
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, block);
+    let editor = OwnedEditor::new(host, block);
     let mut test = BeuiTest::<ChecklistApp>::new(editor);
     test.hold(None, ChecklistContent::default());
     test.run();

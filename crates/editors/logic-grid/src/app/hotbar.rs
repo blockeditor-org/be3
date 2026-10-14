@@ -109,7 +109,7 @@ impl LogicGridEditor {
     }
 
     pub(super) fn sync_hotbar(&mut self, live: bool, client_id: Uuid) -> bool {
-        if let (true, Some(editor)) = (live, self.store.editor().cloned()) {
+        if let (true, Some(editor)) = (live, self.store.editor()) {
             let pending = self.hotbar_needs_write;
             let root = &mut self.hotbar_block;
             if pending {

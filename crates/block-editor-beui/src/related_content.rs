@@ -11,6 +11,14 @@ pub struct RelatedContent<C> {
     marker: std::marker::PhantomData<fn() -> C>,
 }
 
+impl<C> Clone for RelatedContent<C> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<C> Copy for RelatedContent<C> {}
+
 impl<C> RelatedContent<C>
 where
     C: be_block::LiveEdit + Clone + Default,
@@ -47,8 +55,8 @@ where
     {
         let project = Rc::new(project);
         let (read, write) = create_signal(T::default());
-        let editor = self.editor.clone();
         let id = self.id;
+        let editor = self.editor;
         create_effect(move || {
             let Some(block) = id.get() else {
                 write.set(T::default());

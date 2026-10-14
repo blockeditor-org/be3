@@ -199,7 +199,7 @@ pub(crate) fn Game(
         <List spacing=0.0>
             <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
                 {move |snapshot: ReadSignal<GameSnapshot>| {
-                    let (editor, game) = (editor.clone(), game.clone());
+                    let game = game.clone();
                     view! {
                         <GameShape editor game snapshot @sizing=ItemSize::Percent(100.0) />
                     }
@@ -237,7 +237,7 @@ fn GameShape(
             </Show>
             <Show condition=playing>
                 <GamePlay
-                    editor={editor.clone()}
+                    editor={editor}
                     game={game.clone()}
                     snapshot={snapshot}
                     @sizing=ItemSize::Percent(100.0)
@@ -313,10 +313,9 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
     };
     let drawn = create_memo(move || board.with(Layout::of));
     let hand = create_memo(move || board.with(|board| board.hand.clone()));
-    let sized = editor.clone();
     create_effect(move || {
         let size = drawn.with(|layout| layout.size);
-        sized.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
+        editor.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
     });
     let world = editor.world();
     let layout = create_memo(move || drawn.with(|layout| layout.centered_in(world.get())));
@@ -344,15 +343,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
             <Keyed value={chrome} key={|shown: bool| shown}>
                 {move |chrome: ReadSignal<bool>| {
                     let stage = stage;
-                    let (editor, play, drawn, layout, hand, steps, panel) = (
-                        editor.clone(),
-                        play.clone(),
-                        drawn,
-                        layout,
-                        hand,
-                        steps.clone(),
-                        panel.clone(),
-                    );
+                    let (play, drawn, layout, hand, steps, panel) = (play.clone(), drawn, layout, hand, steps.clone(), panel.clone());
                     match chrome.get_untracked() {
                         true => view! {
                             <List

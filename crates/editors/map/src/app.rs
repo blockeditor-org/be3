@@ -40,16 +40,15 @@ impl block_editor_beui::BeuiApp for MapApp {
 
 #[component]
 fn MapEditor(editor: Editor) -> NodeId {
-    let state = MapState::new(&editor, false);
+    let state = MapState::new(editor, false);
     state.watch();
 
     let sized = Rc::clone(&state);
-    let sizing = editor.clone();
     let region = state.displayed_region;
     block_editor_beui::beui::reactive::create_effect(move || {
         let aspect = crate::geo::region_aspect_ratio(region.get()).max(0.01);
         let _ = sized.block_id();
-        sizing.set_intrinsic_size(Some(match aspect >= 1.0 {
+        editor.set_intrinsic_size(Some(match aspect >= 1.0 {
             true => Vec2::new(WORLD_POINTS, WORLD_POINTS / aspect),
             false => Vec2::new(WORLD_POINTS * aspect, WORLD_POINTS),
         }));
@@ -73,7 +72,7 @@ fn MapEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn MapPreview(editor: Editor) -> NodeId {
-    let state = MapState::new(&editor, true);
+    let state = MapState::new(editor, true);
     state.watch();
     view! {
         <MapCanvas state={state} />

@@ -40,7 +40,7 @@ pub struct Selection {
 pub struct ViewData {
     editor: Editor,
     view: Rc<ContentProjection<DatabaseViewContent>>,
-    database: Rc<RelatedContent<DatabaseContent>>,
+    database: RelatedContent<DatabaseContent>,
     set_selected: WriteSignal<Option<Selection>>,
     set_error: WriteSignal<Option<String>>,
     set_search: WriteSignal<String>,
@@ -75,7 +75,7 @@ pub struct ViewData {
 }
 
 impl ViewData {
-    pub fn new(editor: &Editor) -> Data {
+    pub fn new(editor: Editor) -> Data {
         let view = editor.block_content::<DatabaseViewContent>();
         let database_ref = view.project(|view| view.root().database);
         let database_id = create_memo(move || database_ref.get());
@@ -205,7 +205,7 @@ impl ViewData {
         });
 
         Rc::new(Self {
-            editor: editor.clone(),
+            editor,
             view,
             database,
             set_selected,
@@ -242,8 +242,8 @@ impl ViewData {
         })
     }
 
-    pub fn editor(&self) -> &Editor {
-        &self.editor
+    pub fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub fn select(&self, row: usize, field: Option<Uuid>) {
@@ -528,7 +528,7 @@ impl ViewData {
         }) else {
             return;
         };
-        let database = Rc::clone(&self.database);
+        let database = self.database;
         let set_error = self.set_error;
         self.editor.pick_block(
             value_block_filter(&name, request),
@@ -573,7 +573,7 @@ pub fn value_block_filter(field_name: &str, request: DatabaseBlockPickRequest) -
 }
 
 fn watch_labels(
-    editor: &Editor,
+    editor: Editor,
     database_id: Memo<Option<Uuid>>,
     rows: Memo<Vec<DatabaseRow>>,
     row_labels: Memo<std::collections::BTreeMap<RowRef, String>>,
@@ -581,7 +581,6 @@ fn watch_labels(
     let (labels, set_labels) = create_signal(HashMap::<Uuid, BlockLabel>::new());
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
-    let catalog = editor.clone();
     create_effect(move || {
         let Some(database_id) = database_id.get() else {
             return;
@@ -596,7 +595,7 @@ fn watch_labels(
         let Some((_, references)) = watched.as_ref() else {
             return;
         };
-        let types = catalog.block_types();
+        let types = editor.block_types();
         let known: HashMap<Uuid, BlockLabel> = references
             .read()
             .into_iter()
@@ -615,7 +614,7 @@ fn watch_labels(
     })
 }
 
-fn watch_views(editor: &Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uuid, String)>> {
+fn watch_views(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uuid, String)>> {
     let (views, set_views) = create_signal(Vec::<(Uuid, String)>::new());
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
@@ -655,7 +654,7 @@ fn watch_views(editor: &Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uu
     create_memo(move || views.get())
 }
 
-fn watch_name(editor: &Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
+fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
     let (name, set_name) = create_signal(String::new());
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();

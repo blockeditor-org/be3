@@ -156,7 +156,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         Some(info) if !info.access.can_view() => Content::Denied,
         Some(_) | None => Content::Block,
     });
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     let branch = Rc::clone(&workspace);
     let branch_info = info;
     let phone = workspace.phone;
@@ -184,7 +184,6 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                     {move |content: Content| {
                         let workspace = Rc::clone(&branch);
                         let info = branch_info;
-                        let editor = editor.clone();
                         let top_bar = top_bar;
                         match content {
                             Content::Debug => view! {

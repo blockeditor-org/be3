@@ -580,9 +580,9 @@ impl GridStore {
         }
     }
 
-    fn editor(&self) -> Option<&block_editor_beui::Editor> {
+    fn editor(&self) -> Option<block_editor_beui::Editor> {
         match self {
-            Self::Live { editor, .. } => Some(editor),
+            Self::Live { editor, .. } => Some(*editor),
             #[cfg(test)]
             Self::Local { .. } => None,
         }
@@ -631,9 +631,9 @@ pub(super) struct LogicGridEditor {
 const DISPLAY_NAME: &str = "Logic Grid";
 
 impl LogicGridEditor {
-    fn live(editor: &block_editor_beui::Editor) -> Self {
+    fn live(editor: block_editor_beui::Editor) -> Self {
         Self::new(GridStore::Live {
-            editor: editor.clone(),
+            editor,
             content: editor.block_content::<LogicGridContent>(),
         })
     }
@@ -813,7 +813,7 @@ impl LogicGridEditor {
     }
 
     fn compile(&mut self) -> Option<(Uuid, Uuid)> {
-        let editor = self.store.editor()?.clone();
+        let editor = self.store.editor()?;
         let source_id = editor.block_id();
         let compiled = dynamic_artifact::generate_initial(source_id, &self.grid);
         match compiled {

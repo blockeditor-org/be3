@@ -67,7 +67,7 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
         >
             <ForEach keys>
                 {move |id: String| view! {
-                    <TrayButton editor={editor.clone()} listed={listed} id />
+                    <TrayButton editor={editor} listed={listed} id />
                 }}
             </ForEach>
         </List>
@@ -94,11 +94,11 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     let item_is_menu = create_memo(move || item.with(|item| item.item_is_menu));
     let click_opens = create_memo(move || item_is_menu.get() && has_menu.get());
     let request = {
-        let (editor, id) = (editor.clone(), id.clone());
+        let (editor, id) = (editor, id.clone());
         move |request: fn(String) -> TrayRequest| editor.act(request(id.clone()))
     };
     let (click, secondary, middle) = (request.clone(), request.clone(), request);
-    let (scrolling, opening, choosing) = (editor.clone(), editor.clone(), editor);
+    let (scrolling, opening, choosing) = (editor, editor, editor);
     let (scrolled_id, opened_id, chosen_id) = (id.clone(), id.clone(), id.clone());
     let chosen = Chosen(Rc::new(move |entry: i32| {
         choosing.act(TrayRequest::MenuChosen {

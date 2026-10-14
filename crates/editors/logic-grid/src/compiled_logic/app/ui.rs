@@ -57,14 +57,12 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
         })
     });
     let no_calls = create_memo(move || calls.with(Vec::is_empty));
-    let sized = editor.clone();
     create_effect(move || {
         let rows = ports.with(Vec::len) + calls.with(Vec::len) + program.with(Vec::len);
         let height = CHROME_HEIGHT + ROW_HEIGHT * rows as f32;
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
-    let source_editor = editor.clone();
     let theme = use_theme();
     view! {
         <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
@@ -74,7 +72,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
                         <List spacing=6.0>
                             <Heading content="Compiled from" />
                             <BlockLink
-                                editor={source_editor}
+                                editor={editor}
                                 block={source}
                                 @test_id={"compiled-logic.source"}
                             />
@@ -115,7 +113,7 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
                     let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
-                            editor={editor.clone()}
+                            editor={editor}
                             block={block}
                             @test_id={format!("compiled-logic.call.{called}")}
                         />

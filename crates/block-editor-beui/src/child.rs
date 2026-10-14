@@ -141,7 +141,7 @@ fn SubregionView(
         on_bar,
     );
     let entries = create_memo(move || state.with(|state| (state.child, state.menu.clone())));
-    let host = editor.host().clone();
+    let host = editor.host();
     let menu = create_memo(move || {
         let (child, entries) = entries.get();
         let Some(child) = child else {

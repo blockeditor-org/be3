@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::PdfContent;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -10,7 +10,7 @@ mod a_page_is_rendered_with_pdfium;
 fn editor(content: PdfContent) -> BeuiTest<PdfApp> {
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host, Uuid::new_v4());
+    let editor = OwnedEditor::new(host, Uuid::new_v4());
     let mut editor = BeuiTest::new(editor).in_viewport();
     editor.hold(None, content);
     editor

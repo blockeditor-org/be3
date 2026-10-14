@@ -83,7 +83,7 @@ fn Layer(state: Rc<VideoState>, id: Uuid) -> NodeId {
     let watched = block;
     view! {
         <ChildBlock
-            editor={state.editor().clone()}
+            editor={state.editor()}
             block={block}
             mode=ChildMode::Preview
             on_state={move |child: ChildState| {

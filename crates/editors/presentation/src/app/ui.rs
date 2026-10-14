@@ -31,7 +31,7 @@ const TILE_SPACING: f32 = 8.0;
 
 #[component]
 pub fn PresentationView(editor: Editor) -> NodeId {
-    let slides = Slides::new(&editor);
+    let slides = Slides::new(editor);
     let presenting = editor.presenting();
     let stage = NodeRef::new();
     editor.content(&stage);
@@ -56,14 +56,14 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Filmstrip
                         @sizing=ItemSize::Fixed(FILMSTRIP_WIDTH)
-                        editor={editor.clone()}
+                        editor={editor}
                         slides={Rc::clone(&slides)}
                         shown={editing}
                     />
                     <Frame visible={editing} width=theme::BORDER_WIDTH color={theme.border} />
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Toolbar
-                            editor={editor.clone()}
+                            editor={editor}
                             slides={Rc::clone(&slides)}
                             shown={editing}
                         />
@@ -71,7 +71,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
                             @node_ref={&stage}
-                            editor={editor.clone()}
+                            editor={editor}
                             slides={Rc::clone(&slides)}
                             selected={slides.selected()}
                             mode={mode}
@@ -89,7 +89,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
 #[component]
 pub fn PresentationPreview(editor: Editor) -> NodeId {
-    let slides = Slides::new(&editor);
+    let slides = Slides::new(editor);
     let first =
         create_memo(clone!(slides -> move || slides.keys().with(|keys| keys.first().copied())));
     view! {
@@ -131,12 +131,11 @@ fn Stage(
 ) -> NodeId {
     let target = create_memo(clone!(slides -> move || slides.target(selected.get())));
     let (ratio, set_ratio) = create_signal(DEFAULT_RATIO);
-    let sized = editor.clone();
     let report = move |state: ChildState| {
         let ratio = state.aspect_ratio.unwrap_or(DEFAULT_RATIO);
         set_ratio.set(ratio);
         if report_size {
-            sized.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * ratio, SLIDE_HEIGHT)));
+            editor.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * ratio, SLIDE_HEIGHT)));
         }
     };
     let fitted = create_memo(move || match fit.get() {
@@ -196,7 +195,7 @@ fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
         let index = slides.count();
         slides.add(index);
     });
-    let present = clone!(editor -> move || editor.present(true));
+    let present = move || editor.present(true);
     view! {
         <Frame
             visible={shown}
@@ -299,10 +298,10 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
     let keys = slides.keys();
     let selection = create_selector(clone!(slides -> move || slides.selected().get()));
     let empty = create_memo(clone!(slides -> move || slides.count() == 0));
-    let tiles = clone!(editor slides -> move |id: Uuid| {
+    let tiles = clone!(slides -> move |id: Uuid| {
         view! {
             <SlideTile
-                editor={editor.clone()}
+                editor={editor}
                 slides={Rc::clone(&slides)}
                 selected={selection.memo(Some(id))}
                 id={id}

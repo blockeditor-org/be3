@@ -116,7 +116,7 @@ pub(crate) struct Review {
 }
 
 impl Review {
-    pub(crate) fn new(editor: &Editor, source: Source) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, source: Source) -> Rc<Self> {
         let block = editor.block_content::<PaintReviewContent>();
         let approved = block.project(|review| review.root().approved());
         let loaded = block.loaded();
@@ -132,7 +132,7 @@ impl Review {
         let (description, set_description) = create_signal(None);
         let (revision, set_revision) = create_signal(0);
         Rc::new(Self {
-            editor: editor.clone(),
+            editor,
             block,
             loaded,
             source,
@@ -167,8 +167,8 @@ impl Review {
         })
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn editable(&self) -> bool {
@@ -216,13 +216,13 @@ impl Review {
     fn fetch(&self) {
         if self.download.borrow().is_none() {
             *self.download.borrow_mut() =
-                Some(crate::download::start(&self.source, self.editor.host()));
+                Some(crate::download::start(&self.source, &self.editor.host()));
         }
         let result = self
             .download
             .borrow_mut()
             .as_mut()
-            .and_then(|download| download.poll(self.editor.host()));
+            .and_then(|download| download.poll(&self.editor.host()));
         if let Some(result) = result {
             match result {
                 Ok(found) => {

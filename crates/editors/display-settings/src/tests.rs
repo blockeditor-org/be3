@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::DisplaySettingsContent;
 use block_editor_beui::be_block::display_settings::{DisplayMode, ScreenOff};
 use block_editor_beui::beui::Key;
-use block_editor_beui::{Displays, Editor, EditorHost, HostDisplay, HostDisplayMode};
+use block_editor_beui::{Displays, OwnedEditor, EditorHost, HostDisplay, HostDisplayMode};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -24,7 +24,7 @@ fn editor(displays: Vec<HostDisplay>) -> BeuiTest<DisplaySettingsApp> {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_host_value::<Displays>(&displays);
-    let mut editor = BeuiTest::new(Editor::new(host, Uuid::new_v4()));
+    let mut editor = BeuiTest::new(OwnedEditor::new(host, Uuid::new_v4()));
     editor.hold(None, DisplaySettingsContent::default());
     editor.run();
     editor

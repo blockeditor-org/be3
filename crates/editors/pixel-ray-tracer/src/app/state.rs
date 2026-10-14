@@ -153,7 +153,7 @@ impl Default for Surface {
 }
 
 impl RayState {
-    pub(crate) fn new(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor) -> Rc<Self> {
         let block = Scenes::new(editor.block_content::<PixelRayTracerContent>());
         let performance = editor
             .host()
@@ -176,7 +176,7 @@ impl RayState {
         let (new_surface, set_new_surface) = create_signal(Surface::default());
         let (poked, set_poked) = create_signal(0);
         Rc::new(Self {
-            editor: editor.clone(),
+            editor,
             block,
             performance,
             interaction: RefCell::new(None),
@@ -211,8 +211,8 @@ impl RayState {
         })
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn settings(&self, view: bool) -> RaySettings {

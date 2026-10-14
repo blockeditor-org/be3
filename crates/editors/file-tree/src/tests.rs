@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2};
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -80,7 +80,7 @@ fn editor_sized(size: Option<Vec2>) -> Fixture {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), tree);
+    let editor = OwnedEditor::new(host.clone(), tree);
     let test = BeuiTest::new(editor);
     let test = match size {
         Some(size) => test.with_size(size),
@@ -96,7 +96,7 @@ fn viewed(view: EditorViewContent) -> Fixture {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_view_block(Some(tree));
-    let editor = Editor::new(host.clone(), tree);
+    let editor = OwnedEditor::new(host.clone(), tree);
     let mut fixture = Fixture {
         test: BeuiTest::new(editor),
         host,
@@ -110,7 +110,7 @@ fn phone() -> Fixture {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), tree);
+    let editor = OwnedEditor::new(host.clone(), tree);
     let test = BeuiTest::new(editor)
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();

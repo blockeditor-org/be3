@@ -147,7 +147,7 @@ fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
             .get()
             .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
     });
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     view! {
         <List spacing=0.0>
             <ChildBlock

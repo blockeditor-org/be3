@@ -111,7 +111,7 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
     });
 
     let view = review.editor().canvas();
-    let placed = review.editor().clone();
+    let placed = review.editor();
     let laid_out = panels;
     let world = review.editor().world();
     let laid = create_memo(move || {

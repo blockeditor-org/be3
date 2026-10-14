@@ -15,7 +15,7 @@ pub(crate) fn MapToolbar(state: Rc<MapState>, shown: Prop<bool>) -> NodeId {
     let add = Rc::clone(&state);
     let out = Rc::clone(&state);
     let inward = Rc::clone(&state);
-    let whole = state.editor().clone();
+    let whole = state.editor();
     let fit = Rc::clone(&state);
     let reload = Rc::clone(&state);
     let regionless = create_memo(clone!(state -> move || state.preview_region.get().is_none()));

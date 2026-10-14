@@ -144,11 +144,7 @@ fn ZoomControls(review: Rc<Review>) -> NodeId {
     let scale = review.scale;
     let zoomed = create_memo(move || scale.get().is_some());
     let percent = create_memo(move || format!("{:.0}%", scale.get().unwrap_or(1.0) * 100.0));
-    let out = review.editor().clone();
-    let inward = review.editor().clone();
-    let fit = review.editor().clone();
-    let actual = review.editor().clone();
-    let actual_scale = scale;
+    let editor = review.editor();
     view! {
         <Frame visible={zoomed}>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -156,28 +152,28 @@ fn ZoomControls(review: Rc<Review>) -> NodeId {
                     glyph={ICON_ZOOM_OUT.to_owned()}
                     label="Zoom out"
                     @test_id={"paint_review.zoom.out"}
-                    on_click={move || out.zoom(1.0 / ZOOM_STEP)}
+                    on_click={move || editor.zoom(1.0 / ZOOM_STEP)}
                 />
                 <Button
                     label={percent}
                     variant=ButtonVariant::Secondary
                     @test_id={"paint_review.zoom.actual"}
                     on_click={move || {
-                        let scale = actual_scale.get_untracked().unwrap_or(1.0);
-                        actual.zoom(1.0 / scale);
+                        let scale = scale.get_untracked().unwrap_or(1.0);
+                        editor.zoom(1.0 / scale);
                     }}
                 />
                 <IconButton
                     glyph={ICON_ZOOM_IN.to_owned()}
                     label="Zoom in"
                     @test_id={"paint_review.zoom.in"}
-                    on_click={move || inward.zoom(ZOOM_STEP)}
+                    on_click={move || editor.zoom(ZOOM_STEP)}
                 />
                 <IconButton
                     glyph={ICON_FIT_SCREEN.to_owned()}
                     label="Fit the painting to the panel"
                     @test_id={"paint_review.zoom.fit"}
-                    on_click={move || fit.fit()}
+                    on_click={move || editor.fit()}
                 />
             </List>
         </Frame>

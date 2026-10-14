@@ -59,13 +59,9 @@ pub(crate) fn DesktopBar(
 ) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
-    let editor = workspace.editor().clone();
-    let power = editor.clone();
-    let sounding = editor.clone();
-    let tray = editor.clone();
+    let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
-    let dated = editor.clone();
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(&workspace);
@@ -147,17 +143,17 @@ pub(crate) fn DesktopBar(
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <TrayItems editor={tray} />
+                    <TrayItems editor={editor} />
                     <Show condition={audible}>
-                        <VolumeButton editor={sounding.clone()} levels={levels} />
+                        <VolumeButton editor={editor} levels={levels} />
                     </Show>
                     <NotificationsButton notifications />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
-                            <DesktopCalendar editor={dated.clone()} />
+                            <DesktopCalendar editor={editor} />
                         }}
                     </BarPopup>
-                    <PowerMenu editor={power} />
+                    <PowerMenu editor={editor} />
                 </List>
             </Frame>
         </List>

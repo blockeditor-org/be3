@@ -34,7 +34,7 @@ pub(crate) fn exportable(block_type: Uuid) -> bool {
 }
 
 impl Exporter {
-    pub(crate) fn new(editor: &Editor) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor) -> Rc<Self> {
         let (wanted, set_wanted) = create_signal(None::<Export>);
         let (error, set_error) = create_signal(None::<String>);
         let exporter = Rc::new(Self {
@@ -44,17 +44,16 @@ impl Exporter {
         });
         let saver = Rc::new(RefCell::new(FileSaver::default()));
         let saving = Rc::clone(&saver);
-        let reading = editor.clone();
         create_effect(move || {
             let Some(export) = wanted.get() else {
                 return;
             };
-            let Some(file) = file_of(&reading, &export) else {
+            let Some(file) = file_of(editor, &export) else {
                 return;
             };
             untrack(|| {
                 set_wanted.set(None);
-                saving.borrow_mut().save(reading.host(), file);
+                saving.borrow_mut().save(&editor.host(), file);
             });
         });
         let host = editor.host().clone();
@@ -77,7 +76,7 @@ impl Exporter {
     }
 }
 
-fn file_of(editor: &Editor, export: &Export) -> Option<SavedFile> {
+fn file_of(editor: Editor, export: &Export) -> Option<SavedFile> {
     let named = |extension: &str| file_name(&export.name, extension);
     match export.block_type {
         kind if kind == ImageContent::CONTENT_TYPE => {
@@ -131,7 +130,7 @@ fn file_of(editor: &Editor, export: &Export) -> Option<SavedFile> {
     }
 }
 
-fn read<C>(editor: &Editor, id: Uuid, file: impl FnOnce(&C) -> SavedFile) -> Option<SavedFile>
+fn read<C>(editor: Editor, id: Uuid, file: impl FnOnce(&C) -> SavedFile) -> Option<SavedFile>
 where
     C: LiveEdit + Clone + Default,
 {

@@ -24,11 +24,11 @@ pub struct Slides {
 }
 
 impl Slides {
-    pub fn new(editor: &Editor) -> Rc<Self> {
+    pub fn new(editor: Editor) -> Rc<Self> {
         let block = editor.block_content::<PresentationContent>();
         let (selected, set_selected) = create_signal(None::<Uuid>);
         let slides = Rc::new(Self {
-            editor: editor.clone(),
+            editor,
             block,
             store: KeyedStore::new(),
             selected,

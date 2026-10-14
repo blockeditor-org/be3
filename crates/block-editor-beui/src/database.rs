@@ -749,9 +749,8 @@ fn LinksValue(
     }
 }
 
-pub fn watch_inverses(editor: &crate::Editor, database: Memo<Option<Uuid>>) -> Memo<Vec<Inverse>> {
+pub fn watch_inverses(editor: crate::Editor, database: Memo<Option<Uuid>>) -> Memo<Vec<Inverse>> {
     let (found, set_found) = create_signal(Vec::<Inverse>::new());
-    let editor = editor.clone();
     let watched: std::cell::RefCell<Option<(Uuid, crate::BlockList)>> =
         std::cell::RefCell::new(None);
     create_effect(move || {
@@ -784,7 +783,7 @@ pub fn watch_inverses(editor: &crate::Editor, database: Memo<Option<Uuid>>) -> M
         sources.dedup();
         let watched_sources: Vec<ReadSignal<Vec<Inverse>>> = sources
             .into_iter()
-            .map(|source| source_inverses(&editor, target, source))
+            .map(|source| source_inverses(editor, target, source))
             .collect();
         let set_found = set_found;
         create_effect(move || {
@@ -799,11 +798,10 @@ pub fn watch_inverses(editor: &crate::Editor, database: Memo<Option<Uuid>>) -> M
     create_memo(move || found.get())
 }
 
-fn source_inverses(editor: &crate::Editor, target: Uuid, source: Uuid) -> ReadSignal<Vec<Inverse>> {
+fn source_inverses(editor: crate::Editor, target: Uuid, source: Uuid) -> ReadSignal<Vec<Inverse>> {
     let content = editor.content_of::<DatabaseContent>(source);
     let schema_id = content.project(|content| content.root().schema);
     let (found, set_found) = create_signal(Vec::new());
-    let editor = editor.clone();
     create_effect(move || {
         let Some(schema) = schema_id.get() else {
             set_found.set(Vec::new());
@@ -833,16 +831,15 @@ pub fn relation_targets(fields: &[DatabaseField]) -> Vec<Uuid> {
 }
 
 pub fn watch_row_labels(
-    editor: &crate::Editor,
+    editor: crate::Editor,
     databases: Memo<Vec<Uuid>>,
 ) -> Memo<BTreeMap<RowRef, String>> {
     let (labels, set_labels) = create_signal(BTreeMap::new());
-    let editor = editor.clone();
     create_effect(move || {
         let watched: Vec<ReadSignal<Vec<(RowRef, String)>>> = databases
             .get()
             .into_iter()
-            .map(|database| row_titles(&editor, database))
+            .map(|database| row_titles(editor, database))
             .collect();
         let set_labels = set_labels;
         create_effect(move || {
@@ -857,11 +854,10 @@ pub fn watch_row_labels(
     create_memo(move || labels.get())
 }
 
-fn row_titles(editor: &crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef, String)>> {
+fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef, String)>> {
     let content = editor.content_of::<DatabaseContent>(database);
     let schema_id = content.project(|content| content.root().schema);
     let (titles, set_titles) = create_signal(Vec::new());
-    let editor = editor.clone();
     create_effect(move || {
         let title_field = schema_id.get().map(|schema| {
             editor

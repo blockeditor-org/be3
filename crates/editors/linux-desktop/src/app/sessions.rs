@@ -26,7 +26,7 @@ impl Sessions {
     pub(crate) fn new(workspace: &Rc<Workspace>) -> Self {
         let found = RootSettings::default();
         let finding = Rc::clone(workspace);
-        let settings = create_memo(move || found.find(finding.editor()));
+        let settings = create_memo(move || found.find(&finding.editor()));
         let listing = Rc::clone(workspace);
         let listed = create_memo(move || listed(&listing));
         Self {
@@ -60,7 +60,7 @@ impl Sessions {
 
 fn listed(workspace: &Workspace) -> Vec<Session> {
     let editor = workspace.editor();
-    let Some(held) = RootSettings::default().read(editor) else {
+    let Some(held) = RootSettings::default().read(&editor) else {
         return Vec::new();
     };
     let mut sessions: Vec<Session> = held

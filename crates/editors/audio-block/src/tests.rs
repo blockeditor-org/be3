@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::AudioContent;
-use block_editor_beui::{AudioStatus, Editor, EditorHost};
+use block_editor_beui::{AudioStatus, Editor, OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -13,8 +13,9 @@ fn editor() -> (BeuiTest<AudioApp>, Editor) {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
-    let mut test = BeuiTest::new(editor.clone());
+    let owner = OwnedEditor::new(host.clone(), block);
+    let editor = *owner;
+    let mut test = BeuiTest::new(owner);
     test.hold(
         None,
         AudioContent::from_file("song.flac", "audio/flac", vec![1, 2, 3]).unwrap(),

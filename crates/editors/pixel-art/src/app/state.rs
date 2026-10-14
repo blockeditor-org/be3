@@ -67,7 +67,7 @@ pub(crate) struct Tools {
 }
 
 impl Tools {
-    pub(crate) fn new(editor: &Editor, block: ArtBlock) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, block: ArtBlock) -> Rc<Self> {
         let black = PixelColor::new(0, 0, 0, 255);
         let (tool, set_tool) = create_signal(PixelTool::Pencil);
         let (color, set_color) = create_signal(black);
@@ -87,7 +87,7 @@ impl Tools {
         let (drawn, set_drawn) = create_signal(0);
         let (constrained, set_constrained) = create_signal(false);
         Rc::new(Self {
-            editor: editor.clone(),
+            editor,
             block,
             held: RefCell::new(None),
             tool,
@@ -129,8 +129,8 @@ impl Tools {
         })
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn block(&self) -> &ArtBlock {

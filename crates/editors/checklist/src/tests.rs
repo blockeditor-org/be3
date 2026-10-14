@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::{Checklist as ChecklistModel, ChecklistContent, Edit, ObjectId};
 use block_editor_beui::beui::Document;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{OwnedEditor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -19,7 +19,7 @@ impl Harness {
         let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host, block);
+        let editor = OwnedEditor::new(host, block);
         let mut content = ChecklistContent::default();
         for (text, done) in items {
             let (id, add) = ChecklistModel::add(*text);

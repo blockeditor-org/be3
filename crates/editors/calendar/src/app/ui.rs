@@ -44,13 +44,12 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let (form, set_form) = create_signal(None::<EventForm>);
     let anchor = create_memo(move || anchor.get());
 
-    let sized = editor.clone();
     create_effect(move || {
         let height = match mode.get() {
             CalendarView::Month => MONTH_HEIGHT,
             CalendarView::Day | CalendarView::Week => TIMELINE_HEIGHT,
         };
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
     let read_only = editor.read_only();

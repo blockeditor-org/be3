@@ -43,7 +43,7 @@ impl block_editor_beui::BeuiApp for PaintReviewApp {
 
 #[component]
 pub fn PaintReviewEditor(editor: Editor, source: Source) -> NodeId {
-    let review = Review::new(&editor, source);
+    let review = Review::new(editor, source);
     review.watch();
 
     let counted = Rc::clone(&review);
