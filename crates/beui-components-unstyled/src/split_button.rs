@@ -34,20 +34,14 @@ pub fn SplitButton(
     }));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <unstyled::Button
-                label
-                glyph
-                disabled={disabled}
-                on_click={move || on_click.call()}
-                content={main}
-            />
+            <unstyled::Button label glyph disabled={disabled} on_click={on_click} content={main} />
             <unstyled::MenuButton
                 items
                 label={menu_label}
                 disabled
                 menu
                 trigger={arrow}
-                on_select={move |path: Vec<usize>| on_select.call(path)}
+                on_select={on_select}
             />
         </List>
     }

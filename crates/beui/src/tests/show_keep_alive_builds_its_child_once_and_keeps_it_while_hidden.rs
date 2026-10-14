@@ -4,11 +4,10 @@ use crate::unstyled::Button;
 
 #[test]
 fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
+    let _root = crate::reactive::RootScope::new();
     let (column, toggle) = (NodeRef::new(), NodeRef::new());
-    let builds = Rc::new(Cell::new(0));
-    let sink = builds.clone();
+    let (builds, set_builds) = create_signal(0);
     let document = build({
-        let (column, toggle) = (column.clone(), toggle.clone());
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {
@@ -22,7 +21,7 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
                     <ShowKeepAlive
                         condition={visible}
                         then={move || {
-                            sink.set(sink.get() + 1);
+                            set_builds.update(|builds| *builds += 1);
                             view! {
                                 <Text string="panel" />
                             }
@@ -38,7 +37,7 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        builds.get(),
+        builds.get_untracked(),
         0,
         "a hidden ShowKeepAlive must not build its child"
     );
@@ -51,7 +50,7 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     assert_eq!(
-        builds.get(),
+        builds.get_untracked(),
         1,
         "showing it for the first time must build it"
     );
@@ -66,12 +65,16 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
         1,
         "hiding it again takes its child back out of the list"
     );
-    assert_eq!(builds.get(), 1, "hiding it again must not rebuild it");
+    assert_eq!(
+        builds.get_untracked(),
+        1,
+        "hiding it again must not rebuild it"
+    );
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     assert_eq!(
-        builds.get(),
+        builds.get_untracked(),
         1,
         "showing it a second time must reuse the already-built child"
     );

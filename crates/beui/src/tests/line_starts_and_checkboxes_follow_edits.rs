@@ -25,13 +25,13 @@ fn indexed(state: &TextAreaState) -> (Vec<usize>, Vec<Checkbox>) {
 
 #[test]
 fn line_starts_and_checkboxes_follow_edits() {
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
-    let sink = held.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let text = "intro\n- [ ] one\n- [x] two\nplain\n  - [ ] three\nend";
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(text)) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        set_held.update(|held| *held = Some(state));
         view! {
             <Frame width=400.0 height=300.0>
                 <TextArea state={state} />
@@ -40,7 +40,7 @@ fn line_starts_and_checkboxes_follow_edits() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
 
     let edits: [(usize, usize, &[u8]); 6] = [
         (6, 0, b"- [ ] new\n"),
@@ -53,8 +53,8 @@ fn line_starts_and_checkboxes_follow_edits() {
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         for (at, delete, insert) in edits {
             let length = state.bytes().len();
-            let start = state.core().position(at.min(length));
-            let end = state.core().position((at + delete).min(length));
+            let start = state.with_core(|core| core.position(at.min(length)));
+            let end = state.with_core(|core| core.position((at + delete).min(length)));
             state.execute(EditorCommand::SetSelection {
                 anchor: start,
                 focus: end,

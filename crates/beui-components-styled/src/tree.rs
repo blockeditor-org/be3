@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::rc::Rc;
 
 use beui_macros::{component, view};
 
@@ -19,8 +18,8 @@ use beui_core::icons::{
 };
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
-    RenderFn, Spacer, clone, create_memo, focus_ring, set_component_state,
+    Align, Callback, ClickCallback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop,
+    ReadSignal, RenderFn, Spacer, clone, create_memo, focus_ring, set_component_state,
 };
 
 const INDENT: f32 = 12.0;
@@ -71,8 +70,8 @@ where
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
     let rows = NodeRef::new();
     let viewport = NodeRef::new();
-    set_component_state(Parts { rows: rows.clone() });
-    let tracked = rows.clone();
+    set_component_state(Parts { rows });
+    let tracked = rows;
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     view! {
         <List spacing=0.0>
@@ -85,20 +84,15 @@ where
                         selected
                         ancestors
                         spacing
-                        on_select={move |key| on_select.call(key)}
-                        on_expand={move |expansion| on_expand.call(expansion)}
-                        on_hover_change={move |hover| on_hover_change.call(hover)}
-                        on_drag_start={move |key| on_drag_start.call(key)}
+                        on_select={on_select}
+                        on_expand={on_expand}
+                        on_hover_change={on_hover_change}
+                        on_drag_start={on_drag_start}
                     >
                         {move |handle: TreeRowHandle<K>| {
                             let named = row_test_id.call(handle.key.clone());
                             view! {
-                                <TreeRowChrome
-                                    handle
-                                    named
-                                    outline={outline.clone()}
-                                    content={content.clone()}
-                                />
+                                <TreeRowChrome handle named outline={outline} content={content} />
                             }
                         }}
                     </unstyled::Tree>
@@ -107,7 +101,7 @@ where
             <unstyled::TreeReveal
                 tree={rows}
                 viewport={viewport}
-                on_reveal={move |key: K| on_reveal.call(key)}
+                on_reveal={on_reveal}
                 button={move |handle: TreeRevealHandle| view! {
                     <RevealButton handle named={reveal_test_id} />
                 }}
@@ -134,7 +128,7 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
                 glyph={glyph}
                 label={label}
                 variant=ButtonVariant::Secondary
-                on_click={move || reveal.call()}
+                on_click={reveal}
             />
         </Frame>
     }
@@ -183,7 +177,7 @@ where
     let theme = use_theme();
     let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * INDENT));
     let fill = create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
-    let highlight = create_memo(clone!(outline key -> move || outline.call(key.clone())));
+    let highlight = create_memo(clone!(key -> move || outline.call(key.clone())));
     let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
     let ring = focus_ring(focused);
     let outlined = create_memo(move || highlight.get().is_some() || ring.get());
@@ -221,13 +215,13 @@ where
 fn Chevron(
     item: Memo<TreeItem>,
     marked: Memo<bool>,
-    toggle: Rc<dyn Fn()>,
+    toggle: ClickCallback,
     named: String,
 ) -> NodeId {
     view! {
         <Frame width=CHEVRON_WIDTH>
             <List spacing=0.0>
-                <unstyled::TreeToggle item toggle button_test_id=named>
+                <unstyled::TreeToggle item toggle={toggle} button_test_id=named>
                     {move |handle: TreeToggleHandle| view! {
                         <ChevronFace handle marked={marked} />
                     }}

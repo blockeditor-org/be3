@@ -3,8 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show, Text,
-    clone, component, create_effect, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
+    Stored, Text, clone, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, IconButton, IconButtonSize, Paragraph,
@@ -159,9 +159,9 @@ impl GameSnapshot {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Steps {
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     count: Memo<usize>,
     shown: Memo<usize>,
 }
@@ -169,7 +169,7 @@ pub(crate) struct Steps {
 impl Steps {
     pub(crate) fn show(&self, shown: usize) {
         let count = self.count.get_untracked();
-        self.game.show_turns((shown < count).then_some(shown));
+        self.game.get().show_turns((shown < count).then_some(shown));
     }
 
     pub(crate) fn first(&self) {
@@ -192,14 +192,13 @@ impl Steps {
 #[component]
 pub(crate) fn Game(
     editor: Editor,
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     snapshot: ReadSignal<GameSnapshot>,
 ) -> NodeId {
     view! {
         <List spacing=0.0>
             <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
                 {move |snapshot: ReadSignal<GameSnapshot>| {
-                    let (editor, game) = (editor.clone(), game.clone());
                     view! {
                         <GameShape editor game snapshot @sizing=ItemSize::Percent(100.0) />
                     }
@@ -212,7 +211,7 @@ pub(crate) fn Game(
 #[component]
 fn GameShape(
     editor: Editor,
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     snapshot: ReadSignal<GameSnapshot>,
 ) -> NodeId {
     let shape = snapshot.get_untracked().shape();
@@ -237,8 +236,8 @@ fn GameShape(
             </Show>
             <Show condition=playing>
                 <GamePlay
-                    editor={editor.clone()}
-                    game={game.clone()}
+                    editor={editor}
+                    game={game}
                     snapshot={snapshot}
                     @sizing=ItemSize::Percent(100.0)
                 />
@@ -260,9 +259,9 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Panel {
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     play: Play,
     controls: Memo<Vec<Action>>,
     editable: Memo<bool>,
@@ -273,7 +272,11 @@ struct Panel {
 }
 
 #[component]
-fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> NodeId {
+fn GamePlay(
+    editor: Editor,
+    game: Stored<Rc<dyn GameModel>>,
+    snapshot: ReadSignal<GameSnapshot>,
+) -> NodeId {
     let screen = create_memo(move || snapshot.get().as_screen());
     let actions = create_memo(move || screen.get().actions);
     let editable = create_memo(move || screen.get().editable);
@@ -299,7 +302,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
         set_choices.set(Vec::new());
     });
     let play = Play {
-        game: game.clone(),
+        game,
         actions,
         editable,
         selected,
@@ -313,47 +316,32 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
     };
     let drawn = create_memo(move || board.with(Layout::of));
     let hand = create_memo(move || board.with(|board| board.hand.clone()));
-    let sized = editor.clone();
     create_effect(move || {
         let size = drawn.with(|layout| layout.size);
-        sized.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
+        editor.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
     });
     let world = editor.world();
     let layout = create_memo(move || drawn.with(|layout| layout.centered_in(world.get())));
-    let steps = Steps {
-        game: game.clone(),
-        count,
-        shown,
-    };
+    let steps = Steps { game, count, shown };
     let panel = Panel {
         game,
-        play: play.clone(),
+        play,
         controls,
         editable,
         seat,
         table,
         shown,
-        steps: steps.clone(),
+        steps,
     };
     let stage = NodeRef::new();
     editor.content(&stage);
     let chrome = editor.chrome_shown();
-    let banner_anchor = stage.clone();
+    let banner_anchor = stage;
     view! {
         <List spacing=0.0>
             <Keyed value={chrome} key={|shown: bool| shown}>
                 {move |chrome: ReadSignal<bool>| {
-                    let stage = stage.clone();
-                    let (editor, play, drawn, layout, hand, steps, panel) = (
-                        editor.clone(),
-                        play.clone(),
-                        drawn,
-                        layout,
-                        hand,
-                        steps.clone(),
-                        panel.clone(),
-                    );
-                    match chrome.get_untracked() {
+                                        match chrome.get_untracked() {
                         true => view! {
                             <List
                                 direction=Direction::Horizontal
@@ -362,7 +350,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                             >
                                 <Stage
                                     @sizing=ItemSize::Percent(100.0)
-                                    content={stage.clone()}
+                                    content={stage}
                                     editor
                                     play
                                     drawn
@@ -376,7 +364,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                         false => view! {
                             <Stage
                                 @sizing=ItemSize::Percent(100.0)
-                                content={stage.clone()}
+                                content={stage}
                                 editor
                                 play
                                 drawn
@@ -409,13 +397,12 @@ fn Sidebar(panel: Panel) -> NodeId {
     let names = create_memo(move || seat.get().names);
     let seat_keys = create_memo(move || (0..names.get().len()).collect::<Vec<_>>());
     let playing = create_memo(move || Some(seat.get().playing));
-    let seated = clone!(game -> move |seat: Option<usize>| {
+    let seated = move |seat: Option<usize>| {
         if let Some(seat) = seat {
-            game.play_as(seat);
+            game.get().play_as(seat);
         }
-    });
-    let choosing = create_memo(clone!(play -> move || !play.choices.with(Vec::is_empty)));
-    let choosing_play = play.clone();
+    };
+    let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     view! {
         <Frame color={theme.surface}>
             <Scroll>
@@ -446,7 +433,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                             />
                         </List>
                         <Show condition={choosing}>
-                            <Choices play={choosing_play.clone()} />
+                            <Choices play={play} />
                         </Show>
                         <Separator />
                         <MoveTable table shown steps />
@@ -459,12 +446,15 @@ fn Sidebar(panel: Panel) -> NodeId {
 }
 
 #[component]
-fn Controls(game: Rc<dyn GameModel>, controls: Memo<Vec<Action>>, editable: Memo<bool>) -> NodeId {
+fn Controls(
+    game: Stored<Rc<dyn GameModel>>,
+    controls: Memo<Vec<Action>>,
+    editable: Memo<bool>,
+) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <ForEach keys={controls}>
                 {move |action: Action| {
-                    let game = game.clone();
                     view! {
                         <ControlButton game action editable={editable} />
                     }
@@ -475,7 +465,7 @@ fn Controls(game: Rc<dyn GameModel>, controls: Memo<Vec<Action>>, editable: Memo
 }
 
 #[component]
-fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) -> NodeId {
+fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo<bool>) -> NodeId {
     let disabled = create_memo(move || !editable.get());
     let (confirming, set_confirming) = create_signal(false);
     let asking = create_memo(move || !confirming.get());
@@ -504,7 +494,7 @@ fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) 
                 }}
             </Show>
             <Show condition={confirming}>
-                {move || clone!(confirm effect game question -> view! {
+                {move || clone!(confirm effect question -> view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Caption content={question} />
                         <IconButton
@@ -512,7 +502,7 @@ fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) 
                             label={confirm}
                             disabled={disabled}
                             @test_id={format!("game.control.{index}.confirm")}
-                            on_click={move || game.choose(effect.clone())}
+                            on_click={move || game.get().choose(effect.clone())}
                         />
                         <IconButton
                             glyph={ICON_CLOSE.to_owned()}
@@ -596,12 +586,11 @@ fn Choices(play: Play) -> NodeId {
 fn ChoiceButtons(play: Play) -> NodeId {
     let choices = play.choices;
     let keys = create_memo(move || choices.get());
-    let cancel = clone!(play -> move || play.cancel());
+    let cancel = move || play.cancel();
     view! {
         <List spacing=6.0>
             <ForEach keys={keys}>
                 {move |action: Action| {
-                    let play = play.clone();
                     let index = action.index;
                     view! {
                         <Button
@@ -653,7 +642,7 @@ pub(crate) struct CreationSnapshot {
 
 #[component]
 pub(crate) fn GameCreation(
-    creation: Rc<dyn GameCreationModel>,
+    creation: Stored<Rc<dyn GameCreationModel>>,
     snapshot: ReadSignal<CreationSnapshot>,
 ) -> NodeId {
     let picking = create_memo(move || snapshot.get().picking);
@@ -684,13 +673,11 @@ pub(crate) fn GameCreation(
             theme.text_muted
         }
     });
-    let staged = creation.clone();
     view! {
         <Frame padding_horizontal=14.0 padding_vertical=14.0>
             <List spacing=10.0 align=Align::Start>
                 <ForEach keys={games}>
                     {move |game: StagedChoice| {
-                        let creation = staged.clone();
                         let index = game.index;
                         let (variant, disabled, caption) = match &game.state {
                             StagedState::Loading => (ButtonVariant::Secondary, true, String::new()),
@@ -711,7 +698,7 @@ pub(crate) fn GameCreation(
                                     variant
                                     disabled
                                     @test_id={format!("game.staged.{index}")}
-                                    on_click={move || creation.choose_staged(index)}
+                                    on_click={move || creation.get().choose_staged(index)}
                                 />
                                 <Show condition={failed}>
                                     <Caption
@@ -729,7 +716,7 @@ pub(crate) fn GameCreation(
                     variant=ButtonVariant::Secondary
                     disabled={picking}
                     @test_id={"game.choose"}
-                    on_click={move || creation.choose_module()}
+                    on_click={move || creation.get().choose_module()}
                 />
                 <Show condition={has_status}>
                     <Caption content={status} color={status_color} @test_id={"game.selection"} />

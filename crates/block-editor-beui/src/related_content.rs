@@ -11,6 +11,14 @@ pub struct RelatedContent<C> {
     marker: std::marker::PhantomData<fn() -> C>,
 }
 
+impl<C> Clone for RelatedContent<C> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<C> Copy for RelatedContent<C> {}
+
 impl<C> RelatedContent<C>
 where
     C: be_block::LiveEdit + Clone + Default,
@@ -27,7 +35,7 @@ where
         self.id.get_untracked()
     }
 
-    pub fn projection(&self) -> Option<Rc<ContentProjection<C>>> {
+    pub fn projection(&self) -> Option<ContentProjection<C>> {
         self.id().map(|id| self.editor.content_of::<C>(id))
     }
 
@@ -47,8 +55,8 @@ where
     {
         let project = Rc::new(project);
         let (read, write) = create_signal(T::default());
-        let editor = self.editor.clone();
         let id = self.id;
+        let editor = self.editor;
         create_effect(move || {
             let Some(block) = id.get() else {
                 write.set(T::default());
@@ -58,7 +66,6 @@ where
             let inner = editor
                 .content_of::<C>(block)
                 .project(move |content| project(content));
-            let write = write;
             create_effect(move || write.set(inner.get()));
         });
         read

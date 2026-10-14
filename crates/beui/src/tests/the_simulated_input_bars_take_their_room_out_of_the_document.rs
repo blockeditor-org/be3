@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn the_simulated_input_bars_take_their_room_out_of_the_document() {
+    let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let whole = harness.document_bottom();

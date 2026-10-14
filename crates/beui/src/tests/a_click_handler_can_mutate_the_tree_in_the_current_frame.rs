@@ -3,9 +3,9 @@ use crate::reactive::{Frame, NodeRef, build, view};
 
 #[test]
 fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {
+    let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
     let document = build({
-        let button = button.clone();
         move || {
             view! {
                 <LabelledButton

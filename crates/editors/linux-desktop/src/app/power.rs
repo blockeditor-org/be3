@@ -75,7 +75,6 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let allowed = available;
     let (confirming, set_confirming) = create_signal(PowerAction::LogOut);
     let (open, set_open) = create_signal(false);
-    let requesting = editor.clone();
     let chose = move |path: Vec<usize>| {
         let Some(action) = path
             .first()
@@ -87,7 +86,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             return;
         }
         match action {
-            PowerAction::Lock | PowerAction::Suspend => requesting.act(action),
+            PowerAction::Lock | PowerAction::Suspend => editor.act(action),
             _ => {
                 set_confirming.set(action);
                 set_open.set(true);

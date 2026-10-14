@@ -29,7 +29,7 @@ pub fn Scroll(
     children: Children<ListChild>,
 ) -> NodeId {
     let focus = focus_ring(focus_color);
-    let along = direction.clone();
+    let along = direction;
     let scroll = view! {
         <unstyled::Scroll
             offset
@@ -41,7 +41,7 @@ pub fn Scroll(
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />
             }}
-            on_change={move |reported: ScrollPosition| on_change.call(reported)}
+            on_change={on_change}
         >
             {children}
         </unstyled::Scroll>

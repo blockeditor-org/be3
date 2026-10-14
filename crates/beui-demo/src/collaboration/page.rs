@@ -1,5 +1,4 @@
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::cell::Cell;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -9,8 +8,8 @@ use beui::icons::{
     ICON_KEYBOARD_DOUBLE_ARROW_RIGHT, ICON_KEYBOARD_DOUBLE_ARROW_UP, ICON_PAUSE, ICON_PLAY_ARROW,
 };
 use beui::reactive::{
-    Align, List, Memo, ReadSignal, Timer, clone, create_effect, create_memo, create_signal,
-    create_timer, now, untrack, view,
+    Align, Callback, List, Memo, ReadSignal, Timer, clone, create_effect, create_memo,
+    create_signal, create_timer, now, store, untrack, view,
 };
 use beui::styled::{Caption, IconButton, Slider, TextArea, ToggleButton};
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
@@ -53,25 +52,28 @@ fn editor(simulation: &Arc<RwLock<Simulation>>, side: Side) -> TextAreaState {
 }
 
 fn caret(state: &TextAreaState) -> Option<Caret> {
-    state.core().cursor_positions().first().map(|cursor| Caret {
-        anchor: cursor.pos.anchor,
-        focus: cursor.pos.focus,
+    state.with_core(|core| {
+        core.cursor_positions().first().map(|cursor| Caret {
+            anchor: cursor.pos.anchor,
+            focus: cursor.pos.focus,
+        })
     })
 }
 
 fn remote(state: &TextAreaState, caret: Option<Caret>, color: Color32) -> Vec<RemoteTextCursor> {
-    let core = state.core();
-    caret
-        .and_then(|caret| {
-            Some(RemoteTextCursor {
-                selection: core
-                    .selection_range(&CursorPosition::range(caret.anchor, caret.focus))?,
-                caret: core.position_index(caret.focus)?,
-                color,
+    state.with_core(|core| {
+        caret
+            .and_then(|caret| {
+                Some(RemoteTextCursor {
+                    selection: core
+                        .selection_range(&CursorPosition::range(caret.anchor, caret.focus))?,
+                    caret: core.position_index(caret.focus)?,
+                    color,
+                })
             })
-        })
-        .into_iter()
-        .collect()
+            .into_iter()
+            .collect()
+    })
 }
 
 #[sample]
@@ -86,89 +88,88 @@ fn ConcurrentEditing() -> NodeId {
     let (flight, set_flight) = create_signal((0usize, 0usize));
     let (same, set_same) = create_signal(true);
     let (seen, set_seen) = create_signal([None::<Caret>, None]);
-    let published = Rc::new(Cell::new([None::<Caret>, None]));
-    let timer: Rc<RefCell<Option<Timer>>> = Rc::new(RefCell::new(None));
+    let published = Cell::new([None::<Caret>, None]);
+    let timer = store(Cell::new(None::<Timer>));
 
-    let pump = Rc::new(
-        clone!(simulation left right published timer -> move |force: Option<(Side, Amount)>| {
-            let now = now();
-            let delay = Duration::from_millis(latency.get_untracked() as u64);
-            let held = paused.get_untracked();
-            let (external, counts, matching, carets, due) = {
-                let mut simulation = simulation
-                    .write()
-                    .expect("the collaboration simulation was poisoned");
-                simulation.hold(held, now);
-                let mut sent = published.get();
-                for (side, state) in [(Side::Left, &left), (Side::Right, &right)] {
-                    let current = caret(state);
-                    if let Some(current) = current
-                        && sent[side.index()] != Some(current)
-                    {
-                        simulation.publish(side, current, now);
-                        sent[side.index()] = Some(current);
-                    }
+    let pump = Callback::new(clone!(simulation -> move |force: Option<(Side, Amount)>| {
+        let now = now();
+        let delay = Duration::from_millis(latency.get_untracked() as u64);
+        let held = paused.get_untracked();
+        let (external, counts, matching, carets, due) = {
+            let mut simulation = simulation
+                .write()
+                .expect("the collaboration simulation was poisoned");
+            simulation.hold(held, now);
+            let mut sent = published.get();
+            for (side, state) in [(Side::Left, &left), (Side::Right, &right)] {
+                let current = caret(state);
+                if let Some(current) = current
+                    && sent[side.index()] != Some(current)
+                {
+                    simulation.publish(side, current, now);
+                    sent[side.index()] = Some(current);
                 }
-                published.set(sent);
-                match force {
-                    Some((from, Amount::One)) => simulation.step(from, now),
-                    Some((from, Amount::All)) => simulation.deliver(from, now, None),
-                    None if !held => {
-                        simulation.deliver(Side::Left, now, Some(delay));
-                        simulation.deliver(Side::Right, now, Some(delay));
-                    }
-                    None => {}
+            }
+            published.set(sent);
+            match force {
+                Some((from, Amount::One)) => simulation.step(from, now),
+                Some((from, Amount::All)) => simulation.deliver(from, now, None),
+                None if !held => {
+                    simulation.deliver(Side::Left, now, Some(delay));
+                    simulation.deliver(Side::Right, now, Some(delay));
                 }
-                (
-                    [simulation.take_external(Side::Left), simulation.take_external(Side::Right)],
-                    (simulation.in_flight(Side::Left), simulation.in_flight(Side::Right)),
-                    simulation.text(Side::Left) == simulation.text(Side::Right),
-                    [simulation.seen(Side::Left), simulation.seen(Side::Right)],
-                    (!held).then(|| simulation.next_due(delay)).flatten(),
-                )
-            };
-            if external[0] {
-                left.external_edit();
+                None => {}
             }
-            if external[1] {
-                right.external_edit();
-            }
-            if flight.get_untracked() != counts {
-                set_flight.set(counts);
-            }
-            if same.get_untracked() != matching {
-                set_same.set(matching);
-            }
-            if seen.get_untracked() != carets {
-                set_seen.set(carets);
-            }
-            if let (Some(due), Some(timer)) = (due, timer.borrow().as_ref()) {
-                timer.start(due.saturating_duration_since(now));
-            }
-        }),
-    );
-    *timer.borrow_mut() = Some(create_timer(clone!(pump -> move || {
-        pump(None);
+            (
+                [simulation.take_external(Side::Left), simulation.take_external(Side::Right)],
+                (simulation.in_flight(Side::Left), simulation.in_flight(Side::Right)),
+                simulation.text(Side::Left) == simulation.text(Side::Right),
+                [simulation.seen(Side::Left), simulation.seen(Side::Right)],
+                (!held).then(|| simulation.next_due(delay)).flatten(),
+            )
+        };
+        if external[0] {
+            left.external_edit();
+        }
+        if external[1] {
+            right.external_edit();
+        }
+        if flight.get_untracked() != counts {
+            set_flight.set(counts);
+        }
+        if same.get_untracked() != matching {
+            set_same.set(matching);
+        }
+        if seen.get_untracked() != carets {
+            set_seen.set(carets);
+        }
+        if let (Some(due), Some(timer)) = (due, timer.with(Cell::get)) {
+            timer.start(due.saturating_duration_since(now));
+        }
+    }));
+    let pumping = create_timer(move || {
+        pump.call(None);
         None
-    })));
-    create_effect(clone!(left right pump -> move || {
+    });
+    timer.with(|timer| timer.set(Some(pumping)));
+    create_effect(move || {
         left.content().get();
         right.content().get();
         left.cursors().get();
         right.cursors().get();
         paused.get();
         latency.get();
-        untrack(|| pump(None));
-    }));
+        untrack(|| pump.call(None));
+    });
 
-    let left_remote = create_memo(clone!(left -> move || {
+    let left_remote = create_memo(move || {
         left.content().get();
         remote(&left, seen.get()[Side::Left.index()], RIGHT_COLOR)
-    }));
-    let right_remote = create_memo(clone!(right -> move || {
+    });
+    let right_remote = create_memo(move || {
         right.content().get();
         remote(&right, seen.get()[Side::Right.index()], LEFT_COLOR)
-    }));
+    });
     let latency_label = create_memo(move || format!("Latency: {} ms", latency.get().round()));
     let status = create_memo(move || match (flight.get(), same.get()) {
         (_, true) => "Both sides hold the same text.".to_owned(),
@@ -179,7 +180,7 @@ fn ConcurrentEditing() -> NodeId {
         true => ICON_PLAY_ARROW.to_owned(),
         false => ICON_PAUSE.to_owned(),
     });
-    let send: Send = pump.clone();
+    let send = pump;
     let switched = paused;
     let runs_pressed = runs;
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
@@ -226,7 +227,7 @@ fn ConcurrentEditing() -> NodeId {
                     remote={left_remote}
                     runs={runs}
                 />
-                <SendButtons send={send.clone()} flight={flight} paused narrow />
+                <SendButtons send={send} flight={flight} paused narrow />
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.right"
@@ -247,7 +248,7 @@ enum Amount {
     All,
 }
 
-type Send = Rc<dyn Fn(Option<(Side, Amount)>)>;
+type Send = Callback<Option<(Side, Amount)>>;
 
 #[sample]
 #[component]
@@ -296,10 +297,7 @@ fn SendButtons(
         })
     };
     let (from_left, from_right) = (held(Side::Left), held(Side::Right));
-    let press = |from: Side, amount: Amount| {
-        let send = send.clone();
-        move || send(Some((from, amount)))
-    };
+    let press = |from: Side, amount: Amount| move || send.call(Some((from, amount)));
     view! {
         <List direction align=Align::Center spacing=ROW_SPACING>
             <IconButton

@@ -1,12 +1,10 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::video::{
     MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect,
 };
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LINK_OFF;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, List, Memo, Show, clone, component, create_memo, view,
+    Align, Direction, ForEach, List, Memo, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, NumberInput, Separator, use_theme,
@@ -18,9 +16,8 @@ use uuid::Uuid;
 use super::state::VideoState;
 
 #[component]
-pub(crate) fn EffectsPanel(state: Rc<VideoState>) -> NodeId {
-    let held = Rc::clone(&state);
-    let clip = create_memo(clone!(held -> move || held.selected_clip()));
+pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
+    let clip = create_memo(move || state.selected_clip());
     let chosen = create_memo(move || clip.get().is_some());
     let none = create_memo(move || !chosen.get());
     let theme = use_theme();
@@ -32,58 +29,56 @@ pub(crate) fn EffectsPanel(state: Rc<VideoState>) -> NodeId {
                 <Caption content="Select a clip to see its effects." color={theme.text_muted} />
             </Show>
             <Show condition={chosen}>
-                <ClipInspector state={state.clone()} clip={clip} />
+                <ClipInspector state={state} clip={clip} />
             </Show>
         </List>
     }
 }
 
 #[component]
-fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId {
-    let named = Rc::clone(&state);
-    let name = create_memo(clone!(named -> move || {
-        clip.get().map_or_else(String::new, |clip| named.name_of(clip.block_id))
-    }));
+fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
+    let name = create_memo(move || {
+        clip.get()
+            .map_or_else(String::new, |clip| state.name_of(clip.block_id))
+    });
     let length = create_memo(move || clip.get().map_or(1.0, |clip| clip.length as f64));
     let rate = state.frame_rate;
     let seconds = create_memo(move || {
         let frames = clip.get().map_or(0, |clip| clip.length);
         format!("{:.2}s", rate.get().seconds(frames))
     });
-    let timed = Rc::clone(&state);
-    let starts = create_memo(clone!(timed -> move || {
+    let starts = create_memo(move || {
         let Some(clip) = clip.get() else {
             return String::new();
         };
-        let start = timed
+        let start = state
             .video()
             .and_then(|video| video.timing(clip.id).map(|timing| timing.start))
             .unwrap_or(0);
         timecode(rate.get(), start)
-    }));
+    });
     let attached = create_memo(move || clip.get().and_then(|clip| clip.attachment));
     let hanging = create_memo(move || attached.get().is_some());
-    let parent = Rc::clone(&state);
-    let parent_name = create_memo(clone!(parent -> move || {
+    let parent_name = create_memo(move || {
         let Some(attachment) = attached.get() else {
             return "Base track".to_owned();
         };
-        parent
+        state
             .video()
             .and_then(|video| video.clip(attachment.clip_id).cloned())
-            .map_or_else(|| "Loading…".to_owned(), |clip| parent.name_of(clip.block_id))
-    }));
+            .map_or_else(
+                || "Loading…".to_owned(),
+                |clip| state.name_of(clip.block_id),
+            )
+    });
     let offset = create_memo(move || {
         attached
             .get()
             .map_or(0.0, |attachment| attachment.offset as f64)
     });
 
-    let trimmed = Rc::clone(&state);
     let trimmed_clip = clip;
-    let detached = Rc::clone(&state);
     let detached_clip = clip;
-    let moved = Rc::clone(&state);
     let moved_clip = clip;
     let effects = create_memo(move || clip.get().map(|clip| clip.effects).unwrap_or_default());
     let bare = create_memo(move || effects.get().is_empty());
@@ -115,7 +110,7 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
                         return;
                     };
                     clip.length = (value.round().max(1.0) as u64).min(MAX_CLIP_LENGTH);
-                    trimmed.update_clip(clip);
+                    state.update_clip(clip);
                 }}
             />
             <Caption content={seconds} color={seconds_color} />
@@ -127,7 +122,7 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
                 <Body content="Attached to" />
                 <Caption content={parent_name} color={parent_color} />
                 <Show condition={hanging_row}>
-                    {move || clone!(detached -> view! {
+                    {move || view! {
                         <IconButton
                             glyph={ICON_LINK_OFF.to_owned()}
                             label="Move this clip onto the base track"
@@ -137,14 +132,14 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
                                     return;
                                 };
                                 clip.attachment = None;
-                                detached.update_clip(clip);
+                                state.update_clip(clip);
                             }}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
             <Show condition={hanging}>
-                {move || clone!(moved -> view! {
+                {move || view! {
                     <NumberInput
                         value={offset}
                         label="Offset"
@@ -157,10 +152,10 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
                             };
                             clip.attachment =
                                 Some(VideoAttachment::new(attachment.clip_id, value.round() as i64));
-                            moved.update_clip(clip);
+                            state.update_clip(clip);
                         }}
                     />
-                })}
+                }}
             </Show>
             <Body content="Effect stack" />
             <Show condition={bare}>

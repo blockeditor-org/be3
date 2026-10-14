@@ -3,8 +3,8 @@ use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 
 #[test]
 fn a_finger_drags_a_draggable_down_where_nothing_scrolls() {
-    let dropped = Rc::new(Cell::new(None::<u32>));
-    let received = Rc::clone(&dropped);
+    let _root = crate::reactive::RootScope::new();
+    let (dropped, set_dropped) = create_signal(None::<u32>);
     let (document, [source, target]) = toolbar_of(move || {
         [
             view! {
@@ -16,7 +16,7 @@ fn a_finger_drags_a_draggable_down_where_nothing_scrolls() {
             },
             view! {
                 <DropTarget
-                    on_drop={move |(payload, _): (u32, DragPoint)| received.set(Some(payload))}
+                    on_drop={move |(payload, _): (u32, DragPoint)| set_dropped.set(Some(payload))}
                 >
                     {|_: DropHandle| view! {
                         <Frame width=100.0 height=100.0 />
@@ -34,7 +34,7 @@ fn a_finger_drags_a_draggable_down_where_nothing_scrolls() {
     harness.finger_drag(&[from, pos2(from.x, from.y + 20.0), to]);
 
     assert_eq!(
-        dropped.get(),
+        dropped.get_untracked(),
         Some(7),
         "a vertical finger drag with no scroll around it carries the payload"
     );

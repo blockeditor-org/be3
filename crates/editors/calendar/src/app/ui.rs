@@ -1,12 +1,10 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::{Calendar, CalendarContent};
 use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal, clone,
+    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal,
     component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
@@ -44,13 +42,12 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let (form, set_form) = create_signal(None::<EventForm>);
     let anchor = create_memo(move || anchor.get());
 
-    let sized = editor.clone();
     create_effect(move || {
         let height = match mode.get() {
             CalendarView::Month => MONTH_HEIGHT,
             CalendarView::Day | CalendarView::Week => TIMELINE_HEIGHT,
         };
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
     let read_only = editor.read_only();
@@ -73,22 +70,19 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     };
 
     let editable = editor.editable();
-    let operate = {
-        let calendar = Rc::clone(&calendar);
-        move |action: FormAction| {
-            if !editable.get_untracked() {
-                return;
-            }
-            let edit = match action {
-                FormAction::Save(Some(id), event) => calendar
-                    .read(|content| content.root().update(id, &event))
-                    .unwrap_or_default(),
-                FormAction::Save(None, event) => Calendar::add(&event).1,
-                FormAction::Delete(id) => Calendar::remove(id),
-            };
-            if !edit.0.is_empty() {
-                calendar.operate(edit);
-            }
+    let operate = move |action: FormAction| {
+        if !editable.get_untracked() {
+            return;
+        }
+        let edit = match action {
+            FormAction::Save(Some(id), event) => calendar
+                .read(|content| content.root().update(id, &event))
+                .unwrap_or_default(),
+            FormAction::Save(None, event) => Calendar::add(&event).1,
+            FormAction::Delete(id) => Calendar::remove(id),
+        };
+        if !edit.0.is_empty() {
+            calendar.operate(edit);
         }
     };
     let pick_day = move |day: i64| {
@@ -164,11 +158,6 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     <List spacing=0.0>
                         <Dynamic value={mode}>
                             {move |shown: CalendarView| {
-                                let anchor = anchor;
-                                let events = events;
-                                let pick_day = pick_day;
-                                let pick_slot = pick_slot;
-                                let pick_event = pick_event;
                                 match shown {
                                     CalendarView::Month => view! {
                                         <MonthGrid
@@ -274,19 +263,19 @@ fn EventDialog(
             }
         });
     };
-    let save = clone!(on_operate -> move || {
+    let save = move || {
         let Some(shown) = form.get_untracked() else {
             return;
         };
         on_operate.call(FormAction::Save(shown.editing_id, shown.event()));
         set_form.set(None);
-    });
-    let delete = clone!(on_operate -> move || {
+    };
+    let delete = move || {
         if let Some(id) = form.get_untracked().and_then(|form| form.editing_id) {
             on_operate.call(FormAction::Delete(id));
         }
         set_form.set(None);
-    });
+    };
     let cancel = move || set_form.set(None);
     let dismiss = move || set_form.set(None);
     view! {
@@ -334,7 +323,7 @@ fn EventDialog(
                             label="Delete"
                             variant=ButtonVariant::Secondary
                             @test_id={"calendar.form.delete"}
-                            on_click={delete.clone()}
+                            on_click={delete}
                         />
                     </Show>
                     <Button

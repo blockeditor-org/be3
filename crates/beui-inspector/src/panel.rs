@@ -24,8 +24,8 @@ use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, RootScope,
-    Scope, Show, ShowKeepAlive, Spacer, WriteSignal, clone, component, create_memo, create_signal,
-    view,
+    Scope, Show, ShowKeepAlive, Spacer, Stored, WriteSignal, clone, component, create_memo,
+    create_signal, view,
 };
 
 use super::tree::{Entry, Key};
@@ -186,7 +186,7 @@ pub struct Panel {
     pub tree: NodeRef,
 }
 
-pub fn build(state: &Rc<State>) -> Panel {
+pub fn build(state: Stored<State>) -> Panel {
     let owner = RootScope::new();
     let (keys, set_keys) = create_signal(Vec::<Key>::new());
     let (entries, set_entries) = create_signal(HashMap::<Key, Entry>::new());
@@ -198,12 +198,7 @@ pub fn build(state: &Rc<State>) -> Panel {
     let (selection, set_selection) = create_signal(Vec::<Key>::new());
     let (compact, set_compact) = create_signal(false);
     let tree = NodeRef::new();
-    let tree_ref = tree.clone();
-    let simulation_state = state.clone();
-    let performance_state = state.clone();
-    let tab_state = state.clone();
-    let reset_state = state.clone();
-    let close_state = state.clone();
+    let tree_ref = tree;
 
     let document = beui_view::reactive::build(|| {
         let count_text = create_memo({
@@ -243,13 +238,10 @@ pub fn build(state: &Rc<State>) -> Panel {
             true => ItemSize::Percent(PROPERTIES_SHARE),
             false => ItemSize::Fixed(0.0),
         });
-        let (select_state, expand_state, hover_state, reveal_state) =
-            (state.clone(), state.clone(), state.clone(), state.clone());
         let selected = create_memo(move || selection.with(|path| path.last().copied()));
         let lineage = selection;
         let row_entries = entries;
         let item_entries = entries;
-        let pick_state = state.clone();
         let header_tree_visible = tree_visible;
         let body_tree_visible = tree_visible;
         let footer_tree_visible = tree_visible;
@@ -276,15 +268,15 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         align=TextAlign::End
                                     />
                                     <ShowKeepAlive condition={header_tree_visible}>
-                                        <PickToggle state={pick_state} picking />
+                                        <PickToggle state={state} picking />
                                     </ShowKeepAlive>
                                     <Show condition={create_memo(move || !compact.get())}>
-                                        {move || clone!(close_state -> view! {
+                                        {move || view! {
                                             <CloseButton
                                                 @test_id={"inspector.close"}
-                                                state={close_state}
+                                                state={state}
                                             />
-                                        })}
+                                        }}
                                     </Show>
                                 </List>
                                 <Tabs
@@ -298,7 +290,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                     }}
                                     selected=0
                                     on_change={move |index| {
-                                        tab_state.set_tab(index);
+                                        state.get().set_tab(index);
                                         set_tab.set(InspectorTab::from_index(index));
                                     }}
                                 />
@@ -320,15 +312,15 @@ pub fn build(state: &Rc<State>) -> Panel {
                                             focus_color={Some(THEME.accent)}
                                             row_test_id={move |key: Key| key.test_id()}
                                             reveal_test_id={"inspector.reveal".to_owned()}
-                                            on_select={move |key: Key| select_state.select_row(key)}
+                                            on_select={move |key: Key| state.get().select_row(key)}
                                             on_expand={move |(key, expanded): (Key, bool)| {
-                                                expand_state.set_expanded(key, expanded);
+                                                state.get().set_expanded(key, expanded);
                                             }}
                                             on_reveal={move |key: Key| {
-                                                reveal_state.expand_ancestors(&ancestors(selection, key));
+                                                state.get().expand_ancestors(&ancestors(selection, key));
                                             }}
                                             on_hover_change={move |(key, hovered): (Key, bool)| {
-                                                hover_state.hover(key.node(), hovered);
+                                                state.get().hover(key.node(), hovered);
                                             }}
                                         >
                                             {move |row: TreeRowFace<Key>| view! {
@@ -354,13 +346,13 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         performance={performance}
                                         renderer={renderer}
                                         renderers={renderers}
-                                        state={performance_state.clone()}
+                                        state={state}
                                     />
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={body_simulation_visible}>
                                     <SimulationPanel
                                         @sizing=ItemSize::Percent(100.0)
-                                        state={simulation_state.clone()}
+                                        state={state}
                                         responsive={responsive}
                                         handles_back={handles_back}
                                     />
@@ -380,7 +372,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                     <Button
                                         label="Reset samples"
                                         variant=ButtonVariant::Secondary
-                                        on_click={move || reset_state.reset_performance()}
+                                        on_click={move || state.get().reset_performance()}
                                     />
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={footer_simulation_visible}>
@@ -418,11 +410,9 @@ pub struct Bar {
     pub set_selected: WriteSignal<usize>,
 }
 
-pub fn build_bar(state: &Rc<State>) -> Bar {
+pub fn build_bar(state: Stored<State>) -> Bar {
     let owner = RootScope::new();
     let (selected, set_selected) = create_signal(1);
-    let state = state.clone();
-    let close_state = state.clone();
     let document = beui_view::reactive::build(|| {
         view! {
             <Frame color={THEME.surface} radius=0>
@@ -445,9 +435,9 @@ pub fn build_bar(state: &Rc<State>) -> Bar {
                                     <ChoiceOption label="Inspector" />
                                 }}
                                 selected
-                                on_change={move |index| state.show_app(index == 0)}
+                                on_change={move |index| state.get().show_app(index == 0)}
                             />
-                            <CloseButton @test_id={"inspector.bar.close"} state={close_state} />
+                            <CloseButton @test_id={"inspector.bar.close"} state={state} />
                         </List>
                     </Frame>
                     <Separator />
@@ -463,24 +453,21 @@ pub fn build_bar(state: &Rc<State>) -> Bar {
 }
 
 #[component]
-fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<bool>) -> NodeId {
-    let simulated = state.simulated_pixels_per_point.get();
+fn SimulationPanel(
+    state: Stored<State>,
+    responsive: Memo<bool>,
+    handles_back: Memo<bool>,
+) -> NodeId {
+    let simulated = state.get().simulated_pixels_per_point.get();
     let selected = PIXEL_RATIOS
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
-    let theme = state.theme.get();
+    let theme = state.get().theme.get();
     let selected_theme = Theme::BUILT_IN
         .iter()
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
-    let (touch_state, mouse_state, ratio_state, theme_state) =
-        (state.clone(), state.clone(), state.clone(), state.clone());
-    let reader_state = state.clone();
-    let filter_state = state.clone();
-    let band_state = state.clone();
-    let screen_state = state.clone();
-    let back_state = state.clone();
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
             <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
@@ -488,20 +475,20 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
                         label="Emulate touch with mouse"
-                        checked={state.touch_emulation.get()}
-                        on_change={move |enabled| touch_state.touch_emulation.set(enabled)}
+                        checked={state.get().touch_emulation.get()}
+                        on_change={move |enabled| state.get().touch_emulation.set(enabled)}
                     />
                     <Checkbox
                         @test_id={"inspector.simulation.mouse_simulation"}
                         label="Simulate mouse with touch"
-                        checked={state.mouse_simulation.get()}
-                        on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
+                        checked={state.get().mouse_simulation.get()}
+                        on_change={move |enabled| state.get().mouse_simulation.set(enabled)}
                     />
                     <Checkbox
                         @test_id={"inspector.simulation.rubber_banding"}
                         label="Rubber-band scrolls and windows"
-                        checked={state.rubber_banding.get()}
-                        on_change={move |enabled| band_state.rubber_banding.set(enabled)}
+                        checked={state.get().rubber_banding.get()}
+                        on_change={move |enabled| state.get().rubber_banding.set(enabled)}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -518,7 +505,7 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<
                             selected={Some(selected)}
                             on_change={move |index: Option<usize>| {
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
-                                ratio_state.simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
+                                state.get().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
                             }}
                         />
                     </List>
@@ -527,7 +514,7 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<
                         @test_id={"inspector.simulation.responsive"}
                         label="Responsive design mode"
                         checked={responsive}
-                        on_change={move |_| screen_state.toggle_responsive()}
+                        on_change={move |_| state.get().toggle_responsive()}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -544,17 +531,17 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<
                             selected={Some(selected_theme)}
                             on_change={move |index: Option<usize>| {
                                 if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
-                                    theme_state.choose_theme(*theme);
+                                    state.get().choose_theme(*theme);
                                 }
                             }}
                         />
                     </List>
                     <Separator />
-                    <BackSection state={back_state} handles_back />
+                    <BackSection state={state} handles_back />
                     <Separator />
-                    <FilterSection state={filter_state} />
+                    <FilterSection state={state} />
                     <Separator />
-                    <ScreenReaderSection state={reader_state} />
+                    <ScreenReaderSection state={state} />
                 </List>
             </Frame>
         </Scroll>
@@ -569,7 +556,7 @@ enum Swipe {
 }
 
 #[component]
-fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
+fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
     let (progress, set_progress) = create_signal(0.0_f32);
     let swipe = Rc::new(Cell::new(Swipe::Idle));
     let dragging = Rc::new(Cell::new(false));
@@ -578,14 +565,14 @@ fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
         true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
         false => "Nothing in the app takes back: the system would leave it.".to_owned(),
     });
-    let moved = clone!(state swipe dragging -> move |value: f32| {
+    let moved = clone!(swipe dragging -> move |value: f32| {
         set_progress.set(value);
         match swipe.get() {
             Swipe::Done => return,
             Swipe::Idle if value <= 0.0 => return,
             Swipe::Idle => {
                 swipe.set(Swipe::Swiping);
-                state.simulate_back(BackGesture::Started {
+                state.get().simulate_back(BackGesture::Started {
                     edge: match from_right.get_untracked() {
                         true => BackEdge::Right,
                         false => BackEdge::Left,
@@ -594,16 +581,16 @@ fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
             }
             Swipe::Swiping => {}
         }
-        state.simulate_back(BackGesture::Progressed(value));
+        state.get().simulate_back(BackGesture::Progressed(value));
         if value >= 1.0 {
-            state.simulate_back(BackGesture::Invoked);
+            state.get().simulate_back(BackGesture::Invoked);
             set_progress.set(0.0);
             swipe.set(match dragging.get() {
                 true => Swipe::Done,
                 false => Swipe::Idle,
             });
         } else if value <= 0.0 && !dragging.get() {
-            state.simulate_back(BackGesture::Cancelled);
+            state.get().simulate_back(BackGesture::Cancelled);
             swipe.set(Swipe::Idle);
         }
     });
@@ -613,7 +600,7 @@ fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
             return;
         }
         if swipe.replace(Swipe::Idle) == Swipe::Swiping {
-            state.simulate_back(BackGesture::Cancelled);
+            state.get().simulate_back(BackGesture::Cancelled);
         }
         set_progress.set(0.0);
     };
@@ -639,12 +626,11 @@ fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
 }
 
 #[component]
-fn FilterSection(state: Rc<State>) -> NodeId {
-    let (blur_state, contrast_state, vision_state) = (state.clone(), state.clone(), state.clone());
-    let (blur_text, set_blur_text) = create_signal(blur_label(state.blur.get()));
+fn FilterSection(state: Stored<State>) -> NodeId {
+    let (blur_text, set_blur_text) = create_signal(blur_label(state.get().blur.get()));
     let (contrast_text, set_contrast_text) =
-        create_signal(contrast_label(state.contrast_reduction.get()));
-    let vision = state.color_vision.get();
+        create_signal(contrast_label(state.get().contrast_reduction.get()));
+    let vision = state.get().color_vision.get();
     let selected_vision = ColorVision::ALL
         .iter()
         .position(|(_, candidate)| *candidate == vision)
@@ -657,12 +643,12 @@ fn FilterSection(state: Rc<State>) -> NodeId {
             <Slider
                 @test_id={"inspector.simulation.blur"}
                 label="Blur"
-                value={state.blur.get()}
+                value={state.get().blur.get()}
                 min=0.0
                 max=MAX_BLUR
                 scale={SliderScale::Midpoint(BLUR_MIDPOINT)}
                 on_change={move |value| {
-                    blur_state.set_blur(value);
+                    state.get().set_blur(value);
                     set_blur_text.set(blur_label(value));
                 }}
             />
@@ -670,9 +656,9 @@ fn FilterSection(state: Rc<State>) -> NodeId {
             <Slider
                 @test_id={"inspector.simulation.contrast"}
                 label="Reduce contrast"
-                value={state.contrast_reduction.get()}
+                value={state.get().contrast_reduction.get()}
                 on_change={move |value| {
-                    contrast_state.set_contrast_reduction(value);
+                    state.get().set_contrast_reduction(value);
                     set_contrast_text.set(contrast_label(value));
                 }}
             />
@@ -689,7 +675,7 @@ fn FilterSection(state: Rc<State>) -> NodeId {
                 selected={Some(selected_vision)}
                 on_change={move |index: Option<usize>| {
                     if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
-                        vision_state.choose_color_vision(*vision);
+                        state.get().choose_color_vision(*vision);
                     }
                 }}
             />
@@ -710,32 +696,28 @@ fn contrast_label(amount: f32) -> String {
 }
 
 #[component]
-fn ScreenReaderSection(state: Rc<State>) -> NodeId {
-    let enable_state = state.clone();
-    let accessibility_state = state.clone();
-    let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
-    let (fourth_state, fifth_state) = (state.clone(), state.clone());
+fn ScreenReaderSection(state: Stored<State>) -> NodeId {
     view! {
         <List spacing=TIMING_SPACING>
             <Heading content="Screen reader" />
             <Checkbox
                 @test_id={"inspector.accessibility.enabled"}
                 label="Expose the accessibility tree"
-                checked={state.accessibility.get()}
-                on_change={move |enabled| accessibility_state.enable_accessibility(enabled)}
+                checked={state.get().accessibility.get()}
+                on_change={move |enabled| state.get().enable_accessibility(enabled)}
             />
             <Checkbox
                 @test_id={"inspector.screen_reader.enabled"}
                 label="Simulate a screen reader"
-                checked={state.screen_reader.get()}
-                on_change={move |enabled| enable_state.enable_screen_reader(enabled)}
+                checked={state.get().screen_reader.get()}
+                on_change={move |enabled| state.get().enable_screen_reader(enabled)}
             />
             <CommandRow row=0 state />
-            <CommandRow row=1 state={first_state} />
-            <CommandRow row=2 state={second_state} />
-            <CommandRow row=3 state={third_state} />
-            <CommandRow row=4 state={fourth_state} />
-            <CommandRow row=5 state={fifth_state} />
+            <CommandRow row=1 state={state} />
+            <CommandRow row=2 state={state} />
+            <CommandRow row=3 state={state} />
+            <CommandRow row=4 state={state} />
+            <CommandRow row=5 state={state} />
             <GuideSection title="Keyboard" lines={KEYBOARD_GUIDE.as_slice()} />
             <GuideSection title="Touch" lines={TOUCH_GUIDE.as_slice()} />
         </List>
@@ -757,10 +739,9 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
 }
 
 #[component]
-fn CommandRow(row: usize, state: Rc<State>) -> NodeId {
+fn CommandRow(row: usize, state: Stored<State>) -> NodeId {
     let (left_label, left_id, left) = COMMANDS[row * 2];
     let (right_label, right_id, right) = COMMANDS[row * 2 + 1];
-    let right_state = state.clone();
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
             <Button
@@ -768,14 +749,14 @@ fn CommandRow(row: usize, state: Rc<State>) -> NodeId {
                 @test_id={format!("inspector.screen_reader.{left_id}")}
                 label={left_label.to_owned()}
                 variant=ButtonVariant::Secondary
-                on_click={move || state.command(left)}
+                on_click={move || state.get().command(left)}
             />
             <Button
                 @sizing=ItemSize::Percent(100.0)
                 @test_id={format!("inspector.screen_reader.{right_id}")}
                 label={right_label.to_owned()}
                 variant=ButtonVariant::Secondary
-                on_click={move || right_state.command(right)}
+                on_click={move || state.get().command(right)}
             />
         </List>
     }
@@ -793,10 +774,8 @@ fn PerformancePanel(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
     renderers: ReadSignal<RendererChoices>,
-    state: Rc<State>,
+    state: Stored<State>,
 ) -> NodeId {
-    let (change_state, damage_state, renderer_state) =
-        (state.clone(), state.clone(), state.clone());
     let latest_work = performance_text(performance, |summary| &summary.latest_work);
     let scene = performance_text(performance, |summary| &summary.scene);
     let cache = performance_text(performance, |summary| &summary.cache);
@@ -841,14 +820,14 @@ fn PerformancePanel(
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
-                            checked={state.flash_changes.get()}
-                            on_change={move |enabled| change_state.flash_changes.set(enabled)}
+                            checked={state.get().flash_changes.get()}
+                            on_change={move |enabled| state.get().flash_changes.set(enabled)}
                         />
                         <Checkbox
                             @test_id={"inspector.performance.flash_damage"}
                             label="Flash repainted regions"
-                            checked={state.flash_damage.get()}
-                            on_change={move |enabled| damage_state.flash_damage.set(enabled)}
+                            checked={state.get().flash_damage.get()}
+                            on_change={move |enabled| state.get().flash_damage.set(enabled)}
                         />
                     </List>
                     <Separator />
@@ -856,7 +835,7 @@ fn PerformancePanel(
                         @test_id={"inspector.performance.renderer"}
                         rows={renderer}
                         renderers
-                        state={renderer_state}
+                        state={state}
                     />
                 </List>
             </Frame>
@@ -868,7 +847,7 @@ fn PerformancePanel(
 fn RendererSection(
     rows: ReadSignal<RendererRows>,
     renderers: ReadSignal<RendererChoices>,
-    state: Rc<State>,
+    state: Stored<State>,
 ) -> NodeId {
     let missing = create_memo(move || rows.with(Vec::is_empty));
     let names = create_memo(move || renderers.with(|renderers| renderers.names.clone()));
@@ -888,11 +867,11 @@ fn RendererSection(
                         </ForEach>
                     }}
                     selected={active}
-                    on_change={clone!(state -> move |index: Option<usize>| {
+                    on_change={move |index: Option<usize>| {
                         if let Some(index) = index {
-                            state.choose_renderer(index);
+                            state.get().choose_renderer(index);
                         }
-                    })}
+                    }}
                 />
             </Show>
             <Show condition={missing}>
@@ -1011,12 +990,11 @@ pub fn toggle_text(picking: bool) -> Color32 {
 }
 
 #[component]
-fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
+fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
     let label_color = create_memo(move || toggle_text(picking.get()));
     let fill_color = create_memo(move || toggle_fill(picking.get()));
-    let picker = state;
     view! {
-        <unstyled::Pressable on_click={move || picker.toggle_picking()}>
+        <unstyled::Pressable on_click={move || state.get().toggle_picking()}>
             <Frame
                 color={fill_color}
                 outline={THEME.border}
@@ -1033,18 +1011,17 @@ fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
 }
 
 #[component]
-fn CloseButton(state: Rc<State>) -> NodeId {
+fn CloseButton(state: Stored<State>) -> NodeId {
     let (hovered, set_hovered) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
     let fill_color = create_memo(move || close_fill(hovered.get()));
     let outline_color = create_memo(move || close_outline(focused.get()));
-    let closer = state;
     let mut accessibility = Node::new(Role::Button);
     accessibility.set_label("Close inspector");
     view! {
         <unstyled::Pressable
             accessibility={Prop::Static(accessibility)}
-            on_click={move || closer.close()}
+            on_click={move || state.get().close()}
             on_hover_change={move |hovered| set_hovered.set(hovered)}
             on_focus_change={move |focused| set_focused.set(focused)}
         >

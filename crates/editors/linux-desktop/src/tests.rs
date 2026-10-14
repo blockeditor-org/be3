@@ -4,11 +4,11 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, EditorHost, HostImage, HostProgram,
     HostWindow, HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels,
     MediaRequest, NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
-    Notifications, PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
-    WindowAction,
+    Notifications, OwnedEditor, PlayerCommand, Power, PowerAction, PowerAvailability,
+    ProgramAction, Programs, WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
@@ -79,7 +79,7 @@ impl Fixture {
         host.set_editable(true);
         host.set_client_id(client);
         host.set_view_block(Some(desktop));
-        let editor = Editor::new(host.clone(), desktop);
+        let editor = OwnedEditor::new(host.clone(), desktop);
         let mut test = BeuiTest::new(editor);
         test.hold(None, EditorView::document(LINUX_DESKTOP_EDITOR, None));
         Self {

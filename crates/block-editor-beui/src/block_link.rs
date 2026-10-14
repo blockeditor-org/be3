@@ -20,14 +20,14 @@ pub struct BlockDisplay {
 }
 
 pub fn watch_block_label(
-    editor: &Editor,
+    editor: Editor,
     target: Memo<Option<ChildTarget>>,
 ) -> ReadSignal<BlockDisplay> {
     let (shown, set_shown) = create_signal(BlockDisplay::default());
     let shown_now = shown;
     let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
     let blocks = editor.blocks();
-    let catalog = editor.host().clone();
+    let catalog = editor.host();
     create_effect(move || {
         let Some(next) = target.get() else {
             opened.borrow_mut().take();
@@ -74,8 +74,8 @@ pub fn BlockLink(
     #[prop(default = FONT_BODY)] font_size: Prop<f32>,
 ) -> NodeId {
     let target = create_memo(move || block.get());
-    let shown = watch_block_label(&editor, target);
-    let host = editor.host().clone();
+    let shown = watch_block_label(editor, target);
+    let host = editor.host();
     let label = create_memo(move || {
         let name = shown.with(|shown| shown.name.clone());
         match name.is_empty() {

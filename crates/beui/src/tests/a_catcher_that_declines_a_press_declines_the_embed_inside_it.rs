@@ -1,16 +1,13 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Embed, EmbedSlot, Frame, Interactive, build, view};
 
 #[test]
 fn a_catcher_that_declines_a_press_declines_the_embed_inside_it() {
-    let below = Rc::new(RefCell::new(Vec::<Event>::new()));
-    let above = Rc::new(RefCell::new(Vec::<Event>::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (below, set_below) = create_signal(Vec::<Event>::new());
+    let (above, set_above) = create_signal(Vec::<Event>::new());
     let document = build({
-        let (below, above) = (Rc::clone(&below), Rc::clone(&above));
         move || {
             view! {
                 <Canvas>
@@ -19,7 +16,7 @@ fn a_catcher_that_declines_a_press_declines_the_embed_inside_it() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    below.borrow_mut().extend(flattened(input));
+                                    set_below.update(|below| below.extend(flattened(input)));
                                 }
                             }}
                         >
@@ -33,7 +30,7 @@ fn a_catcher_that_declines_a_press_declines_the_embed_inside_it() {
                                 hit_at={|local: Pos2| local.x >= 100.0}
                                 on_forward={move |input: ForwardedInput| {
                                     if input.focused {
-                                        above.borrow_mut().extend(flattened(input));
+                                        set_above.update(|above| above.extend(flattened(input)));
                                     }
                                 }}
                             >
@@ -49,20 +46,20 @@ fn a_catcher_that_declines_a_press_declines_the_embed_inside_it() {
     harness.frame(Vec::new());
 
     harness.click(pos2(50.0, 50.0));
-    below.borrow_mut().clear();
-    above.borrow_mut().clear();
+    set_below.update(|below| below.clear());
+    set_above.update(|above| above.clear());
     harness.frame(vec![Event::Text("a".to_owned())]);
     assert_eq!(
-        *below.borrow(),
+        below.get_untracked(),
         [Event::Text("a".to_owned())],
         "a press the catcher declines passes its embed and the bare wrapper around it to the catcher beneath"
     );
-    assert!(above.borrow().is_empty());
+    assert!(above.with_untracked(|above| above.is_empty()));
 
     harness.click(pos2(150.0, 50.0));
-    below.borrow_mut().clear();
-    above.borrow_mut().clear();
+    set_below.update(|below| below.clear());
+    set_above.update(|above| above.clear());
     harness.frame(vec![Event::Text("b".to_owned())]);
-    assert_eq!(*above.borrow(), [Event::Text("b".to_owned())]);
-    assert!(below.borrow().is_empty());
+    assert_eq!(above.get_untracked(), [Event::Text("b".to_owned())]);
+    assert!(below.with_untracked(|below| below.is_empty()));
 }

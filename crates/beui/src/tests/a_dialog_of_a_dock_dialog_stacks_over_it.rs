@@ -2,8 +2,9 @@ use super::*;
 
 #[test]
 fn a_dialog_of_a_dock_dialog_stacks_over_it() {
+    let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], vec![(11, 10, true), (10, 1, false)]);
-    let (layout, pressed) = (dock.layout.clone(), dock.pressed);
+    let (layout, pressed) = (dock.layout, dock.pressed);
     let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
@@ -22,13 +23,13 @@ fn a_dialog_of_a_dock_dialog_stacks_over_it() {
 
     harness.click(inner.center());
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![11],
         "the nested dialog is drawn above its parent"
     );
     harness.click(outer.min + vec2(8.0, 8.0));
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![11],
         "the dialog under a modal one hears no press"
     );
@@ -48,7 +49,7 @@ fn a_dialog_of_a_dock_dialog_stacks_over_it() {
     harness.frame(Vec::new());
     harness.click(inner.center());
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![11, 11],
         "shown again, the nested dialog is still on top"
     );

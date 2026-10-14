@@ -3,6 +3,7 @@ use crate::painter::Shape;
 
 #[test]
 fn dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

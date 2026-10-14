@@ -29,7 +29,7 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
     view! {
         <unstyled::CommandPalette
             open
-            on_close={move || on_close.call()}
+            on_close={on_close}
             list_height=LIST_HEIGHT
             scrim=SCRIM
             search_placeholder="Run a command"

@@ -54,6 +54,7 @@ fn laid_out(harness: &Harness, test_id: &str) -> bool {
 
 #[test]
 fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
+    let _root = crate::reactive::RootScope::new();
     let document = build(move || {
         view! {
             <Container>

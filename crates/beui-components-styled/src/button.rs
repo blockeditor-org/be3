@@ -74,7 +74,7 @@ pub fn Button(
             action
             disabled
             focused
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle| view! {
                 <ButtonFace handle variant />
             }}

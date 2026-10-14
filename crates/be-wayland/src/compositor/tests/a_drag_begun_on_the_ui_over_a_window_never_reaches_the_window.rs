@@ -40,7 +40,6 @@ fn Covered(windows: Windows) -> NodeId {
             <List spacing=0.0>
                 <ForEach keys={ids}>
                     {move |id: WindowId| {
-                        let windows = windows.clone();
                         view! {
                             <Frame width={Some(SHOWN.x)} height={Some(SHOWN.y)}>
                                 <WindowView windows id occluders={vec![tab()]} />

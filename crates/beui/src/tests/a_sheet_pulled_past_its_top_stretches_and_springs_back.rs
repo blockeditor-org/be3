@@ -8,7 +8,6 @@ fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
     let sheet = NodeRef::new();
     let (open, set_open) = create_signal(false);
     let document = build({
-        let sheet = sheet.clone();
         move || {
             view! {
                 <List spacing=0.0>

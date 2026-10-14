@@ -18,14 +18,14 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
 
     let children = children.map(move |child| {
         let ListChild { node, data: size } = child;
-        let size = Prop::Dynamic(std::rc::Rc::new(move || {
+        let size = Prop::dynamic(move || {
             let size = size.get();
             if stacked.get() {
                 Sizing::default()
             } else {
                 size
             }
-        }));
+        });
         ListChild { node, data: size }
     });
 

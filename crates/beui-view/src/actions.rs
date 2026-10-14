@@ -240,15 +240,15 @@ impl Action {
     }
 
     pub fn enabled(&self) -> Prop<bool> {
-        self.0.enabled.clone()
+        self.0.enabled
     }
 
     pub fn disabled(&self) -> Prop<bool> {
-        self.0.enabled.clone().map(|enabled| !enabled)
+        self.0.enabled.map(|enabled| !enabled)
     }
 
     pub fn checked(&self) -> Option<Prop<bool>> {
-        self.0.checked.clone()
+        self.0.checked
     }
 
     pub fn in_menu(&self) -> bool {
@@ -376,7 +376,7 @@ impl ActionBuilder {
                 false => KeyPhase::Bubble,
             };
             let listening = action.clone();
-            crate::reactive::on_key(KeyAt::Node(node.clone()), phase, move |event| {
+            crate::reactive::on_key(KeyAt::Node(*node), phase, move |event| {
                 run_matching(std::iter::once(&listening), event)
             });
         }
@@ -416,13 +416,13 @@ pub struct ActionScope(Rc<ScopeData>);
 pub fn action_scope(node: &NodeRef) -> ActionScope {
     let registry = registry();
     let scope = ActionScope(Rc::new(ScopeData {
-        node: Some(node.clone()),
+        node: Some(*node),
         actions: RefCell::new(Vec::new()),
     }));
     registry.0.scopes.borrow_mut().push(Rc::downgrade(&scope.0));
     provide_context(scope.clone());
     let listening = Rc::downgrade(&scope.0);
-    crate::reactive::on_key(KeyAt::Node(node.clone()), KeyPhase::Bubble, move |event| {
+    crate::reactive::on_key(KeyAt::Node(*node), KeyPhase::Bubble, move |event| {
         listening.upgrade().is_some_and(|scope| {
             let actions = scope.actions.borrow().clone();
             run_matching(actions.iter().filter(|action| action.0.at.is_none()), event)
@@ -705,7 +705,7 @@ pub fn action_disabled(action: Option<&Action>, disabled: Prop<bool>) -> Prop<bo
     match action {
         Some(action) => {
             let enabled = action.enabled();
-            Prop::Dynamic(Rc::new(move || disabled.get() || !enabled.get()))
+            Prop::dynamic(move || disabled.get() || !enabled.get())
         }
         None => disabled,
     }

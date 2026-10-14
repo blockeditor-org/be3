@@ -62,8 +62,8 @@ pub fn SplitButton(
                 arrow={move |handle: MenuButtonHandle| view! {
                     <ArrowFace handle variant />
                 }}
-                on_click={move || on_click.call()}
-                on_select={move |path: Vec<usize>| on_select.call(path)}
+                on_click={on_click}
+                on_select={on_select}
             />
         </Frame>
     }

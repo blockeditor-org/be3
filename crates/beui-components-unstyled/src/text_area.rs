@@ -36,9 +36,9 @@ use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, LayoutBuilder, List,
-    Memo, NodeRef, PlacementBuilder, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal,
-    action_scope, clone, component_accessibility, create_effect, create_memo, create_signal,
-    create_timer, pixels_per_point, set_component_state, try_with_document, untrack, with_document,
+    Memo, NodeRef, PlacementBuilder, Prop, ReadSignal, Render, RenderFn, Show, Stored, WriteSignal,
+    action_scope, component_accessibility, create_effect, create_memo, create_signal, create_timer,
+    pixels_per_point, set_component_state, store, try_with_document, untrack, with_document,
 };
 
 use completion::{Completions, Query, query};
@@ -114,12 +114,18 @@ impl RowEntry {
     }
 }
 
-struct Surface {
-    state: TextAreaState,
-    single_line: bool,
+struct Held {
     rows: RefCell<BTreeMap<usize, RowEntry>>,
     registered: Cell<u64>,
     rects: Rc<Rects>,
+    reveal_attempts: Cell<u8>,
+}
+
+#[derive(Clone, Copy)]
+struct Surface {
+    state: TextAreaState,
+    single_line: bool,
+    held: Stored<Held>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
     tables: Memo<Rc<TableSpacers>>,
@@ -148,7 +154,6 @@ struct Surface {
     disabled: Memo<bool>,
     remote_cursors: Memo<Vec<RemoteTextCursor>>,
     drop_caret: Memo<Option<usize>>,
-    reveal_attempts: Cell<u8>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
@@ -163,7 +168,7 @@ struct Surface {
     on_submit: ClickCallback,
 }
 
-type Context = Rc<Surface>;
+type Context = Surface;
 
 struct Parts {
     cx: Context,
@@ -192,11 +197,11 @@ impl AreaGeometry for Surface {
 
 impl Surface {
     fn canvas_rect(&self) -> Option<Rect> {
-        self.rects.get(&self.state.canvas().try_get()?)
+        self.held.get().rects.get(&self.state.canvas().try_get()?)
     }
 
     fn node_rect(&self, node: &NodeRef) -> Option<Rect> {
-        self.rects.get(&node.try_get()?)
+        self.held.get().rects.get(&node.try_get()?)
     }
 
     fn row_estimate(&self) -> f32 {
@@ -213,7 +218,7 @@ impl Surface {
     }
 
     fn entry(&self, line: usize) -> Option<RowEntry> {
-        self.rows.borrow().get(&line).cloned()
+        self.held.get().rows.borrow().get(&line).cloned()
     }
 
     fn caret_rect_at(&self, byte: usize) -> Option<Rect> {
@@ -226,17 +231,18 @@ impl Surface {
         let line = self.line_of(byte);
         let list = self.list.try_get()?;
         let canvas = self.canvas_rect()?;
-        let rect = self.rects.get(&list)?;
+        let rect = self.held.get().rects.get(&list)?;
         let offset =
             try_with_document(|document| document.virtual_list_offset::<usize>(list, &line))??;
         Some(rect.min.y - canvas.min.y + offset)
     }
 
     fn row_at(&self, pos: Pos2) -> Option<RowEntry> {
-        let rows = self.rows.borrow();
+        let held = self.held.get();
+        let rows = held.rows.borrow();
         let placed: Vec<(Rect, &RowEntry)> = rows
             .values()
-            .filter_map(|entry| Some((entry.rect(&self.rects)?, entry)))
+            .filter_map(|entry| Some((entry.rect(&held.rects)?, entry)))
             .collect();
         placed
             .iter()
@@ -274,7 +280,7 @@ impl Surface {
     fn gutter_arrow_at(&self, pos: Pos2) -> Option<usize> {
         let gutter = self.gutter.get_untracked();
         let entry = self.row_at(pos)?;
-        let rect = entry.rect(&self.rects)?;
+        let rect = entry.rect(&self.held.get().rects)?;
         if pos.x < rect.min.x || pos.x > rect.min.x + gutter {
             return None;
         }
@@ -296,7 +302,8 @@ impl Surface {
     }
 
     fn block_at(&self, pos: Pos2) -> Option<usize> {
-        let rows = self.rows.borrow();
+        let held = self.held.get();
+        let rows = held.rows.borrow();
         rows.values().find_map(|entry| {
             let (index, _) = entry.row().block?;
             let rect = self.node_rect(&entry.block)?;
@@ -320,7 +327,7 @@ impl Surface {
             self.reveal_rect(rect);
         }
         if !self.state.take_reveal_cursor() {
-            self.reveal_attempts.set(0);
+            self.held.get().reveal_attempts.set(0);
             return;
         }
         let Some(byte) = self.state.caret_indices().first().copied() else {
@@ -346,12 +353,12 @@ impl Surface {
         }
         self.set_offset
             .set_unconditionally(offset.clamp(0.0, position.max_offset().max(offset)));
-        let attempts = self.reveal_attempts.get();
+        let attempts = self.held.get().reveal_attempts.get();
         if !exact && attempts < REVEAL_ATTEMPTS {
-            self.reveal_attempts.set(attempts + 1);
+            self.held.get().reveal_attempts.set(attempts + 1);
             self.state.reveal_cursor();
         } else {
-            self.reveal_attempts.set(0);
+            self.held.get().reveal_attempts.set(0);
         }
     }
 
@@ -399,13 +406,12 @@ impl Surface {
         let Some(item) = self.completions.get_untracked().get(index).cloned() else {
             return;
         };
-        let (anchor, focus) = {
-            let core = self.state.core();
+        let (anchor, focus) = self.state.with_core(|core| {
             (
                 core.position(query.range.start),
                 core.position(query.range.end),
             )
-        };
+        });
         self.state
             .execute(EditorCommand::SetSelection { anchor, focus });
         self.state
@@ -470,7 +476,7 @@ impl Surface {
     }
 
     fn caret_handle(&self) -> Option<usize> {
-        let state = &self.state;
+        let state = self.state;
         if !state.touch_mode().get_untracked()
             || !state.caret_handle().get_untracked()
             || !self.focused.get_untracked()
@@ -641,7 +647,10 @@ fn begin_handle_drag(cx: &Context, handle: CaretHandle, pos: Pos2) {
                 CaretHandle::Start => (range.end, range.start),
                 _ => (range.start, range.end),
             };
-            (Grab::Selection(cx.state.core().position(fixed)), moving)
+            (
+                Grab::Selection(cx.state.with_core(|core| core.position(fixed))),
+                moving,
+            )
         }
     };
     let offset = cx
@@ -659,7 +668,7 @@ fn drag_handle(cx: &Context, pos: Pos2) {
     let Some(target) = cx.hit(inside) else {
         return;
     };
-    let position = cx.state.core().position(target);
+    let position = cx.state.with_core(|core| core.position(target));
     cx.state.execute(match grab {
         Grab::Selection(fixed) => EditorCommand::DragSelectionHandle { fixed, position },
         Grab::Caret => EditorCommand::SetSelection {
@@ -700,7 +709,7 @@ fn press(cx: &Context, press: PointerPress) {
         return;
     }
     if let Some(line_start) = cx.gutter_arrow_at(press.pos) {
-        let position = cx.state.core().position(line_start);
+        let position = cx.state.with_core(|core| core.position(line_start));
         cx.state.execute(EditorCommand::ToggleCollapseAt(position));
         return;
     }
@@ -753,13 +762,12 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 let Some(widget) = cx.widgets.get_untracked().get(index).cloned() else {
                     return;
                 };
-                let (anchor, focus) = {
-                    let core = cx.state.core();
+                let (anchor, focus) = cx.state.with_core(|core| {
                     (
                         core.position(widget.range.start),
                         core.position(widget.range.end),
                     )
-                };
+                });
                 cx.state
                     .execute(EditorCommand::SetSelection { anchor, focus });
                 cx.state.set_selecting(false);
@@ -781,7 +789,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
         LINE_CLICKS => DragSelectionMode::select(CursorLeftRightStop::Line),
         _ => DragSelectionMode::default(),
     };
-    let position = cx.state.core().position(target);
+    let position = cx.state.with_core(|core| core.position(target));
     cx.state.execute(EditorCommand::Click {
         position,
         mode,
@@ -807,7 +815,7 @@ fn extend(cx: &Context, press: PointerPress) {
     let Some(target) = cx.hit(inside) else {
         return;
     };
-    let position = cx.state.core().position(target);
+    let position = cx.state.with_core(|core| core.position(target));
     cx.state.execute(EditorCommand::Drag(position));
     cx.step_beyond(beyond, MoveMode::Select);
     cx.state.reveal_cursor();
@@ -931,11 +939,11 @@ fn gutter_width(line_count: usize) -> f32 {
     GUTTER_PADDING_LEFT + GUTTER_ARROW_SIZE + digit * digits as f32 + GUTTER_PADDING_RIGHT
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Field {
     cx: Context,
     described: Memo<Node>,
-    frame: Rc<RefCell<Option<Render<Child>>>>,
+    frame: Stored<RefCell<Option<Render<Child>>>>,
     inner: NodeRef,
     surface_color: Memo<Color32>,
     set_field_rect: WriteSignal<Rect>,
@@ -1007,8 +1015,8 @@ pub fn TextArea(
                         let (autoscroll, set_autoscroll) = create_signal(false);
                         let viewport = NodeRef::new();
                         let (outer, inner) = match single_line {
-                            true => (NodeRef::new(), viewport.clone()),
-                            false => (viewport.clone(), NodeRef::new()),
+                            true => (NodeRef::new(), viewport),
+                            false => (viewport, NodeRef::new()),
                         };
                         let masked = create_memo(move || password.get());
                         let placeholder = create_memo(move || placeholder.get());
@@ -1021,10 +1029,10 @@ pub fn TextArea(
                         let drop_caret = create_memo(move || drop_caret.get());
                         let view_width = create_memo(move || placed.get().width());
                         let client_colors = create_memo(move || client_colors.get());
-                        create_effect(clone!(state -> move || {
+                        create_effect(move || {
                             let shown = show_runs.get();
                             untrack(|| state.set_show_runs(shown));
-                        }));
+                        });
 
                         let role = match single_line {
                             true => Role::TextInput,
@@ -1034,7 +1042,7 @@ pub fn TextArea(
                         let accessible = state.content();
                         let moved = state.cursors();
                         let described = create_memo(
-                            clone!(state -> move || {
+                            move || {
                                 accessible.get();
                                 let bytes = state.bytes();
                                 if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
@@ -1056,18 +1064,18 @@ pub fn TextArea(
                                     false => node.clear_disabled(),
                                 }
                                 node
-                            }),
+                            },
                         );
 
                         let content = state.content();
-                        let starts = create_memo(clone!(state -> move || {
+                        let starts = create_memo(move || {
                             content.get();
                             state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
                                 true => Rc::new(vec![0]),
                                 false => Rc::clone(&snapshot.starts),
                             })
-                        }));
-                        let visible = create_memo(clone!(state -> move || {
+                        });
+                        let visible = create_memo(move || {
                             content.get();
                             let starts = starts.get();
                             state.with_snapshot(|snapshot| {
@@ -1078,7 +1086,7 @@ pub fn TextArea(
                                     .map(|(line, _)| line)
                                     .collect::<Vec<usize>>()
                             })
-                        }));
+                        });
                         let gutter = create_memo(move || {
                             scale.get();
                             attached.get();
@@ -1091,7 +1099,7 @@ pub fn TextArea(
                             (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
                         });
                         let tables = create_memo(
-                            clone!(state -> move || {
+                            move || {
                                 content.get();
                                 scale.get();
                                 attached.get();
@@ -1115,24 +1123,24 @@ pub fn TextArea(
                                     }),
                                     false => HashMap::new(),
                                 }))
-                            }),
+                            },
                         );
-                        let composition = create_memo(clone!(state -> move || {
+                        let composition = create_memo(move || {
                             state.cursors().get();
                             state.content().get();
                             Some(Composition {
-                                range: state.core().composition()?,
+                                range: state.with_core(|core| core.composition())?,
                             })
-                        }));
-                        let completion = create_memo(clone!(state -> move || {
+                        });
+                        let completion = create_memo(move || {
                             let trigger = trigger?;
                             state.cursors().get();
                             state.content().get();
-                            if !focused.get() || state.core().composition().is_some() {
+                            if !focused.get() || state.with_core(|core| core.composition()).is_some() {
                                 return None;
                             }
-                            query(&state, trigger)
-                        }));
+                            query(state, trigger)
+                        });
                         let completions = create_memo(move || {
                             match (&completion.get(), &search) {
                                 (Some(query), Some(search)) => search(&query.text),
@@ -1157,12 +1165,15 @@ pub fn TextArea(
                             <Frame width=CARET_WIDTH />
                         };
 
-                        let cx: Context = Rc::new(Surface {
-                            state: state.clone(),
+                        let cx = Surface {
+                            state,
                             single_line,
-                            rows: RefCell::new(BTreeMap::new()),
-                            registered: Cell::new(0),
-                            rects: with_document(|document| Rc::clone(&document.rects)),
+                            held: store(Held {
+                                rows: RefCell::new(BTreeMap::new()),
+                                registered: Cell::new(0),
+                                rects: with_document(|document| Rc::clone(&document.rects)),
+                                reveal_attempts: Cell::new(0),
+                            }),
                             starts,
                             visible,
                             tables,
@@ -1184,14 +1195,13 @@ pub fn TextArea(
                             focused,
                             set_focused,
                             set_autoscroll,
-                            viewport: viewport.clone(),
+                            viewport,
                             list: NodeRef::new(),
                             anchor,
                             masked,
                             disabled,
                             remote_cursors,
                             drop_caret,
-                            reveal_attempts: Cell::new(0),
                             block,
                             selected_widget,
                             checkbox,
@@ -1204,15 +1214,14 @@ pub fn TextArea(
                             on_widget_press,
                             on_menu,
                             on_submit,
-                        });
-                        state.publish_layout(TextAreaLayout::new(cx.clone()));
+                        };
+                        state.publish_layout(TextAreaLayout::new(Rc::new(cx)));
 
                         if single_line {
-                            let clamp_cx = cx.clone();
                             create_effect(move || {
                                 content.get();
                                 view_width.get();
-                                let (room, width) = untrack(|| (clamp_cx.room(), clamp_cx.text_size().x));
+                                let (room, width) = untrack(|| (cx.room(), cx.text_size().x));
                                 let most = (width - room).max(0.0);
                                 if shift.get_untracked() > most {
                                     set_shift.set(most);
@@ -1220,7 +1229,7 @@ pub fn TextArea(
                             });
                         }
 
-                        let ime_cursor = create_memo(clone!(state -> move || {
+                        let ime_cursor = create_memo(move || {
                             state.cursors().get();
                             if !focused.get() {
                                 return None;
@@ -1229,21 +1238,21 @@ pub fn TextArea(
                                 node: anchor,
                                 rect: None,
                             })
-                        }));
-                        let ime_text = create_memo(clone!(state -> move || {
+                        });
+                        let ime_text = create_memo(move || {
                             state.cursors().get();
                             state.content().get();
                             if !focused.get() {
                                 return None;
                             }
-                            let surrounding = state.core().ime_state()?;
+                            let surrounding = state.with_core(|core| core.ime_state())?;
                             Some(ImeText {
                                 start: surrounding.start,
                                 text: surrounding.text,
                                 selection: surrounding.selection,
                                 composing: surrounding.composing,
                             })
-                        }));
+                        });
 
                         let focus_requests = state.focus_requests();
                         let focus_writer = set_focused;
@@ -1254,7 +1263,7 @@ pub fn TextArea(
                         });
                         create_effect(move || set_focused.set(focus_request.get()));
                         let content = state.content();
-                        let shown = create_memo(clone!(state -> move || {
+                        let shown = create_memo(move || {
                             content.get();
                             let value = String::from_utf8_lossy(&state.bytes()).into_owned();
                             match (value.is_empty(), masked.get()) {
@@ -1262,14 +1271,13 @@ pub fn TextArea(
                                 (false, true) => rows::mask(&value),
                                 (false, false) => value,
                             }
-                        }));
+                        });
                         set_component_state(Parts {
-                            cx: cx.clone(),
+                            cx,
                             shown,
                         });
-                        let reveal_cx = cx.clone();
                         let revealing = create_timer(move || {
-                            reveal_cx.reveal_caret();
+                            cx.reveal_caret();
                             None
                         });
                         let reveals = state.reveals();
@@ -1290,11 +1298,11 @@ pub fn TextArea(
                         });
                         let field = Field {
                             described,
-                            frame: Rc::new(RefCell::new(frame)),
+                            frame: store(RefCell::new(frame)),
                             inner,
                             surface_color,
                             set_field_rect,
-                            cx: cx.clone(),
+                            cx,
                             cursor,
                             set_cursor,
                             autoscroll,
@@ -1307,7 +1315,7 @@ pub fn TextArea(
                             pastes_images,
                             on_image_paste,
                         };
-                        let scrolled = field.clone();
+                        let scrolled = field;
                         let multi_line = !single_line;
                         let strip_width = create_memo(move || gutter.get());
                         let width = create_memo(move || size.get().x);
@@ -1323,11 +1331,10 @@ pub fn TextArea(
                         );
                         let has_menu = completion_menu.is_some();
                         let menu = create_memo(move || has_menu && completing.get());
-                        let menu_cx = cx.clone();
                         let menu_render = completion_menu;
                         if multi_line {
                             action_scope(&outer);
-                            actions::register(&state, disabled);
+                            actions::register(state, disabled);
                         }
 
                         view! {
@@ -1337,7 +1344,7 @@ pub fn TextArea(
                                         {move || view! {
                                             <Editing
                                                 @sizing=ItemSize::Percent(100.0)
-                                                field={field.clone()}
+                                                field={field}
                                             />
                                         }}
                                     </Show>
@@ -1348,7 +1355,7 @@ pub fn TextArea(
                                         let (gutter_color, border_x, border_height, border_color) =
                                             (gutter_color, border_x, border_height, border_color);
                                         let (area_width, area_height, offset, set_scroll, scrolled) =
-                                            (area_width, area_height, offset, set_scroll, scrolled.clone());
+                                            (area_width, area_height, offset, set_scroll, scrolled);
                                         view! {
                                             <Canvas
                                                 @sizing=ItemSize::Percent(100.0)
@@ -1392,9 +1399,7 @@ pub fn TextArea(
                                     <Show condition={menu}>
                                         {move || {
                                             let menu = menu_render
-                                                .clone()
                                                 .expect("a completion menu is only shown when the area was given one");
-                                            let cx = menu_cx.clone();
                                             view! {
                                                 <Completions cx menu />
                                             }
@@ -1436,16 +1441,11 @@ fn Editing(field: Field) -> NodeId {
         true => vec![PasteKind::Image, PasteKind::Text],
         false => vec![PasteKind::Text],
     };
-    let ime_cx = cx.clone();
     let focused = cx.focused;
     let set_focused = cx.set_focused;
-    let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
-    let (press_cx, tap_cx, drag_cx, release_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
     component_accessibility(described);
     let single_line = cx.single_line;
     let disabled = cx.disabled;
-    let hover_cx = cx.clone();
-    let body_cx = cx;
     view! {
         <Interactive
             focusable=true
@@ -1458,41 +1458,41 @@ fn Editing(field: Field) -> NodeId {
             on_focus_change={move |is_focused: bool| {
                 set_focused.set(is_focused);
                 if !is_focused {
-                    blur(&blur_cx);
+                    blur(&cx);
                 }
                 on_focus_change.call(is_focused);
             }}
-            on_text={clone!(text_cx -> move |typed: String| insert_text(&text_cx, &typed))}
+            on_text={move |typed: String| insert_text(&cx, &typed)}
             pastes
             on_paste={move |pasted: Pasted| match pasted {
-                Pasted::Text(typed) => insert_text(&text_cx, &typed),
+                Pasted::Text(typed) => insert_text(&cx, &typed),
                 Pasted::Image(image) => on_image_paste.call(image),
             }}
             on_ime={move |event: ImeEvent| {
-                ime(&ime_cx, event, |press| field_key(&ime_cx, press))
+                ime(&cx, event, |press| field_key(&cx, press))
             }}
             on_key={move |press: KeyPress| {
-                key_cx.state.core().composition().is_some()
-                    || field_key(&key_cx, press)
+                cx.state.with_core(|core| core.composition()).is_some()
+                    || field_key(&cx, press)
             }}
             cursor
             repeat_drag={autoscroll}
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                !capture_cx.disabled.get_untracked() && capture_cx.handle_at(pos).is_some()
+                !cx.disabled.get_untracked() && cx.handle_at(pos).is_some()
             }}
-            on_press={move |event: PointerPress| press(&press_cx, event)}
-            on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
-            on_drag={move |event: PointerPress| extend(&drag_cx, event)}
-            on_active_change={move |active: bool| release(&release_cx, active)}
-            on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}
+            on_press={move |event: PointerPress| press(&cx, event)}
+            on_click_at={move |event: PointerPress| tap(&cx, event)}
+            on_drag={move |event: PointerPress| extend(&cx, event)}
+            on_active_change={move |active: bool| release(&cx, active)}
+            on_hover_change={on_hover_change}
             on_hover_move={move |event: PointerPress| {
-                set_cursor.set(hover_cursor(&hover_cx, event.pos));
+                set_cursor.set(hover_cursor(&cx, event.pos));
             }}
         >
             {{
                 match single_line {
                     false => view! {
-                        <Lines cx={body_cx} />
+                        <Lines cx={cx} />
                     },
                     true => {
                         let field = view! {
@@ -1501,10 +1501,10 @@ fn Editing(field: Field) -> NodeId {
                                 color={surface_color}
                                 report={set_field_rect}
                             >
-                                <SingleLine cx={body_cx} />
+                                <SingleLine cx={cx} />
                             </FieldFrame>
                         };
-                        match frame.borrow_mut().take() {
+                        match frame.get().borrow_mut().take() {
                             Some(frame) => frame.call(field),
                             None => field,
                         }
@@ -1523,12 +1523,13 @@ pub fn text_area_shown(document: &Document, area: NodeId) -> String {
 }
 
 pub fn text_area_index_at(document: &Document, area: NodeId, pos: Pos2) -> usize {
-    let cx = document.component_state::<Parts>(area).cx.clone();
+    let cx = document.component_state::<Parts>(area).cx;
     area_hit(document, &cx, pos).unwrap_or(0)
 }
 
 fn area_hit(document: &Document, cx: &Context, pos: Pos2) -> Option<usize> {
-    let rows = cx.rows.borrow();
+    let held = cx.held.get();
+    let rows = held.rows.borrow();
     let placed: Vec<(Rect, &RowEntry)> = rows
         .values()
         .filter_map(|entry| Some((entry.rect(&document.rects)?, entry)))
@@ -1542,12 +1543,13 @@ fn area_hit(document: &Document, cx: &Context, pos: Pos2) -> Option<usize> {
 }
 
 pub fn text_area_state(document: &Document, area: NodeId) -> TextAreaState {
-    document.component_state::<Parts>(area).cx.state.clone()
+    document.component_state::<Parts>(area).cx.state
 }
 
 pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
-    let cx = document.component_state::<Parts>(area).cx.clone();
-    let rows = cx.rows.borrow();
+    let cx = document.component_state::<Parts>(area).cx;
+    let held = cx.held.get();
+    let rows = held.rows.borrow();
     cx.handles()
         .into_iter()
         .filter_map(|(handle, byte)| {

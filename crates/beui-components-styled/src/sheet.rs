@@ -35,7 +35,7 @@ pub fn Sheet(
             panel={|content: Child| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
-            on_close={move || on_close.call()}
+            on_close={on_close}
         >
             {children}
         </unstyled::Sheet>
@@ -64,7 +64,7 @@ pub fn ModalSheet(
             panel={|content: Child| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
-            on_close={move || on_close.call()}
+            on_close={on_close}
         >
             {children}
         </unstyled::ModalSheet>

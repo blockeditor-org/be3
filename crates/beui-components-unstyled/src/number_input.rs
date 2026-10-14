@@ -81,13 +81,13 @@ pub fn NumberInput(
     let (hovered, set_hovered) = create_signal(false);
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
-    create_effect(clone!(value -> move || {
+    create_effect(move || {
         let next = value.get();
         let held = text.get_untracked();
         if parse(&held) != Some(next) {
             set_text.set(format_number(next));
         }
-    }));
+    });
     let off = create_memo(move || disabled.get());
     let idle = create_memo(move || !editing.get());
     let cursor = create_memo(move || match drag != NumberDrag::Off && !off.get() {
@@ -109,13 +109,13 @@ pub fn NumberInput(
     component_accessibility(accessibility);
 
     let held: Rc<Cell<Option<(Pos2, f64, bool)>>> = Rc::default();
-    let pressed = clone!(held value -> move |press: PointerPress| {
+    let pressed = clone!(held -> move |press: PointerPress| {
         if off.get_untracked() {
             return;
         }
         held.set(Some((press.pos, value.peek(), false)));
     });
-    let changed = on_change.clone();
+    let changed = on_change;
     let dragged = clone!(held -> move |at: PointerPress| {
         let Some((origin, start, moved)) = held.get() else {
             return;
@@ -145,7 +145,7 @@ pub fn NumberInput(
         }
     });
 
-    let previewed = on_preview.clone();
+    let previewed = on_preview;
     let edited = move |typed: String| {
         if !editing.get_untracked() {
             return;
@@ -153,7 +153,7 @@ pub fn NumberInput(
         set_text.set(typed.clone());
         previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
     };
-    let finish = clone!(value -> move |keep: bool| {
+    let finish = move |keep: bool| {
         if !editing.get_untracked() {
             return;
         }
@@ -170,7 +170,7 @@ pub fn NumberInput(
             _ => set_text.set(format_number(shown)),
         }
         on_preview.call(None);
-    });
+    };
     let submitted = clone!(finish -> move |_: String| {
         set_refocus.set(true);
         finish(true);

@@ -1,19 +1,16 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::input::SecondaryDrag;
 use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
-    let drags = Rc::new(RefCell::new(Vec::<SecondaryDrag>::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (drags, set_drags) = create_signal(Vec::<SecondaryDrag>::new());
     let document = build({
-        let drags = Rc::clone(&drags);
         move || {
             view! {
                 <Interactive
-                    on_secondary_drag={move |drag: SecondaryDrag| drags.borrow_mut().push(drag)}
+                    on_secondary_drag={move |drag: SecondaryDrag| set_drags.update(|drags| drags.push(drag))}
                 >
                     <Frame />
                 </Interactive>
@@ -41,7 +38,7 @@ fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
         Event::PointerGone,
     ]);
 
-    let last = *drags.borrow().last().expect("the drag was heard");
+    let last = *drags.get_untracked().last().expect("the drag was heard");
     assert!(last.ended, "the release ended the drag");
     assert!(
         !last.cancelled,

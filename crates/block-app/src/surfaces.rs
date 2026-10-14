@@ -1,8 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap};
 
 use beui::reactive::{
     ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, component,
-    create_memo, create_signal, view,
+    create_memo, create_signal, store, view,
 };
 use beui::styled::{Caption, Heading, Icon, Spinner, StaleNotice, use_theme};
 use beui::{Align, Color32, NodeId, TextAlign};
@@ -125,9 +125,9 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
                             <Frame />
                         };
                     };
-                    let child_view: ChildView = Rc::new(|_, _, _| view! {
+                    let child_view: ChildView = store(Box::new(|_, _, _| view! {
                         <Frame />
-                    });
+                    }));
                     view! {
                         <PluginRegion
                             editor={hosted.editor}

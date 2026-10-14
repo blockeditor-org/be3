@@ -53,7 +53,6 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let panel = editor.clone();
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -88,7 +87,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     </List>
                 </Frame>
                 <Sidebar shown={chrome}>
-                    <ModulePanel editor={panel} />
+                    <ModulePanel editor={editor} />
                 </Sidebar>
             </List>
         </Frame>
@@ -97,11 +96,10 @@ pub fn ModuleView(editor: Editor) -> NodeId {
 
 #[component]
 fn ModulePanel(editor: Editor) -> NodeId {
-    let replacing = editor.clone();
     let chooser = FileChooser::new(filter(), imported);
     chooser.on_chosen(move |chooser| {
         if let Some(replacement) = chooser.take() {
-            replacing.replace_content(replacing.block_id(), &replacement);
+            editor.replace_content(editor.block_id(), &replacement);
         }
     });
 

@@ -14,8 +14,9 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
     Callback, ChildScope, ChildSegment, ChildValue, Children, ClickCallback, Frame, Func,
-    IntoChild, IntoProp, IntoSegment, Memo, Prop, ReadSignal, RenderFn, RootScope, Run, Scope,
-    SlotChild, WriteSignal, clone, create_effect, create_memo, create_signal, untrack,
+    IntoChild, IntoProp, IntoSegment, Memo, OwnedStored, Prop, ReadSignal, RenderFn, RootScope,
+    Run, Scope, SlotChild, Stored, WriteSignal, create_effect, create_memo, create_signal, store,
+    untrack,
 };
 use serde::{Deserialize, Serialize};
 
@@ -306,24 +307,24 @@ impl<K> Default for KeyMap<K> {
 
 struct LayoutInner<K> {
     _scope: Scope,
+    keys: RefCell<KeyMap<K>>,
+}
+
+pub struct DockingLayout<K: 'static> {
     state: ReadSignal<DockState>,
     set_state: WriteSignal<DockState>,
     restores: ReadSignal<u64>,
     set_restores: WriteSignal<u64>,
-    keys: RefCell<KeyMap<K>>,
-}
-
-pub struct DockingLayout<K> {
-    inner: Rc<LayoutInner<K>>,
+    inner: Stored<LayoutInner<K>>,
 }
 
 impl<K> Clone for DockingLayout<K> {
     fn clone(&self) -> Self {
-        Self {
-            inner: Rc::clone(&self.inner),
-        }
+        *self
     }
 }
+
+impl<K> Copy for DockingLayout<K> {}
 
 impl<K: DockKey> Default for DockingLayout<K> {
     fn default() -> Self {
@@ -331,21 +332,66 @@ impl<K: DockKey> Default for DockingLayout<K> {
     }
 }
 
+pub struct OwnedDockingLayout<K: 'static> {
+    layout: DockingLayout<K>,
+    _inner: OwnedStored<LayoutInner<K>>,
+}
+
+impl<K: DockKey> Default for OwnedDockingLayout<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: DockKey> OwnedDockingLayout<K> {
+    pub fn new() -> Self {
+        let (layout, inner) = DockingLayout::parts();
+        let inner = OwnedStored::new(inner);
+        Self {
+            layout: layout(inner.handle()),
+            _inner: inner,
+        }
+    }
+
+    pub fn layout(&self) -> DockingLayout<K> {
+        self.layout
+    }
+}
+
+impl<K: 'static> std::ops::Deref for OwnedDockingLayout<K> {
+    type Target = DockingLayout<K>;
+
+    fn deref(&self) -> &DockingLayout<K> {
+        &self.layout
+    }
+}
+
 impl<K: DockKey> DockingLayout<K> {
     pub fn new() -> Self {
+        let (layout, inner) = Self::parts();
+        layout(store(inner))
+    }
+
+    fn parts() -> (impl FnOnce(Stored<LayoutInner<K>>) -> Self, LayoutInner<K>) {
         let owner = RootScope::new();
         let (state, set_state) = create_signal(DockState::default());
         let (restores, set_restores) = create_signal(0);
-        Self {
-            inner: Rc::new(LayoutInner {
-                _scope: owner.into_scope(),
-                state,
-                set_state,
-                restores,
-                set_restores,
-                keys: RefCell::default(),
-            }),
-        }
+        let inner = LayoutInner {
+            _scope: owner.into_scope(),
+            keys: RefCell::default(),
+        };
+        let layout = move |inner| Self {
+            state,
+            set_state,
+            restores,
+            set_restores,
+            inner,
+        };
+        (layout, inner)
+    }
+
+    fn inner(&self) -> Rc<LayoutInner<K>> {
+        self.inner.get()
     }
 
     pub fn restore(&self, snapshot: DockingSnapshot<K>) {
@@ -357,20 +403,21 @@ impl<K: DockKey> DockingLayout<K> {
             map.keys.insert(tab, key.clone());
             map.tabs.insert(key, tab);
         }
-        *self.inner.keys.borrow_mut() = map;
-        self.inner.set_state.set(state);
-        self.inner.set_restores.update(|restores| *restores += 1);
+        *self.inner().keys.borrow_mut() = map;
+        self.set_state.set(state);
+        self.set_restores.update(|restores| *restores += 1);
     }
 
     pub fn reset(&self) {
-        *self.inner.keys.borrow_mut() = KeyMap::default();
-        self.inner.set_state.set(DockState::default());
-        self.inner.set_restores.update(|restores| *restores += 1);
+        *self.inner().keys.borrow_mut() = KeyMap::default();
+        self.set_state.set(DockState::default());
+        self.set_restores.update(|restores| *restores += 1);
     }
 
     pub fn snapshot(&self) -> DockingSnapshot<K> {
-        let state = self.inner.state.get();
-        let keys = self.inner.keys.borrow();
+        let state = self.state.get();
+        let inner = self.inner();
+        let keys = inner.keys.borrow();
         let mut held: Vec<(K, TabId)> = state
             .all_tabs()
             .into_iter()
@@ -381,31 +428,30 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn state(&self) -> ReadSignal<DockState> {
-        self.inner.state
+        self.state
     }
 
     pub fn tab_of(&self, key: &K) -> Option<TabId> {
-        self.inner.keys.borrow().tabs.get(key).copied()
+        self.inner().keys.borrow().tabs.get(key).copied()
     }
 
     pub fn key_of(&self, tab: TabId) -> Option<K> {
-        self.inner.keys.borrow().keys.get(&tab).cloned()
+        self.inner().keys.borrow().keys.get(&tab).cloned()
     }
 
     pub fn contains(&self, key: &K) -> bool {
         let tab = self.tab_of(key);
-        self.inner
-            .state
+        self.state
             .with(|state| tab.is_some_and(|tab| state.contains(tab)))
     }
 
     pub fn focused(&self) -> Option<K> {
-        let tab = self.inner.state.with(DockState::focused_tab)?;
+        let tab = self.state.with(DockState::focused_tab)?;
         self.key_of(tab)
     }
 
     pub fn shown(&self) -> Option<K> {
-        let tab = self.inner.state.with(DockState::stacked_tab)?;
+        let tab = self.state.with(DockState::stacked_tab)?;
         self.key_of(tab)
     }
 
@@ -417,7 +463,7 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn fullscreen(&self) -> Option<K> {
-        let tab = self.inner.state.with(DockState::fullscreen)?.tab;
+        let tab = self.state.with(DockState::fullscreen)?.tab;
         self.key_of(tab)
     }
 
@@ -433,16 +479,17 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     fn edit(&self, change: impl FnOnce(&mut DockState)) {
-        let current = self.inner.state.get_untracked();
+        let current = self.state.get_untracked();
         let mut next = current.clone();
         change(&mut next);
         if next != current {
-            self.inner.set_state.set(next);
+            self.set_state.set(next);
         }
     }
 
     fn mint(&self, key: &K) -> TabId {
-        let mut keys = self.inner.keys.borrow_mut();
+        let inner = self.inner();
+        let mut keys = inner.keys.borrow_mut();
         if let Some(tab) = keys.tabs.get(key) {
             return *tab;
         }
@@ -460,7 +507,7 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     fn reconcile(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
-        let current = self.inner.state.get_untracked();
+        let current = self.state.get_untracked();
         let mut next = current.clone();
         next.reconcile(spec);
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
@@ -471,12 +518,13 @@ impl<K: DockKey> DockingLayout<K> {
                 .flat_map(|(dialog, parent)| [*dialog, *parent]),
         );
         {
-            let mut keys = self.inner.keys.borrow_mut();
+            let inner = self.inner();
+            let mut keys = inner.keys.borrow_mut();
             keys.keys.retain(|tab, _| kept.contains(tab));
             keys.tabs.retain(|_, tab| kept.contains(tab));
         }
         if next != current {
-            self.inner.set_state.set(next);
+            self.set_state.set(next);
         }
     }
 
@@ -490,7 +538,7 @@ impl<K: DockKey> DockingLayout<K> {
                 }
                 let parent = self.mint(parent);
                 found.dialogs.push((dialog, parent));
-                found.parts.insert(dialog, parts.clone());
+                found.parts.insert(dialog, *parts);
             }
         }
         for node in nodes {
@@ -659,7 +707,7 @@ impl<K: 'static> Found<K> {
 
     fn empty(&self, key: &str) -> Option<RenderFn<()>> {
         match &self.panes.get(key)?.kind {
-            NodeKind::Pane { empty, .. } => empty.clone(),
+            NodeKind::Pane { empty, .. } => *empty,
             _ => None,
         }
     }
@@ -703,8 +751,8 @@ where
 {
     let nodes = children.into_run();
     let (found, set_found) = create_signal(Rc::new(Found::<K>::default()));
-    create_effect(clone!(layout -> move || {
-        layout.inner.restores.get();
+    create_effect(move || {
+        layout.restores.get();
         let items = nodes.items();
         let mut held = Found::default();
         let focus = focus.peek();
@@ -714,7 +762,7 @@ where
             set_found.set(Rc::new(held));
             layout.reconcile(&spec, &dialogs);
         });
-    }));
+    });
     let listed = found;
     let dialogs = create_memo(move || listed.with(|found| found.dialogs.clone()));
     let described = found;
@@ -744,7 +792,7 @@ where
     let closing = found;
     let on_close = move |tab: TabId| {
         let close = closing
-            .with_untracked(|found| found.tab(tab, |_, _, on_close, _| on_close.clone()))
+            .with_untracked(|found| found.tab(tab, |_, _, on_close, _| *on_close))
             .flatten();
         if let Some(close) = close {
             close.call();
@@ -752,8 +800,7 @@ where
     };
     let bodies = found;
     let content = RenderFn::new(move |tab: TabId| {
-        let content =
-            bodies.with_untracked(|found| found.tab(tab, |_, _, _, content| content.clone()));
+        let content = bodies.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
         let Some(content) = content else {
             return view! {
                 <Frame />
@@ -766,10 +813,8 @@ where
         }
     });
     let empties = found;
-    let emptied = layout.clone();
     let empty = RenderFn::new(move |leaf: LeafId| {
-        let key = emptied
-            .inner
+        let key = layout
             .state
             .with_untracked(|state| state.pane_key(leaf).map(str::to_owned));
         let empty = key.and_then(|key| empties.with_untracked(|found| found.empty(&key)));
@@ -781,28 +826,24 @@ where
         }
     });
     let grouped = found;
-    let named = layout.clone();
     let group_title = Func::new(move |group: GroupId| {
-        let key = named
-            .inner
+        let key = layout
             .state
             .with(|state| state.group_key(group).map(str::to_owned))?;
         let title = grouped.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
-    let homed = layout.clone();
     let home = create_memo(move || {
         found.with(|_| ());
-        home.get().and_then(|key| homed.tab_of(&key))
+        home.get().and_then(|key| layout.tab_of(&key))
     });
     let state = layout.state();
-    let changing = layout.clone();
     view! {
         <Dock
             config={DockConfig {
                 state: state.into_prop(),
                 on_change: Callback::new(move |next: DockState| {
-                    changing.inner.set_state.set(next);
+                    layout.set_state.set(next);
                 }),
                 on_close: Callback::new(on_close),
                 title,

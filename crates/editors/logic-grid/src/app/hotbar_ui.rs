@@ -97,45 +97,41 @@ impl LogicGridEditor {
 }
 
 #[component]
-pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
-    let nested = create_memo(clone!(session -> move || {
-        session.read(|model| !model.active_hotbar_folder.is_empty())
-    }));
+pub(super) fn Hotbar(session: Session) -> NodeId {
+    let nested = create_memo(move || session.read(|model| !model.active_hotbar_folder.is_empty()));
     let top = create_memo(move || !nested.get());
-    let title = create_memo(clone!(session -> move || {
+    let title = create_memo(move || {
         session.read(|model| match model.active_hotbar_folder.is_empty() {
             true => "Hotbar".to_owned(),
             false => hotbar_folder_name(&model.hotbar, &model.active_hotbar_folder).to_owned(),
         })
-    }));
+    });
     let columns = create_memo(move || match nested.get() {
         true => vec![0_usize, 1],
         false => vec![0_usize],
     });
-    let up = clone!(session -> move || {
+    let up = move || {
         session.update(|model| {
             model.active_hotbar_folder.pop();
         });
-    });
-    let chose = clone!(session -> move |path: Vec<usize>| match path.first() {
+    };
+    let chose = move |path: Vec<usize>| match path.first() {
         Some(0) => session.update(LogicGridEditor::new_hotbar_folder),
         Some(1) => session.update(|model| model.confirm_hotbar_reset = true),
         _ => {}
-    });
-    let column_session = Rc::clone(&session);
-    let parent = create_memo(clone!(session -> move || {
+    };
+    let parent = create_memo(move || {
         session.read(|model| {
             let mut parent = model.active_hotbar_folder.clone();
             parent.pop();
             parent
         })
-    }));
-    let up_session = Rc::clone(&session);
+    });
     view! {
         <List spacing=SPACING>
-            <HotbarHeader session={Rc::clone(&session)}>
+            <HotbarHeader session={session}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                    <SlotDrop session={up_session} target={parent} folder=true>
+                    <SlotDrop session={session} target={parent} folder=true>
                         <IconButton
                             glyph={ICON_ARROW_UPWARD.to_owned()}
                             label="Up to the parent folder"
@@ -162,7 +158,6 @@ pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
             <List direction=Direction::Horizontal spacing=COLUMN_GAP>
                 <ForEach keys={columns}>
                     {move |column: usize| {
-                        let session = Rc::clone(&column_session);
                         view! {
                             <HotbarColumn
                                 @sizing=ItemSize::Fixed(COLUMN_WIDTH)
@@ -180,12 +175,7 @@ pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
 }
 
 #[component]
-fn SlotDrop(
-    session: Rc<Session>,
-    target: Memo<Vec<usize>>,
-    folder: bool,
-    children: Child,
-) -> NodeId {
+fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: Child) -> NodeId {
     let accepts = Func::new(move |source: Vec<usize>| {
         let target = target.get_untracked();
         source != target && !target.starts_with(&source)
@@ -223,23 +213,17 @@ fn SlotDrop(
 }
 
 #[component]
-fn HotbarHeader(session: Rc<Session>, children: Child) -> NodeId {
-    let folder = create_memo(clone!(session -> move || {
-        session.read(|model| model.active_hotbar_folder.clone())
-    }));
+fn HotbarHeader(session: Session, children: Child) -> NodeId {
+    let folder = create_memo(move || session.read(|model| model.active_hotbar_folder.clone()));
     view! {
         <SlotDrop session={session} target={folder} folder=true>{children}</SlotDrop>
     }
 }
 
 #[component]
-fn HotbarColumn(session: Rc<Session>, column: usize) -> NodeId {
-    let folder = create_memo(clone!(session -> move || {
-        session.read(|model| model.column_folder(column))
-    }));
-    let shown = create_memo(clone!(session -> move || {
-        session.read(|model| model.column_view(column))
-    }));
+fn HotbarColumn(session: Session, column: usize) -> NodeId {
+    let folder = create_memo(move || session.read(|model| model.column_folder(column)));
+    let shown = create_memo(move || session.read(|model| model.column_view(column)));
     let title = create_memo(move || shown.get().title);
     let entries = create_memo(move || shown.get().entries);
     let empty = create_memo(move || entries.get().is_empty());
@@ -248,7 +232,7 @@ fn HotbarColumn(session: Rc<Session>, column: usize) -> NodeId {
         true => theme.accent_soft.get(),
         false => theme.surface_raised.get(),
     });
-    let slots = Rc::clone(&session);
+
     view! {
         <SlotDrop session={session} target={folder} folder=true>
             <Frame
@@ -265,7 +249,6 @@ fn HotbarColumn(session: Rc<Session>, column: usize) -> NodeId {
                     </Show>
                     <ForEach keys={entries}>
                         {move |path: Vec<usize>| {
-                            let session = Rc::clone(&slots);
                             view! {
                                 <HotbarSlotButton session={session} path={path} />
                             }
@@ -278,8 +261,8 @@ fn HotbarColumn(session: Rc<Session>, column: usize) -> NodeId {
 }
 
 #[component]
-fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
-    let shown = create_memo(clone!(session path -> move || {
+fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
+    let shown = create_memo(clone!(path -> move || {
         session.read(|model| model.slot_view(&path))
     }));
     let label = create_memo(move || shown.get().map(|slot| slot.label).unwrap_or_default());
@@ -291,7 +274,7 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
     let not_component = create_memo(move || !shown.get().is_some_and(|slot| slot.component));
     let not_folder = create_memo(move || !shown.get().is_some_and(|slot| slot.folder));
     let not_removable = create_memo(move || !shown.get().is_some_and(|slot| slot.removable));
-    let chose = clone!(session path -> move |chosen: Vec<usize>| match chosen.first() {
+    let chose = clone!(path -> move |chosen: Vec<usize>| match chosen.first() {
         Some(0) => session.update(|model| model.remove_hotbar_slot(&path)),
         Some(1) => session.update(|model| model.toggle_hotbar_folder(path.clone())),
         Some(2) => session.update(|model| model.remove_hotbar_folder(&path)),
@@ -302,30 +285,32 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
     let payload = create_memo(clone!(path -> move || {
         (!disabled.get()).then(|| path.clone())
     }));
-    let clicked = clone!(session path -> move || {
+    let clicked = clone!(path -> move || {
         if !disabled.get_untracked() {
             session.update(|model| model.click_hotbar_slot(path.clone()));
         }
     });
-    let carried = clone!(session path -> move |dragging: bool| {
+    let carried = clone!(path -> move |dragging: bool| {
         session.update(|model| model.hotbar_drag = dragging.then(|| path.clone()));
     });
     let on_activate = clicked.clone();
-    let ghost = clone!(session -> move |dragged: Vec<usize>| {
-        let shown = create_memo(clone!(session -> move || {
-            session.read(|model| model.slot_view(&dragged)).map(|slot| SlotView {
-                dragging: false,
-                droppable: false,
-                ..slot
-            })
-        }));
+    let ghost = move |dragged: Vec<usize>| {
+        let shown = create_memo(move || {
+            session
+                .read(|model| model.slot_view(&dragged))
+                .map(|slot| SlotView {
+                    dragging: false,
+                    droppable: false,
+                    ..slot
+                })
+        });
         let (hovered, _) = create_signal(false);
         view! {
             <Frame @test_id="logic-grid.slot-ghost">
                 <SlotFace shown={shown} hovered={hovered} />
             </Frame>
         }
-    });
+    };
     let target = create_memo(clone!(path -> move || path.clone()));
     let test_id = format!(
         "logic-grid.slot.{}",
@@ -465,22 +450,20 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
 }
 
 #[component]
-fn ResetDialog(session: Rc<Session>) -> NodeId {
-    let open = create_memo(clone!(session -> move || {
-        session.read(|model| model.confirm_hotbar_reset)
-    }));
-    let reset = clone!(session -> move || {
+fn ResetDialog(session: Session) -> NodeId {
+    let open = create_memo(move || session.read(|model| model.confirm_hotbar_reset));
+    let reset = move || {
         session.update(|model| {
             model.confirm_hotbar_reset = false;
             model.reset_hotbar();
         });
-    });
-    let cancel = clone!(session -> move || {
+    };
+    let cancel = move || {
         session.update(|model| model.confirm_hotbar_reset = false);
-    });
-    let dismiss = clone!(session -> move || {
+    };
+    let dismiss = move || {
         session.update(|model| model.confirm_hotbar_reset = false);
-    });
+    };
     view! {
         <Dialog open={open} title="Reset hotbar?" width=DIALOG_WIDTH on_dismiss={dismiss}>
             <List spacing=SPACING>
@@ -501,42 +484,37 @@ fn ResetDialog(session: Rc<Session>) -> NodeId {
 }
 
 #[component]
-pub(super) fn ToolSettings(session: Rc<Session>) -> NodeId {
-    let merger = create_memo(clone!(session -> move || {
-        session.read(|model| model.tool.kind == ToolKind::MergerSplitter)
-    }));
+pub(super) fn ToolSettings(session: Session) -> NodeId {
+    let merger =
+        create_memo(move || session.read(|model| model.tool.kind == ToolKind::MergerSplitter));
     let single = create_memo(move || !merger.get());
-    let labelled = create_memo(clone!(session -> move || {
+    let labelled = create_memo(move || {
         session.read(|model| {
             matches!(model.tool.kind, ToolKind::Input | ToolKind::Output)
                 && model.challenge.is_none()
         })
-    }));
-    let label =
-        create_memo(clone!(session -> move || session.read(|model| model.io_label.clone())));
-    let typed =
-        clone!(session -> move |text: String| session.update(|model| model.io_label = text));
-    let input_session = Rc::clone(&session);
-    let output_session = Rc::clone(&session);
+    });
+    let label = create_memo(move || session.read(|model| model.io_label.clone()));
+    let typed = move |text: String| session.update(|model| model.io_label = text);
     view! {
         <List spacing=SPACING>
             <Show condition={single}>
-                {move || clone!(session -> view! {
+                {move || view! {
                     <List spacing=4.0>
                         <Caption content="Scale" />
-                        <ScalePicker session={Rc::clone(&session)} output=false />
+                        <ScalePicker session={session} output=false />
                     </List>
-                })}
+                }}
             </Show>
             <Show condition={merger}>
-                {move || clone!(input_session output_session -> view! {
+                {move || view! {
                     <List spacing=4.0>
                         <Caption content="Input scale" />
-                        <ScalePicker session={input_session} output=false />
+                        <ScalePicker session={session} output=false />
                         <Caption content="Output scale" />
-                        <ScalePicker session={output_session} output=true />
+                        <ScalePicker session={session} output=true />
                     </List>
-                })}
+                }}
             </Show>
             <Show condition={labelled}>
                 <TextInput
@@ -544,7 +522,7 @@ pub(super) fn ToolSettings(session: Rc<Session>) -> NodeId {
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}
-                    on_change={typed.clone()}
+                    on_change={typed}
                 />
             </Show>
             <Caption content="Middle drag or wheel: pan" />
@@ -557,8 +535,8 @@ pub(super) fn ToolSettings(session: Rc<Session>) -> NodeId {
 }
 
 #[component]
-fn ScalePicker(session: Rc<Session>, output: bool) -> NodeId {
-    let selected = create_memo(clone!(session -> move || {
+fn ScalePicker(session: Session, output: bool) -> NodeId {
+    let selected = create_memo(move || {
         session.read(|model| {
             let scale = match output {
                 true => model.tool.merger_out_scale,
@@ -568,7 +546,7 @@ fn ScalePicker(session: Rc<Session>, output: bool) -> NodeId {
                 .iter()
                 .position(|value| i64::from(*value) == scale.get())
         })
-    }));
+    });
     let label = match output {
         true => "Output scale",
         false => "Scale",

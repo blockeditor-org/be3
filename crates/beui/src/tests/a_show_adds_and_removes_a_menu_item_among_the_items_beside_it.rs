@@ -7,10 +7,8 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (pasteable, set_pasteable) = create_signal(false);
-    let selected = Rc::new(RefCell::new(Vec::new()));
-    let sink = selected.clone();
+    let (selected, set_selected) = create_signal(Vec::new());
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />
@@ -23,7 +21,7 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
                 <ContextMenu
                     items
                     on_select={move |path| {
-                        sink.borrow_mut().push(path);
+                        set_selected.update(|selected| selected.push(path));
                     }}
                 >
                     <MenuRegion @node_ref=&region />
@@ -76,7 +74,7 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     harness.click(harness.center(delete));
     harness.frame(Vec::new());
     assert_eq!(
-        selected.borrow().as_slice(),
+        selected.get_untracked().as_slice(),
         &[vec![2usize]],
         "the items after a shown one report the index they now sit at"
     );

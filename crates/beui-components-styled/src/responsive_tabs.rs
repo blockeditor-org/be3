@@ -29,14 +29,14 @@ pub fn ResponsiveTabs(
 
     let tab_options = options.clone();
     let tab_selected = selected_read;
-    let tab_change = on_change.clone();
+    let tab_change = on_change;
     let tab_set = set_selected;
 
     view! {
         <List spacing=0.0>
             <Show
                 condition={wide}
-                then={move || clone!(tab_options tab_change -> view! {
+                then={move || clone!(tab_options -> view! {
                     <Tabs
                         options={tab_options}
                         selected={tab_selected}
@@ -49,7 +49,7 @@ pub fn ResponsiveTabs(
             />
             <Show
                 condition={narrow}
-                then={move || clone!(options on_change -> view! {
+                then={move || clone!(options -> view! {
                     <Select
                         options
                         selected={highlighted}

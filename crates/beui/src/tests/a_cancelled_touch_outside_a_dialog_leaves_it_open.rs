@@ -6,8 +6,7 @@ use crate::styled::Dialog;
 fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
     let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
-    let dismissed = Rc::new(Cell::new(0));
-    let reports = dismissed.clone();
+    let (dismissed, set_dismissed) = create_signal(0);
     let document = build({
         move || {
             view! {
@@ -16,7 +15,7 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
                         open={open}
                         title="Event"
                         width=300.0
-                        on_dismiss={move || reports.set(reports.get() + 1)}
+                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
                         <Text string="Body" font_size=14.0 color=Color32::WHITE />
                     </Dialog>
@@ -34,7 +33,7 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
     harness.touch(TouchPhase::Cancel, outside);
     harness.frame(Vec::new());
     assert_eq!(
-        dismissed.get(),
+        dismissed.get_untracked(),
         0,
         "a touch the system took back, such as the swipe home, is not a tap outside"
     );
@@ -42,5 +41,9 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
     harness.touch(TouchPhase::Start, outside);
     harness.touch(TouchPhase::End, outside);
     harness.frame(Vec::new());
-    assert_eq!(dismissed.get(), 1, "a tap outside dismisses the dialog");
+    assert_eq!(
+        dismissed.get_untracked(),
+        1,
+        "a tap outside dismisses the dialog"
+    );
 }

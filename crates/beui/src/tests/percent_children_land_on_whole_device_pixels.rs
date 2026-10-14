@@ -5,8 +5,8 @@ const SCALE: f32 = 1.5;
 
 #[test]
 fn percent_children_land_on_whole_device_pixels() {
-    let children = Rc::new(RefCell::new(Vec::new()));
-    let sink = children.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (children, set_children) = create_signal(Vec::new());
 
     let document = build(move || {
         let tree = view! {
@@ -16,7 +16,7 @@ fn percent_children_land_on_whole_device_pixels() {
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0></List>
             </List>
         };
-        sink.replace(with_document(|document| document.children(tree)));
+        set_children.set(with_document(|document| document.children(tree)));
         tree
     });
 
@@ -25,7 +25,7 @@ fn percent_children_land_on_whole_device_pixels() {
     harness.frame(Vec::new());
 
     let edges: Vec<(f32, f32)> = children
-        .borrow()
+        .get_untracked()
         .iter()
         .map(|child| harness.rect(*child))
         .map(|rect| (rect.min.x * SCALE, rect.max.x * SCALE))

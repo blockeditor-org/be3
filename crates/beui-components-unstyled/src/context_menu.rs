@@ -37,10 +37,7 @@ pub fn ContextMenu(
     let (position, set_position) = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
-    set_component_state(State {
-        overlay: overlay.clone(),
-        content: content.clone(),
-    });
+    set_component_state(State { overlay, content });
 
     let (requested, requested_touch, requested_position, requested_focusing) =
         (set_open, set_touched, set_position, set_focusing);
@@ -99,7 +96,7 @@ pub fn ContextMenu(
                         set_open.set(false);
                         on_close.call();
                     }}
-                    on_select={move |path: Vec<usize>| on_select.call(path)}
+                    on_select={on_select}
                 />
             </List>
         </Interactive>

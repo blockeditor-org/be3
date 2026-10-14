@@ -85,7 +85,7 @@ pub fn ColorArea(
             }
         }
     };
-    let (drag_set, key_set, step_set) = (set.clone(), set.clone(), set);
+    let (drag_set, key_set, step_set) = (set, set, set);
     let grab = Rc::new(Cell::new(Vec2::ZERO));
     let (press_grab, press_color) = (grab.clone(), color);
     let grabbed = move |press: PointerPress| {

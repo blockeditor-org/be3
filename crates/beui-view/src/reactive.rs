@@ -36,7 +36,7 @@ pub fn with_node_ref<B: ComponentBuilder>(builder: B, value: &NodeRef) -> B
 where
     B::Output: BuildsNode,
 {
-    let node_ref = value.clone();
+    let node_ref = *value;
     builder.with_built(move |built| node_ref.fill(built.built_node()))
 }
 
@@ -185,7 +185,7 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     };
     let published: Cell<Option<String>> = Cell::new(None);
     bind(node, move || {
-        let next = reading();
+        let next = reading.get();
         let previous = published.replace(Some(next.clone()));
         with_document(|document| {
             if let Some(previous) = previous

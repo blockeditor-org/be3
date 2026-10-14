@@ -13,14 +13,13 @@ fn sheet_shown(harness: &Harness) -> bool {
 
 #[test]
 fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_click() {
+    let _root = crate::reactive::RootScope::new();
     let (menu, target) = (NodeRef::new(), NodeRef::new());
-    let setter = Rc::new(RefCell::new(None));
+    let (setter, set_setter) = create_signal(None);
     let document = crate::reactive::build({
-        let (menu, target, setter) = (menu.clone(), target.clone(), setter.clone());
         move || {
             let (open, set_open) = create_signal(false);
-            *setter.borrow_mut() = Some(set_open);
-            let closing = set_open;
+            set_setter.update(|setter| *setter = Some(set_open));
             view! {
                 <List spacing=0.0>
                     <Interactive @node_ref=&target on_click={move || set_open.set(true)}>
@@ -30,7 +29,7 @@ fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_cl
                         @node_ref=&menu
                         disabled=true
                         open_at_pointer={open}
-                        on_close={move || closing.set(false)}
+                        on_close={move || set_open.set(false)}
                         items={view! {
                             <MenuItem label="Settings" />
                         }}
@@ -75,7 +74,7 @@ fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_cl
     assert!(sheet_shown(&harness), "a tap opens the menu as a sheet");
     assert!(!harness.document().is_overlay_open(overlay));
 
-    let set_open = (*setter.borrow()).expect("the menu was built");
+    let set_open = setter.get_untracked().expect("the menu was built");
     with_reactive_scope(harness.document_mut(), || set_open.set(false));
     harness.settle();
     assert!(

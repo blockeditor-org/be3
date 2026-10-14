@@ -8,7 +8,6 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     let _root = crate::reactive::RootScope::new();
     let (depth, set_depth) = create_signal(2_u32);
     let page = NodeRef::new();
-    let page_ref = page.clone();
     let document = build({
         move || {
             let nested = create_memo(move || depth.get() > 0);
@@ -17,7 +16,7 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
                     enabled={nested}
                     on_back={move || set_depth.set(depth.get_untracked() - 1)}
                 >
-                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page_ref} />
+                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
                 </BackSlide>
             }
         }

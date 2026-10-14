@@ -3,9 +3,9 @@ use crate::reactive::{Dynamic, Frame, List, NodeRef, Offset, build, create_signa
 
 #[test]
 fn a_dynamic_child_can_fill_its_available_height() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll.clone();
         move || {
             let (state, _) = create_signal(false);
             view! {
@@ -13,7 +13,6 @@ fn a_dynamic_child_can_fill_its_available_height() {
                     <List spacing=0.0>
                         <Dynamic value={state}>
                             {move |_: bool| {
-                                let scroll = scroll.clone();
                                 view! {
                                     <List @sizing=ItemSize::Percent(100.0) spacing=10.0>
                                         <Frame height=20.0 />

@@ -75,8 +75,6 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
     let at_start = create_memo(move || shown.get() == 0);
     let at_end = create_memo(move || shown.get() >= count.get());
     let ended = create_memo(move || table.with(|table| table.ending.is_some()));
-    let (first, previous, next, last) =
-        (steps.clone(), steps.clone(), steps.clone(), steps.clone());
     let theme = use_theme();
     let muted = create_memo(move || theme.get().text_muted);
     let header_keys = column_keys;
@@ -90,7 +88,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     size=IconButtonSize::Compact
                     disabled={at_start}
                     @test_id={"game.history.first"}
-                    on_click={move || first.first()}
+                    on_click={move || steps.first()}
                 />
                 <IconButton
                     glyph={ICON_CHEVRON_LEFT.to_owned()}
@@ -98,7 +96,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     size=IconButtonSize::Compact
                     disabled={at_start}
                     @test_id={"game.history.previous"}
-                    on_click={move || previous.previous()}
+                    on_click={move || steps.previous()}
                 />
                 <IconButton
                     glyph={ICON_CHEVRON_RIGHT.to_owned()}
@@ -106,7 +104,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     size=IconButtonSize::Compact
                     disabled={at_end}
                     @test_id={"game.history.next"}
-                    on_click={move || next.next()}
+                    on_click={move || steps.next()}
                 />
                 <IconButton
                     glyph={ICON_LAST_PAGE.to_owned()}
@@ -114,7 +112,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     size=IconButtonSize::Compact
                     disabled={at_end}
                     @test_id={"game.history.last"}
-                    on_click={move || last.last()}
+                    on_click={move || steps.last()}
                 />
             </List>
             <List direction=Direction::Horizontal spacing=2.0>
@@ -151,7 +149,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                             rows={rows}
                             columns={column_keys}
                             shown={shown}
-                            steps={steps.clone()}
+                            steps={steps}
                         />
                     }}
                 </ForEach>
@@ -188,7 +186,7 @@ fn MoveRow(
                         column
                         rows={rows}
                         shown={shown}
-                        steps={steps.clone()}
+                        steps={steps}
                         @sizing=ItemSize::Percent(100.0)
                     />
                 }}

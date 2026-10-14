@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
@@ -8,7 +6,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Prop, Show, Spacer, clone, component, create_effect, create_memo, view, with_document,
+    NodeRef, Prop, Show, Spacer, component, create_effect, create_memo, view, with_document,
 };
 use block_editor_beui::beui::styled::{Body, Caption, Icon, Scroll, use_theme};
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
@@ -27,16 +25,14 @@ const SWATCH_HEIGHT: f32 = 14.0;
 
 #[component]
 pub fn Spreadsheet(data: Data) -> NodeId {
-    let display = display(&data);
+    let display = display(data);
     let fields = data.fields;
     let keys = create_memo(move || {
         display.with(|display| display.iter().map(|row| row.index).collect::<Vec<usize>>())
     });
     let empty = create_memo(move || fields.with(Vec::is_empty));
     let filled = create_memo(move || !empty.get());
-    let keyboard = Rc::new(keyboard(&data, display));
-    let rows_data = data.clone();
-    let header_data = data.clone();
+    let keyboard = Callback::new(keyboard(data, display));
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -49,11 +45,11 @@ pub fn Spreadsheet(data: Data) -> NodeId {
                 <Show condition={filled}>
                     <Grid
                         @sizing=ItemSize::Percent(100.0)
-                        data={rows_data.clone()}
-                        header={header_data.clone()}
+                        data={data}
+                        header={data}
                         display={display}
                         keys={keys}
-                        on_key={clone!(keyboard -> move |press: KeyPress| keyboard(press))}
+                        on_key={keyboard}
                     />
                 </Show>
             </List>
@@ -73,12 +69,11 @@ fn Grid(
         <List spacing=0.0>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Scroll direction=Direction::Horizontal>
-                    <Interactive focusable=true on_key={move |press: KeyPress| on_key.call(press)}>
+                    <Interactive focusable=true on_key={on_key}>
                         <List spacing=0.0>
                             <HeaderRow data={header} />
                             <ForEach keys={keys}>
                                 {move |index: usize| {
-                                    let data = data.clone();
                                     let display = display;
                                     view! {
                                         <Row data={data} display={display} index={index} />
@@ -112,7 +107,6 @@ fn HeaderRow(data: Data) -> NodeId {
             />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
-                    let data = data.clone();
                     let fields = fields;
                     let field = create_memo(move || {
                         fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
@@ -135,10 +129,10 @@ fn HeaderRow(data: Data) -> NodeId {
                         })
                     });
                     let sorted = sorted_direction(data.sort, id);
-                    let resort = clone!(data -> move || {
+                    let resort = move || {
                         let sort = next_sort(data.sort.get_untracked(), id);
                         data.operate_view(DatabaseView::set_sort(sort));
-                    });
+                    };
                     view! {
                         <HeaderCell
                             label={label}
@@ -178,7 +172,7 @@ fn HeaderCell(
             outline_width=BORDER
             outline_visible=true
         >
-            <Interactive on_click={move || on_click.call()}>
+            <Interactive on_click={on_click}>
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Body content={label} color={theme.text} />
@@ -206,9 +200,11 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
             .get()
             .map_or_else(String::new, |position| (position + 1).to_string())
     });
-    let selected = create_memo(clone!(data -> move || {
-        data.selected.get().is_some_and(|selection| selection.row == index)
-    }));
+    let selected = create_memo(move || {
+        data.selected
+            .get()
+            .is_some_and(|selection| selection.row == index)
+    });
     let fields = data.fields;
     let keys = create_memo(move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
@@ -232,7 +228,6 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
             </Frame>
             <ForEach keys={keys}>
                 {move |id: Uuid| {
-                    let data = data.clone();
                     let entry = entry;
                     let fields = fields;
                     let field = create_memo(move || {
@@ -267,20 +262,21 @@ fn Cell(
     });
     let value =
         create_memo(move || entry.with(|entry| entry.as_ref().and_then(|entry| entry.row.get(id))));
-    let text = create_memo(clone!(data -> move || {
+    let text = create_memo(move || {
         let (Some(entry), Some(field)) = (entry.get(), field.get()) else {
             return String::new();
         };
         if field.field_type == DatabaseFieldType::Boolean {
             return String::new();
         }
-        data.labels.with(|labels| cell_text(&entry.row, &field, labels))
-    }));
-    let selected = create_memo(clone!(data -> move || {
+        data.labels
+            .with(|labels| cell_text(&entry.row, &field, labels))
+    });
+    let selected = create_memo(move || {
         data.selected
             .get()
             .is_some_and(|selection| selection.row == row && selection.field == Some(id))
-    }));
+    });
     let boolean = create_memo(move || {
         field.with(|field| {
             field
@@ -309,21 +305,21 @@ fn Cell(
             false => TextAlign::Start,
         }
     });
-    let click = clone!(data -> move || {
+    let click = move || {
         data.select(row, Some(id));
         if boolean.get_untracked() {
             let value = !checked.get_untracked();
             data.set_cell(row, id, Some(DatabaseValue::Boolean(value)));
         }
-    });
+    };
     let shown = NodeRef::new();
-    create_effect(clone!(shown -> move || {
+    create_effect(move || {
         if selected.get()
             && let Some(node) = shown.try_get()
         {
             with_document(|document| document.reveal_node(node));
         }
-    }));
+    });
     let theme = use_theme();
     let glyph_color = theme.text;
     let fill = create_memo(move || match selected.get() {
@@ -390,7 +386,7 @@ fn sorted_direction(
     })
 }
 
-pub fn display(data: &Data) -> Memo<Vec<DisplayRow>> {
+pub fn display(data: Data) -> Memo<Vec<DisplayRow>> {
     let rows = data.rows;
     let fields = data.fields;
     let labels = data.labels;
@@ -417,8 +413,7 @@ pub fn display(data: &Data) -> Memo<Vec<DisplayRow>> {
     })
 }
 
-fn keyboard(data: &Data, display: Memo<Vec<DisplayRow>>) -> impl Fn(KeyPress) -> bool + use<> {
-    let data = data.clone();
+fn keyboard(data: Data, display: Memo<Vec<DisplayRow>>) -> impl Fn(KeyPress) -> bool + use<> {
     move |press: KeyPress| {
         if !press.pressed {
             return false;
@@ -440,11 +435,11 @@ fn keyboard(data: &Data, display: Memo<Vec<DisplayRow>>) -> impl Fn(KeyPress) ->
             }
             _ => return false,
         };
-        move_selection(&data, display, step)
+        move_selection(data, display, step)
     }
 }
 
-fn move_selection(data: &Data, display: Memo<Vec<DisplayRow>>, (dx, dy): (isize, isize)) -> bool {
+fn move_selection(data: Data, display: Memo<Vec<DisplayRow>>, (dx, dy): (isize, isize)) -> bool {
     let rows = display.get_untracked();
     let fields = data.fields.get_untracked();
     if rows.is_empty() || fields.is_empty() {

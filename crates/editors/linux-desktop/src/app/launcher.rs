@@ -12,7 +12,7 @@ use block_editor_beui::{Editor, HostProgram, ProgramAction, Programs};
 
 const ICON_POINTS: f32 = 32.0;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct ProgramLauncher {
     editor: Editor,
     open: ReadSignal<bool>,
@@ -78,9 +78,8 @@ fn item(program: &HostProgram) -> LauncherItem {
 
 #[component]
 pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
-    let toggling = launcher.clone();
     Action::new("desktop.launcher.toggle", "Programs", move || {
-        toggling.toggle();
+        launcher.toggle();
     })
     .glyph(ICON_APPS)
     .shortcut(Chord::tap(Key::Logo))
@@ -92,15 +91,14 @@ pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
         programs.with(|programs| Rc::new(programs.iter().map(item).collect::<Vec<_>>()))
     });
     let open = launcher.open;
-    let (launching, running, closing) = (launcher.clone(), launcher.clone(), launcher);
     view! {
         <Launcher
             open={open}
             items={items}
             placeholder="Search programs, or type a command"
-            on_launch={move |id: String| launching.launch(id)}
-            on_run={move |line: String| running.run(line)}
-            on_close={move || closing.show(false)}
+            on_launch={move |id: String| launcher.launch(id)}
+            on_run={move |line: String| launcher.run(line)}
+            on_close={move || launcher.show(false)}
         />
     }
 }

@@ -47,7 +47,6 @@ pub fn ColorWheel(
         ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
     let point = create_memo(move || WheelPoint::of_hsva(color.get()));
-    let (change, drag) = (picker.clone(), picker.clone());
     view! {
         <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
             <unstyled::ColorWheel
@@ -58,9 +57,9 @@ pub fn ColorWheel(
                 disabled={picker.disabled()}
                 on_change={move |next: WheelPoint| {
                     let held = color.get_untracked();
-                    change.apply(next.to_hsva(held.alpha));
+                    picker.apply(next.to_hsva(held.alpha));
                 }}
-                on_drag_change={move |dragging: bool| drag.drag(dragging)}
+                on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >
                 {|handle: ColorWheelHandle| view! {
                     <WheelFace handle model=Model::Hsv />
@@ -82,7 +81,6 @@ pub fn OklchColorWheel(
         ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
     let point = create_memo(move || WheelPoint::of_oklch(color.get()));
-    let (change, drag) = (picker.clone(), picker.clone());
     let accessibility = create_memo(move || {
         let color = color.get();
         let mut node = accesskit::Node::new(accesskit::Role::Slider);
@@ -113,12 +111,12 @@ pub fn OklchColorWheel(
                     let turned = next.hue != was.hue
                         && next.saturation == was.saturation
                         && next.value == was.value;
-                    change.apply(match turned {
+                    picker.apply(match turned {
                         true => Oklch::new(held.lightness, held.chroma, next.hue, held.alpha),
                         false => next.to_oklch(held.alpha),
                     });
                 }}
-                on_drag_change={move |dragging: bool| drag.drag(dragging)}
+                on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >
                 {|handle: ColorWheelHandle| view! {
                     <WheelFace handle model=Model::Oklch />
@@ -134,7 +132,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     let hues = Rc::new(ring_colors(model));
     let ring = Rc::new(RefCell::new(None::<(u32, Image)>));
     let triangle = Rc::new(RefCell::new(None::<(u32, u32, Image)>));
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let point = point.get();
         let (hues, ring, triangle) = (hues.clone(), ring.clone(), triangle.clone());
         Rc::new(move |painter: &Painter, rect: Rect| {
@@ -197,7 +195,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
                 color_at(model, point),
             );
         }) as Draw
-    }));
+    });
     let theme = use_theme();
     let ring_radius = (WHEEL_SIZE / 2.0) as u8 + 2;
     view! {

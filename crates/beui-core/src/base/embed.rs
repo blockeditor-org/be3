@@ -2,6 +2,8 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use reactive::{Stored, store};
+
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
@@ -33,24 +35,31 @@ impl EmbedState {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct EmbedSlot(pub Rc<EmbedState>);
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct EmbedSlot(pub Stored<EmbedState>);
+
+impl Default for EmbedSlot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl EmbedSlot {
     pub fn new() -> Self {
-        Self::default()
+        Self(store(EmbedState::default()))
     }
 
     pub fn node(&self) -> Option<NodeId> {
-        self.0.node.get()
+        self.0.with(|state| state.node.get())
     }
 
     pub fn placement(&self) -> Option<EmbedPlacement> {
-        self.0.placement.get()
+        self.0.with(|state| state.placement.get())
     }
 
     pub fn on_place(&self, listener: impl Fn(Option<EmbedPlacement>) + 'static) {
-        *self.0.listener.borrow_mut() = Some(Box::new(listener));
+        self.0
+            .with(|state| *state.listener.borrow_mut() = Some(Box::new(listener)));
     }
 }
 

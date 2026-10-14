@@ -6,13 +6,11 @@ use crate::reactive::{Draw, Drawing, create_signal, view};
 #[test]
 fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     let _root = crate::reactive::RootScope::new();
-    let painted = Rc::new(Cell::new(0));
+    let (painted, set_painted) = create_signal(0);
     let drawn = {
-        let painted = painted.clone();
         move |color: Color32| -> Draw {
-            let painted = painted.clone();
             Rc::new(move |painter: &Painter, rect: Rect| {
-                painted.set(painted.get() + 1);
+                set_painted.update(|painted| *painted += 1);
                 painter.rect_filled(rect, 0.0, color);
             })
         }
@@ -27,12 +25,16 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     let mut harness = Harness::new(document);
 
     let output = harness.frame(Vec::new());
-    assert_eq!(painted.get(), 1, "the callback paints the frame it is in");
+    assert_eq!(
+        painted.get_untracked(),
+        1,
+        "the callback paints the frame it is in"
+    );
     assert_eq!(fills(&output), vec![(VIEWPORT, Color32::WHITE)]);
 
     harness.frame(Vec::new());
     assert_eq!(
-        painted.get(),
+        painted.get_untracked(),
         1,
         "an unchanged frame reuses what it painted"
     );
@@ -42,7 +44,7 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
         set_draw.set_unconditionally(black);
     });
     let output = harness.frame(Vec::new());
-    assert_eq!(painted.get(), 2, "a new callback repaints");
+    assert_eq!(painted.get_untracked(), 2, "a new callback repaints");
     assert_eq!(fills(&output), vec![(VIEWPORT, Color32::BLACK)]);
 }
 

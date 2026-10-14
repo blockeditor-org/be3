@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{Text, build, create_memo, create_signal, view};
 use crate::styled::{Tree, TreeRowFace};
@@ -8,9 +5,9 @@ use crate::unstyled::TreeItem;
 
 #[test]
 fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
-    let opened: Rc<RefCell<Vec<usize>>> = Rc::default();
+    let _root = crate::reactive::RootScope::new();
+    let (opened, set_opened) = create_signal::<Vec<usize>>(Vec::new());
     let document = build({
-        let opened = Rc::clone(&opened);
         move || {
             let (expanded, set_expanded) = create_signal(false);
             let keys = create_memo(move || match expanded.get() {
@@ -28,7 +25,7 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
                     keys
                     item
                     selected=None
-                    on_select={move |key: usize| opened.borrow_mut().push(key)}
+                    on_select={move |key: usize| set_opened.update(|opened| opened.push(key))}
                     on_expand={move |(_, open): (usize, bool)| set_expanded.set(open)}
                 >
                     {move |row: TreeRowFace<usize>| view! {
@@ -55,7 +52,7 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
         "clicking the marker must expand the row"
     );
     assert!(
-        opened.borrow().is_empty(),
+        opened.with_untracked(|opened| opened.is_empty()),
         "clicking the marker must not open the row it belongs to"
     );
 
@@ -63,7 +60,7 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        opened.borrow().as_slice(),
+        opened.get_untracked().as_slice(),
         [0],
         "clicking the row itself must open it"
     );

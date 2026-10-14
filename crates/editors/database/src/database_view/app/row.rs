@@ -8,7 +8,7 @@ use block_editor_beui::beui::icons::{
     ICON_NOTE_ADD, ICON_OPEN_IN_NEW,
 };
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
+    Align, BackHandler, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component,
     create_memo, view,
 };
 use block_editor_beui::beui::styled::{
@@ -31,29 +31,32 @@ const LABEL_WIDTH: f32 = 104.0;
 
 #[component]
 pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
-    let index = create_memo(clone!(data -> move || {
-        data.row_ids.with(|ids| ids.iter().position(|id| *id == row))
-    }));
-    let code = create_memo(clone!(data -> move || short_id(&data.prefix.get(), row.as_uuid())));
-    let values = create_memo(clone!(data -> move || {
+    let index = create_memo(move || {
+        data.row_ids
+            .with(|ids| ids.iter().position(|id| *id == row))
+    });
+    let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
+    let values = create_memo(move || {
         let Some(index) = index.get() else {
             return Default::default();
         };
-        data.rows.with(|rows| rows.get(index).map(|row| row.cells()).unwrap_or_default())
-    }));
-    let page = create_memo(clone!(data -> move || {
+        data.rows
+            .with(|rows| rows.get(index).map(|row| row.cells()).unwrap_or_default())
+    });
+    let page = create_memo(move || {
         let index = index.get()?;
-        data.rows.with(|rows| rows.get(index).and_then(|row| row.page()))
-    }));
-    let title = create_memo(clone!(data -> move || {
+        data.rows
+            .with(|rows| rows.get(index).and_then(|row| row.page()))
+    });
+    let title = create_memo(move || {
         let field = data.title_field.get();
         values.with(|values| match field.and_then(|field| values.get(&field)) {
             Some(DatabaseValue::String(text)) => text.clone(),
             _ => String::new(),
         })
-    }));
+    });
     let untitled = title.with_untracked(String::is_empty);
-    let properties = create_memo(clone!(data -> move || {
+    let properties = create_memo(move || {
         let title = data.title_field.get();
         data.fields.with(|fields| {
             fields
@@ -62,8 +65,8 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                 .map(|field| field.id)
                 .collect::<Vec<Uuid>>()
         })
-    }));
-    let link_fields = create_memo(clone!(data -> move || {
+    });
+    let link_fields = create_memo(move || {
         data.fields.with(|fields| {
             fields
                 .iter()
@@ -71,9 +74,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                 .map(|field| field.id)
                 .collect::<Vec<Uuid>>()
         })
-    }));
-    let groups = visible_groups(&data);
-    let order = create_memo(clone!(data -> move || {
+    });
+    let groups = visible_groups(data);
+    let order = create_memo(move || {
         let ids = data.row_ids.get();
         groups.with(|groups| {
             groups
@@ -82,8 +85,8 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                 .filter_map(|index| ids.get(*index).copied())
                 .collect::<Vec<ObjectId>>()
         })
-    }));
-    let step = clone!(data -> move |by: isize| {
+    });
+    let step = move |by: isize| {
         order.with_untracked(|order| {
             let Some(at) = order.iter().position(|held| *held == row) else {
                 return;
@@ -92,9 +95,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                 data.select_row(*next);
             }
         });
-    });
-    let (previous, next) = (step.clone(), step);
-    let retitled = clone!(data -> move |text: String| {
+    };
+    let (previous, next) = (step, step);
+    let retitled = move |text: String| {
         let Some(field) = data.title_field.get_untracked() else {
             return;
         };
@@ -102,19 +105,19 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
         if let Some(page) = page.get_untracked() {
             data.editor().blocks().set_name(page, Some(text));
         }
-    });
-    let close = clone!(data -> move || data.deselect());
-    let back = close.clone();
-    let (close_narrow, close_wide) = (close.clone(), close);
-    let open_page = clone!(data -> move || {
+    };
+    let close = move || data.deselect();
+    let back = close;
+    let (close_narrow, close_wide) = (close, close);
+    let open_page = move || {
         if let Some(index) = index.get_untracked() {
             data.open_page(index);
         }
-    });
-    let remove = clone!(data -> move || data.remove_row(row));
-    let add_page = clone!(data -> move || {
+    };
+    let remove = move || data.remove_row(row);
+    let add_page = move || {
         data.create_page(row, title.get_untracked());
-    });
+    };
     let missing = create_memo(move || page.get().is_none());
     let present = create_memo(move || page.get().is_some());
     let target = create_memo(move || {
@@ -124,8 +127,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
     let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
-    let (property_data, link_data) = (data.clone(), data.clone());
-    let editor = data.editor().clone();
+    let editor = data.editor();
     let theme = use_theme();
     view! {
         <BackHandler on_back={back}>
@@ -139,7 +141,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     label="Back to the list"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.back"}
-                                    on_click={close_narrow.clone()}
+                                    on_click={close_narrow}
                                 />
                             </Show>
                             <IconButton
@@ -188,7 +190,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     label="Close"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.close"}
-                                    on_click={close_wide.clone()}
+                                    on_click={close_wide}
                                 />
                             </Show>
                         </List>
@@ -208,7 +210,6 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 <List spacing=2.0>
                                     <ForEach keys={properties}>
                                         {move |field: Uuid| {
-                                            let data = property_data.clone();
                                             view! {
                                                 <Property data={data} row={row} field={field} />
                                             }
@@ -217,7 +218,6 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 </List>
                                 <ForEach keys={link_fields}>
                                     {move |field: Uuid| {
-                                        let data = link_data.clone();
                                         view! {
                                             <LinkSection data={data} row={row} field={field} />
                                         }
@@ -225,7 +225,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 </ForEach>
                                 <Separator />
                                 <Show condition={missing}>
-                                    {move || clone!(add_page -> view! {
+                                    {move || view! {
                                         <List direction=Direction::Horizontal spacing=0.0>
                                             <Button
                                                 glyph={ICON_NOTE_ADD.to_owned()}
@@ -236,7 +236,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                                 on_click={add_page}
                                             />
                                         </List>
-                                    })}
+                                    }}
                                 </Show>
                             </List>
                         </Frame>
@@ -244,7 +244,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                     <Show condition={present}>
                         <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
-                            editor={editor.clone()}
+                            editor={editor}
                             block={target}
                             mode=ChildMode::Live
                             own_frame=true
@@ -262,9 +262,10 @@ pub fn several(field: &DatabaseField) -> bool {
 
 #[component]
 fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
-    let known = create_memo(clone!(data -> move || {
-        data.fields.with(|fields| fields.iter().find(|known| known.id == field).cloned())
-    }));
+    let known = create_memo(move || {
+        data.fields
+            .with(|fields| fields.iter().find(|known| known.id == field).cloned())
+    });
     let name = create_memo(move || {
         known.with(|known| {
             known
@@ -281,33 +282,35 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
         })
     });
     let other = create_memo(move || !choice.get());
-    let values = create_memo(clone!(data -> move || {
-        let index = data.row_ids.with(|ids| ids.iter().position(|id| *id == row));
+    let values = create_memo(move || {
+        let index = data
+            .row_ids
+            .with(|ids| ids.iter().position(|id| *id == row));
         data.rows.with(|rows| {
             index
                 .and_then(|index| rows.get(index))
                 .map(|row| row.cells())
                 .unwrap_or_default()
         })
-    }));
+    });
     let chosen = create_memo(move || {
         values.with(|values| match values.get(&field) {
             Some(DatabaseValue::Enum(option)) => Some(*option),
             _ => None,
         })
     });
-    let picked = clone!(data -> move |option: Option<Uuid>| {
+    let picked = move |option: Option<Uuid>| {
         data.set_value(row, field, option.map(DatabaseValue::Enum));
-    });
+    };
     let fields = create_memo(move || known.get().into_iter().collect::<Vec<_>>());
-    let changed = clone!(data -> move |change: DatabaseValueChange| {
+    let changed = move |change: DatabaseValueChange| {
         data.set_value(row, change.field_id, change.value);
-    });
-    let pick_block = clone!(data -> move |request: DatabaseBlockPickRequest| {
+    };
+    let pick_block = move |request: DatabaseBlockPickRequest| {
         if let Some(index) = data.index_of(row) {
             data.pick_value(index, request);
         }
-    });
+    };
     let labels = data.labels;
     let (choice_off, value_off) = (data.read_only, data.read_only);
     view! {
@@ -318,7 +321,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <List spacing=0.0>
                     <Show condition={choice}>
-                        {move || clone!(picked -> view! {
+                        {move || view! {
                             <ChoicePicker
                                 field={known}
                                 chosen={chosen}
@@ -326,10 +329,10 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                 picker_id={format!("database-view.detail.field.{field}")}
                                 on_pick={picked}
                             />
-                        })}
+                        }}
                     </Show>
                     <Show condition={other}>
-                        {move || clone!(changed pick_block -> view! {
+                        {move || view! {
                             <DatabaseValueEditor
                                 fields={fields}
                                 values={values}
@@ -340,7 +343,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                 on_change={changed}
                                 on_pick={pick_block}
                             />
-                        })}
+                        }}
                     </Show>
                 </List>
             </Frame>
@@ -350,19 +353,25 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
 
 #[component]
 fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
-    let known = create_memo(clone!(data -> move || {
-        data.fields.with(|fields| fields.iter().find(|known| known.id == field).cloned())
-    }));
-    let links = create_memo(clone!(data -> move || {
-        let index = data.row_ids.with(|ids| ids.iter().position(|id| *id == row));
+    let known = create_memo(move || {
+        data.fields
+            .with(|fields| fields.iter().find(|known| known.id == field).cloned())
+    });
+    let links = create_memo(move || {
+        let index = data
+            .row_ids
+            .with(|ids| ids.iter().position(|id| *id == row));
         data.rows.with(|rows| {
-            match index.and_then(|index| rows.get(index)).and_then(|row| row.get(field)) {
+            match index
+                .and_then(|index| rows.get(index))
+                .and_then(|row| row.get(field))
+            {
                 Some(DatabaseValue::Links(links)) => links,
                 Some(DatabaseValue::Relation(link)) => vec![link],
                 _ => Vec::new(),
             }
         })
-    }));
+    });
     let heading = create_memo(move || {
         known.with(|known| {
             known
@@ -375,7 +384,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
         0 => String::new(),
         count => count.to_string(),
     });
-    let addable = create_memo(clone!(data -> move || {
+    let addable = create_memo(move || {
         let Some(database) = known.with(|known| known.as_ref()?.relation_options.database) else {
             return Vec::new();
         };
@@ -391,11 +400,11 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                 .filter(|(link, _)| !held.contains(link) && Some(*link) != own)
                 .collect::<Vec<_>>()
         })
-    }));
+    });
     let add_keys = create_memo(move || {
         addable.with(|rows| rows.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
     });
-    let added = clone!(data -> move |index: Option<usize>| {
+    let added = move |index: Option<usize>| {
         let Some(link) = index.and_then(|index| {
             addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
         }) else {
@@ -404,9 +413,8 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
         let mut wanted = links.get_untracked();
         wanted.push(link);
         data.set_value(row, field, Some(DatabaseValue::Links(wanted)));
-    });
+    };
     let names = addable;
-    let items = data.clone();
     let add_off = data.read_only;
     view! {
         <List spacing=4.0>
@@ -443,7 +451,6 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             </List>
             <ForEach keys={links}>
                 {move |link: RowRef| {
-                    let data = items.clone();
                     let links = links;
                     view! {
                         <LinkedRow data={data} row={row} field={field} link={link} links={links} />
@@ -462,43 +469,44 @@ fn LinkedRow(
     link: RowRef,
     links: Memo<Vec<RowRef>>,
 ) -> NodeId {
-    let local = create_memo(clone!(data -> move || {
+    let local = create_memo(move || {
         let database = data.database_id.get()?;
         if link.database != database {
             return None;
         }
         data.index_of(ObjectId::from_uuid(link.row))
-    }));
-    let option = create_memo(clone!(data -> move || {
+    });
+    let option = create_memo(move || {
         let index = local.get()?;
         let entry = data.rows.with(|rows| rows.get(index).cloned())?;
         data.fields.with(|fields| {
-            fields.iter().filter(|field| iconic(field)).find_map(|field| {
-                match entry.get(field.id) {
+            fields
+                .iter()
+                .filter(|field| iconic(field))
+                .find_map(|field| match entry.get(field.id) {
                     Some(DatabaseValue::Enum(option)) => field.option(option).cloned(),
                     _ => None,
-                }
-            })
+                })
         })
-    }));
+    });
     let marked = create_memo(move || option.with(Option::is_some));
-    let code = create_memo(clone!(data -> move || match local.get() {
+    let code = create_memo(move || match local.get() {
         Some(_) => short_id(&data.prefix.get(), link.row),
         None => String::new(),
-    }));
-    let label = create_memo(clone!(data -> move || match local.get() {
+    });
+    let label = create_memo(move || match local.get() {
         Some(index) => {
             let title = data.title_field.get();
             data.rows.with(|rows| row_title(rows.get(index), title))
         }
         None => data.labels.with(|labels| labels.row(&link)),
-    }));
-    let open = clone!(data -> move || {
+    });
+    let open = move || {
         if local.get_untracked().is_some() {
             data.select_row(ObjectId::from_uuid(link.row));
         }
-    });
-    let remove = clone!(data -> move || {
+    };
+    let remove = move || {
         let wanted: Vec<RowRef> = links
             .get_untracked()
             .into_iter()
@@ -509,14 +517,14 @@ fn LinkedRow(
             field,
             (!wanted.is_empty()).then_some(DatabaseValue::Links(wanted)),
         );
-    });
+    };
     let read_only = data.read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <ListRow
                 @sizing=ItemSize::Percent(100.0)
                 @test_id={format!("database-view.detail.links.{field}.{}", link.row)}
-                on_click={open.clone()}
+                on_click={open}
                 on_activate={open}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

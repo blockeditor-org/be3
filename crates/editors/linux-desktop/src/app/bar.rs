@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
@@ -53,22 +52,18 @@ fn wall_clock() -> ReadSignal<String> {
 
 #[component]
 pub(crate) fn DesktopBar(
-    workspace: Rc<Workspace>,
+    workspace: Workspace,
     notifications: DesktopNotifications,
     launcher: ProgramLauncher,
 ) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
-    let editor = workspace.editor().clone();
-    let power = editor.clone();
-    let sounding = editor.clone();
-    let tray = editor.clone();
+    let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
-    let dated = editor.clone();
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
-    let sessions = Sessions::new(&workspace);
+    let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
     let keys = create_memo(move || {
         listed.with(|sessions| {
@@ -82,7 +77,6 @@ pub(crate) fn DesktopBar(
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
     let listing = create_memo(move || !listed.with(Vec::is_empty));
-    let creating = sessions.clone();
     let chose = move |path: Vec<usize>| {
         let chosen = path
             .first()
@@ -141,23 +135,23 @@ pub(crate) fn DesktopBar(
                                 label="New session"
                                 glyph={ICON_ADD.to_owned()}
                                 separated={listing}
-                                on_click={move || creating.create()}
+                                on_click={move || sessions.create()}
                             />
                         }}
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <TrayItems editor={tray} />
+                    <TrayItems editor={editor} />
                     <Show condition={audible}>
-                        <VolumeButton editor={sounding.clone()} levels={levels} />
+                        <VolumeButton editor={editor} levels={levels} />
                     </Show>
                     <NotificationsButton notifications />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
-                            <DesktopCalendar editor={dated.clone()} />
+                            <DesktopCalendar editor={editor} />
                         }}
                     </BarPopup>
-                    <PowerMenu editor={power} />
+                    <PowerMenu editor={editor} />
                 </List>
             </Frame>
         </List>

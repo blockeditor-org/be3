@@ -2,21 +2,21 @@ use beui::NodeId;
 use beui::reactive::{Align, Direction, Frame, List, Show, component, create_memo, view};
 use beui::styled::{Body, Button, ButtonVariant, use_theme};
 
-use super::state::Shared;
+use super::state::State;
 
 const BAR_PADDING_HORIZONTAL: f32 = 12.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
 const BAR_SPACING: f32 = 6.0;
 
 #[component]
-pub(crate) fn ImportError(state: Shared) -> NodeId {
+pub(crate) fn ImportError(state: State) -> NodeId {
     let error = state.import_error;
     let shown = create_memo(move || error.get().is_some());
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
                 {move || view! {
-                    <ImportErrorRow state={state.clone()} />
+                    <ImportErrorRow state={state} />
                 }}
             </Show>
         </List>
@@ -24,7 +24,7 @@ pub(crate) fn ImportError(state: Shared) -> NodeId {
 }
 
 #[component]
-fn ImportErrorRow(state: Shared) -> NodeId {
+fn ImportErrorRow(state: State) -> NodeId {
     let theme = use_theme();
     let error = state.import_error;
     let message = create_memo(move || error.get().unwrap_or_default());

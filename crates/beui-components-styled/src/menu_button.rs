@@ -57,7 +57,7 @@ pub fn MenuButton(
                     </Tooltip>
                 }
             }}
-            on_select={move |path: Vec<usize>| on_select.call(path)}
+            on_select={on_select}
         />
     }
 }
@@ -87,7 +87,7 @@ pub fn IconMenuButton(
                     </Tooltip>
                 }
             }}
-            on_select={move |path: Vec<usize>| on_select.call(path)}
+            on_select={on_select}
         />
     }
 }
@@ -164,12 +164,12 @@ pub fn PictureMenuButton(
             secondary_opens
             menu={menu_style()}
             trigger
-            on_click={move || on_click.call()}
-            on_secondary_click={move || on_secondary_click.call()}
-            on_middle_click={move || on_middle_click.call()}
-            on_scroll={move |gesture: ScrollGesture| on_scroll.call(gesture)}
-            on_open_change={move |open: bool| on_open_change.call(open)}
-            on_select={move |path: Vec<usize>| on_select.call(path)}
+            on_click={on_click}
+            on_secondary_click={on_secondary_click}
+            on_middle_click={on_middle_click}
+            on_scroll={on_scroll}
+            on_open_change={on_open_change}
+            on_select={on_select}
         />
     }
 }

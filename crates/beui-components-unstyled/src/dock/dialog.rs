@@ -8,16 +8,16 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    ClickCallback, Frame, Interactive, Memo, NodeRef, ReadSignal, RenderFn, clone, create_effect,
+    ClickCallback, Frame, Interactive, Memo, NodeRef, ReadSignal, RenderFn, create_effect,
     create_memo, create_signal, create_timer, node_scope, on_cleanup, provide_context, untrack,
     with_document,
 };
 
-use super::{DockState, DockTabControl, Handle, TabId};
+use super::{DockState, DockTabControl, State, TabId};
 
 const ATTENTION: Duration = Duration::from_millis(400);
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct DialogParts {
     pub(crate) title: Memo<String>,
     pub(crate) icon: Memo<String>,
@@ -146,6 +146,7 @@ impl super::State {
         };
         let Some(frame) = self
             .dialog_bodies
+            .get()
             .borrow()
             .get(&tab)
             .and_then(NodeRef::try_get)
@@ -162,9 +163,9 @@ impl super::State {
         });
     }
 
-    fn anchor_node(self: &std::rc::Rc<Self>, parent: TabId) -> Option<NodeId> {
+    fn anchor_node(&self, parent: TabId) -> Option<NodeId> {
         if self.is_dialog(parent) {
-            return self.dialog_frames.borrow().get(&parent)?.try_get();
+            return self.dialog_frames.get().borrow().get(&parent)?.try_get();
         }
         let shown = self.state.with_untracked(|state| state.contains(parent));
         shown.then(|| self.panel(parent))
@@ -172,11 +173,11 @@ impl super::State {
 }
 
 #[component]
-pub(super) fn DockDialogs(dock: Handle) -> NodeId {
+pub(super) fn DockDialogs(dock: State) -> NodeId {
     let keys = dock.dialogs;
-    let settling = dock.clone();
+    let settling = dock;
     let state = dock.state;
-    let described = dock.dialog.clone();
+    let described = dock.dialog;
     create_effect(move || {
         let _ = state.with(DockState::focused_tab);
         for (dialog, _) in keys.get() {
@@ -190,7 +191,6 @@ pub(super) fn DockDialogs(dock: Handle) -> NodeId {
         <beui_view::reactive::List spacing=0.0>
             <beui_view::reactive::ForEach keys>
                 {move |(tab, parent): (TabId, TabId)| {
-                    let dock = dock.clone();
                     view! {
                         <DockDialogView dock tab parent />
                     }
@@ -201,7 +201,7 @@ pub(super) fn DockDialogs(dock: Handle) -> NodeId {
 }
 
 #[component]
-fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
+fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let Some(parts) = dock.dialog.call(tab) else {
         return view! {
             <Frame />
@@ -216,30 +216,32 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
         content,
     } = parts;
     let frame = NodeRef::new();
-    dock.dialog_frames.borrow_mut().insert(tab, frame.clone());
+    dock.dialog_frames.get().borrow_mut().insert(tab, frame);
     let inside = NodeRef::new();
-    dock.dialog_bodies.borrow_mut().insert(tab, inside.clone());
-    on_cleanup(clone!(dock frame -> move || {
-        let mut frames = dock.dialog_frames.borrow_mut();
-        if frames.get(&tab).is_some_and(|held| *held == frame) {
-            frames.remove(&tab);
-            dock.dialog_bodies.borrow_mut().remove(&tab);
-        }
-        drop(frames);
+    dock.dialog_bodies.get().borrow_mut().insert(tab, inside);
+    on_cleanup(move || {
+        dock.dialog_frames.try_with(|frames| {
+            let mut frames = frames.borrow_mut();
+            if frames.get(&tab).is_some_and(|held| *held == frame) {
+                frames.remove(&tab);
+                dock.dialog_bodies
+                    .try_with(|bodies| bodies.borrow_mut().remove(&tab));
+            }
+        });
         if dock.dialog_focus.get_untracked() == Some(tab) {
             dock.set_dialog_focus.set(None);
         }
-    }));
-    let shown = create_memo(clone!(dock -> move || dock.dialog_shown(tab)));
+    });
+    let shown = create_memo(move || dock.dialog_shown(tab));
     let anchor = NodeRef::new();
-    create_effect(clone!(dock anchor -> move || {
+    create_effect(move || {
         if !shown.get() {
             return;
         }
         if let Some(node) = untrack(|| dock.anchor_node(parent)) {
             anchor.fill(node);
         }
-    }));
+    });
     let blocking = create_memo(move || shown.get() && modal.get());
     let policy = create_memo(move || match blocking.get() {
         true => LayerPolicy::BlocksParent,
@@ -263,11 +265,11 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             });
         }
     });
-    let scope = with_document(|document| node_scope(document, dock.owner.clone()));
+    let scope = with_document(|document| node_scope(document, dock.owner.with(Clone::clone)));
     let control = DockTabControl {
         tab,
         state: dock.state,
-        dock: std::rc::Rc::downgrade(&dock),
+        dock,
     };
     let body = scope.context().run(|| {
         provide_context(control);
@@ -281,7 +283,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             {body}
         </Frame>
     };
-    let closing = on_close.clone();
+    let closing = on_close;
     let face = dock.dialog_chrome.call(DockDialogHandle {
         tab,
         title,
@@ -298,12 +300,12 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
         }),
         body,
     });
-    let pressed = dock.clone();
-    let attending = dock.clone();
-    let dismissing = on_close.clone();
+    let pressed = dock;
+    let attending = dock;
+    let dismissing = on_close;
     let modal_now = blocking;
     let overlay = NodeRef::new();
-    let raised = overlay.clone();
+    let raised = overlay;
     let (opening, attended) = (shown, focused);
     let view = view! {
         <Overlay
@@ -343,13 +345,13 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             with_document(|document| document.raise_overlay(overlay));
         }
     });
-    let focusing = dock.clone();
+    let focusing = dock;
     create_effect(move || {
         if attended.get() {
             untrack(|| focusing.focus_into_dialog());
         }
     });
-    let opened = dock.clone();
+    let opened = dock;
     let was_shown = std::cell::Cell::new(false);
     create_effect(move || {
         let now = opening.get();

@@ -1,6 +1,5 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::database::DatabaseContent;
 use block_editor_beui::be_block::database_schema::{
     ChoiceColor, ChoiceIcon, DatabaseBlockOptions, DatabaseEnumOption, DatabaseField,
@@ -21,7 +20,7 @@ use block_editor_beui::beui::icons::{
     ICON_SHORT_TEXT, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, component,
     create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
@@ -35,7 +34,21 @@ use uuid::Uuid;
 
 use super::field_line_count;
 
-type Schema = Rc<ContentProjection<DatabaseSchemaContent>>;
+#[derive(Clone, Copy)]
+struct Schema(ContentProjection<DatabaseSchemaContent>);
+
+impl Schema {
+    fn operate(self, edit: Edit) {
+        self.0.operate(edit);
+    }
+
+    fn project<T: Clone + PartialEq + 'static>(
+        self,
+        project: impl Fn(&DatabaseSchemaContent) -> T + 'static,
+    ) -> ReadSignal<T> {
+        self.0.project(project)
+    }
+}
 
 const PADDING: f32 = 20.0;
 const SECTION_SPACING: f32 = 10.0;
@@ -74,13 +87,13 @@ const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
 pub fn SchemaView(editor: Editor) -> NodeId {
     let schema = editor.block_content::<DatabaseSchemaContent>();
     let fields = schema.project(|schema| schema.root().fields());
+    let schema = Schema(schema);
     let rows = create_memo(move || fields.get());
     let keys = create_memo(move || {
         rows.with(|rows| rows.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
     let read_only = editor.read_only();
 
-    let sized = editor.clone();
     create_effect(move || {
         let (lines, count) = rows.with(|rows| {
             (
@@ -89,12 +102,12 @@ pub fn SchemaView(editor: Editor) -> NodeId {
             )
         });
         let height = ROW_HEIGHT * lines as f32 + SECTION_SPACING * count as f32;
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
-    let add = clone!(schema -> move || {
+    let add = move || {
         schema.operate(DatabaseSchema::add_field("Field", DatabaseFieldType::String).1);
-    });
+    };
 
     let add_disabled = read_only;
     let theme = use_theme();
@@ -113,8 +126,8 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                                 });
                                 view! {
                                     <FieldRow
-                                        editor={editor.clone()}
-                                        schema={schema.clone()}
+                                        editor={editor}
+                                        schema={schema}
                                         id={id}
                                         field={field}
                                         read_only={read_only}
@@ -165,18 +178,18 @@ fn FieldRow(
             .and_then(|kind| FIELD_TYPES.iter().position(|(value, _, _)| *value == kind))
     });
     let is = |wanted: DatabaseFieldType| create_memo(move || kind.get() == Some(wanted));
-    let renamed = clone!(schema -> move |name: String| {
+    let renamed = move |name: String| {
         schema.operate(DatabaseSchema::rename_field(id, name));
-    });
-    let retyped = clone!(schema -> move |selected: Option<usize>| {
+    };
+    let retyped = move |selected: Option<usize>| {
         let Some(index) = selected else {
             return;
         };
         schema.operate(DatabaseSchema::set_field_type(id, FIELD_TYPES[index].0));
-    });
-    let remove = clone!(schema -> move || {
+    };
+    let remove = move || {
         schema.operate(DatabaseSchema::remove_field(id));
-    });
+    };
     let glyph = create_memo(move || {
         kind.get()
             .and_then(|kind| FIELD_TYPES.iter().find(|(value, _, _)| *value == kind))
@@ -191,7 +204,7 @@ fn FieldRow(
             .map(|field| field.id.as_uuid())
             .collect::<Vec<Uuid>>()
     });
-    let mover = clone!(schema -> move |by: isize| {
+    let mover = move |by: isize| {
         let order = order.get_untracked();
         let Some(at) = order.iter().position(|held| *held == id) else {
             return;
@@ -203,18 +216,15 @@ fn FieldRow(
         moved.remove(at);
         let after = to.checked_sub(1).map(|before| moved[before]);
         schema.operate(DatabaseSchema::move_field(id, after));
-    });
-    let (up, down) = (mover.clone(), mover);
+    };
+    let (up, down) = (mover, mover);
     let (up_off, down_off) = (read_only, read_only);
     let theme = use_theme();
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
     let (name_off, type_off, delete_off) = (read_only, read_only, read_only);
     let (number_off, enum_off, block_off, relation_off) =
         (read_only, read_only, read_only, read_only);
-    let (number_schema, enum_schema, block_schema, relation_schema) =
-        (schema.clone(), schema.clone(), schema.clone(), schema);
     let (number_field, enum_field, block_field, relation_field) = (field, field, field, field);
-    let relation_editor = editor.clone();
     let (number_kind, enum_kind, block_kind, relation_kind) = (
         is(DatabaseFieldType::Number),
         is(DatabaseFieldType::Enum),
@@ -275,24 +285,19 @@ fn FieldRow(
             </List>
             <Show condition={number_kind}>
                 <NumberOptions
-                    schema={number_schema.clone()}
+                    schema={schema}
                     id={id}
                     field={number_field}
                     read_only={number_off}
                 />
             </Show>
             <Show condition={enum_kind}>
-                <EnumOptions
-                    schema={enum_schema.clone()}
-                    id={id}
-                    field={enum_field}
-                    read_only={enum_off}
-                />
+                <EnumOptions schema={schema} id={id} field={enum_field} read_only={enum_off} />
             </Show>
             <Show condition={block_kind}>
                 <BlockOptions
-                    editor={editor.clone()}
-                    schema={block_schema.clone()}
+                    editor={editor}
+                    schema={schema}
                     id={id}
                     field={block_field}
                     read_only={block_off}
@@ -300,8 +305,8 @@ fn FieldRow(
             </Show>
             <Show condition={relation_kind}>
                 <RelationOptions
-                    editor={relation_editor.clone()}
-                    schema={relation_schema.clone()}
+                    editor={editor}
+                    schema={schema}
                     id={id}
                     field={relation_field}
                     read_only={relation_off}
@@ -332,39 +337,38 @@ fn NumberOptions(
             .iter()
             .position(|(value, _)| *value == options.get().scale)
     });
-    let rescaled = clone!(schema -> move |selected: Option<usize>| {
+    let rescaled = move |selected: Option<usize>| {
         let Some(index) = selected else {
             return;
         };
         let mut next = options.get_untracked();
         next.scale = NUMBER_SCALES[index].0;
         schema.operate(DatabaseSchema::set_number_options(id, next));
-    });
+    };
     let scale_keys = create_memo(|| (0..NUMBER_SCALES.len()).collect::<Vec<usize>>());
     let (minimum_off, maximum_off, step_off, scale_off) =
         (read_only, read_only, read_only, read_only);
-    let (minimum_schema, maximum_schema, step_schema) = (schema.clone(), schema.clone(), schema);
     let (minimum_options, maximum_options, step_options) = (options, options, options);
     view! {
         <List spacing=ROW_SPACING>
             <Frame padding_left={INDENT + ROW_SPACING}>
                 <List spacing=ROW_SPACING>
                     <OptionalNumber
-                        schema={minimum_schema}
+                        schema={schema}
                         id={id}
                         options={minimum_options}
                         bound=Bound::Minimum
                         read_only={minimum_off}
                     />
                     <OptionalNumber
-                        schema={maximum_schema}
+                        schema={schema}
                         id={id}
                         options={maximum_options}
                         bound=Bound::Maximum
                         read_only={maximum_off}
                     />
                     <OptionalNumber
-                        schema={step_schema}
+                        schema={schema}
                         id={id}
                         options={step_options}
                         bound=Bound::Step
@@ -458,22 +462,14 @@ fn OptionalNumber(
             .unwrap_or_else(|| bound.fallback(options))
     });
     let unset = create_memo(move || !set.get() || read_only.get());
-    let write = {
-        let schema = schema.clone();
-        let options = options;
-        move |value: Option<f64>| {
-            let mut next = options.get_untracked();
-            bound.write(&mut next, value);
-            schema.operate(DatabaseSchema::set_number_options(id, next));
-        }
+    let write = move |value: Option<f64>| {
+        let mut next = options.get_untracked();
+        bound.write(&mut next, value);
+        schema.operate(DatabaseSchema::set_number_options(id, next));
     };
-    let toggled = {
-        let write = write.clone();
-        let options = options;
-        move |enabled: bool| {
-            let fallback = bound.fallback(options.get_untracked());
-            write(enabled.then_some(fallback));
-        }
+    let toggled = move |enabled: bool| {
+        let fallback = bound.fallback(options.get_untracked());
+        write(enabled.then_some(fallback));
     };
     let typed = move |value: f64| write(Some(value));
     let toggle_off = read_only;
@@ -516,10 +512,11 @@ fn EnumOptions(
         })
     });
     let add_off = read_only;
-    let add = clone!(schema -> move || {
-        let count = field.with_untracked(|field| field.as_ref().map_or(0, |field| field.enum_options.len()));
+    let add = move || {
+        let count = field
+            .with_untracked(|field| field.as_ref().map_or(0, |field| field.enum_options.len()));
         schema.operate(DatabaseSchema::add_enum_option(id, format!("Option {}", count + 1)).1);
-    });
+    };
     view! {
         <Frame padding_left={INDENT + ROW_SPACING}>
             <List spacing=ROW_SPACING>
@@ -527,7 +524,7 @@ fn EnumOptions(
                     {move |option_id: Uuid| {
                         view! {
                             <EnumOptionRow
-                                schema={schema.clone()}
+                                schema={schema}
                                 id={id}
                                 option_id={option_id}
                                 field={field}
@@ -581,21 +578,27 @@ fn EnumOptionRow(
         field
             .with(|field| field.as_ref().and_then(|field| field.default_value()) == Some(option_id))
     });
-    let renamed = clone!(schema -> move |name: String| {
+    let renamed = move |name: String| {
         schema.operate(DatabaseSchema::rename_enum_option(option_id, name));
-    });
-    let remove = clone!(schema -> move || {
+    };
+    let remove = move || {
         schema.operate(DatabaseSchema::remove_enum_option(option_id));
-    });
-    let close = clone!(schema -> move |on: bool| {
+    };
+    let close = move |on: bool| {
         schema.operate(DatabaseSchema::set_option_closed(option_id, on));
-    });
-    let defaulted = clone!(schema -> move |on: bool| {
-        schema.operate(DatabaseSchema::set_default_option(id, on.then_some(option_id)));
-    });
-    let mover = clone!(schema -> move |by: isize| {
+    };
+    let defaulted = move |on: bool| {
+        schema.operate(DatabaseSchema::set_default_option(
+            id,
+            on.then_some(option_id),
+        ));
+    };
+    let mover = move |by: isize| {
         let order: Vec<Uuid> = field.with_untracked(|field| {
-            field.as_ref().map(|field| field.enum_options.iter().map(|option| option.id).collect()).unwrap_or_default()
+            field
+                .as_ref()
+                .map(|field| field.enum_options.iter().map(|option| option.id).collect())
+                .unwrap_or_default()
         });
         let Some(at) = order.iter().position(|held| *held == option_id) else {
             return;
@@ -607,11 +610,10 @@ fn EnumOptionRow(
         moved.remove(at);
         let after = to.checked_sub(1).map(|before| moved[before]);
         schema.operate(DatabaseSchema::move_enum_option(id, option_id, after));
-    });
-    let (up, down) = (mover.clone(), mover);
+    };
+    let (up, down) = (mover, mover);
     let icon_keys = create_memo(|| (0..ChoiceIcon::ALL.len()).collect::<Vec<usize>>());
     let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
-    let (icon_schema, color_schema) = (schema.clone(), schema);
     let (name_off, delete_off, icon_off, color_off, closed_off, default_off, up_off, down_off) = (
         read_only, read_only, read_only, read_only, read_only, read_only, read_only, read_only,
     );
@@ -627,7 +629,6 @@ fn EnumOptionRow(
                     <ForEach keys={icon_keys}>
                         {move |index: usize| {
                             let icon = ChoiceIcon::ALL[index];
-                            let schema = icon_schema.clone();
                             view! {
                                 <MenuItem
                                     label={choice_icon_label(icon)}
@@ -640,7 +641,6 @@ fn EnumOptionRow(
                     </ForEach>
                 }}
                 trigger={move |handle: MenuButtonHandle| {
-                    let option = option;
                     view! {
                         <ControlFace handle={handle.button}>
                             <ChoiceMark option={option} size=18.0 />
@@ -667,7 +667,6 @@ fn EnumOptionRow(
                     <ForEach keys={color_keys}>
                         {move |index: usize| {
                             let color = ChoiceColor::ALL[index];
-                            let schema = color_schema.clone();
                             view! {
                                 <MenuItem
                                     label={choice_color_label(color)}
@@ -760,7 +759,7 @@ fn BlockOptions(
                 .and_then(|field| field.block_options.block_type)
         })
     });
-    let entries = create_memo(clone!(known -> move || {
+    let entries = create_memo(move || {
         let mut entries: Vec<(Option<Uuid>, String)> = vec![(None, "Any block".to_owned())];
         entries.extend(known.iter().map(|(id, name)| (Some(*id), name.clone())));
         match wanted.get() {
@@ -770,7 +769,7 @@ fn BlockOptions(
             _ => {}
         }
         entries
-    }));
+    });
     let keys = create_memo(move || {
         entries.with(|entries| {
             entries
@@ -784,20 +783,20 @@ fn BlockOptions(
         entries.with(|entries| entries.iter().position(|(value, _)| *value == wanted))
     });
     let labels = entries;
-    let picked = clone!(schema -> move |selected: Option<usize>| {
+    let picked = move |selected: Option<usize>| {
         let Some(index) = selected else {
             return;
         };
-        let Some(block_type) = entries.with_untracked(|entries| {
-            entries.get(index).map(|(block_type, _)| *block_type)
-        }) else {
+        let Some(block_type) =
+            entries.with_untracked(|entries| entries.get(index).map(|(block_type, _)| *block_type))
+        else {
             return;
         };
         schema.operate(DatabaseSchema::set_block_options(
             id,
             DatabaseBlockOptions { block_type },
         ));
-    });
+    };
     view! {
         <Frame padding_left={INDENT + ROW_SPACING}>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -849,7 +848,7 @@ fn RelationOptions(
             })
             .map(|database| ChildTarget::new(database, DatabaseContent::CONTENT_TYPE))
     });
-    let shown = watch_block_label(&editor, target);
+    let shown = watch_block_label(editor, target);
     let label = create_memo(move || match target.get() {
         None => "Choose a database".to_owned(),
         Some(_) => shown.with(|shown| match shown.name.is_empty() {
@@ -865,8 +864,7 @@ fn RelationOptions(
                 .unwrap_or_default()
         })
     });
-    let choose = clone!(editor schema -> move || {
-        let schema = schema.clone();
+    let choose = move || {
         let current = options.get_untracked();
         editor.pick_block(
             BlockFilter {
@@ -888,10 +886,10 @@ fn RelationOptions(
                 }
             },
         );
-    });
+    };
     let multiple = create_memo(move || options.get().multiple);
     let inverse = create_memo(move || options.get().inverse);
-    let remultiplied = clone!(schema -> move |multiple: bool| {
+    let remultiplied = move |multiple: bool| {
         schema.operate(DatabaseSchema::set_relation_options(
             id,
             DatabaseRelationOptions {
@@ -899,8 +897,8 @@ fn RelationOptions(
                 ..options.get_untracked()
             },
         ));
-    });
-    let renamed = clone!(schema -> move |inverse: String| {
+    };
+    let renamed = move |inverse: String| {
         schema.operate(DatabaseSchema::set_relation_options(
             id,
             DatabaseRelationOptions {
@@ -908,7 +906,7 @@ fn RelationOptions(
                 ..options.get_untracked()
             },
         ));
-    });
+    };
     let (multiple_off, inverse_off) = (read_only, read_only);
     view! {
         <Frame padding_left={INDENT + ROW_SPACING}>

@@ -601,7 +601,7 @@ fn AnchoredOverlay() -> NodeId {
     let anchor = NodeRef::new();
     let (open, set_open) = create_signal(false);
     let dismiss = set_open;
-    let target = anchor.clone();
+    let target = anchor;
     let face = theme.surface_raised;
     let ink = theme.text;
     view! {
@@ -621,7 +621,7 @@ fn AnchoredOverlay() -> NodeId {
                 </Frame>
             </Interactive>
             <Overlay
-                anchor=&anchor
+                anchor=anchor
                 placement=Placement::BelowStart
                 open={open}
                 on_dismiss={move |_: Dismiss| dismiss.set(false)}

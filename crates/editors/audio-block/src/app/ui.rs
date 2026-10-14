@@ -93,7 +93,6 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let panel = editor.clone();
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -133,7 +132,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
                     </List>
                 </Frame>
                 <Sidebar shown={chrome}>
-                    <AudioPanel editor={panel} />
+                    <AudioPanel editor={editor} />
                 </Sidebar>
             </List>
         </Frame>
@@ -142,13 +141,12 @@ pub fn AudioView(editor: Editor) -> NodeId {
 
 #[component]
 fn AudioPanel(editor: Editor) -> NodeId {
-    let replacing = editor.clone();
     let chooser = FileChooser::new(filter(), decode);
     let host = editor.host().clone();
     let block = editor.block_id();
     chooser.on_chosen(move |chooser| {
         if let Some(replacement) = chooser.take() {
-            replacing.replace_content(block, &replacement);
+            editor.replace_content(block, &replacement);
             host.reset_audio(block);
         }
     });

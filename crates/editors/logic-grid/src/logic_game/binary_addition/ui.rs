@@ -1,11 +1,9 @@
-use std::rc::Rc;
-
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::logic_game::QuizRow;
 use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
 use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
-    Show, Spacer, clone, component, create_memo, create_signal, view,
+    Show, Spacer, Stored, component, create_memo, create_signal, store, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Bordered, Button, ButtonVariant, Caption, Code, Icon, use_theme,
@@ -25,8 +23,8 @@ const PADDING: f32 = 8.0;
 
 #[component]
 pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::GameBlock) -> NodeId {
-    let quiz = Rc::new(BinaryAdditionQuiz::default());
-    let count = quiz.problems().len();
+    let quiz = store(BinaryAdditionQuiz::default());
+    let count = quiz.get().problems().len();
     let (page, set_page) = create_signal(0usize);
     let (checked, set_checked) = create_signal(false);
     let stored = block.project(move |game| {
@@ -40,22 +38,22 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
             })
             .collect::<Vec<Answers>>()
     });
-    let answers = create_memo(clone!(quiz -> move || {
+    let answers = create_memo(move || {
         let problem = page.get();
         let (carries, sums) = stored.with(|stored| stored[problem].clone());
-        quiz.fit(problem, carries, sums)
-    }));
-    let correct = create_memo(clone!(quiz -> move || {
-        answers.with(|(carries, sums)| quiz.is_correct(carries, sums, page.get()))
-    }));
-    let finished = create_memo(clone!(quiz -> move || {
+        quiz.get().fit(problem, carries, sums)
+    });
+    let correct = create_memo(move || {
+        answers.with(|(carries, sums)| quiz.get().is_correct(carries, sums, page.get()))
+    });
+    let finished = create_memo(move || {
         stored.with(|stored| {
             stored.iter().enumerate().all(|(problem, (carries, sums))| {
-                let (carries, sums) = quiz.fit(problem, carries.clone(), sums.clone());
-                quiz.is_correct(&carries, &sums, problem)
+                let (carries, sums) = quiz.get().fit(problem, carries.clone(), sums.clone());
+                quiz.get().is_correct(&carries, &sums, problem)
             })
         })
-    }));
+    });
 
     let read_only = editor.read_only();
     let grid_read_only = read_only;
@@ -69,12 +67,14 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     let done = create_memo(move || last.get() && correct.get() && finished.get());
 
     let check = move || set_checked.set(true);
-    let reset = clone!(quiz block -> move || {
+    let reset = move || {
         let problem = page.get_untracked();
-        quiz.write_row(&block, problem, QuizRow::Carries, Vec::new());
-        quiz.write_row(&block, problem, QuizRow::Sums, Vec::new());
+        quiz.get()
+            .write_row(&block, problem, QuizRow::Carries, Vec::new());
+        quiz.get()
+            .write_row(&block, problem, QuizRow::Sums, Vec::new());
         set_checked.set(false);
-    });
+    };
     let back = move || {
         set_page.set(page.get_untracked().saturating_sub(1));
         set_checked.set(false);
@@ -92,7 +92,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
             <Bordered corner_radius=8>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <ProblemGrid
-                        quiz={Rc::clone(&quiz)}
+                        quiz={quiz}
                         block={block}
                         page={page}
                         answers={answers}
@@ -156,28 +156,23 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
 
 #[component]
 fn ProblemGrid(
-    quiz: Rc<BinaryAdditionQuiz>,
+    quiz: Stored<BinaryAdditionQuiz>,
     block: crate::logic_game::app::GameBlock,
     page: ReadSignal<usize>,
     answers: Memo<Answers>,
     checked: ReadSignal<bool>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let operands = create_memo(clone!(quiz -> move || {
-        quiz.problems()[page.get()].operands().to_vec()
-    }));
-    let write = clone!(quiz block -> move |row: QuizRow, values: Vec<Option<bool>>| {
-        quiz.write_row(&block, page.get_untracked(), row, values);
-    });
-    let carry_write = write.clone();
+    let operands = create_memo(move || quiz.get().problems()[page.get()].operands().to_vec());
+    let write = move |row: QuizRow, values: Vec<Option<bool>>| {
+        quiz.get()
+            .write_row(&block, page.get_untracked(), row, values);
+    };
     let carries = create_memo(move || answers.with(|(carries, _)| carries.clone()));
     let sums = create_memo(move || answers.with(|(_, sums)| sums.clone()));
-    let carry_expected = create_memo(clone!(quiz -> move || {
-        quiz.problems()[page.get()].carry_bits().to_vec()
-    }));
-    let sum_expected = create_memo(clone!(quiz -> move || {
-        quiz.problems()[page.get()].sum_bits().to_vec()
-    }));
+    let carry_expected =
+        create_memo(move || quiz.get().problems()[page.get()].carry_bits().to_vec());
+    let sum_expected = create_memo(move || quiz.get().problems()[page.get()].sum_bits().to_vec());
     let theme = use_theme();
     view! {
         <List spacing=ROW_SPACING>
@@ -188,7 +183,7 @@ fn ProblemGrid(
                 checked={checked}
                 read_only={read_only}
                 prefix="quiz.carry"
-                on_change={move |values| carry_write(QuizRow::Carries, values)}
+                on_change={move |values| write(QuizRow::Carries, values)}
             />
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
@@ -291,8 +286,6 @@ fn BitRow(
                             && answers.with(|answers| answers.get(column).copied().flatten())
                                 != expected.with(|expected| expected.get(column).copied())
                     });
-                    let on_change = on_change.clone();
-                    let answers = answers;
                     let cycle = move || {
                         let mut values = answers.get_untracked();
                         if let Some(value) = values.get_mut(column) {
@@ -342,7 +335,7 @@ fn BitCell(
                 label={label}
                 variant=ButtonVariant::Secondary
                 disabled={read_only}
-                on_click={move || on_click.call()}
+                on_click={on_click}
             />
         </Frame>
     }

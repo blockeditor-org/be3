@@ -203,7 +203,7 @@ impl InteractiveNode {
             return None;
         }
         self.active = active;
-        Some((self.on_active_change.clone(), active))
+        Some((self.on_active_change, active))
     }
 }
 
@@ -506,7 +506,7 @@ impl Document {
                     .get(*id)
                     .as_any()
                     .downcast_ref::<InteractiveNode>()
-                    .map(|node| node.on_press_outside.clone())
+                    .map(|node| node.on_press_outside)
             })
             .collect();
         for callback in outside {
@@ -548,7 +548,7 @@ impl Document {
             return;
         }
         interactive.active = active;
-        let on_active_change = interactive.on_active_change.clone();
+        let on_active_change = interactive.on_active_change;
         on_active_change.call(active);
     }
 }

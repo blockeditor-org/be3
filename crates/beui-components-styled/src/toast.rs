@@ -93,9 +93,9 @@ pub fn Toasts(
                 <List spacing=SPACING>
                     <ForEach keys={toasts}>
                         {move |toast: Toast| {
-                            let on_dismiss = on_dismiss.clone();
-                            let on_action = on_action.clone();
-                            let on_activate = on_activate.clone();
+                            let on_dismiss = on_dismiss;
+                            let on_action = on_action;
+                            let on_activate = on_activate;
                             let duration = match toast.sticky || toast.danger {
                                 true => None,
                                 false => duration.peek(),
@@ -136,7 +136,7 @@ fn ToastCard(
         activates,
         sticky: _,
     } = toast;
-    let expire = on_dismiss.clone();
+    let expire = on_dismiss;
     let expiry = create_timer(move || {
         expire.call(id);
         None
@@ -225,7 +225,7 @@ fn ToastCard(
                         id
                         actions={actions.clone()}
                         on_action={{
-                            let acting = on_action.clone();
+                            let acting = on_action;
                             move |chosen: (u64, String)| acting.call(chosen)
                         }}
                     />
@@ -255,7 +255,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, on_action: Callback<(u64, St
         >
             <ForEach keys={actions}>
                 {move |action: ToastAction| {
-                    let on_action = on_action.clone();
+                    let on_action = on_action;
                     let key = action.key.clone();
                     view! {
                         <Button

@@ -6,14 +6,14 @@ use crate::unstyled::DateTimeParts;
 
 #[test]
 fn arrows_at_the_ends_of_a_date_field_leave_its_value_alone() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <DateTimeField
                 value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
                 parts=DateTimeParts::Date
-                on_change={move |value| sink.borrow_mut().push(value)}
+                on_change={move |value| set_reported.update(|reported| reported.push(value))}
             />
         }
     });
@@ -26,5 +26,5 @@ fn arrows_at_the_ends_of_a_date_field_leave_its_value_alone() {
         harness.key(Key::ArrowRight, Modifiers::NONE);
     }
 
-    assert!(reported.borrow().is_empty());
+    assert!(reported.with_untracked(|reported| reported.is_empty()));
 }

@@ -1126,9 +1126,9 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             focused={editing}
             select_on_focus=true
             style={underlined_style()}
-            on_change={move |typed| on_change.call(typed)}
-            on_submit={move |typed| on_submit.call(typed)}
-            on_focus_change={move |focused| on_focus_change.call(focused)}
+            on_change={on_change}
+            on_submit={on_submit}
+            on_focus_change={on_focus_change}
         >
             {move |handle: TextInputHandle| view! {
                 <UnderlinedField handle />
@@ -1160,14 +1160,11 @@ fn HueAndHex() -> NodeId {
         Callback::default(),
     );
     let shown = picker.shown();
-    let picked = picker.clone();
-    let (hue_picker, swatch_picker) = (picker.clone(), picker.clone());
     let hex = HexText::new(
         shown,
         false,
-        Callback::new(move |color: Color32| picked.pick(color)),
+        Callback::new(move |color: Color32| picker.pick(color)),
     );
-    let (edit, submit) = (hex.clone(), hex.clone());
     view! {
         <List spacing=SECTION_SPACING>
             <ColorPickerArea picker>
@@ -1175,12 +1172,12 @@ fn HueAndHex() -> NodeId {
                     <PadFace handle />
                 }}
             </ColorPickerArea>
-            <HueSlider picker={hue_picker}>
+            <HueSlider picker={picker}>
                 {move |handle: SliderHandle| view! {
                     <MeterFace handle />
                 }}
             </HueSlider>
-            <Swatches picker={swatch_picker} swatches={SWATCHES.to_vec()}>
+            <Swatches picker={picker} swatches={SWATCHES.to_vec()}>
                 {|handle: SwatchHandle| view! {
                     <SwatchDot handle />
                 }}
@@ -1192,8 +1189,8 @@ fn HueAndHex() -> NodeId {
                     value={hex.text()}
                     placeholder={hex.placeholder()}
                     style={underlined_style()}
-                    on_change={move |typed: String| edit.edit(typed)}
-                    on_submit={move |typed: String| submit.submit(typed)}
+                    on_change={move |typed: String| hex.edit(typed)}
+                    on_submit={move |typed: String| hex.submit(typed)}
                 >
                     {move |handle: TextInputHandle| view! {
                         <UnderlinedField handle />
@@ -1285,7 +1282,7 @@ fn FolderTree() -> NodeId {
     });
     let tree = NodeRef::new();
     let viewport = NodeRef::new();
-    let rows = tree.clone();
+    let rows = tree;
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=0.0>
@@ -1317,7 +1314,7 @@ fn FolderTree() -> NodeId {
                         let reveal = handle.reveal;
                         view! {
                             <unstyled::Button
-                                on_click={move || reveal.call()}
+                                on_click={reveal}
                                 content={move |handle: ButtonHandle| view! {
                                     <PillFace handle label="Show the selection" />
                                 }}
@@ -1360,7 +1357,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
             <Spacer @sizing={indent} />
             <Frame width=16.0>
                 <List spacing=0.0>
-                    <unstyled::TreeToggle item={item} toggle>
+                    <unstyled::TreeToggle item={item} toggle={toggle}>
                         {move |handle: TreeToggleHandle| {
                             let marker = create_memo(move || match handle.expanded.get() {
                                 true => "-".to_owned(),
@@ -1398,7 +1395,6 @@ fn PlainNote() -> NodeId {
         b"Right-click for Copy and Paste, or type :tada",
     )) as Arc<dyn text_editor_core::Document>;
     let state = TextAreaState::new(document);
-    let menu_state = state.clone();
     let theme = use_theme();
     view! {
         <Frame
@@ -1409,7 +1405,7 @@ fn PlainNote() -> NodeId {
             radius=RADIUS
         >
             <unstyled::TextContextMenu
-                state={menu_state}
+                state
                 menu={MenuStyle::new(
                     |handle: MenuRowHandle| view! {
                         <MenuRow handle />
@@ -1686,7 +1682,7 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     } = handle;
     let start = today.get_untracked().unwrap_or_else(Date::today);
     let preset = move |label: &'static str, date: Date| {
-        let pick = pick.clone();
+        let pick = pick;
         view! {
             <unstyled::Button
                 on_click={move || pick.call(date)}
@@ -1704,13 +1700,13 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
                 {preset("In a month", start.add_months(1))}
                 <List direction=Direction::Horizontal spacing=8.0>
                     <unstyled::Button
-                        on_click={move || now.call()}
+                        on_click={now}
                         content={move |handle: ButtonHandle| view! {
                             <PillFace handle label=now_label />
                         }}
                     />
                     <unstyled::Button
-                        on_click={move || clear.call()}
+                        on_click={clear}
                         content={move |handle: ButtonHandle| view! {
                             <PillFace handle label="Clear" />
                         }}

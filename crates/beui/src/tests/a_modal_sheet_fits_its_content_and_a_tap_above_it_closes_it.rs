@@ -6,10 +6,9 @@ use crate::styled::ModalSheet;
 fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
-    let closed = Rc::new(Cell::new(0));
+    let (closed, set_closed) = create_signal(0);
     let (open, set_open) = create_signal(false);
     let document = build({
-        let (content, closed, open) = (content.clone(), closed.clone(), open);
         move || {
             view! {
                 <List spacing=0.0>
@@ -17,7 +16,7 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
                     <ModalSheet
                         open={open}
                         fit=true
-                        on_close={move || closed.set(closed.get() + 1)}
+                        on_close={move || set_closed.update(|closed| *closed += 1)}
                     >
                         <Frame @node_ref=&content height=120.0 />
                     </ModalSheet>
@@ -45,8 +44,8 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     let outside = harness.find("sheet.outside");
     let above = harness.center(outside);
     harness.click(above);
-    assert_eq!(closed.get(), 1, "a tap above the sheet closes it");
+    assert_eq!(closed.get_untracked(), 1, "a tap above the sheet closes it");
 
     harness.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(closed.get(), 2, "Escape closes a modal sheet");
+    assert_eq!(closed.get_untracked(), 2, "Escape closes a modal sheet");
 }

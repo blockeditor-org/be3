@@ -8,7 +8,6 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
     let tabs = NodeRef::new();
     let (extra, set_extra) = create_signal(false);
     let (document, [_tabs]) = toolbar_of({
-        let tabs = tabs.clone();
         move || {
             [view! {
                 <Tabs

@@ -1,11 +1,9 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::{
     Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone, component,
-    create_memo, create_selector, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component, create_memo,
+    create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,
@@ -17,7 +15,7 @@ use block_editor_beui::{ContentProjection, Editor};
 const PAGE_PADDING: f32 = 24.0;
 const SECTION_SPACING: f32 = 18.0;
 
-type List = Rc<ContentProjection<ChecklistContent>>;
+type List = ContentProjection<ChecklistContent>;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum Filter {
@@ -75,19 +73,16 @@ pub fn Checklist(editor: Editor) -> NodeId {
     let empty = create_memo(move || visible.get().is_empty());
     let clear_disabled = create_memo(move || done_count.get() == 0);
 
-    let submit_checklist = checklist.clone();
     let submit_draft = set_draft;
-    let add_checklist = checklist.clone();
     let add_draft = draft;
     let add_set_draft = set_draft;
-    let clear_checklist = checklist.clone();
     let set_open_filter = set_filter;
     let set_done_filter = set_filter;
-    let rows = clone!(checklist -> move |id: ObjectId| {
+    let rows = move |id: ObjectId| {
         view! {
-            <ChecklistRow checklist={checklist.clone()} id />
+            <ChecklistRow checklist={checklist} id />
         }
-    });
+    };
 
     let theme = use_theme();
     view! {
@@ -113,7 +108,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 @test_id={"checklist.draft"}
                                 on_change={move |value| set_draft.set(value)}
                                 on_submit={move |value| {
-                                    add_item(&submit_checklist, submit_draft, value);
+                                    add_item(&checklist, submit_draft, value);
                                 }}
                             />
                             <Button
@@ -121,7 +116,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 variant=ButtonVariant::Primary
                                 @test_id={"checklist.add"}
                                 on_click={move || {
-                                    add_item(&add_checklist, add_set_draft, add_draft.get());
+                                    add_item(&checklist, add_set_draft, add_draft.get());
                                 }}
                             />
                         </List>
@@ -157,8 +152,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 disabled={clear_disabled}
                                 @test_id={"checklist.clear-done"}
                                 on_click={move || {
-                                    if let Some(edit) = clear_checklist.read(|content| content.root().clear_done()) {
-                                        clear_checklist.operate(edit);
+                                    if let Some(edit) = checklist.read(|content| content.root().clear_done()) {
+                                        checklist.operate(edit);
                                     }
                                 }}
                             />
@@ -202,7 +197,6 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
         })
     });
     let done = create_memo(move || item.with(|item| item.as_ref().is_some_and(|item| item.done)));
-    let toggle = checklist.clone();
     let theme = use_theme();
     view! {
         <Frame color={theme.surface_raised} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
@@ -213,7 +207,7 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
                     checked={done}
                     @test_id={format!("checklist.item.{id}.done")}
                     on_change={move |done| {
-                        toggle.operate(ChecklistModel::set_done(id, done));
+                        checklist.operate(ChecklistModel::set_done(id, done));
                     }}
                 />
                 <Button

@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::presentation::PresentationContent;
 use block_editor_beui::beui::Key;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{Editor, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -30,8 +30,9 @@ fn editor(count: usize) -> (Harness, Editor) {
     }
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
-    let mut test = BeuiTest::new(editor.clone());
+    let owner = OwnedEditor::new(host.clone(), block);
+    let editor = *owner;
+    let mut test = BeuiTest::new(owner);
     test.hold(None, content);
     (test, editor)
 }

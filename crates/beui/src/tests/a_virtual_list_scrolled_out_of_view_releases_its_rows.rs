@@ -5,11 +5,10 @@ const BELOW: f32 = 1000.0;
 
 #[test]
 fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
-    let built = Rc::new(RefCell::new(Vec::new()));
-    let sink = built.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (built, set_built) = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -21,7 +20,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
                                 item_size=VIRTUAL_ITEM_HEIGHT
                             >
                                 {move |key: usize| {
-                                    sink.borrow_mut().push(key);
+                                    set_built.update(|built| built.push(key));
                                     view! {
                                         <Frame height=VIRTUAL_ITEM_HEIGHT>
                                             <Spacer />
@@ -45,7 +44,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
     let rows = harness.document.children(list);
     assert_eq!(rows.len(), ROWS);
 
-    built.borrow_mut().clear();
+    set_built.update(|built| built.clear());
     harness.document.set_scroll_offset(scroll, BELOW / 2.0);
     harness.frame(Vec::new());
     assert!(harness.document.children(list).is_empty());
@@ -53,5 +52,5 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
 
     harness.document.set_scroll_offset(scroll, 0.0);
     harness.frame(Vec::new());
-    assert_eq!(*built.borrow(), indices(ROWS));
+    assert_eq!(built.get_untracked(), indices(ROWS));
 }

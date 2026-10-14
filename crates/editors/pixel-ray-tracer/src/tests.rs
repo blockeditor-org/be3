@@ -2,7 +2,7 @@ use block_editor_beui::be_block::PixelRayTracerContent;
 use block_editor_beui::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,
 };
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ fn editor() -> BeuiTest<PixelRayTracerApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor).in_viewport();
     editor.hold(None, PixelRayTracerContent::default());
     editor.settle_until("the lighting to land", |editor| {

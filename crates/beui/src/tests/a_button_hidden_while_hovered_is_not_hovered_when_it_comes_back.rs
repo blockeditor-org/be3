@@ -5,6 +5,7 @@ use crate::reactive::{
 };
 use crate::unstyled::ButtonHandle;
 
+#[derive(Clone, Copy)]
 struct Held {
     shown: WriteSignal<bool>,
     hovered: Option<ReadSignal<bool>>,
@@ -12,15 +13,16 @@ struct Held {
 
 #[test]
 fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
-    let held: Rc<RefCell<Option<Held>>> = Rc::default();
-    let sink = held.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<Held>>(None);
     let document = build(move || {
         let (shown, set_shown) = create_signal(true);
-        sink.replace(Some(Held {
-            shown: set_shown,
-            hovered: None,
-        }));
-        let hovering = sink.clone();
+        set_held.update(|held| {
+            *held = Some(Held {
+                shown: set_shown,
+                hovered: None,
+            })
+        });
         view! {
             <List spacing=0.0>
                 <ShowKeepAlive condition={shown}>
@@ -28,9 +30,11 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
                         @test_id={"hidden.button"}
                         on_click={|| {}}
                         content={move |handle: ButtonHandle| {
-                            if let Some(held) = hovering.borrow_mut().as_mut() {
-                                held.hovered = Some(handle.hovered);
-                            }
+                            set_held.update(|held| {
+                                if let Some(held) = held {
+                                    held.hovered = Some(handle.hovered);
+                                }
+                            });
                             view! {
                                 <Text string="Themes" />
                             }
@@ -48,8 +52,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         .expect("the button");
     let at = harness.center(button);
     let hovered = held
-        .borrow()
-        .as_ref()
+        .get_untracked()
         .and_then(|held| held.hovered)
         .expect("the button reported its hover");
 
@@ -57,8 +60,10 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
     assert!(hovered.get(), "the pointer hovers the button");
 
     let hide = |harness: &mut Harness, shown: bool| {
-        let held = held.borrow();
-        let set = &held.as_ref().expect("the view published its setter").shown;
+        let set = held
+            .get_untracked()
+            .expect("the view published its setter")
+            .shown;
         with_reactive_scope(harness.document_mut(), || set.set(shown));
         harness.frame(Vec::new());
     };

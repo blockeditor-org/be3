@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::reactive::{
     Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, PlacementBuilder,
-    ReadSignal, Show, Spacer, clone, component, create_effect, create_memo, view,
+    ReadSignal, Show, Spacer, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_beui::beui::unstyled::Picture;
@@ -14,17 +14,16 @@ use super::{filter, imported};
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<ImageContent>();
-    let shown = watch(&editor, &block);
+    let shown = watch(editor, block);
     let image = create_memo(move || shown.get().image);
-    let placeholder = thumbhash(&editor);
+    let placeholder = thumbhash(editor);
     let failed = create_memo(move || shown.get().error.is_some());
     let reason = create_memo(move || shown.get().error.unwrap_or_default());
 
     let chooser = FileChooser::new(filter(), imported);
-    let replacing = editor.clone();
     chooser.on_chosen(move |chooser| {
         if let Some(image) = chooser.take() {
-            replacing.replace_content(replacing.block_id(), &image);
+            editor.replace_content(editor.block_id(), &image);
         }
     });
 
@@ -34,11 +33,10 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let failure = chooser.error();
     let refused = create_memo(move || failure.get().is_some());
     let refusal = create_memo(move || failure.get().unwrap_or_default());
-    let choose = clone!(chooser -> move || chooser.open());
+    let choose = move || chooser.open();
 
-    let sized = editor.clone();
     create_effect(move || {
-        sized.set_intrinsic_size(image.get().map(|image| image.size()));
+        editor.set_intrinsic_size(image.get().map(|image| image.size()));
     });
 
     let chrome = editor.chrome_shown();
@@ -127,9 +125,9 @@ fn Artwork(
 #[component]
 pub fn ImagePreview(editor: Editor) -> NodeId {
     let block = editor.block_content::<ImageContent>();
-    let shown = watch(&editor, &block);
+    let shown = watch(editor, block);
     let image = create_memo(move || shown.get().image);
-    let placeholder = thumbhash(&editor);
+    let placeholder = thumbhash(editor);
     view! {
         <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
     }

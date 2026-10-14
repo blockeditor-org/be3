@@ -52,22 +52,22 @@ pub fn StaleNotice(
                         label="Reset"
                         glyph={ICON_RESTART_ALT.to_owned()}
                         variant=ButtonVariant::Primary
-                        on_click={move || on_reset.call()}
+                        on_click={on_reset}
                     />
                     <Button
                         @test_id={delete_id}
                         label="Delete"
                         glyph={ICON_DELETE.to_owned()}
                         variant=ButtonVariant::Secondary
-                        on_click={move || on_delete.call()}
+                        on_click={on_delete}
                     />
                     <Show condition={create_memo(move || can_try.get())}>
-                        {move || clone!(on_try try_id -> view! {
+                        {move || clone!(try_id -> view! {
                             <Button
                                 @test_id={try_id}
                                 label="Try anyway"
                                 variant=ButtonVariant::Ghost
-                                on_click={move || on_try.call()}
+                                on_click={on_try}
                             />
                         })}
                     </Show>

@@ -10,8 +10,7 @@ use beui_core::document::Document;
 use beui_core::icons::ICON_CLOSE;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, clone,
-    create_memo,
+    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, create_memo,
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};
@@ -51,9 +50,9 @@ pub fn TextInput(
             select_on_focus
             label
             style={text_input_style()}
-            on_change={move |value| on_change.call(value)}
-            on_submit={move |value| on_submit.call(value)}
-            on_focus_change={move |focused| on_focus_change.call(focused)}
+            on_change={on_change}
+            on_submit={on_submit}
+            on_focus_change={on_focus_change}
         >
             {move |handle| view! {
                 <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} />
@@ -114,17 +113,17 @@ fn TextInputFrame(
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        {move || clone!(clear -> view! {
+                        {move || view! {
                             <Frame padding_horizontal=CLEAR_PADDING>
                                 <IconButton
                                     glyph={ICON_CLOSE.to_owned()}
                                     label="Clear"
                                     size=IconButtonSize::Compact
                                     press_focus=false
-                                    on_click={move || clear.call()}
+                                    on_click={clear}
                                 />
                             </Frame>
-                        })}
+                        }}
                     </Show>
                 </List>
             </Frame>

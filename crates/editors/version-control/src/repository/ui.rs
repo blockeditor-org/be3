@@ -2,8 +2,7 @@ use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{Repository, RepositoryContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
-    view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, Scroll, use_theme,
@@ -52,17 +51,15 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let no_upstream = create_memo(move || !has_upstream.get());
     let pull_blocked = create_memo(move || blocked.get() || no_upstream.get());
 
-    let choosing = editor.clone();
     let choose = move || {
-        let adopting = choosing.clone();
-        choosing.pick_block(
+        editor.pick_block(
             BlockFilter {
                 name: "Choose what to version".into(),
                 ..BlockFilter::default()
             },
             move |picked| {
                 if let Ok(picked) = picked {
-                    adopting.version(VersionCommand::Adopt {
+                    editor.version(VersionCommand::Adopt {
                         block_id: picked.id.into_bytes(),
                     });
                 }
@@ -72,13 +69,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let adopt_blocked = blocked;
     let fork_blocked = blocked;
     let push_blocked = pull_blocked;
-    let upstream_editor = editor.clone();
-    let forking = editor.clone();
-    let pulling = editor.clone();
-    let pushing = editor.clone();
-    let checking_out = editor.clone();
     let rows = move |(name, head): (String, String)| {
-        let editor = checking_out.clone();
         let blocked = blocked;
         view! {
             <BranchRow editor blocked name head />
@@ -98,7 +89,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <Show condition={unversioned}>
-                            {move || clone!(choose -> view! {
+                            {move || view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Body content="Nothing is versioned here yet." />
@@ -115,24 +106,24 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                         />
                                     </List>
                                 </Card>
-                            })}
+                            }}
                         </Show>
                         <Show condition={versioned}>
-                            {move || clone!(rows -> view! {
+                            {move || view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Heading content="Branches" />
                                         <ForEach keys={branches} view={rows} />
                                     </List>
                                 </Card>
-                            })}
+                            }}
                         </Show>
                         <Card>
                             <List spacing=10.0>
                                 <Heading content="Upstream" />
                                 <Show condition={has_upstream}>
                                     <BlockLink
-                                        editor={upstream_editor.clone()}
+                                        editor={editor}
                                         block={upstream_target}
                                         @test_id={"repository.upstream"}
                                     />
@@ -153,21 +144,21 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                         variant=ButtonVariant::Secondary
                                         disabled={fork_blocked}
                                         @test_id={"repository.fork"}
-                                        on_click={move || forking.version(VersionCommand::Fork)}
+                                        on_click={move || editor.version(VersionCommand::Fork)}
                                     />
                                     <Button
                                         label="Pull"
                                         variant=ButtonVariant::Secondary
                                         disabled={pull_blocked}
                                         @test_id={"repository.pull"}
-                                        on_click={move || pulling.version(VersionCommand::PullUpstream)}
+                                        on_click={move || editor.version(VersionCommand::PullUpstream)}
                                     />
                                     <Button
                                         label="Push"
                                         variant=ButtonVariant::Secondary
                                         disabled={push_blocked}
                                         @test_id={"repository.push"}
-                                        on_click={move || pushing.version(VersionCommand::PushUpstream)}
+                                        on_click={move || editor.version(VersionCommand::PushUpstream)}
                                     />
                                 </List>
                             </List>

@@ -158,18 +158,22 @@ rebuild a subtree to show a new value. A `Prop<T>` takes a plain `T`, a
 `ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
 writes just that one property when the value changes.
 
-A `Prop<T>` is a handle rather than a value, so it clones for the price of an
-`Rc`, but unlike a signal it is not `Copy`: a component that needs one in more
-than one place clones it with `clone!`:
+A `Prop<T>` is `Copy` whenever `T` is, like the signal behind it, so a
+component reads one in as many places as it needs. A `Prop<String>` or other
+non-`Copy` prop clones for the price of an `Rc` with `clone!`:
 
 ```rust
-let color = create_memo(clone!(value -> move || paint(value.get())));
+let color = create_memo(move || paint(value.get()));
 view! {
     <Frame color>
         <Text string={value} />
     </Frame>
 }
 ```
+
+A callback prop (`Callback<V, R>` or `ClickCallback`) takes either a closure or
+a callback the component already has, so a wrapper passes its own `on_change`
+straight on rather than wrapping it in a closure that calls it.
 
 Do not wrap a prop in a `create_memo` just to read it twice. A memo adds a
 node to the graph, and a `T` that is not `PartialEq` cannot go in one at all.
@@ -531,7 +535,7 @@ a given node - claiming it takes it from the portal that had it - and the
 subtree lives as long as the scope that built it. `Embed` reserves a rectangle
 for something outside the document — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
-`EmbedSlot` it was given and cutting that rectangle out of the surface so what
+`EmbedSlot` it was given (a `Copy` handle owned by the scope that made it) and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Offset` takes exactly one child, lays it out at its full length along a
@@ -555,7 +559,9 @@ under the pointer. The unstyled module contains
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
 `Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`. `TextArea` is the multiline one: it owns a
-`text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
+`text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
+handle owned by the scope that made it; `with_core` and `with_core_mut` reach
+the `Core`), lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
 names - `block` builds what goes under a block widget's line, and
@@ -929,7 +935,8 @@ costs no frames.
 beui has no per-frame hook. Work runs because a signal it reads changed, and
 anything that genuinely depends on time asks for it with `create_timer(work)`.
 The timer belongs to the reactive scope that created it and is dropped with
-it. `start(delay)` schedules `work` (keeping an earlier deadline if one is
+it; the `Timer` handle is `Copy`, and calling it after that scope is gone does
+nothing. `start(delay)` schedules `work` (keeping an earlier deadline if one is
 already set), `restart(delay)` replaces the deadline, `stop()` cancels it, and
 `running()` says whether one is pending. The document runs due timers inside
 its reactive scope at the top of a frame and asks the context for a repaint
@@ -1218,6 +1225,10 @@ declared it in, and failing both it floats in a window of its own. A pane with a
 onto another pane moves its tabs and leaves it behind. A split follows the
 `fraction` in the code until the user moves it. A pane, split or window the
 code adds is placed beside its declared sibling when the saved layout lacks it.
+
+`DockingLayout` is a `Copy` handle owned by the scope that made it;
+`OwnedDockingLayout::new()` makes one outside a scope (a host, or a test before
+it builds) and derefs to it.
 
 `DockingLayout::snapshot` is the `DockingSnapshot` to save, and `restore` puts
 one back; restore it in the same `batch` that declares its tabs, since a tab not
@@ -2320,7 +2331,7 @@ visual primitives:
 #[component]
 pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
     view! {
-        <Toggle checked label on_change={move |checked| on_change.call(checked)}>
+        <Toggle checked label on_change>
             {move |handle: ToggleHandle| {
                 view! {
                     <CheckboxFace handle />

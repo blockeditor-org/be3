@@ -4,6 +4,7 @@ use crate::unstyled::SPLITTER_THICKNESS;
 
 #[test]
 fn a_press_just_beside_a_split_divider_moves_it() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document, presses, ..
     } = split_dock(None);
@@ -28,7 +29,7 @@ fn a_press_just_beside_a_split_divider_moves_it() {
         moved.width()
     );
     assert_eq!(
-        presses.get(),
+        presses.get_untracked(),
         0,
         "the pane beside the divider never heard the press"
     );
@@ -44,5 +45,9 @@ fn a_press_just_beside_a_split_divider_moves_it() {
         moved.width(),
         "a press farther out leaves the divider alone"
     );
-    assert_eq!(presses.get(), 1, "the pane hears a press farther out");
+    assert_eq!(
+        presses.get_untracked(),
+        1,
+        "the pane hears a press farther out"
+    );
 }

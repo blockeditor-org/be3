@@ -2,8 +2,7 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
-    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, clone, component,
-    create_memo, view,
+    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, use_theme};
 use block_ui::datetime::{civil_from_days, days_from_civil};
@@ -53,8 +52,8 @@ pub(crate) fn MonthGrid(
                             start={start}
                             anchor={anchor}
                             events={events}
-                            on_pick_day={forward(on_pick_day.clone())}
-                            on_pick_event={forward(on_pick_event.clone())}
+                            on_pick_day={forward(on_pick_day)}
+                            on_pick_event={forward(on_pick_event)}
                         />
                     }
                 }}
@@ -82,8 +81,8 @@ fn MonthWeek(
                             day={day}
                             anchor={anchor}
                             events={events}
-                            on_pick_day={forward(on_pick_day.clone())}
-                            on_pick_event={forward(on_pick_event.clone())}
+                            on_pick_day={forward(on_pick_day)}
+                            on_pick_event={forward(on_pick_event)}
                         />
                     }
                 }}
@@ -134,7 +133,7 @@ fn MonthCell(
         true => theme.text.get(),
         false => theme.text_muted.get(),
     });
-    let pick = clone!(on_pick_day -> move || on_pick_day.call(day));
+    let pick = move || on_pick_day.call(day);
     view! {
         <Frame
             color={fill}
@@ -148,7 +147,7 @@ fn MonthCell(
             <List spacing=2.0>
                 <ListRow
                     @test_id={format!("calendar.day.{day}")}
-                    on_click={pick.clone()}
+                    on_click={pick}
                     on_activate={pick}
                 >
                     <Caption content={day_number.to_string()} color={number_color} />
@@ -159,11 +158,11 @@ fn MonthCell(
                         let title = create_memo(move || {
                             event.get().map(|event| event.value.title).unwrap_or_default()
                         });
-                        let open = clone!(on_pick_event -> move || {
+                        let open = move || {
                             if let Some(event) = event.get_untracked() {
                                 on_pick_event.call(event);
                             }
-                        });
+                        };
                         view! {
                             <EventChip
                                 title={title}
@@ -186,10 +185,10 @@ fn EventChip(
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let click = on_click.clone();
+    let click = on_click;
     view! {
         <Frame color={theme.accent} radius=3>
-            <ListRow on_click={move || click.call()} on_activate={move || on_click.call()}>
+            <ListRow on_click={click} on_activate={on_click}>
                 <Caption content={title} color={theme.on_accent} />
             </ListRow>
         </Frame>

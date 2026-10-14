@@ -34,7 +34,7 @@ pub fn Floating(
         false => LayerPolicy::Inert,
     });
     view! {
-        <Overlay anchor=&anchor placement={placement} policy={mode} traps_focus=false open={open}>
+        <Overlay anchor=anchor placement={placement} policy={mode} traps_focus=false open={open}>
             {children}
         </Overlay>
     }

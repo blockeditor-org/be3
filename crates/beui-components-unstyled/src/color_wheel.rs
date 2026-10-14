@@ -240,7 +240,7 @@ pub fn ColorWheel(
             }
         }
     };
-    let (drag_set, key_set, step_set) = (set.clone(), set.clone(), set);
+    let (drag_set, key_set, step_set) = (set, set, set);
     let geometry =
         move |size: Vec2| WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, size), ring_width);
     let over_thumb = {

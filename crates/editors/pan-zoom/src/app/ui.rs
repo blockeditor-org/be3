@@ -2,7 +2,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef,
-    ReadSignal, Show, Text, WriteSignal, clone, component, create_memo, create_signal, view,
+    ReadSignal, Show, Text, WriteSignal, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
 use block_editor_beui::beui::unstyled;
@@ -104,14 +104,14 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let panel_shown = create_memo(move || chrome.get() && open.get());
     let rail_shown = create_memo(move || chrome.get() && !open.get());
-    let panel = (editor.clone(), selected, set_selected, set_open);
+    let panel = (editor, selected, set_selected, set_open);
     let rail_open = set_open;
 
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={panel_shown}>
                 {move || {
-                    let (editor, selected, set_selected, set_open) = panel.clone();
+                    let (editor, selected, set_selected, set_open) = panel;
                     view! {
                         <Sidebar
                             @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
@@ -151,9 +151,9 @@ fn Sidebar(
         Some(index) => format!("Selected {}", CARDS[index].name),
         None => "Nothing selected".to_owned(),
     });
-    let zoom_out = clone!(editor -> move || editor.zoom(1.0 / ZOOM_STEP));
-    let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
-    let fit = clone!(editor -> move || editor.fit());
+    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
+    let zoom_in = move || editor.zoom(ZOOM_STEP);
+    let fit = move || editor.fit();
     let hide = move || set_open.set(false);
     view! {
         <Frame
@@ -204,7 +204,7 @@ fn Sidebar(
                 <List spacing=4.0>
                     <ForEach keys={card_indices()}>
                         {move |index: usize| view! {
-                            <FocusRow index editor={editor.clone()} set_selected={set_selected} />
+                            <FocusRow index editor={editor} set_selected={set_selected} />
                         }}
                     </ForEach>
                 </List>

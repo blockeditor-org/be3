@@ -5,7 +5,7 @@ use block_editor_beui::be_block::compiled_logic::CompiledLogic;
 use block_editor_beui::be_block::{
     ArtifactSource, BlockContent, CompiledLogicContent, CompiledLogicDocument, LogicGridContent,
 };
-use block_editor_beui::{Artifacts, BlockList, BlockQuery, ContentProjection, EditorHost};
+use block_editor_beui::{Artifacts, BlockList, BlockQuery, EditorHost, OwnedContentProjection};
 use logicgame::grid::LogicGrid as Grid;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -145,7 +145,7 @@ pub(super) fn regenerate(
 pub(super) struct CompileRegeneration {
     host: EditorHost,
     source_id: Uuid,
-    source: ContentProjection<LogicGridContent>,
+    source: OwnedContentProjection<LogicGridContent>,
     source_block: BlockList,
     target: Uuid,
     settings: ComponentSettings,

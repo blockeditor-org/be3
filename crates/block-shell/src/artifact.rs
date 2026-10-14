@@ -1,12 +1,9 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_AUTO_AWESOME, ICON_LINK_OFF, ICON_REFRESH, ICON_SETTINGS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
-    create_memo, view,
+    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
@@ -24,7 +21,7 @@ const PADDING_VERTICAL: f32 = 5.0;
 const SPACING: f32 = 8.0;
 
 #[component]
-pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
     let shown = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -89,14 +86,12 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
     let settings_off = create_memo(move || !editable.get());
     let regenerate_off = create_memo(move || !editable.get() || running.get() || !described.get());
     let unlink_off = create_memo(move || !editable.get() || running.get());
-    let source_name = create_memo(clone!(workspace -> move || {
+    let source_name = create_memo(move || {
         source.get().map_or_else(String::new, |source| {
             workspace.label(source.id, source.block_type).name
         })
-    }));
+    });
     let block = create_memo(move || info.with(|info| info.as_ref().map(|info| info.item.id)));
-    let opened = Rc::clone(&workspace);
-    let open_source = source;
     let settings = block_command(&workspace, block, Command::Settings);
     let regenerate = block_command(&workspace, block, Command::Regenerate);
     let unlink = block_command(&workspace, block, Command::Unlink);
@@ -121,7 +116,7 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                         <Caption content="Loading…" />
                     </Show>
                     <Show condition={described}>
-                        {move || clone!(opened -> view! {
+                        {move || view! {
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
@@ -133,14 +128,14 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                                     label={source_name}
                                     variant=ButtonVariant::Ghost
                                     on_click={move || {
-                                        if let Some(source) = open_source.get_untracked() {
-                                            opened.open(source, None);
+                                        if let Some(source) = source.get_untracked() {
+                                            workspace.open(source, None);
                                         }
                                     }}
                                 />
                                 <Caption content={summary} />
                             </List>
-                        })}
+                        }}
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={running}>
@@ -184,11 +179,11 @@ enum Command {
 }
 
 fn block_command(
-    workspace: &Rc<Workspace>,
+    workspace: &Workspace,
     block: block_editor_beui::beui::reactive::Memo<Option<Uuid>>,
     command: Command,
 ) -> impl Fn() + 'static {
-    let workspace = Rc::clone(workspace);
+    let workspace = *workspace;
     move || {
         let Some(id) = block.get_untracked() else {
             return;

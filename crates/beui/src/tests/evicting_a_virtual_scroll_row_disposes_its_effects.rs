@@ -9,14 +9,12 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     let (shown, set_shown) = create_signal(true);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
         move || {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={indices(100)} item_size=20.0>
                             {move |index: usize| {
-                                let shown = shown;
                                 view! {
                                     <Frame visible={shown}>
                                         <Text string={format!("Row {index}")} />

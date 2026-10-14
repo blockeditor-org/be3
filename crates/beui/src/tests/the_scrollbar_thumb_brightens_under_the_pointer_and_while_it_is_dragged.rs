@@ -6,12 +6,12 @@ const CONTENT_HEIGHT: f32 = 2000.0;
 
 #[test]
 fn the_scrollbar_thumb_brightens_under_the_pointer_and_while_it_is_dragged() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let held = scroll.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @node_ref=&held @sizing=ItemSize::Percent(100.0)>
+                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame height=CONTENT_HEIGHT />
                 </Scroll>
             </List>

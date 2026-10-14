@@ -4,10 +4,11 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn tabbing_to_an_offscreen_control_reveals_it() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
     let buttons: Vec<NodeRef> = (0..10).map(|_| NodeRef::new()).collect();
     let document = build({
-        let (scroll, buttons) = (scroll.clone(), buttons.clone());
+        let (scroll, buttons) = (scroll, buttons.clone());
         move || {
             view! {
                 <Scroll @node_ref=&scroll>

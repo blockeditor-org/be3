@@ -34,7 +34,7 @@ pub fn ToggleButton(
             role=Role::Button
             action
             disabled
-            on_change={move |pressed| on_change.call(pressed)}
+            on_change={on_change}
         >
             {move |handle: ToggleHandle| view! {
                 <Tooltip label={handle.tooltip} disabled={named}>

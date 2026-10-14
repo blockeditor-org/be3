@@ -1,5 +1,4 @@
 use std::cell::Cell;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::FILES_EDITOR;
 use block_editor_beui::beui::NodeId;
@@ -41,9 +40,8 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
     view! {
         <Container>
             {move |_| {
-                let workspace = Rc::clone(&workspace);
                 view! {
-                    <WorkspaceBody workspace={workspace} />
+                    <WorkspaceBody workspace />
                 }
             }}
         </Container>
@@ -51,15 +49,11 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
+fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let narrow = narrower_than(NARROW_WIDTH);
-    let sizing = Rc::downgrade(&workspace);
     let was_narrow = Cell::new(false);
     create_effect(move || {
         let now = narrow.get();
-        let Some(workspace) = sizing.upgrade() else {
-            return;
-        };
         if was_narrow.replace(now) != now {
             untrack(|| workspace.set_phone(now));
         }
@@ -79,13 +73,6 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
-    let files = Rc::clone(&workspace);
-    let blocks = Rc::clone(&workspace);
-    let programs = Rc::clone(&workspace);
-    let hosted = Rc::clone(&workspace);
-    let dialogs = Rc::clone(&workspace);
-    let pickers = Rc::clone(&workspace);
-    let shell_dialogs = Rc::clone(&workspace);
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background}>
@@ -95,7 +82,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                     <DockSplit id="workspace" fraction=FILES_SHARE>
                         <DockPane id="files">
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
-                                <FilesPanel workspace={Rc::clone(&files)} />
+                                <FilesPanel workspace />
                             </DockTab>
                         </DockPane>
                         <DockPane
@@ -106,36 +93,36 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                         >
                             <ForEach keys={block_tabs}>
                                 {move |tab: TabId| view! {
-                                    <BlockTab workspace={Rc::clone(&blocks)} tab />
+                                    <BlockTab workspace tab />
                                 }}
                             </ForEach>
                             <ForEach keys={top_windows}>
                                 {move |window: HostWindowId| view! {
-                                    <WindowTab workspace={Rc::clone(&programs)} window />
+                                    <WindowTab workspace window />
                                 }}
                             </ForEach>
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={panels}>
                         {move |panel: HostPanel| view! {
-                            <PanelWindow workspace={Rc::clone(&hosted)} panel />
+                            <PanelWindow workspace panel />
                         }}
                     </ForEach>
                     <ForEach keys={dialog_windows}>
                         {move |(window, parent): (HostWindowId, HostWindowId)| view! {
-                            <AttachedWindow workspace={Rc::clone(&dialogs)} window parent />
+                            <AttachedWindow workspace window parent />
                         }}
                     </ForEach>
                 </Docking>
-                <PickerDialogs workspace={pickers} />
-                <WorkspaceDialogs workspace={shell_dialogs} />
+                <PickerDialogs workspace />
+                <WorkspaceDialogs workspace />
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
+fn FilesPanel(workspace: Workspace) -> NodeId {
     let phone = workspace.phone();
     let top_bar = create_memo(move || match phone.get() {
         true => TopBar::Phone,
@@ -147,7 +134,7 @@ fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
             .get()
             .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
     });
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     view! {
         <List spacing=0.0>
             <ChildBlock

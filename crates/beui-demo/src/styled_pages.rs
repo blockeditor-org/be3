@@ -66,7 +66,7 @@ pub(crate) fn LabelledSwitch(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Switch label on on_change={move |on: bool| on_change.call(on)} />
+            <Switch label on on_change={on_change} />
             <Body content={label} />
         </List>
     }
@@ -139,7 +139,6 @@ pub(crate) fn DockingPage() -> NodeId {
 fn AttachedDialogs() -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let tab = use_dock_tab().map(|control| control.tab());
-    let modeless = dialogs.clone();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=ROW_SPACING>
@@ -148,7 +147,7 @@ fn AttachedDialogs() -> NodeId {
                     label="Open a dialog"
                     variant=ButtonVariant::Secondary
                     on_click={move || {
-                        if let (Some(dialogs), Some(tab)) = (modeless.as_ref(), tab) {
+                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
                             dialogs.open(tab, false);
                         }
                     }}
@@ -180,7 +179,6 @@ fn AttachedDialogs() -> NodeId {
 pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let control = use_dock_tab();
-    let nesting = dialogs.clone();
     let tab = control.as_ref().map(DockTabControl::tab);
     let message = match modal {
         true => "This tab cannot be used until this dialog closes.",
@@ -197,7 +195,7 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
                         label="Open a modal dialog over this one"
                         variant=ButtonVariant::Secondary
                         on_click={move || {
-                            if let (Some(dialogs), Some(tab)) = (nesting.as_ref(), tab) {
+                            if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
                                 dialogs.open(tab, true);
                             }
                         }}
@@ -222,9 +220,11 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
 #[component]
 fn ContentDrag() -> NodeId {
     let modifier = use_context::<DragModifier>();
-    let on = create_memo(clone!(modifier -> move || {
-        modifier.as_ref().is_some_and(|modifier| modifier.held.get().is_some())
-    }));
+    let on = create_memo(move || {
+        modifier
+            .as_ref()
+            .is_some_and(|modifier| modifier.held.get().is_some())
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -293,14 +293,12 @@ fn EditCounter() -> NodeId {
 #[component]
 fn FullscreenTab() -> NodeId {
     let control = use_dock_tab();
-    let shown = create_memo(clone!(control -> move || {
-        control.as_ref().is_some_and(|control| control.fullscreen())
-    }));
+    let shown = create_memo(move || control.as_ref().is_some_and(|control| control.fullscreen()));
     let label = create_memo(move || match shown.get() {
         true => "Leave fullscreen".to_owned(),
         false => "Show this tab fullscreen".to_owned(),
     });
-    let leaving = control.clone();
+    let leaving = control;
     let escaping = shown;
     on_shortcut(move |press: beui::KeyPress| {
         let leave = press.pressed && press.key == beui::Key::Escape && escaping.get_untracked();
@@ -2092,11 +2090,7 @@ fn FullscreenBody(on_close: ClickCallback) -> NodeId {
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Title @sizing=ItemSize::Percent(100.0) content="Fullscreen" />
-                    <Button
-                        label="Close"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || on_close.call()}
-                    />
+                    <Button label="Close" variant=ButtonVariant::Secondary on_click={on_close} />
                 </List>
                 <Paragraph content="This covers the whole window. Escape closes it too." />
             </List>
@@ -2278,7 +2272,7 @@ fn ScrollRow(
     let selected = selection.memo(Some(index));
     view! {
         <unstyled::Button
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle| view! {
                 <ScrollRowFace index handle selected timings compact />
             }}
@@ -2593,21 +2587,19 @@ fn MarkdownEditor() -> NodeId {
     let document = Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn text_editor_core::Document>;
     let state = TextAreaState::new(document);
     state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
-    let bold = state.clone();
-    let italic = state.clone();
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Button
                     label="Bold"
                     variant=ButtonVariant::Secondary
-                    on_click={move || bold.execute(EditorCommand::Markdown(MarkdownCommand::Bold))}
+                    on_click={move || state.execute(EditorCommand::Markdown(MarkdownCommand::Bold))}
                 />
                 <Button
                     label="Italic"
                     variant=ButtonVariant::Secondary
                     on_click={move || {
-                        italic.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
+                        state.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
                     }}
                 />
             </List>
@@ -2695,7 +2687,7 @@ fn scale_in(view: &mut PanZoomView) {
 #[component]
 fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) -> NodeId {
     view! {
-        <PanZoom view on_change={move |view| on_change.call(view)}>
+        <PanZoom view on_change={on_change}>
             {move |handle: PanZoomHandle| {
                 let PanZoomHandle { view, scale, focused, .. } = handle;
                 view! {

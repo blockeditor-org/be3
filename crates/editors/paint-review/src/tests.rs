@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use block_editor_beui::be_block::paint::PaintReview;
 use block_editor_beui::be_block::{PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 use block_editor_beui::{BlockInfo, BlockParent};
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::{BeuiTest, ContentStore};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 use uuid::Uuid;
@@ -46,9 +46,10 @@ impl Review {
         write_to(&branch, PATH, &painting(30));
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host.clone(), block);
+        let owner = OwnedEditor::new(host.clone(), block);
+        let editor = *owner;
         let source = Source::Fixed(Arc::clone(&branch));
-        let test = BeuiTest::<PaintReviewApp>::with_view(editor.clone(), move || {
+        let test = BeuiTest::<PaintReviewApp>::with_view(owner, move || {
             view! {
                 <PaintReviewEditor editor={editor} source={source} />
             }

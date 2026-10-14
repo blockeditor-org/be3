@@ -23,7 +23,7 @@ use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
-    ReadSignal, Show, Text, clone, create_memo, focus_ring,
+    ReadSignal, Show, Text, create_memo, focus_ring,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -161,7 +161,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
             dragged
             closable
             close_test_id={close_test_id(entry)}
-            close={move || close.call()}
+            close={close}
         />
     }
 }
@@ -233,7 +233,7 @@ fn DockTabChrome(
                     @sizing={title_size}
                 />
                 <Show condition={closable}>
-                    {move || clone!(close -> view! {
+                    {move || view! {
                         <IconButton
                             @test_id={close_test_id.clone()}
                             glyph=ICON_CLOSE
@@ -241,9 +241,9 @@ fn DockTabChrome(
                             size=IconButtonSize::Compact
                             variant=ButtonVariant::Ghost
                             capture_presses=true
-                            on_click={move || close.call()}
+                            on_click={close}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>
@@ -346,7 +346,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             @sizing=ItemSize::Percent(100.0)
                         />
                         <Show condition={closable}>
-                            {move || clone!(close -> view! {
+                            {move || view! {
                                 <IconButton
                                     @test_id={format!("dock.dialog.{}.close", tab.value())}
                                     glyph=ICON_CLOSE
@@ -354,9 +354,9 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                                     size=IconButtonSize::Compact
                                     variant=ButtonVariant::Ghost
                                     capture_presses=true
-                                    on_click={move || close.call()}
+                                    on_click={close}
                                 />
-                            })}
+                            }}
                         </Show>
                     </List>
                 </Frame>
@@ -414,7 +414,7 @@ fn DockTitleBar(
                             <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
                         </Show>
                         <DockMenu menu />
-                        <DockClose closable close={move || close.call()} />
+                        <DockClose closable close={close} />
                     </List>
                 </Frame>
             </Frame>
@@ -454,7 +454,7 @@ fn DockSideBar(
                     {grip}
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         <DockMenu menu />
-                        <DockClose closable close={move || close.call()} />
+                        <DockClose closable close={close} />
                     </List>
                 </List>
                 {tabs} @sizing=ItemSize::Percent(100.0)
@@ -517,7 +517,7 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
                 size=IconButtonSize::Compact
                 variant=ButtonVariant::Ghost
                 capture_presses=true
-                on_click={move || close.call()}
+                on_click={close}
             />
         </Frame>
     }

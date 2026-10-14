@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
-    create_effect, create_memo, create_timer, set_component_state, untrack, view,
+    Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Show, component, create_effect,
+    create_memo, create_timer, set_component_state, untrack, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, use_theme};
 use block_editor_beui::beui::unstyled::Picture;
@@ -21,50 +19,46 @@ struct StageState {
 }
 
 #[component]
-pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
-    let shown = Rc::clone(&review);
+pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
     let frame = review.frame;
     let revision = review.revision;
-    let painting = create_memo(clone!(shown -> move || {
+    let painting = create_memo(move || {
         let _ = revision.get();
-        let Some(path) = shown.selected.get() else {
+        let Some(path) = review.selected.get() else {
             return Shown::Waiting(Some("Choose a painting to review it".to_owned()));
         };
-        let Some(status) = shown.status(&path) else {
+        let Some(status) = review.status(&path) else {
             return Shown::Waiting(None);
         };
-        if shown.pending.get().is_some() {
+        if review.pending.get().is_some() {
             return Shown::Waiting(Some(
                 "Waiting for the painting you approved before to arrive".to_owned(),
             ));
         }
-        shown.shown(&path, shown.shown_as(status), frame.get())
-    }));
+        review.shown(&path, review.shown_as(status), frame.get())
+    });
 
-    let clamped = Rc::clone(&review);
     let clamping = count;
     create_effect(move || {
         let count = clamping.get();
-        clamped.frame.with(|_| ());
-        untrack(|| clamped.clamp_frame(count));
+        review.frame.with(|_| ());
+        untrack(|| review.clamp_frame(count));
     });
 
-    let advanced = Rc::clone(&review);
     let advancing = painting;
     let advancing_count = count;
     let stepper = create_timer(move || {
         let ready = !matches!(advancing.get_untracked(), Shown::Waiting(_));
-        advanced.advance(advancing_count.get_untracked(), ready)
+        review.advance(advancing_count.get_untracked(), ready)
     });
-    let scheduled = Rc::clone(&review);
     let scheduling = painting;
     let scheduling_count = count;
     create_effect(move || {
-        scheduled.playing.with(|_| ());
-        scheduled.frame.with(|_| ());
+        review.playing.with(|_| ());
+        review.frame.with(|_| ());
         let ready = !matches!(scheduling.get(), Shown::Waiting(_));
         let count = scheduling_count.get();
-        untrack(|| match scheduled.next_advance(count, ready) {
+        untrack(|| match review.next_advance(count, ready) {
             Some(delay) => stepper.start(delay),
             None => stepper.stop(),
         });
@@ -90,28 +84,26 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
     let note = create_memo(move || message.get().map(|(text, _)| text).unwrap_or_default());
     let broken = create_memo(move || message.get().is_some_and(|(_, failed)| failed));
 
-    let counted = Rc::clone(&review);
     let at = review.frame;
     let zoom = review.scale;
-    let working = Rc::clone(&review);
     set_component_state(StageState {
         rastered: create_memo(move || {
             let _ = revision.get();
-            counted.rastered()
+            review.rastered()
         }),
         frame: create_memo(move || at.get()),
         scale: create_memo(move || zoom.get().unwrap_or_default()),
-        busy: create_memo(clone!(working -> move || {
+        busy: create_memo(move || {
             let _ = revision.get();
-            working.downloading.get()
-                || working.pending.get().is_some()
-                || working.loading().is_some()
-                || working.rastering()
-        })),
+            review.downloading.get()
+                || review.pending.get().is_some()
+                || review.loading().is_some()
+                || review.rastering()
+        }),
     });
 
     let view = review.editor().canvas();
-    let placed = review.editor().clone();
+    let placed = review.editor();
     let laid_out = panels;
     let world = review.editor().world();
     let laid = create_memo(move || {
@@ -134,23 +126,21 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
         ))
     });
     let layout = create_memo(move || laid.get().map(|(_, panels)| panels).unwrap_or_default());
-    let reported = Rc::clone(&review);
     let camera = review.editor().scale();
     create_effect(move || {
         let zoom = camera.get();
-        reported.report(laid.get().map(|(scale, _)| scale * zoom), description.get());
+        review.report(laid.get().map(|(scale, _)| scale * zoom), description.get());
     });
 
     let places = create_memo(move || (0..layout.get().len()).collect::<Vec<usize>>());
     let theme = use_theme();
-    let loading = Rc::clone(&review);
-    let progress = create_memo(clone!(loading -> move || {
+    let progress = create_memo(move || {
         let _ = revision.get();
-        match loading.loading() {
+        match review.loading() {
             Some((done, total)) => format!("Rastering frame {} of {total}", done + 1),
             None => String::new(),
         }
-    }));
+    });
 
     view! {
         <Frame color={theme.background}>

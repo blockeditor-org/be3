@@ -1,13 +1,12 @@
 use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
-use std::rc::Rc;
 
 use block_editor_beui::be_block::Item;
 use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FOLDER};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, Icon, IconButton, Scroll, use_theme};
 use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
@@ -17,7 +16,7 @@ const PADDING: f32 = 16.0;
 const INDENT: f32 = 16.0;
 const ROW_SPACING: f32 = 6.0;
 
-type Pinned = Rc<ContentProjection<HotbarContent>>;
+type Pinned = ContentProjection<HotbarContent>;
 
 #[derive(Clone, PartialEq)]
 struct Row {
@@ -69,8 +68,8 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                                 view! {
                                     <SlotRow
                                         index={index}
-                                        editor={editor.clone()}
-                                        hotbar={hotbar.clone()}
+                                        editor={editor}
+                                        hotbar={hotbar}
                                         row={row}
                                         read_only={read_only}
                                     />
@@ -143,9 +142,12 @@ fn SlotRow(
             _ => String::new(),
         })
     });
-    let unpin = clone!(hotbar -> move || {
+    let unpin = move || {
         let Some(compiled) = row.with(|row| match row {
-            Some(Row { kind: RowKind::Component { compiled, .. }, .. }) => Some(*compiled),
+            Some(Row {
+                kind: RowKind::Component { compiled, .. },
+                ..
+            }) => Some(*compiled),
             _ => None,
         }) else {
             return;
@@ -153,7 +155,7 @@ fn SlotRow(
         if let Some(edit) = hotbar.read(|hotbar| hotbar.root().unpin(compiled)) {
             hotbar.operate(edit);
         }
-    });
+    };
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -166,7 +168,7 @@ fn SlotRow(
             </Show>
             <Show condition={is_component}>
                 <BlockLink
-                    editor={editor.clone()}
+                    editor={editor}
                     block={component}
                     fallback={name}
                     @test_id={format!("hotbar.slot.{index}")}
@@ -180,7 +182,7 @@ fn SlotRow(
                     label="Unpin"
                     disabled={read_only}
                     @test_id={format!("hotbar.slot.{index}.unpin")}
-                    on_click={unpin.clone()}
+                    on_click={unpin}
                 />
             </Show>
         </List>

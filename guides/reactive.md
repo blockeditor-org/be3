@@ -92,21 +92,47 @@ disposed, so state that adds and removes items over its life gives each item an
 `OwnedSignal` or a scope of its own rather than creating them in the long-lived
 scope.
 
+## Stored values
+
+`store(value)` puts any value in the same arena as signals and returns a
+`Stored<T>`: a `Copy` handle owned by the current scope and freed with it. Use
+it for state a component's closures share that is not itself reactive: an
+editor's state struct, a `Cell` a gesture writes, a map of children. A struct
+whose fields are signals, memos, selectors, `Stored` values and other `Copy`
+handles derives `Clone, Copy` and is passed around by value, so closures take
+it with `move` and nothing clones it.
+
+- `with(|value| ...)` borrows the value; `get()` returns its `Rc<T>`. Both panic
+  once the scope is disposed. `try_with`, `try_get` and `is_alive` don't.
+- It holds the value immutably; put a `Cell` or `RefCell` inside for state that
+  changes, or use a signal when readers must hear about the change.
+- `OwnedStored::new(value)` is the scope-free counterpart of `OwnedSignal`: it
+  frees the value when it drops and hands out `Copy` handles with `handle()`
+  (it also derefs to one). Use it for state made outside a scope, such as an
+  editor the host keeps.
+
+`Callback`, `ClickCallback` and `NodeRef` are `Copy` the same way. An empty
+callback needs no scope; `Callback::new`, `ClickCallback::new` and
+`NodeRef::new` create stored values, so they need one. Calling a callback
+whose scope is gone does nothing, as `set` on a freed signal does.
+
 ## Cloning handles into closures
 
-Signals, memos and selectors are `Copy`, so a `move` closure takes them without
-ceremony. The `Rc` handles components keep are cheap to clone but are not
-`Copy`, and a `move` closure that keeps one has to own its own clone. `clone!`
+Signals, memos, selectors, stored values, callbacks, node refs, and structs
+made of them are `Copy`, so a `move` closure takes them without ceremony, and a
+closure that captures only `Copy` values is itself `Copy`. For the `Rc` handles
+that remain, a `move` closure that keeps one has to own its own clone. `clone!`
 writes those clones for you: it takes the names to clone, an arrow, and the
 expression they are in scope for.
 
 ```rust
-create_effect(clone!(state -> move || state.show(count.get())));
+create_effect(clone!(texture -> move || texture.show(count.get())));
 ```
 
 `clone!(a b -> expr)` expands to `{ let a = a.clone(); let b = b.clone(); expr }`,
 so the originals stay usable afterwards and the last closure that needs a handle
-can still take it by move.
+can still take it by move. Don't name `Copy` values in it: clippy cannot see
+inside the macro to flag the pointless clone.
 
 ## Selectors
 
@@ -188,6 +214,10 @@ let items: KeyedStore<Uuid, Item> = KeyedStore::new();
 items.reconcile(list.iter().map(|item| (item.id, item)));
 ```
 
+A `KeyedStore` is a `Copy` handle owned by the scope that made it, like a
+signal; `OwnedKeyedStore::new()` is the one for a store made outside a scope,
+which frees it when it drops and derefs to the handle.
+
 Values that are already owned go through `reconcile_owned`; `reconcile` takes
 them by reference and clones only the ones it is about to write. `keys()` is the
 order signal — read it with `with` rather than `get` so the list is not cloned —
@@ -225,7 +255,11 @@ A plugin editor reads its block's content through a `ContentProjection`
 (`block_editor_beui`). `editor.block_content::<C>()` is the one for the
 editor's own block, `editor.content_of::<C>(block)` the one for another block it
 follows; both are pumped by the plugin framework once at the top of every frame,
-inside the document's reactive scope, so an editor never pumps by hand.
+inside the document's reactive scope, so an editor never pumps by hand. A
+projection is a `Copy` handle that the `Editor` owns and frees with itself, so
+closures take it with `move`. One made outside an editor, as
+`EditorHost::content_of` makes one for an artifact's regeneration, is an
+`OwnedContentProjection`, which frees it when it drops and derefs to the handle.
 
 ```rust
 let checklist = editor.block_content::<ChecklistContent>();

@@ -132,7 +132,7 @@ pub fn launcher_rank(items: &[LauncherItem], query: &str) -> Vec<usize> {
     scored.into_iter().map(|(_, index)| index).collect()
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct State {
     query: ReadSignal<String>,
     set_query: WriteSignal<String>,
@@ -197,7 +197,7 @@ pub fn Launcher(
     let (query, set_query) = create_signal(String::new());
     let (searching, set_searching) = create_signal(false);
     let (highlighted, set_highlighted) = create_signal(None::<Row>);
-    create_effect(clone!(open -> move || {
+    create_effect(move || {
         let opened = open.get();
         untrack(|| {
             if opened {
@@ -205,7 +205,7 @@ pub fn Launcher(
             }
             set_searching.set(opened);
         });
-    }));
+    });
     let ranked = create_memo(clone!(items -> move || {
         let items = items.get();
         let query = query.get();
@@ -244,13 +244,10 @@ pub fn Launcher(
         on_launch,
         on_run,
     };
-    let (typing, submitting, keys, building) = (state.clone(), state.clone(), state.clone(), state);
     let search = NodeRef::new();
-    on_key(
-        KeyAt::Node(search.clone()),
-        KeyPhase::Capture,
-        move |event| event.press().is_some_and(|press| keys.navigate(press)),
-    );
+    on_key(KeyAt::Node(search), KeyPhase::Capture, move |event| {
+        event.press().is_some_and(|press| state.navigate(press))
+    });
 
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::SearchInput);
@@ -290,8 +287,8 @@ pub fn Launcher(
                             content={|handle| view! {
                                 <LauncherSearch handle />
                             }}
-                            on_change={move |text: String| typing.set_query.set(text)}
-                            on_submit={move |_: String| submitting.submit()}
+                            on_change={move |text: String| state.set_query.set(text)}
+                            on_submit={move |_: String| state.submit()}
                         />
                         <unstyled::Scroll
                             @sizing=ItemSize::Fixed(LIST_HEIGHT)
@@ -300,11 +297,7 @@ pub fn Launcher(
                         >
                             <ForEach keys={rows}>
                                 {move |row: Row| view! {
-                                    <LauncherRow
-                                        state={building.clone()}
-                                        items={items.clone()}
-                                        row
-                                    />
+                                    <LauncherRow state={state} items={items.clone()} row />
                                 }}
                             </ForEach>
                         </unstyled::Scroll>
@@ -368,7 +361,6 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         node.set_label(title.get());
         node
     });
-    let (hovering, clicking) = (state.clone(), state);
     let (hover_row, click_row) = (row.clone(), row);
     view! {
         <unstyled::Button
@@ -378,9 +370,9 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             press_focus=false
             content={move |handle: ButtonHandle| {
                 let hovered = handle.hovered;
-                create_effect(clone!(hovering hover_row -> move || {
+                create_effect(clone!(hover_row -> move || {
                     if hovered.get() {
-                        hovering.set_highlighted.set(Some(hover_row.clone()));
+                        state.set_highlighted.set(Some(hover_row.clone()));
                     }
                 }));
                 view! {
@@ -393,7 +385,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
                     />
                 }
             }}
-            on_click={move || clicking.activate(click_row.clone())}
+            on_click={move || state.activate(click_row.clone())}
         />
     }
 }

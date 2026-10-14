@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 use beui_core::color::Color32;
@@ -9,8 +8,7 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
     BackHandler, Callback, Child, ClickCallback, Frame, Layers, Prop, RenderFn, Shift, Show, Timer,
-    WriteSignal, clone, create_effect, create_signal, create_timer, on_cleanup, untrack,
-    with_document,
+    WriteSignal, create_effect, create_signal, create_timer, store, untrack, with_document,
 };
 
 use super::rubber_band::MAX_ANIMATION_STEP;
@@ -39,10 +37,9 @@ struct State {
     stepped: Instant,
 }
 
-#[derive(Clone)]
 struct Slide {
-    state: Rc<RefCell<State>>,
-    animation: Rc<RefCell<Option<Timer>>>,
+    state: RefCell<State>,
+    animation: Cell<Option<Timer>>,
     set_shift: WriteSignal<Vec2>,
     set_behind_shift: WriteSignal<Vec2>,
     set_shade: WriteSignal<Color32>,
@@ -80,7 +77,7 @@ impl Slide {
             !matches!(phase, Phase::Still | Phase::Dragging)
         };
         self.reveal(phase);
-        let Some(animation) = self.animation.borrow().clone() else {
+        let Some(animation) = self.animation.get() else {
             return;
         };
         match animate {
@@ -239,14 +236,14 @@ pub fn BackSlide(
     let (behind_shift, set_behind_shift) = create_signal(Vec2::ZERO);
     let (shade, set_shade) = create_signal(SHADE);
     let (revealing, set_revealing) = create_signal(false);
-    let slide = Slide {
-        state: Rc::new(RefCell::new(State {
+    let slide = store(Slide {
+        state: RefCell::new(State {
             phase: Phase::Still,
             position: 0.0,
             direction: 1.0,
             stepped: beui_core::timer::now(),
-        })),
-        animation: Rc::new(RefCell::new(None)),
+        }),
+        animation: Cell::new(None),
         set_shift,
         set_behind_shift,
         set_shade,
@@ -255,14 +252,14 @@ pub fn BackSlide(
         enters,
         on_back,
         on_presence,
-    };
-    let animation = create_timer(clone!(slide -> move || slide.step()));
-    slide.animation.replace(Some(animation));
-    on_cleanup(clone!(slide -> move || drop(slide.animation.take())));
-    let watched = enabled.clone();
-    create_effect(clone!(slide -> move || {
+    });
+    let animation = create_timer(move || slide.get().step());
+    slide.with(|slide| slide.animation.set(Some(animation)));
+    let watched = enabled;
+    create_effect(move || {
         if !watched.get() {
             untrack(|| {
+                let slide = slide.get();
                 let phase = slide.state.borrow().phase;
                 if matches!(
                     phase,
@@ -272,11 +269,11 @@ pub fn BackSlide(
                 }
             });
         }
-    }));
+    });
     let page = view! {
         <BackHandler
             enabled={enabled}
-            on_gesture={move |gesture: BackGesture| slide.gesture(gesture)}
+            on_gesture={move |gesture: BackGesture| slide.get().gesture(gesture)}
         >
             <Shift by={shift}>{children}</Shift>
         </BackHandler>

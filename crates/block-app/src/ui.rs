@@ -377,7 +377,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     }}
                 </Dynamic>
                 <Toasts
-                    anchor={area.clone()}
+                    anchor={area}
                     edge=Edge::TopEnd
                     toasts={toasts}
                     on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}

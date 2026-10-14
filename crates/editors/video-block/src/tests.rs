@@ -3,7 +3,7 @@ use block_editor_beui::be_block::{BlockContent, CounterContent};
 use block_editor_beui::be_block::VideoContent;
 use block_editor_beui::be_block::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
 use block_editor_beui::beui::Pos2;
-use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -25,7 +25,7 @@ impl Fixture {
         let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host.clone(), block);
+        let editor = OwnedEditor::new(host.clone(), block);
         let mut editor = BeuiTest::new(editor);
         editor.hold(None, VideoContent::default());
         Self { editor }

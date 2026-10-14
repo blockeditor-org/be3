@@ -32,7 +32,7 @@ pub(crate) fn VolumeButton(editor: Editor, levels: Memo<MediaLevels>) -> NodeId 
     view! {
         <BarPopup label glyph width=VOLUME_WIDTH @test_id={"desktop.volume"}>
             {move |_: PopoverHandle| view! {
-                <VolumePanel editor={editor.clone()} levels={levels} />
+                <VolumePanel editor={editor} levels={levels} />
             }}
         </BarPopup>
     }
@@ -45,7 +45,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
     let shown = create_memo(move || output.get().map(percent).unwrap_or_default());
     let muted = create_memo(move || output.get().is_some_and(|output| output.muted));
     let listed = create_memo(move || !levels.with(|levels| levels.outputs.is_empty()));
-    let (setting, muting) = (editor.clone(), editor.clone());
+    let (setting, muting) = (editor, editor);
     view! {
         <List spacing=SPACING @test_id={"desktop.volume.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -68,7 +68,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                 />
             </List>
             <Show condition={listed}>
-                <OutputPicker editor={editor.clone()} levels={levels} />
+                <OutputPicker editor={editor} levels={levels} />
             </Show>
         </List>
     }

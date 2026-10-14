@@ -12,7 +12,7 @@ use block_editor_beui::be_block::database_view::{
 };
 use block_editor_beui::beui::Key;
 use block_editor_beui::{
-    BeuiApp, Creation, Editor, EditorHost,
+    BeuiApp, Creation, EditorHost, OwnedEditor,
     block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
 };
 use block_ui_test::BeuiTest;
@@ -104,7 +104,7 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
     let view = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), view);
+    let editor = OwnedEditor::new(host.clone(), view);
     let mut harness = BeuiTest::new(editor);
     harness.hold(None, DatabaseViewContent::new(&DatabaseView::of(database)));
     harness.hold(

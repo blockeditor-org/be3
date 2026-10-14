@@ -3,7 +3,7 @@ use block_editor_beui::be_block::{
     UiSettingsContent,
 };
 use block_editor_beui::beui::{Document, Key, NodeId};
-use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -25,7 +25,7 @@ impl Harness {
         let host = EditorHost::default();
         host.set_editable(true);
         host.set_client_id(client);
-        let editor = Editor::new(host, block);
+        let editor = OwnedEditor::new(host, block);
         let mut harness = Self {
             editor: BeuiTest::new(editor),
             block,

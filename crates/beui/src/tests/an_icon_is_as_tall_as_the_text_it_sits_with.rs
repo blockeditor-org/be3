@@ -7,6 +7,7 @@ const LABEL: &str = "Folder";
 
 #[test]
 fn an_icon_is_as_tall_as_the_text_it_sits_with() {
+    let _root = crate::reactive::RootScope::new();
     let text = height(|| {
         view! {
             <Body content=LABEL />
@@ -31,11 +32,10 @@ fn an_icon_is_as_tall_as_the_text_it_sits_with() {
 
 fn height(content: impl FnOnce() -> NodeId + 'static) -> f32 {
     let frame = NodeRef::new();
-    let placed = frame.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame @node_ref=&placed>{content()}</Frame>
+                <Frame @node_ref=&frame>{content()}</Frame>
             </List>
         }
     });

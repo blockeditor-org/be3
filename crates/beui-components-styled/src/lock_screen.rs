@@ -88,7 +88,7 @@ pub fn LockScreen(
                                 index == 0 && open.get() && !busy.get()
                             });
                             let submit = submit.clone();
-                            let action = on_action.clone();
+                            let action = on_action;
                             let changed = set_password;
                             let card = view! {
                                 <LockCard
@@ -104,7 +104,7 @@ pub fn LockScreen(
                                     id={format!("{}.{index}", id)}
                                     on_change={move |typed: String| changed.set(typed)}
                                     on_submit={move |typed: String| submit(typed)}
-                                    on_action={move |chosen: usize| action.call(chosen)}
+                                    on_action={action}
                                 />
                             };
                             let layer: Layer = card.into_child();
@@ -179,8 +179,8 @@ fn LockCard(
                                 disabled={busy}
                                 focused={focused}
                                 @test_id={format!("{id}.password")}
-                                on_change={move |typed: String| on_change.call(typed)}
-                                on_submit={move |typed: String| on_submit.call(typed)}
+                                on_change={on_change}
+                                on_submit={on_submit}
                             />
                         </Frame>
                         <Show condition={checking}>
@@ -197,7 +197,7 @@ fn LockCard(
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>
                         <ForEach keys={slots}>
                             {move |index: usize| {
-                                let chose = on_action.clone();
+                                let chose = on_action;
                                 let glyph = create_memo(move || {
                                     actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
                                 });

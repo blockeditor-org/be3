@@ -7,7 +7,7 @@ fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {
     let measured = EmbedSlot::new();
     let answered = EmbedSlot::new();
     let (height, set_height) = create_signal(10.0_f32);
-    let (first, second) = (measured.clone(), answered.clone());
+    let (first, second) = (measured, answered);
     let mut document = build(move || {
         view! {
             <List spacing=0.0>
@@ -16,7 +16,7 @@ fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {
                 </Frame>
                 <Dynamic value={height}>
                     {move |height: f32| {
-                        let slot = second.clone();
+                        let slot = second;
                         view! {
                             <Frame height=height>
                                 <Embed slot={slot} />
@@ -27,9 +27,8 @@ fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {
             </List>
         }
     });
-    let watched = measured.clone();
     document.on_laid_out(move || {
-        if let Some(placement) = watched.placement() {
+        if let Some(placement) = measured.placement() {
             set_height.set(placement.rect.width() / 4.0);
         }
     });

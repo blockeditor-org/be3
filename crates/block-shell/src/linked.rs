@@ -1,11 +1,8 @@
-use std::rc::Rc;
-
 use block_editor_beui::BlockParent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_LINK_OFF};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
-    create_memo, view,
+    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, IconSized, use_theme};
@@ -20,7 +17,7 @@ const PADDING_VERTICAL: f32 = 5.0;
 const SPACING: f32 = 8.0;
 
 #[component]
-pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
     let shown = create_memo(move || {
         info.with(|info| {
             info.as_ref().is_some_and(|info| {
@@ -59,12 +56,12 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
             count.get()
         )
     });
-    let permission = create_memo(clone!(workspace -> move || {
+    let permission = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .is_some_and(|info| unlink_permission(&workspace, info.container).is_ok())
         })
-    }));
+    });
     let unlink_off = create_memo(move || !permission.get());
     let backrefs = create_memo(move || {
         info.with(|info| {
@@ -74,9 +71,7 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
         })
     });
     let nowhere = create_memo(|| None);
-    let original_block = Rc::clone(&workspace);
     let original_info = info;
-    let unlinking = Rc::clone(&workspace);
     let unlinking_info = info;
     let theme = use_theme();
     let heading_color = theme.text;
@@ -95,7 +90,7 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                 />
                 <Body content="Linked block" />
                 <Show condition={via_reference}>
-                    {move || clone!(original_block unlinking -> view! {
+                    {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Caption content={elsewhere} />
                             <Button
@@ -108,7 +103,7 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                                     else {
                                         return;
                                     };
-                                    original_block.forget_container(id);
+                                    workspace.forget_container(id);
                                 }}
                             />
                             <Button
@@ -122,15 +117,15 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                                         return;
                                     };
                                     if let Some(container) = info.container {
-                                        unlinking.host().unlink_block(info.item.id, container);
+                                        workspace.host().unlink_block(info.item.id, container);
                                     }
                                 }}
                             />
                         </List>
-                    })}
+                    }}
                 </Show>
                 <Show condition={original}>
-                    {move || clone!(workspace -> view! {
+                    {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Caption content={everywhere} />
                             <ReferenceMenu
@@ -142,7 +137,7 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                                 named="workspace.linked.references"
                             />
                         </List>
-                    })}
+                    }}
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>

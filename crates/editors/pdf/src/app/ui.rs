@@ -1,10 +1,8 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Show, Spacer, clone, component, create_effect, create_memo, view,
+    NodeRef, Show, Spacer, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_beui::beui::unstyled::Picture;
@@ -26,37 +24,32 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         .host()
         .performance(format!("PDF ({})", editor.block_id()));
 
-    let replacing = editor.clone();
-    let reset = Rc::clone(&pages);
     chooser.on_chosen(move |chooser| {
         if let Some(pdf) = chooser.take() {
-            replacing.replace_content(replacing.block_id(), &pdf);
-            reset.go(0);
+            editor.replace_content(editor.block_id(), &pdf);
+            pages.go(0);
         }
     });
-    let pumping = Rc::clone(&pages);
     let placed = editor.placed();
     let canvas = editor.canvas();
     let device = editor.pixels_per_point();
-    let block_for_pump = Rc::clone(&block);
     let (waker, rendered) = editor.woken();
     create_effect(move || {
         rendered.get();
         let _measure = performance.measure("Editor pump");
-        let size = pumping.shown().get_untracked().size();
-        pumping.pump(
-            &block_for_pump,
+        let size = pages.shown().get_untracked().size();
+        pages.pump(
+            &block,
             &performance,
             waker.clone(),
             viewport(placed.get(), canvas.get(), size, device.get()),
         );
     });
 
-    let sized = editor.clone();
     let measured = shown;
     create_effect(move || {
         let size = measured.get().size();
-        sized.set_intrinsic_size(Some(size));
+        editor.set_intrinsic_size(Some(size));
     });
 
     let page_label = create_memo(move || {
@@ -73,10 +66,9 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             .page_count
             .is_some_and(|count| shown.page + 1 >= count)
     });
-    let back = clone!(pages -> move || pages.go(pages.page().saturating_sub(1)));
-    let forward = clone!(pages -> move || pages.go(pages.page() + 1));
-    let fitting = editor.clone();
-    let fit = move || fitting.fit();
+    let back = move || pages.go(pages.page().saturating_sub(1));
+    let forward = move || pages.go(pages.page() + 1);
+    let fit = move || editor.fit();
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
@@ -84,11 +76,10 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let failure = chooser.error();
     let refused = create_memo(move || failure.get().is_some());
     let refusal = create_memo(move || failure.get().unwrap_or_default());
-    let choose = clone!(chooser -> move || chooser.open());
+    let choose = move || chooser.open();
     let source = block.project(|pdf| pdf.header().source_name.clone());
     let name = create_memo(move || source.get());
 
-    let panning = editor.clone();
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
@@ -123,7 +114,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             </Toolbar>
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Interactive on_pan_drag={move |delta: Vec2| panning.pan(delta)}>
+                    <Interactive on_pan_drag={move |delta: Vec2| editor.pan(delta)}>
                         <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
                 </Frame>
@@ -210,17 +201,15 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     let performance = editor
         .host()
         .performance(format!("PDF preview ({})", editor.block_id()));
-    let pumping = Rc::clone(&pages);
     let placed = editor.placed();
     let device = editor.pixels_per_point();
-    let watched = Rc::clone(&block);
     let (waker, rendered) = editor.woken();
     create_effect(move || {
         rendered.get();
         let _measure = performance.measure("Preview pump");
-        let size = pumping.shown().get_untracked().size();
-        pumping.pump(
-            &watched,
+        let size = pages.shown().get_untracked().size();
+        pages.pump(
+            &block,
             &performance,
             waker.clone(),
             viewport(placed.get(), None, size, device.get()),

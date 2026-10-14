@@ -13,11 +13,10 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Child, Children, Frame, IntoProp, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
-    Render, RenderFn, Run, Selector, WriteSignal, clone, create_effect, create_memo,
-    create_selector, create_signal, on_key, set_component_state,
+    Render, RenderFn, Run, Selector, Stored, WriteSignal, create_effect, create_memo,
+    create_selector, create_signal, on_key, set_component_state, store,
 };
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use accesskit::{Node, Role};
 
@@ -53,11 +52,12 @@ struct Row {
     set_visible: WriteSignal<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct State {
     trigger: NodeRef,
     search: NodeRef,
-    options: Run<ChoiceOption>,
-    rows: Rc<RefCell<Vec<Row>>>,
+    options: Stored<Run<ChoiceOption>>,
+    rows: Stored<RefCell<Vec<Row>>>,
     open: ReadSignal<bool>,
     set_open: WriteSignal<bool>,
     focus: ReadSignal<Focus>,
@@ -69,8 +69,6 @@ struct State {
     set_highlighted: WriteSignal<Option<usize>>,
     on_change: Callback<Option<usize>>,
 }
-
-type Handle = Rc<State>;
 
 #[component]
 pub fn Select(
@@ -111,11 +109,11 @@ pub fn Select(
     let (search_text, set_search_text) = create_signal(String::new());
     let disabled = create_memo(move || disabled.get());
 
-    let state: Handle = Rc::new(State {
+    let state = State {
         trigger: NodeRef::new(),
         search: NodeRef::new(),
-        options: options.clone(),
-        rows: Rc::default(),
+        options: store(options.clone()),
+        rows: store(RefCell::default()),
         open: is_open,
         set_open,
         focus,
@@ -126,8 +124,8 @@ pub fn Select(
         highlighted,
         set_highlighted,
         on_change,
-    });
-    set_component_state(state.clone());
+    };
+    set_component_state(state);
 
     let trigger_view = trigger.unwrap_or_else(|| {
         Render::new(|_| {
@@ -137,18 +135,18 @@ pub fn Select(
         })
     });
     let accessibility = crate::labelled_node(Role::ComboBox, accessibility, label);
-    let trigger_accessibility = create_memo(clone!(state -> move || {
+    let trigger_accessibility = create_memo(move || {
         let mut node = accessibility.get();
         if let Some(label) = state
             .selected
             .get()
-            .and_then(|index| state.rows.borrow().get(index).map(|row| row.label))
+            .and_then(|index| state.rows.get().borrow().get(index).map(|row| row.label))
         {
             node.set_value(label.get());
         }
         node.set_expanded(state.open.get());
         node
-    }));
+    });
     let trigger_disabled = disabled;
     let labelled = options.clone();
     let chosen = selected;
@@ -170,9 +168,8 @@ pub fn Select(
         })
     };
 
-    let rows_state = state.clone();
     let items = options.build_each(
-        state.rows.clone(),
+        state.rows,
         |_, option| {
             let (visible, set_visible) = create_signal(true);
             Row {
@@ -184,40 +181,20 @@ pub fn Select(
         },
         move |index| {
             view! {
-                <SelectRow
-                    state={rows_state.clone()}
-                    index
-                    option={option.clone()}
-                    highlight={highlight}
-                />
+                <SelectRow state={state} index option={option} highlight={highlight} />
             }
         },
     );
 
-    create_effect(clone!(state -> move || {
-        state.options.len();
-        apply_requested_selection(&state, selected_prop.get());
-    }));
+    create_effect(move || {
+        state.options.get().len();
+        apply_requested_selection(state, selected_prop.get());
+    });
 
-    let reveal = reveal_reader(&state);
-    let (open_state, key_state, filter_state, submit_state, navigate_state, dismiss_state) = (
-        state.clone(),
-        state.clone(),
-        state.clone(),
-        state.clone(),
-        state.clone(),
-        state.clone(),
-    );
-    on_key(
-        KeyAt::Node(state.search.clone()),
-        KeyPhase::Capture,
-        move |event| {
-            event
-                .press()
-                .is_some_and(|press| navigate(&navigate_state, press))
-        },
-    );
-    let search_blur = state.clone();
+    let reveal = reveal_reader(state);
+    on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
+        event.press().is_some_and(|press| navigate(state, press))
+    });
 
     view! {
         <List spacing=0.0>
@@ -226,14 +203,14 @@ pub fn Select(
                 accessibility={trigger_accessibility}
                 disabled={disabled}
                 content={trigger_content}
-                on_click={move || open(&open_state)}
-                on_key={move |press: KeyPress| trigger_key(&key_state, press)}
+                on_click={move || open(state)}
+                on_key={move |press: KeyPress| trigger_key(state, press)}
             />
             <Overlay
-                anchor={&state.trigger}
+                anchor={state.trigger}
                 placement=Placement::BelowStart
                 open={is_open}
-                on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
+                on_dismiss={move |_: Dismiss| dismiss(state)}
             >
                 {popup.call(view! {
                     <List spacing=6.0>
@@ -245,11 +222,11 @@ pub fn Select(
                             placeholder={search_placeholder}
                             style={search_style}
                             content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
-                            on_focus_change={move |has_focus: bool| blur(&search_blur, has_focus, Focus::Search)}
-                            on_change={move |text: String| filter(&filter_state, &text)}
+                            on_focus_change={move |has_focus: bool| blur(state, has_focus, Focus::Search)}
+                            on_change={move |text: String| filter(state, &text)}
                             on_submit={move |_text: String| {
-                                if let Some(index) = submit_state.highlighted.get_untracked() {
-                                    confirm(&submit_state, index);
+                                if let Some(index) = state.highlighted.get_untracked() {
+                                    confirm(state, index);
                                 }
                             }}
                         />
@@ -268,23 +245,21 @@ pub fn Select(
 
 #[component]
 fn SelectRow(
-    state: Handle,
+    state: State,
     index: usize,
     option: RenderFn<SelectOptionHandle>,
     highlight: Selector<Option<usize>>,
 ) -> NodeId {
-    let (hover_state, click_state) = (state.clone(), state.clone());
     let (visible, button, label) = {
-        let rows = state.rows.borrow();
-        let row = &rows[index];
-        (row.visible, row.button.clone(), row.label)
+        let rows = state.rows.get();
+        let row = &rows.borrow()[index];
+        (row.visible, row.button, row.label)
     };
-    let accessibility_state = state.clone();
     let accessibility_label = label;
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(accessibility_label.get());
-        node.set_selected(accessibility_state.selected.get() == Some(index));
+        node.set_selected(state.selected.get() == Some(index));
         node
     });
     view! {
@@ -297,7 +272,7 @@ fn SelectRow(
                     let hovered = button.hovered;
                     create_effect(move || {
                         if hovered.get() {
-                            hover_state.set_highlighted.set(Some(index));
+                            state.set_highlighted.set(Some(index));
                         }
                     });
                     option.call(SelectOptionHandle {
@@ -308,66 +283,75 @@ fn SelectRow(
                         focused: button.focused,
                     })
                 }}
-                on_click={move || confirm(&click_state, index)}
+                on_click={move || confirm(state, index)}
             />
         </Frame>
     }
 }
 
-fn reveal_reader(state: &Handle) -> Prop<Option<usize>> {
-    let state = state.clone();
-    Prop::Dynamic(std::rc::Rc::new(move || {
-        let visible: Vec<_> = state.rows.borrow().iter().map(|row| row.visible).collect();
+fn reveal_reader(state: State) -> Prop<Option<usize>> {
+    Prop::dynamic(move || {
+        let visible: Vec<_> = state
+            .rows
+            .get()
+            .borrow()
+            .iter()
+            .map(|row| row.visible)
+            .collect();
         for row in visible {
             row.get();
         }
         state.highlighted.get()
-    }))
+    })
 }
 
-fn blur(state: &State, has_focus: bool, target: Focus) {
+fn blur(state: State, has_focus: bool, target: Focus) {
     if !has_focus && state.focus.get_untracked() == target {
         state.set_focus.set(Focus::Away);
     }
 }
 
 pub fn select_selected(document: &Document, select: NodeId) -> Option<usize> {
-    document.component_state::<Handle>(select).selected.get()
+    document.component_state::<State>(select).selected.get()
 }
 
 pub fn select_open(document: &Document, select: NodeId) -> bool {
-    document.component_state::<Handle>(select).open.get()
+    document.component_state::<State>(select).open.get()
 }
 
 pub fn select_trigger(document: &Document, select: NodeId) -> NodeId {
-    document.component_state::<Handle>(select).trigger.get()
+    document.component_state::<State>(select).trigger.get()
 }
 
 pub fn select_search(document: &Document, select: NodeId) -> NodeId {
-    document.component_state::<Handle>(select).search.get()
+    document.component_state::<State>(select).search.get()
 }
 
 pub fn select_option_button(document: &Document, select: NodeId, index: usize) -> NodeId {
-    document.component_state::<Handle>(select).rows.borrow()[index]
+    document
+        .component_state::<State>(select)
+        .rows
+        .get()
+        .borrow()[index]
         .button
         .get()
 }
 
 pub fn select_highlighted(document: &Document, select: NodeId) -> Option<usize> {
     document
-        .component_state::<Handle>(select)
+        .component_state::<State>(select)
         .highlighted
         .get_untracked()
 }
 
-fn apply_requested_selection(state: &State, selected: Option<usize>) {
-    let selected = selected.filter(|index| *index < state.options.peek().len());
+fn apply_requested_selection(state: State, selected: Option<usize>) {
+    let selected = selected.filter(|index| *index < state.options.get().peek().len());
     if state.selected.get_untracked() != selected {
         state.set_selected.set(selected);
     }
 }
 
-fn trigger_key(state: &State, press: KeyPress) -> bool {
+fn trigger_key(state: State, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
@@ -387,34 +371,35 @@ fn trigger_key(state: &State, press: KeyPress) -> bool {
     true
 }
 
-fn open(state: &State) {
+fn open(state: State) {
     state.set_open.set(true);
     filter(state, "");
     state.set_highlighted.set(state.selected.get_untracked());
     state.set_focus.set(Focus::Search);
 }
 
-fn dismiss(state: &State) {
+fn dismiss(state: State) {
     state.set_open.set(false);
     state.set_focus.set(Focus::Away);
 }
 
-fn confirm(state: &State, index: usize) {
+fn confirm(state: State, index: usize) {
     apply_selection(state, Some(index));
     dismiss(state);
 }
 
-fn apply_selection(state: &State, selected: Option<usize>) {
+fn apply_selection(state: State, selected: Option<usize>) {
     state.set_selected.set(selected);
     state.on_change.call(selected);
 }
 
-fn filter(state: &State, text: &str) {
+fn filter(state: State, text: &str) {
     state.set_search_text.set(text.to_owned());
     let query = text.to_lowercase();
     let mut first_visible = None;
     let rows: Vec<_> = state
         .rows
+        .get()
         .borrow()
         .iter()
         .map(|row| (row.label.get_untracked(), row.set_visible))
@@ -429,6 +414,7 @@ fn filter(state: &State, text: &str) {
     let still_visible = state.highlighted.get_untracked().is_some_and(|index| {
         state
             .rows
+            .get()
             .borrow()
             .get(index)
             .is_some_and(|row| row.visible.get_untracked())
@@ -438,12 +424,13 @@ fn filter(state: &State, text: &str) {
     }
 }
 
-fn navigate(state: &State, press: KeyPress) -> bool {
+fn navigate(state: State, press: KeyPress) -> bool {
     if !press.pressed || press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
     let visible: Vec<usize> = state
         .rows
+        .get()
         .borrow()
         .iter()
         .enumerate()

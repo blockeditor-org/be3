@@ -75,7 +75,7 @@ pub struct PanZoomHandle {
     pub focused: ReadSignal<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Camera {
     view: ReadSignal<PanZoomView>,
     set_view: WriteSignal<PanZoomView>,
@@ -168,14 +168,14 @@ pub fn PanZoom(
                     max_scale: create_memo(move || max_scale.get()),
                     on_change,
                 };
-                let scroll_camera = camera.clone();
-                let zoom_camera = camera.clone();
+                let scroll_camera = camera;
+                let zoom_camera = camera;
 
                 let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
                 component_accessibility(create_memo(move || accessibility.get()));
 
                 let (focused, set_focused) = create_signal(false);
-                let key_camera = camera.clone();
+                let key_camera = camera;
                 let cursor = create_memo(move || if panning.get() {
                     CursorIcon::Grabbing
                 } else {

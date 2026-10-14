@@ -845,7 +845,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                     let Some(node) = interactive(doc, *owner) else {
                         continue;
                     };
-                    let (on_click, on_click_at) = (node.on_click.clone(), node.on_click_at.clone());
+                    let (on_click, on_click_at) = (node.on_click, node.on_click_at);
                     on_click.call();
                     on_click_at.call(session.press(rect, pos));
                 }
@@ -1203,7 +1203,7 @@ fn pinch(doc: &mut Document, frame: &Frame) {
     let Some(node) = interactive(doc, target) else {
         return;
     };
-    let (on_zoom, on_pan_drag) = (node.on_zoom.clone(), node.on_pan_drag.clone());
+    let (on_zoom, on_pan_drag) = (node.on_zoom, node.on_pan_drag);
     if zoom != 1.0 {
         let (local, size) = local(frame.rects, target, pos);
         on_zoom.call(ZoomGesture {

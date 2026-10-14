@@ -7,13 +7,13 @@ use block_plugin_api::{EditorInstanceId, EditorRegion, Message, ScreenLayout, Sc
 
 use crate::beui_frame::BeuiFrame;
 use crate::instance::BeuiInstance;
-use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost};
+use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost, OwnedEditor};
 
 pub type View = Box<dyn FnOnce() -> beui::NodeId>;
 
 pub enum Adopted {
-    Editor(Editor, Option<View>),
-    Preview(Editor),
+    Editor(OwnedEditor, Option<View>),
+    Preview(OwnedEditor),
     Creation(Creation),
     Artifacts(Artifacts),
 }
@@ -21,7 +21,7 @@ pub enum Adopted {
 impl Adopted {
     pub(crate) fn host(&self) -> EditorHost {
         match self {
-            Self::Editor(editor, _) | Self::Preview(editor) => editor.host().clone(),
+            Self::Editor(editor, _) | Self::Preview(editor) => editor.host(),
             Self::Creation(creation) => creation.host().clone(),
             Self::Artifacts(artifacts) => artifacts.host().clone(),
         }

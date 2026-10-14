@@ -681,7 +681,7 @@ mod wrapped_rows_wrap_long_text_and_grow_percent_children;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 mod zooming_into_the_simulated_screen_follows_the_pointer;
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::color::Color32;
@@ -696,8 +696,8 @@ use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, Spacer, Text,
-    VirtualList, build, create_signal, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, ReadSignal, Spacer,
+    Text, VirtualList, WriteSignal, build, create_signal, with_document,
 };
 use crate::styled;
 use crate::styled::DocumentTheme;
@@ -1396,7 +1396,7 @@ pub(crate) fn ButtonFace(label: String) -> NodeId {
 #[component]
 pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
     view! {
-        <unstyled::Button on_click={move || on_click.call()}>
+        <unstyled::Button on_click={on_click}>
             <ButtonFace label />
         </unstyled::Button>
     }
@@ -1408,7 +1408,7 @@ pub(crate) fn PanZoomStage(
     on_change: crate::reactive::Callback<unstyled::PanZoomView>,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom @test_id="stage" view on_change={move |view| on_change.call(view)}>
+        <unstyled::PanZoom @test_id="stage" view on_change={on_change}>
             {move |handle: unstyled::PanZoomHandle| {
                 let unstyled::PanZoomHandle { view, .. } = handle;
                 view! {
@@ -1427,11 +1427,9 @@ pub(crate) struct VirtualScroll {
     pub(crate) list: NodeId,
 }
 
-pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
+pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let sink = built.clone();
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -1442,7 +1440,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
                             {move |index: usize| {
-                                sink.borrow_mut().push(index);
+                                built.update(|built| built.push(index));
                                 view! {
                                     <Frame
                                         padding_horizontal=0.0
@@ -1473,20 +1471,18 @@ pub(crate) struct KeyedVirtualScroll {
     _keys: crate::reactive::OwnedSignal<Vec<usize>>,
 }
 
-pub(crate) fn keyed_virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> KeyedVirtualScroll {
+pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtualScroll {
     let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
     let (keys, set_keys) = (owned_keys.read(), owned_keys.write());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let sink = built.clone();
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
         move || {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
                             {move |key: usize| {
-                                sink.borrow_mut().push(key);
+                                built.update(|built| built.push(key));
                                 view! {
                                     <Frame height=VIRTUAL_ITEM_HEIGHT>
                                         <Spacer />
@@ -1517,7 +1513,6 @@ pub(crate) struct HelloColumn {
 pub(crate) fn hello_column() -> HelloColumn {
     let (padding, text) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (padding, text) = (padding.clone(), text.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -1553,8 +1548,6 @@ pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let list = list.clone();
-        let (top, middle, bottom) = (top.clone(), middle.clone(), bottom.clone());
         move || {
             view! {
                 <List @node_ref=&list spacing=0.0>
@@ -1577,7 +1570,6 @@ pub(crate) fn three_panels() -> ThreePanels {
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (upper, lower) = (upper.clone(), lower.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -1629,8 +1621,7 @@ pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32)
 pub(crate) const SHEET_ROWS: usize = 20;
 pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
 
-pub(crate) fn sheet_of_rows(rest: f32, sheet: &NodeRef, closed: &Rc<Cell<usize>>) -> Document {
-    let (sheet, closed) = (sheet.clone(), closed.clone());
+pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: WriteSignal<usize>) -> Document {
     build(move || {
         view! {
             <List spacing=0.0>
@@ -1639,7 +1630,7 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: &NodeRef, closed: &Rc<Cell<usize>>
                     @node_ref=&sheet
                     extent=600.0
                     rest
-                    on_close={move || closed.set(closed.get() + 1)}
+                    on_close={move || closed.update(|closed| *closed += 1)}
                 >
                     <List spacing=0.0>
                         <ForEach keys={indices(SHEET_ROWS)}>
@@ -1671,12 +1662,11 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
-    let built = dock.clone();
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         let (open, set_open) = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
                     <ForEach keys={open}>
                         {move |id: u64| view! {
@@ -1699,26 +1689,24 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 pub(crate) struct SplitDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
-    pub(crate) presses: Rc<Cell<u32>>,
+    pub(crate) presses: ReadSignal<u32>,
+    pub(crate) set_presses: WriteSignal<u32>,
 }
 
 pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
-    let built = dock.clone();
-    let presses = Rc::new(Cell::new(0));
-    let pressed = Rc::clone(&presses);
+    let (presses, set_presses) = create_signal(0);
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
-        let (first, second, third) = (Rc::clone(&pressed), Rc::clone(&pressed), pressed);
         view! {
-            <styled::Docking @node_ref=&built layout drag_modifier>
+            <styled::Docking @node_ref=&dock layout drag_modifier>
                 <unstyled::DockSplit id="split">
                     <unstyled::DockPane id="left">
-                        <CountingTab id=1 presses={first} />
+                        <CountingTab id=1 presses={set_presses} />
                     </unstyled::DockPane>
                     <unstyled::DockPane id="right">
-                        <CountingTab id=2 presses={second} />
-                        <CountingTab id=3 presses={third} />
+                        <CountingTab id=2 presses={set_presses} />
+                        <CountingTab id=3 presses={set_presses} />
                     </unstyled::DockPane>
                 </unstyled::DockSplit>
             </styled::Docking>
@@ -1728,14 +1716,15 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
         document,
         dock: dock.get(),
         presses,
+        set_presses,
     }
 }
 
 #[component]
-fn CountingTab(id: u64, presses: Rc<Cell<u32>>) -> unstyled::DockEntry<u64> {
+fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
     view! {
         <unstyled::DockTab id title={format!("Tab {id}")}>
-            <CountingPanel id presses={Rc::clone(&presses)} />
+            <CountingPanel id presses />
         </unstyled::DockTab>
     }
 }
@@ -1743,13 +1732,12 @@ fn CountingTab(id: u64, presses: Rc<Cell<u32>>) -> unstyled::DockEntry<u64> {
 use crate::reactive::Interactive;
 
 #[component]
-fn CountingPanel(id: u64, presses: Rc<Cell<u32>>) -> NodeId {
-    let secondary = Rc::clone(&presses);
+fn CountingPanel(id: u64, presses: WriteSignal<u32>) -> NodeId {
     view! {
         <Interactive
-            on_press={move |_: crate::input::PointerPress| presses.set(presses.get() + 1)}
+            on_press={move |_: crate::input::PointerPress| presses.update(|presses| *presses += 1)}
             on_secondary_press={move |_: crate::input::PointerPress| {
-                secondary.set(secondary.get() + 1)
+                presses.update(|presses| *presses += 1)
             }}
         >
             <Frame @test_id={format!("content.{id}")} />
@@ -1831,18 +1819,18 @@ pub(crate) fn drag_with(harness: &mut Harness, from: Pos2, to: Pos2, modifiers: 
 pub(crate) fn toolbar_of<const N: usize>(
     controls: impl FnOnce() -> [NodeId; N],
 ) -> (Document, [NodeId; N]) {
-    let built = Rc::new(Cell::new(None));
-    let sink = built.clone();
+    let built = crate::reactive::OwnedSignal::new(None);
+    let set_built = built.write();
     let document = build(move || {
         let nodes = controls();
-        sink.set(Some(nodes));
+        set_built.set(Some(nodes));
         view! {
             <List spacing=8.0>
                 <ForEach keys={indices(N)}>{move |index: usize| nodes[index]}</ForEach>
             </List>
         }
     });
-    let nodes = built.get().expect("the toolbar was built");
+    let nodes = built.read().get_untracked().expect("the toolbar was built");
     (document, nodes)
 }
 
@@ -1853,25 +1841,25 @@ use std::time::Duration;
 
 struct Counted {
     inner: Box<dyn Element>,
-    layouts: Rc<Cell<usize>>,
-    paints: Rc<Cell<usize>>,
-    measures: Rc<Cell<usize>>,
-    visits: Rc<Cell<usize>>,
+    layouts: WriteSignal<usize>,
+    paints: WriteSignal<usize>,
+    measures: WriteSignal<usize>,
+    visits: WriteSignal<usize>,
 }
 
 impl Element for Counted {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        self.measures.set(self.measures.get() + 1);
+        self.measures.update(|measures| *measures += 1);
         self.inner.measure(doc, painter, available)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        self.layouts.set(self.layouts.get() + 1);
+        self.layouts.update(|layouts| *layouts += 1);
         self.inner.layout(doc, painter, rect, out);
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        self.paints.set(self.paints.get() + 1);
+        self.paints.update(|paints| *paints += 1);
         self.inner.paint(doc, painter, rects, rect);
     }
 
@@ -1884,7 +1872,7 @@ impl Element for Counted {
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.visits.set(self.visits.get() + 1);
+        self.visits.update(|visits| *visits += 1);
         self.inner.pointer_children()
     }
 
@@ -1900,10 +1888,11 @@ impl Element for Counted {
 }
 
 struct Counts {
-    layouts: Rc<Cell<usize>>,
-    paints: Rc<Cell<usize>>,
-    measures: Rc<Cell<usize>>,
-    visits: Rc<Cell<usize>>,
+    layouts: ReadSignal<usize>,
+    paints: ReadSignal<usize>,
+    measures: ReadSignal<usize>,
+    visits: ReadSignal<usize>,
+    set_visits: WriteSignal<usize>,
 }
 
 const BLINK: Duration = Duration::from_millis(530);
@@ -1921,32 +1910,39 @@ fn still() -> crate::reactive::Draw {
     })
 }
 
-fn counted(document: &mut Document, node: impl Into<NodeId>) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
+fn counted(
+    document: &mut Document,
+    node: impl Into<NodeId>,
+) -> (ReadSignal<usize>, ReadSignal<usize>) {
     let counts = counted_with_measures(document, node);
     (counts.layouts, counts.paints)
 }
 
 fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Counts {
     let node = node.into();
-    let counts = Counts {
-        layouts: Rc::new(Cell::new(0)),
-        paints: Rc::new(Cell::new(0)),
-        measures: Rc::new(Cell::new(0)),
-        visits: Rc::new(Cell::new(0)),
-    };
+    let (layouts, set_layouts) = create_signal(0);
+    let (paints, set_paints) = create_signal(0);
+    let (measures, set_measures) = create_signal(0);
+    let (visits, set_visits) = create_signal(0);
     document.verifies_paint = false;
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
         Box::new(Counted {
             inner,
-            layouts: counts.layouts.clone(),
-            paints: counts.paints.clone(),
-            measures: counts.measures.clone(),
-            visits: counts.visits.clone(),
+            layouts: set_layouts,
+            paints: set_paints,
+            measures: set_measures,
+            visits: set_visits,
         }),
     );
-    counts
+    Counts {
+        layouts,
+        paints,
+        measures,
+        visits,
+        set_visits,
+    }
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
@@ -1987,10 +1983,7 @@ use crate::styled::{Button, ButtonVariant, Launcher, LauncherItem};
 fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
-    let heard = Rc::new(RefCell::new(Vec::<String>::new()));
-    let (ran, closed) = (heard.clone(), heard.clone());
-    let closing = set_open;
-    let reopening = set_open;
+    let (heard, set_heard) = create_signal(Vec::<String>::new());
     let document = build({
         move || {
             view! {
@@ -1999,7 +1992,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                         label="Programs"
                         variant=ButtonVariant::Secondary
                         @test_id={"reopen"}
-                        on_click={move || reopening.set(true)}
+                        on_click={move || set_open.set(true)}
                     />
                     <Launcher
                         open={open}
@@ -2009,10 +2002,10 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                             ..LauncherItem::default()
                         }])}
                         on_launch={|_: String| {}}
-                        on_run={move |line: String| ran.borrow_mut().push(format!("run {line}"))}
+                        on_run={move |line: String| set_heard.update(|heard| heard.push(format!("run {line}")))}
                         on_close={move || {
-                            closed.borrow_mut().push("close".to_owned());
-                            closing.set(false);
+                            set_heard.update(|heard| heard.push("close".to_owned()));
+                            set_open.set(false);
                         }}
                     />
                 </List>
@@ -2025,7 +2018,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 
     close(&mut harness);
     harness.frame(Vec::new());
-    assert_eq!(*heard.borrow(), ["close"]);
+    assert_eq!(heard.get_untracked(), ["close"]);
 
     let button = harness.center(harness.find("reopen"));
     harness.click(button);
@@ -2034,7 +2027,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     harness.type_text("true");
     harness.frame(Vec::new());
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*heard.borrow(), ["close", "run true"]);
+    assert_eq!(heard.get_untracked(), ["close", "run true"]);
 }
 
 pub(crate) struct Driven {
@@ -2182,9 +2175,10 @@ pub(crate) struct DialogDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
     pub(crate) layout: unstyled::DockingLayout<u64>,
-    pub(crate) pressed: Rc<RefCell<Vec<u64>>>,
-    pub(crate) keyed: Rc<RefCell<Vec<u64>>>,
-    pub(crate) attended: Rc<RefCell<Vec<u64>>>,
+    pub(crate) pressed: ReadSignal<Vec<u64>>,
+    pub(crate) set_pressed: WriteSignal<Vec<u64>>,
+    pub(crate) keyed: ReadSignal<Vec<u64>>,
+    pub(crate) attended: ReadSignal<Vec<u64>>,
     pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
     _dialogs: crate::reactive::OwnedSignal<Dialogs>,
 }
@@ -2198,17 +2192,13 @@ pub(crate) fn dialog_size(id: u64) -> Vec2 {
 
 pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let dock = NodeRef::new();
-    let built = dock.clone();
-    let pressed = Rc::new(RefCell::new(Vec::new()));
-    let keyed = Rc::new(RefCell::new(Vec::new()));
-    let attended = Rc::new(RefCell::new(Vec::new()));
+    let (pressed, set_pressed) = create_signal(Vec::new());
+    let (keyed, set_keyed) = create_signal(Vec::new());
+    let (attended, set_attended) = create_signal(Vec::new());
     let layout = unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
     let (listed, set_dialogs) = (owned_dialogs.read(), owned_dialogs.write());
-    let attending = Rc::clone(&attended);
-    let (pressing, keying, laid) = (Rc::clone(&pressed), Rc::clone(&keyed), layout.clone());
     let document = build(move || {
-        let flags = listed;
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
                 listed
@@ -2217,23 +2207,18 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                     .collect::<Vec<_>>()
             })
         });
-        let (tab_presses, tab_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
-        let (dialog_presses, dialog_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
-        let dialog_attention = Rc::clone(&attending);
-        let layout = laid.clone();
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
                     <ForEach keys={tabs.clone()}>
                         {move |id: u64| {
-                            let (pressed, keyed) = (Rc::clone(&tab_presses), Rc::clone(&tab_keys));
                             view! {
                                 <unstyled::DockTab id title={format!("Tab {id}")}>
                                     <FocusPanel
                                         name={format!("content.{id}")}
                                         owner=id
-                                        pressed={Rc::clone(&pressed)}
-                                        keyed={Rc::clone(&keyed)}
+                                        pressed={set_pressed}
+                                        keyed={set_keyed}
                                         attended={None}
                                         size={None}
                                     />
@@ -2244,12 +2229,8 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                 </unstyled::DockPane>
                 <ForEach keys>
                     {move |(id, parent): (u64, u64)| {
-                        let (pressed, keyed) =
-                            (Rc::clone(&dialog_presses), Rc::clone(&dialog_keys));
-                        let attended = Rc::clone(&dialog_attention);
-                        let flags = flags;
                         let modal = crate::reactive::create_memo(move || {
-                            flags.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
+                            listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
                         });
                         view! {
                             <unstyled::DockDialog
@@ -2262,9 +2243,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                 <FocusPanel
                                     name={format!("dialog.{id}.field")}
                                     owner=id
-                                    pressed={Rc::clone(&pressed)}
-                                    keyed={Rc::clone(&keyed)}
-                                    attended={Some(Rc::clone(&attended))}
+                                    pressed={set_pressed}
+                                    keyed={set_keyed}
+                                    attended={Some(set_attended)}
                                     size={Some(dialog_size(id))}
                                 />
                             </unstyled::DockDialog>
@@ -2279,6 +2260,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         dock: dock.get(),
         layout,
         pressed,
+        set_pressed,
         keyed,
         attended,
         set_dialogs,
@@ -2290,16 +2272,16 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
 fn FocusPanel(
     name: String,
     owner: u64,
-    pressed: Rc<RefCell<Vec<u64>>>,
-    keyed: Rc<RefCell<Vec<u64>>>,
-    attended: Option<Rc<RefCell<Vec<u64>>>>,
+    pressed: WriteSignal<Vec<u64>>,
+    keyed: WriteSignal<Vec<u64>>,
+    attended: Option<WriteSignal<Vec<u64>>>,
     size: Option<Vec2>,
 ) -> NodeId {
     if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {
         let called = crate::reactive::create_memo(move || tab.attention());
         crate::reactive::create_effect(move || {
             if called.get().is_some() {
-                attended.borrow_mut().push(owner);
+                attended.update(|attended| attended.push(owner));
             }
         });
     }
@@ -2309,10 +2291,10 @@ fn FocusPanel(
         <Interactive
             focusable=true
             @test_id={name}
-            on_press={move |_: crate::input::PointerPress| pressed.borrow_mut().push(owner)}
+            on_press={move |_: crate::input::PointerPress| pressed.update(|pressed| pressed.push(owner))}
             on_key={move |press: crate::input::KeyPress| {
                 if press.pressed {
-                    keyed.borrow_mut().push(owner);
+                    keyed.update(|keyed| keyed.push(owner));
                 }
                 true
             }}

@@ -44,7 +44,7 @@ pub fn KeepChanges(
 ) -> NodeId {
     let deadline: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
     let (left, set_left) = create_signal(timeout.peek());
-    let expire = on_revert.clone();
+    let expire = on_revert;
     let ticking = create_timer(clone!(deadline -> move || {
         let due = deadline.get()?;
         let remaining = due.saturating_duration_since(now());
@@ -57,7 +57,7 @@ pub fn KeepChanges(
         Some(until_next_second(remaining))
     }));
     let open = create_memo(move || open.get());
-    create_effect(clone!(deadline ticking -> move || {
+    create_effect(clone!(deadline -> move || {
         let opened = open.get();
         round.get();
         untrack(|| match opened {
@@ -208,14 +208,14 @@ fn KeepChangesCard(
                                     label="Revert"
                                     variant=ButtonVariant::Secondary
                                     @test_id={format!("{id}.revert")}
-                                    on_click={move || on_revert.call()}
+                                    on_click={on_revert}
                                 />
                                 <Button
                                     label="Keep"
                                     variant=ButtonVariant::Primary
                                     focused={focused}
                                     @test_id={format!("{id}.keep")}
-                                    on_click={move || on_keep.call()}
+                                    on_click={on_keep}
                                 />
                             </List>
                         </List>

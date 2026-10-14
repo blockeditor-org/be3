@@ -35,13 +35,13 @@ fn bindings() -> Rc<NodeBindings> {
 pub fn component_node() -> crate::callback::NodeRef {
     let bindings = bindings();
     if let Some(node) = bindings.node.borrow().as_ref() {
-        return node.clone();
+        return *node;
     }
     let node = crate::callback::NodeRef::new();
     if let Some(target) = bindings.target.get() {
         node.fill(target);
     }
-    bindings.node.replace(Some(node.clone()));
+    bindings.node.replace(Some(node));
     node
 }
 
@@ -189,7 +189,7 @@ impl<P: ParentKind> Placed<P> {
         let initial = data.peek();
         if let Prop::Dynamic(read) = data {
             create_effect(move || {
-                let data = read();
+                let data = read.get();
                 with_document(|document| {
                     if let Some(parent) = document.arena.kind_of::<P>(parent) {
                         P::update(document, parent, node, data);
@@ -431,12 +431,12 @@ impl IntoProp<Sizing> for Prop<ItemSize> {
 
 impl IntoProp<Sizing> for ReadSignal<ItemSize> {
     fn into_prop(self) -> Prop<Sizing> {
-        Prop::Dynamic(Rc::new(move || self.get().into()))
+        Prop::dynamic(move || self.get().into())
     }
 }
 
 impl IntoProp<Sizing> for Memo<ItemSize> {
     fn into_prop(self) -> Prop<Sizing> {
-        Prop::Dynamic(Rc::new(move || self.get().into()))
+        Prop::dynamic(move || self.get().into())
     }
 }

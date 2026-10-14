@@ -3,9 +3,9 @@ use crate::reactive::{Frame, List, NodeRef, Text, build, view};
 
 #[test]
 fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
+    let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let document = build({
-        let text = text.clone();
         move || {
             view! {
                 <List spacing=0.0>
@@ -37,7 +37,7 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
     );
 
     harness.toggle_picking();
-    assert!(harness.inspector().state.picking.get());
+    assert!(harness.inspector().state().picking.get());
 
     let target = harness
         .document
@@ -47,8 +47,8 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
     harness.click(target);
     harness.frame(Vec::new());
 
-    assert!(!harness.inspector().state.picking.get());
-    assert_eq!(harness.inspector().state.selected.get(), Some(text));
+    assert!(!harness.inspector().state().picking.get());
+    assert_eq!(harness.inspector().state().selected.get(), Some(text));
     assert_eq!(
         harness.tree(),
         ["list", "  frame", "    frame", "      frame"],

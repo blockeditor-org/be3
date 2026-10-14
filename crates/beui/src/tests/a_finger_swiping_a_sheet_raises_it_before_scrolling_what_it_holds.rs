@@ -3,9 +3,10 @@ use crate::reactive::NodeRef;
 
 #[test]
 fn a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds() {
+    let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let closed = Rc::new(Cell::new(0));
-    let document = sheet_of_rows(0.5, &sheet, &closed);
+    let (closed, set_closed) = create_signal(0);
+    let document = sheet_of_rows(0.5, sheet, set_closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();
@@ -48,5 +49,5 @@ fn a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds() {
         300.0,
         "and then lowers the sheet, which settles on the nearest stop"
     );
-    assert_eq!(closed.get(), 0);
+    assert_eq!(closed.get_untracked(), 0);
 }

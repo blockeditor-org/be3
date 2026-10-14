@@ -5,8 +5,8 @@ use crate::unstyled::{TimeList, TimeOptionHandle};
 
 #[test]
 fn a_time_list_moves_through_its_times_and_picks_one() {
-    let picked = Rc::new(RefCell::new(Vec::new()));
-    let sink = picked.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (picked, set_picked) = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -19,7 +19,7 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                         option={|handle: TimeOptionHandle| view! {
                             <Text string={handle.label} />
                         }}
-                        on_change={move |time| sink.borrow_mut().push(time)}
+                        on_change={move |time| set_picked.update(|picked| picked.push(time))}
                     />
                 </List>
             </List>
@@ -35,5 +35,5 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
     harness.key(Key::PageDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(*picked.borrow(), [Time::new(10, 0), Time::new(12, 0)]);
+    assert_eq!(picked.get_untracked(), [Time::new(10, 0), Time::new(12, 0)]);
 }

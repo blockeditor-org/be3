@@ -34,7 +34,7 @@ pub fn Switch(
             label
             disabled
             role=Role::Switch
-            on_change={move |on| on_change.call(on)}
+            on_change={on_change}
         >
             {move |handle: ToggleHandle| {
                 view! {

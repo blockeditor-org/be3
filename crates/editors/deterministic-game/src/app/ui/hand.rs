@@ -79,7 +79,7 @@ pub(crate) fn HandBar(
                                         spot
                                         hand={hand}
                                         bar={rect}
-                                        play={play.clone()}
+                                        play={play}
                                         hidden={hidden}
                                     />
                                 }}
@@ -113,7 +113,7 @@ fn HandItem(
             .unwrap_or(Rect::ZERO)
     });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
+    let draw: Prop<Draw> = Prop::dynamic(move || {
         let held = held.get();
         let mark = play.mark(spot);
         let hidden = hidden.with(|hidden| hidden.contains(&id));
@@ -127,7 +127,7 @@ fn HandItem(
             }
             paint_card_mark(painter, rect, mark, 1.0, &theme);
         }) as Draw
-    }));
+    });
     view! {
         <CanvasItem
             x={create_memo(move || rect.get().left())}

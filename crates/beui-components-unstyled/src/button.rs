@@ -11,7 +11,7 @@ use beui_view::reactive::{
     create_memo, create_signal, set_component_state, untrack,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ButtonHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
@@ -119,8 +119,8 @@ pub fn Button(
             tab_stop
             press_focus
             focused={focus_request}
-            on_key={move |press| on_key.call(press)}
-            on_text={move |text| on_text.call(text)}
+            on_key={on_key}
+            on_text={on_text}
             takes_text
             on_focus_change={move |has_focus: bool| {
                 set_focused.set(has_focus);
@@ -133,7 +133,7 @@ pub fn Button(
             key_active
             on_click={click}
             on_click_at={click_at}
-            on_press={move |press| on_press.call(press)}
+            on_press={on_press}
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
             on_active_change={move |active: bool| set_active.set(active)}
             children={content_node}

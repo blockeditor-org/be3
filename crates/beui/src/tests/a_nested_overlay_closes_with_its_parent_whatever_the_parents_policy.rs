@@ -11,14 +11,10 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let (open, set_open) = create_signal(true);
     let (policy, set_policy) = create_signal(LayerPolicy::BlocksAll);
     let (nested_open, set_nested_open) = create_signal(true);
-    let dismissed = Rc::new(Cell::new(0));
-    let nested_dismissed = Rc::new(Cell::new(0));
+    let (dismissed, set_dismissed) = create_signal(0);
+    let (nested_dismissed, set_nested_dismissed) = create_signal(0);
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (open, policy, nested_open) = (open, policy, nested_open);
-        let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
-        let (outer, inner) = (outer.clone(), inner.clone());
-        let closing = set_nested_open;
         move || {
             view! {
                 <Frame>
@@ -28,7 +24,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
                         placement=Placement::At
                         policy={policy}
                         open={open}
-                        on_dismiss={move |_: Dismiss| reports.set(reports.get() + 1)}
+                        on_dismiss={move |_: Dismiss| set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
                         <List spacing=0.0>
                             <Frame width=40.0 height=30.0 />
@@ -38,8 +34,8 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
                                 placement=Placement::At
                                 open={nested_open}
                                 on_dismiss={move |_: Dismiss| {
-                                    nested_reports.set(nested_reports.get() + 1);
-                                    closing.set(false);
+                                    set_nested_dismissed.update(|nested_dismissed| *nested_dismissed += 1);
+                                    set_nested_open.set(false);
                                 }}
                             >
                                 <Frame width=40.0 height=30.0 />
@@ -83,9 +79,9 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     set(&mut harness, set_open, false);
     assert!(
         !harness.document().is_overlay_open(inner.id()),
-        "closing a passing parent takes the nested overlay with it"
+        "set_nested_open a passing parent takes the nested overlay with it"
     );
     assert!(!harness.document().modal_open());
-    assert_eq!(nested_dismissed.get(), 1);
-    assert_eq!(dismissed.get(), 0);
+    assert_eq!(nested_dismissed.get_untracked(), 1);
+    assert_eq!(dismissed.get_untracked(), 0);
 }

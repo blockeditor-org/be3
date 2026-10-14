@@ -234,7 +234,7 @@ fn bind<T: Clone + 'static>(
     };
     let handle = handle.clone();
     create_effect(move || {
-        let value = read();
+        let value = read.get();
         with_document(|document| {
             document.update_text_span(text, &handle, |content| write(content, value))
         });
@@ -300,9 +300,7 @@ pub fn Span(
 ) -> Span {
     let text = text.unwrap_or_else(|| {
         let run = children.into_run();
-        Prop::Dynamic(Rc::new(move || {
-            run.items().iter().map(|piece| piece.0.get()).collect()
-        }))
+        Prop::dynamic(move || run.items().iter().map(|piece| piece.0.get()).collect())
     });
     Span {
         text,

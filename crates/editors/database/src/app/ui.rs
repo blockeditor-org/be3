@@ -1,15 +1,13 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::database::DatabaseContent;
 use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_beui::beui::reactive::{
-    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone, component,
-    create_effect, create_memo, view,
+    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, component,
+    create_effect, create_memo, store, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, Scroll, use_theme};
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockInfo, BlockQuery};
+use block_editor_beui::{BlockInfo, BlockList, BlockQuery};
 use block_editor_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
 use uuid::Uuid;
 
@@ -22,16 +20,15 @@ const CHROME_HEIGHT: f32 = 90.0;
 #[component]
 pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let database = editor.block_content::<DatabaseContent>();
-    let views = watch_views(&editor);
+    let views = watch_views(editor);
     let loaded = views.loaded;
     let rows = views.rows;
     let reference = database.project(|database| database.root().schema);
     let schema = create_memo(move || reference.get());
 
-    let sized = editor.clone();
     create_effect(move || {
         let height = CHROME_HEIGHT + ROW_HEIGHT * rows.with(Vec::len) as f32;
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
     let empty = create_memo(move || rows.with(Vec::is_empty));
@@ -39,9 +36,8 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let none_yet = create_memo(move || empty.get() && loaded.get());
     let read_only = editor.read_only();
     let block_id = editor.block_id();
-    let creating = editor.clone();
     let new_view = move || {
-        creating.create_child(&DatabaseViewContent::new(&database_view::DatabaseView::of(
+        editor.create_child(&DatabaseViewContent::new(&database_view::DatabaseView::of(
             block_id,
         )));
     };
@@ -49,7 +45,6 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let links = editor.clone();
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -69,7 +64,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
                             <Caption content="This database has no views yet." />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <ViewLinks editor={links} rows={rows} />
+                            <ViewLinks editor={editor} rows={rows} />
                         </Scroll>
                         <List direction=Direction::Horizontal spacing=0.0>
                             <Button
@@ -102,7 +97,7 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
                     let target = Some(ChildTarget::new(id, DatabaseViewContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
-                            editor={editor.clone()}
+                            editor={editor}
                             block={target}
                             @test_id={format!("database.view.{id}")}
                         />
@@ -141,15 +136,15 @@ struct Views {
     loaded: Memo<bool>,
 }
 
-fn watch_views(editor: &Editor) -> Views {
+fn watch_views(editor: Editor) -> Views {
     let references = editor
         .blocks()
         .watch(BlockQuery::Backrefs(editor.block_id()));
-    let references = Rc::new(references);
-    let loaded = create_memo(clone!(references -> move || references.is_loaded()));
+    let references = store(references);
+    let loaded = create_memo(move || references.with(BlockList::is_loaded));
     let rows = create_memo(move || {
         references
-            .read()
+            .with(BlockList::read)
             .into_iter()
             .filter(|reference| reference.block_type == DatabaseViewContent::CONTENT_TYPE)
             .collect()

@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use super::actions::{CanvasActions, embedded_block};
 use super::paint::resolve_color;
 use super::sidebar::{PRESETS, set_foreground, styled_entities};
@@ -22,20 +20,19 @@ const SWATCH: f32 = 22.0;
 const SWATCH_RING: f32 = 3.0;
 
 #[component]
-pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
+pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
     let narrow = narrow_chrome();
-    let colored = create_memo(clone!(state -> move || !styled_entities(&state).is_empty()));
-    let value = create_memo(clone!(state -> move || {
+    let colored = create_memo(move || !styled_entities(state).is_empty());
+    let value = create_memo(move || {
         common_value(
-            styled_entities(&state)
+            styled_entities(state)
                 .iter()
                 .map(|entity| entity.style.foreground),
         )
-    }));
+    });
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let open = actions.open.clone();
-    let embedded = create_memo(clone!(state -> move || embedded_block(&state).is_some()));
-    let picking = Rc::clone(&state);
+    let embedded = create_memo(move || embedded_block(&state).is_some());
     let sheet = sheet_control();
     let tune = move || {
         if let Some(sheet) = &sheet {
@@ -56,12 +53,11 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Show condition={colored}>
-                    {move || clone!(picking -> view! {
+                    {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                             <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
                                 {move |index: usize| {
                                     let (name, color) = PRESETS[index];
-                                    let state = Rc::clone(&picking);
                                     let value = value;
                                     view! {
                                         <Swatch
@@ -69,13 +65,13 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                                             name
                                             color
                                             value
-                                            on_pick={move |color| set_foreground(&state, color)}
+                                            on_pick={move |color| set_foreground(state, color)}
                                         />
                                     }
                                 }}
                             </ForEach>
                         </List>
-                    })}
+                    }}
                 </Show>
                 <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
                 <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />

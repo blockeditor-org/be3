@@ -248,7 +248,7 @@ impl Element for OffsetNode {
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
             self.reported = Some(position);
-            let on_change = self.on_change.clone();
+            let on_change = self.on_change;
             doc.report_after_layout(move || on_change.call(position));
         }
     }
@@ -408,10 +408,7 @@ impl Document {
         offset: NodeOf<OffsetNode>,
         handler: impl FnMut(ScrollPosition) + 'static,
     ) {
-        self.arena
-            .touch_mut_as::<OffsetNode>(offset)
-            .on_change
-            .set(handler);
+        self.arena.touch_mut_as::<OffsetNode>(offset).on_change = Callback::new(handler);
     }
 }
 

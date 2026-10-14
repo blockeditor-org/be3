@@ -6,7 +6,7 @@ use beui_view::reactive::{
     LayoutBuilder, Memo, ReadSignal, Render, create_memo, provide_context, use_context,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ContainerSize(pub ReadSignal<Vec2>);
 
 #[component]

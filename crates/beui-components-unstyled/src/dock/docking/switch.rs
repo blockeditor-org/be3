@@ -2,11 +2,11 @@ use super::{DockKey, DockState, DockingLayout};
 
 impl<K: DockKey> DockingLayout<K> {
     pub fn switching(&self) -> bool {
-        self.inner.state.with(|state| state.switch().is_some())
+        self.state.with(|state| state.switch().is_some())
     }
 
     pub fn switch_choice(&self) -> Option<K> {
-        let tab = self.inner.state.with(DockState::switch)?.chosen;
+        let tab = self.state.with(DockState::switch)?.chosen;
         self.key_of(tab)
     }
 

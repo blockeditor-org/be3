@@ -963,12 +963,12 @@ impl EditorHost {
             .insert(block, content_type);
     }
 
-    pub fn content_of<C>(&self, block: Uuid) -> crate::ContentProjection<C>
+    pub fn content_of<C>(&self, block: Uuid) -> crate::OwnedContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
         self.watch_content(block, C::CONTENT_TYPE);
-        crate::ContentProjection::new(self.clone(), Some(block))
+        crate::OwnedContentProjection::new(self.clone(), Some(block))
     }
 
     pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {

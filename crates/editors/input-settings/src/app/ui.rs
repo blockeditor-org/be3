@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::input_settings::{
     InputDevice, MAX_POINTER_SPEED, MAX_REPEAT_DELAY, MAX_REPEAT_RATE, MIN_POINTER_SPEED,
     MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerSetting, PointerSettings, PointerSpeed,
@@ -8,8 +6,8 @@ use block_editor_beui::be_block::{InputSettings, InputSettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, clone,
-    component, create_memo, create_signal, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component,
+    create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,
@@ -24,9 +22,9 @@ const ROW_SPACING: f32 = 8.0;
 const LABEL_SPACING: f32 = 4.0;
 const COLUMN_SPACING: f32 = 12.0;
 
-type Settings = Rc<ContentProjection<InputSettingsContent>>;
+type Settings = ContentProjection<InputSettingsContent>;
 type DeviceKey = (String, u32, u32);
-type Apply = Rc<dyn Fn(PointerSetting)>;
+type Apply = Callback<PointerSetting>;
 
 #[component]
 pub fn InputSettingsView(editor: Editor) -> NodeId {
@@ -59,14 +57,10 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
         create_memo(move || rate.get().unwrap_or(effective.get().repeat_rate() as f32));
     let rate_shown = create_memo(move || format!("{} / s", rate_value.get()));
     let rate_unset = create_memo(move || rate.get().is_none());
-    let (set_layout, set_variant, set_options) =
-        (settings.clone(), settings.clone(), settings.clone());
-    let (set_delay, set_rate) = (settings.clone(), settings.clone());
     let pointers_off = read_only;
     let paste = settings.project(|content| content.root().middle_click_paste);
     let paste_on = create_memo(move || effective.get().middle_click_paste());
     let paste_unset = create_memo(move || paste.get().is_none());
-    let set_paste = settings.clone();
     let paste_off = read_only;
     let theme = use_theme();
     view! {
@@ -84,7 +78,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 read_only={read_only}
                                 id="layout"
                                 on_change={move |layout: Option<String>| {
-                                    set_layout.operate(InputSettings::set_keyboard_layout(layout.as_deref()))
+                                    settings.operate(InputSettings::set_keyboard_layout(layout.as_deref()))
                                 }}
                             />
                             <TextSetting
@@ -94,7 +88,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 read_only={read_only}
                                 id="variant"
                                 on_change={move |variant: Option<String>| {
-                                    set_variant.operate(InputSettings::set_keyboard_variant(variant.as_deref()))
+                                    settings.operate(InputSettings::set_keyboard_variant(variant.as_deref()))
                                 }}
                             />
                             <TextSetting
@@ -104,7 +98,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 read_only={read_only}
                                 id="options"
                                 on_change={move |options: Option<String>| {
-                                    set_options.operate(InputSettings::set_keyboard_options(options.as_deref()))
+                                    settings.operate(InputSettings::set_keyboard_options(options.as_deref()))
                                 }}
                             />
                             <SliderSetting
@@ -117,7 +111,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 read_only={read_only}
                                 id={"repeat-delay".to_owned()}
                                 on_change={move |delay: Option<f32>| {
-                                    set_delay.operate(InputSettings::set_repeat_delay(delay.map(|delay| delay.round() as u32)))
+                                    settings.operate(InputSettings::set_repeat_delay(delay.map(|delay| delay.round() as u32)))
                                 }}
                             />
                             <SliderSetting
@@ -130,12 +124,12 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 read_only={read_only}
                                 id={"repeat-rate".to_owned()}
                                 on_change={move |rate: Option<f32>| {
-                                    set_rate.operate(InputSettings::set_repeat_rate(rate.map(|rate| rate.round() as u32)))
+                                    settings.operate(InputSettings::set_repeat_rate(rate.map(|rate| rate.round() as u32)))
                                 }}
                             />
                         </List>
                         <Pointers
-                            settings={settings.clone()}
+                            settings={settings}
                             root={root}
                             effective={effective}
                             devices={devices}
@@ -151,7 +145,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 read_only={paste_off}
                                 id={"middle-click-paste".to_owned()}
                                 on_change={move |on: Option<bool>| {
-                                    set_paste.operate(InputSettings::set_middle_click_paste(on))
+                                    settings.operate(InputSettings::set_middle_click_paste(on))
                                 }}
                             />
                             <Caption
@@ -255,7 +249,7 @@ fn Pointers(
         Some(index.map_or(0, |index| index + 1))
     });
     let picked = keys;
-    let apply: Apply = Rc::new(move |setting: PointerSetting| {
+    let apply = Apply::new(move |setting: PointerSetting| {
         let root = root.get_untracked();
         let edit = match scope.get_untracked() {
             None => root.set_every_pointer(setting),
@@ -309,7 +303,6 @@ fn Pointers(
     let (tap_on, tap_mixed, tap_unset, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, natural_unset, has_natural) = switch_state(natural);
     let (speed_off, tap_off, natural_off) = (read_only, read_only, read_only);
-    let (apply_speed, apply_tap, apply_natural) = (apply.clone(), apply.clone(), apply);
     view! {
         <List spacing=ROW_SPACING>
             <Heading content="Pointers" />
@@ -345,9 +338,9 @@ fn Pointers(
                     max=MAX_POINTER_SPEED
                     read_only={speed_off}
                     id={"pointer.speed".to_owned()}
-                    on_change={clone!(apply_speed -> move |speed: Option<f32>| {
-                        apply_speed(PointerSetting::Speed(speed.map(PointerSpeed::new)))
-                    })}
+                    on_change={move |speed: Option<f32>| {
+                        apply.call(PointerSetting::Speed(speed.map(PointerSpeed::new)))
+                    }}
                 />
             </Show>
             <Show condition={has_tap}>
@@ -358,9 +351,9 @@ fn Pointers(
                     unset={tap_unset}
                     read_only={tap_off}
                     id={"pointer.tap-to-click".to_owned()}
-                    on_change={clone!(apply_tap -> move |tap: Option<bool>| {
-                        apply_tap(PointerSetting::TapToClick(tap))
-                    })}
+                    on_change={move |tap: Option<bool>| {
+                        apply.call(PointerSetting::TapToClick(tap))
+                    }}
                 />
             </Show>
             <Show condition={has_natural}>
@@ -371,9 +364,9 @@ fn Pointers(
                     unset={natural_unset}
                     read_only={natural_off}
                     id={"pointer.natural-scroll".to_owned()}
-                    on_change={clone!(apply_natural -> move |natural: Option<bool>| {
-                        apply_natural(PointerSetting::NaturalScroll(natural))
-                    })}
+                    on_change={move |natural: Option<bool>| {
+                        apply.call(PointerSetting::NaturalScroll(natural))
+                    }}
                 />
             </Show>
         </List>
@@ -419,7 +412,7 @@ fn TextSetting(
 ) -> NodeId {
     let shown = create_memo(move || value.get().unwrap_or_default());
     let unset = create_memo(move || value.get().is_none());
-    let typed = on_change.clone();
+    let typed = on_change;
     let echoed = shown;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
@@ -460,7 +453,7 @@ fn SliderSetting(
     id: String,
     on_change: Callback<Option<f32>>,
 ) -> NodeId {
-    let moved = on_change.clone();
+    let moved = on_change;
     view! {
         <List spacing=LABEL_SPACING>
             <Caption content={label} />
@@ -497,7 +490,7 @@ fn SwitchSetting(
     id: String,
     on_change: Callback<Option<bool>>,
 ) -> NodeId {
-    let switched = on_change.clone();
+    let switched = on_change;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
             <Body @sizing=ItemSize::Percent(100.0) content={label} />

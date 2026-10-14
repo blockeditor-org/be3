@@ -12,14 +12,11 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
     let (nested_open, set_nested_open) = create_signal(false);
-    let dismissed = Rc::new(RefCell::new(Vec::new()));
-    let nested_dismissed = Rc::new(RefCell::new(Vec::new()));
+    let (dismissed, set_dismissed) = create_signal(Vec::new());
+    let (nested_dismissed, set_nested_dismissed) = create_signal(Vec::new());
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (open, nested_open) = (open, nested_open);
-        let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
         let (closing, nested_closing) = (set_open, set_nested_open);
-        let (outer, inner) = (outer.clone(), inner.clone());
         move || {
             view! {
                 <Frame>
@@ -29,7 +26,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
                         placement=Placement::At
                         open={open}
                         on_dismiss={move |reason: Dismiss| {
-                            reports.borrow_mut().push(reason);
+                            set_dismissed.update(|dismissed| dismissed.push(reason));
                             closing.set(false);
                         }}
                     >
@@ -41,7 +38,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
                                 placement=Placement::At
                                 open={nested_open}
                                 on_dismiss={move |reason: Dismiss| {
-                                    nested_reports.borrow_mut().push(reason);
+                                    set_nested_dismissed.update(|nested_dismissed| nested_dismissed.push(reason));
                                     nested_closing.set(false);
                                 }}
                             >
@@ -74,7 +71,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     harness.key(Key::Escape, Modifiers::NONE);
     assert!(!harness.document().is_overlay_open(outer.id()));
     assert_eq!(
-        *dismissed.borrow(),
+        dismissed.get_untracked(),
         [Dismiss::Escape],
         "Escape asks it to close"
     );
@@ -84,7 +81,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     harness.frame(Vec::new());
     assert!(!harness.document().is_overlay_open(outer.id()));
     assert_eq!(
-        dismissed.borrow().last(),
+        dismissed.get_untracked().last(),
         Some(&Dismiss::OutsidePress),
         "a click outside asks it to close"
     );
@@ -93,7 +90,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert!(!harness.document().is_overlay_open(outer.id()));
     assert_eq!(
-        dismissed.borrow().last(),
+        dismissed.get_untracked().last(),
         Some(&Dismiss::Back),
         "back asks it to close"
     );
@@ -102,7 +99,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     set(&mut harness, set_open, false);
     assert!(!harness.document().is_overlay_open(outer.id()));
     assert_eq!(
-        dismissed.borrow().len(),
+        dismissed.with_untracked(|dismissed| dismissed.len()),
         3,
         "its owner closing it is no dismiss"
     );
@@ -112,9 +109,9 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     assert!(harness.document().is_overlay_open(inner.id()));
     set(&mut harness, set_open, false);
     assert!(!harness.document().is_overlay_open(inner.id()));
-    assert_eq!(dismissed.borrow().len(), 3);
+    assert_eq!(dismissed.with_untracked(|dismissed| dismissed.len()), 3);
     assert_eq!(
-        *nested_dismissed.borrow(),
+        nested_dismissed.get_untracked(),
         [Dismiss::WithParent],
         "a nested overlay closed by its parent closing is told so"
     );
@@ -126,9 +123,13 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     });
     harness.frame(Vec::new());
     assert!(!harness.document().is_overlay_open(inner.id()));
-    assert_eq!(dismissed.borrow().len(), 4, "the parent is dismissed once");
     assert_eq!(
-        nested_dismissed.borrow().len(),
+        dismissed.with_untracked(|dismissed| dismissed.len()),
+        4,
+        "the parent is dismissed once"
+    );
+    assert_eq!(
+        nested_dismissed.with_untracked(|nested_dismissed| nested_dismissed.len()),
         2,
         "and takes the nested overlay with it"
     );
@@ -139,9 +140,9 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     assert!(!harness.document().is_overlay_open(inner.id()));
     assert!(harness.document().is_overlay_open(outer.id()));
     assert_eq!(
-        nested_dismissed.borrow().last(),
+        nested_dismissed.get_untracked().last(),
         Some(&Dismiss::Escape),
         "Escape asks the topmost only"
     );
-    assert_eq!(dismissed.borrow().len(), 4);
+    assert_eq!(dismissed.with_untracked(|dismissed| dismissed.len()), 4);
 }

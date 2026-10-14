@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use beui::reactive::{ReadSignal, Stored, WriteSignal, create_signal, store};
 use beui::{CursorIcon, Drawing, ForwardedInput, Image, NodeId, Rect, Vec2};
 
 use crate::state::WindowId;
@@ -78,15 +78,15 @@ struct Inner {
     set_idle: WriteSignal<bool>,
 }
 
-#[derive(Clone)]
-pub struct Windows(Rc<Inner>);
+#[derive(Clone, Copy)]
+pub struct Windows(Stored<Inner>);
 
 impl Windows {
     pub fn new() -> Self {
         let (list, set_list) = create_signal(Vec::new());
         let (cursor, set_cursor) = create_signal(CursorIcon::Default);
         let (idle, set_idle) = create_signal(false);
-        Self(Rc::new(Inner {
+        Self(store(Inner {
             windows: RefCell::new(HashMap::new()),
             views: RefCell::new(HashMap::new()),
             commands: RefCell::new(Vec::new()),
@@ -106,64 +106,77 @@ impl Windows {
     }
 
     pub fn list(&self) -> ReadSignal<Vec<WindowInfo>> {
-        self.0.list
+        let inner = self.0.get();
+        inner.list
     }
 
     pub fn revision(&self) -> u64 {
-        self.0.revision.get()
+        let inner = self.0.get();
+        inner.revision.get()
     }
 
     pub fn signals(&self, id: WindowId) -> Option<WindowSignals> {
-        self.0.windows.borrow().get(&id).cloned()
+        let inner = self.0.get();
+        inner.windows.borrow().get(&id).cloned()
     }
 
     pub fn cursor(&self) -> ReadSignal<CursorIcon> {
-        self.0.cursor
+        let inner = self.0.get();
+        inner.cursor
     }
 
     pub fn idle(&self) -> ReadSignal<bool> {
-        self.0.idle
+        let inner = self.0.get();
+        inner.idle
     }
 
     pub(crate) fn set_idle(&self, idle: bool) {
-        self.0.set_idle.set(idle);
+        let inner = self.0.get();
+        inner.set_idle.set(idle);
     }
 
     pub fn request_fullscreen(&self, id: WindowId, fullscreen: bool) {
-        self.0
+        let inner = self.0.get();
+        inner
             .fullscreen_requests
             .borrow_mut()
             .push((id, fullscreen));
     }
 
     pub(crate) fn take_fullscreen_requests(&self) -> Vec<(WindowId, bool)> {
-        std::mem::take(&mut *self.0.fullscreen_requests.borrow_mut())
+        let inner = self.0.get();
+        std::mem::take(&mut *inner.fullscreen_requests.borrow_mut())
     }
 
     pub fn activate(&self, id: WindowId) {
-        self.0.activate.set(Some(id));
+        let inner = self.0.get();
+        inner.activate.set(Some(id));
     }
 
     pub(crate) fn take_activation(&self) -> Option<WindowId> {
-        self.0.activate.take()
+        let inner = self.0.get();
+        inner.activate.take()
     }
 
     pub(crate) fn raise(&self, id: WindowId) {
+        let inner = self.0.get();
         let id = self.blocked_by(id).unwrap_or(id);
         let Some(signals) = self.signals(id) else {
             return;
         };
         signals.set_focused.set(true);
-        *self.0.raised.borrow_mut().entry(id).or_default() += 1;
-        self.0.revision.set(self.0.revision.get() + 1);
+        *inner.raised.borrow_mut().entry(id).or_default() += 1;
+        inner.revision.set(inner.revision.get() + 1);
     }
 
     pub fn raised(&self, id: WindowId) -> u64 {
-        self.0.raised.borrow().get(&id).copied().unwrap_or_default()
+        let inner = self.0.get();
+        inner.raised.borrow().get(&id).copied().unwrap_or_default()
     }
 
     pub fn blocked_by(&self, id: WindowId) -> Option<WindowId> {
-        self.0
+        let inner = self.0.get();
+        inner
             .list
             .with_untracked(|list| crate::dialog::modal_dialog(list, id))
     }
@@ -190,16 +203,18 @@ impl Windows {
     }
 
     pub(crate) fn set_cursor(&self, cursor: CursorIcon) {
-        if self.0.cursor.get_untracked() != cursor {
-            self.0.set_cursor.set(cursor);
+        let inner = self.0.get();
+        if inner.cursor.get_untracked() != cursor {
+            inner.set_cursor.set(cursor);
         }
     }
 
     pub(crate) fn open(&self, id: WindowId) {
+        let inner = self.0.get();
         let (drawing, set_drawing) = create_signal(None);
         let (popups, set_popups) = create_signal(None);
         let (focused, set_focused) = create_signal(true);
-        self.0.windows.borrow_mut().insert(
+        inner.windows.borrow_mut().insert(
             id,
             WindowSignals {
                 drawing,
@@ -214,23 +229,26 @@ impl Windows {
     }
 
     pub(crate) fn forget(&self, id: WindowId) {
-        self.0.windows.borrow_mut().remove(&id);
-        self.0.views.borrow_mut().remove(&id);
-        self.0.raised.borrow_mut().remove(&id);
-        if self.0.focused.get() == Some(id) {
-            self.0.focused.set(None);
+        let inner = self.0.get();
+        inner.windows.borrow_mut().remove(&id);
+        inner.views.borrow_mut().remove(&id);
+        inner.raised.borrow_mut().remove(&id);
+        if inner.focused.get() == Some(id) {
+            inner.focused.set(None);
         }
     }
 
     pub(crate) fn set_list(&self, list: Vec<WindowInfo>) {
-        if self.0.list.get_untracked() != list {
-            self.0.revision.set(self.0.revision.get() + 1);
-            self.0.set_list.set(list);
+        let inner = self.0.get();
+        if inner.list.get_untracked() != list {
+            inner.revision.set(inner.revision.get() + 1);
+            inner.set_list.set(list);
         }
     }
 
     pub(crate) fn listed(&self, id: WindowId) -> bool {
-        self.0.list.get_untracked().iter().any(|info| info.id == id)
+        let inner = self.0.get();
+        inner.list.get_untracked().iter().any(|info| info.id == id)
     }
 
     pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>, popups: Option<Popups>) {
@@ -241,7 +259,8 @@ impl Windows {
     }
 
     pub(crate) fn take_painted(&self) -> Vec<WindowId> {
-        self.0
+        let inner = self.0.get();
+        inner
             .windows
             .borrow()
             .iter()
@@ -251,15 +270,18 @@ impl Windows {
     }
 
     pub(crate) fn push(&self, command: Command) {
-        self.0.commands.borrow_mut().push(command);
+        let inner = self.0.get();
+        inner.commands.borrow_mut().push(command);
     }
 
     pub(crate) fn take_commands(&self) -> Vec<Command> {
-        std::mem::take(&mut *self.0.commands.borrow_mut())
+        let inner = self.0.get();
+        std::mem::take(&mut *inner.commands.borrow_mut())
     }
 
     pub(crate) fn placed(&self, id: WindowId, rect: Rect) {
-        let mut views = self.0.views.borrow_mut();
+        let inner = self.0.get();
+        let mut views = inner.views.borrow_mut();
         let view = views.entry(id).or_default();
         let changed = view.rect != Some(rect);
         view.rect = Some(rect);
@@ -270,15 +292,18 @@ impl Windows {
     }
 
     pub(crate) fn caught_by(&self, id: WindowId, catcher: NodeId) {
-        self.0.views.borrow_mut().entry(id).or_default().catcher = Some(catcher);
+        let inner = self.0.get();
+        inner.views.borrow_mut().entry(id).or_default().catcher = Some(catcher);
     }
 
     pub(crate) fn popups_caught_by(&self, id: WindowId, catcher: NodeId) {
-        self.0.views.borrow_mut().entry(id).or_default().popups = Some(catcher);
+        let inner = self.0.get();
+        inner.views.borrow_mut().entry(id).or_default().popups = Some(catcher);
     }
 
     pub(crate) fn caught_at(&self, catcher: NodeId) -> Option<(WindowId, Rect)> {
-        self.0
+        let inner = self.0.get();
+        inner
             .views
             .borrow()
             .iter()
@@ -287,22 +312,27 @@ impl Windows {
     }
 
     pub(crate) fn unplaced(&self, id: WindowId) {
-        self.0.views.borrow_mut().remove(&id);
+        let inner = self.0.get();
+        inner.views.borrow_mut().remove(&id);
     }
 
     pub fn rect(&self, id: WindowId) -> Option<Rect> {
-        self.0.views.borrow().get(&id).and_then(|view| view.rect)
+        let inner = self.0.get();
+        inner.views.borrow().get(&id).and_then(|view| view.rect)
     }
 
     pub(crate) fn forward(&self, id: WindowId, input: ForwardedInput) {
-        self.0.input.borrow_mut().push((id, input));
+        let inner = self.0.get();
+        inner.input.borrow_mut().push((id, input));
     }
 
     pub(crate) fn take_input(&self) -> Vec<(WindowId, ForwardedInput)> {
-        std::mem::take(&mut *self.0.input.borrow_mut())
+        let inner = self.0.get();
+        std::mem::take(&mut *inner.input.borrow_mut())
     }
 
     pub(crate) fn focus(&self, id: WindowId, focused: bool) {
+        let inner = self.0.get();
         if focused && let Some(dialog) = self.blocked_by(id) {
             self.raise(dialog);
         }
@@ -311,20 +341,21 @@ impl Windows {
         {
             signals.set_focused.set(focused);
         }
-        let was = self.0.focused.get();
+        let was = inner.focused.get();
         if focused {
-            self.0.focused.set(Some(id));
+            inner.focused.set(Some(id));
         } else if was == Some(id) {
-            self.0.focused.set(None);
+            inner.focused.set(None);
         }
-        if self.0.focused.get() != was {
-            self.0.revision.set(self.0.revision.get() + 1);
+        if inner.focused.get() != was {
+            inner.revision.set(inner.revision.get() + 1);
         }
         self.push(Command::Configure(id));
     }
 
     pub fn focused(&self) -> Option<WindowId> {
-        self.0.focused.get()
+        let inner = self.0.get();
+        inner.focused.get()
     }
 }
 

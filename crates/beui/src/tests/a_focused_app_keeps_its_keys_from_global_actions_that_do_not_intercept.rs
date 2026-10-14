@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::KeyAt;
@@ -8,20 +5,19 @@ use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, bui
 
 #[test]
 fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
-    let forwarded = Rc::new(RefCell::new(Vec::<Key>::new()));
-    let ran = Rc::new(RefCell::new(Vec::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (forwarded, set_forwarded) = create_signal(Vec::<Key>::new());
+    let (ran, set_ran) = create_signal(Vec::new());
     let document = build({
-        let forwarded = Rc::clone(&forwarded);
-        let (global, intercepting) = (Rc::clone(&ran), Rc::clone(&ran));
         move || {
             Action::new("test.global", "Global", move || {
-                global.borrow_mut().push("global")
+                set_ran.update(|ran| ran.push("global"))
             })
             .shortcut(Chord::logo(Key::G))
             .at(KeyAt::Window)
             .register();
             Action::new("test.intercepting", "Intercepting", move || {
-                intercepting.borrow_mut().push("intercepting")
+                set_ran.update(|ran| ran.push("intercepting"))
             })
             .shortcut(Chord::logo(Key::H))
             .at(KeyAt::Window)
@@ -34,14 +30,14 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    forwarded.borrow_mut().extend(input.inputs().filter_map(
+                                    set_forwarded.update(|forwarded| forwarded.extend(input.inputs().filter_map(
                                         |event| match event {
                                             Event::Key { press, .. } if press.pressed => {
                                                 Some(press.key)
                                             }
                                             _ => None,
                                         },
-                                    ));
+                                    )));
                                 }
                             }}
                         >
@@ -64,16 +60,16 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
     harness.key(Key::G, Modifiers::LOGO);
     harness.key(Key::H, Modifiers::LOGO);
     assert_eq!(
-        *forwarded.borrow(),
+        forwarded.get_untracked(),
         [Key::G],
         "the app gets the chord of a global action, but not of one that intercepts"
     );
-    assert_eq!(*ran.borrow(), ["intercepting"]);
+    assert_eq!(ran.get_untracked(), ["intercepting"]);
 
     harness.click(pos2(250.0, 50.0));
     harness.key(Key::G, Modifiers::LOGO);
     assert_eq!(
-        *ran.borrow(),
+        ran.get_untracked(),
         ["intercepting", "global"],
         "with beui's own control focused, the global action answers"
     );

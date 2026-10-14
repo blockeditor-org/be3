@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use reactive::{ReadSignal, Scope, WriteSignal, create_effect, create_signal, on_cleanup};
+use reactive::{ReadSignal, Scope, Stored, WriteSignal, create_effect, create_signal, on_cleanup};
 
 use crate::child_list::{ChildList, SlotId};
 use crate::component::ChildValue;
@@ -215,7 +215,7 @@ type HeldEach<T, R> = Rc<RefCell<Vec<(Rc<T>, <R as SlotChild>::Stored, Scope)>>>
 impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
     pub fn build_each<R: SlotChild, U: IntoChild<R>, S: 'static>(
         &self,
-        states: Rc<RefCell<Vec<S>>>,
+        states: Stored<RefCell<Vec<S>>>,
         state: impl Fn(usize, Rc<T>) -> S + 'static,
         row: impl Fn(usize) -> U + 'static,
     ) -> DynamicSegment<R> {
@@ -225,6 +225,9 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
             let owned = held.clone();
             on_cleanup(move || drop(std::mem::take(&mut *owned.borrow_mut())));
             create_effect(move || {
+                let Some(states) = states.try_get() else {
+                    return;
+                };
                 let items = run.items();
                 let mut previous = std::mem::take(&mut *held.borrow_mut());
                 let mut gone = previous.split_off(previous.len().min(items.len()));
@@ -261,7 +264,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
 
 impl<C: SlotChild> IntoProp<Vec<C::Stored>> for Run<C> {
     fn into_prop(self) -> Prop<Vec<C::Stored>> {
-        Prop::Dynamic(Rc::new(move || self.items()))
+        Prop::dynamic(move || self.items())
     }
 }
 

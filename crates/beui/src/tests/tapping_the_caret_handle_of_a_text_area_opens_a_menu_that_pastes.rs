@@ -7,20 +7,20 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes() {
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let (sink, slot) = (held.clone(), area.clone());
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"Hello")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        sink.replace(Some(state.clone()));
+        set_held.update(|held| *held = Some(state));
         view! {
-            <TextArea @node_ref=&slot state={state} />
+            <TextArea @node_ref=&area state={state} />
         }
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
     let root = area.get();
     let surface = text_area_surface(harness.document(), root);
     let canvas = harness.rect(state.canvas().get());

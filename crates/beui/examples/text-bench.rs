@@ -281,7 +281,7 @@ fn type_in_text_area(frames: usize) -> Report {
         let buffer = Arc::new(TextBuffer::new(markdown(3000).as_bytes()))
             as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(buffer);
-        *held.borrow_mut() = Some(state.clone());
+        *held.borrow_mut() = Some(state);
         view! {
             <TextArea state={state} />
         }

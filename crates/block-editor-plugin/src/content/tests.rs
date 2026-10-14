@@ -4,7 +4,7 @@ use std::rc::Rc;
 use be_block::{Checklist, ChecklistContent, Edit, LiveEdit, ObjectId, Touched};
 use reactive::Scope;
 
-use super::ContentProjection;
+use super::{ContentProjection, OwnedContentProjection};
 use crate::{EditorHost, HostContent};
 
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
@@ -16,7 +16,7 @@ mod updates_for_another_block_reach_only_its_projection;
 
 struct Fixture {
     host: EditorHost,
-    projection: ContentProjection<ChecklistContent>,
+    projection: OwnedContentProjection<ChecklistContent>,
     first: ObjectId,
     second: ObjectId,
     runs: [Rc<Cell<u32>>; 3],
@@ -33,7 +33,7 @@ impl Fixture {
         content.apply(&add_first);
         content.apply(&add_second);
         host.set_block_content(HostContent::of(&content));
-        let projection = ContentProjection::<ChecklistContent>::new(host.clone(), None);
+        let projection = OwnedContentProjection::<ChecklistContent>::new(host.clone(), None);
         let runs = [
             Rc::new(Cell::new(0)),
             Rc::new(Cell::new(0)),

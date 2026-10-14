@@ -7,12 +7,12 @@ const BOX: f32 = 20.0;
 
 #[test]
 fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
+    let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let item = NodeRef::new();
     let content = "hello \u{fffc} wide world of text";
     let bold = FontId::proportional(14.0).bold(true);
     let document = build({
-        let (text, item) = (text.clone(), item.clone());
         move || {
             view! {
                 <List spacing=0.0>

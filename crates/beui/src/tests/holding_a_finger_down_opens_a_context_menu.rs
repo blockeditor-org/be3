@@ -1,5 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
 use std::time::Duration;
 
 use super::*;
@@ -19,11 +17,11 @@ fn sheet_shown(harness: &Harness) -> bool {
 
 #[test]
 fn holding_a_finger_down_opens_a_context_menu() {
+    let _root = crate::reactive::RootScope::new();
     let menu = NodeRef::new();
-    let clicked = Rc::new(Cell::new(0));
-    let cancelled = Rc::new(Cell::new(0));
+    let (clicked, set_clicked) = create_signal(0);
+    let (cancelled, set_cancelled) = create_signal(0);
     let document = crate::reactive::build({
-        let (menu, clicked, cancelled) = (menu.clone(), clicked.clone(), cancelled.clone());
         move || {
             view! {
                 <ContextMenu
@@ -33,8 +31,8 @@ fn holding_a_finger_down_opens_a_context_menu() {
                     }}
                 >
                     <Interactive
-                        on_click={move || clicked.set(clicked.get() + 1)}
-                        on_cancel={move || cancelled.set(cancelled.get() + 1)}
+                        on_click={move || set_clicked.update(|clicked| *clicked += 1)}
+                        on_cancel={move || set_cancelled.update(|cancelled| *cancelled += 1)}
                     >
                         <Frame width=300.0 height=300.0 />
                     </Interactive>
@@ -53,7 +51,7 @@ fn holding_a_finger_down_opens_a_context_menu() {
         "a finger held down asks to be woken when it becomes a long press"
     );
     harness.touch(TouchPhase::End, pos2(100.0, 100.0));
-    assert_eq!(clicked.get(), 1, "a tap is a click");
+    assert_eq!(clicked.get_untracked(), 1, "a tap is a click");
     assert!(!sheet_shown(&harness));
 
     harness.context.set_long_press_delay(Duration::ZERO);
@@ -68,14 +66,18 @@ fn holding_a_finger_down_opens_a_context_menu() {
         "a finger never opens the menu that a mouse gets"
     );
     assert_eq!(
-        cancelled.get(),
+        cancelled.get_untracked(),
         1,
         "the press under the finger is called off"
     );
     harness.touch(TouchPhase::End, pos2(100.0, 100.0));
     harness.frame(Vec::new());
 
-    assert_eq!(clicked.get(), 1, "lifting the finger is not a click");
+    assert_eq!(
+        clicked.get_untracked(),
+        1,
+        "lifting the finger is not a click"
+    );
     assert!(
         sheet_shown(&harness),
         "lifting the finger leaves the menu open"
@@ -86,7 +88,7 @@ fn holding_a_finger_down_opens_a_context_menu() {
     harness.frame(Vec::new());
     harness.touch(TouchPhase::End, pos2(100.0, 180.0));
     assert_eq!(
-        cancelled.get(),
+        cancelled.get_untracked(),
         1,
         "a finger that moved is a drag, not a hold"
     );

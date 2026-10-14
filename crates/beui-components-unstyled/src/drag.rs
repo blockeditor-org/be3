@@ -24,12 +24,12 @@ pub const DRAG_THRESHOLD: f32 = 4.0;
 pub const DRAG_PREVIEW_OFFSET: Vec2 = Vec2::new(12.0, 14.0);
 const TOUCH_PREVIEW_OFFSET: Vec2 = Vec2::new(16.0, -64.0);
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DragHandle {
     pub dragging: Memo<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DropHandle {
     pub carrying: Memo<bool>,
     pub over: Memo<bool>,
@@ -66,7 +66,7 @@ where
     let (touched, set_touched) = create_signal(false);
     let dragging = create_memo(move || carried.with(Option::is_some));
 
-    let moved = clone!(board pressed_at on_drag_change payload -> move |point: DragPoint| {
+    let moved = clone!(board pressed_at payload -> move |point: DragPoint| {
         let Some(origin) = pressed_at.get() else {
             return;
         };
@@ -106,7 +106,7 @@ where
             on_click.call();
         }
     };
-    let released = clone!(board pressed_at on_drag_change -> move |active: bool| {
+    let released = clone!(board pressed_at -> move |active: bool| {
         if active {
             return;
         }
@@ -194,7 +194,7 @@ where
     let accepts = accepts.unwrap_or_else(|| Func::new(|_| true));
     let (carrying, set_carrying) = create_signal(false);
     let (pointer, set_pointer) = create_signal(None::<DragPoint>);
-    let reported = on_over.clone();
+    let reported = on_over;
     let board = board();
     let id = board.register(Target {
         id: 0,

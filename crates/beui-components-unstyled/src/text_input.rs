@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -28,8 +28,8 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, clone,
-    create_effect, create_memo, create_signal, set_component_state,
+    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, create_effect,
+    create_memo, create_signal, set_component_state, store,
 };
 
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
@@ -44,7 +44,7 @@ pub struct TextInputHandle {
     pub clear: ClickCallback,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct TextInputStyle {
     pub font_size: Prop<f32>,
     pub color: Prop<Color32>,
@@ -114,37 +114,37 @@ pub fn TextInput(
     let masked = create_memo(move || password.get());
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
     set_component_state(Input {
-        state: state.clone(),
-        area: area.clone(),
-        menu: menu_node.clone(),
+        state,
+        area,
+        menu: menu_node,
         focused: is_focused,
     });
 
-    create_effect(clone!(state -> move || {
+    create_effect(move || {
         let value = value.get();
-        if text_of(&state) != value {
+        if text_of(state) != value {
             state.execute(EditorCommand::ReplaceWholeFile(value.as_bytes()));
         }
-    }));
+    });
     let edited = state.content();
-    let empty = create_memo(clone!(state -> move || {
+    let empty = create_memo(move || {
         edited.get();
-        text_of(&state).is_empty()
-    }));
-    let clear = ClickCallback::new(clone!(state -> move || {
+        text_of(state).is_empty()
+    });
+    let clear = ClickCallback::new(move || {
         state.execute(EditorCommand::ReplaceWholeFile(b""));
-    }));
+    });
     let reported = Rc::new(RefCell::new(initial));
     let content_changed = state.content();
-    create_effect(clone!(state -> move || {
+    create_effect(move || {
         content_changed.get();
-        let value = text_of(&state);
+        let value = text_of(state);
         if *reported.borrow() == value {
             return;
         }
         reported.replace(value.clone());
         on_change.call(value);
-    }));
+    });
 
     let colors = create_memo(move || TextAreaColors {
         surface: Color32::TRANSPARENT,
@@ -156,15 +156,12 @@ pub fn TextInput(
     });
     let accessibility = crate::labelled_node(Role::TextInput, accessibility, label);
 
-    let opener: Rc<RefCell<Option<Callback<Pos2>>>> = Rc::default();
-    let open_menu = clone!(opener -> move |at: Pos2| {
-        if let Some(open) = opener.borrow().clone() {
+    let opener = store(Cell::new(None::<Callback<Pos2>>));
+    let open_menu = move |at: Pos2| {
+        if let Some(open) = opener.with(Cell::get) {
             open.call(at);
         }
-    });
-    let submit_state = state.clone();
-    let focus_state = state.clone();
-    let menu_state = state.clone();
+    };
     let masked_menu = masked;
     let menu_disabled = disabled;
     let field_disabled = disabled;
@@ -184,10 +181,10 @@ pub fn TextInput(
             padding=Vec2::ZERO
             accessibility
             on_menu={open_menu}
-            on_submit={move || on_submit.call(text_of(&submit_state))}
+            on_submit={move || on_submit.call(text_of(state))}
             on_focus_change={move |focused: bool| {
                 if focused && select_on_focus.peek() {
-                    focus_state.execute(EditorCommand::SelectAll);
+                    state.execute(EditorCommand::SelectAll);
                 }
                 set_focused.set(focused);
                 on_focus_change.call(focused);
@@ -203,13 +200,13 @@ pub fn TextInput(
                 view! {
                     <TextContextMenu
                         @node_ref=&menu_node
-                        state={menu_state}
+                        state={state}
                         menu
                         masked={masked_menu}
                         disabled={menu_disabled}
                     >
                         {move |open: Callback<Pos2>| {
-                            opener.replace(Some(open));
+                            opener.with(|opener| opener.set(Some(open)));
                             match content {
                                 Some(build) => build.call(TextInputHandle {
                                     field,
@@ -233,7 +230,7 @@ fn plain_text(value: &str) -> TextAreaState {
     let buffer = Arc::new(TextBuffer::new(value.as_bytes()));
     let state = TextAreaState::new(buffer as Arc<dyn text_editor_core::Document>);
     state.execute(EditorCommand::SetLanguage(TextLanguage::PlainText));
-    let end = state.core().position(value.len());
+    let end = state.with_core(|core| core.position(value.len()));
     state.execute(EditorCommand::SetSelection {
         anchor: end,
         focus: end,
@@ -241,12 +238,13 @@ fn plain_text(value: &str) -> TextAreaState {
     state
 }
 
-fn text_of(state: &TextAreaState) -> String {
-    let core = state.core();
-    let Some(read) = core.document().read() else {
-        return String::new();
-    };
-    String::from_utf8_lossy(&read.slice(0..read.len())).into_owned()
+fn text_of(state: TextAreaState) -> String {
+    state.with_core(|core| {
+        let Some(read) = core.document().read() else {
+            return String::new();
+        };
+        String::from_utf8_lossy(&read.slice(0..read.len())).into_owned()
+    })
 }
 
 fn input(document: &Document, input: NodeId) -> &Input {
@@ -266,7 +264,7 @@ pub fn text_input_index_at(document: &Document, input_node: NodeId, pos: Pos2) -
 }
 
 pub fn text_input_value(document: &Document, input_node: NodeId) -> String {
-    text_of(&input(document, input_node).state)
+    text_of(input(document, input_node).state)
 }
 
 pub fn text_input_focused(document: &Document, input_node: NodeId) -> ReadSignal<bool> {

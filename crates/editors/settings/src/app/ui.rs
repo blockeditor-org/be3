@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
@@ -8,7 +6,7 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, List, Memo, Show, clone, component, create_memo, view,
+    Align, Direction, ForEach, Frame, List, Memo, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, Scroll, use_theme};
 use block_editor_beui::root_settings::is_own_settings;
@@ -49,14 +47,13 @@ impl Layer for SettingsProfileContent {
 pub fn SettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<SettingsContent>();
     let block = editor.block_id();
-    let own = create_memo(clone!(editor -> move || is_own_settings(&editor, block)));
+    let own = create_memo(move || is_own_settings(&editor, block));
     let others = create_memo(move || !own.get());
-    let blocked = blocked(&editor, &settings, own);
+    let blocked = blocked(editor, settings, own);
     let profiles = settings.project(|settings| settings.root().profiles());
     let client = editor.host().client_id();
     let used = settings.project(move |settings| settings.root().profile(client));
-    let creator = editor.clone();
-    let adding = settings.clone();
+    let adding = settings;
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -70,12 +67,11 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                         <Caption
                             content="Settings for every device. A settings profile can change any of them for the devices that use it."
                         />
-                        <Kinds editor={editor.clone()} layer={settings.clone()} blocked={blocked} />
+                        <Kinds editor={editor} layer={settings} blocked={blocked} />
                         <Heading content="Settings profiles" />
                         <Caption content="Each device uses one, and starts with one of its own." />
                         <ForEach keys={profiles}>
                             {move |profile: Uuid| {
-                                let editor = editor.clone();
                                 let listed = editor.blocks().watch(BlockQuery::Block(profile));
                                 let label = create_memo(move || {
                                     listed
@@ -114,9 +110,9 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 let count = adding
                                     .read(|settings| settings.root().profiles().len())
                                     .unwrap_or(0);
-                                let profile = creator.blocks().create_named(
+                                let profile = editor.blocks().create_named(
                                     &SettingsProfileContent::default(),
-                                    BlockParent::Block(creator.block_id()),
+                                    BlockParent::Block(editor.block_id()),
                                     format!("Profile {}", count + 1),
                                 );
                                 adding.operate(Settings::list_profile(profile));
@@ -144,21 +140,22 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                 _ => None,
             })
     });
-    let own = create_memo(clone!(editor -> move || {
-        parent.get().is_some_and(|parent| is_own_settings(&editor, parent))
-    }));
+    let own = create_memo(move || {
+        parent
+            .get()
+            .is_some_and(|parent| is_own_settings(&editor, parent))
+    });
     let others = create_memo(move || !own.get());
-    let blocked = blocked(&editor, &profile, own);
+    let blocked = blocked(editor, profile, own);
     let client = editor.host().client_id();
-    let used = create_memo(clone!(editor -> move || {
+    let used = create_memo(move || {
         parent.get().and_then(|parent| {
             editor
                 .content_of::<SettingsContent>(parent)
                 .read(|settings| settings.root().profile(client))
         }) == Some(Some(block))
-    }));
+    });
     let unused = create_memo(move || !used.get() && !blocked.get());
-    let using = editor.clone();
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -180,16 +177,16 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                                 label="Use on this device"
                                 variant=ButtonVariant::Primary
                                 @test_id={"settings-profile.use"}
-                                on_click={clone!(using -> move || {
+                                on_click={move || {
                                     if let Some(settings) = parent.get_untracked() {
-                                        using
+                                        editor
                                             .content_of::<SettingsContent>(settings)
                                             .operate(Settings::add_profile(client, block));
                                     }
-                                })}
+                                }}
                             />
                         </Show>
-                        <Kinds editor={editor.clone()} layer={profile} blocked={blocked} />
+                        <Kinds editor={editor} layer={profile} blocked={blocked} />
                     </List>
                 </Frame>
             </Scroll>
@@ -197,21 +194,17 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     }
 }
 
-fn blocked<C: Layer>(
-    editor: &Editor,
-    layer: &Rc<ContentProjection<C>>,
-    own: Memo<bool>,
-) -> Memo<bool> {
+fn blocked<C: Layer>(editor: Editor, layer: ContentProjection<C>, own: Memo<bool>) -> Memo<bool> {
     let loaded = layer.project(|_| true);
     let read_only = editor.read_only();
     create_memo(move || !loaded.get() || read_only.get() || !own.get())
 }
 
 #[component]
-fn Kinds<C: Layer>(editor: Editor, layer: Rc<ContentProjection<C>>, blocked: Memo<bool>) -> NodeId {
-    let open_ui = opener::<C, UiSettingsContent>(&editor, &layer);
-    let open_input = opener::<C, InputSettingsContent>(&editor, &layer);
-    let open_display = opener::<C, DisplaySettingsContent>(&editor, &layer);
+fn Kinds<C: Layer>(editor: Editor, layer: ContentProjection<C>, blocked: Memo<bool>) -> NodeId {
+    let open_ui = opener::<C, UiSettingsContent>(editor, layer);
+    let open_input = opener::<C, InputSettingsContent>(editor, layer);
+    let open_display = opener::<C, DisplaySettingsContent>(editor, layer);
     let (ui_blocked, input_blocked) = (blocked, blocked);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -241,16 +234,14 @@ fn Kinds<C: Layer>(editor: Editor, layer: Rc<ContentProjection<C>>, blocked: Mem
 }
 
 fn opener<C: Layer, K: BlockContent + Default>(
-    editor: &Editor,
-    layer: &Rc<ContentProjection<C>>,
+    editor: Editor,
+    layer: ContentProjection<C>,
 ) -> impl Fn() + Clone + use<C, K> {
     let resolved = layer.project(|layer| layer.kind(K::CONTENT_TYPE));
     let host = editor.host().clone();
-    let creator = editor.clone();
-    let layer = layer.clone();
     move || {
         let id = resolved.get_untracked().unwrap_or_else(|| {
-            let block = creator.create_child(&K::default());
+            let block = editor.create_child(&K::default());
             layer.operate(C::set_kind(K::CONTENT_TYPE, block));
             block
         });

@@ -9,7 +9,7 @@ use crate::theme::{
 use beui_core::base::TextAlign;
 use beui_core::font::line_height;
 use beui_core::node::NodeId;
-use beui_view::reactive::{IntoProp, Prop, Text, clone, create_memo};
+use beui_view::reactive::{IntoProp, Prop, Text, create_memo};
 
 fn text_color() -> Prop<Color32> {
     use_theme().text.into_prop()
@@ -37,7 +37,7 @@ pub fn Icon(
     #[prop(default = FONT_BODY)] text_size: Prop<f32>,
     #[prop(default = text_color())] color: Prop<Color32>,
 ) -> NodeId {
-    let font_size = create_memo(clone!(text_size -> move || icon_glyph_size(text_size.get())));
+    let font_size = create_memo(move || icon_glyph_size(text_size.get()));
     let line = create_memo(move || line_height(text_size.get()));
     view! {
         <IconGlyph glyph font_size line_height={line} color />
@@ -46,9 +46,7 @@ pub fn Icon(
 
 #[component]
 pub fn IconSized(glyph: Prop<String>, font_size: Prop<f32>, color: Prop<Color32>) -> NodeId {
-    let line = create_memo(clone!(font_size -> move || {
-        line_height(icon_text_size(font_size.get()))
-    }));
+    let line = create_memo(move || line_height(icon_text_size(font_size.get())));
     view! {
         <IconGlyph glyph font_size line_height={line} color />
     }

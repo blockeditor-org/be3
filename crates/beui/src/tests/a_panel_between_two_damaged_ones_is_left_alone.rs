@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_panel_between_two_damaged_ones_is_left_alone() {
+    let _root = crate::reactive::RootScope::new();
     let panels = three_panels();
     let (top, middle, bottom) = (panels.top, panels.middle, panels.bottom);
     let mut document = panels.document;
@@ -10,7 +11,7 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
     let (_, paints) = counted(&mut document, middle);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let settled = paints.get();
+    let settled = paints.get_untracked();
 
     harness
         .document_mut()
@@ -21,7 +22,7 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
     let output = harness.frame(Vec::new());
 
     assert_eq!(
-        paints.get(),
+        paints.get_untracked(),
         settled,
         "damage above and below an element taller than both must not be joined into one region across it"
     );

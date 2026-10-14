@@ -4,9 +4,9 @@ use crate::unstyled::Button;
 
 #[test]
 fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
+    let _root = crate::reactive::RootScope::new();
     let drop_two = NodeRef::new();
     let document = build({
-        let drop_two = drop_two.clone();
         move || {
             let (items, set_items) = create_signal(vec![1i64, 2]);
             view! {

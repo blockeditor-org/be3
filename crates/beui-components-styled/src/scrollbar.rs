@@ -37,7 +37,7 @@ pub fn Scrollbar(
 }
 
 fn inset_when(direction: &Prop<Direction>, along: Direction) -> Memo<f32> {
-    let direction = direction.clone();
+    let direction = *direction;
     create_memo(move || match direction.get() == along {
         true => SCROLLBAR_INSET,
         false => 0.0,
@@ -45,7 +45,7 @@ fn inset_when(direction: &Prop<Direction>, along: Direction) -> Memo<f32> {
 }
 
 fn outer_side_inset(direction: &Prop<Direction>, along: Direction) -> Memo<Option<f32>> {
-    let direction = direction.clone();
+    let direction = *direction;
     create_memo(move || (direction.get() == along).then_some(SCROLLBAR_INSET))
 }
 

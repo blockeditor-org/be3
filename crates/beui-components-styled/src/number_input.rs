@@ -30,8 +30,8 @@ pub fn NumberInput(
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
     let shown = NodeRef::new();
-    set_component_state(FaceText(shown.clone()));
-    let (field_label, field_disabled) = (label.clone(), disabled.clone());
+    set_component_state(FaceText(shown));
+    let (field_label, field_disabled) = (label.clone(), disabled);
     let face_placeholder = placeholder.clone();
     view! {
         <unstyled::NumberInput
@@ -60,14 +60,14 @@ pub fn NumberInput(
                         disabled={field_disabled}
                         focused={editing}
                         select_on_focus=true
-                        on_change={move |typed| on_change.call(typed)}
-                        on_submit={move |typed| on_submit.call(typed)}
-                        on_focus_change={move |focused| on_focus_change.call(focused)}
+                        on_change={on_change}
+                        on_submit={on_submit}
+                        on_focus_change={on_focus_change}
                     />
                 }
             }}
-            on_change={move |value| on_change.call(value)}
-            on_preview={move |value| on_preview.call(value)}
+            on_change={on_change}
+            on_preview={on_preview}
         />
     }
 }

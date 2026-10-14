@@ -12,7 +12,7 @@ use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Child, ClickCallback, Frame, Interactive, Memo, NodeRef, PlacementBuilder, Prop,
-    ReadSignal, Render, RenderFn, WriteSignal, clone, create_effect, create_memo, create_signal,
+    ReadSignal, Render, RenderFn, WriteSignal, create_effect, create_memo, create_signal,
     create_timer,
 };
 
@@ -37,7 +37,7 @@ pub enum DateTimePanelLayout {
     Paged,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DateTimeCalendarHandle {
     pub date: Memo<Option<Date>>,
     pub shown: Memo<Option<Date>>,
@@ -48,7 +48,7 @@ pub struct DateTimeCalendarHandle {
     pub pick: Callback<Date>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DateTimeTimesHandle {
     pub time: Memo<Option<Time>>,
     pub hour_cycle: HourCycle,
@@ -69,7 +69,7 @@ pub struct DateTimePanelHandle {
     pub clear: ClickCallback,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Field {
     current: ReadSignal<Option<DateTime>>,
     report: Callback<Option<DateTime>>,
@@ -157,10 +157,10 @@ pub fn DateTimePicker(
                         set_open.set(true);
                     },
                 );
-                let pressed = create_timer(clone!(open_at -> move || {
+                let pressed = create_timer(move || {
                     open_at.call(outer_segment.get_untracked().unwrap_or(first));
                     None
-                }));
+                });
                 let refocus_trigger = create_memo(move || !from_field.get());
                 let opened = move |now_open: bool| {
                     if now_open {
@@ -185,8 +185,7 @@ pub fn DateTimePicker(
                     }
                 });
                 let anchor = NodeRef::new();
-                let popover_anchor = anchor.clone();
-                let inner_field = field.clone();
+                let popover_anchor = anchor;
                 let trigger_label = picker_label;
                 view! {
                     <Frame @node_ref=&anchor>
@@ -210,7 +209,7 @@ pub fn DateTimePicker(
                                     {move |popover: PopoverHandle| view! {
                                         <PickerPanel
                                             popover
-                                            field={inner_field}
+                                            field={field}
                                             width
                                             from_field
                                             inner_focus
@@ -231,7 +230,7 @@ pub fn DateTimePicker(
                                     set_outer_focus.set(None);
                                 }
                             }}
-                            on_open={move |segment: DateSegment| open_at.call(segment)}
+                            on_open={open_at}
                             on_press={move || pressed.restart(Duration::ZERO)}
                         />
                     </Frame>
@@ -282,11 +281,11 @@ fn FieldBox(
                                 label
                                 disabled={field_disabled}
                                 focus_segment={focus}
-                                on_change={move |next| report.call(next)}
+                                on_change={report}
                                 on_focus_change={move |inside: bool| set_within.set(inside)}
-                                on_segment_focus={move |segment| on_segment_focus.call(segment)}
-                                on_draft={move |draft| on_draft.call(draft)}
-                                on_open={move |segment| on_open.call(segment)}
+                                on_segment_focus={on_segment_focus}
+                                on_draft={on_draft}
+                                on_open={on_open}
                                 segment
                                 literal
                             />
@@ -324,7 +323,7 @@ fn PickerPanel(
         parts,
         hour_cycle,
         ..
-    } = field.clone();
+    } = field;
     let (draft, set_draft) = create_signal(DateDraft::default());
     let shown = create_memo(move || {
         let draft = draft.get();
@@ -360,16 +359,18 @@ fn PickerPanel(
     let list_focused = create_memo(move || {
         open.get() && !from_field.get() && (!parts.has_date() || tab.get() == 1)
     });
-    let pick_date = Callback::new(clone!(report close -> move |date: Date| {
-        let time = current.get_untracked().map_or(Time::MIDNIGHT, |value| value.time);
+    let pick_date = Callback::new(move |date: Date| {
+        let time = current
+            .get_untracked()
+            .map_or(Time::MIDNIGHT, |value| value.time);
         report.call(Some(DateTime::new(date, time)));
         match parts {
             DateTimeParts::Date => close.call(()),
             DateTimeParts::DateTime if paged.get_untracked() => set_tab.set(1),
             DateTimeParts::DateTime | DateTimeParts::Time => {}
         }
-    }));
-    let pick_time = Callback::new(clone!(report close -> move |time: Time| {
+    });
+    let pick_time = Callback::new(move |time: Time| {
         let date = current
             .get_untracked()
             .map(|value| value.date)
@@ -377,22 +378,24 @@ fn PickerPanel(
             .unwrap_or_else(Date::today);
         report.call(Some(DateTime::new(date, time)));
         close.call(());
-    }));
-    let now = ClickCallback::new(clone!(report close -> move || {
+    });
+    let now = ClickCallback::new(move || {
         let now = DateTime::now();
         let kept = current.get_untracked();
         let next = match parts {
-            DateTimeParts::Date => DateTime::new(now.date, kept.map_or(Time::MIDNIGHT, |kept| kept.time)),
+            DateTimeParts::Date => {
+                DateTime::new(now.date, kept.map_or(Time::MIDNIGHT, |kept| kept.time))
+            }
             DateTimeParts::Time => DateTime::new(kept.map_or(now.date, |kept| kept.date), now.time),
             DateTimeParts::DateTime => now,
         };
         report.call(Some(next));
         close.call(());
-    }));
-    let clear = ClickCallback::new(clone!(report close -> move || {
+    });
+    let clear = ClickCallback::new(move || {
         report.call(None);
         close.call(());
-    }));
+    });
     let layout = create_memo(move || match parts {
         DateTimeParts::Date => DateTimePanelLayout::Date,
         DateTimeParts::Time => DateTimePanelLayout::Time,

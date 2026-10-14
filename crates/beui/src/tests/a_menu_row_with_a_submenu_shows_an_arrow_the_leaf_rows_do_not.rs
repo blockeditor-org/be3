@@ -5,9 +5,9 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

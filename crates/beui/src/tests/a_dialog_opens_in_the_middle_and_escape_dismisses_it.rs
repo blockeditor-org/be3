@@ -6,10 +6,8 @@ use crate::styled::Dialog;
 fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
     let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
-    let dismissed = Rc::new(Cell::new(0));
-    let reports = dismissed.clone();
+    let (dismissed, set_dismissed) = create_signal(0);
     let surface = NodeRef::new();
-    let body_ref = surface.clone();
     let document = build({
         move || {
             view! {
@@ -18,13 +16,13 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
                         open={open}
                         title="Event"
                         width=300.0
-                        on_dismiss={move || reports.set(reports.get() + 1)}
+                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
                         <Text
                             string="Body"
                             font_size=14.0
                             color=Color32::WHITE
-                            @node_ref={&body_ref}
+                            @node_ref={&surface}
                         />
                     </Dialog>
                 </List>
@@ -43,5 +41,5 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
     assert!((body.center().x - VIEWPORT.x / 2.0).abs() < 2.0);
 
     harness.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(dismissed.get(), 1);
+    assert_eq!(dismissed.get_untracked(), 1);
 }

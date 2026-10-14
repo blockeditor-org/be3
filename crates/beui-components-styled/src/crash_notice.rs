@@ -42,13 +42,13 @@ pub fn CrashNotice(
                     />
                 </Show>
                 <Show condition={reloadable}>
-                    {move || clone!(on_reload reload_label reload_id -> view! {
+                    {move || clone!(reload_label reload_id -> view! {
                         <Button
                             @test_id={reload_id}
                             label={reload_label}
                             glyph={ICON_REFRESH.to_owned()}
                             variant=ButtonVariant::Secondary
-                            on_click={move || on_reload.call()}
+                            on_click={on_reload}
                         />
                     })}
                 </Show>

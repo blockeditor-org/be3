@@ -46,7 +46,7 @@ pub fn Select(
             selected
             disabled
             label
-            on_change={move |selected| on_change.call(selected)}
+            on_change={on_change}
             search_placeholder="Search"
             search_content={|handle| view! {
                 <SearchField handle />

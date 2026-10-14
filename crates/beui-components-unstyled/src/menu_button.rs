@@ -11,7 +11,7 @@ use beui_view::reactive::{
     create_effect, create_memo, create_signal, untrack,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct MenuButtonHandle {
     pub open: ReadSignal<bool>,
     pub button: unstyled::ButtonHandle,
@@ -134,11 +134,11 @@ pub fn MenuButton(
             <MenuPopup
                 items={items.into_run()}
                 menu
-                anchor={&button}
+                anchor={button}
                 open={shown}
                 touched
                 on_dismiss={move || set_open.set(false)}
-                on_select={move |path: Vec<usize>| on_select.call(path)}
+                on_select={on_select}
             />
         </List>
     }

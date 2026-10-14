@@ -6,16 +6,17 @@ use crate::styled::Fullscreen;
 fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
-    let dismissed = Rc::new(Cell::new(0));
-    let reports = dismissed.clone();
+    let (dismissed, set_dismissed) = create_signal(0);
     let content = NodeRef::new();
-    let content_ref = content.clone();
     let document = build({
         move || {
             view! {
                 <List spacing=0.0>
-                    <Fullscreen open={open} on_dismiss={move || reports.set(reports.get() + 1)}>
-                        <Frame color=Color32::WHITE @node_ref={&content_ref} />
+                    <Fullscreen
+                        open={open}
+                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
+                    >
+                        <Frame color=Color32::WHITE @node_ref={&content} />
                     </Fullscreen>
                 </List>
             }
@@ -32,5 +33,5 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     assert_eq!(filled.size(), VIEWPORT);
 
     harness.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(dismissed.get(), 1);
+    assert_eq!(dismissed.get_untracked(), 1);
 }

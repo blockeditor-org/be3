@@ -79,7 +79,7 @@ pub fn ChoicePicker(
         })
     });
     let options = field;
-    let clear = on_pick.clone();
+    let clear = on_pick;
     let clear_id = format!("{picker_id}.clear");
     let option_id = picker_id.clone();
     let trigger_label = label;
@@ -102,7 +102,7 @@ pub fn ChoicePicker(
                             let glyph = create_memo(move || {
                                 shown.with(|shown| shown.as_ref().map(|shown| choice_glyph(shown.icon)).unwrap_or_default()).to_owned()
                             });
-                            let pick = on_pick.clone();
+                            let pick = on_pick;
                             view! {
                                 <MenuItem
                                     label={name}

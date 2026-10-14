@@ -20,7 +20,7 @@ pub enum OverlayAnchor {
 
 impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
     fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
-        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self.clone()))
+        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(*self))
     }
 }
 

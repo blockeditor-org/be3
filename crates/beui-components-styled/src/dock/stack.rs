@@ -18,7 +18,7 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Text, Track, clone, create_memo,
+    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Text, Track, create_memo,
     focus_ring,
 };
 
@@ -63,15 +63,15 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={away}>
-                        {move || clone!(back -> view! {
+                        {move || view! {
                             <IconButton
                                 @test_id={"dock.back"}
                                 glyph=ICON_ARROW_BACK
                                 label="Back"
                                 variant=ButtonVariant::Ghost
-                                on_click={move || back.call()}
+                                on_click={back}
                             />
-                        })}
+                        }}
                     </Show>
                     <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=TITLE_PADDING>
                         <List
@@ -95,13 +95,13 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={counted}>
-                        {move || clone!(open_switcher -> view! {
+                        {move || view! {
                             <DockTabCount
                                 count={others}
                                 label={switch_label}
-                                on_click={move || open_switcher.call()}
+                                on_click={open_switcher}
                             />
-                        })}
+                        }}
                     </Show>
                 </List>
             </Frame>
@@ -118,7 +118,7 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
         <unstyled::Button
             @test_id={"dock.switch"}
             label
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle: unstyled::ButtonHandle| {
                 let unstyled::ButtonHandle { hovered, focused, .. } = handle;
                 let theme = theme;
@@ -179,7 +179,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         icon => icon,
     });
     view! {
-        <ModalSheet open rest={SHEET_STOPS[2]} on_close={move || close.call()}>
+        <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
                 <Frame padding_horizontal=SHEET_PADDING>
                     <Heading content="Open tabs" />
@@ -203,16 +203,16 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                     </List>
                 </Frame>
                 <Show condition={homed}>
-                    {move || clone!(go_home -> view! {
+                    {move || view! {
                         <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
                             <ActionRow
                                 @test_id={"dock.switcher.home"}
                                 label={home_title}
                                 glyph={home_glyph}
-                                on_click={move || go_home.call()}
+                                on_click={go_home}
                             />
                         </Frame>
-                    })}
+                    }}
                 </Show>
             </List>
         </ModalSheet>
@@ -251,7 +251,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                 <ListRow
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={format!("dock.switcher.tab.{id}")}
-                    on_click={move || pick.call()}
+                    on_click={pick}
                 >
                     <Frame padding_vertical=CARD_PADDING>
                         <List spacing=CARD_LINES>
@@ -268,15 +268,15 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     </Frame>
                 </ListRow>
                 <Show condition={closable}>
-                    {move || clone!(close -> view! {
+                    {move || view! {
                         <IconButton
                             @test_id={format!("dock.switcher.close.{id}")}
                             glyph=ICON_CLOSE
                             label="Close tab"
                             variant=ButtonVariant::Ghost
-                            on_click={move || close.call()}
+                            on_click={close}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>

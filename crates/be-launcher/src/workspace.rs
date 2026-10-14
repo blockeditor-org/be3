@@ -3,7 +3,7 @@ use beui::icons::{
 };
 use beui::reactive::{
     Align, Direction, DynamicSegment, ForEach, Frame, ItemSize, List, ListChild, Memo, ReadSignal,
-    Show, Text, VirtualList, clone, component, create_memo, view,
+    Show, Text, VirtualList, component, create_memo, view,
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{
@@ -26,33 +26,34 @@ const MAIN: &str = "main";
 
 #[component]
 pub(crate) fn Workspace(model: Model) -> NodeId {
-    let tab = create_memo(clone!(model -> move || {
+    let tab = create_memo(move || {
         let tab = model.tab.get();
-        Tab::ALL.iter().position(|candidate| *candidate == tab).unwrap_or(0)
-    }));
-    let head = create_memo(clone!(model -> move || {
+        Tab::ALL
+            .iter()
+            .position(|candidate| *candidate == tab)
+            .unwrap_or(0)
+    });
+    let head = create_memo(move || {
         let summary = model.head_summary.get();
         if summary.is_empty() {
             "Reading the checkout".to_owned()
         } else {
             format!("Checked out {summary}")
         }
-    }));
+    });
     let running = model.running;
     let idle = create_memo(move || !running.get());
-    let show = clone!(model -> move |index: usize| {
+    let show = move |index: usize| {
         if let Some(tab) = Tab::ALL.get(index) {
             model.show_tab(*tab);
         }
-    });
-    let stop = clone!(model -> move || model.stop());
-    let run = clone!(model -> move || model.run_again());
-    let on_pull_request = create_memo(clone!(model -> move || model.tab.get() == Tab::PullRequest));
-    let on_targets = create_memo(clone!(model -> move || model.tab.get() == Tab::Targets));
-    let on_log = create_memo(clone!(model -> move || model.tab.get() == Tab::Log));
-    let detail = model.clone();
-    let targets = model.clone();
-    let pane = model.pane.clone();
+    };
+    let stop = move || model.stop();
+    let run = move || model.run_again();
+    let on_pull_request = create_memo(move || model.tab.get() == Tab::PullRequest);
+    let on_targets = create_memo(move || model.tab.get() == Tab::Targets);
+    let on_log = create_memo(move || model.tab.get() == Tab::Log);
+    let pane = model.pane;
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=12.0>
@@ -80,7 +81,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                             label="Stop"
                             glyph=ICON_STOP
                             variant=ButtonVariant::Secondary
-                            on_click={stop.clone()}
+                            on_click={stop}
                         />
                     </Show>
                     <Show condition={idle}>
@@ -88,19 +89,19 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                             label="Run"
                             glyph=ICON_PLAY_ARROW
                             variant=ButtonVariant::Primary
-                            on_click={run.clone()}
+                            on_click={run}
                         />
                     </Show>
                 </List>
             </Frame>
             <Show condition={on_pull_request}>
-                <Detail @sizing=ItemSize::Percent(100.0) model={detail.clone()} />
+                <Detail @sizing=ItemSize::Percent(100.0) model={model} />
             </Show>
             <Show condition={on_targets}>
-                <TargetList @sizing=ItemSize::Percent(100.0) model={targets.clone()} />
+                <TargetList @sizing=ItemSize::Percent(100.0) model={model} />
             </Show>
             <Show condition={on_log}>
-                {move || clone!(pane -> view! {
+                {move || view! {
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
                         padding_horizontal=PADDING
@@ -108,7 +109,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                     >
                         <TerminalPane pane />
                     </Frame>
-                })}
+                }}
             </Show>
         </List>
     }
@@ -117,18 +118,17 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
 #[component]
 fn TargetList(model: Model) -> NodeId {
     let theme = use_theme();
-    let loading =
-        create_memo(clone!(model -> move || model.targets.get() == Some(Loaded::Loading)));
-    let error = create_memo(clone!(model -> move || match model.targets.get() {
+    let loading = create_memo(move || model.targets.get() == Some(Loaded::Loading));
+    let error = create_memo(move || match model.targets.get() {
         Some(Loaded::Failed(error)) => error,
         _ => String::new(),
-    }));
+    });
     let failed = create_memo(move || !error.get().is_empty());
-    let listed = create_memo(clone!(model -> move || match model.targets.get() {
+    let listed = create_memo(move || match model.targets.get() {
         Some(Loaded::Ready(targets)) => targets,
         _ => Vec::new(),
-    }));
-    let shown = create_memo(clone!(model -> move || {
+    });
+    let shown = create_memo(move || {
         let query = model.target_query.get().to_lowercase();
         listed
             .get()
@@ -139,7 +139,7 @@ fn TargetList(model: Model) -> NodeId {
                     || target.kind.contains(&query)
             })
             .collect::<Vec<Target>>()
-    }));
+    });
     let keys = create_memo(move || {
         shown
             .get()
@@ -156,7 +156,7 @@ fn TargetList(model: Model) -> NodeId {
     });
     let query = model.target_query;
     let set_query = model.set_target_query;
-    let refresh = clone!(model -> move || model.refresh_targets());
+    let refresh = move || model.refresh_targets();
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=4.0>
@@ -191,12 +191,11 @@ fn TargetList(model: Model) -> NodeId {
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <VirtualList keys item_size=TARGET_ROW>
                     {move |label: String| {
-                        let shown = shown;
                         let target = create_memo(move || {
                             shown.get().into_iter().find(|target| target.label == label)
                         });
                         view! {
-                            <TargetRow model={model.clone()} target />
+                            <TargetRow model={model} target />
                         }
                     }}
                 </VirtualList>
@@ -227,18 +226,17 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
         .to_owned()
     });
     let buildable = create_memo(move || action.get() != Action::Build);
-    let primary = clone!(model -> move || {
+    let primary = move || {
         if let Some(target) = target.get_untracked() {
             model.run_target(&target, action.get_untracked());
         }
-    });
-    let build = clone!(model -> move || {
+    };
+    let build = move || {
         if let Some(target) = target.get_untracked() {
             model.run_target(&target, Action::Build);
         }
-    });
+    };
     let busy = model.running;
-    let busy_build = busy;
     view! {
         <Frame padding_horizontal=PADDING padding_vertical=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -249,8 +247,8 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
                         label="Build"
                         glyph=ICON_BUILD
                         variant=ButtonVariant::Ghost
-                        disabled={busy_build}
-                        on_click={build.clone()}
+                        disabled={busy}
+                        on_click={build}
                     />
                 </Show>
                 <Button
@@ -276,24 +274,24 @@ pub(crate) fn Actions(
         Loaded::Ready(entries) => branch_deleted(&entries),
         _ => false,
     });
-    let busy = create_memo(clone!(model -> move || {
-        model.running.get() || fork.get() || deleted.get()
-    }));
-    let check_out = clone!(model -> move || model.check_out(&pull_request.get_untracked(), None));
-    let check_out_and_run = clone!(model -> move || {
-        model.check_out(&pull_request.get_untracked(), Some(model.common.get_untracked()));
-    });
-    let pick = clone!(model -> move |path: Vec<usize>| match path.as_slice() {
+    let busy = create_memo(move || model.running.get() || fork.get() || deleted.get());
+    let check_out = move || model.check_out(&pull_request.get_untracked(), None);
+    let check_out_and_run = move || {
+        model.check_out(
+            &pull_request.get_untracked(),
+            Some(model.common.get_untracked()),
+        );
+    };
+    let pick = move |path: Vec<usize>| match path.as_slice() {
         [index] if *index < COMMON.len() => {
             model.check_out(&pull_request.get_untracked(), Some(*index));
         }
         _ => model.show_tab(Tab::Targets),
-    });
-    let busy_run = busy;
-    let run_label = create_memo(clone!(model -> move || {
+    };
+    let run_label = create_memo(move || {
         let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
         format!("Check out and run {}", common.title)
-    }));
+    });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <SplitButton
@@ -301,7 +299,7 @@ pub(crate) fn Actions(
                 glyph=ICON_PLAY_ARROW
                 variant=ButtonVariant::Primary
                 menu_label="Pick what to run"
-                disabled={busy_run}
+                disabled={busy}
                 items={view! {
                     <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
                         {|index: usize| view! {
@@ -362,15 +360,15 @@ pub(crate) fn Notes(
 #[component]
 pub(crate) fn MainActions(model: Model) -> NodeId {
     let busy = model.running;
-    let run = clone!(model -> move || model.switch(MAIN, Some(model.common.get_untracked())));
-    let pick = clone!(model -> move |path: Vec<usize>| match path.as_slice() {
+    let run = move || model.switch(MAIN, Some(model.common.get_untracked()));
+    let pick = move |path: Vec<usize>| match path.as_slice() {
         [index] if *index < COMMON.len() => model.switch(MAIN, Some(*index)),
         _ => model.switch(MAIN, None),
-    });
-    let run_label = create_memo(clone!(model -> move || {
+    };
+    let run_label = create_memo(move || {
         let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
         format!("Run {} on main", common.title)
-    }));
+    });
     view! {
         <SplitButton
             label={run_label}

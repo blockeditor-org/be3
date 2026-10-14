@@ -1,9 +1,8 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::reactive::{
-    Memo, ReadSignal, WriteSignal, create_memo, create_signal,
+    Memo, ReadSignal, Stored, WriteSignal, create_memo, create_signal, store,
 };
 use block_editor_beui::beui::{Image, Rect, Vec2};
 use block_editor_beui::{ContentProjection, PerformanceReporter, Waker};
@@ -27,8 +26,9 @@ impl Shown {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Pages {
-    pane: RefCell<Pane>,
+    pane: Stored<RefCell<Pane>>,
     page: ReadSignal<usize>,
     set_page: WriteSignal<usize>,
     shown: ReadSignal<Shown>,
@@ -42,16 +42,16 @@ pub(crate) struct Viewport {
 }
 
 impl Pages {
-    pub(crate) fn new() -> Rc<Self> {
+    pub(crate) fn new() -> Self {
         let (shown, set_shown) = create_signal(Shown::default());
         let (page, set_page) = create_signal(0);
-        Rc::new(Self {
-            pane: RefCell::new(Pane::default()),
+        Self {
+            pane: store(RefCell::new(Pane::default())),
             page,
             set_page,
             shown,
             set_shown,
-        })
+        }
     }
 
     pub(crate) fn shown(&self) -> Memo<Shown> {
@@ -74,7 +74,8 @@ impl Pages {
         waker: Waker,
         viewport: Viewport,
     ) {
-        let mut pane = self.pane.borrow_mut();
+        let pane = self.pane.get();
+        let mut pane = pane.borrow_mut();
         let mut shown = self.shown.get_untracked();
         if let Some(facts) = pane.poll(performance) {
             shown.page_count = Some(facts.page_count);

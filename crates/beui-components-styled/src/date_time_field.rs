@@ -24,7 +24,7 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Text, clone,
+    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Text,
     create_memo, focus_ring,
 };
 
@@ -94,7 +94,7 @@ pub fn DateTimeField(
                     <PickerPanel handle clearable first_weekday step_minutes />
                 </PopoverPanel>
             }}
-            on_change={move |next| on_change.call(next)}
+            on_change={on_change}
         />
     }
 }
@@ -273,15 +273,14 @@ fn PickerPanel(
                 </List>
                 <Dynamic value={layout}>
                     {move |shape: DateTimePanelLayout| {
-                        let (calendar, times) = (calendar.clone(), times.clone());
-                        let (page, show_page) = (page, show_page.clone());
+                        let (page, show_page) = (page, show_page);
                         view! {
                             <PanelBody
                                 shape
                                 calendar
                                 times
                                 page
-                                show_page={move |chosen: usize| show_page.call(chosen)}
+                                show_page={show_page}
                                 width={width}
                                 first_weekday
                                 step_minutes
@@ -295,19 +294,11 @@ fn PickerPanel(
                     justify=Justify::SpaceBetween
                     spacing=8.0
                 >
-                    <Button
-                        label=now_label
-                        variant=ButtonVariant::Secondary
-                        on_click={move || now.call()}
-                    />
+                    <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
                     <Show condition=clearable>
-                        {move || clone!(clear -> view! {
-                            <Button
-                                label="Clear"
-                                variant=ButtonVariant::Ghost
-                                on_click={move || clear.call()}
-                            />
-                        })}
+                        {move || view! {
+                            <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
+                        }}
                     </Show>
                 </List>
             </List>
@@ -332,44 +323,42 @@ fn PanelBody(
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
     let dates = create_memo(move || page.get() == 0);
     let times_shown = create_memo(move || page.get() == 1);
-    let (beside_calendar, beside_times) = (calendar.clone(), times.clone());
-    let (date_calendar, time_times) = (calendar.clone(), times.clone());
     let alone_date = alone;
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
-                {move || clone!(beside_calendar beside_times -> view! {
+                {move || view! {
                     <List direction=Direction::Horizontal spacing=PANEL_SPACING>
-                        <CalendarPane handle={beside_calendar} width={beside} first_weekday />
+                        <CalendarPane handle={calendar} width={beside} first_weekday />
                         <TimePane
                             @sizing=ItemSize::Percent(100.0)
-                            handle={beside_times}
+                            handle={times}
                             step_minutes
                             max_columns=1
                             height=TIME_LIST_HEIGHT
                         />
                     </List>
-                })}
+                }}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Date}>
-                {move || clone!(date_calendar -> view! {
+                {move || view! {
                     <Centred>
-                        <CalendarPane handle={date_calendar} width={alone_date} first_weekday />
+                        <CalendarPane handle={calendar} width={alone_date} first_weekday />
                     </Centred>
-                })}
+                }}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Time}>
-                {move || clone!(time_times -> view! {
+                {move || view! {
                     <TimePane
-                        handle={time_times}
+                        handle={times}
                         step_minutes
                         max_columns=MAX_GRID_COLUMNS
                         height=TIME_GRID_HEIGHT
                     />
-                })}
+                }}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Paged}>
-                {move || clone!(show_page calendar times -> view! {
+                {move || view! {
                     <List spacing=PANEL_SPACING>
                         <Tabs
                             options={view! {
@@ -377,27 +366,27 @@ fn PanelBody(
                                 <ChoiceOption label="Time" />
                             }}
                             selected={page}
-                            on_change={move |chosen: usize| show_page.call(chosen)}
+                            on_change={show_page}
                         />
                         <Show condition={dates}>
-                            {move || clone!(calendar -> view! {
+                            {move || view! {
                                 <Centred>
                                     <CalendarPane handle={calendar} width={alone} first_weekday />
                                 </Centred>
-                            })}
+                            }}
                         </Show>
                         <Show condition={times_shown}>
-                            {move || clone!(times -> view! {
+                            {move || view! {
                                 <TimePane
                                     handle={times}
                                     step_minutes
                                     max_columns=MAX_GRID_COLUMNS
                                     height=TIME_GRID_HEIGHT
                                 />
-                            })}
+                            }}
                         </Show>
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }
@@ -435,7 +424,7 @@ fn CalendarPane(
             focused
             show={shown}
             width
-            on_change={move |date| pick.call(date)}
+            on_change={pick}
         />
     }
 }
@@ -469,7 +458,7 @@ fn TimePane(
                 option={move |handle: TimeOptionHandle| view! {
                     <TimeOptionFace handle centred />
                 }}
-                on_change={move |time| pick.call(time)}
+                on_change={pick}
             />
         </Frame>
     }

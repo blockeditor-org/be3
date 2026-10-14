@@ -2,7 +2,7 @@ use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{CheckoutContent, ConflictKind, Repository};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::{
@@ -140,33 +140,24 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     let branch_blocked =
         create_memo(move || blocked.get() || branch_name.with(|name| name.trim().is_empty()));
 
-    let updating = editor.clone();
-    let committing = editor.clone();
     let commit_message = message;
     let clear_message = set_message;
-    let branching = editor.clone();
     let new_branch = branch_name;
     let clear_branch = set_branch_name;
-    let changing = editor.clone();
     let change_rows = move |row: ChangeRow| {
-        let editor = changing.clone();
         view! {
             <ChangeLine editor row />
         }
     };
-    let resolving = editor.clone();
     let resolve_blocked = blocked;
     let conflict_rows = move |row: ConflictRow| {
-        let editor = resolving.clone();
         let blocked = resolve_blocked;
         view! {
             <ConflictLine editor blocked row />
         }
     };
-    let switching = editor.clone();
     let switch_blocked = blocked;
     let branch_rows = move |(name, current): (String, bool)| {
-        let editor = switching.clone();
         let blocked = switch_blocked;
         view! {
             <BranchLine editor blocked name current />
@@ -183,7 +174,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             <Heading content="Checkout" />
                             <Caption content={summary} @test_id={"checkout.summary"} />
                             <BlockLink
-                                editor={editor.clone()}
+                                editor={editor}
                                 block={repository}
                                 @test_id={"checkout.repository"}
                             />
@@ -192,7 +183,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <Show condition={behind}>
-                            {move || clone!(updating -> view! {
+                            {move || view! {
                                 <Card>
                                     <List
                                         direction=Direction::Horizontal
@@ -208,21 +199,21 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                             variant=ButtonVariant::Primary
                                             disabled={blocked}
                                             @test_id={"checkout.update"}
-                                            on_click={move || updating.version(VersionCommand::Update)}
+                                            on_click={move || editor.version(VersionCommand::Update)}
                                         />
                                     </List>
                                 </Card>
-                            })}
+                            }}
                         </Show>
                         <Show condition={conflicted}>
-                            {move || clone!(conflict_rows -> view! {
+                            {move || view! {
                                 <Card>
                                     <List spacing=12.0>
                                         <Heading content="Conflicts" />
                                         <ForEach keys={conflicts} view={conflict_rows} />
                                     </List>
                                 </Card>
-                            })}
+                            }}
                         </Show>
                         <Card>
                             <List spacing=10.0>
@@ -251,7 +242,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         @test_id={"checkout.commit"}
                                         on_click={move || {
                                             let message = commit_message.get().trim().to_owned();
-                                            committing.version(VersionCommand::Commit { message });
+                                            editor.version(VersionCommand::Commit { message });
                                             clear_message.set(String::new());
                                         }}
                                     />
@@ -282,7 +273,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         @test_id={"checkout.make-branch"}
                                         on_click={move || {
                                             let name = new_branch.get().trim().to_owned();
-                                            branching.version(VersionCommand::CreateBranch { name });
+                                            editor.version(VersionCommand::CreateBranch { name });
                                             clear_branch.set(String::new());
                                         }}
                                     />
@@ -320,7 +311,7 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
                 <Body content={name.clone()} />
             </Show>
             <Show condition={!removed}>
-                <BlockLink editor={editor.clone()} block={target} />
+                <BlockLink editor={editor} block={target} />
             </Show>
         </List>
     }
@@ -331,7 +322,6 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
     let (block, block_type, label, base, ours, theirs) = row;
     let side = |side: Option<Uuid>| side.map(|side| ChildTarget::new(side, block_type));
     let choose = |take: ConflictSide| {
-        let editor = editor.clone();
         move || {
             editor.version(VersionCommand::Resolve {
                 block_id: block.into_bytes(),
@@ -340,8 +330,6 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
         }
     };
     let compared = base.is_some() || ours.is_some() || theirs.is_some();
-    let (base_editor, ours_editor, theirs_editor) =
-        (editor.clone(), editor.clone(), editor.clone());
     let (take_base, take_ours, take_theirs) = (
         choose(ConflictSide::Base),
         choose(ConflictSide::Ours),
@@ -351,28 +339,27 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
     let (base, ours, theirs) = (side(base), side(ours), side(theirs));
     let keep = choose(ConflictSide::Merged);
     let working = Some(ChildTarget::new(block, block_type));
-    let link_editor = editor.clone();
     view! {
         <List spacing=8.0 @test_id={format!("checkout.conflict.{block}")}>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                <BlockLink editor={link_editor} block={working} />
+                <BlockLink editor={editor} block={working} />
                 <Caption content={label} />
             </List>
             <List spacing=8.0>
                 <Show condition={compared}>
-                    {move || clone!(base_editor ours_editor theirs_editor -> view! {
+                    {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <Caption content="Base" />
-                            <BlockLink editor={base_editor} block={base} fallback="none" />
+                            <BlockLink editor={editor} block={base} fallback="none" />
                             <Caption content="Yours" />
-                            <BlockLink editor={ours_editor} block={ours} fallback="none" />
+                            <BlockLink editor={editor} block={ours} fallback="none" />
                             <Caption content="Theirs" />
-                            <BlockLink editor={theirs_editor} block={theirs} fallback="none" />
+                            <BlockLink editor={editor} block={theirs} fallback="none" />
                         </List>
-                    })}
+                    }}
                 </Show>
                 <Show condition={compared}>
-                    {move || clone!(take_base take_ours take_theirs -> view! {
+                    {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
                                 label="Take base"
@@ -396,7 +383,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                                 on_click={take_theirs}
                             />
                         </List>
-                    })}
+                    }}
                 </Show>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

@@ -29,7 +29,7 @@ pub fn Tooltip(
 ) -> NodeId {
     let anchor = NodeRef::new();
     let (shown, set_shown) = create_signal(false);
-    let wanted = create_memo(clone!(label disabled -> move || {
+    let wanted = create_memo(clone!(label -> move || {
         !disabled.get() && !label.get().is_empty()
     }));
     let open = create_memo(move || shown.get() && wanted.get());
@@ -38,19 +38,17 @@ pub fn Tooltip(
         set_shown.set(true);
         None
     });
-    let hover = clone!(dwell -> move |hovered: bool| {
-        match hovered {
-            true => dwell.restart(delay),
-            false => {
-                dwell.stop();
-                set_shown.set(false);
-            }
+    let hover = move |hovered: bool| match hovered {
+        true => dwell.restart(delay),
+        false => {
+            dwell.stop();
+            set_shown.set(false);
         }
-    });
-    let press = clone!(dwell -> move |_: PointerPress| {
+    };
+    let press = move |_: PointerPress| {
         dwell.stop();
         set_shown.set(false);
-    });
+    };
     let bubble = content.call(TooltipHandle { label, shown });
 
     view! {
@@ -58,7 +56,7 @@ pub fn Tooltip(
             <List @node_ref=&anchor spacing=0.0>
                 {children}
                 <Overlay
-                    anchor=&anchor
+                    anchor=anchor
                     placement=Placement::BelowStart
                     policy=LayerPolicy::Inert
                     traps_focus=false
