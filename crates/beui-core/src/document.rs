@@ -805,14 +805,18 @@ impl Document {
             let guard = crate::current::install(self);
             let installed = matches!(guard, crate::current::DocumentGuard::Installed(..));
             match installed {
-                true => context.run(|| {
-                    crate::current::with_document(|document| document.remove_nodes(&removals))
-                }),
+                true => {
+                    context.run(|| {
+                        crate::current::with_document(|document| document.remove_nodes(&removals))
+                    });
+                    drop(guard);
+                }
                 false => {
                     drop(guard);
                     self.remove_nodes(&removals);
                 }
             }
+            self.arena.give_back_removals(removals);
         }
     }
 

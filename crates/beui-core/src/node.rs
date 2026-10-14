@@ -599,6 +599,14 @@ impl Arena {
         std::mem::take(&mut *self.removals.0.borrow_mut())
     }
 
+    pub(crate) fn give_back_removals(&self, mut removals: Vec<NodeId>) {
+        removals.clear();
+        let mut held = self.removals.0.borrow_mut();
+        if held.is_empty() && held.capacity() < removals.capacity() {
+            *held = removals;
+        }
+    }
+
     pub(crate) fn removals_pending(&self) -> bool {
         !self.removals.0.borrow().is_empty()
     }
