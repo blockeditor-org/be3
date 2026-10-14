@@ -110,7 +110,10 @@ pub(crate) fn track(tracked: Rc<dyn Tracked>) {
             .any(|(source, _, _)| std::ptr::addr_eq(Rc::as_ptr(source), Rc::as_ptr(&tracked)))
         {
             let source = tracked.source();
-            let slot = source.subscribers.borrow_mut().add(Rc::downgrade(&observer));
+            let slot = source
+                .subscribers
+                .borrow_mut()
+                .add(Rc::downgrade(&observer));
             let version = source.version.get();
             dependencies.push((tracked, version, slot));
         }

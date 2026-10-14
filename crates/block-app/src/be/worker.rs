@@ -1485,7 +1485,11 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             changed = true;
         }
         if !published.conflicts.is_empty() {
-            let count: usize = published.conflicts.iter().map(|conflict| conflict.count).sum();
+            let count: usize = published
+                .conflicts
+                .iter()
+                .map(|conflict| conflict.count)
+                .sum();
             held.error = Some(format!(
                 "block {block} merged with {count} conflicting change(s); both versions are kept in its history"
             ));
@@ -1509,10 +1513,8 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 content.derived = derived;
             }
             None => {
-                held.blocks.insert(
-                    block,
-                    Content::new(content_type, bytes, session, derived),
-                );
+                held.blocks
+                    .insert(block, Content::new(content_type, bytes, session, derived));
             }
         }
         held.touch(block);
@@ -1521,6 +1523,8 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
     changed
 }
 
+type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>);
+
 struct Published {
     block: Uuid,
     history: History,
@@ -1528,7 +1532,7 @@ struct Published {
     conflicts: Vec<Conflict>,
     head: Option<CommitId>,
     log: Vec<Logged>,
-    content: Option<(Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>)>,
+    content: Option<PublishedContent>,
 }
 
 async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientError> {

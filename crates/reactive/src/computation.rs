@@ -39,7 +39,7 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     state: Cell<State>,
     refreshing: Cell<bool>,
     execution_owner: RefCell<Option<Rc<Owner>>>,
-    pub(crate) dependencies: RefCell<Vec<(Rc<dyn Tracked>, u64, usize)>>,
+    pub(crate) dependencies: RefCell<Vec<Dependency>>,
     pub(crate) source: Option<Rc<dyn Tracked>>,
     pub(crate) queued: Cell<bool>,
     pub(crate) queued_at: Cell<u64>,
@@ -48,6 +48,8 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     gate: Option<Rc<Gate>>,
     callback: RefCell<Slot<F>>,
 }
+
+pub(crate) type Dependency = (Rc<dyn Tracked>, u64, usize);
 
 pub(crate) fn no_computation() -> Weak<Computation> {
     Weak::<Computation<fn() -> bool>>::new()
@@ -276,11 +278,7 @@ impl Computation {
 
     fn detach(&self) {
         for (source, _, slot) in self.dependencies.take() {
-            source
-                .source()
-                .subscribers
-                .borrow_mut()
-                .remove(slot, self);
+            source.source().subscribers.borrow_mut().remove(slot, self);
         }
     }
 

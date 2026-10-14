@@ -319,9 +319,8 @@ impl Instance {
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => Vec::new(),
             },
             content: match role {
-                InstanceRole::Editor(block) => {
-                    own_content_type(block).map(|content_type| ContentLink::opening(block.id, content_type))
-                }
+                InstanceRole::Editor(block) => own_content_type(block)
+                    .map(|content_type| ContentLink::opening(block.id, content_type)),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
         }

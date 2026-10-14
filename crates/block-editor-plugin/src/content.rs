@@ -498,7 +498,11 @@ where
                 })
                 .collect::<Vec<_>>()
         };
-        let first = read(&projection.visible.borrow(), &[Touched::Everything], &Objects::default());
+        let first = read(
+            &projection.visible.borrow(),
+            &[Touched::Everything],
+            &Objects::default(),
+        );
         let (objects, write) = create_signal(Objects(Rc::new(first)));
         projection.register(
             Some(Touched::Subtree(owner)),

@@ -469,19 +469,19 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Dynamic value={kind}>
-            {move |kind: PartKind| match kind {
-                PartKind::Page => view! {
-                    <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
-                        <Icon glyph={ICON_DESCRIPTION.to_owned()} />
-                    </Text>
-                },
-                PartKind::Plain => view! {
-                    <Text style=TextStyle::CAPTION string={text} ellipsis=true />
-                },
-                PartKind::Chip => view! {
-                    <Chip part={part} text={text} />
-                },
-            }}
+                {move |kind: PartKind| match kind {
+                    PartKind::Page => view! {
+                        <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph={ICON_DESCRIPTION.to_owned()} />
+                        </Text>
+                    },
+                    PartKind::Plain => view! {
+                        <Text style=TextStyle::CAPTION string={text} ellipsis=true />
+                    },
+                    PartKind::Chip => view! {
+                        <Chip part={part} text={text} />
+                    },
+                }}
             </Dynamic>
         </List>
     }

@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use be_block::database::{
-    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of,
-    short_id,
+    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
 };
 use be_block::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
@@ -933,13 +932,14 @@ fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTit
                                 database,
                                 row: id.as_uuid(),
                             };
-                            let named = title
-                                .and_then(|field| row.value(field))
-                                .and_then(|value| match value {
-                                    DatabaseValue::String(text) if !text.trim().is_empty() => {
-                                        Some(text.clone())
+                            let named =
+                                title.and_then(|field| row.value(field)).and_then(|value| {
+                                    match value {
+                                        DatabaseValue::String(text) if !text.trim().is_empty() => {
+                                            Some(text.clone())
+                                        }
+                                        _ => None,
                                     }
-                                    _ => None,
                                 });
                             (
                                 link,

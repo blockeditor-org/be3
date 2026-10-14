@@ -232,11 +232,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 </List>
                             </Frame>
                             <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <VirtualList
-                                    keys={keys}
-                                    item_size=CARD_HEIGHT
-                                    overscan=CARD_HEIGHT
-                                >
+                                <VirtualList keys={keys} item_size=CARD_HEIGHT overscan=CARD_HEIGHT>
                                     {move |row: usize| {
                                         view! {
                                             <Frame padding_bottom={Some(CARD_SPACING)}>

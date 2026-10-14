@@ -3,11 +3,9 @@ use super::*;
 #[test]
 fn an_edit_rereads_only_the_objects_it_touched() {
     let fixture = Fixture::new();
-    let items = fixture._scope.run(|| {
-        fixture
-            .projection
-            .objects(ObjectId::ROOT, Checklist::ITEMS)
-    });
+    let items = fixture
+        ._scope
+        .run(|| fixture.projection.objects(ObjectId::ROOT, Checklist::ITEMS));
     let before = items.get_untracked();
 
     fixture.arrive(&[(Checklist::set_text(fixture.second, "oat milk"), false)]);

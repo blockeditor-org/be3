@@ -141,9 +141,7 @@ where
                 write.set(F::default());
                 return;
             };
-            let inner = editor
-                .content_of::<Document<R>>(block)
-                .field(object, field);
+            let inner = editor.content_of::<Document<R>>(block).field(object, field);
             create_effect(move || write.set(inner.get()));
         });
         read

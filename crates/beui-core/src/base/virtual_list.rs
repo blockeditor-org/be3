@@ -83,7 +83,10 @@ impl Metrics {
     }
 
     fn height(&self, index: usize) -> f32 {
-        self.lengths.get(&index).copied().unwrap_or_else(|| self.guess())
+        self.lengths
+            .get(&index)
+            .copied()
+            .unwrap_or_else(|| self.guess())
     }
 
     fn position(&self, index: usize) -> f32 {
