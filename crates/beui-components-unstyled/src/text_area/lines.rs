@@ -14,7 +14,7 @@ use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_view::components::overlay::Overlay;
-use text_editor_core::{EditorCommand, MarkdownCommand};
+use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
@@ -199,13 +199,63 @@ fn register_row(
     });
 }
 
+#[derive(Clone, PartialEq, Default)]
+struct RowCursors {
+    selection: Vec<std::ops::Range<usize>>,
+    carets: Vec<usize>,
+    anchor: Option<usize>,
+    handles: Vec<(beui_core::rich::CaretHandle, usize)>,
+}
+
+impl RowCursors {
+    fn selects(&self, byte: usize) -> bool {
+        self.selection.iter().any(|range| range.contains(&byte))
+    }
+}
+
+fn row_cursors(cx: Context, model: Memo<Rc<Row>>, layer: Layer) -> Memo<RowCursors> {
+    let span = create_memo(move || {
+        let row = model.get();
+        (row.start, row.end)
+    });
+    create_memo(move || {
+        cx.state.cursors().get();
+        let (start, end) = span.get();
+        let contains = |byte: &usize| *byte >= start && *byte <= end;
+        let carets = cx.state.caret_indices();
+        let touch = cx.state.touch_mode().get() && layer != Layer::Text;
+        let handles = match touch {
+            true => {
+                cx.state.caret_handle().get();
+                cx.shift.get();
+                untrack(|| cx.handles())
+                    .into_iter()
+                    .filter(|(_, byte)| contains(byte))
+                    .collect()
+            }
+            false => Vec::new(),
+        };
+        RowCursors {
+            selection: cx
+                .state
+                .selection_ranges()
+                .into_iter()
+                .filter(|range| range.start < range.end && range.start <= end && range.end > start)
+                .map(|range| range.start.max(start)..range.end.min(end + 1))
+                .collect(),
+            anchor: carets.first().copied().filter(contains),
+            carets: carets.into_iter().filter(contains).collect(),
+            handles,
+        }
+    })
+}
+
 fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
     let content = cx.state.content();
-    let cursors = cx.state.cursors();
     create_memo(move || {
         content.get();
-        cursors.get();
         cx.metrics.get();
+        cx.state.count_row_built();
         let starts = cx.starts.get();
         let tables = cx.tables.get();
         let widgets = cx.widgets.get();
@@ -218,7 +268,6 @@ fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
             mask: cx.masked.get(),
             single_line: cx.single_line,
         };
-        let selection = cx.state.selection_ranges();
         Rc::new(cx.state.with_snapshot(|snapshot| {
             let (start, end, newline) =
                 line_range(&snapshot.bytes, &starts, line).unwrap_or((0, 0, false));
@@ -239,7 +288,6 @@ fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
                     widgets: &widgets,
                     client_colors: &client_colors,
                     composition: composition.as_ref(),
-                    selection: &selection,
                     colors: &colors,
                     options,
                     spacers,
@@ -277,6 +325,7 @@ fn RowText(
         }
     });
     let keys = create_memo(move || piece_keys(&model.get(), layer));
+    let cursors = row_cursors(cx, model, layer);
     let padding = match cx.single_line {
         true => (0.0, 0.0),
         false => LINE_PADDING,
@@ -287,7 +336,6 @@ fn RowText(
         }
         let row = model.get();
         let colors = cx.colors.get();
-        cx.state.cursors().get();
         let mut marks: Vec<TextMark> = row
             .code
             .iter()
@@ -298,10 +346,8 @@ fn RowText(
                 outset: CODE_OUTSET,
             })
             .collect();
-        for range in cx.state.selection_ranges() {
-            if range.start < range.end && range.start <= row.end && range.end > row.start {
-                marks.push(TextMark::new(row.display_range(&range), colors.selection));
-            }
+        for range in &cursors.get().selection {
+            marks.push(TextMark::new(row.display_range(range), colors.selection));
         }
         for remote in cx.remote_cursors.get() {
             let range = remote.selection;
@@ -318,21 +364,14 @@ fn RowText(
         let row = model.get();
         let colors = cx.colors.get();
         let focused = cx.focused.get();
-        cx.state.cursors().get();
         let contains = |byte: usize| byte >= row.start && byte <= row.end;
         let mut carets = Vec::new();
-        let touch = cx.state.touch_mode().get();
-        cx.state.caret_handle().get();
-        if touch && layer != Layer::Text {
-            cx.shift.get();
-            for (handle, byte) in untrack(|| cx.handles()) {
-                if contains(byte) {
-                    carets.push(TextCaret {
-                        handle: Some(handle),
-                        ..TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH)
-                    });
-                }
-            }
+        let cursors = cursors.get();
+        for (handle, byte) in &cursors.handles {
+            carets.push(TextCaret {
+                handle: Some(*handle),
+                ..TextCaret::new(row.to_display(*byte), colors.caret, CARET_WIDTH)
+            });
         }
         if layer == Layer::Handles {
             return carets;
@@ -353,23 +392,19 @@ fn RowText(
             ));
         }
         if focused {
-            for byte in cx.state.caret_indices() {
-                if contains(byte) {
-                    carets.push(TextCaret {
-                        blink: true,
-                        ..TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH)
-                    });
-                }
+            for byte in &cursors.carets {
+                carets.push(TextCaret {
+                    blink: true,
+                    ..TextCaret::new(row.to_display(*byte), colors.caret, CARET_WIDTH)
+                });
             }
         }
         carets
     });
     let anchor_at = create_memo(move || {
         let row = model.get();
-        cx.state.cursors().get();
         cx.focused.get();
-        let byte = cx.state.caret_indices().first().copied()?;
-        (byte >= row.start && byte <= row.end).then(|| row.to_display(byte))
+        cursors.get().anchor.map(|byte| row.to_display(byte))
     });
     let anchored = create_memo(move || layer != Layer::Handles && anchor_at.get().is_some());
     let color = create_memo(move || cx.colors.get().syntax.markdown_plain_text);
@@ -390,7 +425,7 @@ fn RowText(
         >
             <ForEach keys={keys}>
                 {move |(key, _): (PieceKey, usize)| {
-                    row_piece(cx, item_model, layer, key)
+                    row_piece(cx, item_model, cursors, layer, key)
                 }}
             </ForEach>
             <Show condition={anchored}>
@@ -413,6 +448,7 @@ enum PieceKey {
         underline: bool,
         strikethrough: bool,
         break_after: bool,
+        invisible: Option<usize>,
     },
     Space(u32),
     Inline(usize),
@@ -446,6 +482,7 @@ fn piece_keys(row: &Row, layer: Layer) -> Vec<(PieceKey, usize)> {
                         underline: style.underline && !handles,
                         strikethrough: style.strikethrough && !handles,
                         break_after: span.break_after,
+                        invisible: span.invisible.filter(|_| !handles),
                     }
                 }
                 SpanKind::Space(width) => PieceKey::Space(width.to_bits()),
@@ -458,7 +495,13 @@ fn piece_keys(row: &Row, layer: Layer) -> Vec<(PieceKey, usize)> {
         .collect()
 }
 
-fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> TextChild {
+fn row_piece(
+    cx: Context,
+    model: Memo<Rc<Row>>,
+    cursors: Memo<RowCursors>,
+    layer: Layer,
+    key: PieceKey,
+) -> TextChild {
     match key {
         PieceKey::Text {
             text,
@@ -467,10 +510,17 @@ fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> 
             underline,
             strikethrough,
             break_after,
+            invisible,
         } => {
             let font = FontId::new(f32::from_bits(size), family)
                 .bold(bold)
                 .italic(italic);
+            let color = create_memo(move || match invisible {
+                Some(byte) if cursors.get().selects(byte) => {
+                    cx.colors.get().syntax.scope(SynHlColorScope::Invisible)
+                }
+                _ => color,
+            });
             view! {
                 <Span text font color underline strikethrough break_after />
             }
