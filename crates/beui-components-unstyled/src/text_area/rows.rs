@@ -28,7 +28,6 @@ pub const LINE_PADDING: (f32, f32) = (3.0, 4.0);
 
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
-const SPACER: &str = "\u{200b}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
 const ELLIPSIS: &str = "...";
 const ELLIPSIS_GAP: f32 = 6.0;
@@ -245,7 +244,7 @@ impl Row {
                             break_after: span.break_after,
                         };
                     }
-                    SpanKind::Space(width) => Vec2::new(width, 0.0),
+                    SpanKind::Space(width) => return Piece::Gap(width),
                     SpanKind::Inline(index) => {
                         self.inline.get(index).map_or(Vec2::ZERO, |item| item.size)
                     }
@@ -263,7 +262,7 @@ impl Row {
         let index = self
             .spans
             .iter()
-            .filter(|span| span.kind != SpanKind::Text)
+            .filter(|span| matches!(span.kind, SpanKind::Inline(_)))
             .nth(flow)
             .and_then(|span| match span.kind {
                 SpanKind::Inline(index) => Some(index),
@@ -453,8 +452,19 @@ impl Builder<'_> {
             .map(|(_, width)| *width)
             .collect();
         for width in widths {
-            self.push(SPACER, at..at, false, style, SpanKind::Space(width));
+            self.gap(width, style);
         }
+    }
+
+    fn gap(&mut self, width: f32, style: SpanStyle) {
+        let at = self.row.display.len();
+        self.row.spans.push(RowSpan {
+            range: at..at,
+            style,
+            kind: SpanKind::Space(width),
+            break_after: false,
+            invisible: None,
+        });
     }
 
     fn client_color(&self, client: u64) -> Option<Color32> {
@@ -587,9 +597,8 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
     let bytes = &snapshot.bytes;
     let highlight = snapshot.highlight();
     let held = start.min(bytes.len().saturating_sub(1));
-    let relative = |range: &Range<usize>| {
-        range.start.saturating_sub(start)..range.end.saturating_sub(start)
-    };
+    let relative =
+        |range: &Range<usize>| range.start.saturating_sub(start)..range.end.saturating_sub(start);
     Some(RowKey {
         bytes: bytes[start..end].to_vec(),
         newline,
@@ -816,7 +825,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .iter()
         .any(|section| section.collapsed && section.line_start == start)
     {
-        builder.push(SPACER, end..end, false, body, SpanKind::Space(ELLIPSIS_GAP));
+        builder.gap(ELLIPSIS_GAP, body);
         let style = SpanStyle::new(FontId::monospace(BODY_SIZE), inputs.colors.gutter_arrow);
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
@@ -967,20 +976,29 @@ fn measure_table_row(
         return Some((start, measured));
     }
     let row = build_row(&row_inputs, line, start, end, newline);
-    let measured = rich_layout(&row, inputs.options.body_size, (0.0, 0.0), inputs.wrap_width)
-        .and_then(|layout| {
-            let first = layout.lines.first()?;
-            let cells: Vec<(Range<usize>, f32, f32)> = cells
-                .iter()
-                .zip(&relative)
-                .map(|(cell, relative)| {
-                    (relative, row.to_display(cell.start), row.to_display(cell.end))
-                })
-                .take_while(|(_, _, end)| *end <= first.range.end)
-                .map(|(relative, start, end)| (relative.clone(), first.x_of(start), first.x_of(end)))
-                .collect();
-            (!cells.is_empty()).then_some((cells, first.width))
-        });
+    let measured = rich_layout(
+        &row,
+        inputs.options.body_size,
+        (0.0, 0.0),
+        inputs.wrap_width,
+    )
+    .and_then(|layout| {
+        let first = layout.lines.first()?;
+        let cells: Vec<(Range<usize>, f32, f32)> = cells
+            .iter()
+            .zip(&relative)
+            .map(|(cell, relative)| {
+                (
+                    relative,
+                    row.to_display(cell.start),
+                    row.to_display(cell.end),
+                )
+            })
+            .take_while(|(_, _, end)| *end <= first.range.end)
+            .map(|(relative, start, end)| (relative.clone(), first.x_of(start), first.x_of(end)))
+            .collect();
+        (!cells.is_empty()).then_some((cells, first.width))
+    });
     if let Some(key) = key {
         inputs.cache.borrow_mut().used.push((key, measured.clone()));
     }
@@ -989,7 +1007,7 @@ fn measure_table_row(
 
 pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
     inputs.cache.borrow_mut().start(TableEnv {
-        colors: inputs.colors.clone(),
+        colors: *inputs.colors,
         options: inputs.options,
         wrap_width: inputs.wrap_width,
         scale: inputs.scale,

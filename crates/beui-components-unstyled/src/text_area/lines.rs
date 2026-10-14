@@ -18,16 +18,16 @@ use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ForEach, Frame, IntoChild, List, Memo, NodeRef, Portal, RenderFn,
-    Show, Span, Text, TextChild, TextItem, VirtualList, component_placed, create_effect,
+    Callback, Canvas, CanvasItem, ForEach, Frame, Gap, IntoChild, List, Memo, NodeRef, Portal,
+    RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList, component_placed, create_effect,
     create_memo, on_cleanup, untrack, with_document,
 };
 
 use super::colors::TextAreaColors;
 use super::rows::{
     BODY_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
-    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowKey, RowOptions,
-    SpanKind, build_row, galley, line_range, rich_layout, row_key,
+    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowKey,
+    RowOptions, SpanKind, build_row, galley, line_range, rich_layout, row_key,
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
@@ -299,9 +299,8 @@ impl RowCache {
 
 fn bytes_hash(bytes: &[u8]) -> u64 {
     use std::hash::{BuildHasher, Hash, Hasher};
-    let mut hasher = foldhash::fast::FixedState::with_seed(0).build_hasher();
-    bytes.hash(&mut hasher);
-    hasher.finish()
+
+    foldhash::fast::FixedState::with_seed(0).hash_one(&bytes)
 }
 
 fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
@@ -592,9 +591,7 @@ fn row_piece(
             .into_child()
         }
         PieceKey::Space(width) => view! {
-            <TextItem>
-                <Frame width={Some(f32::from_bits(width))} height=Some(0.0) />
-            </TextItem>
+            <Gap width={f32::from_bits(width)} />
         }
         .into_child(),
         PieceKey::Inline(item) if layer == Layer::Handles => {
