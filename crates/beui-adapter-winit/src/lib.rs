@@ -21,7 +21,7 @@ use winit::event::{
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{NamedKey, PhysicalKey};
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-use winit::window::{CursorGrabMode, Fullscreen, Window, WindowId};
+use winit::window::{CursorGrabMode, CustomCursor, Fullscreen, Window, WindowId};
 
 use accesskit::TreeUpdate;
 use beui_core::app::{SafeArea, Setup, Waker};
@@ -106,6 +106,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
 
 struct Surface {
     window: Arc<Window>,
+    touch_cursor: CustomCursor,
     fullscreen: bool,
     accessibility: AccessKitAdapter,
 }
@@ -292,6 +293,17 @@ impl ApplicationHandler<UserEvent> for Runner {
         let proxy = self.proxy.clone();
         let accessibility =
             AccessKitAdapter::with_event_loop_proxy(event_loop, &window, proxy.clone());
+        let touch = beui_core::touch_cursor::image(window.scale_factor() as f32);
+        let touch_cursor = event_loop.create_custom_cursor(
+            CustomCursor::from_rgba(
+                touch.rgba,
+                touch.width as u16,
+                touch.height as u16,
+                touch.hotspot.0 as u16,
+                touch.hotspot.1 as u16,
+            )
+            .expect("the touch cursor's image matches its size"),
+        );
         window.set_visible(true);
         let Some(load) = self.load.take() else {
             return;
@@ -307,6 +319,7 @@ impl ApplicationHandler<UserEvent> for Runner {
         setup.provide(window.clone());
         self.surface = Some(Surface {
             window,
+            touch_cursor,
             fullscreen: false,
             accessibility,
         });
@@ -559,7 +572,7 @@ fn pointer_button(button: MouseButton) -> Option<PointerButton> {
 fn cursor(icon: CursorIcon) -> Option<winit::window::CursorIcon> {
     Some(match icon {
         CursorIcon::Default => winit::window::CursorIcon::Default,
-        CursorIcon::Crosshair => winit::window::CursorIcon::Crosshair,
+        CursorIcon::Crosshair | CursorIcon::Touch => winit::window::CursorIcon::Crosshair,
         CursorIcon::Grab => winit::window::CursorIcon::Grab,
         CursorIcon::Grabbing => winit::window::CursorIcon::Grabbing,
         CursorIcon::NotAllowed => winit::window::CursorIcon::NotAllowed,
@@ -704,6 +717,11 @@ fn named_key(named: NamedKey) -> Option<Key> {
 
 fn show_cursor(surface: &Surface, state: &WindowState) {
     let window = &surface.window;
+    if state.cursor == CursorIcon::Touch {
+        window.set_cursor(surface.touch_cursor.clone());
+        window.set_cursor_visible(!state.pointer_locked);
+        return;
+    }
     match cursor(state.cursor) {
         Some(icon) => {
             window.set_cursor(icon);

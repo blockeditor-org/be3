@@ -2123,6 +2123,7 @@ impl Instances {
             CursorIcon::ResizeNorthWest => beui::CursorIcon::ResizeNorthWest,
             CursorIcon::ResizeSouthEast => beui::CursorIcon::ResizeSouthEast,
             CursorIcon::ResizeSouthWest => beui::CursorIcon::ResizeSouthWest,
+            CursorIcon::Touch => beui::CursorIcon::Touch,
         })
     }
 

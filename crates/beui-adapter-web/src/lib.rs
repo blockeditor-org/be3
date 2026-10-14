@@ -21,7 +21,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    TouchPhase,
 };
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
@@ -227,10 +228,11 @@ impl Platform for WebPlatform {
             PASTE_KINDS.with(|pastes| pastes.borrow_mut().clone_from(&window.paste_kinds));
         }
         if window.cursor != shown.cursor {
-            let _ = self
-                .surface
-                .style()
-                .set_property("cursor", window.cursor.name());
+            let cursor = match window.cursor {
+                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.name()),
+                cursor => cursor.name().to_owned(),
+            };
+            let _ = self.surface.style().set_property("cursor", &cursor);
         }
         if window.pointer_locked != shown.pointer_locked {
             match window.pointer_locked {
