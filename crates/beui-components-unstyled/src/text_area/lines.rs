@@ -80,6 +80,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
     });
+    create_effect(move || cx.set_text_extent.set(text.get()));
     let canvas_width = create_memo(move || text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH);
     let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
     let x = create_memo(move || cx.padding.get().x - cx.shift.get());
