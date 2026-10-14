@@ -6,12 +6,12 @@ use crate::unstyled::{
 
 #[test]
 fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />

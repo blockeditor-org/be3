@@ -44,7 +44,7 @@ impl HostValue for Icons {
 #[test]
 fn a_host_value_wakes_only_the_watchers_of_its_own_key() {
     let host = EditorHost::default();
-    let editor = Editor::new(host.clone(), Uuid::new_v4());
+    let editor = OwnedEditor::new(host.clone(), Uuid::new_v4());
     let mut document = build(|| Frame().build());
     let (windows, icons) = with_reactive_scope(&mut document, || {
         (editor.host_value::<Windows>(), editor.host_value::<Icons>())

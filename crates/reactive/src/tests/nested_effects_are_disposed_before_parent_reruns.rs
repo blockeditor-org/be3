@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn nested_effects_are_disposed_before_parent_reruns() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (parent, set_parent) = create_signal(1);
     let (child, set_child) = create_signal(10);
@@ -10,7 +11,7 @@ fn nested_effects_are_disposed_before_parent_reruns() {
         let seen = seen.clone();
         create_effect(move || {
             let parent = parent.get();
-            let child = child.clone();
+            let child = child;
             let seen = seen.clone();
             create_effect(move || seen.borrow_mut().push((parent, child.get())));
         });

@@ -1,12 +1,16 @@
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Pos2;
+use beui_core::input::Key;
+use beui_core::keys::KeyEvent;
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{ClickCallback, Frame, Func, Memo, clone, create_memo};
+use beui_view::reactive::{
+    ClickCallback, Frame, Func, Memo, NodeRef, create_memo, on_global_key, with_document,
+};
 
-use super::{DockState, Handle, State, TabId};
+use super::{DockState, State, TabId};
 
 pub struct DockSwitchHandle {
     pub tabs: Memo<Vec<TabId>>,
@@ -32,35 +36,59 @@ impl State {
 }
 
 #[component]
-pub(super) fn DockSwitchView(dock: Handle) -> NodeId {
-    let state = dock.state.clone();
+pub(super) fn DockSwitchView(dock: State) -> NodeId {
+    let state = dock.state;
     let switch = create_memo(move || state.with(DockState::switch));
-    let open = create_memo(clone!(switch -> move || switch.with(Option::is_some)));
-    let tabs = create_memo(clone!(switch -> move || {
-        switch.with(|switch| switch.as_ref().map(|switch| switch.tabs.clone()).unwrap_or_default())
-    }));
+    let open = create_memo(move || switch.with(Option::is_some));
+    let tabs = create_memo(move || {
+        switch.with(|switch| {
+            switch
+                .as_ref()
+                .map(|switch| switch.tabs.clone())
+                .unwrap_or_default()
+        })
+    });
     let chosen =
         create_memo(move || switch.with(|switch| switch.as_ref().map(|switch| switch.chosen)));
-    let rows = dock.clone();
-    let row = Func::new(clone!(chosen -> move |tab: TabId| {
-        let (titled, pictured, picked) = (rows.clone(), rows.clone(), rows.clone());
+    let rows = dock;
+    let row = Func::new(move |tab: TabId| {
+        let (titled, pictured, picked) = (rows, rows, rows);
         DockSwitchRowHandle {
             tab,
             title: create_memo(move || titled.title(tab)),
             icon: create_memo(move || pictured.icon(tab)),
-            chosen: create_memo(clone!(chosen -> move || chosen.get() == Some(tab))),
+            chosen: create_memo(move || chosen.get() == Some(tab)),
             pick: ClickCallback::new(move || picked.pick_switch(tab)),
         }
-    }));
+    });
     let body = match &dock.switch {
         Some(render) => render.call(DockSwitchHandle { tabs, chosen, row }),
         None => view! {
             <Frame />
         },
     };
-    let cancelled = dock.clone();
+    let cancelled = dock;
+    let overlay = NodeRef::new();
+    let switching = open;
+    on_global_key(move |event: KeyEvent| {
+        if event.held() {
+            return true;
+        }
+        let Some(press) = event.press() else {
+            return false;
+        };
+        let Some(overlay) = overlay.try_get() else {
+            return false;
+        };
+        if press.key != Key::Escape || !press.pressed || !switching.get_untracked() {
+            return false;
+        }
+        with_document(|document| document.dismiss_overlay(overlay, Dismiss::Escape));
+        true
+    });
     view! {
         <Overlay
+            @node_ref=&overlay
             anchor={OverlayAnchor::Point(Pos2::ZERO)}
             placement=Placement::Center
             policy=LayerPolicy::Pass

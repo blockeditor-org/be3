@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::reactive::{
     Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, PlacementBuilder,
-    ReadSignal, Show, Spacer, clone, component, create_effect, create_memo, view,
+    ReadSignal, Show, Spacer, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_beui::beui::unstyled::Picture;
@@ -14,38 +14,36 @@ use super::{filter, imported};
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<ImageContent>();
-    let shown = watch(&editor, &block);
-    let image = create_memo(clone!(shown -> move || shown.get().image));
-    let placeholder = thumbhash(&editor);
-    let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
-    let reason = create_memo(clone!(shown -> move || shown.get().error.unwrap_or_default()));
+    let shown = watch(editor, block);
+    let image = create_memo(move || shown.get().image);
+    let placeholder = thumbhash(editor);
+    let failed = create_memo(move || shown.get().error.is_some());
+    let reason = create_memo(move || shown.get().error.unwrap_or_default());
 
     let chooser = FileChooser::new(filter(), imported);
-    let replacing = editor.clone();
     chooser.on_chosen(move |chooser| {
         if let Some(image) = chooser.take() {
-            replacing.replace_content(replacing.block_id(), &image);
+            editor.replace_content(editor.block_id(), &image);
         }
     });
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(clone!(read_only busy -> move || read_only.get() || busy.get()));
+    let blocked = create_memo(move || read_only.get() || busy.get());
     let failure = chooser.error();
-    let refused = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let refusal = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let choose = clone!(chooser -> move || chooser.open());
+    let refused = create_memo(move || failure.get().is_some());
+    let refusal = create_memo(move || failure.get().unwrap_or_default());
+    let choose = move || chooser.open();
 
-    let sized = editor.clone();
-    create_effect(clone!(image -> move || {
-        sized.set_intrinsic_size(image.get().map(|image| image.size()));
-    }));
+    create_effect(move || {
+        editor.set_intrinsic_size(image.get().map(|image| image.size()));
+    });
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
-    let danger = theme.danger.clone();
+    let danger = theme.danger;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
@@ -57,7 +55,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                         thumbhash={placeholder}
                     />
                     <Show condition={failed}>
-                        <Caption content={reason.clone()} color={danger.clone()} />
+                        <Caption content={reason} color={danger} />
                     </Show>
                 </List>
             </Frame>
@@ -71,7 +69,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                     on_click={choose}
                 />
                 <Show condition={refused}>
-                    <Caption content={refusal.clone()} color={theme.danger.clone()} />
+                    <Caption content={refusal} color={theme.danger} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Sidebar>
@@ -89,10 +87,10 @@ fn Artwork(
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let world = editor.world();
-                let placeholder = create_memo(clone!(thumbhash -> move || {
+                let placeholder = create_memo(move || {
                     thumbhash.get().map(|thumbhash| thumbhash.size())
-                }));
-                let shape = create_memo(clone!(image placeholder world placed -> move || {
+                });
+                let shape = create_memo(move || {
                     let Some(size) = image.get().map(|image| image.size()).or_else(|| placeholder.get()) else {
                         return Rect::ZERO;
                     };
@@ -101,11 +99,11 @@ fn Artwork(
                         Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
                         size,
                     )
-                }));
-                let x = create_memo(clone!(shape -> move || shape.get().left()));
-                let y = create_memo(clone!(shape -> move || shape.get().top()));
-                let width = create_memo(clone!(shape -> move || shape.get().width()));
-                let height = create_memo(clone!(shape -> move || shape.get().height()));
+                });
+                let x = create_memo(move || shape.get().left());
+                let y = create_memo(move || shape.get().top());
+                let width = create_memo(move || shape.get().width());
+                let height = create_memo(move || shape.get().height());
                 view! {
                     <Canvas view={editor.canvas()}>
                         <CanvasItem
@@ -127,9 +125,9 @@ fn Artwork(
 #[component]
 pub fn ImagePreview(editor: Editor) -> NodeId {
     let block = editor.block_content::<ImageContent>();
-    let shown = watch(&editor, &block);
+    let shown = watch(editor, block);
     let image = create_memo(move || shown.get().image);
-    let placeholder = thumbhash(&editor);
+    let placeholder = thumbhash(editor);
     view! {
         <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
     }

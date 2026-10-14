@@ -44,12 +44,16 @@ pub(crate) fn parse_targets(listed: &Value) -> Vec<Target> {
                         return None;
                     }
                     let label = label.strip_prefix("root").unwrap_or(label).to_owned();
-                    let runnable_app = kind == "app" && !attributes["binary"].is_null();
+                    let runnable_app = !attributes["binary"].is_null()
+                        || attributes["run_with"]
+                            .as_array()
+                            .is_some_and(|run_with| !run_with.is_empty());
                     let action = match kind {
                         "rust_test" | "wasi_test" => Action::Test,
                         "tool" => Action::Run,
-                        "rust_binary" if !label.ends_with(":test_module") => Action::Run,
+                        "rust_binary" if !label.ends_with(":test-module") => Action::Run,
                         "app" if runnable_app => Action::Run,
+                        "android_apk" if attributes["ci_signed"] != true => Action::Run,
                         _ => Action::Build,
                     };
                     Some(Target {

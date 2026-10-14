@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::GameModuleContent;
 use block_editor_beui::beui::reactive::{
-    Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
+    Direction, Frame, ItemSize, List, NodeRef, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Paragraph, use_theme,
@@ -36,27 +36,26 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     });
     let source = module.project(|module| module.header().source_name.clone());
     let size = module.project(|module| module.data().len());
-    let bytes = create_memo(clone!(size -> move || format!("{} bytes", size.get())));
+    let bytes = create_memo(move || format!("{} bytes", size.get()));
 
-    let name = create_memo(clone!(loaded -> move || match loaded.get() {
+    let name = create_memo(move || match loaded.get() {
         Loaded::Named(name) => name,
         _ => String::new(),
-    }));
-    let named = create_memo(clone!(loaded -> move || matches!(loaded.get(), Loaded::Named(_))));
-    let reason = create_memo(clone!(loaded -> move || match loaded.get() {
+    });
+    let named = create_memo(move || matches!(loaded.get(), Loaded::Named(_)));
+    let reason = create_memo(move || match loaded.get() {
         Loaded::Failed(error) => error,
         _ => String::new(),
-    }));
-    let failed = create_memo(clone!(loaded -> move || matches!(loaded.get(), Loaded::Failed(_))));
-    let waiting = create_memo(clone!(loaded -> move || loaded.get() == Loaded::Loading));
+    });
+    let failed = create_memo(move || matches!(loaded.get(), Loaded::Failed(_)));
+    let waiting = create_memo(move || loaded.get() == Loaded::Loading);
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let panel = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
@@ -67,16 +66,16 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     <List spacing=SPACING>
                         <Show condition={named}>
                             <Heading
-                                content={name.clone()}
+                                content={name}
                                 align=TextAlign::Center
                                 @test_id={"game-module.name"}
                             />
                         </Show>
                         <Show condition={failed}>
                             <Paragraph
-                                content={reason.clone()}
+                                content={reason}
                                 align=TextAlign::Center
-                                color={theme.danger.clone()}
+                                color={theme.danger}
                                 @test_id={"game-module.error"}
                             />
                         </Show>
@@ -88,7 +87,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     </List>
                 </Frame>
                 <Sidebar shown={chrome}>
-                    <ModulePanel editor={panel} />
+                    <ModulePanel editor={editor} />
                 </Sidebar>
             </List>
         </Frame>
@@ -97,20 +96,19 @@ pub fn ModuleView(editor: Editor) -> NodeId {
 
 #[component]
 fn ModulePanel(editor: Editor) -> NodeId {
-    let replacing = editor.clone();
     let chooser = FileChooser::new(filter(), imported);
     chooser.on_chosen(move |chooser| {
         if let Some(replacement) = chooser.take() {
-            replacing.replace_content(replacing.block_id(), &replacement);
+            editor.replace_content(editor.block_id(), &replacement);
         }
     });
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(clone!(busy read_only -> move || busy.get() || read_only.get()));
+    let blocked = create_memo(move || busy.get() || read_only.get());
     let error = chooser.error();
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     let theme = use_theme();
     view! {
@@ -124,7 +122,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Caption content={reason.clone()} color={theme.danger.clone()} />
+                <Caption content={reason} color={theme.danger} />
             </Show>
         </List>
     }

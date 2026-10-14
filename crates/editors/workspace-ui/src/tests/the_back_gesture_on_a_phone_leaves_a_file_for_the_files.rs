@@ -17,6 +17,7 @@ fn the_back_gesture_on_a_phone_leaves_a_file_for_the_files() {
 
     fixture.test.back();
     fixture.settle();
+    fixture.test.settle();
     assert!(
         fixture.shown().is_empty(),
         "going back leaves the file for the files page"

@@ -5,6 +5,7 @@ pub mod drawing;
 pub mod embed;
 pub mod fade;
 pub mod focus;
+pub mod focus_scope;
 pub mod frame;
 pub mod grid;
 pub mod interactive;

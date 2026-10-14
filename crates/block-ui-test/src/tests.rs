@@ -2,7 +2,7 @@ use beui::NodeId;
 use beui::reactive::{Frame, ReadSignal, Text, component, create_memo, view};
 use block_editor_beui::{
     BeuiApp, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost,
+    Editor, EditorHost, OwnedEditor,
 };
 use uuid::Uuid;
 
@@ -65,7 +65,7 @@ fn Status(state: ReadSignal<ChildState>) -> NodeId {
 fn editor() -> BeuiTest<ChildApp> {
     let host = EditorHost::default();
     host.set_editable(true);
-    BeuiTest::new(Editor::new(host, Uuid::new_v4()))
+    BeuiTest::new(OwnedEditor::new(host, Uuid::new_v4()))
 }
 
 fn status(test: &BeuiTest<ChildApp>) -> String {
@@ -84,7 +84,7 @@ fn undoable_editor() -> (BeuiTest<ChildApp>, Uuid) {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut test = BeuiTest::<ChildApp>::new(Editor::new(host, block)).with_top_bar(false);
+    let mut test = BeuiTest::<ChildApp>::new(OwnedEditor::new(host, block)).with_top_bar(false);
     test.set_histories([(
         block,
         block_editor_beui::BlockHistory {

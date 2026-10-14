@@ -248,7 +248,7 @@ impl Shell {
             wayland::create();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
-            view = Some(store.clone());
+            view = Some(store);
             let view = store;
             beui::reactive::view! {
                 <ui::Root view />
@@ -317,7 +317,7 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        let store = self.view.clone();
+        let store = self.view;
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
             store.set(view);
@@ -421,7 +421,7 @@ struct BlockApp {
     display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
-    editors: compositor::Editors,
+    editors: compositor::OwnedEditors,
 
     watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
@@ -608,7 +608,7 @@ impl BlockApp {
             ServerLocation::Remote(remote) => remote.clone(),
         };
         let registry = Rc::new(EditorRegistry::new());
-        let editors = compositor::Editors::install(Rc::clone(&registry), client_id);
+        let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         Ok(Self {
             app_state,
             client_id,

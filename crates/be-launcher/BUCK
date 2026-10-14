@@ -1,4 +1,4 @@
-load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/app:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
@@ -8,17 +8,21 @@ cargo_library(soname = "libbe_launcher.so")
 
 cargo_test()
 
-# `./scripts/buck run //crates/be-launcher:launcher`
-cargo_binary(name = "launcher")
+# `./scripts/buck run //crates/be-launcher:native`
+cargo_binary(name = "native")
 
 # The launcher on Android installs the APKs CI publishes to be3-ci: block-app's
 # CI build (`com.be3.block.ci`), and the launcher itself. As with the app,
 # CI's APK has an id and label of its own, so that it installs beside a local
-# build rather than colliding with it.
+# build rather than colliding with it, and is signed on a worker with CI's
+# keystore. `./scripts/buck run //crates/be-launcher:android -- --install`
+# signs the local one here and installs it.
 [
     android_apk(
         name = name,
+        activity = "com.be3.launcher.LauncherActivity",
         application_id = application_id,
+        ci_signed = ci_signed,
         java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
         label = label,
         library = ":be-launcher",
@@ -30,35 +34,15 @@ cargo_binary(name = "launcher")
         version_code = 1,
         version_name = "0.1.0",
     )
-    for name, application_id, label in [
-        ("apk", "com.be3.launcher", "be3 launcher"),
-        ("apk-dist", "com.be3.launcher.ci", "be3 launcher (CI)"),
+    for name, application_id, label, ci_signed in [
+        ("android", "com.be3.launcher", "be3 launcher", False),
+        ("android-dist", "com.be3.launcher.ci", "be3 launcher (CI)", True),
     ]
 ]
-
-# `./scripts/buck run //crates/be-launcher:android -- --install`
-command_alias(
-    name = "android",
-    args = [
-        "sh",
-        "$(location //buck/android:sign.sh)",
-        "$(location //buck/android:jdk)",
-        "$(location //buck/android:build-tools)",
-        "$(location //buck/android:platform-tools)",
-        "$(location :apk)",
-        "be-launcher",
-        "com.be3.launcher.LauncherActivity",
-    ],
-)
-
-signed_apk(
-    name = "android-dist",
-    apk = ":apk-dist",
-)
 
 # Headless for an agent to drive: guides/running/drive.md.
 headless(
     name = "dev",
     app_name = "be-launcher",
-    program = "$(location :launcher)",
+    program = "$(location :native)",
 )

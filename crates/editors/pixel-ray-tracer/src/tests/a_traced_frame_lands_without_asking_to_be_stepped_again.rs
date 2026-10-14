@@ -11,12 +11,12 @@ fn a_traced_frame_lands_without_asking_to_be_stepped_again() {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     host.set_block_content(HostContent::of(&PixelRayTracerContent::default()));
     let mut document = build(|| Frame().build());
 
     let state = with_reactive_scope(&mut document, || {
-        let state = RayState::new(&editor);
+        let state = RayState::new(*editor);
         state.watch();
         state
     });

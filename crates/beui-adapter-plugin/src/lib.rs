@@ -38,7 +38,6 @@ impl Adapter for PluginAdapter {
     fn run(self: Box<Self>, launch: Launch) -> Running {
         Box::pin(async move {
             let mut runner = Runner::new(launch);
-            runner.context().set_test_ids_published(true);
             let waker = self.host.waker();
             let loaded = Loaded {
                 renderer: Box::new(SurfaceRenderer::new(Rc::clone(&self.surface))),
@@ -161,6 +160,7 @@ impl PluginSurface {
         self.runner.reports().scaled(region.scale_factor);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
+            beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
         }
         self.platform.deliver_picks();
         let scale = region.scale_factor;
@@ -176,7 +176,13 @@ impl PluginSurface {
             self.runner.context().set_automated(true);
         }
         let Some(frame) = self.runner.frame(&mut self.platform, area) else {
-            return Frame::default();
+            return Frame {
+                stopped: self.runner.exited().then(|| match self.runner.failure() {
+                    Some(failure) => block_plugin_api::Stopped::Failed(failure.to_owned()),
+                    None => block_plugin_api::Stopped::Closed,
+                }),
+                ..Frame::default()
+            };
         };
         let description = region.describe.then(|| self.describe(region));
         frame_for(self.runner.window(), &frame, description)
@@ -209,22 +215,11 @@ impl PluginSurface {
                             .iter()
                             .map(|action| format!("{action:?}"))
                             .collect(),
+                        test_ids: line.test_ids.clone(),
                     })
                     .collect()
             })
             .unwrap_or_default();
-        let mut test_ids: Vec<(String, Rect)> = self
-            .runner
-            .output()
-            .map(|output| {
-                output
-                    .test_ids()
-                    .iter()
-                    .map(|(id, rect)| (id.clone(), self.to_region(region, *rect)))
-                    .collect()
-            })
-            .unwrap_or_default();
-        test_ids.sort_by(|a, b| a.0.cmp(&b.0));
         let actions = self
             .runner
             .output()
@@ -244,20 +239,12 @@ impl PluginSurface {
                     .collect()
             })
             .unwrap_or_default();
-        Description {
-            nodes,
-            test_ids,
-            actions,
-        }
+        Description { nodes, actions }
     }
 
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {
         let context = self.runner.context();
         rect.scaled(context.pixels_per_point() / region.scale_factor)
-    }
-
-    pub fn pointer_locked(&self) -> bool {
-        self.runner.window().pointer_locked
     }
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
@@ -285,10 +272,8 @@ fn frame_for(
         floating: Vec::new(),
         claims: Vec::new(),
         window: block_editor_plugin::WindowRequests {
-            cursor: match window.touch_emulation {
-                true => block_plugin_api::CursorIcon::Crosshair,
-                false => beui_plugin_input::protocol_cursor(window.cursor),
-            },
+            cursor: beui_plugin_input::protocol_cursor(window.cursor),
+            pointer_locked: window.pointer_locked,
             ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
                 rect: area.rect,
                 cursor: area.cursor,
@@ -312,6 +297,7 @@ fn frame_for(
                 .collect(),
         },
         description,
+        stopped: None,
     }
 }
 

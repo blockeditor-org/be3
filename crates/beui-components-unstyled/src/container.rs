@@ -6,7 +6,7 @@ use beui_view::reactive::{
     LayoutBuilder, Memo, ReadSignal, Render, create_memo, provide_context, use_context,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ContainerSize(pub ReadSignal<Vec2>);
 
 #[component]
@@ -14,7 +14,7 @@ pub fn Container(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> NodeId 
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                provide_context(ContainerSize(size.clone()));
+                provide_context(ContainerSize(size));
                 content.call(size)
             }}
         </LayoutBuilder>

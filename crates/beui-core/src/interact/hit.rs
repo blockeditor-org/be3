@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use foldhash::HashSet;
 
 use crate::base::embed::EmbedNode;
 use crate::base::interactive::InteractiveNode;
@@ -7,7 +7,7 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::Modifiers;
 use crate::layer::LayerPolicy;
-use crate::node::{NodeId, NodeMap, NodeOf, Rects};
+use crate::node::{NodeId, NodeOf, Rects};
 
 use super::TOUCH_REACH;
 
@@ -37,7 +37,6 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
     let layers = doc.layers();
     let mut outside = Vec::new();
     let mut blocking = false;
-    let mut chain: Option<usize> = None;
     let settle =
         |doc: &Document, at: usize, mut hit: Hit, mut outside: Vec<NodeOf<OverlayNode>>| {
             if let Some(blocker) = doc.in_blocked(&layers, at, hit.path.first().copied(), pos) {
@@ -57,24 +56,24 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
             continue;
         }
         if blocking {
-            if chain == Some(index) {
-                if index == 0 {
-                    break;
-                }
-                let inside = layer
-                    .content
-                    .and_then(|content| rects.visible(&content))
-                    .is_some_and(|rect| rect.contains_half_open(pos));
-                if inside && let Some(content) = layer.content {
-                    let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
-                    return settle(doc, index, hit, outside);
-                }
-                if !layer.blocks_all() {
-                    break;
-                }
-                outside.extend(layer.overlay.filter(|_| layer.dismissable));
-                chain = layer.parent;
+            if index == 0 {
+                break;
             }
+            if !layers.reachable(index) {
+                continue;
+            }
+            let inside = layer
+                .content
+                .and_then(|content| rects.visible(&content))
+                .is_some_and(|rect| rect.contains_half_open(pos));
+            if inside && let Some(content) = layer.content {
+                let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
+                return settle(doc, index, hit, outside);
+            }
+            if !layer.blocks_all() {
+                break;
+            }
+            outside.extend(layer.overlay.filter(|_| layer.dismissable));
             continue;
         }
         let Some(content) = (match index {
@@ -99,23 +98,17 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
             }
             outside.extend(layer.overlay.filter(|_| layer.dismissable));
             blocking = true;
-            chain = layer.parent;
             continue;
         }
-        match walk(doc, rects, content, pos) {
-            Walk::Found(path, embed) => {
-                let hit = reach(doc, rects, content, pos, touch, path, embed);
-                return settle(doc, index, hit, outside);
-            }
-            Walk::Declined => continue,
-            Walk::Nothing => {
-                if let Some(hit) = reached(doc, rects, content, pos, touch) {
-                    return settle(doc, index, hit, outside);
-                }
-                if inside {
-                    return settle(doc, index, Hit::default(), outside);
-                }
-            }
+        let walked = walk(doc, rects, content, pos);
+        if matches!(walked, Walk::Declined) {
+            continue;
+        }
+        if let Some(hit) = reach(doc, rects, content, pos, touch, walked) {
+            return settle(doc, index, hit, outside);
+        }
+        if inside {
+            return settle(doc, index, Hit::default(), outside);
         }
         if layer.policy == LayerPolicy::Pass
             && layer.dismissable
@@ -139,7 +132,7 @@ pub fn claimant(
     pos: Pos2,
     held: Modifiers,
 ) -> Option<NodeId> {
-    let mut lines = HashSet::new();
+    let mut lines = HashSet::default();
     for claimant in doc.press_claimants.iter().copied() {
         let mut next = Some(claimant);
         while let Some(id) = next {
@@ -222,10 +215,8 @@ pub fn sink(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> Option
 }
 
 fn within(doc: &mut Document, rects: &Rects, top: NodeId, pos: Pos2, touch: bool) -> Option<Hit> {
-    match walk(doc, rects, top, pos) {
-        Walk::Found(path, embed) => Some(reach(doc, rects, top, pos, touch, path, embed)),
-        Walk::Declined | Walk::Nothing => reached(doc, rects, top, pos, touch),
-    }
+    let walked = walk(doc, rects, top, pos);
+    reach(doc, rects, top, pos, touch, walked)
 }
 
 fn reach(
@@ -234,29 +225,31 @@ fn reach(
     top: NodeId,
     pos: Pos2,
     touch: bool,
-    path: Vec<NodeId>,
-    embed: bool,
-) -> Hit {
-    let direct = path
-        .iter()
-        .any(|id| interactive(doc, *id).is_some_and(InteractiveNode::claims_touches));
+    walked: Walk,
+) -> Option<Hit> {
+    let direct = match &walked {
+        Walk::Found(path, _) => path
+            .iter()
+            .any(|id| interactive(doc, *id).is_some_and(InteractiveNode::claims_touches)),
+        Walk::Declined | Walk::Nothing => false,
+    };
     if touch
         && !direct
-        && let Some(hit) = reached(doc, rects, top, pos, touch)
+        && let Some(hit) = nearest(doc, rects, top, pos)
     {
-        return hit;
+        return Some(hit);
     }
-    Hit {
-        path,
-        embed,
-        ..Hit::default()
+    match walked {
+        Walk::Found(path, embed) => Some(Hit {
+            path,
+            embed,
+            ..Hit::default()
+        }),
+        Walk::Declined | Walk::Nothing => None,
     }
 }
 
-fn reached(doc: &mut Document, rects: &Rects, top: NodeId, pos: Pos2, touch: bool) -> Option<Hit> {
-    if !touch {
-        return None;
-    }
+fn nearest(doc: &mut Document, rects: &Rects, top: NodeId, pos: Pos2) -> Option<Hit> {
     let mut nearest: Option<(f32, Pos2)> = None;
     nearest_press(doc, rects, top, pos, Rect::EVERYTHING, &mut nearest);
     let (_, at) = nearest?;
@@ -321,7 +314,7 @@ fn walk(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Walk {
 
 fn bounds(doc: &mut Document, rects: &Rects, id: NodeId) -> Rect {
     if doc.interact_bounds_version != Some(rects.version()) {
-        doc.interact_bounds = NodeMap::default();
+        doc.interact_bounds.clear();
         doc.interact_bounds_version = Some(rects.version());
     }
     if let Some(bounds) = doc.interact_bounds.get(&id) {

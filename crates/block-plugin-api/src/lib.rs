@@ -56,7 +56,7 @@ pub enum FrameChrome {
     None,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct FrameSpec {
     pub chrome: FrameChrome,
     pub content: Option<ChildRect>,
@@ -107,6 +107,7 @@ pub struct FrameReport {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct WindowRequests {
     pub cursor: CursorIcon,
+    pub pointer_locked: bool,
     pub ime: Option<ImeArea>,
     pub handles_back: bool,
     pub wants_keyboard: bool,
@@ -133,7 +134,6 @@ pub enum Pasted {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
-    pub test_ids: Vec<TestIdRect>,
     pub actions: Vec<DescribedAction>,
 }
 
@@ -158,6 +158,7 @@ pub struct DescribedNode {
     pub focused: bool,
     pub rect: Option<ChildRect>,
     pub actions: Vec<String>,
+    pub test_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -171,12 +172,6 @@ pub enum Toggled {
     Off,
     On,
     Mixed,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TestIdRect {
-    pub id: String,
-    pub rect: ChildRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -841,6 +836,11 @@ pub enum EditorMessage {
     LeaveFrame {
         instance: EditorInstanceId,
     },
+    Stopped {
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        stopped: Stopped,
+    },
     BarAction {
         instance: EditorInstanceId,
         action: BarAction,
@@ -988,10 +988,6 @@ pub enum EditorMessage {
     AudioStatus {
         instance: EditorInstanceId,
         status: AudioStatus,
-    },
-    GrabCursor {
-        instance: EditorInstanceId,
-        grabbed: bool,
     },
     WebViewCommand {
         instance: EditorInstanceId,
@@ -1202,6 +1198,7 @@ impl EditorMessage {
             | Self::PresentingChanged { instance, .. }
             | Self::Resized { instance, .. }
             | Self::LeaveFrame { instance, .. }
+            | Self::Stopped { instance, .. }
             | Self::BarAction { instance, .. }
             | Self::Menu { instance, .. }
             | Self::MenuPick { instance, .. }
@@ -1228,7 +1225,6 @@ impl EditorMessage {
             | Self::Replied { instance, .. }
             | Self::PlayAudio { instance, .. }
             | Self::AudioStatus { instance, .. }
-            | Self::GrabCursor { instance, .. }
             | Self::WebViewCommand { instance, .. }
             | Self::WebViewEvent { instance, .. }
             | Self::OpenCreation { instance, .. }
@@ -1321,6 +1317,7 @@ pub enum CursorIcon {
     ResizeNorthWest,
     ResizeSouthEast,
     ResizeSouthWest,
+    Touch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1828,13 +1825,13 @@ impl EditorMessage {
             | Self::ChangeView { .. }
             | Self::Present { .. }
             | Self::LeaveFrame { .. }
+            | Self::Stopped { .. }
             | Self::BarAction { .. }
             | Self::Menu { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
-            | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::CreationReady { .. }
             | Self::CreationBlock { .. }
@@ -2411,6 +2408,12 @@ pub struct ProtocolError {
     pub request_id: Option<u64>,
     pub code: ErrorCode,
     pub message: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Stopped {
+    Closed,
+    Failed(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

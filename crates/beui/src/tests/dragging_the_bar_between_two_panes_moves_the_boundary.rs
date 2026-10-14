@@ -3,6 +3,7 @@ use crate::unstyled::dock_state;
 
 #[test]
 fn dragging_the_bar_between_two_panes_moves_the_boundary() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

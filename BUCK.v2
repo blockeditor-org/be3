@@ -15,7 +15,7 @@ export_file(
 # read it: the manifest that tells them where the workspace is, and the
 # accepted paintings.
 plugin_test_inputs(
-    name = "plugin_test_inputs",
+    name = "plugin-test-inputs",
     srcs = ["Cargo.toml"] + glob(["snapshots/*.paint"]),
     visibility = ["PUBLIC"],
 )
@@ -43,7 +43,7 @@ command_alias(
 # Every fuzz target, taking turns, until it is stopped (crates/local-tools).
 command_alias(
     name = "fuzz",
-    args = ["$(location //crates/local-tools:local-tools-bin)", "fuzz", "--all"],
+    args = ["$(location //crates/local-tools:bin)", "fuzz", "--all"],
 )
 
 command_alias(
@@ -65,7 +65,7 @@ command_alias(
 command_alias(
     name = "rust-project",
     args = [
-        "$(exe //crates/buck-tools:buck-tools-bin)",
+        "$(exe //crates/buck-tools:bin)",
         "rust-project",
         "$(location //buck/cargo:rust-project)",
         "$(location //buck/cargo:analyzer-sysroot)",

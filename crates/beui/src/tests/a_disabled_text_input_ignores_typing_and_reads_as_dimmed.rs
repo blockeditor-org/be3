@@ -6,14 +6,14 @@ use crate::styled::TextInput;
 
 #[test]
 fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <TextInput
                 value="Locked"
                 disabled=true
-                on_change={move |value| sink.borrow_mut().push(value)}
+                on_change={move |value| set_changes.update(|changes| changes.push(value))}
             />
         }]
     });
@@ -38,5 +38,5 @@ fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {
         unstyled::text_input_shown(harness.document(), input),
         "Locked"
     );
-    assert!(changes.borrow().is_empty());
+    assert!(changes.with_untracked(|changes| changes.is_empty()));
 }

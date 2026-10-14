@@ -1,11 +1,10 @@
 use std::cell::Cell;
-use std::rc::Rc;
 
 use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Modifiers, SecondaryDrag};
 
-use super::{DockLayout, Grip, Handle, SplitId, State, SurfaceId, fraction_moved, layout_tree};
+use super::{DockLayout, Grip, SplitId, State, SurfaceId, fraction_moved, layout_tree};
 
 const EDGE_MARGIN: f32 = 4.0;
 
@@ -49,7 +48,7 @@ impl State {
             });
         }
         let main = state.main();
-        let trees: Vec<_> = self.panes.borrow().keys().copied().collect();
+        let trees: Vec<_> = self.panes.get().borrow().keys().copied().collect();
         let layouts: Vec<DockLayout> = trees
             .into_iter()
             .filter_map(|tree| {
@@ -118,9 +117,8 @@ impl State {
     }
 }
 
-pub(super) fn modifier_resize(dock: &Handle, resized: Resized) -> impl Fn(SecondaryDrag) + 'static {
-    let dock = Rc::clone(dock);
-    let resizing: Rc<Cell<Option<Resize>>> = Rc::new(Cell::new(None));
+pub(super) fn modifier_resize(dock: State, resized: Resized) -> impl Fn(SecondaryDrag) + 'static {
+    let resizing: Cell<Option<Resize>> = Cell::new(None);
     move |drag: SecondaryDrag| {
         if drag.started {
             let target = dock

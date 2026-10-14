@@ -4,7 +4,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::pixel_art::PixelColor;
 use block_editor_beui::beui::Image;
-use block_editor_beui::beui::reactive::{Memo, create_memo, create_signal};
+use block_editor_beui::beui::reactive::{Memo, Stored, create_memo, create_signal, store};
 
 use super::state::{ArtBlock, artwork_of};
 
@@ -28,29 +28,36 @@ struct Held {
     shown: Shown,
 }
 
-pub(crate) struct Pane {
+struct PaneCells {
     held: RefCell<Held>,
     art: RefCell<Option<(u64, Rc<Artwork>)>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Pane {
+    cells: Stored<PaneCells>,
     shown: Memo<Shown>,
     set_shown: block_editor_beui::beui::reactive::WriteSignal<Shown>,
 }
 
 impl Pane {
-    pub(crate) fn new() -> Rc<Self> {
+    pub(crate) fn new() -> Self {
         let (shown, set_shown) = create_signal(Shown::default());
-        Rc::new(Self {
-            held: RefCell::new(Held {
-                dark_mode: true,
-                ..Held::default()
+        Self {
+            cells: store(PaneCells {
+                held: RefCell::new(Held {
+                    dark_mode: true,
+                    ..Held::default()
+                }),
+                art: RefCell::new(None),
             }),
-            art: RefCell::new(None),
             shown: create_memo(move || shown.get()),
             set_shown,
-        })
+        }
     }
 
     pub(crate) fn shown(&self) -> Memo<Shown> {
-        self.shown.clone()
+        self.shown
     }
 
     pub(crate) fn refresh(
@@ -63,8 +70,9 @@ impl Pane {
         let Some(revision) = block.revision() else {
             return;
         };
-        let mut held = self.held.borrow_mut();
-        let Some(art) = artwork_of(block, &self.art) else {
+        let cells = self.cells.get();
+        let mut held = cells.held.borrow_mut();
+        let Some(art) = artwork_of(block, &cells.art) else {
             return;
         };
         let size = (art.width(), art.height());

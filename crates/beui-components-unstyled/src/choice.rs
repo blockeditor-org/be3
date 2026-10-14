@@ -12,9 +12,9 @@ use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
-    Callback, ChildScope, ChildValue, Children, IntoProp, List, Memo, Prop, ReadSignal, RenderFn,
-    Run, Scope, WriteSignal, clone, component_accessibility, create_effect, create_memo,
-    create_selector, create_signal, set_component_state,
+    Callback, Children, IntoProp, List, Memo, Prop, ReadSignal, RenderFn, Run, Stored, WriteSignal,
+    component_accessibility, create_effect, create_memo, create_selector, create_signal,
+    set_component_state, store,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -35,18 +35,11 @@ pub struct ChoiceOptionHandle {
 
 pub struct ChoiceOption {
     label: Memo<String>,
-    scope: ChildScope,
-}
-
-impl ChildValue for ChoiceOption {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.scope.adopt(scope);
-    }
 }
 
 impl ChoiceOption {
     pub fn label(&self) -> Memo<String> {
-        self.label.clone()
+        self.label
     }
 }
 
@@ -56,23 +49,21 @@ beui_view::value_child_type!(ChoiceOption);
 pub fn ChoiceOption(label: Prop<String>) -> ChoiceOption {
     ChoiceOption {
         label: create_memo(move || label.get()),
-        scope: ChildScope::default(),
     }
 }
 
+#[derive(Clone, Copy)]
 struct State {
-    options: Run<ChoiceOption>,
+    options: Stored<Run<ChoiceOption>>,
     focus: ReadSignal<Option<usize>>,
     set_focus: WriteSignal<Option<usize>>,
     selected: ReadSignal<Option<usize>>,
     set_selected: WriteSignal<Option<usize>>,
     kind: ChoiceKind,
     direction: Direction,
-    typeahead: RefCell<Typeahead>,
+    typeahead: Stored<RefCell<Typeahead>>,
     on_change: Callback<Option<usize>>,
 }
-
-type Handle = Rc<State>;
 
 #[component]
 pub fn Choice(
@@ -92,10 +83,10 @@ pub fn Choice(
         ChoiceKind::Radio | ChoiceKind::Listbox => Direction::Vertical,
     });
     let (selected, set_selected) = create_signal(None);
-    let selection = create_selector(clone!(selected -> move || selected.get()));
-    let tab_stop_owner = create_selector(clone!(selected -> move || selected.get().unwrap_or(0)));
+    let selection = create_selector(move || selected.get());
+    let tab_stop_owner = create_selector(move || selected.get().unwrap_or(0));
     let (focus, set_focus) = create_signal(None);
-    let focused = create_selector(clone!(focus -> move || focus.get()));
+    let focused = create_selector(move || focus.get());
 
     component_accessibility(Node::new(match kind {
         ChoiceKind::Tabs => Role::TabList,
@@ -103,31 +94,27 @@ pub fn Choice(
         ChoiceKind::Listbox => Role::ListBox,
     }));
 
-    let state: Handle = Rc::new(State {
-        options: options.clone(),
-        focus: focus.clone(),
+    let state = State {
+        options: store(options.clone()),
+        focus,
         set_focus,
-        selected: selected.clone(),
+        selected,
         set_selected,
         kind,
         direction,
-        typeahead: RefCell::default(),
+        typeahead: store(RefCell::default()),
         on_change,
-    });
-    set_component_state(state.clone());
-    let buttons_state = state.clone();
-    let built_options: Rc<RefCell<Vec<Rc<ChoiceOption>>>> = Rc::default();
-    let row_options = built_options.clone();
+    };
+    set_component_state(state);
+    let built_options: Stored<RefCell<Vec<Rc<ChoiceOption>>>> = store(RefCell::default());
     let buttons = options.build_each(
         built_options,
         |_, option| option,
         move |index| {
-            let state = buttons_state.clone();
-            let option = option.clone();
-            let label = row_options.borrow()[index].label.clone();
-            let accessibility_label = label.clone();
+            let label = built_options.get().borrow()[index].label;
+            let accessibility_label = label;
             let is_selected = selection.memo(Some(index));
-            let selected_accessibility = is_selected.clone();
+            let selected_accessibility = is_selected;
             let accessibility = create_memo(move || {
                 let mut node = Node::new(match kind {
                     ChoiceKind::Tabs => Role::Tab,
@@ -142,14 +129,12 @@ pub fn Choice(
                 }
                 node
             });
-            let (blur, click, key_press, text) =
-                (state.clone(), state.clone(), state.clone(), state.clone());
             view! {
                 <unstyled::Button
                     tab_stop={tab_stop_owner.memo(index)}
                     focused={focused.memo(Some(index))}
                     accessibility
-                    on_focus_change={move |has_focus: bool| track_focus(&blur, index, has_focus)}
+                    on_focus_change={move |has_focus: bool| track_focus(state, index, has_focus)}
                     content={move |button: ButtonHandle| {
                         option.call(ChoiceOptionHandle {
                             index,
@@ -160,11 +145,11 @@ pub fn Choice(
                             focused: button.focused,
                         })
                     }}
-                    on_click={move || select(&click, Some(index))}
-                    on_key={move |press: KeyPress| key(&key_press, index, press)}
+                    on_click={move || select(state, Some(index))}
+                    on_key={move |press: KeyPress| key(state, index, press)}
                     on_text={move |typed: String| {
-                        if text.kind == ChoiceKind::Listbox {
-                            typeahead(&text, index, &typed);
+                        if state.kind == ChoiceKind::Listbox {
+                            typeahead(state, index, &typed);
                         }
                     }}
                 />
@@ -173,18 +158,17 @@ pub fn Choice(
     );
 
     if kind == ChoiceKind::Listbox {
-        let state = state.clone();
         create_effect(move || {
             if state.focus.get().is_none() {
-                state.typeahead.borrow_mut().clear();
+                state.typeahead.get().borrow_mut().clear();
             }
         });
     }
 
-    create_effect(clone!(state -> move || {
-        state.options.len();
-        sync_selected(&state, selected_prop.get());
-    }));
+    create_effect(move || {
+        state.options.get().len();
+        sync_selected(state, selected_prop.get());
+    });
 
     view! {
         <List direction wrap spacing=6.0 children={buttons} />
@@ -192,10 +176,10 @@ pub fn Choice(
 }
 
 pub fn choice_selected(document: &Document, choice: NodeId) -> Option<usize> {
-    document.component_state::<Handle>(choice).selected.get()
+    document.component_state::<State>(choice).selected.get()
 }
 
-fn track_focus(state: &State, index: usize, has_focus: bool) {
+fn track_focus(state: State, index: usize, has_focus: bool) {
     if has_focus {
         state.set_focus.set(Some(index));
     } else if state.focus.get_untracked() == Some(index) {
@@ -203,18 +187,18 @@ fn track_focus(state: &State, index: usize, has_focus: bool) {
     }
 }
 
-fn sync_selected(state: &State, selected: Option<usize>) {
+fn sync_selected(state: State, selected: Option<usize>) {
     if selected.is_some_and(|index| index >= option_count(state)) {
         return;
     }
     state.set_selected.set(selected);
 }
 
-fn option_count(state: &State) -> usize {
-    state.options.peek().len()
+fn option_count(state: State) -> usize {
+    state.options.get().peek().len()
 }
 
-fn select(state: &State, selected: Option<usize>) {
+fn select(state: State, selected: Option<usize>) {
     if selected.is_some_and(|index| index >= option_count(state))
         || state.selected.get_untracked() == selected
     {
@@ -228,7 +212,7 @@ fn select(state: &State, selected: Option<usize>) {
     state.on_change.call(selected);
 }
 
-fn key(state: &State, index: usize, press: KeyPress) -> bool {
+fn key(state: State, index: usize, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
@@ -259,15 +243,17 @@ fn key(state: &State, index: usize, press: KeyPress) -> bool {
     true
 }
 
-fn typeahead(state: &State, index: usize, text: &str) {
+fn typeahead(state: State, index: usize, text: &str) {
     let labels: Vec<String> = state
         .options
+        .get()
         .peek()
         .iter()
         .map(|option| option.label.get_untracked())
         .collect();
     let matched = state
         .typeahead
+        .get()
         .borrow_mut()
         .matched(text, index, labels.len(), |option| labels[option].clone());
     if let Some(next) = matched {

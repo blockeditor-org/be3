@@ -3,11 +3,11 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use reactive::{
-    ReadSignal, Scope, WriteSignal, create_effect, create_signal, current_scope, on_cleanup,
+    ReadSignal, Scope, ScopeContext, Stored, WriteSignal, create_effect, create_signal, store,
 };
 
 use crate::child_list::{ChildList, SlotId};
-use crate::component::ChildValue;
+use crate::component::{ChildValue, ComponentContext};
 use crate::prop::{IntoProp, Prop};
 
 #[diagnostic::on_unimplemented(
@@ -84,7 +84,7 @@ impl<T: SlotChild> ChildSegment<T> {
 }
 
 pub struct DynamicSegment<T: SlotChild> {
-    scope: Option<Scope>,
+    scope: Option<ScopeContext>,
     install: Box<dyn FnOnce(ChildSlot<T>)>,
     child: PhantomData<T>,
 }
@@ -110,19 +110,21 @@ impl<T: SlotChild> DynamicSegment<T> {
     fn mount(self, slot: ChildSlot<T>) {
         let DynamicSegment { scope, install, .. } = self;
         match scope {
-            Some(scope) => {
-                let held = slot.clone();
-                scope.context().run(move || install(slot));
-                held.adopt_scope(scope);
-            }
+            Some(scope) => scope.run(move || install(slot)),
             None => install(slot),
         }
     }
 }
 
 impl<T: SlotChild> ChildValue for DynamicSegment<T> {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.scope = Some(scope);
+    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
+        assert!(
+            !component.has_extensions(),
+            "component `{}` returns a run of children, so the bindings its body made \
+             (such as `component_placed` or `component_state`) have no node to attach to",
+            component.name(),
+        );
+        self.scope = Some(scope.clone());
     }
 }
 
@@ -151,7 +153,6 @@ impl<T: SlotChild> IntoSegment<T> for DynamicSegment<T> {
 
 struct RunState<S> {
     items: RefCell<ChildList<S>>,
-    held: RefCell<Vec<Scope>>,
     filled: ReadSignal<u64>,
     fill: WriteSignal<u64>,
 }
@@ -161,7 +162,6 @@ impl<S> RunState<S> {
         let (filled, fill) = create_signal(0);
         Self {
             items: RefCell::new(ChildList::default()),
-            held: RefCell::new(Vec::new()),
             filled,
             fill,
         }
@@ -212,22 +212,23 @@ impl<C: SlotChild> Run<C> {
     }
 }
 
-type HeldEach<T, R> = Rc<RefCell<Vec<(Rc<T>, <R as SlotChild>::Stored, Scope)>>>;
+type HeldEach<T, R> = Stored<RefCell<Vec<(Rc<T>, <R as SlotChild>::Stored, Scope)>>>;
 
 impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
     pub fn build_each<R: SlotChild, U: IntoChild<R>, S: 'static>(
         &self,
-        states: Rc<RefCell<Vec<S>>>,
+        states: Stored<RefCell<Vec<S>>>,
         state: impl Fn(usize, Rc<T>) -> S + 'static,
         row: impl Fn(usize) -> U + 'static,
     ) -> DynamicSegment<R> {
         let run = self.clone();
         DynamicSegment::new(move |slot: ChildSlot<R>| {
-            let host = current_scope();
-            let held: HeldEach<T, R> = Rc::new(RefCell::new(Vec::new()));
-            let owned = held.clone();
-            on_cleanup(move || drop(std::mem::take(&mut *owned.borrow_mut())));
+            let held: HeldEach<T, R> = store(RefCell::new(Vec::new()));
             create_effect(move || {
+                let held = held.get();
+                let Some(states) = states.try_get() else {
+                    return;
+                };
                 let items = run.items();
                 let mut previous = std::mem::take(&mut *held.borrow_mut());
                 let mut gone = previous.split_off(previous.len().min(items.len()));
@@ -239,10 +240,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
                         Some(row) if Rc::ptr_eq(&row.0, &item) => next.push(row),
                         replaced => {
                             gone.extend(replaced);
-                            let scope = match &host {
-                                Some(host) => host.run(Scope::detached),
-                                None => Scope::detached(),
-                            };
+                            let scope = Scope::detached();
                             let stored = scope.context().run(|| {
                                 let made = state(index, item.clone());
                                 let mut states = states.borrow_mut();
@@ -267,7 +265,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
 
 impl<C: SlotChild> IntoProp<Vec<C::Stored>> for Run<C> {
     fn into_prop(self) -> Prop<Vec<C::Stored>> {
-        Prop::Dynamic(Rc::new(move || self.items()))
+        Prop::dynamic(move || self.items())
     }
 }
 
@@ -363,13 +361,6 @@ impl<C: SlotChild> ChildSlot<C> {
             }
         }
     }
-
-    fn adopt_scope(&self, scope: Scope) {
-        match &self.place {
-            Place::Host { .. } => scope.into_parent(),
-            Place::Run { run, .. } => run.held.borrow_mut().push(scope),
-        }
-    }
 }
 
 #[diagnostic::on_unimplemented(
@@ -392,39 +383,47 @@ impl<T: SlotChild> IntoSegment<T> for Children<T> {
 
 #[macro_export]
 macro_rules! child_type {
-    ($ty:ty) => {
-        impl $crate::reactive::IntoChild<$ty> for $ty {
+    (<$($generic:ident),*> $ty:ty) => {
+        impl<$($generic: 'static),*> $crate::reactive::IntoChild<$ty> for $ty {
             fn into_child(self) -> $ty {
                 self
             }
         }
 
-        impl $crate::reactive::IntoSegment<$ty> for $ty {
+        impl<$($generic: 'static),*> $crate::reactive::IntoSegment<$ty> for $ty {
             fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
                 $crate::reactive::ChildSegment::One(self)
             }
         }
 
-        impl ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
+        impl<$($generic: 'static),*> ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
             fn from(child: $ty) -> Self {
                 Self::from($crate::reactive::ChildSegment::One(child))
             }
         }
     };
+    ($ty:ty) => {
+        $crate::child_type!(<> $ty);
+    };
 }
 
 #[macro_export]
 macro_rules! value_child_type {
-    ($ty:ty) => {
-        $crate::child_type!($ty);
+    (<$($generic:ident),*> $ty:ty) => {
+        $crate::child_type!(<$($generic),*> $ty);
 
-        impl $crate::reactive::SlotChild for $ty {
+        impl<$($generic: 'static),*> $crate::reactive::ChildValue for $ty {}
+
+        impl<$($generic: 'static),*> $crate::reactive::SlotChild for $ty {
             type Stored = ::std::rc::Rc<$ty>;
 
             fn store(self) -> Self::Stored {
                 ::std::rc::Rc::new(self)
             }
         }
+    };
+    ($ty:ty) => {
+        $crate::value_child_type!(<> $ty);
     };
 }
 

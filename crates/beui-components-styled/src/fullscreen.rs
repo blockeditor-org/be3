@@ -13,7 +13,7 @@ const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 230);
 
 #[component]
 pub fn Fullscreen(open: Prop<bool>, on_dismiss: ClickCallback, children: Child) -> NodeId {
-    let closing = on_dismiss.clone();
+    let closing = on_dismiss;
     let (presence, set_presence) = create_signal(1.0_f32);
     let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
     view! {
@@ -26,7 +26,7 @@ pub fn Fullscreen(open: Prop<bool>, on_dismiss: ClickCallback, children: Child) 
         >
             <BackSlide
                 enters=false
-                on_back={move || closing.call()}
+                on_back={closing}
                 on_presence={move |presence: f32| set_presence.set(presence)}
             >
                 {children}

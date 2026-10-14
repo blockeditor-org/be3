@@ -5,8 +5,8 @@ use crate::unstyled::ChoiceOption;
 
 #[test]
 fn a_select_following_its_prop_does_not_report_a_change() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let document = build(move || {
         let (selected, set_selected) = create_signal(None::<usize>);
         set_selected.set(Some(1));
@@ -18,7 +18,7 @@ fn a_select_following_its_prop_does_not_report_a_change() {
                 }}
                 selected={selected}
                 label="Status"
-                on_change={move |index| sink.borrow_mut().push(index)}
+                on_change={move |index| set_changes.update(|changes| changes.push(index))}
             />
         }
     });
@@ -28,7 +28,7 @@ fn a_select_following_its_prop_does_not_report_a_change() {
     harness.frame(Vec::new());
 
     assert!(
-        changes.borrow().is_empty(),
+        changes.with_untracked(|changes| changes.is_empty()),
         "a select that only followed its prop must not report a user change"
     );
 }

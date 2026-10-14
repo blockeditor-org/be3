@@ -1,4 +1,4 @@
-use beui_core::layer::LayerPolicy;
+use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -82,6 +82,7 @@ pub fn Toasts(
             anchor
             placement={placement}
             policy=LayerPolicy::Pass
+            level=LayerLevel::Top
             traps_focus=false
             open={open}
         >
@@ -93,9 +94,9 @@ pub fn Toasts(
                 <List spacing=SPACING>
                     <ForEach keys={toasts}>
                         {move |toast: Toast| {
-                            let on_dismiss = on_dismiss.clone();
-                            let on_action = on_action.clone();
-                            let on_activate = on_activate.clone();
+                            let on_dismiss = on_dismiss;
+                            let on_action = on_action;
+                            let on_activate = on_activate;
                             let duration = match toast.sticky || toast.danger {
                                 true => None,
                                 false => duration.peek(),
@@ -136,7 +137,7 @@ fn ToastCard(
         activates,
         sticky: _,
     } = toast;
-    let expire = on_dismiss.clone();
+    let expire = on_dismiss;
     let expiry = create_timer(move || {
         expire.call(id);
         None
@@ -145,32 +146,32 @@ fn ToastCard(
         expiry.start(duration);
     }
     let (glyph, tint) = match danger {
-        true => (ICON_ERROR, theme.danger.clone()),
-        false => (ICON_INFO, theme.accent.clone()),
+        true => (ICON_ERROR, theme.danger),
+        false => (ICON_INFO, theme.accent),
     };
     let pictured = image.is_some();
     let titled = !title.is_empty();
     let said = !message.is_empty();
     let acted = !actions.is_empty();
     let (message_size, message_color) = match titled {
-        true => (FONT_SMALL, theme.text_muted.clone()),
-        false => (FONT_BODY, theme.text.clone()),
+        true => (FONT_SMALL, theme.text_muted),
+        false => (FONT_BODY, theme.text),
     };
-    let title_color = theme.text.clone();
+    let title_color = theme.text;
     let content = view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Show condition={pictured}>
                 <ToastPicture image={image.clone()} />
             </Show>
             <Show condition={!pictured}>
-                <Icon glyph={glyph.to_owned()} color={tint.clone()} />
+                <Icon glyph={glyph.to_owned()} color={tint} />
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
                 <Show condition={titled}>
                     <Text
                         string={title.clone()}
                         font_size=FONT_BODY
-                        color={title_color.clone()}
+                        color={title_color}
                         bold=true
                         wrap=true
                     />
@@ -179,7 +180,7 @@ fn ToastCard(
                     <Text
                         string={message.clone()}
                         font_size={message_size}
-                        color={message_color.clone()}
+                        color={message_color}
                         wrap=true
                     />
                 </Show>
@@ -200,8 +201,8 @@ fn ToastCard(
     view! {
         <Frame
             @test_id={format!("toast.{id}")}
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
             radius=RADIUS
@@ -225,7 +226,7 @@ fn ToastCard(
                         id
                         actions={actions.clone()}
                         on_action={{
-                            let acting = on_action.clone();
+                            let acting = on_action;
                             move |chosen: (u64, String)| acting.call(chosen)
                         }}
                     />
@@ -255,7 +256,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, on_action: Callback<(u64, St
         >
             <ForEach keys={actions}>
                 {move |action: ToastAction| {
-                    let on_action = on_action.clone();
+                    let on_action = on_action;
                     let key = action.key.clone();
                     view! {
                         <Button

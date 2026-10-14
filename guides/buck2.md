@@ -18,17 +18,18 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
-| `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
+| `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
 | `./scripts/buck test //crates/block-app:smoke` | the app headless on a worker, closed once its plugins have drawn, which it must exit cleanly from; `:smoke-desktop` with `--desktop` |
-| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
+| `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server:dist` is the server's |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
-| `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
+| `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
-| `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
-| `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
-| `./scripts/buck run -m release //crates/beui:text-bench-example -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
-| `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
+| `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
+| `./scripts/buck run //crates/beui:example-survey` | a crate example; every example is `example-<name>` |
+| `./scripts/buck run -m release //crates/beui:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
+| `./scripts/buck run -m release //crates/beui-demo:example-open-bench -- [PAGE]` | times opening each beui-demo page from its catalog row and counts its allocations (guides/performance.md) |
+| `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
 | `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
 | `./scripts/buck run //crates/sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
@@ -45,7 +46,8 @@ crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 
 Which build a program is lives in a file beside it, never in its code:
 `//buck/app:build-id` is the file `buck/app/build-id`, and every bundle
-(`:app`, `:dist`, `:web`, `:web-dist`, the APK's assets, be-cli's `:be`)
+(`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-cli's
+`:native`, be-server's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and the app shows the id
 as its build. The id is the hash of the tree, not of a commit, so two commits
@@ -137,6 +139,14 @@ It also lets `test` put tests on the workers (below).
 
 ## Adding things
 
+**Target names** are kebab-case, and a role has one name in every package:
+`:bin` a crate's binary, `:test` its tests and `:test-run` the action that
+runs them, `:example-<name>` and `:fuzz-<name>` its examples and fuzz targets,
+`:wasm` a guest library and `:module` its module. An app's targets are named by
+platform, `:native`, `:web` and `:android`, each the bundle that `buck2 run`
+runs, serves or installs here, with `-dist` the build CI publishes, and `:dev`
+the app headless for an agent to drive.
+
 **A dependency**: `cargo add` (or edit `Cargo.toml`), then
 `./scripts/buck run //:buckify` to regenerate the rules. A build script runs
 as it does under cargo, and the libraries it links or compiles reach the link;
@@ -157,14 +167,14 @@ cargo_binary()
 ```
 
 Dependencies, features, edition and roots come from `crates.bzl`. The library
-is named after the package, its tests are `:test`, a binary named like the
-package is `<name>-bin`, and an example is `cargo_example("<name>")`. What
+is named after the package, its tests are `:test`, its binary `:bin`, and an
+example is `cargo_example("<name>")`, which makes `:example-<name>`. What
 `Cargo.toml` cannot say is passed as arguments: `srcs` for non-Rust files the
 crate reads at compile time (default `src/**/*.rs`), `env`, `extra_deps`, or any
 rule attribute such as a test's `remote_execution = "disabled"`.
 
-**An editor**: `crates/editors/<name>/BUCK` is one `editor(name, module)` call
-from `buck/wasm/defs.bzl`, which makes the guest cdylib, linked against the
+**An editor**: `crates/editors/<name>/BUCK` is one `editor(module)` call
+from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against the
 plugin SDK (guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm
 `:test`. The app picks up every editor by itself.
 
@@ -194,16 +204,16 @@ through lavapipe from `buck/sysroot:amd64-test`; a test whose `env` names
 `LD_LIBRARY_PATH` is built as a harness binary and run through
 `library_path_test`, since the workers replace that variable
 (guides/build_server.md). buck2 runs a test again every
-time, so `cargo_test` also makes `:test_run`, an action that runs the test on a
+time, so `cargo_test` also makes `:test-run`, an action that runs the test on a
 worker and passes when it does, which is cached like any other; `./scripts/verify`
 builds those instead. A test with `remote_execution = "disabled"` gets a
-`:test_run` that runs here. compile_fail's tests (below) have one too.
+`:test-run` that runs here. compile_fail's tests (below) have one too.
 
 **Plugin tests** read and write the accepted paintings in `snapshots/`. Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
 the host `block-app` runs a plugin in, so they paint with the FreeType and
 HarfBuzz the plugin ships. `buck2 test` runs a crate's `:test` here, writing
 paintings straight into `snapshots/`. `./scripts/verify` instead builds each
-crate's `:test_run`, an action that runs them on a worker and is cached like
+crate's `:test-run`, an action that runs them on a worker and is cached like
 any other: it outputs the paintings that changed and the names of the ones it
 compared, and `./scripts/verify` copies the first into `snapshots/` and
 deletes the paintings no test named.
@@ -253,7 +263,7 @@ A native target depends on a wasm one through a transition in
 
 ## Shipping
 
-- `:app` stages the executable as `block-app` and every editor's
+- `:native` stages the executable as `block-app` and every editor's
   manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, and
   the plugin SDK as `sdk-<SHA-256>.wasm` with its `.cwasm`, precompiled in an action
   per module for the platform the app is built for, by
@@ -261,19 +271,20 @@ A native target depends on a wasm one through a transition in
   build the workers can run. `plugins.json` lists the manifests: every
   platform finds its plugins through it, beside the executable, in the APK's
   assets, or at the bundle root.
-- `:dist` is a platform's release, and `:plugins` the plugins once for all.
+- `:native-dist` is a platform's release, `:plugins` the plugins once for
+  all, and `//crates/be-server:dist` the server with its build id.
 - `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
-  version), with the page and shims from `crates/block-app/web`. `:web-serve` runs Caddy
-  (`buck/tools:caddy`) with `web/Caddyfile`, and `-- --domain DOMAIN` serves
+  version), with the page and shims from `crates/block-app/web`. `buck2 run` on it runs Caddy
+  (`buck/tools:caddy`) with `web/Caddyfile` and be-server behind it, and `-- --domain DOMAIN` serves
   that domain over https, which is how the app is deployed.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
-  platform alone: the APK carries no libraries. `:android` signs it
-  locally with `target/android-debug.keystore`, made on first use.
-  `:android-dist` signs on a worker with CI's keystore,
+  platform alone: the APK carries no libraries. `:android` is it unsigned, and
+  `buck2 run` on it signs it locally with `target/android-debug.keystore`,
+  made on first use. `:android-dist` signs on a worker with CI's keystore,
   `buck/android/ci-keystore.base64` (guides/build_server.md), with its
   own application id and label (`com.be3.block.ci`, `Block (CI)`) so it
   installs beside a local build.

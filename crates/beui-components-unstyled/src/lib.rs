@@ -70,7 +70,7 @@ pub use command_palette::{
     command_palette_search, command_palette_shown,
 };
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
-pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
+pub use context_menu::{ContextMenu, context_menu_menu, context_menu_open, context_menu_overlay};
 pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
     date_time_field_value,
@@ -87,9 +87,10 @@ pub use dock::{
     DockStackHandle, DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle,
     DockSwitcherCardHandle, DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle,
     DockTabMenu, DockTree, DockTreeEntry, DockWindow, Docking, DockingLayout, DockingSnapshot,
-    Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS,
-    Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items,
-    dock_state, layout_surface, layout_tree, sidebar_size, use_dock_tab,
+    Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, OwnedDockingLayout, SIDEBAR_WIDTH,
+    SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions,
+    dock_menu, dock_menu_items, dock_state, layout_surface, layout_tree, sidebar_size,
+    use_dock_tab,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,

@@ -1,12 +1,9 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_AUTO_AWESOME, ICON_LINK_OFF, ICON_REFRESH, ICON_SETTINGS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
-    create_memo, view,
+    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
@@ -24,14 +21,14 @@ const PADDING_VERTICAL: f32 = 5.0;
 const SPACING: f32 = 8.0;
 
 #[component]
-pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
-    let shown = create_memo(clone!(info -> move || {
+pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
+    let shown = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .is_some_and(|info| info.dynamic_artifact && info.access.can_view())
         })
-    }));
-    let source = create_memo(clone!(info -> move || {
+    });
+    let source = create_memo(move || {
         info.with(|info| {
             let info = info.as_ref()?;
             let artifact = info.artifact.as_ref()?;
@@ -40,64 +37,70 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                 block_type: artifact.source_type,
             })
         })
-    }));
-    let described = create_memo(clone!(source -> move || source.get().is_some()));
-    let waiting = create_memo(clone!(info described -> move || {
+    });
+    let described = create_memo(move || source.get().is_some());
+    let waiting = create_memo(move || {
         !described.get()
             && info.with(|info| {
-                info.as_ref()
-                    .is_none_or(|info| info.artifact.as_ref().is_none_or(|artifact| artifact.error.is_none()))
+                info.as_ref().is_none_or(|info| {
+                    info.artifact
+                        .as_ref()
+                        .is_none_or(|artifact| artifact.error.is_none())
+                })
             })
-    }));
-    let running = create_memo(clone!(info -> move || {
+    });
+    let running = create_memo(move || {
         info.with(|info| {
-            info.as_ref()
-                .is_some_and(|info| info.artifact.as_ref().is_some_and(|artifact| artifact.regenerating))
+            info.as_ref().is_some_and(|info| {
+                info.artifact
+                    .as_ref()
+                    .is_some_and(|artifact| artifact.regenerating)
+            })
         })
-    }));
-    let failure = create_memo(clone!(info -> move || {
+    });
+    let failure = create_memo(move || {
         info.with(|info| {
             info.as_ref()
-                .and_then(|info| info.artifact.as_ref().and_then(|artifact| artifact.error.clone()))
+                .and_then(|info| {
+                    info.artifact
+                        .as_ref()
+                        .and_then(|artifact| artifact.error.clone())
+                })
                 .unwrap_or_default()
         })
-    }));
-    let failed = create_memo(clone!(failure -> move || !failure.get().is_empty()));
-    let summary = create_memo(clone!(info -> move || {
+    });
+    let failed = create_memo(move || !failure.get().is_empty());
+    let summary = create_memo(move || {
         info.with(|info| {
             info.as_ref()
-                .and_then(|info| info.artifact.as_ref().map(|artifact| artifact.summary.clone()))
+                .and_then(|info| {
+                    info.artifact
+                        .as_ref()
+                        .map(|artifact| artifact.summary.clone())
+                })
                 .unwrap_or_default()
         })
-    }));
-    let editable = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().is_some_and(|info| info.can_edit))
-    }));
-    let settings_off = create_memo(clone!(editable -> move || !editable.get()));
-    let regenerate_off = create_memo(clone!(editable running described -> move || {
-        !editable.get() || running.get() || !described.get()
-    }));
-    let unlink_off =
-        create_memo(clone!(editable running -> move || !editable.get() || running.get()));
-    let source_name = create_memo(clone!(source workspace -> move || {
+    });
+    let editable =
+        create_memo(move || info.with(|info| info.as_ref().is_some_and(|info| info.can_edit)));
+    let settings_off = create_memo(move || !editable.get());
+    let regenerate_off = create_memo(move || !editable.get() || running.get() || !described.get());
+    let unlink_off = create_memo(move || !editable.get() || running.get());
+    let source_name = create_memo(move || {
         source.get().map_or_else(String::new, |source| {
             workspace.label(source.id, source.block_type).name
         })
-    }));
-    let block = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().map(|info| info.item.id))
-    }));
-    let opened = Rc::clone(&workspace);
-    let open_source = source.clone();
-    let settings = block_command(&workspace, block.clone(), Command::Settings);
-    let regenerate = block_command(&workspace, block.clone(), Command::Regenerate);
+    });
+    let block = create_memo(move || info.with(|info| info.as_ref().map(|info| info.item.id)));
+    let settings = block_command(&workspace, block, Command::Settings);
+    let regenerate = block_command(&workspace, block, Command::Regenerate);
     let unlink = block_command(&workspace, block, Command::Unlink);
     let theme = use_theme();
-    let heading_color = theme.text.clone();
+    let heading_color = theme.text;
     view! {
         <Frame
             visible={shown}
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
@@ -113,7 +116,7 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                         <Caption content="Loading…" />
                     </Show>
                     <Show condition={described}>
-                        {move || clone!(open_source opened source_name summary -> view! {
+                        {move || view! {
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
@@ -125,14 +128,14 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                                     label={source_name}
                                     variant=ButtonVariant::Ghost
                                     on_click={move || {
-                                        if let Some(source) = open_source.get_untracked() {
-                                            opened.open(source, None);
+                                        if let Some(source) = source.get_untracked() {
+                                            workspace.open(source, None);
                                         }
                                     }}
                                 />
                                 <Caption content={summary} />
                             </List>
-                        })}
+                        }}
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={running}>
@@ -161,7 +164,7 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                     />
                 </List>
                 <Show condition={failed}>
-                    <Caption content={failure.clone()} color={theme.danger.clone()} />
+                    <Caption content={failure} color={theme.danger} />
                 </Show>
             </List>
         </Frame>
@@ -176,11 +179,11 @@ enum Command {
 }
 
 fn block_command(
-    workspace: &Rc<Workspace>,
+    workspace: &Workspace,
     block: block_editor_beui::beui::reactive::Memo<Option<Uuid>>,
     command: Command,
 ) -> impl Fn() + 'static {
-    let workspace = Rc::clone(workspace);
+    let workspace = *workspace;
     move || {
         let Some(id) = block.get_untracked() else {
             return;

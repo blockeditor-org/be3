@@ -17,11 +17,13 @@ pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec
     let watermark = doc.arena.layout_revision;
     let element = doc.arena.take(id);
     let outer = doc.enter_measure(id);
+    let outer_offer = doc.enter_offer();
     let measured = element.measure(doc, painter, available);
+    let offer_dependent = doc.leave_offer(outer_offer);
     doc.leave_measure(outer);
     doc.arena.put_back(id, element);
     let size = doc.pixel_grid().snap_size(measured);
-    doc.remember_measurement(id, available, size, watermark);
+    doc.remember_measurement(id, available, size, offer_dependent, watermark);
     size
 }
 

@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
 use crate::editor::BeuiScale;
-use crate::{Artifacts, BeuiApp, Creation, Editor};
+use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
 
 pub struct BeuiPlugin<A: BeuiApp>(PhantomData<A>);
 
@@ -31,6 +31,7 @@ pub(crate) struct BeuiInstance<A: BeuiApp> {
     surfaces: HashMap<EditorRegion, PluginSurface>,
     views: Views<A>,
     lent: Rc<RefCell<Option<Lent<A>>>>,
+    keeps_accessibility: bool,
 }
 
 struct Lent<A: BeuiApp> {
@@ -88,14 +89,14 @@ impl<A: BeuiApp> beui::App for RegionApp<A> {
 struct Views<A: BeuiApp> {
     creating: bool,
     chrome: Option<BeuiFrame>,
-    editor: Option<Editor>,
-    preview: Option<Editor>,
     preview_document: Option<beui::Document>,
-    creation: Option<Creation>,
     dialog: Option<beui::Document>,
-    artifacts: Option<Artifacts>,
     settings: Option<beui::Document>,
     view: Option<crate::headless::View>,
+    editor: Option<OwnedEditor>,
+    preview: Option<OwnedEditor>,
+    creation: Option<Creation>,
+    artifacts: Option<Artifacts>,
     app: PhantomData<A>,
 }
 
@@ -114,15 +115,13 @@ fn follow_host_theme(document: &mut beui::Document) {
 
 impl<A: BeuiApp> Views<A> {
     fn preview(&mut self, context: &beui::Context, rect: beui::Rect) {
-        let Some(editor) = self.preview.clone() else {
+        let Some(editor) = self.preview.as_deref().copied() else {
             return;
         };
-        let document = self.preview_document.get_or_insert_with(|| {
-            let built = editor.clone();
-            beui::reactive::build(move || A::preview_view(built))
-        });
-        let begun = editor.clone();
-        beui::reactive::with_reactive_scope(document, move || begun.begin_frame());
+        let document = self
+            .preview_document
+            .get_or_insert_with(|| beui::reactive::build(move || A::preview_view(editor)));
+        beui::reactive::with_reactive_scope(document, move || editor.begin_frame());
         follow_host_theme(document);
         document.show(context, rect);
         editor.end_frame(document);
@@ -204,7 +203,7 @@ impl<A: BeuiApp> Views<A> {
             on_phone: spec.top_bar.phone(),
         };
         let menu = chrome.menu();
-        let editor = self.editor.clone();
+        let editor = self.editor.as_deref().copied();
         beui::reactive::with_reactive_scope(chrome.document_mut(), || {
             set_bar.set(bar);
             for id in picks {
@@ -232,13 +231,13 @@ impl<A: BeuiApp> Views<A> {
         }
         let editor = self
             .editor
-            .clone()
+            .as_deref()
+            .copied()
             .expect("connect is called before the view is built");
-        let built = editor.clone();
         let view = self.view.take();
-        self.chrome = Some(BeuiFrame::build(&editor, move || match view {
+        self.chrome = Some(BeuiFrame::build(editor, move || match view {
             Some(view) => view(),
-            None => A::view(built),
+            None => A::view(editor),
         }));
     }
 }
@@ -246,6 +245,7 @@ impl<A: BeuiApp> Views<A> {
 impl<A: BeuiApp> BeuiInstance<A> {
     pub(crate) fn adopting(adopted: crate::headless::Adopted) -> Self {
         let mut instance = Self::new(adopted.host());
+        instance.keeps_accessibility = true;
         let views = &mut instance.views;
         match adopted {
             crate::headless::Adopted::Editor(editor, view) => {
@@ -260,7 +260,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
     }
 
     pub(crate) fn editor(&self) -> Option<Editor> {
-        self.views.editor.clone()
+        self.views.editor.as_deref().copied()
     }
 
     pub(crate) fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
@@ -287,21 +287,25 @@ impl<A: BeuiApp> BeuiInstance<A> {
             surfaces: HashMap::new(),
             views: Views::empty(),
             lent: Rc::default(),
+            keeps_accessibility: false,
         }
     }
 
     fn surface(&mut self, region: EditorRegion) -> &mut PluginSurface {
         let host = &self.host;
         let lent = &self.lent;
+        let keeps_accessibility = self.keeps_accessibility;
         self.surfaces.entry(region).or_insert_with(|| {
-            PluginSurface::launch(
+            let surface = PluginSurface::launch(
                 host.clone(),
                 crate::fonts::context(),
                 RegionApp::<A> {
                     region,
                     lent: Rc::clone(lent),
                 },
-            )
+            );
+            surface.context().keep_accessibility(keeps_accessibility);
+            surface
         })
     }
 
@@ -317,19 +321,20 @@ impl<A: BeuiApp> BeuiInstance<A> {
 
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn connect(&mut self, block_id: Uuid) {
-        let scaled = |host: EditorHost| Editor::scaled(host, block_id, Rc::clone(&self.scale));
-        let fresh = |editor: &Option<Editor>| {
+        let scaled = |host: EditorHost| OwnedEditor::scaled(host, block_id, Rc::clone(&self.scale));
+        let fresh = |editor: &Option<OwnedEditor>| {
             editor
                 .as_ref()
                 .is_none_or(|editor| editor.block_id() != block_id)
         };
         if fresh(&self.views.editor) {
+            self.views.chrome = None;
             self.views.editor = Some(scaled(self.host.clone()));
             self.views.view = None;
         }
         if fresh(&self.views.preview) {
-            self.views.preview = Some(scaled(self.host.clone()));
             self.views.preview_document = None;
+            self.views.preview = Some(scaled(self.host.clone()));
         }
     }
 
@@ -380,9 +385,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn intrinsic_size(&mut self) -> Option<beui::Vec2> {
         self.views
             .editor
-            .as_ref()
+            .as_deref()
             .and_then(Editor::intrinsic_size)
-            .or_else(|| self.views.preview.as_ref().and_then(Editor::intrinsic_size))
+            .or_else(|| {
+                self.views
+                    .preview
+                    .as_deref()
+                    .and_then(Editor::intrinsic_size)
+            })
             .or_else(A::intrinsic_size)
     }
 
@@ -403,7 +413,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        let Some(editor) = self.views.editor.clone() else {
+        let Some(editor) = self.views.editor.as_deref().copied() else {
             return false;
         };
         let document = self.views.chrome.as_mut().map(BeuiFrame::document_mut);
@@ -474,8 +484,6 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: to_region(rect),
             })
             .collect();
-        let locked = self.surfaces.values().any(PluginSurface::pointer_locked);
-        self.host.grab_cursor(locked);
         if self.zones_pending() {
             frame.repaint_after = Some(Duration::ZERO);
         }

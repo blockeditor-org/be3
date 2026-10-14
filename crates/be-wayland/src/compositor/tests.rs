@@ -66,7 +66,7 @@ mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::reactive::{
     ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
-    clone, component, create_memo, create_signal, view, with_reactive_scope,
+    component, create_memo, create_signal, view, with_reactive_scope,
 };
 use beui::styled::TextInput;
 use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
@@ -88,17 +88,16 @@ struct Harness {
 #[component]
 fn Shown(windows: Windows) -> NodeId {
     {
-        let toggling = windows.clone();
         beui::reactive::Action::new("test.fullscreen", "Toggle fullscreen", move || {
-            let Some(id) = toggling.focused() else {
+            let Some(id) = windows.focused() else {
                 return;
             };
-            let fullscreen = toggling
+            let fullscreen = windows
                 .list()
                 .get_untracked()
                 .iter()
                 .any(|info| info.id == id && info.fullscreen.is_some());
-            toggling.request_fullscreen(id, !fullscreen);
+            windows.request_fullscreen(id, !fullscreen);
             beui::reactive::try_with_document(|document| {
                 document.request_repaint_after(std::time::Duration::ZERO);
             });
@@ -113,7 +112,7 @@ fn Shown(windows: Windows) -> NodeId {
         .shortcut(beui::reactive::Chord::logo(Key::G))
         .at(KeyAt::Window)
         .register();
-        crate::view::register_restore_shortcuts(&windows);
+        crate::view::register_restore_shortcuts(windows);
         let (text, set_text) = create_signal(String::new());
         let (locked, set_locked) = create_signal(false);
         LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
@@ -138,7 +137,6 @@ fn Shown(windows: Windows) -> NodeId {
                     />
                     <ForEach keys={ids}>
                         {move |id: WindowId| {
-                            let windows = windows.clone();
                             let list = windows.list();
                             let size = create_memo(move || {
                                 list.with(|list| {
@@ -148,7 +146,7 @@ fn Shown(windows: Windows) -> NodeId {
                                         .map_or(SHOWN, |area| area.size())
                                 })
                             });
-                            let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                            let width = create_memo(move || Some(size.get().x));
                             let height = create_memo(move || Some(size.get().y));
                             view! {
                                 <Frame width height>
@@ -168,7 +166,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Center
-                        open={asking.clone()}
+                        open={asking}
                     >
                         <TextInput @test_id={"test.dialog"} value="" focused={asking} />
                     </Overlay>
@@ -209,7 +207,7 @@ impl Harness {
         let mut windows = None;
         let document = build(|| {
             let store = Windows::new();
-            windows = Some(store.clone());
+            windows = Some(store);
             view(store)
         });
         let mut app = Compositor::new(
@@ -226,7 +224,6 @@ impl Harness {
         }
         let client = TestClient::connect(app.server());
         let context = beui::context();
-        context.set_test_ids_published(true);
         Self {
             app,
             document,
@@ -252,7 +249,7 @@ impl Harness {
 
     fn lock(&mut self, locked: bool) {
         let set = LOCK
-            .with(|lock| lock.borrow().clone())
+            .with(|lock| *lock.borrow())
             .expect("the harness has a lock");
         with_reactive_scope(&mut self.document, move || set.set(locked));
         self.app.set_locked(locked);
@@ -261,7 +258,7 @@ impl Harness {
 
     fn ask(&mut self, open: bool) {
         let set = DIALOG
-            .with(|dialog| dialog.borrow().clone())
+            .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         with_reactive_scope(&mut self.document, move || set.set(open));
         self.settle();

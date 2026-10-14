@@ -14,7 +14,7 @@ pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
 #[component]
 pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Child) -> NodeId {
     let (open, set_open) = create_signal(false);
-    let pressed = open.clone();
+    let pressed = open;
     let source = code.join("\n\n");
     view! {
         <List spacing=SECTION_SPACING>
@@ -39,14 +39,17 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
 #[component]
 fn CodeBlock(source: String) -> NodeId {
     let theme = use_theme();
-    let tokens = create_memo(clone!(source theme -> move || {
-        let theme = theme.get();
-        code_tokens(&source, theme.background, theme.text)
-    }));
+    let tokens = create_memo({
+        let source = source.clone();
+        move || {
+            let theme = theme.get();
+            code_tokens(&source, theme.background, theme.text)
+        }
+    });
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=RADIUS
@@ -54,7 +57,7 @@ fn CodeBlock(source: String) -> NodeId {
             padding_vertical=CODE_PADDING
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
-                <Text font_size=FONT_SMALL color={theme.text.clone()} monospace=true wrap=true>
+                <Text font_size=FONT_SMALL color={theme.text} monospace=true wrap=true>
                     <ForEach keys={tokens}>
                         {move |(start, end, color): (usize, usize, Color32)| view! {
                             <Span text={source[start..end].to_owned()} color />

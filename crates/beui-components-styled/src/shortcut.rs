@@ -18,7 +18,7 @@ pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
                 @sizing=ItemSize::Percent(100.0)
                 string={description}
                 font_size=FONT_SMALL
-                color={theme.text_muted.clone()}
+                color={theme.text_muted}
                 align=TextAlign::Start
                 wrap=true
             />

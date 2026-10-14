@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::rc::Rc;
 
 use beui_macros::{component, view};
 
@@ -19,8 +18,8 @@ use beui_core::icons::{
 };
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
-    RenderFn, Spacer, clone, create_memo, focus_ring, set_component_state,
+    Align, Callback, ClickCallback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop,
+    ReadSignal, RenderFn, Spacer, create_memo, focus_ring, set_component_state,
 };
 
 const INDENT: f32 = 12.0;
@@ -71,8 +70,8 @@ where
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
     let rows = NodeRef::new();
     let viewport = NodeRef::new();
-    set_component_state(Parts { rows: rows.clone() });
-    let tracked = rows.clone();
+    set_component_state(Parts { rows });
+    let tracked = rows;
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     view! {
         <List spacing=0.0>
@@ -85,20 +84,15 @@ where
                         selected
                         ancestors
                         spacing
-                        on_select={move |key| on_select.call(key)}
-                        on_expand={move |expansion| on_expand.call(expansion)}
-                        on_hover_change={move |hover| on_hover_change.call(hover)}
-                        on_drag_start={move |key| on_drag_start.call(key)}
+                        on_select={on_select}
+                        on_expand={on_expand}
+                        on_hover_change={on_hover_change}
+                        on_drag_start={on_drag_start}
                     >
                         {move |handle: TreeRowHandle<K>| {
                             let named = row_test_id.call(handle.key.clone());
                             view! {
-                                <TreeRowChrome
-                                    handle
-                                    named
-                                    outline={outline.clone()}
-                                    content={content.clone()}
-                                />
+                                <TreeRowChrome handle named outline={outline} content={content} />
                             }
                         }}
                     </unstyled::Tree>
@@ -107,7 +101,7 @@ where
             <unstyled::TreeReveal
                 tree={rows}
                 viewport={viewport}
-                on_reveal={move |key: K| on_reveal.call(key)}
+                on_reveal={on_reveal}
                 button={move |handle: TreeRevealHandle| view! {
                     <RevealButton handle named={reveal_test_id} />
                 }}
@@ -134,7 +128,7 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
                 glyph={glyph}
                 label={label}
                 variant=ButtonVariant::Secondary
-                on_click={move || reveal.call()}
+                on_click={reveal}
             />
         </Frame>
     }
@@ -181,23 +175,18 @@ where
         ..
     } = handle;
     let theme = use_theme();
-    let indent = create_memo(clone!(item -> move || {
-        ItemSize::Fixed(item.get().depth as f32 * INDENT)
-    }));
-    let fill = create_memo(clone!(theme selected hovered active -> move || {
-        background(&theme, selected.get(), hovered.get(), active.get())
-    }));
-    let highlight = create_memo(clone!(outline key -> move || outline.call(key.clone())));
-    let outline_color = create_memo(clone!(theme highlight -> move || {
-        highlight.get().unwrap_or_else(|| theme.accent.get())
-    }));
-    let ring = focus_ring(focused.clone());
-    let outlined = create_memo(clone!(highlight -> move || {
-        highlight.get().is_some() || ring.get()
-    }));
+    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * INDENT));
+    let fill = create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
+    let highlight = create_memo({
+        let key = key.clone();
+        move || outline.call(key.clone())
+    });
+    let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
+    let ring = focus_ring(focused);
+    let outlined = create_memo(move || highlight.get().is_some() || ring.get());
     let face = TreeRowFace {
         key,
-        item: item.clone(),
+        item,
         selected,
         focused,
         hovered,
@@ -229,15 +218,15 @@ where
 fn Chevron(
     item: Memo<TreeItem>,
     marked: Memo<bool>,
-    toggle: Rc<dyn Fn()>,
+    toggle: ClickCallback,
     named: String,
 ) -> NodeId {
     view! {
         <Frame width=CHEVRON_WIDTH>
             <List spacing=0.0>
-                <unstyled::TreeToggle item toggle button_test_id=named>
+                <unstyled::TreeToggle item toggle={toggle} button_test_id=named>
                     {move |handle: TreeToggleHandle| view! {
-                        <ChevronFace handle marked={marked.clone()} />
+                        <ChevronFace handle marked={marked} />
                     }}
                 </unstyled::TreeToggle>
             </List>
@@ -259,22 +248,18 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
         expanded,
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme marked hovered active -> move || {
-        match (active.get(), marked.get(), hovered.get()) {
-            (true, _, _) => theme.pressed.get(),
-            (false, true, _) => theme.accent_soft.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => Color32::TRANSPARENT,
-        }
-    }));
+    let fill = create_memo(move || match (active.get(), marked.get(), hovered.get()) {
+        (true, _, _) => theme.pressed.get(),
+        (false, true, _) => theme.accent_soft.get(),
+        (false, false, true) => theme.hover.get(),
+        (false, false, false) => Color32::TRANSPARENT,
+    });
     let ring = focus_ring(focused);
-    let outlined = create_memo(clone!(marked -> move || marked.get() || ring.get()));
-    let color = create_memo(clone!(theme marked hovered -> move || {
-        match marked.get() || hovered.get() {
-            true => theme.text.get(),
-            false => theme.text_muted.get(),
-        }
-    }));
+    let outlined = create_memo(move || marked.get() || ring.get());
+    let color = create_memo(move || match marked.get() || hovered.get() {
+        true => theme.text.get(),
+        false => theme.text_muted.get(),
+    });
     let glyph = create_memo(move || match expanded.get() {
         true => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
         false => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
@@ -285,7 +270,7 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
                 width=CHEVRON_WIDTH
                 height=ROW_HEIGHT
                 color={fill}
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=OUTLINE_WIDTH
                 outline_visible={outlined}
                 radius=CHEVRON_RADIUS

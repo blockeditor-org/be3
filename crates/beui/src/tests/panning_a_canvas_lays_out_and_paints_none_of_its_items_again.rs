@@ -6,6 +6,7 @@ use crate::reactive::{
 
 #[test]
 fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
+    let _root = crate::reactive::RootScope::new();
     let (view, set_view) = create_signal(Some(CanvasView::new(pos2(0.0, 0.0), 1.0)));
     let document = build(move || {
         view! {

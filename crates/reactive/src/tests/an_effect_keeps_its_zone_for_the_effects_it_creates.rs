@@ -3,6 +3,7 @@ use crate::enter_zone;
 
 #[test]
 fn an_effect_keeps_its_zone_for_the_effects_it_creates() {
+    let _root = RootScope::new();
     let seen = Rc::new(RefCell::new(Vec::new()));
     let (outer, set_outer) = create_signal(0);
     let (inner, set_inner) = create_signal(0);
@@ -14,7 +15,7 @@ fn an_effect_keeps_its_zone_for_the_effects_it_creates() {
             create_effect(move || {
                 outer.get();
                 let seen = seen.clone();
-                let inner = inner.clone();
+                let inner = inner;
                 create_effect(move || seen.borrow_mut().push(inner.get()));
             });
         });

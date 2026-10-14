@@ -1666,7 +1666,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -1694,7 +1696,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -1722,7 +1726,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -1750,7 +1756,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -1778,7 +1786,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -1806,7 +1816,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -1834,7 +1846,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
                 "test_features": [],
             },
         },
@@ -4591,15 +4605,22 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "gpu",
+                ],
             },
             "linux-arm64": {
                 "binaries": {},
@@ -4607,15 +4628,22 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "gpu",
+                ],
             },
             "linux-x86_64": {
                 "binaries": {},
@@ -4623,15 +4651,22 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "gpu",
+                ],
             },
             "macos-arm64": {
                 "binaries": {},
@@ -4639,15 +4674,22 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "gpu",
+                ],
             },
             "macos-x86_64": {
                 "binaries": {},
@@ -4655,15 +4697,22 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "gpu",
+                ],
             },
             "wasi": {
                 "binaries": {},
@@ -4671,13 +4720,18 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
                 "test_features": [],
             },
@@ -4687,13 +4741,18 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
                 "test_features": [],
             },
@@ -4703,15 +4762,22 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "gpu",
+                ],
             },
             "windows-x86_64": {
                 "binaries": {},
@@ -4719,15 +4785,22 @@ crates = {
                     "//crates/beui-components-unstyled:beui-components-unstyled",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-macros:beui_macros",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui-view:beui-view",
                     "//crates/reactive:reactive",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:accesskit-0.24.1",
+                    "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "gpu",
+                ],
                 "test_deps": [],
-                "test_features": [],
+                "test_features": [
+                    "gpu",
+                ],
             },
         },
         "profile_flags": [],
@@ -5095,7 +5168,12 @@ crates = {
             },
         ],
         "edition": "2024",
-        "examples": [],
+        "examples": [
+            {
+                "crate_root": "examples/open-bench.rs",
+                "name": "open-bench",
+            },
+        ],
         "library": {
             "crate": "beui_demo",
             "crate_root": "src/lib.rs",
@@ -5116,10 +5194,26 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:pollster-0.4.0",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5136,10 +5230,26 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:pollster-0.4.0",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5156,10 +5266,26 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:pollster-0.4.0",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5176,10 +5302,26 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:pollster-0.4.0",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5196,10 +5338,26 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:pollster-0.4.0",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5228,7 +5386,17 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
@@ -5248,10 +5416,26 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:pollster-0.4.0",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5268,10 +5452,26 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/text-editor-core:text-editor-core",
                 ],
-                "examples": {},
+                "examples": {
+                    "open-bench": {
+                        "deps": [
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui:beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:pollster-0.4.0",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -11132,11 +11332,13 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {
                     "retained": {
                         "deps": [
                             "//crates/reactive-macros:reactive_macros",
+                            "//third-party/rust:foldhash-0.2.0",
                         ],
                         "features": [],
                     },
@@ -11149,11 +11351,13 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {
                     "retained": {
                         "deps": [
                             "//crates/reactive-macros:reactive_macros",
+                            "//third-party/rust:foldhash-0.2.0",
                         ],
                         "features": [],
                     },
@@ -11166,11 +11370,13 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {
                     "retained": {
                         "deps": [
                             "//crates/reactive-macros:reactive_macros",
+                            "//third-party/rust:foldhash-0.2.0",
                         ],
                         "features": [],
                     },
@@ -11183,11 +11389,13 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {
                     "retained": {
                         "deps": [
                             "//crates/reactive-macros:reactive_macros",
+                            "//third-party/rust:foldhash-0.2.0",
                         ],
                         "features": [],
                     },
@@ -11200,11 +11408,13 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {
                     "retained": {
                         "deps": [
                             "//crates/reactive-macros:reactive_macros",
+                            "//third-party/rust:foldhash-0.2.0",
                         ],
                         "features": [],
                     },
@@ -11217,6 +11427,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {},
                 "features": [],
@@ -11227,6 +11438,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {},
                 "features": [],
@@ -11237,11 +11449,13 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {
                     "retained": {
                         "deps": [
                             "//crates/reactive-macros:reactive_macros",
+                            "//third-party/rust:foldhash-0.2.0",
                         ],
                         "features": [],
                     },
@@ -11254,11 +11468,13 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
                 ],
                 "examples": {
                     "retained": {
                         "deps": [
                             "//crates/reactive-macros:reactive_macros",
+                            "//third-party/rust:foldhash-0.2.0",
                         ],
                         "features": [],
                     },

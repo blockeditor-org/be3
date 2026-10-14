@@ -9,8 +9,8 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
-    create_effect, create_memo, create_signal, set_component_state, untrack,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, component_accessibility, create_effect,
+    create_memo, create_signal, set_component_state, untrack,
 };
 
 const STEP: f32 = 0.05;
@@ -80,15 +80,14 @@ pub fn Slider(
 ) -> NodeId {
     let value = value.map(move |value| value.clamp(min, max));
     let (value_read, set_value_signal) = create_signal(value.peek());
-    create_effect(clone!(set_value_signal -> move || set_value_signal.set(value.get())));
-    let fraction =
-        create_memo(clone!(value_read -> move || scale.fraction_of(value_read.get(), min, max)));
+    create_effect(move || set_value_signal.set(value.get()));
+    let fraction = create_memo(move || scale.fraction_of(value_read.get(), min, max));
     let (dragging, set_dragging) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
 
     let accessibility = crate::labelled_node(Role::Slider, accessibility, label);
-    component_accessibility(create_memo(clone!(value_read disabled -> move || {
+    component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         let value = value_read.get();
         node.set_numeric_value(value.into());
@@ -101,21 +100,21 @@ pub fn Slider(
             node.clear_disabled();
         }
         node
-    })));
+    }));
 
     let content_node = content.map(|build| {
         build.call(SliderHandle {
-            value: value_read.clone(),
-            fraction: fraction.clone(),
-            dragging: dragging.clone(),
-            focused: focused.clone(),
-            disabled: disabled.clone(),
+            value: value_read,
+            fraction,
+            dragging,
+            focused,
+            disabled,
         })
     });
 
     let set_value = {
-        let value = value_read.clone();
-        let off = disabled.clone();
+        let value = value_read;
+        let off = disabled;
         move |next: f32| {
             if untrack(|| off.get()) {
                 return;
@@ -130,7 +129,7 @@ pub fn Slider(
     };
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
-    let press_fraction = fraction.clone();
+    let press_fraction = fraction;
     let dragged_to = move |press: PointerPress| {
         let travel = press.size.x - thumb;
         match travel > 0.0 {
@@ -139,7 +138,7 @@ pub fn Slider(
         }
     };
     let jump_to = dragged_to.clone();
-    let jump_value = set_value.clone();
+    let jump_value = set_value;
     let grabbed = move |press: PointerPress| {
         let travel = (press.size.x - thumb).max(0.0);
         let centre = thumb / 2.0 + press_fraction.get_untracked() * travel;
@@ -153,13 +152,13 @@ pub fn Slider(
             jump_value(scale.value_at(jump_to(press), min, max));
         }
     };
-    let step_value = set_value.clone();
-    let key_value = set_value.clone();
-    let value_for_keys = value_read.clone();
+    let step_value = set_value;
+    let key_value = set_value;
+    let value_for_keys = value_read;
 
-    set_component_state(value_read.clone());
+    set_component_state(value_read);
 
-    let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
+    let tab_stop = create_memo(move || !disabled.get());
     view! {
         <Interactive
             focusable=true
@@ -204,7 +203,7 @@ pub fn Slider(
 }
 
 pub fn slider_value(document: &Document, slider: NodeId) -> ReadSignal<f32> {
-    document.component_state::<ReadSignal<f32>>(slider).clone()
+    *document.component_state::<ReadSignal<f32>>(slider)
 }
 
 fn curved(fraction: f32, base: f32) -> f32 {

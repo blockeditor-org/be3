@@ -1,6 +1,5 @@
 use beui_core::layer::Dismiss;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use accesskit::{Node, Role};
 use beui_core::base::overlay::{OverlayAnchor, OverlayNode, Placement};
@@ -14,8 +13,8 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Child, ClickCallback, ForEach, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Render,
-    RenderFn, Selector, WriteSignal, active_actions_from, clone, create_effect, create_memo,
-    create_selector, create_signal, on_key, set_component_state, untrack, with_document,
+    RenderFn, Selector, Stored, WriteSignal, active_actions_from, create_effect, create_memo,
+    create_selector, create_signal, on_key, set_component_state, store, untrack, with_document,
 };
 
 use crate as unstyled;
@@ -32,10 +31,11 @@ pub struct CommandRowHandle {
     pub hovered: ReadSignal<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct State {
     overlay: NodeRef,
     search: NodeRef,
-    actions: RefCell<Vec<Action>>,
+    actions: Stored<RefCell<Vec<Action>>>,
     query: ReadSignal<String>,
     set_query: WriteSignal<String>,
     shown: ReadSignal<Vec<u64>>,
@@ -44,11 +44,9 @@ struct State {
     set_highlighted: WriteSignal<Option<u64>>,
     searching: ReadSignal<bool>,
     set_searching: WriteSignal<bool>,
-    rows: RefCell<Vec<(u64, NodeRef)>>,
+    rows: Stored<RefCell<Vec<(u64, NodeRef)>>>,
     on_close: ClickCallback,
 }
-
-type Handle = Rc<State>;
 
 #[component]
 pub fn CommandPalette(
@@ -75,49 +73,36 @@ pub fn CommandPalette(
     let (shown, set_shown) = create_signal(Vec::<u64>::new());
     let (highlighted, set_highlighted) = create_signal(None::<u64>);
     let (searching, set_searching) = create_signal(false);
-    let state: Handle = Rc::new(State {
+    let state = State {
         overlay: NodeRef::new(),
         search: NodeRef::new(),
-        actions: RefCell::new(Vec::new()),
-        query: query.clone(),
+        actions: store(RefCell::new(Vec::new())),
+        query,
         set_query,
-        shown: shown.clone(),
+        shown,
         set_shown,
-        highlighted: highlighted.clone(),
+        highlighted,
         set_highlighted,
-        searching: searching.clone(),
+        searching,
         set_searching,
-        rows: RefCell::new(Vec::new()),
+        rows: store(RefCell::new(Vec::new())),
         on_close,
-    });
-    set_component_state(state.clone());
+    };
+    set_component_state(state);
 
-    let opened = open.clone();
-    create_effect(clone!(state -> move || {
+    let opened = open;
+    create_effect(move || {
         if opened.get() {
-            untrack(|| start(&state));
+            untrack(|| start(state));
         }
-    }));
+    });
 
-    let highlight = create_selector(clone!(highlighted -> move || highlighted.get()));
-    let keys = create_memo(clone!(shown -> move || shown.get()));
-    let reveal = reveal_reader(&state);
-    let (dismiss_state, filter_state, submit_state, key_state, rows_state) = (
-        state.clone(),
-        state.clone(),
-        state.clone(),
-        state.clone(),
-        state.clone(),
-    );
-    on_key(
-        KeyAt::Node(state.search.clone()),
-        KeyPhase::Capture,
-        move |event| {
-            event
-                .press()
-                .is_some_and(|press| navigate(&key_state, press))
-        },
-    );
+    let highlight = create_selector(move || highlighted.get());
+    let keys = create_memo(move || shown.get());
+    let reveal = reveal_reader(state);
+    on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
+        event.press().is_some_and(|press| navigate(state, press))
+    });
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Command palette");
@@ -130,7 +115,7 @@ pub fn CommandPalette(
             placement=Placement::Center
             scrim
             open
-            on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
+            on_dismiss={move |_: Dismiss| dismiss(state)}
         >
             {panel.call(view! {
                 <List spacing=6.0>
@@ -143,10 +128,10 @@ pub fn CommandPalette(
                         style={search_style}
                         accessibility={accessibility}
                         content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
-                        on_change={move |text: String| filter(&filter_state, &text)}
+                        on_change={move |text: String| filter(state, &text)}
                         on_submit={move |_text: String| {
-                            if let Some(key) = submit_state.highlighted.get_untracked() {
-                                confirm(&submit_state, key);
+                            if let Some(key) = state.highlighted.get_untracked() {
+                                confirm(state, key);
                             }
                         }}
                     />
@@ -158,12 +143,7 @@ pub fn CommandPalette(
                         <ForEach keys={keys}>
                             {move |key: u64| {
                                 view! {
-                                    <CommandRow
-                                        state={rows_state.clone()}
-                                        key
-                                        row={row.clone()}
-                                        highlight={highlight.clone()}
-                                    />
+                                    <CommandRow state={state} key row={row} highlight={highlight} />
                                 }
                             }}
                         </ForEach>
@@ -176,29 +156,31 @@ pub fn CommandPalette(
 
 #[component]
 fn CommandRow(
-    state: Handle,
+    state: State,
     key: u64,
     row: RenderFn<CommandRowHandle>,
     highlight: Selector<Option<u64>>,
 ) -> NodeId {
-    let action = find(&state, key).expect("a shown row has an action");
+    let action = find(state, key).expect("a shown row has an action");
     let button = NodeRef::new();
-    state.rows.borrow_mut().push((key, button.clone()));
+    state.rows.get().borrow_mut().push((key, button));
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();
-    let accessibility = create_memo(clone!(label disabled -> move || {
-        let mut node = Node::new(Role::ListBoxOption);
-        node.set_label(label.get());
-        if disabled.get() {
-            node.set_disabled();
+    let accessibility = create_memo({
+        let label = label.clone();
+        move || {
+            let mut node = Node::new(Role::ListBoxOption);
+            node.set_label(label.get());
+            if disabled.get() {
+                node.set_disabled();
+            }
+            node
         }
-        node
-    }));
-    let (hover_state, click_state) = (state.clone(), state);
+    });
     let glyph = action.glyph().to_owned();
     let shortcut = action.shortcut_label();
-    let face_disabled = disabled.clone();
+    let face_disabled = disabled;
     view! {
         <unstyled::Button
             @node_ref={&button}
@@ -206,48 +188,49 @@ fn CommandRow(
             tab_stop=false
             press_focus=false
             content={move |handle: ButtonHandle| {
-                let hovered = handle.hovered.clone();
-                let hovering = clone!(hover_state -> move || {
-                    if hovered.get() && find(&hover_state, key).is_some_and(|action| action.is_enabled()) {
-                        hover_state.set_highlighted.set(Some(key));
+                let hovered = handle.hovered;
+                let hovering = move || {
+                    if hovered.get() && find(state, key).is_some_and(|action| action.is_enabled()) {
+                        state.set_highlighted.set(Some(key));
                     }
-                });
+                };
                 create_effect(hovering);
                 row.call(CommandRowHandle {
                     label: label.clone(),
                     glyph: glyph.clone(),
                     shortcut: shortcut.clone(),
-                    disabled: face_disabled.clone(),
+                    disabled: face_disabled,
                     highlighted: highlight.memo(Some(key)),
                     hovered: handle.hovered,
                 })
             }}
-            on_click={move || confirm(&click_state, key)}
+            on_click={move || confirm(state, key)}
         />
     }
 }
 
-fn find(state: &State, key: u64) -> Option<Action> {
+fn find(state: State, key: u64) -> Option<Action> {
     state
         .actions
+        .get()
         .borrow()
         .iter()
         .find(|action| action.key() == key)
         .cloned()
 }
 
-fn start(state: &State) {
+fn start(state: State) {
     let path = with_document(|document| document.focus_ancestry());
     let mut actions = active_actions_from(&path);
     actions.sort_by_key(|action| !action.is_enabled());
-    *state.actions.borrow_mut() = actions;
-    state.rows.borrow_mut().clear();
+    *state.actions.get().borrow_mut() = actions;
+    state.rows.get().borrow_mut().clear();
     state.set_query.set(String::new());
     filter(state, "");
     state.set_searching.set(true);
 }
 
-fn close(state: &State) {
+fn close(state: State) {
     state.set_searching.set(false);
     state.on_close.call();
     let overlay = state.overlay.try_get();
@@ -258,13 +241,13 @@ fn close(state: &State) {
     });
 }
 
-fn dismiss(state: &State) {
+fn dismiss(state: State) {
     if state.searching.get_untracked() {
         close(state);
     }
 }
 
-fn confirm(state: &State, key: u64) {
+fn confirm(state: State, key: u64) {
     let Some(action) = find(state, key) else {
         return;
     };
@@ -282,11 +265,11 @@ fn matches(label: &str, query: &str) -> bool {
         .all(|word| label.contains(&word.to_lowercase()))
 }
 
-fn filter(state: &State, text: &str) {
+fn filter(state: State, text: &str) {
     if state.query.get_untracked() != text {
         state.set_query.set(text.to_owned());
     }
-    let actions = state.actions.borrow().clone();
+    let actions = state.actions.get().borrow().clone();
     let shown: Vec<u64> = actions
         .iter()
         .filter(|action| matches(&action.label().peek(), text))
@@ -304,11 +287,11 @@ fn filter(state: &State, text: &str) {
     state.set_highlighted.set(kept.or(first));
 }
 
-fn navigate(state: &State, press: KeyPress) -> bool {
+fn navigate(state: State, press: KeyPress) -> bool {
     if !press.pressed || press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
-    let actions = state.actions.borrow().clone();
+    let actions = state.actions.get().borrow().clone();
     let shown = state.shown.get_untracked();
     let selectable: Vec<u64> = shown
         .iter()
@@ -338,22 +321,22 @@ fn navigate(state: &State, press: KeyPress) -> bool {
     true
 }
 
-fn reveal_reader(state: &Handle) -> Prop<Option<usize>> {
-    let state = state.clone();
-    Prop::Dynamic(Rc::new(move || {
+fn reveal_reader(state: State) -> Prop<Option<usize>> {
+    Prop::dynamic(move || {
         let shown = state.shown.get();
         let highlighted = state.highlighted.get()?;
         shown.iter().position(|key| *key == highlighted)
-    }))
+    })
 }
 
 pub fn command_palette_search(document: &Document, palette: NodeId) -> NodeId {
-    document.component_state::<Handle>(palette).search.get()
+    document.component_state::<State>(palette).search.get()
 }
 
 pub fn command_palette_shown(document: &Document, palette: NodeId) -> Vec<String> {
-    let state = document.component_state::<Handle>(palette);
-    let actions = state.actions.borrow();
+    let state = *document.component_state::<State>(palette);
+    let actions = state.actions.get();
+    let actions = actions.borrow();
     state
         .shown
         .get_untracked()
@@ -364,20 +347,22 @@ pub fn command_palette_shown(document: &Document, palette: NodeId) -> Vec<String
 }
 
 pub fn command_palette_highlighted(document: &Document, palette: NodeId) -> Option<String> {
-    let state = document.component_state::<Handle>(palette);
+    let state = *document.component_state::<State>(palette);
     let key = state.highlighted.get_untracked()?;
     find(state, key).map(|action| action.id().to_owned())
 }
 
 pub fn command_palette_row(document: &Document, palette: NodeId, id: &str) -> Option<NodeId> {
-    let state = document.component_state::<Handle>(palette);
+    let state = *document.component_state::<State>(palette);
     let key = state
         .actions
+        .get()
         .borrow()
         .iter()
         .find(|action| action.id() == id)
         .map(Action::key)?;
-    let rows = state.rows.borrow();
+    let rows = state.rows.get();
+    let rows = rows.borrow();
     rows.iter()
         .rev()
         .find(|(other, _)| *other == key)

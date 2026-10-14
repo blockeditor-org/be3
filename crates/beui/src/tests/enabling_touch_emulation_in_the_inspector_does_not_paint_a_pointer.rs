@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn enabling_touch_emulation_in_the_inspector_does_not_paint_a_pointer() {
+    let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::new(hello_column().document);
 
     harness.toggle_inspector();

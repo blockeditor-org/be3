@@ -7,7 +7,7 @@ use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_DELETE, ICON_HISTORY, ICON_RESTART_ALT};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, create_memo,
 };
 
 const PADDING: f32 = 16.0;
@@ -36,13 +36,13 @@ pub fn StaleNotice(
                 <Icon
                     glyph={ICON_HISTORY.to_owned()}
                     text_size=GLYPH_SIZE
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                 />
                 <Heading content={title} align=TextAlign::Center />
                 <Text
                     string={create_memo(move || detail.get())}
                     font_size=FONT_SMALL
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                     align=TextAlign::Center
                     wrap=true
                 />
@@ -52,24 +52,24 @@ pub fn StaleNotice(
                         label="Reset"
                         glyph={ICON_RESTART_ALT.to_owned()}
                         variant=ButtonVariant::Primary
-                        on_click={move || on_reset.call()}
+                        on_click={on_reset}
                     />
                     <Button
                         @test_id={delete_id}
                         label="Delete"
                         glyph={ICON_DELETE.to_owned()}
                         variant=ButtonVariant::Secondary
-                        on_click={move || on_delete.call()}
+                        on_click={on_delete}
                     />
                     <Show condition={create_memo(move || can_try.get())}>
-                        {move || clone!(on_try try_id -> view! {
+                        {move || { let try_id = try_id.clone(); view! {
                             <Button
                                 @test_id={try_id}
                                 label="Try anyway"
                                 variant=ButtonVariant::Ghost
-                                on_click={move || on_try.call()}
+                                on_click={on_try}
                             />
-                        })}
+                        } }}
                     </Show>
                 </List>
             </List>

@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::{PasteAnswer, PasteKind, Pasted};
 use beui_core::app::SafeArea;
@@ -8,7 +5,7 @@ use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, Platform, RunOptions, Runner};
 use beui_core::window::WindowState;
 
-type Log = Rc<RefCell<Vec<String>>>;
+type Log = WriteSignal<Vec<String>>;
 
 struct Screen;
 
@@ -40,24 +37,22 @@ struct Recording(Log);
 
 impl Platform for Recording {
     fn copy(&mut self, text: String) {
-        self.0.borrow_mut().push(format!("copy {text}"));
+        self.0.update(|log| log.push(format!("copy {text}")));
     }
 
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
-        self.0.borrow_mut().push(format!("paste {kinds:?}"));
+        self.0.update(|log| log.push(format!("paste {kinds:?}")));
         answer.send(Some(Pasted::Text("pasted".to_owned())));
     }
 
     fn pick_file(&mut self, _request: FilePickRequest, _answer: FilePickAnswer) {
-        self.0.borrow_mut().push("pick".to_owned());
+        self.0.update(|log| log.push("pick".to_owned()));
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         if window.cursor != shown.cursor {
-            self.0.borrow_mut().push(format!(
-                "cursor {:?} {}",
-                window.cursor, window.touch_emulation
-            ));
+            self.0
+                .update(|log| log.push(format!("cursor {:?}", window.cursor)));
         }
     }
 }
@@ -78,7 +73,7 @@ impl App for Typing {
         context.input(|input| {
             for event in &input.events {
                 if let Event::Paste(Pasted::Text(text)) = event {
-                    self.typed.borrow_mut().push(text.clone());
+                    self.typed.update(|typed| typed.push(text.clone()));
                 }
             }
         });
@@ -88,17 +83,15 @@ impl App for Typing {
 
 #[test]
 fn the_runner_tells_the_platform_only_what_changed() {
-    let log = Log::default();
-    let typed = Log::default();
+    let _root = crate::reactive::RootScope::new();
+    let (_, log) = create_signal(Vec::new());
+    let (_, typed) = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),
-        app: Box::new(Typing {
-            frames: 0,
-            typed: typed.clone(),
-        }),
+        app: Box::new(Typing { frames: 0, typed }),
     });
-    let mut platform = Recording(log.clone());
+    let mut platform = Recording(log);
     assert!(
         runner.frame(&mut platform, SafeArea::default()).is_none(),
         "nothing is drawn before the renderers are loaded"
@@ -115,8 +108,8 @@ fn the_runner_tells_the_platform_only_what_changed() {
         .frame(&mut platform, SafeArea::default())
         .expect("a loaded runner draws");
     assert_eq!(
-        log.take(),
-        ["copy copied", "paste [Text]", "cursor Text false"]
+        log.update(std::mem::take),
+        ["copy copied", "paste [Text]", "cursor Text"]
     );
     assert!(frame.deferred, "the pasted text waits for the next frame");
 
@@ -124,8 +117,8 @@ fn the_runner_tells_the_platform_only_what_changed() {
         .frame(&mut platform, SafeArea::default())
         .expect("a loaded runner draws");
     assert!(
-        log.take().is_empty(),
+        log.update(std::mem::take).is_empty(),
         "an unchanged cursor is not set again"
     );
-    assert_eq!(typed.take(), ["pasted"]);
+    assert_eq!(typed.update(std::mem::take), ["pasted"]);
 }

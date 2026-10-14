@@ -29,10 +29,11 @@ pub(crate) struct Level {
 
 #[derive(Default)]
 struct Work {
-    grids: HashMap<Uuid, (BlockList, Rc<ContentProjection<LogicGridContent>>)>,
+    grids: HashMap<Uuid, (BlockList, ContentProjection<LogicGridContent>)>,
     hotbar: RootSetting<HotbarContent>,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Game {
     editor: Editor,
     block: crate::logic_game::app::GameBlock,
@@ -41,7 +42,7 @@ pub(crate) struct Game {
 }
 
 impl Game {
-    pub(crate) fn watch(editor: &Editor, block: crate::logic_game::app::GameBlock) -> Self {
+    pub(crate) fn watch(editor: Editor, block: crate::logic_game::app::GameBlock) -> Self {
         let stored = block.project(|game| {
             game.root()
                 .game()
@@ -55,16 +56,14 @@ impl Game {
         let work = Rc::new(RefCell::new(Work::default()));
         let working = Rc::clone(&work);
         let blocks = editor.blocks();
-        let host = editor.host().clone();
-        let game = Rc::clone(&block);
-        let reader = editor.clone();
+        let host = editor.host();
         create_effect(move || {
             let mut work = working.borrow_mut();
             let Work { grids, hotbar } = &mut *work;
-            hotbar.find(&reader, host.client_id());
+            hotbar.find(&editor, host.client_id());
             set_hotbar.set(hotbar.block());
 
-            let types = reader.block_types();
+            let types = editor.block_types();
             let mut listed = Vec::new();
             let rows: Vec<Level> = stored
                 .get()
@@ -80,7 +79,7 @@ impl Game {
                                 grids.entry(id).or_insert_with(|| {
                                     (
                                         blocks.watch(BlockQuery::Block(id)),
-                                        reader.content_of::<LogicGridContent>(id),
+                                        editor.content_of::<LogicGridContent>(id),
                                     )
                                 });
                             }
@@ -120,7 +119,7 @@ impl Game {
             for level in &rows {
                 if level.solutions.iter().any(|solution| solution.completed) && !level.completed {
                     crate::logic_game::app::operate(
-                        &game,
+                        &block,
                         LogicGameOperation::SetCompleted {
                             challenge: level.challenge,
                             completed: true,
@@ -131,7 +130,7 @@ impl Game {
             set_levels.set(rows);
         });
         Self {
-            editor: editor.clone(),
+            editor,
             block,
             levels: create_memo(move || levels.get()),
             hotbar: create_memo(move || hotbar.get()),
@@ -139,11 +138,11 @@ impl Game {
     }
 
     pub(crate) fn levels(&self) -> Memo<Vec<Level>> {
-        self.levels.clone()
+        self.levels
     }
 
     pub(crate) fn hotbar(&self) -> Memo<Option<Uuid>> {
-        self.hotbar.clone()
+        self.hotbar
     }
 
     pub(crate) fn open_hotbar(&self) {

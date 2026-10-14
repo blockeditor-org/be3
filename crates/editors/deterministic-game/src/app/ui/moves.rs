@@ -2,8 +2,8 @@ use block_editor_beui::beui::icons::{
     ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIRST_PAGE, ICON_LAST_PAGE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Text, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Text, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{Caption, IconButton, IconButtonSize, use_theme};
 use block_editor_beui::beui::unstyled;
@@ -66,21 +66,18 @@ pub(crate) fn rows(table: &Table) -> Vec<Row> {
 
 #[component]
 pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) -> NodeId {
-    let rows = create_memo(clone!(table -> move || table.with(rows)));
-    let keys = create_memo(clone!(rows -> move || (0..rows.with(Vec::len)).collect::<Vec<_>>()));
-    let columns = create_memo(clone!(table -> move || table.with(|table| table.columns.clone())));
-    let column_keys =
-        create_memo(clone!(columns -> move || (0..columns.with(Vec::len)).collect::<Vec<_>>()));
-    let empty = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
-    let count = steps.count.clone();
-    let at_start = create_memo(clone!(shown -> move || shown.get() == 0));
-    let at_end = create_memo(clone!(shown count -> move || shown.get() >= count.get()));
-    let ended = create_memo(clone!(table -> move || table.with(|table| table.ending.is_some())));
-    let (first, previous, next, last) =
-        (steps.clone(), steps.clone(), steps.clone(), steps.clone());
+    let rows = create_memo(move || table.with(rows));
+    let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
+    let columns = create_memo(move || table.with(|table| table.columns.clone()));
+    let column_keys = create_memo(move || (0..columns.with(Vec::len)).collect::<Vec<_>>());
+    let empty = create_memo(move || rows.with(Vec::is_empty));
+    let count = steps.count;
+    let at_start = create_memo(move || shown.get() == 0);
+    let at_end = create_memo(move || shown.get() >= count.get());
+    let ended = create_memo(move || table.with(|table| table.ending.is_some()));
     let theme = use_theme();
-    let muted = create_memo(clone!(theme -> move || theme.get().text_muted));
-    let header_keys = column_keys.clone();
+    let muted = create_memo(move || theme.get().text_muted);
+    let header_keys = column_keys;
     view! {
         <List spacing=6.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
@@ -89,9 +86,9 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     glyph={ICON_FIRST_PAGE.to_owned()}
                     label="First move"
                     size=IconButtonSize::Compact
-                    disabled={at_start.clone()}
+                    disabled={at_start}
                     @test_id={"game.history.first"}
-                    on_click={move || first.first()}
+                    on_click={move || steps.first()}
                 />
                 <IconButton
                     glyph={ICON_CHEVRON_LEFT.to_owned()}
@@ -99,15 +96,15 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     size=IconButtonSize::Compact
                     disabled={at_start}
                     @test_id={"game.history.previous"}
-                    on_click={move || previous.previous()}
+                    on_click={move || steps.previous()}
                 />
                 <IconButton
                     glyph={ICON_CHEVRON_RIGHT.to_owned()}
                     label="Next move"
                     size=IconButtonSize::Compact
-                    disabled={at_end.clone()}
+                    disabled={at_end}
                     @test_id={"game.history.next"}
-                    on_click={move || next.next()}
+                    on_click={move || steps.next()}
                 />
                 <IconButton
                     glyph={ICON_LAST_PAGE.to_owned()}
@@ -115,26 +112,26 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     size=IconButtonSize::Compact
                     disabled={at_end}
                     @test_id={"game.history.last"}
-                    on_click={move || last.last()}
+                    on_click={move || steps.last()}
                 />
             </List>
             <List direction=Direction::Horizontal spacing=2.0>
                 <Text
                     string="#"
                     font_size=TURN_SIZE
-                    color={muted.clone()}
+                    color={muted}
                     @sizing=ItemSize::Fixed(NUMBER_WIDTH)
                 />
                 <ForEach keys={header_keys}>
                     {move |column: usize| {
-                        let name = create_memo(clone!(columns -> move || {
+                        let name = create_memo(move || {
                             columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
-                        }));
+                        });
                         view! {
                             <Text
                                 string={name}
                                 font_size=TURN_SIZE
-                                color={muted.clone()}
+                                color={muted}
                                 @sizing=ItemSize::Percent(100.0)
                             />
                         }
@@ -149,16 +146,16 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     {move |row: usize| view! {
                         <MoveRow
                             row
-                            rows={rows.clone()}
-                            columns={column_keys.clone()}
-                            shown={shown.clone()}
-                            steps={steps.clone()}
+                            rows={rows}
+                            columns={column_keys}
+                            shown={shown}
+                            steps={steps}
                         />
                     }}
                 </ForEach>
             </List>
             <Show condition={ended}>
-                <Result table={table.clone()} />
+                <Result table={table} />
             </Show>
         </List>
     }
@@ -173,7 +170,7 @@ fn MoveRow(
     steps: Steps,
 ) -> NodeId {
     let theme = use_theme();
-    let muted = create_memo(clone!(theme -> move || theme.get().text_muted));
+    let muted = create_memo(move || theme.get().text_muted);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
             <Text
@@ -187,9 +184,9 @@ fn MoveRow(
                     <MoveCell
                         row
                         column
-                        rows={rows.clone()}
-                        shown={shown.clone()}
-                        steps={steps.clone()}
+                        rows={rows}
+                        shown={shown}
+                        steps={steps}
                         @sizing=ItemSize::Percent(100.0)
                     />
                 }}
@@ -213,34 +210,38 @@ fn MoveCell(
                 .flatten()
         })
     });
-    let text = create_memo(clone!(cell -> move || {
-        cell.with(|cell| cell.as_ref().map(|cell| cell.text.clone()).unwrap_or_default())
-    }));
+    let text = create_memo(move || {
+        cell.with(|cell| {
+            cell.as_ref()
+                .map(|cell| cell.text.clone())
+                .unwrap_or_default()
+        })
+    });
     let theme = use_theme();
-    let chosen = create_memo(clone!(cell -> move || {
+    let chosen = create_memo(move || {
         let shown = shown.get();
         cell.with(|cell| {
             cell.as_ref()
                 .is_some_and(|cell| shown > cell.first && shown <= cell.last + 1)
         })
-    }));
-    let fill = create_memo(clone!(theme chosen -> move || match chosen.get() {
+    });
+    let fill = create_memo(move || match chosen.get() {
         true => theme.get().accent_soft,
         false => Color32::TRANSPARENT,
-    }));
-    let color = create_memo(clone!(theme -> move || theme.get().text));
-    let open = clone!(cell -> move || {
+    });
+    let color = create_memo(move || theme.get().text);
+    let open = move || {
         if let Some(cell) = cell.get_untracked() {
             steps.show(cell.last + 1);
         }
-    });
+    };
     view! {
         <unstyled::Button
             @test_id={format!("game.history.{row}.{column}")}
             on_click={open}
             content={move |_: unstyled::ButtonHandle| view! {
-                <Frame color={fill.clone()} radius=4 padding_horizontal=6.0 padding_vertical=3.0>
-                    <Text string={text.clone()} font_size=TURN_SIZE color={color.clone()} />
+                <Frame color={fill} radius=4 padding_horizontal=6.0 padding_vertical=3.0>
+                    <Text string={text} font_size=TURN_SIZE color={color} />
                 </Frame>
             }}
         />
@@ -249,7 +250,7 @@ fn MoveCell(
 
 #[component]
 fn Result(table: Memo<Table>) -> NodeId {
-    let score = create_memo(clone!(table -> move || {
+    let score = create_memo(move || {
         table.with(|table| {
             table
                 .ending
@@ -257,9 +258,9 @@ fn Result(table: Memo<Table>) -> NodeId {
                 .and_then(|ending| ending.score.clone())
                 .unwrap_or_default()
         })
-    }));
-    let scored = create_memo(clone!(score -> move || score.with(|score| !score.is_empty())));
-    let description = create_memo(clone!(table -> move || {
+    });
+    let scored = create_memo(move || score.with(|score| !score.is_empty()));
+    let description = create_memo(move || {
         table.with(|table| {
             table
                 .ending
@@ -267,18 +268,18 @@ fn Result(table: Memo<Table>) -> NodeId {
                 .map(|ending| ending.description.clone())
                 .unwrap_or_default()
         })
-    }));
+    });
     let theme = use_theme();
-    let text = create_memo(clone!(theme -> move || theme.get().text));
-    let muted = create_memo(clone!(theme -> move || theme.get().text_muted));
+    let text = create_memo(move || theme.get().text);
+    let muted = create_memo(move || theme.get().text_muted);
     view! {
         <List spacing=2.0 align=Align::Center @test_id={"game.result"}>
             <Show condition={scored}>
                 <Text
-                    string={score.clone()}
+                    string={score}
                     font_size=SCORE_SIZE
                     bold=true
-                    color={text.clone()}
+                    color={text}
                     align=TextAlign::Center
                 />
             </Show>

@@ -1,6 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
@@ -11,8 +8,8 @@ use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
 use beui_core::node::NodeId;
 use beui_core::tree::component_node;
 use beui_view::reactive::{
-    Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, ShowKeepAlive, clone,
-    component_accessibility, create_effect, create_memo, create_signal, on_key,
+    Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, ShowKeepAlive,
+    StoredCell, component_accessibility, create_effect, create_memo, create_signal, on_key,
     set_component_state,
 };
 
@@ -81,22 +78,20 @@ pub fn NumberInput(
     let (hovered, set_hovered) = create_signal(false);
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
-    create_effect(clone!(value text set_text -> move || {
+    create_effect(move || {
         let next = value.get();
         let held = text.get_untracked();
         if parse(&held) != Some(next) {
             set_text.set(format_number(next));
         }
-    }));
+    });
     let off = create_memo(move || disabled.get());
-    let idle = create_memo(clone!(editing -> move || !editing.get()));
-    let cursor = create_memo(clone!(off -> move || {
-        match drag != NumberDrag::Off && !off.get() {
-            true => CursorIcon::ResizeHorizontal,
-            false => CursorIcon::Default,
-        }
-    }));
-    let accessibility = create_memo(clone!(text off -> move || {
+    let idle = create_memo(move || !editing.get());
+    let cursor = create_memo(move || match drag != NumberDrag::Off && !off.get() {
+        true => CursorIcon::ResizeHorizontal,
+        false => CursorIcon::Default,
+    });
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         let label = label.get();
         if !label.is_empty() {
@@ -107,18 +102,18 @@ pub fn NumberInput(
             node.set_disabled();
         }
         node
-    }));
+    });
     component_accessibility(accessibility);
 
-    let held: Rc<Cell<Option<(Pos2, f64, bool)>>> = Rc::default();
-    let pressed = clone!(held value off -> move |press: PointerPress| {
+    let held = StoredCell::new(None::<(Pos2, f64, bool)>);
+    let pressed = move |press: PointerPress| {
         if off.get_untracked() {
             return;
         }
         held.set(Some((press.pos, value.peek(), false)));
-    });
-    let changed = on_change.clone();
-    let dragged = clone!(held set_text -> move |at: PointerPress| {
+    };
+    let changed = on_change;
+    let dragged = move |at: PointerPress| {
         let Some((origin, start, moved)) = held.get() else {
             return;
         };
@@ -133,29 +128,29 @@ pub fn NumberInput(
         let next = next.clamp(min, max);
         set_text.set(format_number(next));
         changed.call(next);
-    });
-    let open = clone!(off set_editing -> move || {
+    };
+    let open = move || {
         if !off.get_untracked() {
             set_editing.set(true);
         }
-    });
-    let clicked = clone!(held open -> move || {
+    };
+    let clicked = move || {
         if let Some((_, _, moved)) = held.take()
             && !moved
         {
             open();
         }
-    });
+    };
 
-    let previewed = on_preview.clone();
-    let edited = clone!(set_text editing -> move |typed: String| {
+    let previewed = on_preview;
+    let edited = move |typed: String| {
         if !editing.get_untracked() {
             return;
         }
         set_text.set(typed.clone());
         previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
-    });
-    let finish = clone!(value text set_text editing set_editing -> move |keep: bool| {
+    };
+    let finish = move |keep: bool| {
         if !editing.get_untracked() {
             return;
         }
@@ -172,28 +167,30 @@ pub fn NumberInput(
             _ => set_text.set(format_number(shown)),
         }
         on_preview.call(None);
-    });
-    let submitted = clone!(finish set_refocus -> move |_: String| {
+    };
+    let submitted = move |_: String| {
         set_refocus.set(true);
         finish(true);
-    });
-    let focus_changed = clone!(finish -> move |focused: bool| {
+    };
+    let focus_changed = move |focused: bool| {
         if !focused {
             finish(true);
         }
-    });
+    };
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
-        clone!(editing set_refocus finish -> move |event: KeyEvent| {
-            let escaped = event.press().is_some_and(|press| press.pressed && press.key == Key::Escape);
+        move |event: KeyEvent| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
             if !escaped || !editing.get_untracked() {
                 return false;
             }
             set_refocus.set(true);
             finish(false);
             true
-        }),
+        },
     );
     let button_focus = move |has_focus: bool| {
         set_focused.set(has_focus);
@@ -201,10 +198,10 @@ pub fn NumberInput(
             set_refocus.set(false);
         }
     };
-    let tab_stop = off.clone().into_prop().map(|off: bool| !off);
+    let tab_stop = off.into_prop().map(|off: bool| !off);
 
     let face = face.call(NumberFaceHandle {
-        text: text.clone(),
+        text,
         hovered,
         active,
         focused,
@@ -212,7 +209,7 @@ pub fn NumberInput(
     });
     let field = field.call(NumberFieldHandle {
         text,
-        editing: editing.clone(),
+        editing,
         on_change: Callback::new(edited),
         on_submit: Callback::new(submitted),
         on_focus_change: Callback::new(focus_changed),
@@ -220,7 +217,7 @@ pub fn NumberInput(
     set_component_state(Parts {
         face,
         field,
-        editing: editing.clone(),
+        editing,
     });
     view! {
         <List spacing=0.0>
@@ -230,7 +227,7 @@ pub fn NumberInput(
                     tab_stop
                     focused={refocus}
                     on_focus_change={button_focus}
-                    on_activate={open.clone()}
+                    on_activate={open}
                     cursor={cursor}
                     capture_presses=true
                     on_press={pressed}

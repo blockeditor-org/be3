@@ -22,7 +22,7 @@ use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop,
-    ReadSignal, Show, Text, WriteSignal, clone, create_effect, create_memo, create_signal, on_key,
+    ReadSignal, Show, Text, WriteSignal, create_effect, create_memo, create_signal, on_key,
     untrack,
 };
 
@@ -132,7 +132,7 @@ pub fn launcher_rank(items: &[LauncherItem], query: &str) -> Vec<usize> {
     scored.into_iter().map(|(_, index)| index).collect()
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct State {
     query: ReadSignal<String>,
     set_query: WriteSignal<String>,
@@ -197,7 +197,7 @@ pub fn Launcher(
     let (query, set_query) = create_signal(String::new());
     let (searching, set_searching) = create_signal(false);
     let (highlighted, set_highlighted) = create_signal(None::<Row>);
-    create_effect(clone!(open set_query set_searching -> move || {
+    create_effect(move || {
         let opened = open.get();
         untrack(|| {
             if opened {
@@ -205,16 +205,19 @@ pub fn Launcher(
             }
             set_searching.set(opened);
         });
-    }));
-    let ranked = create_memo(clone!(items query -> move || {
-        let items = items.get();
-        let query = query.get();
-        launcher_rank(&items, &query)
-            .into_iter()
-            .map(|index| items[index].key.clone())
-            .collect::<Vec<_>>()
-    }));
-    let rows = create_memo(clone!(ranked query -> move || {
+    });
+    let ranked = create_memo({
+        let items = items.clone();
+        move || {
+            let items = items.get();
+            let query = query.get();
+            launcher_rank(&items, &query)
+                .into_iter()
+                .map(|index| items[index].key.clone())
+                .collect::<Vec<_>>()
+        }
+    });
+    let rows = create_memo(move || {
         let command = runs_commands.get() && !query.get().trim().is_empty();
         ranked
             .get()
@@ -222,35 +225,32 @@ pub fn Launcher(
             .map(Row::Item)
             .chain(command.then_some(Row::Run))
             .collect::<Vec<_>>()
-    }));
-    create_effect(clone!(rows highlighted set_highlighted -> move || {
+    });
+    create_effect(move || {
         let rows = rows.get();
         let kept = untrack(|| highlighted.get()).filter(|row| rows.contains(row));
         let next = kept.or_else(|| rows.first().cloned());
         if untrack(|| highlighted.get()) != next {
             set_highlighted.set(next);
         }
-    }));
-    let reveal = create_memo(clone!(rows highlighted -> move || {
+    });
+    let reveal = create_memo(move || {
         let highlighted = highlighted.get()?;
         rows.get().iter().position(|row| *row == highlighted)
-    }));
+    });
     let state = State {
-        query: query.clone(),
+        query,
         set_query,
-        rows: rows.clone(),
+        rows,
         highlighted,
         set_highlighted,
         on_launch,
         on_run,
     };
-    let (typing, submitting, keys, building) = (state.clone(), state.clone(), state.clone(), state);
     let search = NodeRef::new();
-    on_key(
-        KeyAt::Node(search.clone()),
-        KeyPhase::Capture,
-        move |event| event.press().is_some_and(|press| keys.navigate(press)),
-    );
+    on_key(KeyAt::Node(search), KeyPhase::Capture, move |event| {
+        event.press().is_some_and(|press| state.navigate(press))
+    });
 
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::SearchInput);
@@ -265,53 +265,50 @@ pub fn Launcher(
             scrim=SCRIM
             open
             on_dismiss={move |_: Dismiss| on_close.call()}
-        >
-            <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
-                <Frame
-                    max_width=WIDTH
-                    color={theme.surface_raised.clone()}
-                    outline={theme.border.clone()}
-                    outline_width=BORDER_WIDTH
-                    outline_visible=true
-                    radius=CARD_RADIUS
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                    @test_id={"launcher"}
-                >
-                    <List spacing=PADDING>
-                        <unstyled::TextInput
-                            @node_ref=&search
-                            @test_id={"launcher.search"}
-                            value={query}
-                            focused={searching}
-                            placeholder
-                            style={text_input_style()}
-                            accessibility
-                            content={|handle| view! {
-                                <LauncherSearch handle />
-                            }}
-                            on_change={move |text: String| typing.set_query.set(text)}
-                            on_submit={move |_: String| submitting.submit()}
-                        />
-                        <unstyled::Scroll
-                            @sizing=ItemSize::Fixed(LIST_HEIGHT)
-                            reveal
-                            scrollbar={scrollbar_style()}
-                        >
-                            <ForEach keys={rows}>
-                                {move |row: Row| view! {
-                                    <LauncherRow
-                                        state={building.clone()}
-                                        items={items.clone()}
-                                        row
-                                    />
+            content={move || view! {
+                <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+                    <Frame
+                        max_width=WIDTH
+                        color={theme.surface_raised}
+                        outline={theme.border}
+                        outline_width=BORDER_WIDTH
+                        outline_visible=true
+                        radius=CARD_RADIUS
+                        padding_horizontal=PADDING
+                        padding_vertical=PADDING
+                        @test_id={"launcher"}
+                    >
+                        <List spacing=PADDING>
+                            <unstyled::TextInput
+                                @node_ref=&search
+                                @test_id={"launcher.search"}
+                                value={query}
+                                focused={searching}
+                                placeholder
+                                style={text_input_style()}
+                                accessibility
+                                content={|handle| view! {
+                                    <LauncherSearch handle />
                                 }}
-                            </ForEach>
-                        </unstyled::Scroll>
-                    </List>
+                                on_change={move |text: String| state.set_query.set(text)}
+                                on_submit={move |_: String| state.submit()}
+                            />
+                            <unstyled::Scroll
+                                @sizing=ItemSize::Fixed(LIST_HEIGHT)
+                                reveal
+                                scrollbar={scrollbar_style()}
+                            >
+                                <ForEach keys={rows}>
+                                    {move |row: Row| view! {
+                                        <LauncherRow state={state} items={items.clone()} row />
+                                    }}
+                                </ForEach>
+                            </unstyled::Scroll>
+                        </List>
+                    </Frame>
                 </Frame>
-            </Frame>
-        </Overlay>
+            }}
+        />
     }
 }
 
@@ -322,15 +319,15 @@ fn LauncherSearch(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            color={theme.surface.clone()}
-            outline={theme.accent.clone()}
+            color={theme.surface}
+            outline={theme.accent}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
             padding_horizontal=ROW_PADDING_HORIZONTAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Icon glyph={ICON_SEARCH.to_owned()} color={theme.text_muted.clone()} />
+                <Icon glyph={ICON_SEARCH.to_owned()} color={theme.text_muted} />
                 <Frame @sizing=ItemSize::Percent(100.0)>{field}</Frame>
             </List>
         </Frame>
@@ -339,20 +336,29 @@ fn LauncherSearch(handle: TextInputHandle) -> NodeId {
 
 #[component]
 fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> NodeId {
-    let item = create_memo(clone!(row -> move || match &row {
-        Row::Item(key) => items.get().iter().find(|item| item.key == *key).cloned(),
-        Row::Run => None,
-    }));
-    let query = state.query.clone();
-    let title = create_memo(clone!(item row query -> move || match &row {
-        Row::Item(_) => item.get().map(|item| item.title).unwrap_or_default(),
-        Row::Run => format!("Run \u{201c}{}\u{201d}", query.get().trim()),
-    }));
-    let detail = create_memo(clone!(item row -> move || match &row {
-        Row::Item(_) => item.get().map(|item| item.detail).unwrap_or_default(),
-        Row::Run => "Run it as a command".to_owned(),
-    }));
-    let image = create_memo(clone!(item -> move || item.get().and_then(|item| item.image)));
+    let item = create_memo({
+        let row = row.clone();
+        move || match &row {
+            Row::Item(key) => items.get().iter().find(|item| item.key == *key).cloned(),
+            Row::Run => None,
+        }
+    });
+    let query = state.query;
+    let title = create_memo({
+        let row = row.clone();
+        move || match &row {
+            Row::Item(_) => item.get().map(|item| item.title).unwrap_or_default(),
+            Row::Run => format!("Run \u{201c}{}\u{201d}", query.get().trim()),
+        }
+    });
+    let detail = create_memo({
+        let row = row.clone();
+        move || match &row {
+            Row::Item(_) => item.get().map(|item| item.detail).unwrap_or_default(),
+            Row::Run => "Run it as a command".to_owned(),
+        }
+    });
+    let image = create_memo(move || item.get().and_then(|item| item.image));
     let test_id = match &row {
         Row::Item(key) => format!("launcher.item.{key}"),
         Row::Run => "launcher.run".to_owned(),
@@ -361,14 +367,16 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         Row::Item(_) => ICON_APPS,
         Row::Run => ICON_TERMINAL,
     };
-    let highlighted = state.highlighted.clone();
-    let lit = create_memo(clone!(row -> move || highlighted.get().as_ref() == Some(&row)));
-    let accessibility = create_memo(clone!(title -> move || {
+    let highlighted = state.highlighted;
+    let lit = create_memo({
+        let row = row.clone();
+        move || highlighted.get().as_ref() == Some(&row)
+    });
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(title.get());
         node
-    }));
-    let (hovering, clicking) = (state.clone(), state);
+    });
     let (hover_row, click_row) = (row.clone(), row);
     view! {
         <unstyled::Button
@@ -377,23 +385,23 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             tab_stop=false
             press_focus=false
             content={move |handle: ButtonHandle| {
-                let hovered = handle.hovered.clone();
-                create_effect(clone!(hovering hover_row -> move || {
+                let hovered = handle.hovered;
+                create_effect(move || {
                     if hovered.get() {
-                        hovering.set_highlighted.set(Some(hover_row.clone()));
+                        state.set_highlighted.set(Some(hover_row.clone()));
                     }
-                }));
+                });
                 view! {
                     <LauncherRowFace
-                        title={title.clone()}
-                        detail={detail.clone()}
-                        image={image.clone()}
+                        title={title}
+                        detail={detail}
+                        image={image}
                         glyph={glyph.to_owned()}
-                        lit={lit.clone()}
+                        lit={lit}
                     />
                 }
             }}
-            on_click={move || clicking.activate(click_row.clone())}
+            on_click={move || state.activate(click_row.clone())}
         />
     }
 }
@@ -407,13 +415,13 @@ fn LauncherRowFace(
     lit: Memo<bool>,
 ) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme lit -> move || match lit.get() {
+    let fill = create_memo(move || match lit.get() {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
-    }));
-    let pictured = create_memo(clone!(image -> move || image.get().is_some()));
-    let plain = create_memo(clone!(pictured -> move || !pictured.get()));
-    let described = create_memo(clone!(detail -> move || !detail.get().is_empty()));
+    });
+    let pictured = create_memo(move || image.get().is_some());
+    let plain = create_memo(move || !pictured.get());
+    let described = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame
             color={fill}
@@ -425,10 +433,10 @@ fn LauncherRowFace(
                 <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                     <List spacing=0.0 align=Align::Center>
                         <Show condition={pictured}>
-                            <LauncherPicture image={image.clone()} />
+                            <LauncherPicture image={image} />
                         </Show>
                         <Show condition={plain}>
-                            <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                            <Icon glyph={glyph.clone()} color={theme.text_muted} />
                         </Show>
                     </List>
                 </Frame>
@@ -436,12 +444,12 @@ fn LauncherRowFace(
                     <Text
                         string={title}
                         font_size=FONT_BODY
-                        color={theme.text.clone()}
+                        color={theme.text}
                         align=TextAlign::Start
                         ellipsis=true
                     />
                     <Show condition={described}>
-                        <Caption content={detail.clone()} ellipsis=true />
+                        <Caption content={detail} ellipsis=true />
                     </Show>
                 </List>
             </List>

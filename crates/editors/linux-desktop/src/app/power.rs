@@ -3,7 +3,7 @@ use block_editor_beui::beui::icons::{
     ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Justify, List, Memo, clone, component, create_memo, create_signal, view,
+    Align, Direction, Justify, List, Memo, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Dialog, MenuButton, Paragraph};
 use block_editor_beui::beui::unstyled::MenuItem;
@@ -72,11 +72,10 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 #[component]
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let available = editor.host_value::<Power>();
-    let allowed = available.clone();
+    let allowed = available;
     let (confirming, set_confirming) = create_signal(PowerAction::LogOut);
     let (open, set_open) = create_signal(false);
-    let requesting = editor.clone();
-    let chose = clone!(set_open -> move |path: Vec<usize>| {
+    let chose = move |path: Vec<usize>| {
         let Some(action) = path
             .first()
             .and_then(|index| PowerAction::ALL.get(*index).copied())
@@ -87,19 +86,18 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             return;
         }
         match action {
-            PowerAction::Lock | PowerAction::Suspend => requesting.act(action),
+            PowerAction::Lock | PowerAction::Suspend => editor.act(action),
             _ => {
                 set_confirming.set(action);
                 set_open.set(true);
             }
         }
-    });
-    let title = create_memo(clone!(confirming -> move || question(confirming.get())));
-    let explained =
-        create_memo(clone!(confirming -> move || consequence(confirming.get()).to_owned()));
-    let verb = create_memo(clone!(confirming -> move || label(confirming.get()).to_owned()));
-    let dismiss = clone!(set_open -> move || set_open.set(false));
-    let cancel = clone!(set_open -> move || set_open.set(false));
+    };
+    let title = create_memo(move || question(confirming.get()));
+    let explained = create_memo(move || consequence(confirming.get()).to_owned());
+    let verb = create_memo(move || label(confirming.get()).to_owned());
+    let dismiss = move || set_open.set(false);
+    let cancel = move || set_open.set(false);
     let confirm = move || {
         set_open.set(false);
         editor.act(confirming.get_untracked());
@@ -113,11 +111,11 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
                 arrow=false
                 @test_id={"desktop.power"}
                 items={view! {
-                    <PowerItem action=PowerAction::Lock available={available.clone()} />
-                    <PowerItem action=PowerAction::Suspend available={available.clone()} />
-                    <PowerItem action=PowerAction::Restart available={available.clone()} />
-                    <PowerItem action=PowerAction::PowerOff available={available.clone()} />
-                    <PowerItem action=PowerAction::LogOut available={available.clone()} />
+                    <PowerItem action=PowerAction::Lock available={available} />
+                    <PowerItem action=PowerAction::Suspend available={available} />
+                    <PowerItem action=PowerAction::Restart available={available} />
+                    <PowerItem action=PowerAction::PowerOff available={available} />
+                    <PowerItem action=PowerAction::LogOut available={available} />
                 }}
                 on_select={chose}
             />

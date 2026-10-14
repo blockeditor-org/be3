@@ -68,8 +68,8 @@ fn render_child(render: &Render) -> proc_macro2::TokenStream {
 fn callback_signature(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
     let args = generic_args(ty, "Callback").unwrap_or_default();
     match args.as_slice() {
-        [value] => Ok(quote! { ::core::ops::FnMut(#value) }),
-        [value, result] => Ok(quote! { ::core::ops::FnMut(#value) -> #result }),
+        [value] => Ok(quote! { ::beui::reactive::IntoCallback<#value, ()> }),
+        [value, result] => Ok(quote! { ::beui::reactive::IntoCallback<#value, #result> }),
         _ => Err(syn::Error::new_spanned(
             ty,
             "a `Callback` prop takes one or two type arguments, as `Callback<Value>` or `Callback<Value, Result>`",
@@ -273,13 +273,13 @@ fn named_setter(prop: &Prop) -> Setter {
         func_setter(ident, args, |build| build)
     } else if prop.is_optional_click_callback {
         plain(
-            quote! { value: impl ::core::ops::FnMut() + 'static },
-            quote! { Some(::beui::reactive::ClickCallback::new(value)) },
+            quote! { value: impl ::beui::reactive::IntoClickCallback },
+            quote! { Some(::beui::reactive::IntoClickCallback::into_click_callback(value)) },
         )
     } else if let Some(signature) = &prop.optional_callback_signature {
         plain(
-            quote! { value: impl #signature + 'static },
-            quote! { Some(::beui::reactive::Callback::new(value)) },
+            quote! { value: impl #signature },
+            quote! { Some(::beui::reactive::IntoCallback::into_callback(value)) },
         )
     } else if let Some(inner_ty) = &prop.optional_reactive_inner_ty {
         plain(
@@ -302,13 +302,13 @@ fn named_setter(prop: &Prop) -> Setter {
         }
     } else if prop.is_click_callback {
         plain(
-            quote! { value: impl ::core::ops::FnMut() + 'static },
-            quote! { ::beui::reactive::ClickCallback::new(value) },
+            quote! { value: impl ::beui::reactive::IntoClickCallback },
+            quote! { ::beui::reactive::IntoClickCallback::into_click_callback(value) },
         )
     } else if let Some(signature) = &prop.callback_signature {
         plain(
-            quote! { value: impl #signature + 'static },
-            quote! { ::beui::reactive::Callback::new(value) },
+            quote! { value: impl #signature },
+            quote! { ::beui::reactive::IntoCallback::into_callback(value) },
         )
     } else if let Some(inner_ty) = &prop.reactive_inner_ty {
         plain(

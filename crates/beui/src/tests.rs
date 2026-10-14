@@ -18,6 +18,7 @@ mod a_canvas_item_moved_into_view_is_laid_out_where_it_arrives;
 mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;
 mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
+mod a_capturing_action_answers_before_the_focused_control;
 mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
 mod a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it;
 mod a_catcher_beneath_an_overlapping_one_hears_no_press;
@@ -44,7 +45,7 @@ mod a_color_input_reports_the_hex_it_was_typed;
 mod a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity;
 mod a_component_can_return_a_show_for_its_parent_to_lay_out;
 mod a_component_function_returns_its_base_node;
-mod a_component_that_builds_no_node_owns_its_scope_through_the_value;
+mod a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it;
 mod a_component_wrapping_a_node_less_component_keeps_its_scope;
 mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
 mod a_context_menu_reads_its_rows_as_named_menu_items;
@@ -117,6 +118,8 @@ mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
 mod a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it;
+mod a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer;
+mod a_fraction_frame_shrinks_when_offered_less_than_it_was_measured_at;
 mod a_fragment_sits_beside_the_children_written_around_it;
 mod a_frame_keeps_its_size_between_its_min_and_max;
 mod a_frame_pads_each_side_on_its_own;
@@ -126,8 +129,10 @@ mod a_frame_takes_a_fraction_of_the_space_it_is_offered;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
 mod a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks;
 mod a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane;
+mod a_fullscreen_dock_tab_stays_over_a_window_that_is_focused;
 mod a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it;
 mod a_gap_before_one_child_replaces_the_rows_spacing;
+mod a_gap_in_rich_text_takes_room_but_no_bytes;
 mod a_global_action_runs_from_a_text_field_inside_an_open_palette;
 mod a_global_key_whose_release_was_lost_does_not_swallow_the_next_press;
 mod a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view;
@@ -175,6 +180,7 @@ mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
 mod a_node_ref_lets_go_of_a_removed_node;
+mod a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_panel_between_two_damaged_ones_is_left_alone;
@@ -264,6 +270,7 @@ mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
+mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on;
@@ -272,6 +279,7 @@ mod a_tap_intercepted_for_a_document_runs_its_tap_action;
 mod a_tap_on_a_sliders_track_moves_it_there;
 mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out;
 mod a_test_id_names_the_copy_that_is_shown;
+mod a_test_id_reaches_the_accessibility_tree_as_its_author_id;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
 mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
 mod a_text_of_spans_takes_its_alignment_and_line_height;
@@ -341,10 +349,13 @@ mod an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile
 mod an_ime_composition_pushes_the_text_after_the_caret_along;
 mod an_ime_correction_replaces_the_word_it_names;
 mod an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on;
+mod an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was;
 mod an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app;
 mod an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
+mod an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
+mod an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout;
 mod an_overlay_reports_a_dismiss_only_when_the_user_closes_it;
 mod an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
@@ -361,7 +372,9 @@ mod arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects;
 mod arrow_keys_walk_the_rows_of_the_inspector_tree;
 mod arrows_at_the_ends_of_a_date_field_leave_its_value_alone;
 mod arrows_pick_which_emoji_the_menu_inserts;
+mod back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar;
 mod backspace_deletes_the_character_before_the_caret;
+mod changing_a_filter_damages_only_the_region_it_covers;
 mod changing_one_span_of_a_long_text_shapes_only_that_span;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
 mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
@@ -400,6 +413,7 @@ mod ctrl_shift_i_opens_and_closes_the_inspector;
 mod ctrl_shift_m_toggles_responsive_design_mode;
 mod ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in;
 mod ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it;
+mod ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod disposing_a_scope_removes_the_nodes_it_owns;
 mod dock_tabs_are_the_same_height_whether_or_not_they_close;
@@ -441,7 +455,8 @@ mod enter_confirms_the_highlighted_select_option_and_closes_the_popup;
 mod enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line;
 mod enter_on_an_inspector_row_selects_it_without_collapsing_it;
 mod enter_toggles_the_focused_checkbox;
-mod escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismiss;
+mod escape_back_and_a_press_outside_all_reach_a_layers_back_handler;
+mod escape_cancels_a_dock_switch_even_from_a_focused_program;
 mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod escape_closes_an_overlay_before_a_window_listener_hears_it;
 mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
@@ -453,11 +468,13 @@ mod every_styled_interactive_control_paints_a_keyboard_focus_ring;
 mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod f6_moves_the_focus_between_forwarding_catchers;
 mod finding_a_node_by_its_test_id;
+mod finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps;
 mod flashing_changed_elements_outlines_the_node_that_changed;
 mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
 mod flashing_repaints_paints_no_fill;
 mod flicking_across_the_screen_reader_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
+mod focus_asked_for_beneath_an_open_dialog_never_lands_there;
 mod focus_loss_and_hidden_content_cancel_keyboard_activation;
 mod focus_within_a_node_with_nothing_focusable_reports_false;
 mod focusing_a_node_inside_a_culled_row_lays_it_out;
@@ -491,14 +508,17 @@ mod line_starts_and_checkboxes_follow_edits;
 mod list_rows_and_pressables_activate_from_the_keyboard;
 mod listbox_navigation_reveals_options_inside_a_tall_scroll_item;
 mod listbox_typeahead_matches_prefixes_and_cycles_repeated_letters;
+mod logical_input_arrives_in_points_at_the_zoom_of_the_frame;
 mod losing_focus_lets_go_of_the_modifiers_and_an_emulated_touch;
 mod losing_window_focus_cancels_a_held_activation_key;
 mod measuring_after_an_edit_matches_measuring_afresh;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod moving_off_a_context_menu_item_clears_its_highlight;
+mod moving_the_caret_builds_no_rows_again;
 mod moving_the_pointer_ends_the_wheel_latch;
 mod nested_lists_measure_each_node_a_bounded_number_of_times;
+mod nested_offsets_lay_their_content_out_once_a_layout;
 mod on_a_narrow_screen_picking_a_date_moves_on_to_the_time;
 mod on_interacted_runs_after_the_frame_s_input_is_dispatched;
 mod one_child_can_align_itself_apart_from_its_row;
@@ -565,6 +585,7 @@ mod scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes;
 mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod selecting_a_node_lists_its_properties_in_the_inspector;
+mod setting_a_scroll_offset_during_a_fling_stops_the_fling;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
 mod shift_scrolling_a_horizontal_scroll_moves_it_sideways;
@@ -630,6 +651,7 @@ mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
 mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
+mod the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_app_it_returns_to;
 mod the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
 mod the_runner_tells_the_platform_only_what_changed;
@@ -640,6 +662,7 @@ mod the_screen_reader_readout_sits_at_the_bottom_above_the_filters;
 mod the_scroll_position_is_reported_to_its_listener;
 mod the_scrollbar_thumb_brightens_under_the_pointer_and_while_it_is_dragged;
 mod the_simulate_tab_filters_the_document_without_the_screen_reader;
+mod the_simulated_cursor_is_the_touch_cursor_while_touch_is_emulated;
 mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_keyboard_types_into_the_focused_input;
@@ -666,6 +689,7 @@ mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
 mod typing_into_a_focused_text_area_inserts_the_text;
 mod typing_into_a_focused_text_input_inserts_the_text;
 mod typing_into_an_empty_field_does_not_pick_up_its_placeholder;
+mod typing_on_a_line_rebuilds_only_that_line;
 mod typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view;
 mod typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view;
 mod unchanged_input_reuses_layout_and_paint;
@@ -681,7 +705,7 @@ mod wrapped_rows_wrap_long_text_and_grow_percent_children;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 mod zooming_into_the_simulated_screen_follows_the_pointer;
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::color::Color32;
@@ -696,8 +720,8 @@ use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, Spacer, Text,
-    VirtualList, build, clone, create_signal, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, ReadSignal, Spacer,
+    Text, VirtualList, WriteSignal, build, create_signal, with_document,
 };
 use crate::styled;
 use crate::styled::DocumentTheme;
@@ -1396,7 +1420,7 @@ pub(crate) fn ButtonFace(label: String) -> NodeId {
 #[component]
 pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
     view! {
-        <unstyled::Button on_click={move || on_click.call()}>
+        <unstyled::Button on_click={on_click}>
             <ButtonFace label />
         </unstyled::Button>
     }
@@ -1408,7 +1432,7 @@ pub(crate) fn PanZoomStage(
     on_change: crate::reactive::Callback<unstyled::PanZoomView>,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom @test_id="stage" view on_change={move |view| on_change.call(view)}>
+        <unstyled::PanZoom @test_id="stage" view on_change={on_change}>
             {move |handle: unstyled::PanZoomHandle| {
                 let unstyled::PanZoomHandle { view, .. } = handle;
                 view! {
@@ -1427,11 +1451,9 @@ pub(crate) struct VirtualScroll {
     pub(crate) list: NodeId,
 }
 
-pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
+pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let sink = built.clone();
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -1442,7 +1464,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
                             {move |index: usize| {
-                                sink.borrow_mut().push(index);
+                                built.update(|built| built.push(index));
                                 view! {
                                     <Frame
                                         padding_horizontal=0.0
@@ -1470,21 +1492,21 @@ pub(crate) struct KeyedVirtualScroll {
     pub(crate) scroll: NodeId,
     pub(crate) list: NodeId,
     pub(crate) set_keys: crate::reactive::WriteSignal<Vec<usize>>,
+    _keys: crate::reactive::OwnedSignal<Vec<usize>>,
 }
 
-pub(crate) fn keyed_virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> KeyedVirtualScroll {
-    let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
+pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtualScroll {
+    let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
+    let (keys, set_keys) = (owned_keys.read(), owned_keys.write());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let sink = built.clone();
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
         move || {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
                             {move |key: usize| {
-                                sink.borrow_mut().push(key);
+                                built.update(|built| built.push(key));
                                 view! {
                                     <Frame height=VIRTUAL_ITEM_HEIGHT>
                                         <Spacer />
@@ -1502,6 +1524,7 @@ pub(crate) fn keyed_virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> KeyedVirtua
         scroll: scroll.get(),
         list: list.get(),
         set_keys,
+        _keys: owned_keys,
     }
 }
 
@@ -1514,7 +1537,6 @@ pub(crate) struct HelloColumn {
 pub(crate) fn hello_column() -> HelloColumn {
     let (padding, text) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (padding, text) = (padding.clone(), text.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -1550,8 +1572,6 @@ pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let list = list.clone();
-        let (top, middle, bottom) = (top.clone(), middle.clone(), bottom.clone());
         move || {
             view! {
                 <List @node_ref=&list spacing=0.0>
@@ -1574,7 +1594,6 @@ pub(crate) fn three_panels() -> ThreePanels {
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (upper, lower) = (upper.clone(), lower.clone());
         move || {
             view! {
                 <List spacing=0.0>
@@ -1626,8 +1645,7 @@ pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32)
 pub(crate) const SHEET_ROWS: usize = 20;
 pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
 
-pub(crate) fn sheet_of_rows(rest: f32, sheet: &NodeRef, closed: &Rc<Cell<usize>>) -> Document {
-    let (sheet, closed) = (sheet.clone(), closed.clone());
+pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: WriteSignal<usize>) -> Document {
     build(move || {
         view! {
             <List spacing=0.0>
@@ -1636,7 +1654,7 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: &NodeRef, closed: &Rc<Cell<usize>>
                     @node_ref=&sheet
                     extent=600.0
                     rest
-                    on_close={move || closed.set(closed.get() + 1)}
+                    on_close={move || closed.update(|closed| *closed += 1)}
                 >
                     <List spacing=0.0>
                         <ForEach keys={indices(SHEET_ROWS)}>
@@ -1668,15 +1686,14 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
-    let built = dock.clone();
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         let (open, set_open) = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
                     <ForEach keys={open}>
-                        {move |id: u64| clone!(set_open -> view! {
+                        {move |id: u64| view! {
                             <unstyled::DockTab
                                 id
                                 title={format!("Tab {id}")}
@@ -1684,7 +1701,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
                             >
                                 <Frame @test_id={format!("content.{id}")} />
                             </unstyled::DockTab>
-                        })}
+                        }}
                     </ForEach>
                 </unstyled::DockPane>
             </styled::Docking>
@@ -1696,26 +1713,24 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 pub(crate) struct SplitDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
-    pub(crate) presses: Rc<Cell<u32>>,
+    pub(crate) presses: ReadSignal<u32>,
+    pub(crate) set_presses: WriteSignal<u32>,
 }
 
 pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
-    let built = dock.clone();
-    let presses = Rc::new(Cell::new(0));
-    let pressed = Rc::clone(&presses);
+    let (presses, set_presses) = create_signal(0);
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
-        let (first, second, third) = (Rc::clone(&pressed), Rc::clone(&pressed), pressed);
         view! {
-            <styled::Docking @node_ref=&built layout drag_modifier>
+            <styled::Docking @node_ref=&dock layout drag_modifier>
                 <unstyled::DockSplit id="split">
                     <unstyled::DockPane id="left">
-                        <CountingTab id=1 presses={first} />
+                        <CountingTab id=1 presses={set_presses} />
                     </unstyled::DockPane>
                     <unstyled::DockPane id="right">
-                        <CountingTab id=2 presses={second} />
-                        <CountingTab id=3 presses={third} />
+                        <CountingTab id=2 presses={set_presses} />
+                        <CountingTab id=3 presses={set_presses} />
                     </unstyled::DockPane>
                 </unstyled::DockSplit>
             </styled::Docking>
@@ -1725,14 +1740,15 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
         document,
         dock: dock.get(),
         presses,
+        set_presses,
     }
 }
 
 #[component]
-fn CountingTab(id: u64, presses: Rc<Cell<u32>>) -> unstyled::DockEntry<u64> {
+fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
     view! {
         <unstyled::DockTab id title={format!("Tab {id}")}>
-            <CountingPanel id presses={Rc::clone(&presses)} />
+            <CountingPanel id presses />
         </unstyled::DockTab>
     }
 }
@@ -1740,13 +1756,12 @@ fn CountingTab(id: u64, presses: Rc<Cell<u32>>) -> unstyled::DockEntry<u64> {
 use crate::reactive::Interactive;
 
 #[component]
-fn CountingPanel(id: u64, presses: Rc<Cell<u32>>) -> NodeId {
-    let secondary = Rc::clone(&presses);
+fn CountingPanel(id: u64, presses: WriteSignal<u32>) -> NodeId {
     view! {
         <Interactive
-            on_press={move |_: crate::input::PointerPress| presses.set(presses.get() + 1)}
+            on_press={move |_: crate::input::PointerPress| presses.update(|presses| *presses += 1)}
             on_secondary_press={move |_: crate::input::PointerPress| {
-                secondary.set(secondary.get() + 1)
+                presses.update(|presses| *presses += 1)
             }}
         >
             <Frame @test_id={format!("content.{id}")} />
@@ -1828,18 +1843,18 @@ pub(crate) fn drag_with(harness: &mut Harness, from: Pos2, to: Pos2, modifiers: 
 pub(crate) fn toolbar_of<const N: usize>(
     controls: impl FnOnce() -> [NodeId; N],
 ) -> (Document, [NodeId; N]) {
-    let built = Rc::new(Cell::new(None));
-    let sink = built.clone();
+    let built = crate::reactive::OwnedSignal::new(None);
+    let set_built = built.write();
     let document = build(move || {
         let nodes = controls();
-        sink.set(Some(nodes));
+        set_built.set(Some(nodes));
         view! {
             <List spacing=8.0>
                 <ForEach keys={indices(N)}>{move |index: usize| nodes[index]}</ForEach>
             </List>
         }
     });
-    let nodes = built.get().expect("the toolbar was built");
+    let nodes = built.read().get_untracked().expect("the toolbar was built");
     (document, nodes)
 }
 
@@ -1850,25 +1865,27 @@ use std::time::Duration;
 
 struct Counted {
     inner: Box<dyn Element>,
-    layouts: Rc<Cell<usize>>,
-    paints: Rc<Cell<usize>>,
-    measures: Rc<Cell<usize>>,
-    visits: Rc<Cell<usize>>,
+    layouts: WriteSignal<usize>,
+    paints: WriteSignal<usize>,
+    measures: WriteSignal<usize>,
+    visits: WriteSignal<usize>,
 }
 
 impl Element for Counted {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        self.measures.set(self.measures.get() + 1);
+        self.measures.update(|measures| *measures += 1);
         self.inner.measure(doc, painter, available)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        self.layouts.set(self.layouts.get() + 1);
+        self.layouts.update(|layouts| *layouts += 1);
         self.inner.layout(doc, painter, rect, out);
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        self.paints.set(self.paints.get() + 1);
+        if !painter.ctx().is_verifying_paint() {
+            self.paints.update(|paints| *paints += 1);
+        }
         self.inner.paint(doc, painter, rects, rect);
     }
 
@@ -1876,12 +1893,20 @@ impl Element for Counted {
         self.inner.relayout_boundary()
     }
 
+    fn paints_from_layout(&self) -> bool {
+        self.inner.paints_from_layout()
+    }
+
     fn children(&self) -> Vec<NodeId> {
         self.inner.children()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        self.inner.remove_child(child);
+    }
+
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.visits.set(self.visits.get() + 1);
+        self.visits.update(|visits| *visits += 1);
         self.inner.pointer_children()
     }
 
@@ -1897,10 +1922,11 @@ impl Element for Counted {
 }
 
 struct Counts {
-    layouts: Rc<Cell<usize>>,
-    paints: Rc<Cell<usize>>,
-    measures: Rc<Cell<usize>>,
-    visits: Rc<Cell<usize>>,
+    layouts: ReadSignal<usize>,
+    paints: ReadSignal<usize>,
+    measures: ReadSignal<usize>,
+    visits: ReadSignal<usize>,
+    set_visits: WriteSignal<usize>,
 }
 
 const BLINK: Duration = Duration::from_millis(530);
@@ -1918,32 +1944,38 @@ fn still() -> crate::reactive::Draw {
     })
 }
 
-fn counted(document: &mut Document, node: impl Into<NodeId>) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
+fn counted(
+    document: &mut Document,
+    node: impl Into<NodeId>,
+) -> (ReadSignal<usize>, ReadSignal<usize>) {
     let counts = counted_with_measures(document, node);
     (counts.layouts, counts.paints)
 }
 
 fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Counts {
     let node = node.into();
-    let counts = Counts {
-        layouts: Rc::new(Cell::new(0)),
-        paints: Rc::new(Cell::new(0)),
-        measures: Rc::new(Cell::new(0)),
-        visits: Rc::new(Cell::new(0)),
-    };
-    document.verifies_paint = false;
+    let (layouts, set_layouts) = create_signal(0);
+    let (paints, set_paints) = create_signal(0);
+    let (measures, set_measures) = create_signal(0);
+    let (visits, set_visits) = create_signal(0);
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
         Box::new(Counted {
             inner,
-            layouts: counts.layouts.clone(),
-            paints: counts.paints.clone(),
-            measures: counts.measures.clone(),
-            visits: counts.visits.clone(),
+            layouts: set_layouts,
+            paints: set_paints,
+            measures: set_measures,
+            visits: set_visits,
         }),
     );
-    counts
+    Counts {
+        layouts,
+        paints,
+        measures,
+        visits,
+        set_visits,
+    }
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
@@ -1982,13 +2014,10 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
 use crate::styled::{Button, ButtonVariant, Launcher, LauncherItem};
 
 fn reopens_after(close: impl Fn(&mut Harness)) {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
-    let heard = Rc::new(RefCell::new(Vec::<String>::new()));
-    let (ran, closed) = (heard.clone(), heard.clone());
-    let closing = set_open.clone();
-    let reopening = set_open.clone();
+    let (heard, set_heard) = create_signal(Vec::<String>::new());
     let document = build({
-        let open = open.clone();
         move || {
             view! {
                 <List spacing=0.0>
@@ -1996,7 +2025,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                         label="Programs"
                         variant=ButtonVariant::Secondary
                         @test_id={"reopen"}
-                        on_click={move || reopening.set(true)}
+                        on_click={move || set_open.set(true)}
                     />
                     <Launcher
                         open={open}
@@ -2006,10 +2035,10 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                             ..LauncherItem::default()
                         }])}
                         on_launch={|_: String| {}}
-                        on_run={move |line: String| ran.borrow_mut().push(format!("run {line}"))}
+                        on_run={move |line: String| set_heard.update(|heard| heard.push(format!("run {line}")))}
                         on_close={move || {
-                            closed.borrow_mut().push("close".to_owned());
-                            closing.set(false);
+                            set_heard.update(|heard| heard.push("close".to_owned()));
+                            set_open.set(false);
                         }}
                     />
                 </List>
@@ -2022,7 +2051,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 
     close(&mut harness);
     harness.frame(Vec::new());
-    assert_eq!(*heard.borrow(), ["close"]);
+    assert_eq!(heard.get_untracked(), ["close"]);
 
     let button = harness.center(harness.find("reopen"));
     harness.click(button);
@@ -2031,7 +2060,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     harness.type_text("true");
     harness.frame(Vec::new());
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*heard.borrow(), ["close", "run true"]);
+    assert_eq!(heard.get_untracked(), ["close", "run true"]);
 }
 
 pub(crate) struct Driven {
@@ -2179,10 +2208,12 @@ pub(crate) struct DialogDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
     pub(crate) layout: unstyled::DockingLayout<u64>,
-    pub(crate) pressed: Rc<RefCell<Vec<u64>>>,
-    pub(crate) keyed: Rc<RefCell<Vec<u64>>>,
-    pub(crate) attended: Rc<RefCell<Vec<u64>>>,
+    pub(crate) pressed: ReadSignal<Vec<u64>>,
+    pub(crate) set_pressed: WriteSignal<Vec<u64>>,
+    pub(crate) keyed: ReadSignal<Vec<u64>>,
+    pub(crate) attended: ReadSignal<Vec<u64>>,
     pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
+    _dialogs: crate::reactive::OwnedSignal<Dialogs>,
 }
 
 pub(crate) fn dialog_size(id: u64) -> Vec2 {
@@ -2194,16 +2225,13 @@ pub(crate) fn dialog_size(id: u64) -> Vec2 {
 
 pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let dock = NodeRef::new();
-    let built = dock.clone();
-    let pressed = Rc::new(RefCell::new(Vec::new()));
-    let keyed = Rc::new(RefCell::new(Vec::new()));
-    let attended = Rc::new(RefCell::new(Vec::new()));
+    let (pressed, set_pressed) = create_signal(Vec::new());
+    let (keyed, set_keyed) = create_signal(Vec::new());
+    let (attended, set_attended) = create_signal(Vec::new());
     let layout = unstyled::DockingLayout::new();
-    let (listed, set_dialogs) = create_signal(dialogs);
-    let attending = Rc::clone(&attended);
-    let (pressing, keying, laid) = (Rc::clone(&pressed), Rc::clone(&keyed), layout.clone());
+    let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
+    let (listed, set_dialogs) = (owned_dialogs.read(), owned_dialogs.write());
     let document = build(move || {
-        let flags = listed.clone();
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
                 listed
@@ -2212,23 +2240,18 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                     .collect::<Vec<_>>()
             })
         });
-        let (tab_presses, tab_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
-        let (dialog_presses, dialog_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
-        let dialog_attention = Rc::clone(&attending);
-        let layout = laid.clone();
         view! {
-            <styled::Docking @node_ref=&built layout>
+            <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
                     <ForEach keys={tabs.clone()}>
                         {move |id: u64| {
-                            let (pressed, keyed) = (Rc::clone(&tab_presses), Rc::clone(&tab_keys));
                             view! {
                                 <unstyled::DockTab id title={format!("Tab {id}")}>
                                     <FocusPanel
                                         name={format!("content.{id}")}
                                         owner=id
-                                        pressed={Rc::clone(&pressed)}
-                                        keyed={Rc::clone(&keyed)}
+                                        pressed={set_pressed}
+                                        keyed={set_keyed}
                                         attended={None}
                                         size={None}
                                     />
@@ -2239,12 +2262,8 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                 </unstyled::DockPane>
                 <ForEach keys>
                     {move |(id, parent): (u64, u64)| {
-                        let (pressed, keyed) =
-                            (Rc::clone(&dialog_presses), Rc::clone(&dialog_keys));
-                        let attended = Rc::clone(&dialog_attention);
-                        let flags = flags.clone();
                         let modal = crate::reactive::create_memo(move || {
-                            flags.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
+                            listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
                         });
                         view! {
                             <unstyled::DockDialog
@@ -2257,9 +2276,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                 <FocusPanel
                                     name={format!("dialog.{id}.field")}
                                     owner=id
-                                    pressed={Rc::clone(&pressed)}
-                                    keyed={Rc::clone(&keyed)}
-                                    attended={Some(Rc::clone(&attended))}
+                                    pressed={set_pressed}
+                                    keyed={set_keyed}
+                                    attended={Some(set_attended)}
                                     size={Some(dialog_size(id))}
                                 />
                             </unstyled::DockDialog>
@@ -2274,9 +2293,11 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         dock: dock.get(),
         layout,
         pressed,
+        set_pressed,
         keyed,
         attended,
         set_dialogs,
+        _dialogs: owned_dialogs,
     }
 }
 
@@ -2284,16 +2305,16 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
 fn FocusPanel(
     name: String,
     owner: u64,
-    pressed: Rc<RefCell<Vec<u64>>>,
-    keyed: Rc<RefCell<Vec<u64>>>,
-    attended: Option<Rc<RefCell<Vec<u64>>>>,
+    pressed: WriteSignal<Vec<u64>>,
+    keyed: WriteSignal<Vec<u64>>,
+    attended: Option<WriteSignal<Vec<u64>>>,
     size: Option<Vec2>,
 ) -> NodeId {
     if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {
         let called = crate::reactive::create_memo(move || tab.attention());
         crate::reactive::create_effect(move || {
             if called.get().is_some() {
-                attended.borrow_mut().push(owner);
+                attended.update(|attended| attended.push(owner));
             }
         });
     }
@@ -2303,10 +2324,10 @@ fn FocusPanel(
         <Interactive
             focusable=true
             @test_id={name}
-            on_press={move |_: crate::input::PointerPress| pressed.borrow_mut().push(owner)}
+            on_press={move |_: crate::input::PointerPress| pressed.update(|pressed| pressed.push(owner))}
             on_key={move |press: crate::input::KeyPress| {
                 if press.pressed {
-                    keyed.borrow_mut().push(owner);
+                    keyed.update(|keyed| keyed.push(owner));
                 }
                 true
             }}

@@ -20,7 +20,7 @@ pub(crate) fn BarPopup(
             icon_only
             variant=ButtonVariant::Ghost
             max_width={width + 2.0 * PANEL_PADDING}
-            on_open_change={move |open: bool| on_open_change.call(open)}
+            on_open_change={on_open_change}
         >
             {move |handle: PopoverHandle| content.call(handle)}
         </Popover>

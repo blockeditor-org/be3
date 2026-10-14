@@ -22,8 +22,8 @@ pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
         <Frame
             width=PANEL_WIDTH
             radius=CARD_RADIUS
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
             padding_horizontal=PANEL_PADDING
@@ -54,17 +54,12 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
         <ListRow
             @test_id={format!("dock.switch.{}", tab.value())}
             selected={chosen}
-            on_click={move || pick.call()}
+            on_click={pick}
         >
             <Frame padding_vertical=ROW_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
-                    <Icon glyph={icon} color={theme.accent.clone()} />
-                    <Text
-                        string={title}
-                        font_size=FONT_BODY
-                        color={theme.text.clone()}
-                        ellipsis=true
-                    />
+                    <Icon glyph={icon} color={theme.accent} />
+                    <Text string={title} font_size=FONT_BODY color={theme.text} ellipsis=true />
                 </List>
             </Frame>
         </ListRow>

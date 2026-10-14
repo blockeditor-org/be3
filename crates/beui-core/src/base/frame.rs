@@ -76,6 +76,10 @@ pub struct Extent {
 }
 
 impl Extent {
+    fn scales_with(self, available: f32) -> bool {
+        self.exact.is_none() && self.fraction.is_some() && available.is_finite()
+    }
+
     fn within(self, available: f32, intrinsic: f32) -> f32 {
         let fraction = self
             .fraction
@@ -214,9 +218,16 @@ impl FrameNode {
 }
 
 impl Element for FrameNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         if !self.visible {
             return Vec2::ZERO;
+        }
+        if self.width.scales_with(available.x) || self.height.scales_with(available.y) {
+            doc.note_offer_dependent();
         }
         let grid = doc.pixel_grid();
         let padding = self.padding(grid).amount();
@@ -300,6 +311,12 @@ impl Element for FrameNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {

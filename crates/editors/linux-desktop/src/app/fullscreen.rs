@@ -4,9 +4,8 @@ use block_editor_beui::beui::icons::ICON_FULLSCREEN;
 use block_editor_beui::beui::reactive::{Action, Chord};
 use block_editor_beui::{Editor, HostWindows, WindowAction};
 
-pub(super) fn bind_fullscreen(editor: &Editor) {
+pub(super) fn bind_fullscreen(editor: Editor) {
     let windows = editor.host_value::<HostWindows>();
-    let editor = editor.clone();
     Action::new("desktop.fullscreen", "Toggle fullscreen", move || {
         let focused = windows.with_untracked(|windows| {
             windows

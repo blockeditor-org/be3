@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, Text, build, create_signal, view};
@@ -8,10 +5,10 @@ use crate::styled::Dialog;
 
 #[test]
 fn a_catcher_under_an_open_dialog_hears_no_press() {
+    let _root = crate::reactive::RootScope::new();
     let (open, _set_open) = create_signal(true);
-    let heard = Rc::new(RefCell::new(Vec::<Event>::new()));
+    let (heard, set_heard) = create_signal(Vec::<Event>::new());
     let document = build({
-        let heard = Rc::clone(&heard);
         move || {
             view! {
                 <List spacing=0.0>
@@ -19,7 +16,7 @@ fn a_catcher_under_an_open_dialog_hears_no_press() {
                         <CanvasItem x=0.0 y=0.0 width={VIEWPORT.x} height={VIEWPORT.y}>
                             <Interactive
                                 on_forward={move |input: ForwardedInput| {
-                                    heard.borrow_mut().extend(flattened(input))
+                                    set_heard.update(|heard| heard.extend(flattened(input)))
                                 }}
                             >
                                 <Frame />
@@ -40,10 +37,10 @@ fn a_catcher_under_an_open_dialog_hears_no_press() {
 
     assert!(
         !heard
-            .borrow()
+            .get_untracked()
             .iter()
             .any(|event| matches!(event, Event::PointerButton { .. })),
         "the dialog keeps the press from the catcher beneath it, {:?}",
-        heard.borrow()
+        heard.get_untracked()
     );
 }

@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn scopes_dispose_effects_and_run_cleanup_once() {
+    let _root = RootScope::new();
     let parent = Scope::new();
     let child = parent.run(Scope::new);
     let (value, set_value) = create_signal(1);

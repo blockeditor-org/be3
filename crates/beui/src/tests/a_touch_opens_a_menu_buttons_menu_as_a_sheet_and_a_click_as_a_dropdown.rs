@@ -20,8 +20,8 @@ fn row(harness: &Harness, label: &str) -> Pos2 {
 
 #[test]
 fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
-    let picked = Rc::new(RefCell::new(Vec::new()));
-    let chosen = picked.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (picked, set_picked) = create_signal(Vec::new());
     let (document, [button]) = toolbar_of(|| {
         [view! {
             <MenuButton
@@ -30,7 +30,7 @@ fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
                     <MenuItem label="By name" />
                     <MenuItem label="By date" />
                 }}
-                on_select={move |path: Vec<usize>| chosen.borrow_mut().push(path)}
+                on_select={move |path: Vec<usize>| set_picked.update(|picked| picked.push(path))}
             />
         }]
     });
@@ -45,7 +45,7 @@ fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
     );
     harness.click(row(&harness, "By date"));
     harness.settle();
-    assert_eq!(*picked.borrow(), [vec![1]]);
+    assert_eq!(picked.get_untracked(), [vec![1]]);
 
     let at = harness.center(button);
     harness.touch(TouchPhase::Start, at);
@@ -59,7 +59,7 @@ fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
     harness.touch(TouchPhase::Start, first);
     harness.touch(TouchPhase::End, first);
     harness.settle();
-    assert_eq!(*picked.borrow(), [vec![1], vec![0]]);
+    assert_eq!(picked.get_untracked(), [vec![1], vec![0]]);
     assert!(
         !laid_out(&harness, "sheet.handle"),
         "choosing an item closes the sheet"

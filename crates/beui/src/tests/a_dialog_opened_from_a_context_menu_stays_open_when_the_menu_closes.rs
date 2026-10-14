@@ -4,13 +4,11 @@ use crate::styled::{ContextMenu, Dialog};
 
 #[test]
 fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let surface = NodeRef::new();
-    let dismissed = Rc::new(Cell::new(0));
+    let (dismissed, set_dismissed) = create_signal(0);
     let (document, [_]) = toolbar_of({
-        let region = region.clone();
-        let surface = surface.clone();
-        let reports = dismissed.clone();
         move || {
             let (open, set_open) = create_signal(false);
             let items = view! {
@@ -24,7 +22,7 @@ fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
                     <Dialog
                         open={open}
                         title="Inspect"
-                        on_dismiss={move || reports.set(reports.get() + 1)}
+                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
                         <Text
                             string="Details"
@@ -56,7 +54,7 @@ fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        dismissed.get(),
+        dismissed.get_untracked(),
         0,
         "closing the menu must not dismiss the dialog its item opened"
     );

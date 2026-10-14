@@ -5,12 +5,12 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(100)}>
                         {|index: usize| view! {
                             <LabelledButton label={format!("Row {index}")} on_click={|| {}} />

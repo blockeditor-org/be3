@@ -1,8 +1,8 @@
 use beui::NodeId;
 use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
 use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, Keyed, List, Memo, ReadSignal, Show,
-    Spacer, Text, Track, clone, component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Text,
+    Track, component, create_memo, provide_context, use_context, view,
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
@@ -34,53 +34,31 @@ const BULLET: f32 = 5.0;
 const BULLET_INDENT: f32 = 8.0;
 const EVENT_INDENT: f32 = 14.0;
 
-#[component]
-pub(crate) fn Detail(model: Model) -> NodeId {
-    let none = create_memo(clone!(model -> move || model.selected.with(Option::is_none)));
-    let selected = model.selected.clone();
-    view! {
-        <List spacing=0.0>
-            <Show condition={none}>
-                <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                    <List spacing=8.0>
-                        <Text
-                            string="Pick a pull request"
-                            font_size=FONT_TITLE
-                            color={use_theme().text.clone()}
-                        />
-                        <Caption
-                            content="Its conversation shows here, and you can check it out and run it."
-                            wrap=true
-                        />
-                    </List>
-                </Frame>
-            </Show>
-            <Keyed
-                value={selected}
-                key={|pull_request: Option<PullRequest>| pull_request.map(|pull_request| pull_request.number)}
-            >
-                {move |pull_request: ReadSignal<Option<PullRequest>>| view! {
-                    <Selected @sizing=ItemSize::Percent(100.0) model={model.clone()} pull_request />
-                }}
-            </Keyed>
-        </List>
-    }
-}
+#[derive(Clone, Copy)]
+struct Shown(u64);
 
 #[component]
-fn Selected(model: Model, pull_request: ReadSignal<Option<PullRequest>>) -> NodeId {
-    let shown = create_memo(clone!(pull_request -> move || pull_request.with(Option::is_some)));
-    let pull_request = create_memo(move || pull_request.get());
+pub(crate) fn Detail(model: Model, number: u64) -> NodeId {
+    let pull_request = create_memo(move || {
+        model.opened.with(|opened| {
+            opened
+                .iter()
+                .find(|pull_request| pull_request.number == number)
+                .cloned()
+        })
+    });
+    let shown = create_memo(move || pull_request.with(Option::is_some));
+    provide_context(Shown(number));
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(pull_request -> view! {
+                {move || view! {
                     <PullRequestView
                         @sizing=ItemSize::Percent(100.0)
-                        model={model.clone()}
+                        model={model}
                         pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
                     />
-                })}
+                }}
             </Show>
         </List>
     }
@@ -109,12 +87,12 @@ fn placeholder() -> PullRequest {
 #[component]
 fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let theme = use_theme();
-    let title = create_memo(clone!(pull_request -> move || {
+    let title = create_memo(move || {
         let pull_request = pull_request.get();
         format!("{} #{}", pull_request.title, pull_request.number)
-    }));
-    let state = create_memo(clone!(pull_request -> move || pull_request.get().state));
-    let summary = create_memo(clone!(pull_request -> move || {
+    });
+    let state = create_memo(move || pull_request.get().state);
+    let summary = create_memo(move || {
         let pull_request = pull_request.get();
         let verb = match pull_request.state {
             State::Merged => "merged",
@@ -127,56 +105,42 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             pull_request.branch,
             relative(now(), pull_request.created)
         )
-    }));
-    let labels = create_memo(clone!(pull_request -> move || pull_request.get().labels));
-    let checked_out = create_memo(clone!(model pull_request -> move || {
-        model.current(&pull_request.get())
-    }));
-    let tagged = create_memo(clone!(labels checked_out -> move || {
-        !labels.get().is_empty() || checked_out.get()
-    }));
+    });
+    let labels = create_memo(move || pull_request.get().labels);
+    let checked_out = create_memo(move || model.current(&pull_request.get()));
+    let tagged = create_memo(move || !labels.get().is_empty() || checked_out.get());
     let timeline = model.timeline(&pull_request.get_untracked());
-    let loading = create_memo(clone!(timeline -> move || timeline.get() == Loaded::Loading));
-    let error = create_memo(clone!(timeline -> move || match timeline.get() {
+    let loading = create_memo(move || timeline.get() == Loaded::Loading);
+    let error = create_memo(move || match timeline.get() {
         Loaded::Failed(error) => error,
         _ => String::new(),
-    }));
-    let failed = create_memo(clone!(error -> move || !error.get().is_empty()));
-    let entries = create_memo(clone!(timeline -> move || match timeline.get() {
+    });
+    let failed = create_memo(move || !error.get().is_empty());
+    let entries = create_memo(move || match timeline.get() {
         Loaded::Ready(entries) => entries,
         _ => Vec::new(),
-    }));
-    let keys = create_memo(clone!(entries -> move || (0..entries.get().len()).collect::<Vec<_>>()));
-    let actions = model.clone();
-    let notes = model.clone();
-    let noted = pull_request.clone();
-    let notes_timeline = timeline.clone();
-    let open = clone!(model pull_request -> move || model.open(&pull_request.get_untracked().url));
-    let refresh =
-        clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
+    });
+    let keys = create_memo(move || (0..entries.get().len()).collect::<Vec<_>>());
+    let open = move || model.open(&pull_request.get_untracked().url);
+    let refresh = move || model.refresh_timeline(&pull_request.get_untracked());
     view! {
         <SelectableText child_size=ItemSize::Percent(100.0)>
             <List spacing=0.0>
                 <Frame padding_horizontal=PADDING padding_vertical=4.0>
                     <List spacing=SPACING>
-                        <Text
-                            string={title}
-                            font_size=FONT_TITLE
-                            color={theme.text.clone()}
-                            wrap=true
-                        />
+                        <Text string={title} font_size=FONT_TITLE color={theme.text} wrap=true />
                         <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <StateBadge state />
                             <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
                         </List>
                         <Show condition={tagged}>
-                            <Labels labels={labels.clone()} checked_out={checked_out.clone()} />
+                            <Labels labels={labels} checked_out={checked_out} />
                         </Show>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Actions
-                                model={actions.clone()}
-                                pull_request={pull_request.clone()}
-                                timeline={timeline.clone()}
+                                model={model}
+                                pull_request={pull_request}
+                                timeline={timeline}
                             />
                             <Button
                                 label="Open on GitHub"
@@ -191,11 +155,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 on_click={refresh}
                             />
                         </List>
-                        <Notes
-                            model={notes.clone()}
-                            pull_request={noted.clone()}
-                            timeline={notes_timeline.clone()}
-                        />
+                        <Notes model={model} pull_request={pull_request} timeline={timeline} />
                         <Separator />
                         <Show condition={loading}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -205,9 +165,9 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         </Show>
                         <Show condition={failed}>
                             <Text
-                                string={error.clone()}
+                                string={error}
                                 font_size=FONT_BODY
-                                color={theme.danger.clone()}
+                                color={theme.danger}
                                 wrap=true
                             />
                         </Show>
@@ -218,9 +178,9 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <List spacing=0.0>
                             <ForEach keys>
                                 {move |index: usize| {
-                                    let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
+                                    let entry = create_memo(move || entries.get().get(index).cloned());
                                     view! {
-                                        <TimelineEntry model={model.clone()} entry />
+                                        <TimelineEntry model={model} entry />
                                     }
                                 }}
                             </ForEach>
@@ -235,14 +195,14 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 #[component]
 fn StateBadge(state: Memo<State>) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(state -> move || match state.get() {
+    let fill = create_memo(move || match state.get() {
         State::Open => theme.success.get(),
         State::Draft => theme.surface_raised.get(),
         State::Merged => MERGED,
         State::Closed => theme.danger.get(),
-    }));
-    let ink = create_memo(clone!(fill -> move || readable_on(fill.get())));
-    let glyph = create_memo(clone!(state -> move || state_glyph(state.get()).to_owned()));
+    });
+    let ink = create_memo(move || readable_on(fill.get()));
+    let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let label = create_memo(move || {
         match state.get() {
             State::Open => "Open",
@@ -260,7 +220,7 @@ fn StateBadge(state: Memo<State>) -> NodeId {
             padding_vertical=BADGE_PADDING_VERTICAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <Icon glyph color={ink.clone()} />
+                <Icon glyph color={ink} />
                 <Text string={label} font_size=FONT_BODY color={ink} />
             </List>
         </Frame>
@@ -274,7 +234,7 @@ fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
             <Dynamic value={entry}>
                 {move |entry: Option<Entry>| match entry {
                     Some(Entry::Comment { author, verb, tone, when, url, body, inline }) => view! {
-                        <CommentCard model={model.clone()} author verb tone when url body inline />
+                        <CommentCard model={model} author verb tone when url body inline />
                     },
                     Some(Entry::Commit { sha, message }) => view! {
                         <CommitRow sha message />
@@ -303,21 +263,19 @@ fn CommentCard(
     inline: Vec<InlineComment>,
 ) -> NodeId {
     let theme = use_theme();
-    let outline = create_memo(clone!(theme -> move || match tone {
+    let outline = create_memo(move || match tone {
         Tone::Neutral => theme.border.get(),
         Tone::Approved => theme.success.get(),
         Tone::ChangesRequested => theme.warning.get(),
-    }));
+    });
     let heading = format!("{} {verb}", author.login);
     let time = relative(now(), when);
     let inline_keys: Vec<usize> = (0..inline.len()).collect();
-    let open = clone!(model -> move || model.open(&url));
-    let avatar = model.clone();
-    let body_model = model.clone();
+    let open = move || model.open(&url);
     view! {
         <Frame padding_vertical=6.0>
             <Frame
-                color={theme.surface.clone()}
+                color={theme.surface}
                 outline
                 outline_width=1.0
                 outline_visible=true
@@ -325,26 +283,26 @@ fn CommentCard(
             >
                 <List spacing=0.0>
                     <Frame
-                        color={theme.surface_raised.clone()}
+                        color={theme.surface_raised}
                         radius_top_left=CARD_RADIUS
                         radius_top_right=CARD_RADIUS
                         padding_horizontal=CARD_PADDING
                         padding_vertical=8.0
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Avatar model={avatar} url={author.avatar} />
+                            <Avatar model={model} url={author.avatar} />
                             <Body @sizing=ItemSize::Percent(100.0) content={heading} />
                             <Link label={time} font_size=FONT_SMALL on_click={open} />
                         </List>
                     </Frame>
                     <Frame padding_horizontal=CARD_PADDING padding_vertical=CARD_PADDING>
                         <List spacing=10.0>
-                            <Blocks model={body_model} blocks={body} />
+                            <Blocks model={model} blocks={body} />
                             <ForEach keys={inline_keys}>
                                 {move |index: usize| {
                                     let comment = inline[index].clone();
                                     view! {
-                                        <InlineCommentView model={model.clone()} comment />
+                                        <InlineCommentView model={model} comment />
                                     }
                                 }}
                             </ForEach>
@@ -366,8 +324,8 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
     } = comment;
     view! {
         <Frame
-            color={theme.background.clone()}
-            outline={theme.border.clone()}
+            color={theme.background}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=6
@@ -391,8 +349,8 @@ fn CommitRow(sha: String, message: String) -> NodeId {
     view! {
         <Frame padding_horizontal=EVENT_INDENT padding_vertical=3.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Icon glyph=ICON_COMMIT color={theme.text_muted.clone()} />
-                <Code content={sha} color={theme.text_muted.clone()} />
+                <Icon glyph=ICON_COMMIT color={theme.text_muted} />
+                <Code content={sha} color={theme.text_muted} />
                 <Caption @sizing=ItemSize::Percent(100.0) content={message} />
             </List>
         </Frame>
@@ -418,7 +376,7 @@ fn Avatar(model: Model, url: String) -> NodeId {
         _ => None,
     });
     view! {
-        <Frame width=AVATAR height=AVATAR radius=12 color={use_theme().border.clone()}>
+        <Frame width=AVATAR height=AVATAR radius=12 color={use_theme().border}>
             <Picture image={picture} radius={AVATAR / 2.0} />
         </Frame>
     }
@@ -433,7 +391,7 @@ fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
                 {move |index: usize| {
                     let block = blocks[index].clone();
                     view! {
-                        <BlockView model={model.clone()} block />
+                        <BlockView model={model} block />
                     }
                 }}
             </ForEach>
@@ -451,7 +409,7 @@ fn BlockView(model: Model, block: Block) -> NodeId {
                         <Text
                             string={text}
                             font_size=FONT_HEADING
-                            color={use_theme().text.clone()}
+                            color={use_theme().text}
                             bold=true
                             wrap=true
                         />
@@ -469,10 +427,10 @@ fn BlockView(model: Model, block: Block) -> NodeId {
                         <Item text />
                     },
                     Block::Image { url, alt } => view! {
-                        <WebImage model={model.clone()} url alt />
+                        <WebImage model={model} url alt />
                     },
                     Block::Table(rows) => view! {
-                        <Table model={model.clone()} rows />
+                        <Table model={model} rows />
                     },
                     Block::Rule => view! {
                         <Separator />
@@ -492,7 +450,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
         .collect();
     view! {
         <Frame
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=6
@@ -504,7 +462,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
                     {move |(row, column): (usize, usize)| {
                         let blocks = rows[row].get(column).cloned().unwrap_or_default();
                         view! {
-                            <Blocks model={model.clone()} blocks />
+                            <Blocks model={model} blocks />
                         }
                     }}
                 </ForEach>
@@ -516,7 +474,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
 #[component]
 fn Prose(text: String) -> NodeId {
     view! {
-        <Text string={text} font_size=FONT_BODY color={use_theme().text.clone()} wrap=true />
+        <Text string={text} font_size=FONT_BODY color={use_theme().text} wrap=true />
     }
 }
 
@@ -524,19 +482,8 @@ fn Prose(text: String) -> NodeId {
 fn CodeBlock(text: String) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background.clone()}
-            radius=6
-            padding_horizontal=10.0
-            padding_vertical=8.0
-        >
-            <Text
-                string={text}
-                font_size=FONT_SMALL
-                color={theme.text.clone()}
-                monospace=true
-                wrap=true
-            />
+        <Frame color={theme.background} radius=6 padding_horizontal=10.0 padding_vertical=8.0>
+            <Text string={text} font_size=FONT_SMALL color={theme.text} monospace=true wrap=true />
         </Frame>
     }
 }
@@ -546,12 +493,12 @@ fn Quote(text: String) -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=10.0>
-            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) color={theme.border.clone()} />
+            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) color={theme.border} />
             <Text
                 @sizing=ItemSize::Percent(100.0)
                 string={text}
                 font_size=FONT_BODY
-                color={theme.text_muted.clone()}
+                color={theme.text_muted}
                 wrap=true
             />
         </List>
@@ -564,13 +511,13 @@ fn Item(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=BULLET_INDENT>
             <Frame padding_horizontal=BULLET_INDENT padding_vertical=7.0>
-                <Frame width=BULLET height=BULLET radius=3 color={theme.text_muted.clone()} />
+                <Frame width=BULLET height=BULLET radius=3 color={theme.text_muted} />
             </Frame>
             <Text
                 @sizing=ItemSize::Percent(100.0)
                 string={text}
                 font_size=FONT_BODY
-                color={theme.text.clone()}
+                color={theme.text}
                 wrap=true
             />
         </List>
@@ -580,30 +527,38 @@ fn Item(text: String) -> NodeId {
 #[component]
 fn WebImage(model: Model, url: String, alt: String) -> NodeId {
     let image = model.image(&url);
-    let picture = create_memo(clone!(image -> move || match image.get() {
+    let picture = create_memo(move || match image.get() {
         Loaded::Ready(image) => Some(image),
         _ => None,
-    }));
-    let waiting = create_memo(clone!(image -> move || image.get() == Loaded::Loading));
-    let failed = create_memo(clone!(image -> move || matches!(image.get(), Loaded::Failed(_))));
+    });
+    let waiting = create_memo(move || image.get() == Loaded::Loading);
+    let failed = create_memo(move || matches!(image.get(), Loaded::Failed(_)));
     let described = if alt.is_empty() {
         "image".to_owned()
     } else {
         alt
     };
     let missing = format!("Could not load {described}");
-    let open = clone!(model url -> move || model.open(&url));
-    let enlarge = move || model.view_image(&url);
+    let open = {
+        let url = url.clone();
+        move || model.open(&url)
+    };
+    let shown = use_context::<Shown>();
+    let enlarge = move || {
+        if let Some(Shown(number)) = shown {
+            model.view_image(number, &url);
+        }
+    };
     let accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
     view! {
         <List spacing=4.0>
             <Show condition={waiting}>
-                {move || clone!(described -> view! {
+                {move || { let described = described.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner width=18.0 label="Loading an image" />
                         <Caption content={described} />
                     </List>
-                })}
+                } }}
             </Show>
             <Show condition={failed}>
                 <Link label={missing.clone()} on_click={open.clone()} />

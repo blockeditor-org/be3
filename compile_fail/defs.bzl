@@ -28,14 +28,14 @@ _compile_fail_test = rule(
         "cases": attrs.dep(),
         "labels": attrs.list(attrs.string(), default = []),
         "srcs": attrs.list(attrs.source()),
-        "_checker": attrs.default_only(attrs.exec_dep(default = "//crates/buck-tools:buck-tools-bin", providers = [RunInfo])),
+        "_checker": attrs.default_only(attrs.exec_dep(default = "//crates/buck-tools:bin", providers = [RunInfo])),
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
     },
     impl = _compile_fail_test_impl,
 )
 
 # The cases in <name>/, a crate whose root is <name>/lib.rs, checked against
-# deps; the test is <name>-test, and <name>-test_run the action
+# deps; the test is <name>-test, and <name>-test-run the action
 # ./scripts/verify runs it as.
 def compile_fail(name, deps):
     srcs = native.glob([name + "/**/*.rs"])
@@ -53,6 +53,6 @@ def compile_fail(name, deps):
         srcs = srcs,
     )
     test_run(
-        name = name + "-test_run",
+        name = name + "-test-run",
         test = ":" + name + "-test",
     )

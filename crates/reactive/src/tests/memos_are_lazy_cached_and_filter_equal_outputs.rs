@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn memos_are_lazy_cached_and_filter_equal_outputs() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(1);
     let calls = Rc::new(Cell::new(0));

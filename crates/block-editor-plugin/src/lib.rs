@@ -34,14 +34,14 @@ pub use block_plugin_api::{
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, Occluder, PlayerCommand, PointerButton,
     Power, PowerAction, PowerAvailability, ProgramAction, Programs, ResizeMode, ScreenLocked,
-    ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
+    ScreenPlacement, SettingsProgress, ShellDialog, Stopped, SurfaceRect, TemplateCategory,
     TemplateDescriptor, Toggled, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
     TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
     VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
-pub use content::{ContentProjection, Projected};
+pub use content::{ContentProjection, OwnedContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{

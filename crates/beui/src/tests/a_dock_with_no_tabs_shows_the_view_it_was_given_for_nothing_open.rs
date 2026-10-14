@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Show, clone};
+use crate::reactive::Show;
 
 #[test]
 fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
@@ -18,7 +18,7 @@ fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
                         <unstyled::DockTab
                             id=1u64
                             title="Tab 1"
-                            on_close={clone!(set_open -> move || set_open.set(false))}
+                            on_close={move || set_open.set(false)}
                         >
                             <Frame @test_id={"content.1"} />
                         </unstyled::DockTab>

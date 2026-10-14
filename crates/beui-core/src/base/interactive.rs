@@ -2,6 +2,7 @@ use std::any::Any;
 
 use crate::base::focus::Focus;
 use crate::base::list::Direction;
+use crate::base::overlay::OverlayNode;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{
     AutoscrollGesture, CursorIcon, DragGesture, Modifiers, PointerPress, ScrollGesture,
@@ -203,7 +204,7 @@ impl InteractiveNode {
             return None;
         }
         self.active = active;
-        Some((self.on_active_change.clone(), active))
+        Some((self.on_active_change, active))
     }
 }
 
@@ -240,6 +241,10 @@ fn fraction(rect: Rect, pos: Pos2) -> Vec2 {
 }
 
 impl Element for InteractiveNode {
+    fn paints_from_layout(&self) -> bool {
+        false
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
@@ -269,6 +274,12 @@ impl Element for InteractiveNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {
@@ -491,7 +502,17 @@ impl Document {
             .on_press_outside = on_press_outside;
     }
 
-    pub(crate) fn pressed_outside(&mut self, rects: &Rects, pos: Pos2) {
+    pub(crate) fn pressed_outside(
+        &mut self,
+        rects: &Rects,
+        layers: &[NodeOf<OverlayNode>],
+        pos: Pos2,
+        primary: bool,
+    ) {
+        self.press_outside(layers);
+        if !primary {
+            return;
+        }
         let outside: Vec<Callback<Pos2>> = self
             .outside_watchers
             .iter()
@@ -506,7 +527,7 @@ impl Document {
                     .get(*id)
                     .as_any()
                     .downcast_ref::<InteractiveNode>()
-                    .map(|node| node.on_press_outside.clone())
+                    .map(|node| node.on_press_outside)
             })
             .collect();
         for callback in outside {
@@ -538,7 +559,7 @@ impl Document {
     }
 
     pub fn set_interactive_key_active(&mut self, id: NodeOf<InteractiveNode>, key_active: bool) {
-        if !self.contains(id) {
+        if !self.contains(id) || self.arena.get_as::<InteractiveNode>(id).key_active == key_active {
             return;
         }
         let interactive = self.arena.touch_mut_as::<InteractiveNode>(id);
@@ -548,7 +569,7 @@ impl Document {
             return;
         }
         interactive.active = active;
-        let on_active_change = interactive.on_active_change.clone();
+        let on_active_change = interactive.on_active_change;
         on_active_change.call(active);
     }
 }

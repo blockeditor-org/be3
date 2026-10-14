@@ -2,11 +2,11 @@ use beui::KeyAt;
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::{ICON_CANCEL, ICON_FLIP_TO_FRONT};
 use block_editor_beui::beui::reactive::{
-    Action, Chord, clone, create_effect, create_memo, held_modifiers, untrack,
+    Action, Chord, create_effect, create_memo, held_modifiers, untrack,
 };
 use block_editor_beui::beui::unstyled::{DockingLayout, TabId};
 
-pub(super) fn bind_window_switcher(layout: &DockingLayout<TabId>) {
+pub(super) fn bind_window_switcher(layout: DockingLayout<TabId>) {
     let modifiers = held_modifiers();
     let next = Chord::key(Key::Tab).alt();
     for (id, label, backwards, chord) in [
@@ -23,15 +23,14 @@ pub(super) fn bind_window_switcher(layout: &DockingLayout<TabId>) {
             next.shift(),
         ),
     ] {
-        let switching = layout.clone();
-        let held = modifiers.clone();
+        let held = modifiers;
         Action::new(id, label, move || {
-            match switching.switching() {
-                true => switching.step_switch(backwards),
-                false => switching.begin_switch(backwards),
+            match layout.switching() {
+                true => layout.step_switch(backwards),
+                false => layout.begin_switch(backwards),
             }
             if !held.get_untracked().alt {
-                switching.commit_switch();
+                layout.commit_switch();
             }
         })
         .glyph(ICON_FLIP_TO_FRONT)
@@ -40,14 +39,13 @@ pub(super) fn bind_window_switcher(layout: &DockingLayout<TabId>) {
         .capture()
         .register();
     }
-    let open = create_memo(clone!(layout -> move || layout.switching()));
-    let cancelling = layout.clone();
+    let open = create_memo(move || layout.switching());
     let escape = Chord::key(Key::Escape).alt();
     Action::new(
         "desktop.switch.cancel",
         "Stop switching windows",
         move || {
-            cancelling.cancel_switch();
+            layout.cancel_switch();
         },
     )
     .glyph(ICON_CANCEL)
@@ -57,10 +55,9 @@ pub(super) fn bind_window_switcher(layout: &DockingLayout<TabId>) {
     .at(KeyAt::Window)
     .capture()
     .register();
-    let committing = layout.clone();
     create_effect(move || {
-        if !modifiers.get().alt && untrack(|| committing.switching()) {
-            untrack(|| committing.commit_switch());
+        if !modifiers.get().alt && untrack(|| layout.switching()) {
+            untrack(|| layout.commit_switch());
         }
     });
 }

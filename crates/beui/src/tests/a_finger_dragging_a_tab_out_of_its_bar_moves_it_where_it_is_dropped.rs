@@ -3,6 +3,7 @@ use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);

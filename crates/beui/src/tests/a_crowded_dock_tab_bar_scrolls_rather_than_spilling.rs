@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_crowded_dock_tab_bar_scrolls_rather_than_spilling() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(12);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

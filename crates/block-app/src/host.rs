@@ -71,7 +71,6 @@ struct Host {
     pixels_per_point: f32,
     screen_scale: f32,
     theme: block_plugin_api::Theme,
-    grabbed: bool,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
     output: Output,
@@ -86,7 +85,6 @@ impl Default for Host {
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             theme: block_plugin_api::Theme::Dark,
-            grabbed: false,
             commands: Vec::new(),
             waiting_picks: Vec::new(),
             output: Output::default(),
@@ -174,9 +172,7 @@ pub(crate) fn end(context: &beui::Context) {
     if output.paste {
         context.request_paste();
     }
-    if let Some(grab) = output.grab
-        && with(|host| std::mem::replace(&mut host.grabbed, grab)) != grab
-    {
+    if let Some(grab) = output.grab {
         context.set_pointer_locked(grab);
     }
     if output.repaint {

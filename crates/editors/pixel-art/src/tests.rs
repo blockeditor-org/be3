@@ -5,7 +5,7 @@ use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::pixel_art::PixelColor;
 use block_editor_beui::beui::styled::toggle_button_pressed;
 use block_editor_beui::beui::{Key, Pos2};
-use block_editor_beui::{Artifact, Artifacts, Editor, EditorHost};
+use block_editor_beui::{Artifact, Artifacts, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ fn editor() -> BeuiTest<PixelArtApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
+    let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, PixelArtContent::default());
     editor.run();

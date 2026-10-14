@@ -3,7 +3,8 @@ use beui_core::color::Color32;
 use std::cell::RefCell;
 
 use crate::reactive::{
-    Callback, Child, NodeRef, Prop, Render, Scope, create_effect, with_document,
+    Callback, Child, NodeRef, Prop, Render, child_scope, create_binding, create_effect,
+    with_document,
 };
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
@@ -24,7 +25,7 @@ pub fn Overlay(
     children: Option<Child>,
     content: Option<Render<()>>,
 ) -> NodeId {
-    let lazy = RefCell::new(content.map(|content| (content, Scope::new())));
+    let lazy = RefCell::new(content.map(|content| (content, child_scope(|| ()).1)));
     let content = children;
     let overlay = with_document(|document| {
         let overlay = document.create_overlay(anchor.peek(), Placement::BelowStart);
@@ -35,29 +36,24 @@ pub fn Overlay(
         document.set_overlay_on_dismiss(overlay, on_dismiss);
         overlay
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_overlay_anchor(overlay, anchor.get()))
     });
-    create_effect(move || {
-        with_document(|document| document.set_overlay_placement(overlay, placement.get()))
-    });
-    create_effect(move || {
-        with_document(|document| document.set_overlay_scrim(overlay, scrim.get()))
-    });
-    create_effect(move || {
-        with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
-    });
-    create_effect(move || {
-        with_document(|document| document.set_overlay_policy(overlay, policy.get()))
-    });
-    create_effect(move || {
-        with_document(|document| document.set_overlay_level(overlay, level.get()))
+    create_binding(move || {
+        let (placement, scrim, traps_focus) = (placement.get(), scrim.get(), traps_focus.get());
+        let (policy, level) = (policy.get(), level.get());
+        with_document(|document| {
+            document.set_overlay_placement(overlay, placement);
+            document.set_overlay_scrim(overlay, scrim);
+            document.set_overlay_traps_focus(overlay, traps_focus);
+            document.set_overlay_policy(overlay, policy);
+            document.set_overlay_level(overlay, level);
+        })
     });
     create_effect(move || {
         let open = open.get();
         if open && let Some((content, scope)) = lazy.borrow_mut().take() {
             let built = scope.run(|| content.call(()));
-            scope.into_parent();
             with_document(|document| document.set_overlay_content(overlay, built));
         }
         with_document(|document| match open {

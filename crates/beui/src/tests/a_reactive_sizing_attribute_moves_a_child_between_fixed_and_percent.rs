@@ -8,10 +8,10 @@ const FIXED_WIDTH: f32 = 30.0;
 
 #[test]
 fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
+    let _root = crate::reactive::RootScope::new();
     let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
 
     let document = build({
-        let (toggle, left, right) = (toggle.clone(), left.clone(), right.clone());
         move || {
             let (shared, set_shared) = create_signal(false);
             let sizing = create_memo(move || {

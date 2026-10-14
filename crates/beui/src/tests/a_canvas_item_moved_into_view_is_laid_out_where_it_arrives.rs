@@ -3,10 +3,10 @@ use crate::reactive::{NodeRef, create_signal, with_reactive_scope};
 
 #[test]
 fn a_canvas_item_moved_into_view_is_laid_out_where_it_arrives() {
+    let _root = crate::reactive::RootScope::new();
     let item = NodeRef::new();
     let (x, set_x) = create_signal(VIEWPORT.x * 2.0);
     let document = {
-        let item = item.clone();
         build(move || {
             view! {
                 <Canvas>

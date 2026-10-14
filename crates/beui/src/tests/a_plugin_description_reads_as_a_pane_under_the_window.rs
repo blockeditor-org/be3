@@ -15,6 +15,7 @@ fn described(depth: usize, role: Role, label: &str, rect: Rect) -> Described {
         focused: false,
         rect: Some(rect),
         actions: Vec::new(),
+        test_ids: Vec::new(),
     }
 }
 

@@ -5,17 +5,16 @@ use crate::styled::{ColorPicker, PICKER_WIDTH};
 
 #[test]
 fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let changed = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let picker = NodeRef::new();
-    let named = picker.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <ColorPicker
-                    @node_ref=&named
+                    @node_ref=&picker
                     value={Hsva::new(0.0, 0.5, 0.5, 1.0).to_color()}
-                    on_change={move |color| changed.borrow_mut().push(color)}
+                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
                 />
             </List>
         }
@@ -31,7 +30,7 @@ fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
     harness.drag(grabbed, pos2(grabbed.x + 61.0, grabbed.y));
     harness.frame(Vec::new());
 
-    let changes = changes.borrow();
+    let changes = changes.get_untracked();
     assert_eq!(changes.len(), 1);
     let picked = Hsva::from_color(changes[0]);
     assert!((picked.saturation - 0.75).abs() < 0.01, "{picked:?}");

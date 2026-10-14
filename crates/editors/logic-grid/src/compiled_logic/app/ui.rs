@@ -2,8 +2,7 @@ use block_editor_beui::be_block::CompiledLogicContent;
 use block_editor_beui::be_block::compiled_logic::CompiledLogic as Program;
 use block_editor_beui::be_block::{BlockContent, LogicGridContent};
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, Memo, Show, Text, clone, component, create_effect, create_memo,
-    view,
+    ForEach, Frame, ItemSize, List, Memo, Show, Text, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{Caption, Heading, Scroll, Separator, use_theme};
@@ -22,35 +21,33 @@ const CHROME_HEIGHT: f32 = 220.0;
 pub fn CompiledLogicView(editor: Editor) -> NodeId {
     let content = editor.block_content::<CompiledLogicContent>();
     let compiled = content.project(|content| content.root().compiled);
-    let source = create_memo(clone!(compiled -> move || {
+    let source = create_memo(move || {
         compiled.with(|compiled| {
             compiled
                 .as_ref()
                 .map(|compiled| ChildTarget::new(compiled.source(), LogicGridContent::CONTENT_TYPE))
         })
-    }));
-    let calls = create_memo(clone!(compiled -> move || {
+    });
+    let calls = create_memo(move || {
         compiled.with(|compiled| {
             compiled
                 .as_ref()
                 .map(|compiled| compiled.calls().to_vec())
                 .unwrap_or_default()
         })
-    }));
-    let summary = create_memo(clone!(compiled -> move || {
-        compiled.with(|compiled| {
-            compiled.as_ref().map(summary_of).unwrap_or_default()
-        })
-    }));
-    let ports = create_memo(clone!(compiled -> move || -> Vec<String> {
+    });
+    let summary = create_memo(move || {
+        compiled.with(|compiled| compiled.as_ref().map(summary_of).unwrap_or_default())
+    });
+    let ports = create_memo(move || -> Vec<String> {
         compiled.with(|compiled| {
             compiled
                 .iter()
                 .flat_map(|compiled| compiled.ports().iter().map(port_row))
                 .collect()
         })
-    }));
-    let program = create_memo(clone!(compiled -> move || -> Vec<String> {
+    });
+    let program = create_memo(move || -> Vec<String> {
         compiled.with(|compiled| {
             compiled
                 .iter()
@@ -58,26 +55,24 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
                 .map(|(index, instruction)| format!("{index:>4}  {instruction}"))
                 .collect()
         })
-    }));
-    let no_calls = create_memo(clone!(calls -> move || calls.with(Vec::is_empty)));
-    let sized = editor.clone();
-    create_effect(clone!(ports calls program -> move || {
+    });
+    let no_calls = create_memo(move || calls.with(Vec::is_empty));
+    create_effect(move || {
         let rows = ports.with(Vec::len) + calls.with(Vec::len) + program.with(Vec::len);
         let height = CHROME_HEIGHT + ROW_HEIGHT * rows as f32;
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
-    }));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+    });
 
-    let source_editor = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
                             <Heading content="Compiled from" />
                             <BlockLink
-                                editor={source_editor}
+                                editor={editor}
                                 block={source}
                                 @test_id={"compiled-logic.source"}
                             />
@@ -110,7 +105,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
 
 #[component]
 fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
-    let keys = create_memo(clone!(calls -> move || calls.get()));
+    let keys = create_memo(move || calls.get());
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
@@ -118,7 +113,7 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
                     let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
-                            editor={editor.clone()}
+                            editor={editor}
                             block={block}
                             @test_id={format!("compiled-logic.call.{called}")}
                         />
@@ -131,21 +126,20 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
 
 #[component]
 fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> NodeId {
-    let keys =
-        create_memo(clone!(lines -> move || (0..lines.with(Vec::len)).collect::<Vec<usize>>()));
+    let keys = create_memo(move || (0..lines.with(Vec::len)).collect::<Vec<usize>>());
     let theme = use_theme();
     view! {
         <List spacing=2.0>
             <ForEach keys={keys}>
                 {move |index: usize| {
-                    let line = create_memo(clone!(lines -> move || {
+                    let line = create_memo(move || {
                         lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
-                    }));
+                    });
                     view! {
                         <Text
                             string={line}
                             font_size=FONT_SMALL
-                            color={theme.text.clone()}
+                            color={theme.text}
                             monospace={monospace}
                         />
                     }

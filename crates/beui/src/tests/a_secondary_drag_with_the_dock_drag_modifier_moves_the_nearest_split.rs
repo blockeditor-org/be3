@@ -2,10 +2,12 @@ use super::*;
 
 #[test]
 fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document,
         dock,
         presses,
+        ..
     } = split_dock(Some(Modifiers::LOGO));
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
@@ -28,7 +30,7 @@ fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
         after.width()
     );
     assert_eq!(
-        presses.get(),
+        presses.get_untracked(),
         0,
         "the secondary press that took the split never reached the content"
     );

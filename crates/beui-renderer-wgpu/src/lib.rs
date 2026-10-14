@@ -38,7 +38,10 @@ pub struct DrawAt {
     pub screen: Vec2,
     pub pixels_per_point: f32,
     pub format: wgpu::TextureFormat,
+    pub renderer: u64,
 }
+
+static RENDERERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 impl DrawAt {
     pub fn width(&self) -> u32 {
@@ -283,10 +286,7 @@ impl Repainting for FrameOutput {
     }
 
     fn repaint_moving(&self, background: Color32) -> (Repaint, Option<Moved>) {
-        match (
-            self.moved,
-            self.damage.is_empty() || !self.filters().is_empty(),
-        ) {
+        match (self.moved, self.damage.is_empty()) {
             (None, _) | (Some(_), true) => (self.repaint(background), None),
             (Some(moved), false) => (
                 Repaint::Region {
@@ -320,6 +320,7 @@ const LISTED: usize = 4096;
 const REACH: f32 = 2.0;
 
 pub struct Renderer {
+    id: u64,
     srgb: bool,
     format: wgpu::TextureFormat,
     pipeline: wgpu::RenderPipeline,
@@ -526,7 +527,7 @@ impl Walk {
                     fade: self.fade,
                 }
             }
-            Group::Mask(fade) => {
+            Group::Mask { fade, .. } => {
                 let fade = self.fade.within(
                     fade.translate(self.offset)
                         .scaled(self.factor, Vec2::new(self.origin[0], self.origin[1])),
@@ -770,6 +771,7 @@ impl Renderer {
         );
 
         Self {
+            id: RENDERERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             srgb: format.is_srgb(),
             format,
             pipeline,
@@ -982,29 +984,29 @@ impl Renderer {
             .iter()
             .map(|filter: &Filter| filter::Prepared::new(filter, pixels_per_point, screen))
             .collect();
-        let repaint = match prepared == self.filters {
-            true => repaint,
-            false => Repaint::Everything,
-        };
+        let mut restyled = Vec::new();
+        for index in 0..prepared.len().max(self.filters.len()) {
+            let (now, was) = (prepared.get(index), self.filters.get(index));
+            if now != was {
+                let origin = [self.origin.x, self.origin.y];
+                restyled.extend(
+                    [now, was]
+                        .into_iter()
+                        .flatten()
+                        .map(|filter| translated(filter.region(), origin)),
+                );
+            }
+        }
         let damaged: Option<Vec<[f32; 4]>> = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, .. } => {
-                let regions: Vec<[f32; 4]> = match !prepared.is_empty() {
-                    true => vec![physical(
-                        region.bounds(),
-                        self.origin,
-                        screen,
-                        pixels_per_point,
-                    )],
-                    false => region
-                        .rects()
-                        .iter()
-                        .map(|rect| physical(*rect, self.origin, screen, pixels_per_point))
-                        .collect(),
-                };
+                let regions = region
+                    .rects()
+                    .iter()
+                    .map(|rect| physical(*rect, self.origin, screen, pixels_per_point))
+                    .chain(restyled);
                 Some(
                     regions
-                        .into_iter()
                         .map(|region: [f32; 4]| {
                             prepared
                                 .iter()
@@ -1392,6 +1394,7 @@ impl Renderer {
             screen: frame.screen,
             pixels_per_point: frame.pixels_per_point,
             format: self.format,
+            renderer: self.id,
         };
         frame.drawings.push((drawing.clone(), at));
         Some(Run {
@@ -1552,11 +1555,12 @@ impl Renderer {
                 glyph,
                 turn: rotation,
             } => {
-                let (atlas, colored) = match glyph.image.color {
+                let image = glyph.image()?;
+                let (atlas, colored) = match image.color {
                     true => (&mut self.colors, 1.0),
                     false => (&mut self.atlas, 0.0),
                 };
-                let uv = atlas.insert(queue, glyph.id, &glyph.image)?;
+                let uv = atlas.insert(queue, glyph.id, image)?;
                 plain(Instance {
                     rect,
                     clip,
@@ -1705,10 +1709,10 @@ impl Renderer {
         if self.empty() {
             return;
         }
-        let scissor = self
-            .scissors
-            .as_ref()
-            .and_then(|scissors| scissors.first().copied());
+        let scissors: Vec<Option<[u32; 4]>> = match &self.scissors {
+            Some(scissors) => scissors.iter().copied().map(Some).collect(),
+            None => vec![None],
+        };
         let format = self.format;
         self.effects.truncate(self.filters.len());
         while self.effects.len() < self.filters.len() {
@@ -1718,7 +1722,11 @@ impl Renderer {
             effects.ensure(device, size);
         }
         let steps = std::mem::take(&mut self.steps);
-        self.render_steps(device, queue, encoder, target, load, scissor, &steps);
+        let mut load = load;
+        for scissor in scissors {
+            self.render_steps(device, queue, encoder, target, load, scissor, &steps);
+            load = wgpu::LoadOp::Load;
+        }
         self.steps = steps;
     }
 

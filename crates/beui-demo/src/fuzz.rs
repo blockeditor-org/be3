@@ -61,8 +61,9 @@ const BUTTONS: [PointerButton; 3] = [
 pub fn input(data: &[u8]) {
     let mut input = Input(data);
     let mut demo = DemoApp::on(Date::new(2026, 1, 15)).document;
-    let context = Context::new(FreetypeFonts::measuring(FontLibrary::bundled()));
+    let context = Context::new(FreetypeFonts::new(FontLibrary::bundled()));
     context.stop_clock();
+    context.keep_accessibility(true);
     let mut size = SIZES[0];
     let mut pointer = Pos2::ZERO;
     let mut modifiers = Modifiers::NONE;
@@ -78,7 +79,10 @@ pub fn input(data: &[u8]) {
         });
         let mut named: Vec<_> = output.test_ids().iter().collect();
         named.sort_by(|a, b| a.0.cmp(b.0));
-        *targets = named.into_iter().map(|(_, rect)| *rect).collect();
+        *targets = named
+            .into_iter()
+            .flat_map(|(_, shown)| shown.iter().filter(|at| at.visible).map(|at| at.rect))
+            .collect();
     };
     frame(&mut events, size, &mut targets);
     while !input.is_empty() {

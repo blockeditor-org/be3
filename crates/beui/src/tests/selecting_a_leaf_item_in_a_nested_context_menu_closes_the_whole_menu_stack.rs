@@ -4,11 +4,10 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let selected = Rc::new(RefCell::new(Vec::new()));
-    let sink = selected.clone();
+    let (selected, set_selected) = create_signal(Vec::new());
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Share">
@@ -20,7 +19,7 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
                 <ContextMenu
                     items
                     on_select={move |path| {
-                        sink.borrow_mut().push(path);
+                        set_selected.update(|selected| selected.push(path));
                     }}
                 >
                     <MenuRegion @node_ref=&region />
@@ -42,8 +41,7 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
     }]);
     harness.frame(Vec::new());
 
-    let inner = menu;
-    let overlay = unstyled::context_menu_overlay(harness.document(), inner);
+    let overlay = unstyled::context_menu_overlay(harness.document(), menu);
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
@@ -54,6 +52,6 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert_eq!(selected.borrow().as_slice(), &[vec![0usize, 1usize]]);
+    assert_eq!(selected.get_untracked().as_slice(), &[vec![0usize, 1usize]]);
     assert!(!harness.document().is_overlay_open(overlay));
 }

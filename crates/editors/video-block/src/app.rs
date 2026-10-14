@@ -1,5 +1,4 @@
 use block_editor_beui::be_block::VideoContent;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::video::{VideoFrameRate, VideoOperation};
 use block_editor_beui::beui::icons::{
@@ -7,7 +6,7 @@ use block_editor_beui::beui::icons::{
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SUBDIRECTORY_ARROW_RIGHT, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Prop, clone, component, create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Prop, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, IconButton, Scroll, Select, Separator, use_theme};
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -66,33 +65,28 @@ impl block_editor_beui::BeuiApp for VideoApp {
 
 #[component]
 fn VideoEditor(editor: Editor) -> NodeId {
-    let state = VideoState::new(&editor);
+    let state = VideoState::new(editor);
 
     let chrome = editor.chrome_shown();
-    let bar = Rc::clone(&state);
-    let effects = Rc::clone(&state);
-    let player = Rc::clone(&state);
-    let playback = Rc::clone(&state);
-    let tools = Rc::clone(&state);
 
     view! {
         <List spacing=0.0>
-            <FrameRateBar state={bar} shown={chrome} />
+            <FrameRateBar state={state} shown={chrome} />
             <List
                 @sizing=ItemSize::Percent(100.0 - TIMELINE_SHARE)
                 direction=Direction::Horizontal
                 spacing=0.0
             >
-                <EffectsColumn state={effects} />
+                <EffectsColumn state={state} />
                 <Separator direction=Direction::Vertical />
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Player @sizing=ItemSize::Percent(100.0) state={player} />
+                    <Player @sizing=ItemSize::Percent(100.0) state={state} />
                     <Separator />
-                    <PlaybackBar state={playback} />
+                    <PlaybackBar state={state} />
                 </List>
             </List>
             <Separator />
-            <TimelineTools state={tools} />
+            <TimelineTools state={state} />
             <Separator />
             <Timeline @sizing=ItemSize::Percent(TIMELINE_SHARE) state={state} />
         </List>
@@ -101,14 +95,14 @@ fn VideoEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn VideoPreview(editor: Editor) -> NodeId {
-    let state = VideoState::new(&editor);
+    let state = VideoState::new(editor);
     view! {
         <Player state={state} />
     }
 }
 
 #[component]
-fn EffectsColumn(state: Rc<VideoState>) -> NodeId {
+fn EffectsColumn(state: VideoState) -> NodeId {
     view! {
         <Frame width=EFFECTS_WIDTH padding_horizontal=10.0 padding_vertical=10.0>
             <Scroll>
@@ -119,11 +113,13 @@ fn EffectsColumn(state: Rc<VideoState>) -> NodeId {
 }
 
 #[component]
-fn FrameRateBar(state: Rc<VideoState>, shown: Prop<bool>) -> NodeId {
-    let rate = state.frame_rate.clone();
-    let chosen = create_memo(clone!(rate -> move || {
-        FRAME_RATES.into_iter().position(|option| option == rate.get())
-    }));
+fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> NodeId {
+    let rate = state.frame_rate;
+    let chosen = create_memo(move || {
+        FRAME_RATES
+            .into_iter()
+            .position(|option| option == rate.get())
+    });
     let options = (0..FRAME_RATES.len()).collect::<Vec<usize>>();
     view! {
         <Toolbar shown={shown}>
@@ -151,26 +147,23 @@ fn FrameRateBar(state: Rc<VideoState>, shown: Prop<bool>) -> NodeId {
 }
 
 #[component]
-fn PlaybackBar(state: Rc<VideoState>) -> NodeId {
-    let start = Rc::clone(&state);
-    let play = Rc::clone(&state);
-    let end = Rc::clone(&state);
-    let playing = state.playing.clone();
-    let empty = create_memo(clone!(state -> move || state.duration.get() == 0));
-    let glyph = create_memo(clone!(playing -> move || match playing.get() {
+fn PlaybackBar(state: VideoState) -> NodeId {
+    let playing = state.playing;
+    let empty = create_memo(move || state.duration.get() == 0);
+    let glyph = create_memo(move || match playing.get() {
         true => ICON_PAUSE.to_owned(),
         false => ICON_PLAY_ARROW.to_owned(),
-    }));
-    let playhead = state.playhead.clone();
-    let duration = state.duration.clone();
-    let rate = state.frame_rate.clone();
-    let position = create_memo(clone!(playhead duration rate -> move || {
+    });
+    let playhead = state.playhead;
+    let duration = state.duration;
+    let rate = state.frame_rate;
+    let position = create_memo(move || {
         format!(
             "{} / {}",
             crate::timeline::timecode(rate.get(), playhead.get()),
             crate::timeline::timecode(rate.get(), duration.get())
         )
-    }));
+    });
     let theme = use_theme();
     view! {
         <Frame padding_horizontal=10.0 padding_vertical=4.0>
@@ -178,36 +171,29 @@ fn PlaybackBar(state: Rc<VideoState>) -> NodeId {
                 <IconButton
                     glyph={ICON_SKIP_PREVIOUS.to_owned()}
                     label="Go to the start"
-                    on_click={move || start.seek(0)}
+                    on_click={move || state.seek(0)}
                 />
                 <IconButton
                     glyph={glyph}
                     label="Play"
                     disabled={empty}
                     @test_id={"video.play"}
-                    on_click={move || play.toggle_playback()}
+                    on_click={move || state.toggle_playback()}
                 />
                 <IconButton
                     glyph={ICON_SKIP_NEXT.to_owned()}
                     label="Go to the end"
-                    on_click={move || end.seek(end.duration.get_untracked())}
+                    on_click={move || state.seek(state.duration.get_untracked())}
                 />
-                <Caption content={position} color={theme.text_muted.clone()} />
+                <Caption content={position} color={theme.text_muted} />
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn TimelineTools(state: Rc<VideoState>) -> NodeId {
-    let add = Rc::clone(&state);
-    let attach = Rc::clone(&state);
-    let split = Rc::clone(&state);
-    let remove = Rc::clone(&state);
-    let out = Rc::clone(&state);
-    let inward = Rc::clone(&state);
-    let fit = Rc::clone(&state);
-    let none = create_memo(clone!(state -> move || state.selected.get().is_none()));
+fn TimelineTools(state: VideoState) -> NodeId {
+    let none = create_memo(move || state.selected.get().is_none());
     view! {
         <Frame padding_horizontal=10.0 padding_vertical=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -215,46 +201,46 @@ fn TimelineTools(state: Rc<VideoState>) -> NodeId {
                     glyph={ICON_ADD.to_owned()}
                     label="Add a clip to the end of the base track"
                     @test_id={"video.add-clip"}
-                    on_click={move || add.open_picker(None)}
+                    on_click={move || state.open_picker(None)}
                 />
                 <IconButton
                     glyph={ICON_SUBDIRECTORY_ARROW_RIGHT.to_owned()}
                     label="Attach a clip to the selected clip at the playhead"
-                    disabled={none.clone()}
+                    disabled={none}
                     on_click={move || {
-                        let selected = attach.selected.get_untracked();
-                        attach.open_picker(selected);
+                        let selected = state.selected.get_untracked();
+                        state.open_picker(selected);
                     }}
                 />
                 <IconButton
                     glyph={ICON_CONTENT_CUT.to_owned()}
                     label="Split the selected clip in two at the playhead"
-                    disabled={none.clone()}
+                    disabled={none}
                     @test_id={"video.split"}
-                    on_click={move || split.split_selected()}
+                    on_click={move || state.split_selected()}
                 />
                 <IconButton
                     glyph={ICON_DELETE.to_owned()}
                     label="Delete the selected clip and everything attached to it"
                     disabled={none}
                     @test_id={"video.delete"}
-                    on_click={move || remove.remove_selected()}
+                    on_click={move || state.remove_selected()}
                 />
                 <Separator direction=Direction::Vertical length=TOOL_SEPARATOR_LENGTH />
                 <IconButton
                     glyph={ICON_ZOOM_OUT.to_owned()}
                     label="Zoom the timeline out"
-                    on_click={move || out.zoom_timeline(1.0 / ZOOM_STEP)}
+                    on_click={move || state.zoom_timeline(1.0 / ZOOM_STEP)}
                 />
                 <IconButton
                     glyph={ICON_ZOOM_IN.to_owned()}
                     label="Zoom the timeline in"
-                    on_click={move || inward.zoom_timeline(ZOOM_STEP)}
+                    on_click={move || state.zoom_timeline(ZOOM_STEP)}
                 />
                 <IconButton
                     glyph={ICON_FIT_SCREEN.to_owned()}
                     label="Fit the whole video in the timeline"
-                    on_click={move || fit.request_fit()}
+                    on_click={move || state.request_fit()}
                 />
             </List>
         </Frame>

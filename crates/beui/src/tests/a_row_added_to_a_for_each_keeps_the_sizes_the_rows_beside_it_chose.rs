@@ -3,6 +3,7 @@ use crate::reactive::{ItemSize, create_memo, create_signal, with_reactive_scope}
 
 #[test]
 fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
+    let _root = crate::reactive::RootScope::new();
     let (keys, set_keys) = create_signal(vec![0usize]);
     let (shown, set_shown) = create_signal(0usize);
     let document = build(move || {
@@ -10,7 +11,6 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
             <List spacing=0.0>
                 <ForEach keys={keys}>
                     {move |key: usize| {
-                        let shown = shown.clone();
                         let sizing = create_memo(move || match shown.get() == key {
                             true => ItemSize::Percent(100.0),
                             false => ItemSize::Fixed(0.0),
@@ -31,11 +31,9 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
         "the only row takes the whole list"
     );
 
-    let added = set_keys.clone();
-    let showing = set_shown.clone();
     with_reactive_scope(harness.document_mut(), move || {
-        added.set(vec![0, 1]);
-        showing.set(1);
+        set_keys.set(vec![0, 1]);
+        set_shown.set(1);
     });
     harness.frame(Vec::new());
     with_reactive_scope(harness.document_mut(), move || {
@@ -47,7 +45,7 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
     assert_eq!(
         harness.rect(harness.find("row.0")).height(),
         0.0,
-        "the row that gave up its share keeps the size it chose when another row is added"
+        "the row that gave up its share keeps the size it chose when another row is set_keys"
     );
     assert_eq!(
         harness.rect(harness.find("row.1")).height(),
@@ -57,6 +55,6 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
     assert_eq!(
         harness.rect(harness.find("row.2")).height(),
         VIEWPORT.y,
-        "the row that was added takes the share the others gave up"
+        "the row that was set_keys takes the share the others gave up"
     );
 }

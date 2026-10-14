@@ -1,13 +1,13 @@
 load("@root//buck/app:drive.bzl", "headless")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_fuzz", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_fuzz", "cargo_library")
 load("@root//buck/wasm:defs.bzl", "plugin_tests")
 
 srcs = glob(["src/**/*.rs"])
 
 cargo_library(srcs = srcs)
 
-# The demo in a window: `./scripts/buck run //crates/beui-demo:demo`.
-cargo_binary(srcs = srcs)
+# The demo in a window: `./scripts/buck run //crates/beui-demo:native`.
+cargo_binary(name = "native", srcs = srcs)
 
 # The demo's tests paint its pages the way a plugin's tests do: compiled to
 # wasm with the fonts beui carries, and run here so they can read and write
@@ -18,8 +18,11 @@ plugin_tests(srcs = srcs)
 headless(
     name = "dev",
     app_name = "beui-demo",
-    program = "$(location :demo)",
+    program = "$(location :native)",
 )
+
+# Times opening each page: `./scripts/buck run -m release //crates/beui-demo:example-open-bench`.
+cargo_example("open-bench", srcs = srcs + glob(["examples/**/*.rs"]))
 
 # Input from libFuzzer, run through the whole demo without drawing it.
 cargo_fuzz(extra_features = ["fuzzing"], runs = 300)

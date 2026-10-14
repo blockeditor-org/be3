@@ -1,20 +1,17 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{NodeRef, Text, build, clone, create_memo, create_signal, view};
+use crate::reactive::{NodeRef, Text, build, create_memo, create_signal, view};
 use crate::unstyled::BackSlide;
 
 #[test]
 fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
+    let _root = crate::reactive::RootScope::new();
     let (depth, set_depth) = create_signal(2_u32);
     let page = NodeRef::new();
     let previous = NodeRef::new();
-    let page_ref = page.clone();
-    let previous_ref = previous.clone();
-    let watched = previous.clone();
     let document = build({
-        let depth = depth.clone();
         move || {
-            let nested = create_memo(clone!(depth -> move || depth.get() > 0));
+            let nested = create_memo(move || depth.get() > 0);
             view! {
                 <BackSlide
                     enabled={nested}
@@ -24,18 +21,18 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
                             string="Previous"
                             font_size=14.0
                             color=Color32::WHITE
-                            @node_ref={&previous_ref}
+                            @node_ref={&previous}
                         />
                     }}
                 >
-                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page_ref} />
+                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
                 </BackSlide>
             }
         }
     });
 
     let behind = move |harness: &Harness| {
-        watched
+        previous
             .try_get()
             .is_some_and(|id| harness.document().contains(id))
     };

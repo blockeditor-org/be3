@@ -5,12 +5,10 @@ use crate::styled::ModalSheet;
 
 #[test]
 fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
+    let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let (open, set_open) = create_signal(false);
-    let closing = set_open.clone();
     let document = build({
-        let sheet = sheet.clone();
-        let open = open.clone();
         move || {
             view! {
                 <List spacing=0.0>
@@ -19,7 +17,7 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
                         @node_ref=&sheet
                         open={open}
                         fit=true
-                        on_close={move || closing.set(false)}
+                        on_close={move || set_open.set(false)}
                     >
                         <Frame height=200.0 />
                     </ModalSheet>

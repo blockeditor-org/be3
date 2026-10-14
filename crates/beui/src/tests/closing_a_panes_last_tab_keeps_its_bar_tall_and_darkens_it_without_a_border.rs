@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Show, clone};
+use crate::reactive::Show;
 use crate::styled::Theme;
 
 #[test]
@@ -19,7 +19,7 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border()
                         <unstyled::DockTab
                             id=1u64
                             title="Tab 1"
-                            on_close={clone!(set_open -> move || set_open.set(false))}
+                            on_close={move || set_open.set(false)}
                         >
                             <Frame @test_id={"content.1"} />
                         </unstyled::DockTab>

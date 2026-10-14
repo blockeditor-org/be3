@@ -4,10 +4,10 @@ use crate::sight::CULLING_MARGIN;
 
 #[test]
 fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
+    let _root = crate::reactive::RootScope::new();
     let inside = EmbedSlot::new();
     let outside = EmbedSlot::new();
-    let first = inside.clone();
-    let second = outside.clone();
+    let first = inside;
 
     let document = build(move || {
         view! {
@@ -19,7 +19,7 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
                         </Frame>
                         <Frame height={CULLING_MARGIN} />
                         <Frame height=200.0>
-                            <Embed slot={second} />
+                            <Embed slot={outside} />
                         </Frame>
                         <Frame height=200.0>
                             <Embed slot={EmbedSlot::new()} />

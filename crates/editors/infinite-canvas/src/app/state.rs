@@ -16,8 +16,8 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::{
-    CanvasView, FilePick, Memo, Pasted, ReadSignal, WriteSignal, create_effect, create_signal,
-    pick_file, untrack,
+    CanvasView, FilePick, Memo, Pasted, ReadSignal, Stored, WriteSignal, create_effect,
+    create_signal, pick_file, store, untrack,
 };
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
@@ -222,10 +222,8 @@ pub(crate) struct Presence {
     pub(crate) selections: Vec<RemoteSelection>,
 }
 
-pub(crate) struct CanvasState {
-    editor: Editor,
-    preview: bool,
-    content: Rc<ContentProjection<CanvasContent>>,
+struct CanvasCells {
+    content: ContentProjection<CanvasContent>,
     dependencies: BlockList,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
@@ -234,13 +232,24 @@ pub(crate) struct CanvasState {
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
     retapped: Cell<Option<Uuid>>,
+    last_foreground: Cell<CanvasColor>,
+    last_fill: Cell<Option<CanvasColor>>,
+    children: RefCell<HashMap<Uuid, ChildState>>,
+    confirmed_editor: Cell<Option<Uuid>>,
+    shown: RefCell<Option<CanvasCursor>>,
+    color: Cell<Option<PresenceColor>>,
+    stage: Cell<Rect>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct CanvasState {
+    cells: Stored<CanvasCells>,
+    editor: Editor,
+    preview: bool,
     narrow: Memo<bool>,
     sheet: Option<WriteSignal<bool>>,
     pub(crate) pointer: ReadSignal<Option<CanvasPoint>>,
     set_pointer: WriteSignal<Option<CanvasPoint>>,
-    last_foreground: Cell<CanvasColor>,
-    last_fill: Cell<Option<CanvasColor>>,
-    children: RefCell<HashMap<Uuid, ChildState>>,
     pub(crate) entities: ReadSignal<Vec<CanvasEntity>>,
     pub(crate) tool: ReadSignal<Tool>,
     set_tool: WriteSignal<Tool>,
@@ -252,7 +261,6 @@ pub(crate) struct CanvasState {
     set_typed: WriteSignal<Option<CanvasEntity>>,
     pub(crate) focused_editor: ReadSignal<Option<Uuid>>,
     set_focused_editor: WriteSignal<Option<Uuid>>,
-    confirmed_editor: Cell<Option<Uuid>>,
     pub(crate) editing_text: ReadSignal<Option<Uuid>>,
     set_editing_text: WriteSignal<Option<Uuid>>,
     pub(crate) import_error: ReadSignal<Option<String>>,
@@ -268,13 +276,10 @@ pub(crate) struct CanvasState {
     pub(crate) presence: ReadSignal<Presence>,
     set_presence: WriteSignal<Presence>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
-    shown: RefCell<Option<CanvasCursor>>,
-    color: Cell<Option<PresenceColor>>,
-    pub(crate) stage: Cell<Rect>,
 }
 
 impl CanvasState {
-    pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, preview: bool) -> Self {
         let content = editor.block_content::<CanvasContent>();
         let entities = content.project(|canvas| canvas.root().entities());
         let (tool, set_tool) = create_signal(Tool::Select);
@@ -290,12 +295,10 @@ impl CanvasState {
         let (child_states, set_child_states) = create_signal(HashMap::new());
         let (presence, set_presence) = create_signal(Presence::default());
         let (pointer, set_pointer) = create_signal(None);
-        Rc::new(Self {
+        let cells = store(CanvasCells {
             dependencies: editor
                 .blocks()
                 .watch(BlockQuery::References(editor.block_id())),
-            editor: editor.clone(),
-            preview,
             content,
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
@@ -304,13 +307,22 @@ impl CanvasState {
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
             retapped: Cell::new(None),
+            last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
+            last_fill: Cell::new(CanvasEntityStyle::default().fill),
+            children: RefCell::new(HashMap::new()),
+            confirmed_editor: Cell::new(None),
+            shown: RefCell::new(None),
+            color: Cell::new(None),
+            stage: Cell::new(Rect::ZERO),
+        });
+        Self {
+            cells,
+            editor,
+            preview,
             narrow: narrow_chrome(),
             sheet: sheet_control(),
             pointer,
             set_pointer,
-            last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
-            last_fill: Cell::new(CanvasEntityStyle::default().fill),
-            children: RefCell::new(HashMap::new()),
             entities,
             tool,
             set_tool,
@@ -322,7 +334,6 @@ impl CanvasState {
             set_typed,
             focused_editor,
             set_focused_editor,
-            confirmed_editor: Cell::new(None),
             editing_text,
             set_editing_text,
             import_error,
@@ -338,14 +349,19 @@ impl CanvasState {
             presence,
             set_presence,
             peers: editor.peers::<CanvasCursor>(),
-            shown: RefCell::new(None),
-            color: Cell::new(None),
-            stage: Cell::new(Rect::ZERO),
-        })
+        }
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn is_alive(&self) -> bool {
+        self.cells.is_alive()
+    }
+
+    pub(crate) fn set_stage(&self, stage: Rect) {
+        self.cells.get().stage.set(stage);
+    }
+
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn previewing(&self) -> bool {
@@ -364,7 +380,7 @@ impl CanvasState {
         camera_view(
             self.editor.canvas().get_untracked(),
             self.editor.world().get_untracked(),
-            self.stage.get(),
+            self.cells.get().stage.get(),
             self.centre(),
         )
     }
@@ -386,7 +402,7 @@ impl CanvasState {
     }
 
     pub(crate) fn visible_world(&self) -> Rect {
-        self.camera().rect_to_canvas(self.stage.get())
+        self.camera().rect_to_canvas(self.cells.get().stage.get())
     }
 
     pub(crate) fn viewport_center(&self) -> CanvasPoint {
@@ -435,13 +451,15 @@ impl CanvasState {
     }
 
     pub(crate) fn report_child(&self, entity: Uuid, state: ChildState) {
-        self.children.borrow_mut().insert(entity, state);
-        let held = self.children.borrow().clone();
+        self.cells.get().children.borrow_mut().insert(entity, state);
+        let held = self.cells.get().children.borrow().clone();
         self.set_child_states.set(held);
     }
 
     fn peek_child(&self, entity: Uuid) -> ChildState {
-        self.children
+        self.cells
+            .get()
+            .children
             .borrow()
             .get(&entity)
             .cloned()
@@ -518,16 +536,18 @@ pub(crate) fn displayed_entities(
 impl CanvasState {
     fn operate(&self, operation: &InfiniteCanvasOperation) {
         if let Some(edit) = self
+            .cells
+            .get()
             .content
             .read(|canvas| canvas.root().edit_for(operation))
             && !edit.0.is_empty()
         {
-            self.content.operate(edit);
+            self.cells.get().content.operate(edit);
         }
     }
 
     pub(crate) fn record(&self, operation: InfiniteCanvasOperation) {
-        self.grouped_edit.set(false);
+        self.cells.get().grouped_edit.set(false);
         self.operate(&operation);
     }
 
@@ -543,7 +563,7 @@ impl CanvasState {
         let operation = InfiniteCanvasOperation::Update { entities: after };
         match group {
             true => {
-                self.grouped_edit.set(true);
+                self.cells.get().grouped_edit.set(true);
                 self.operate(&operation);
             }
             false => self.record(operation),
@@ -551,23 +571,23 @@ impl CanvasState {
     }
 
     pub(crate) fn finish_grouped_edit(&self) {
-        self.grouped_edit.set(false);
+        self.cells.get().grouped_edit.set(false);
     }
 
     pub(crate) fn default_style(&self) -> CanvasEntityStyle {
         CanvasEntityStyle {
-            foreground: self.last_foreground.get(),
-            fill: self.last_fill.get(),
+            foreground: self.cells.get().last_foreground.get(),
+            fill: self.cells.get().last_fill.get(),
             ..CanvasEntityStyle::default()
         }
     }
 
     pub(crate) fn remember_foreground(&self, color: CanvasColor) {
-        self.last_foreground.set(color);
+        self.cells.get().last_foreground.set(color);
     }
 
     pub(crate) fn remember_fill(&self, fill: Option<CanvasColor>) {
-        self.last_fill.set(fill);
+        self.cells.get().last_fill.set(fill);
     }
 
     pub(crate) fn set_tool(&self, tool: Tool) {
@@ -598,7 +618,7 @@ impl CanvasState {
             self.set_focused_editor.set(entity);
         }
         if entity.is_none() {
-            self.confirmed_editor.set(None);
+            self.cells.get().confirmed_editor.set(None);
         }
     }
 
@@ -635,11 +655,11 @@ impl CanvasState {
     }
 
     pub(crate) fn take_context_position(&self) -> Option<CanvasPoint> {
-        self.context_position.take()
+        self.cells.get().context_position.take()
     }
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
-        self.context_position.set(at);
+        self.cells.get().context_position.set(at);
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
@@ -649,27 +669,27 @@ impl CanvasState {
     }
 
     pub(crate) fn hold_pointer(&self, down: bool) {
-        self.pointer_down.set(down);
+        self.cells.get().pointer_down.set(down);
     }
 
     pub(crate) fn pointer_held(&self) -> bool {
-        self.pointer_down.get()
+        self.cells.get().pointer_down.get()
     }
 
     pub(crate) fn note_touch(&self, touch: bool) {
-        self.touch.set(touch);
+        self.cells.get().touch.set(touch);
     }
 
     pub(crate) fn touching(&self) -> bool {
-        self.touch.get()
+        self.cells.get().touch.get()
     }
 
     pub(crate) fn note_retap(&self, id: Option<Uuid>) {
-        self.retapped.set(id);
+        self.cells.get().retapped.set(id);
     }
 
     pub(crate) fn take_retap(&self) -> Option<Uuid> {
-        self.retapped.take()
+        self.cells.get().retapped.take()
     }
 
     pub(crate) fn dismiss_import_error(&self) {
@@ -1147,11 +1167,13 @@ impl CanvasState {
         true
     }
 
-    pub(crate) fn open_block_picker(self: &Rc<Self>, center: Option<CanvasPoint>) {
-        let state = Rc::downgrade(self);
+    pub(crate) fn open_block_picker(self, center: Option<CanvasPoint>) {
+        let state = self;
         self.editor
             .pick_block(BlockFilter::default(), move |picked| {
-                if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
+                if let Ok(picked) = picked
+                    && state.is_alive()
+                {
                     state.place_picked_block(picked.id, center);
                 }
             });
@@ -1166,23 +1188,23 @@ impl CanvasState {
         self.put_down_tool();
     }
 
-    pub(crate) fn open_image_picker(self: &Rc<Self>, center: Option<CanvasPoint>) {
-        self.pending_image_center.set(center);
-        let state = Rc::downgrade(self);
+    pub(crate) fn open_image_picker(self, center: Option<CanvasPoint>) {
+        self.cells.get().pending_image_center.set(center);
+        let state = self;
         pick_file(image_filter(), move |pick| {
-            if let Some(state) = state.upgrade() {
+            if state.is_alive() {
                 state.take_image_pick(pick);
             }
         });
     }
 
-    pub(crate) fn open_component_picker(self: &Rc<Self>) {
+    pub(crate) fn open_component_picker(self) {
         let selected = self
             .selected_entities()
             .iter()
             .map(|entity| entity.id)
             .collect::<HashSet<_>>();
-        let state = Rc::downgrade(self);
+        let state = self;
         self.editor.pick_block(
             BlockFilter {
                 name: "Component".to_owned(),
@@ -1192,7 +1214,9 @@ impl CanvasState {
                 place: None,
             },
             move |picked| {
-                if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
+                if let Ok(picked) = picked
+                    && state.is_alive()
+                {
                     state.attach_picked_component(&selected, picked.id);
                 }
             },
@@ -1207,7 +1231,7 @@ impl CanvasState {
     }
 
     pub(crate) fn open_value_picker(
-        self: &Rc<Self>,
+        self,
         schema_id: Uuid,
         field_id: Uuid,
         block_type: Option<Uuid>,
@@ -1223,9 +1247,11 @@ impl CanvasState {
             },
             None => BlockFilter::default(),
         };
-        let state = Rc::downgrade(self);
+        let state = self;
         self.editor.pick_block(filter, move |picked| {
-            if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
+            if let Ok(picked) = picked
+                && state.is_alive()
+            {
                 state.set_picked_value(&selected, schema_id, field_id, picked.id);
             }
         });
@@ -1746,16 +1772,16 @@ impl CanvasState {
 }
 
 impl CanvasState {
-    pub(crate) fn watch(self: &Rc<Self>) {
-        let state = Rc::clone(self);
+    pub(crate) fn watch(self) {
+        let state = self;
         create_effect(move || state.publish_references());
-        let state = Rc::clone(self);
+        let state = self;
         let drag = self.editor.drag();
         create_effect(move || {
             let drag = drag.get();
             untrack(|| state.take_drag(drag));
         });
-        let state = Rc::clone(self);
+        let state = self;
         let files = self.editor.files();
         create_effect(move || {
             let drop = files.get();
@@ -1764,13 +1790,13 @@ impl CanvasState {
         if self.preview {
             return;
         }
-        let state = Rc::clone(self);
+        let state = self;
         create_effect(move || {
             state.entities.with(|_| ());
             state.child_states.with(|_| ());
             untrack(|| state.autosize_direct_editors());
         });
-        let state = Rc::clone(self);
+        let state = self;
         let visible = self.editor.presence_visible();
         create_effect(move || {
             visible.with(|_| ());
@@ -1778,13 +1804,13 @@ impl CanvasState {
             state.selection.with(|_| ());
             untrack(|| state.publish_presence());
         });
-        let state = Rc::clone(self);
+        let state = self;
         create_effect(move || {
             state.entities.with(|_| ());
             state.peers.with(|_| ());
             untrack(|| state.read_presence());
         });
-        let state = Rc::clone(self);
+        let state = self;
         let resized = self.editor.resized();
         create_effect(move || {
             let Some(size) = resized.get() else {
@@ -1792,7 +1818,7 @@ impl CanvasState {
             };
             untrack(|| state.resize_first_artboard(size));
         });
-        let state = Rc::clone(self);
+        let state = self;
         let revealed = self.editor.revealed();
         create_effect(move || {
             let Some(client_id) = revealed.get() else {
@@ -1804,7 +1830,7 @@ impl CanvasState {
 
     fn publish_references(&self) {
         let catalog = self.types();
-        let dependencies = self.dependencies.read();
+        let dependencies = self.cells.get().dependencies.read();
         let labels: HashMap<Uuid, BlockLabel> = dependencies
             .iter()
             .map(|reference| (reference.id, reference.label(catalog.as_ref())))
@@ -1845,6 +1871,8 @@ impl CanvasState {
             Ok(Some(image)) => {
                 self.set_import_error.set(None);
                 let center = self
+                    .cells
+                    .get()
                     .pending_image_center
                     .take()
                     .unwrap_or_else(|| self.viewport_center());
@@ -1852,10 +1880,10 @@ impl CanvasState {
                 self.put_down_tool();
             }
             Err(error) => {
-                self.pending_image_center.set(None);
+                self.cells.get().pending_image_center.set(None);
                 self.set_import_error.set(Some(error));
             }
-            Ok(None) => self.pending_image_center.set(None),
+            Ok(None) => self.cells.get().pending_image_center.set(None),
         }
     }
 
@@ -1882,16 +1910,16 @@ impl CanvasState {
             return;
         }
         let Some(drop) = drop else {
-            self.pending_file_drop.set(None);
+            self.cells.get().pending_file_drop.set(None);
             return;
         };
         let at = self.world_at(drop.position);
         if !drop.dropped {
-            self.pending_file_drop.set(Some(at));
+            self.cells.get().pending_file_drop.set(Some(at));
             return;
         }
         self.set_import_error.set(None);
-        let base = self.pending_file_drop.take().unwrap_or(at);
+        let base = self.cells.get().pending_file_drop.take().unwrap_or(at);
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
             self.add_imported_image(
@@ -1916,14 +1944,14 @@ impl CanvasState {
 
     fn publish_presence(&self) {
         let cursor = self.editor.presence_visible().get_untracked().then(|| {
-            let color = self.color.get().unwrap_or_else(|| {
+            let color = self.cells.get().color.get().unwrap_or_else(|| {
                 let used = self
                     .peers
                     .get_untracked()
                     .into_iter()
                     .map(|(_, cursor)| cursor.color);
                 let color = pick_free_color(used);
-                self.color.set(Some(color));
+                self.cells.get().color.set(Some(color));
                 color
             });
             CanvasCursor {
@@ -1932,11 +1960,11 @@ impl CanvasState {
                 color,
             }
         });
-        if *self.shown.borrow() == cursor {
+        if *self.cells.get().shown.borrow() == cursor {
             return;
         }
         self.editor.show(cursor.as_ref());
-        self.shown.replace(cursor);
+        self.cells.get().shown.replace(cursor);
     }
 
     fn read_presence(&self) {
@@ -2009,7 +2037,7 @@ impl CanvasState {
     }
 
     fn fit_into_view(&self, bounds: WorldRect) {
-        let stage = self.stage.get();
+        let stage = self.cells.get().stage.get();
         let available = (stage.size() - Vec2::splat(40.0)).max(Vec2::splat(1.0));
         let target = bounds.rect();
         let scale = self.scale();

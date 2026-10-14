@@ -2,15 +2,13 @@ use super::*;
 
 #[test]
 fn a_mock_dom_follows_its_signals_through_show_and_for_each() {
+    let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let (title, set_title) = create_signal("Groceries".to_string());
     let (items, set_items) = create_signal(vec!["milk".to_string(), "eggs".to_string()]);
     let page = scope.run(|| {
-        let empty = create_memo({
-            let items = items.clone();
-            move || items.get().is_empty()
-        });
+        let empty = create_memo(move || items.get().is_empty());
         view! {
             <Element tag="div">
                 <Element tag="h1" text={title} />

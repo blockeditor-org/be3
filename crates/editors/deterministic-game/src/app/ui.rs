@@ -3,8 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show, Text,
-    clone, component, create_effect, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
+    Stored, Text, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, IconButton, IconButtonSize, Paragraph,
@@ -159,9 +159,9 @@ impl GameSnapshot {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Steps {
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     count: Memo<usize>,
     shown: Memo<usize>,
 }
@@ -169,7 +169,7 @@ pub(crate) struct Steps {
 impl Steps {
     pub(crate) fn show(&self, shown: usize) {
         let count = self.count.get_untracked();
-        self.game.show_turns((shown < count).then_some(shown));
+        self.game.get().show_turns((shown < count).then_some(shown));
     }
 
     pub(crate) fn first(&self) {
@@ -192,14 +192,13 @@ impl Steps {
 #[component]
 pub(crate) fn Game(
     editor: Editor,
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     snapshot: ReadSignal<GameSnapshot>,
 ) -> NodeId {
     view! {
         <List spacing=0.0>
             <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
                 {move |snapshot: ReadSignal<GameSnapshot>| {
-                    let (editor, game) = (editor.clone(), game.clone());
                     view! {
                         <GameShape editor game snapshot @sizing=ItemSize::Percent(100.0) />
                     }
@@ -212,20 +211,20 @@ pub(crate) fn Game(
 #[component]
 fn GameShape(
     editor: Editor,
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     snapshot: ReadSignal<GameSnapshot>,
 ) -> NodeId {
     let shape = snapshot.get_untracked().shape();
     let loading = shape == Shape::Loading;
     let failed = shape == Shape::Error;
     let playing = shape == Shape::Screen;
-    let failure = snapshot.clone();
+    let failure = snapshot;
     let theme = use_theme();
     view! {
         <List spacing=0.0>
             <Show condition=loading>
                 <Frame
-                    color={theme.surface.clone()}
+                    color={theme.surface}
                     padding_horizontal=PANEL_PADDING
                     padding_vertical=PANEL_PADDING
                 >
@@ -233,13 +232,13 @@ fn GameShape(
                 </Frame>
             </Show>
             <Show condition=failed>
-                <GameError snapshot={failure.clone()} />
+                <GameError snapshot={failure} />
             </Show>
             <Show condition=playing>
                 <GamePlay
-                    editor={editor.clone()}
-                    game={game.clone()}
-                    snapshot={snapshot.clone()}
+                    editor={editor}
+                    game={game}
+                    snapshot={snapshot}
                     @sizing=ItemSize::Percent(100.0)
                 />
             </Show>
@@ -260,9 +259,9 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Panel {
-    game: Rc<dyn GameModel>,
+    game: Stored<Rc<dyn GameModel>>,
     play: Play,
     controls: Memo<Vec<Action>>,
     editable: Memo<bool>,
@@ -273,36 +272,39 @@ struct Panel {
 }
 
 #[component]
-fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> NodeId {
+fn GamePlay(
+    editor: Editor,
+    game: Stored<Rc<dyn GameModel>>,
+    snapshot: ReadSignal<GameSnapshot>,
+) -> NodeId {
     let screen = create_memo(move || snapshot.get().as_screen());
-    let actions = create_memo(clone!(screen -> move || screen.get().actions));
-    let editable = create_memo(clone!(screen -> move || screen.get().editable));
-    let board = create_memo(clone!(screen -> move || screen.get().board));
-    let seat = create_memo(clone!(screen -> move || screen.get().seat));
-    let table = create_memo(clone!(screen -> move || screen.get().table));
-    let count = create_memo(clone!(table -> move || table.with(|table| table.history.len())));
-    let shown =
-        create_memo(clone!(screen count -> move || screen.get().shown.unwrap_or(count.get())));
-    let controls = create_memo(clone!(actions -> move || {
+    let actions = create_memo(move || screen.get().actions);
+    let editable = create_memo(move || screen.get().editable);
+    let board = create_memo(move || screen.get().board);
+    let seat = create_memo(move || screen.get().seat);
+    let table = create_memo(move || screen.get().table);
+    let count = create_memo(move || table.with(|table| table.history.len()));
+    let shown = create_memo(move || screen.get().shown.unwrap_or(count.get()));
+    let controls = create_memo(move || {
         actions
             .get()
             .into_iter()
             .filter(|action| matches!(action.gesture, None | Some(Gesture::Control(_))))
             .collect::<Vec<_>>()
-    }));
+    });
     let (selected, set_selected) = create_signal(None);
     let (choices, set_choices) = create_signal(Vec::new());
     let (dragging, set_dragging) = create_signal(None);
     let (over, set_over) = create_signal(None);
-    create_effect(clone!(actions set_selected set_choices -> move || {
+    create_effect(move || {
         actions.with(|_| {});
         set_selected.set(None);
         set_choices.set(Vec::new());
-    }));
+    });
     let play = Play {
-        game: game.clone(),
+        game,
         actions,
-        editable: editable.clone(),
+        editable,
         selected,
         set_selected,
         choices,
@@ -312,50 +314,34 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
         over,
         set_over,
     };
-    let drawn = create_memo(clone!(board -> move || board.with(Layout::of)));
-    let hand = create_memo(clone!(board -> move || board.with(|board| board.hand.clone())));
-    let sized = editor.clone();
-    create_effect(clone!(drawn -> move || {
+    let drawn = create_memo(move || board.with(Layout::of));
+    let hand = create_memo(move || board.with(|board| board.hand.clone()));
+    create_effect(move || {
         let size = drawn.with(|layout| layout.size);
-        sized.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
-    }));
+        editor.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
+    });
     let world = editor.world();
-    let layout =
-        create_memo(clone!(drawn -> move || drawn.with(|layout| layout.centered_in(world.get()))));
-    let steps = Steps {
-        game: game.clone(),
-        count,
-        shown: shown.clone(),
-    };
+    let layout = create_memo(move || drawn.with(|layout| layout.centered_in(world.get())));
+    let steps = Steps { game, count, shown };
     let panel = Panel {
         game,
-        play: play.clone(),
+        play,
         controls,
         editable,
         seat,
-        table: table.clone(),
+        table,
         shown,
-        steps: steps.clone(),
+        steps,
     };
     let stage = NodeRef::new();
     editor.content(&stage);
     let chrome = editor.chrome_shown();
-    let banner_anchor = stage.clone();
+    let banner_anchor = stage;
     view! {
         <List spacing=0.0>
             <Keyed value={chrome} key={|shown: bool| shown}>
                 {move |chrome: ReadSignal<bool>| {
-                    let stage = stage.clone();
-                    let (editor, play, drawn, layout, hand, steps, panel) = (
-                        editor.clone(),
-                        play.clone(),
-                        drawn.clone(),
-                        layout.clone(),
-                        hand.clone(),
-                        steps.clone(),
-                        panel.clone(),
-                    );
-                    match chrome.get_untracked() {
+                                        match chrome.get_untracked() {
                         true => view! {
                             <List
                                 direction=Direction::Horizontal
@@ -364,7 +350,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                             >
                                 <Stage
                                     @sizing=ItemSize::Percent(100.0)
-                                    content={stage.clone()}
+                                    content={stage}
                                     editor
                                     play
                                     drawn
@@ -378,7 +364,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                         false => view! {
                             <Stage
                                 @sizing=ItemSize::Percent(100.0)
-                                content={stage.clone()}
+                                content={stage}
                                 editor
                                 play
                                 drawn
@@ -408,19 +394,17 @@ fn Sidebar(panel: Panel) -> NodeId {
         shown,
         steps,
     } = panel;
-    let names = create_memo(clone!(seat -> move || seat.get().names));
-    let seat_keys =
-        create_memo(clone!(names -> move || (0..names.get().len()).collect::<Vec<_>>()));
-    let playing = create_memo(clone!(seat -> move || Some(seat.get().playing)));
-    let seated = clone!(game -> move |seat: Option<usize>| {
+    let names = create_memo(move || seat.get().names);
+    let seat_keys = create_memo(move || (0..names.get().len()).collect::<Vec<_>>());
+    let playing = create_memo(move || Some(seat.get().playing));
+    let seated = move |seat: Option<usize>| {
         if let Some(seat) = seat {
-            game.play_as(seat);
+            game.get().play_as(seat);
         }
-    });
-    let choosing = create_memo(clone!(play -> move || !play.choices.with(Vec::is_empty)));
-    let choosing_play = play.clone();
+    };
+    let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     view! {
-        <Frame color={theme.surface.clone()}>
+        <Frame color={theme.surface}>
             <Scroll>
                 <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
                     <List spacing=SECTION_SPACING>
@@ -430,11 +414,11 @@ fn Sidebar(panel: Panel) -> NodeId {
                                 options={view! {
                                     <ForEach keys={seat_keys}>
                                         {move |seat: usize| {
-                                            let label = create_memo(clone!(names -> move || {
+                                            let label = create_memo(move || {
                                                 names.with(|names| {
                                                     names.get(seat).cloned().unwrap_or_default()
                                                 })
-                                            }));
+                                            });
                                             view! {
                                                 <ChoiceOption label />
                                             }
@@ -449,7 +433,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                             />
                         </List>
                         <Show condition={choosing}>
-                            <Choices play={choosing_play.clone()} />
+                            <Choices play={play} />
                         </Show>
                         <Separator />
                         <MoveTable table shown steps />
@@ -462,14 +446,17 @@ fn Sidebar(panel: Panel) -> NodeId {
 }
 
 #[component]
-fn Controls(game: Rc<dyn GameModel>, controls: Memo<Vec<Action>>, editable: Memo<bool>) -> NodeId {
+fn Controls(
+    game: Stored<Rc<dyn GameModel>>,
+    controls: Memo<Vec<Action>>,
+    editable: Memo<bool>,
+) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <ForEach keys={controls}>
                 {move |action: Action| {
-                    let game = game.clone();
                     view! {
-                        <ControlButton game action editable={editable.clone()} />
+                        <ControlButton game action editable={editable} />
                     }
                 }}
             </ForEach>
@@ -478,10 +465,10 @@ fn Controls(game: Rc<dyn GameModel>, controls: Memo<Vec<Action>>, editable: Memo
 }
 
 #[component]
-fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) -> NodeId {
+fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo<bool>) -> NodeId {
     let disabled = create_memo(move || !editable.get());
     let (confirming, set_confirming) = create_signal(false);
-    let asking = create_memo(clone!(confirming -> move || !confirming.get()));
+    let asking = create_memo(move || !confirming.get());
     let glyph = match action.gesture {
         Some(Gesture::Control(Control::Resign)) => ICON_FLAG,
         _ => ICON_CHECK,
@@ -491,23 +478,23 @@ fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) 
     let question = format!("{label}?");
     let confirm = format!("Confirm: {label}");
     let effect = action.effect;
-    let (ask, cancel) = (set_confirming.clone(), set_confirming.clone());
-    let asking_disabled = disabled.clone();
+    let (ask, cancel) = (set_confirming, set_confirming);
+    let asking_disabled = disabled;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Show condition={asking}>
-                {move || clone!(ask -> view! {
+                {move || view! {
                     <IconButton
                         glyph={glyph.to_owned()}
                         label={label.clone()}
-                        disabled={asking_disabled.clone()}
+                        disabled={asking_disabled}
                         @test_id={format!("game.control.{index}")}
                         on_click={move || ask.set(true)}
                     />
-                })}
+                }}
             </Show>
             <Show condition={confirming}>
-                {move || clone!(cancel confirm disabled effect game question -> view! {
+                {move || { let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Caption content={question} />
                         <IconButton
@@ -515,7 +502,7 @@ fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) 
                             label={confirm}
                             disabled={disabled}
                             @test_id={format!("game.control.{index}.confirm")}
-                            on_click={move || game.choose(effect.clone())}
+                            on_click={move || game.get().choose(effect.clone())}
                         />
                         <IconButton
                             glyph={ICON_CLOSE.to_owned()}
@@ -524,7 +511,7 @@ fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) 
                             on_click={move || cancel.set(false)}
                         />
                     </List>
-                })}
+                } }}
             </Show>
         </List>
     }
@@ -534,15 +521,13 @@ fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) 
 fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
     let ending = create_memo(move || table.with(|table| table.ending.clone()));
     let (dismissed, set_dismissed) = create_signal(false);
-    create_effect(clone!(ending set_dismissed -> move || {
+    create_effect(move || {
         if ending.with(Option::is_none) {
             set_dismissed.set(false);
         }
-    }));
-    let open = create_memo(clone!(ending dismissed -> move || {
-        ending.with(Option::is_some) && !dismissed.get()
-    }));
-    let text = create_memo(clone!(ending -> move || {
+    });
+    let open = create_memo(move || ending.with(Option::is_some) && !dismissed.get());
+    let text = create_memo(move || {
         ending.with(|ending| {
             ending
                 .as_ref()
@@ -552,18 +537,18 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                 })
                 .unwrap_or_default()
         })
-    }));
+    });
     let theme = use_theme();
-    let color = create_memo(clone!(theme -> move || theme.get().text));
+    let color = create_memo(move || theme.get().text);
     view! {
         <unstyled::Floating anchor open={open}>
             <Frame padding_horizontal=BANNER_MARGIN padding_vertical=BANNER_MARGIN>
                 <Frame
-                    color={theme.surface_raised.clone()}
+                    color={theme.surface_raised}
                     radius=8
                     padding_horizontal=14.0
                     padding_vertical=8.0
-                    outline={theme.border.clone()}
+                    outline={theme.border}
                     outline_width=1.0
                     outline_visible=true
                     @test_id={"game.banner"}
@@ -599,14 +584,13 @@ fn Choices(play: Play) -> NodeId {
 
 #[component]
 fn ChoiceButtons(play: Play) -> NodeId {
-    let choices = play.choices.clone();
+    let choices = play.choices;
     let keys = create_memo(move || choices.get());
-    let cancel = clone!(play -> move || play.cancel());
+    let cancel = move || play.cancel();
     view! {
         <List spacing=6.0>
             <ForEach keys={keys}>
                 {move |action: Action| {
-                    let play = play.clone();
                     let index = action.index;
                     view! {
                         <Button
@@ -658,12 +642,12 @@ pub(crate) struct CreationSnapshot {
 
 #[component]
 pub(crate) fn GameCreation(
-    creation: Rc<dyn GameCreationModel>,
+    creation: Stored<Rc<dyn GameCreationModel>>,
     snapshot: ReadSignal<CreationSnapshot>,
 ) -> NodeId {
-    let picking = create_memo(clone!(snapshot -> move || snapshot.get().picking));
-    let games = create_memo(clone!(snapshot -> move || snapshot.get().games));
-    let status = create_memo(clone!(snapshot -> move || {
+    let picking = create_memo(move || snapshot.get().picking);
+    let games = create_memo(move || snapshot.get().games);
+    let status = create_memo(move || {
         let snapshot = snapshot.get();
         if let Some(error) = snapshot.error {
             return error;
@@ -678,24 +662,22 @@ pub(crate) fn GameCreation(
             return "This app has no games of its own".to_owned();
         }
         String::new()
-    }));
-    let has_status = create_memo(clone!(status -> move || !status.get().is_empty()));
+    });
+    let has_status = create_memo(move || !status.get().is_empty());
     let theme = use_theme();
-    let status_color = create_memo(clone!(theme snapshot -> move || {
+    let status_color = create_memo(move || {
         let theme = theme.get();
         if snapshot.get().error.is_some() {
             theme.danger
         } else {
             theme.text_muted
         }
-    }));
-    let staged = creation.clone();
+    });
     view! {
         <Frame padding_horizontal=14.0 padding_vertical=14.0>
             <List spacing=10.0 align=Align::Start>
                 <ForEach keys={games}>
                     {move |game: StagedChoice| {
-                        let creation = staged.clone();
                         let index = game.index;
                         let (variant, disabled, caption) = match &game.state {
                             StagedState::Loading => (ButtonVariant::Secondary, true, String::new()),
@@ -716,12 +698,12 @@ pub(crate) fn GameCreation(
                                     variant
                                     disabled
                                     @test_id={format!("game.staged.{index}")}
-                                    on_click={move || creation.choose_staged(index)}
+                                    on_click={move || creation.get().choose_staged(index)}
                                 />
                                 <Show condition={failed}>
                                     <Caption
                                         content={caption.clone()}
-                                        color={theme.danger.clone()}
+                                        color={theme.danger}
                                         wrap=true
                                     />
                                 </Show>
@@ -734,14 +716,10 @@ pub(crate) fn GameCreation(
                     variant=ButtonVariant::Secondary
                     disabled={picking}
                     @test_id={"game.choose"}
-                    on_click={move || creation.choose_module()}
+                    on_click={move || creation.get().choose_module()}
                 />
                 <Show condition={has_status}>
-                    <Caption
-                        content={status.clone()}
-                        color={status_color.clone()}
-                        @test_id={"game.selection"}
-                    />
+                    <Caption content={status} color={status_color} @test_id={"game.selection"} />
                 </Show>
             </List>
         </Frame>

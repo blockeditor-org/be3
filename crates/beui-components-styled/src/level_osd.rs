@@ -1,6 +1,4 @@
 use beui_core::layer::{LayerLevel, LayerPolicy};
-use std::cell::Cell;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role};
@@ -14,8 +12,9 @@ use beui_core::geometry::{Rect, pos2};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, List, Memo, Prop, ReadSignal, clone, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, now, untrack, use_screens,
+    Align, Direction, ForEach, Frame, List, Memo, Prop, ReadSignal, StoredCell,
+    component_accessibility, create_effect, create_memo, create_signal, create_timer, now, untrack,
+    use_screens,
 };
 
 pub const OSD_DURATION: Duration = Duration::from_millis(1500);
@@ -48,9 +47,9 @@ pub fn LevelOsd(
     #[prop(default = OSD_DURATION)] duration: Duration,
     #[prop(default = "level-osd".to_owned())] id: String,
 ) -> NodeId {
-    let since: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
+    let since = StoredCell::new(None::<Instant>);
     let (opacity, set_opacity) = create_signal(0.0_f32);
-    let ticking = create_timer(clone!(since set_opacity -> move || {
+    let ticking = create_timer(move || {
         let started = since.get()?;
         let elapsed = now().saturating_duration_since(started);
         if elapsed < duration {
@@ -64,7 +63,7 @@ pub fn LevelOsd(
         }
         set_opacity.set(1.0 - faded);
         Some(FRAME)
-    }));
+    });
     create_effect(move || {
         let shown = shown.get();
         untrack(|| {
@@ -77,18 +76,14 @@ pub fn LevelOsd(
         });
     });
     let level = create_memo(move || level.get());
-    let open = create_memo(clone!(opacity level -> move || {
-        opacity.get() > 0.0 && level.with(Option::is_some)
-    }));
+    let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
     let screens = use_screens();
-    let places = create_memo(clone!(screens -> move || {
-        (0..screens.with(Vec::len)).collect::<Vec<usize>>()
-    }));
+    let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=0.0>
             <ForEach keys={places}>
                 {move |index: usize| {
-                    let anchored = create_memo(clone!(screens -> move || {
+                    let anchored = create_memo(move || {
                         let screen = screens.with(|screens| {
                             screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
                         });
@@ -96,8 +91,8 @@ pub fn LevelOsd(
                             screen.center().x,
                             screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
                         ))
-                    }));
-                    let (open, level, opacity) = (open.clone(), level.clone(), opacity.clone());
+                    });
+                    let (open, level, opacity) = (open, level, opacity);
                     let id = format!("{id}.{index}");
                     view! {
                         <Overlay
@@ -107,9 +102,10 @@ pub fn LevelOsd(
                             level=LayerLevel::Top
                             traps_focus=false
                             open={open}
-                        >
-                            <OsdCard level opacity id />
-                        </Overlay>
+                            content={move || view! {
+                                <OsdCard level opacity id />
+                            }}
+                        />
                     }
                 }}
             </ForEach>
@@ -121,39 +117,38 @@ pub fn LevelOsd(
 fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
     let theme = use_theme();
     let faded = move |color: Memo<Color32>| {
-        let opacity = opacity.clone();
+        let opacity = opacity;
         create_memo(move || color.get().scale_alpha(opacity.get()))
     };
-    let shown = level.clone();
+    let shown = level;
     let muted =
         create_memo(move || shown.with(|level| level.as_ref().is_some_and(|level| level.muted)));
-    let raised = theme.surface_raised.clone();
-    let border = theme.border.clone();
-    let track = theme.track.clone();
-    let (text, text_muted, accent) = (
-        theme.text.clone(),
-        theme.text_muted.clone(),
-        theme.accent.clone(),
-    );
+    let raised = theme.surface_raised;
+    let border = theme.border;
+    let track = theme.track;
+    let (text, text_muted, accent) = (theme.text, theme.text_muted, theme.accent);
     let card = faded(create_memo(move || raised.get()));
     let outline = faded(create_memo(move || border.get()));
     let rail = faded(create_memo(move || track.get()));
-    let glyph_color = faded(create_memo(
-        clone!(muted text_muted -> move || match muted.get() {
-            true => text_muted.get(),
-            false => text.get(),
-        }),
-    ));
+    let glyph_color = faded(create_memo(move || match muted.get() {
+        true => text_muted.get(),
+        false => text.get(),
+    }));
     let fill = faded(create_memo(move || match muted.get() {
         true => text_muted.get(),
         false => accent.get(),
     }));
-    let glyph = create_memo(clone!(level -> move || {
-        level.with(|level| level.as_ref().map(|level| level.glyph.clone()).unwrap_or_default())
-    }));
-    let filled = create_memo(clone!(level -> move || {
+    let glyph = create_memo(move || {
+        level.with(|level| {
+            level
+                .as_ref()
+                .map(|level| level.glyph.clone())
+                .unwrap_or_default()
+        })
+    });
+    let filled = create_memo(move || {
         level.with(|level| level.as_ref().map(|level| level.level.clamp(0.0, 1.0)))
-    }));
+    });
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::ProgressIndicator);
         if let Some(level) = level.get() {

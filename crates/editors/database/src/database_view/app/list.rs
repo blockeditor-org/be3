@@ -6,7 +6,7 @@ use block_editor_beui::be_block::database_schema::{
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
 use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList,
-    clone, component, create_memo, view,
+    component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
 use block_editor_beui::beui::styled::{
@@ -49,8 +49,8 @@ pub enum Part {
 
 #[component]
 pub fn ListView(data: Data) -> NodeId {
-    let groups = visible_groups(&data);
-    let lines = create_memo(clone!(data groups -> move || {
+    let groups = visible_groups(data);
+    let lines = create_memo(move || {
         let toggled = data.toggled.get();
         let ids = data.row_ids.get();
         groups.with(|groups| {
@@ -71,34 +71,31 @@ pub fn ListView(data: Data) -> NodeId {
             }
             lines
         })
-    }));
-    let empty = create_memo(clone!(groups -> move || {
-        groups.with(|groups| groups.iter().all(|group| group.rows.is_empty()))
-    }));
-    let blank = create_memo(clone!(data -> move || {
-        match data.search.with(|search| search.trim().is_empty()) {
+    });
+    let empty =
+        create_memo(move || groups.with(|groups| groups.iter().all(|group| group.rows.is_empty())));
+    let blank = create_memo(
+        move || match data.search.with(|search| search.trim().is_empty()) {
             true => "Nothing here yet.".to_owned(),
             false => "No rows match the search.".to_owned(),
-        }
-    }));
-    let rows = data.clone();
+        },
+    );
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Scroll>
                 <Frame padding_bottom={Some(GUTTER * 2.0)}>
                     <List spacing=0.0>
                         <Show condition={empty}>
-                            {move || clone!(blank -> view! {
+                            {move || view! {
                                 <Frame padding_horizontal={GUTTER * 1.5} padding_vertical=GUTTER>
                                     <Caption content={blank} />
                                 </Frame>
-                            })}
+                            }}
                         </Show>
                         <VirtualList keys={lines} item_size=LINE_HEIGHT>
                             {move |line: Line| {
-                                let data = rows.clone();
-                                let groups = groups.clone();
+                                let groups = groups;
                                 match line {
                                     Line::Header(key) => view! {
                                         <GroupHeader data={data} groups={groups} key={key} />
@@ -122,38 +119,40 @@ pub fn RowBeside(
     enabled: bool,
     children: block_editor_beui::beui::reactive::Child,
 ) -> NodeId {
-    let selected = create_memo(
-        clone!(data -> move || match enabled && data.kind.get() != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet {
+    let selected = create_memo(move || {
+        match enabled
+            && data.kind.get()
+                != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet
+        {
             true => data.selected_row(),
             false => None,
-        }),
-    );
-    let open = create_memo(clone!(selected -> move || selected.get().is_some()));
+        }
+    });
+    let open = create_memo(move || selected.get().is_some());
     let narrow = narrow_chrome();
-    let main_shown = create_memo(clone!(narrow open -> move || !(narrow.get() && open.get())));
-    let beside = create_memo(clone!(narrow open -> move || !narrow.get() && open.get()));
-    let instead = create_memo(clone!(narrow open -> move || narrow.get() && open.get()));
-    let (side, full) = (data.clone(), data);
-    let (side_row, full_row) = (selected.clone(), selected);
+    let main_shown = create_memo(move || !(narrow.get() && open.get()));
+    let beside = create_memo(move || !narrow.get() && open.get());
+    let instead = create_memo(move || narrow.get() && open.get());
+    let (side_row, full_row) = (selected, selected);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Layers @sizing=ItemSize::Percent(100.0)>
                 <Frame visible={main_shown}>{children}</Frame>
                 <Show condition={instead}>
-                    {move || clone!(full full_row -> view! {
-                        <OpenRow data={full} row={full_row} />
-                    })}
+                    {move || view! {
+                        <OpenRow data={data} row={full_row} />
+                    }}
                 </Show>
             </Layers>
             <Show condition={beside}>
-                {move || clone!(side side_row -> view! {
+                {move || view! {
                     <Frame @sizing=ItemSize::Fixed(PANEL_WIDTH)>
                         <List direction=Direction::Horizontal spacing=0.0>
                             <Separator direction=Direction::Vertical />
-                            <OpenRow @sizing=ItemSize::Percent(100.0) data={side} row={side_row} />
+                            <OpenRow @sizing=ItemSize::Percent(100.0) data={data} row={side_row} />
                         </List>
                     </Frame>
-                })}
+                }}
             </Show>
         </List>
     }
@@ -165,7 +164,6 @@ fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
         <List spacing=0.0>
             <Dynamic value={row}>
                 {move |row: Option<ObjectId>| {
-                    let data = data.clone();
                     match row {
                         Some(row) => view! {
                             <RowPanel @sizing=ItemSize::Percent(100.0) data={data} row={row} />
@@ -180,37 +178,48 @@ fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     }
 }
 
-pub fn visible_groups(data: &Data) -> Memo<Vec<Group>> {
-    data.groups.clone()
+pub fn visible_groups(data: Data) -> Memo<Vec<Group>> {
+    data.groups
 }
 
 #[component]
 fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
-    let group = create_memo(clone!(groups -> move || {
+    let group = create_memo(move || {
         groups.with(|groups| groups.iter().find(|group| group.key == key).cloned())
-    }));
-    let label = create_memo(clone!(group -> move || {
-        group.with(|group| group.as_ref().map(|group| group.label.clone()).unwrap_or_default())
-    }));
-    let count = create_memo(clone!(group -> move || {
-        group.with(|group| group.as_ref().map_or(0, |group| group.rows.len())).to_string()
-    }));
-    let option = create_memo(clone!(group -> move || {
+    });
+    let label = create_memo(move || {
+        group.with(|group| {
+            group
+                .as_ref()
+                .map(|group| group.label.clone())
+                .unwrap_or_default()
+        })
+    });
+    let count = create_memo(move || {
+        group
+            .with(|group| group.as_ref().map_or(0, |group| group.rows.len()))
+            .to_string()
+    });
+    let option = create_memo(move || {
         group.with(|group| group.as_ref().and_then(|group| group.option.clone()))
-    }));
-    let marked = create_memo(clone!(option -> move || {
-        option.with(|option| option.as_ref().is_some_and(|option| option.icon != ChoiceIcon::None))
-    }));
-    let collapsed = create_memo(clone!(data group -> move || {
+    });
+    let marked = create_memo(move || {
+        option.with(|option| {
+            option
+                .as_ref()
+                .is_some_and(|option| option.icon != ChoiceIcon::None)
+        })
+    });
+    let collapsed = create_memo(move || {
         let closed = group.with(|group| group.as_ref().is_some_and(|group| group.closed));
         closed != data.toggled.with(|toggled| toggled.contains(&key))
-    }));
-    let chevron = create_memo(clone!(collapsed -> move || match collapsed.get() {
+    });
+    let chevron = create_memo(move || match collapsed.get() {
         true => "Expand".to_owned(),
         false => "Collapse".to_owned(),
-    }));
-    let toggle = clone!(data -> move || data.toggle_group(key));
-    let add = clone!(data group -> move || {
+    });
+    let toggle = move || data.toggle_group(key);
+    let add = move || {
         let mut values = Vec::new();
         let field = data.group_by.get_untracked();
         if let (Some(field), Some(value)) = (
@@ -223,13 +232,13 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
             values.push((title, DatabaseValue::String(String::new())));
         }
         data.new_row(values);
-    });
-    let read_only = data.read_only.clone();
+    };
+    let read_only = data.read_only;
     let test_key = group_test_key(key);
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_left={Some(GUTTER * 0.5)}
             padding_right={Some(GUTTER * 0.5)}
             padding_vertical=2.0
@@ -274,23 +283,26 @@ pub fn group_test_key(key: GroupKey) -> String {
 
 #[component]
 fn RowLine(data: Data, row: ObjectId) -> NodeId {
-    let index = create_memo(clone!(data -> move || {
-        data.row_ids.with(|ids| ids.iter().position(|id| *id == row))
-    }));
-    let entry = create_memo(clone!(data index -> move || {
+    let index = create_memo(move || {
+        data.row_ids
+            .with(|ids| ids.iter().position(|id| *id == row))
+    });
+    let entry = create_memo(move || {
         let index = index.get()?;
         data.rows.with(|rows| rows.get(index).cloned())
-    }));
-    let selected = create_memo(clone!(data index -> move || {
+    });
+    let selected = create_memo(move || {
         let index = index.get();
-        data.selected.get().is_some_and(|selection| Some(selection.row) == index)
-    }));
-    let code = create_memo(clone!(data -> move || short_id(&data.prefix.get(), row.as_uuid())));
-    let title = create_memo(clone!(data entry -> move || {
+        data.selected
+            .get()
+            .is_some_and(|selection| Some(selection.row) == index)
+    });
+    let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
+    let title = create_memo(move || {
         let field = data.title_field.get();
         entry.with(|entry| row_title(entry.as_ref(), field))
-    }));
-    let marks = create_memo(clone!(data -> move || {
+    });
+    let marks = create_memo(move || {
         data.fields.with(|fields| {
             data.hidden_fields.with(|hidden| {
                 fields
@@ -300,8 +312,8 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                     .collect::<Vec<Uuid>>()
             })
         })
-    }));
-    let parts = create_memo(clone!(data entry -> move || {
+    });
+    let parts = create_memo(move || {
         let title = data.title_field.get();
         entry.with(|entry| {
             let Some(entry) = entry else {
@@ -309,36 +321,36 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
             };
             data.fields.with(|fields| {
                 data.hidden_fields.with(|hidden| {
-                    data.labels.with(|labels| row_parts(entry, fields, hidden, labels, title))
+                    data.labels
+                        .with(|labels| row_parts(entry, fields, hidden, labels, title))
                 })
             })
         })
-    }));
-    let part_keys = create_memo(clone!(parts -> move || {
+    });
+    let part_keys = create_memo(move || {
         parts.with(|parts| parts.iter().map(|(key, _)| *key).collect::<Vec<Uuid>>())
-    }));
-    let pick = clone!(data -> move || data.select_row(row));
+    });
+    let pick = move || data.select_row(row);
     let narrow = narrow_chrome();
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
-    let (wide_marks, wide_parts, wide_keys) = (marks.clone(), parts.clone(), part_keys.clone());
-    let (wide_entry, narrow_entry) = (entry.clone(), entry);
-    let (wide_code, wide_title) = (code.clone(), title.clone());
-    let (wide_data, narrow_data) = (data.clone(), data);
+    let wide = create_memo(move || !narrow.get());
+    let (wide_marks, wide_parts, wide_keys) = (marks, parts, part_keys);
+    let (wide_entry, narrow_entry) = (entry, entry);
+    let (wide_code, wide_title) = (code, title);
     view! {
         <ListRow
             selected={selected}
             @test_id={format!("database-view.list.row.{}", row.as_uuid())}
-            on_click={pick.clone()}
+            on_click={pick}
             on_activate={pick}
         >
             <List spacing=0.0>
                 <Show condition={wide}>
-                    {move || clone!(wide_data wide_entry wide_marks wide_parts wide_keys wide_code wide_title -> view! {
+                    {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
                                 <Caption content={wide_code} ellipsis=true />
                             </Frame>
-                            <Marks data={wide_data} entry={wide_entry} marks={wide_marks} />
+                            <Marks data={data} entry={wide_entry} marks={wide_marks} />
                             <Body
                                 @sizing={ItemSize::Percent(100.0).shrink(1.0)}
                                 content={wide_title}
@@ -346,17 +358,17 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                             />
                             <Parts parts={wide_parts} keys={wide_keys} />
                         </List>
-                    })}
+                    }}
                 </Show>
                 <Show condition={narrow}>
-                    {move || clone!(narrow_data narrow_entry marks parts part_keys code title -> view! {
+                    {move || view! {
                         <List spacing=4.0>
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Start
                                 spacing=SPACING
                             >
-                                <Marks data={narrow_data} entry={narrow_entry} marks={marks} />
+                                <Marks data={data} entry={narrow_entry} marks={marks} />
                                 <Body @sizing=ItemSize::Percent(100.0) content={title} wrap=true />
                             </List>
                             <List
@@ -369,7 +381,7 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                                 <Parts parts={parts} keys={part_keys} />
                             </List>
                         </List>
-                    })}
+                    }}
                 </Show>
             </List>
         </ListRow>
@@ -382,7 +394,7 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <ForEach keys={marks}>
                 {move |field: Uuid| {
-                    let option = create_memo(clone!(data entry -> move || {
+                    let option = create_memo(move || {
                         let chosen = entry.with(|entry| match entry.as_ref()?.get(field) {
                             Some(DatabaseValue::Enum(option)) => Some(option),
                             _ => None,
@@ -393,8 +405,8 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
                                 .find(|known| known.id == field)
                                 .and_then(|known| known.option(chosen).cloned())
                         })
-                    }));
-                    let set = create_memo(clone!(option -> move || option.with(Option::is_some)));
+                    });
+                    let set = create_memo(move || option.with(Option::is_some));
                     view! {
                         <Frame width=MARK_SIZE height=MARK_SIZE>
                             <Frame visible={set}>
@@ -414,11 +426,11 @@ pub fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <ForEach keys={keys}>
                 {move |key: Uuid| {
-                    let part = create_memo(clone!(parts -> move || {
+                    let part = create_memo(move || {
                         parts.with(|parts| {
                             parts.iter().find(|(held, _)| *held == key).map(|(_, part)| part.clone())
                         })
-                    }));
+                    });
                     view! {
                         <RowPart part={part} />
                     }
@@ -431,32 +443,35 @@ pub fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
 #[component]
 fn RowPart(part: Memo<Option<Part>>) -> NodeId {
     let theme = use_theme();
-    let text = create_memo(clone!(part -> move || match part.get() {
+    let text = create_memo(move || match part.get() {
         Some(Part::Choice(option)) => option.name,
         Some(Part::Link(label)) | Some(Part::Text(label)) => label,
         Some(Part::Links(name, count)) => format!("{name} {count}"),
         Some(Part::Page) | None => String::new(),
-    }));
-    let page = create_memo(clone!(part -> move || matches!(part.get(), Some(Part::Page))));
-    let chip = create_memo(clone!(part -> move || {
-        matches!(part.get(), Some(Part::Choice(_) | Part::Link(_) | Part::Links(..)))
-    }));
-    let plain = create_memo(clone!(part -> move || matches!(part.get(), Some(Part::Text(_)))));
-    let dot = create_memo(clone!(part theme -> move || match part.get() {
+    });
+    let page = create_memo(move || matches!(part.get(), Some(Part::Page)));
+    let chip = create_memo(move || {
+        matches!(
+            part.get(),
+            Some(Part::Choice(_) | Part::Link(_) | Part::Links(..))
+        )
+    });
+    let plain = create_memo(move || matches!(part.get(), Some(Part::Text(_))));
+    let dot = create_memo(move || match part.get() {
         Some(Part::Choice(option)) => choice_color(option.color, theme.kind.get()),
         _ => theme.text_muted.get(),
-    }));
-    let dotted = create_memo(clone!(part -> move || matches!(part.get(), Some(Part::Choice(_)))));
-    let linked = create_memo(clone!(part -> move || matches!(part.get(), Some(Part::Links(..)))));
-    let plain_text = text.clone();
-    let (page_color, link_color) = (theme.text_muted.clone(), theme.text_muted.clone());
+    });
+    let dotted = create_memo(move || matches!(part.get(), Some(Part::Choice(_))));
+    let linked = create_memo(move || matches!(part.get(), Some(Part::Links(..))));
+    let plain_text = text;
+    let (page_color, link_color) = (theme.text_muted, theme.text_muted);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={page}>
                 <IconSized
                     glyph={ICON_DESCRIPTION.to_owned()}
                     font_size=MARK_SIZE
-                    color={page_color.clone()}
+                    color={page_color}
                 />
             </Frame>
             <Frame visible={plain}>
@@ -464,7 +479,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
             </Frame>
             <Frame
                 visible={chip}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 outline_visible=true
                 radius=10
@@ -479,7 +494,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                         <IconSized
                             glyph={ICON_LINK.to_owned()}
                             font_size=FONT_SMALL
-                            color={link_color.clone()}
+                            color={link_color}
                         />
                     </Frame>
                     <Caption content={text} align=TextAlign::Start />

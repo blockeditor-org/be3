@@ -1,8 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap};
 
 use beui::reactive::{
-    ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, clone, component,
-    create_memo, create_signal, view,
+    ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, component,
+    create_memo, create_signal, store, view,
 };
 use beui::styled::{Caption, Heading, Icon, Spinner, StaleNotice, use_theme};
 use beui::{Align, Color32, NodeId, TextAlign};
@@ -108,9 +108,14 @@ pub(crate) fn MainSurface() -> NodeId {
 #[component]
 pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
     let region = hosted(id).region;
-    let keys = create_memo(clone!(region -> move || {
-        region.with(|held| held.as_ref().map(HostedRegion::key).into_iter().collect::<Vec<_>>())
-    }));
+    let keys = create_memo(move || {
+        region.with(|held| {
+            held.as_ref()
+                .map(HostedRegion::key)
+                .into_iter()
+                .collect::<Vec<_>>()
+        })
+    });
     view! {
         <Layers>
             <ForEach keys={keys}>
@@ -120,9 +125,9 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
                             <Frame />
                         };
                     };
-                    let child_view: ChildView = Rc::new(|_, _, _| view! {
+                    let child_view: ChildView = store(Box::new(|_, _, _| view! {
                         <Frame />
-                    });
+                    }));
                     view! {
                         <PluginRegion
                             editor={hosted.editor}
@@ -141,7 +146,7 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
 pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let kind = content.get_untracked();
     let text = create_memo({
-        let content = content.clone();
+        let content = content;
         move || match content.get() {
             HostItem::Notice { text, .. } => text,
             HostItem::Fallback { name, .. } => name,
@@ -149,14 +154,14 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         }
     });
     let detail = create_memo({
-        let content = content.clone();
+        let content = content;
         move || match content.get() {
             HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
             _ => String::new(),
         }
     });
     let italic = create_memo({
-        let content = content.clone();
+        let content = content;
         move || {
             matches!(
                 content.get(),
@@ -168,20 +173,17 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         }
     });
     let spinning = create_memo({
-        let content = content.clone();
+        let content = content;
         move || matches!(content.get(), HostItem::Notice { spinner: true, .. })
     });
     let glyph = create_memo({
-        let content = content.clone();
+        let content = content;
         move || match content.get() {
             HostItem::Fallback { icon, .. } => icon.unwrap_or_default(),
             _ => String::new(),
         }
     });
-    let has_glyph = create_memo({
-        let glyph = glyph.clone();
-        move || !glyph.get().is_empty()
-    });
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let theme = use_theme();
     let (surface, outline, color) = match kind {
         HostItem::Fallback { .. } => (
@@ -211,11 +213,11 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                     <Heading content="Unsupported block type" align=TextAlign::Center />
                 </Show>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph.clone()} text_size=28.0 color=color />
+                    <Icon glyph={glyph} text_size=28.0 color=color />
                 </Show>
                 <Text string={text} font_size=14.0 align=TextAlign::Center color=color italic />
                 <Show condition={unsupported}>
-                    <Caption content={detail.clone()} align=TextAlign::Center />
+                    <Caption content={detail} align=TextAlign::Center />
                 </Show>
                 <Show condition={spinning}>
                     <Spinner />

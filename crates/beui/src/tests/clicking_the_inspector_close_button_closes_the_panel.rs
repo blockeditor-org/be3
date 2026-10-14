@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn clicking_the_inspector_close_button_closes_the_panel() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
 

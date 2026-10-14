@@ -1,7 +1,11 @@
 use super::*;
 
+#[derive(Clone)]
+struct Label(&'static str);
+
 #[test]
-fn a_scope_opened_inside_an_effect_belongs_to_the_effects_owner() {
+fn a_scope_opened_inside_an_effect_lives_until_its_handle_drops() {
+    let _root = RootScope::new();
     let outer = Scope::new();
     let (tick, set_tick) = create_signal(0);
     let cleanups = Rc::new(Cell::new(0));
@@ -10,6 +14,7 @@ fn a_scope_opened_inside_an_effect_belongs_to_the_effects_owner() {
     let sink = cleanups.clone();
     let kept = opened.clone();
     outer.run(move || {
+        crate::provide_context(Label("outer"));
         create_effect(move || {
             tick.get();
             let scope = owner_scope()
@@ -17,7 +22,11 @@ fn a_scope_opened_inside_an_effect_belongs_to_the_effects_owner() {
                 .child()
                 .expect("the owner is alive while the effect runs");
             let sink = sink.clone();
-            scope.run(move || on_cleanup(move || sink.set(sink.get() + 1)));
+            let label = scope.run(move || {
+                on_cleanup(move || sink.set(sink.get() + 1));
+                crate::use_context::<Label>().map(|label| label.0)
+            });
+            assert_eq!(label, Some("outer"), "the scope reads its owner's context");
             kept.borrow_mut().push(scope);
         });
     });
@@ -33,7 +42,14 @@ fn a_scope_opened_inside_an_effect_belongs_to_the_effects_owner() {
     outer.dispose();
     assert_eq!(
         cleanups.get(),
+        0,
+        "the handle owns the scope, so its owner leaves it alone"
+    );
+
+    opened.borrow_mut().clear();
+    assert_eq!(
+        cleanups.get(),
         2,
-        "disposing the owner must dispose every scope opened inside its effects"
+        "dropping the handles disposes the scopes"
     );
 }

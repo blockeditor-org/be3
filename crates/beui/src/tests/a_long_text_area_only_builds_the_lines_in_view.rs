@@ -19,11 +19,10 @@ fn built_lines(document: &Document, node: NodeId) -> Option<usize> {
 
 #[test]
 fn a_long_text_area_only_builds_the_lines_in_view() {
-    let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
-    let sink = held.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
     let document = build({
-        let area = area.clone();
         move || {
             let text = (0..LINES)
                 .map(|line| format!("line {line}"))
@@ -32,7 +31,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
             let document =
                 Arc::new(TextBuffer::new(text.as_bytes())) as Arc<dyn text_editor_core::Document>;
             let state = TextAreaState::new(document);
-            sink.replace(Some(state.clone()));
+            set_held.update(|held| *held = Some(state));
             view! {
                 <Frame @node_ref=&area width=500.0 height=300.0>
                     <TextArea state={state} />
@@ -42,7 +41,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let state = held.borrow().clone().expect("the text area was built");
+    let state = held.get_untracked().expect("the text area was built");
     let root = harness.document().root().expect("the document has a root");
     let built = built_lines(harness.document(), root).expect("the lines are a virtual list");
     assert!(
@@ -52,7 +51,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
 
     harness.click(pos2(250.0, 20.0));
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
-        let end = state.core().position(state.bytes().len());
+        let end = state.with_core(|core| core.position(state.bytes().len()));
         state.execute(EditorCommand::SetSelection {
             anchor: end,
             focus: end,

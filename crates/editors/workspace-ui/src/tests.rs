@@ -1,7 +1,9 @@
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
-use block_editor_beui::{BlockParent, ChildContent, Editor, EditorHost, HostWindows, WindowAction};
+use block_editor_beui::{
+    BlockParent, ChildContent, EditorHost, HostWindows, OwnedEditor, WindowAction,
+};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -193,7 +195,7 @@ fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixtu
     if profile.is_some() {
         host.set_view_block(Some(workspace));
     }
-    let editor = Editor::new(host.clone(), workspace);
+    let editor = OwnedEditor::new(host.clone(), workspace);
     let mut fixture = Fixture {
         test: match size {
             Some(size) => BeuiTest::new(editor).with_size(size),

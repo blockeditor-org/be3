@@ -4,8 +4,8 @@ use crate::styled::Slider;
 
 #[test]
 fn a_slider_reports_and_steps_within_the_range_it_was_given() {
-    let reported = Rc::new(RefCell::new(Vec::new()));
-    let sink = reported.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (reported, set_reported) = create_signal(Vec::new());
     let (document, [slider]) = toolbar_of(|| {
         [view! {
             <Slider
@@ -13,7 +13,7 @@ fn a_slider_reports_and_steps_within_the_range_it_was_given() {
                 min=0.5
                 max=3.0
                 label="Zoom"
-                on_change={move |value| sink.borrow_mut().push(value)}
+                on_change={move |value| set_reported.update(|reported| reported.push(value))}
             />
         }]
     });
@@ -31,5 +31,5 @@ fn a_slider_reports_and_steps_within_the_range_it_was_given() {
     harness.key(Key::Home, Modifiers::NONE);
     assert_eq!(styled::slider_value(harness.document(), slider), 0.5);
 
-    assert_eq!(*reported.borrow(), [1.125, 3.0, 0.5]);
+    assert_eq!(reported.get_untracked(), [1.125, 3.0, 0.5]);
 }

@@ -591,8 +591,8 @@ store of its own: history is be-store objects and be-commit commits.
 ## Running it
 
 ```
-./scripts/buck run //crates/be-server:be-server-bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
-./scripts/buck run //crates/be-server:be-server-bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
+./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
+./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
 ```
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
@@ -601,7 +601,7 @@ account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
 instead, and the web build always does (`./scripts/buck run
-//crates/block-app:web-serve` starts be-server beside it, closed to new
+//crates/block-app:web` starts be-server beside it, closed to new
 accounts).
 
 Tests start their own server on an ephemeral port; see `Harness` in

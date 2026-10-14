@@ -17,7 +17,7 @@ fn level_display() -> DocumentTest {
             muted: false,
         });
         view! {
-            <Frame color={theme.background.clone()}>
+            <Frame color={theme.background}>
                 <List spacing=0.0>
                     <Button
                         @test_id={"test.show"}

@@ -4,8 +4,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, Text, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, Text, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::theme::{FONT_BODY, FONT_SMALL};
 use block_editor_beui::beui::styled::{
@@ -30,19 +30,14 @@ fn received_at(received: u64) -> String {
 #[component]
 pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId {
     let listed = notifications.listed();
-    let browsing = notifications.clone();
-    let glyph = create_memo(clone!(listed -> move || {
-        match listed.with(Vec::is_empty) {
-            true => ICON_NOTIFICATIONS.to_owned(),
-            false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
-        }
-    }));
-    let label = create_memo(clone!(listed -> move || {
-        match listed.with(Vec::len) {
-            0 => "Notifications".to_owned(),
-            count => format!("Notifications ({count})"),
-        }
-    }));
+    let glyph = create_memo(move || match listed.with(Vec::is_empty) {
+        true => ICON_NOTIFICATIONS.to_owned(),
+        false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
+    });
+    let label = create_memo(move || match listed.with(Vec::len) {
+        0 => "Notifications".to_owned(),
+        count => format!("Notifications ({count})"),
+    });
     view! {
         <BarPopup
             label
@@ -50,14 +45,10 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             icon_only=true
             width=NOTIFICATIONS_WIDTH
             @test_id={"desktop.notifications"}
-            on_open_change={move |open: bool| browsing.browse(open)}
+            on_open_change={move |open: bool| notifications.browse(open)}
         >
             {move |handle: PopoverHandle| view! {
-                <NotificationList
-                    notifications={notifications.clone()}
-                    listed={listed.clone()}
-                    popover={handle}
-                />
+                <NotificationList notifications={notifications} listed={listed} popover={handle} />
             }}
         </BarPopup>
     }
@@ -69,16 +60,15 @@ fn NotificationList(
     listed: Memo<Vec<Listed>>,
     popover: PopoverHandle,
 ) -> NodeId {
-    let empty = create_memo(clone!(listed -> move || listed.with(Vec::is_empty)));
-    let unclearable = empty.clone();
-    let some = create_memo(clone!(empty -> move || !empty.get()));
-    let clearing = notifications.clone();
-    let cleared = listed.clone();
+    let empty = create_memo(move || listed.with(Vec::is_empty));
+    let unclearable = empty;
+    let some = create_memo(move || !empty.get());
+    let cleared = listed;
     let clear = move || {
         let ids: Vec<u32> =
             cleared.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
         if !ids.is_empty() {
-            clearing.dismiss(&ids);
+            notifications.dismiss(&ids);
         }
     };
     view! {
@@ -98,11 +88,7 @@ fn NotificationList(
                 <Caption content="Nothing new." />
             </Show>
             <Show condition={some}>
-                <NotificationRows
-                    notifications={notifications.clone()}
-                    listed={listed.clone()}
-                    popover={popover.clone()}
-                />
+                <NotificationRows notifications={notifications} listed={listed} popover={popover} />
             </Show>
         </List>
     }
@@ -118,11 +104,7 @@ fn NotificationRows(
         <Scroll max_length=LIST_HEIGHT>
             <ForEach keys={listed}>
                 {move |shown: Listed| view! {
-                    <NotificationRow
-                        notifications={notifications.clone()}
-                        shown
-                        popover={popover.clone()}
-                    />
+                    <NotificationRow notifications={notifications} shown popover={popover} />
                 }}
             </ForEach>
         </Scroll>
@@ -138,7 +120,6 @@ fn NotificationRow(
     let theme = use_theme();
     let id = shown.id;
     let activates = shown.activates;
-    let dismissing = notifications.clone();
     let activate = move || match activates {
         true => {
             notifications.activate(id);
@@ -153,10 +134,10 @@ fn NotificationRow(
     let said = !shown.body.is_empty();
     let body = shown.body.clone();
     let summary = shown.summary.clone();
-    let body_color = theme.text_muted.clone();
+    let body_color = theme.text_muted;
     let summary_color = match shown.critical {
-        true => theme.danger.clone(),
-        false => theme.text.clone(),
+        true => theme.danger,
+        false => theme.text,
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Start spacing=ROW_SPACING>
@@ -178,7 +159,7 @@ fn NotificationRow(
                         <Text
                             string={body.clone()}
                             font_size=FONT_SMALL
-                            color={body_color.clone()}
+                            color={body_color}
                             wrap=true
                         />
                     </Show>
@@ -190,7 +171,7 @@ fn NotificationRow(
                 variant=ButtonVariant::Ghost
                 size=IconButtonSize::Compact
                 @test_id={format!("desktop.notifications.{id}.dismiss")}
-                on_click={move || dismissing.dismiss(&[id])}
+                on_click={move || notifications.dismiss(&[id])}
             />
         </List>
     }

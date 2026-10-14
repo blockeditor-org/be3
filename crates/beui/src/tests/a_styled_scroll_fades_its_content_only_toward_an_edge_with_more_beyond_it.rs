@@ -8,10 +8,10 @@ use beui_core::display::{Group, Layer, Part};
 
 #[test]
 fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
+    let _root = crate::reactive::RootScope::new();
     let (rows, set_rows) = create_signal(2_usize);
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll.clone();
         move || {
             let keys = create_memo(move || (0..rows.get()).collect::<Vec<usize>>());
             view! {
@@ -84,7 +84,7 @@ fn collect(parts: &[Part], fades: &mut Vec<[f32; 4]>) {
             Part::Shapes { .. } => {}
             Part::Child(_, _, child) => collect(&child.parts, fades),
             Part::Group(group, inner) => {
-                if let Group::Mask(fade) = group
+                if let Group::Mask { fade, .. } = group
                     && !fade.is_none()
                 {
                     fades.push(fade.widths);

@@ -4,13 +4,13 @@ use crate::styled::ColorInput;
 
 #[test]
 fn a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [_input]) = toolbar_of(|| {
         [view! {
             <ColorInput
                 value={Color32::from_rgba_unmultiplied(0x11, 0x22, 0x33, 0x80)}
-                on_change={move |color| sink.borrow_mut().push(color)}
+                on_change={move |color| set_changes.update(|changes| changes.push(color))}
             />
         }]
     });
@@ -24,7 +24,7 @@ fn a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        changes.borrow().last(),
+        changes.get_untracked().last(),
         Some(&Color32::from_rgba_unmultiplied(0xFF, 0x88, 0x00, 0x80))
     );
 }

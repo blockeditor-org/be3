@@ -1,15 +1,12 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 
 #[test]
 fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {
-    let heard = Rc::new(RefCell::new(Vec::<(bool, Option<Pos2>, usize)>::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (heard, set_heard) = create_signal(Vec::<(bool, Option<Pos2>, usize)>::new());
     let document = build({
-        let heard = Rc::clone(&heard);
         move || {
             view! {
                 <Canvas>
@@ -21,7 +18,7 @@ fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {
                     <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
                         <Interactive
                             on_forward={move |input: ForwardedInput| {
-                                heard.borrow_mut().push((input.hovered, input.pointer, flattened(input.clone()).len()))
+                                set_heard.update(|heard| heard.push((input.hovered, input.pointer, flattened(input.clone()).len())))
                             }}
                         >
                             <Frame />
@@ -38,7 +35,7 @@ fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {
     harness.frame(vec![Event::PointerMoved(pos2(240.0, 50.0))]);
     harness.frame(vec![Event::PointerMoved(pos2(260.0, 60.0))]);
 
-    let heard = heard.borrow();
+    let heard = heard.get_untracked();
     assert!(
         heard.contains(&(true, Some(pos2(260.0, 60.0)), 0)),
         "the catcher under the pointer hears each move without the events, {heard:?}"

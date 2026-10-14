@@ -8,8 +8,8 @@ use block_editor_beui::beui::icons::{
     ICON_VIEW_KANBAN, ICON_VIEW_LIST,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
-    create_memo, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, IconButton, Select, Separator, Switch, TextInput,
@@ -32,55 +32,50 @@ pub const KINDS: [(DatabaseViewKind, &str, &str); 4] = [
 
 #[component]
 pub fn DisplayOptions(data: Data) -> NodeId {
-    let listed = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::List));
-    let grouped = create_memo(clone!(data -> move || {
-        matches!(data.kind.get(), DatabaseViewKind::List | DatabaseViewKind::Kanban)
-    }));
-    let ordered = create_memo(clone!(data -> move || data.kind.get() != DatabaseViewKind::Scatter));
-    let scatter = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::Scatter));
-    let prefix = data.prefix.clone();
-    let prefix_off = data.read_only.clone();
-    let reprefix = clone!(data -> move |text: String| data.set_prefix(text));
-    let fields_open = clone!(data -> move || data.open_schema());
-    let (switch, groups, order, axes, empty, shown) = (
-        data.clone(),
-        data.clone(),
-        data.clone(),
-        data.clone(),
-        data.clone(),
-        data.clone(),
-    );
+    let listed = create_memo(move || data.kind.get() == DatabaseViewKind::List);
+    let grouped = create_memo(move || {
+        matches!(
+            data.kind.get(),
+            DatabaseViewKind::List | DatabaseViewKind::Kanban
+        )
+    });
+    let ordered = create_memo(move || data.kind.get() != DatabaseViewKind::Scatter);
+    let scatter = create_memo(move || data.kind.get() == DatabaseViewKind::Scatter);
+    let prefix = data.prefix;
+    let prefix_off = data.read_only;
+    let reprefix = move |text: String| data.set_prefix(text);
+    let fields_open = move || data.open_schema();
     view! {
         <List spacing=SPACING>
-            <KindSwitch data={switch} />
+            <KindSwitch data={data} />
             <Separator />
             <Show condition={grouped}>
-                {move || clone!(groups -> view! {
-                    <GroupPicker data={groups} />
-                })}
+                {move || view! {
+                    <GroupPicker data={data} />
+                }}
             </Show>
             <Show condition={ordered}>
-                {move || clone!(order -> view! {
-                    <OrderPicker data={order} />
-                })}
+                {move || view! {
+                    <OrderPicker data={data} />
+                }}
             </Show>
             <Show condition={scatter}>
-                {move || clone!(axes -> view! {
-                    <AxisPickers data={axes} />
-                })}
-            </Show>
-            <Show condition={listed.clone()}>
-                {move || clone!(empty -> view! {
-                    <EmptyGroups data={empty} />
-                })}
+                {move || view! {
+                    <AxisPickers data={data} />
+                }}
             </Show>
             <Show condition={listed}>
-                {move || clone!(shown -> view! {
+                {move || view! {
+                    <EmptyGroups data={data} />
+                }}
+            </Show>
+            <Show condition={listed}>
+                {move || view! {
                     <List spacing=SPACING>
                         <Separator />
-                        <ShownFields data={shown} />
+                        <ShownFields data={data} />
                     </List>
-                })}
+                }}
             </Show>
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -117,9 +112,8 @@ fn KindSwitch(data: Data) -> NodeId {
             <ForEach keys={keys}>
                 {move |index: usize| {
                     let (wanted, label, glyph) = KINDS[index];
-                    let data = data.clone();
-                    let pressed = create_memo(clone!(data -> move || data.kind.get() == wanted));
-                    let choose = clone!(data -> move |_: bool| {
+                    let pressed = create_memo(move || data.kind.get() == wanted);
+                    let choose = move |_: bool| {
                         if data.kind.get_untracked() != wanted {
                             data.operate_view(DatabaseView::set_kind(wanted));
                         }
@@ -131,7 +125,7 @@ fn KindSwitch(data: Data) -> NodeId {
                                 data.operate_view(DatabaseView::set_group_by(status));
                             }
                         }
-                    });
+                    };
                     view! {
                         <ToggleButton
                             label={label}
@@ -149,7 +143,7 @@ fn KindSwitch(data: Data) -> NodeId {
 
 #[component]
 fn GroupPicker(data: Data) -> NodeId {
-    let options = create_memo(clone!(data -> move || {
+    let options = create_memo(move || {
         let board = data.kind.get() == DatabaseViewKind::Kanban;
         data.fields.with(|fields| {
             fields
@@ -161,16 +155,16 @@ fn GroupPicker(data: Data) -> NodeId {
                 .cloned()
                 .collect::<Vec<DatabaseField>>()
         })
-    }));
-    let chosen = data.group_by.clone();
-    let picked = clone!(data options -> move |field: Option<Uuid>| {
+    });
+    let chosen = data.group_by;
+    let picked = move |field: Option<Uuid>| {
         let _ = &options;
         data.operate_view(DatabaseView::set_group_by(field));
-    });
-    let label = create_memo(clone!(data -> move || match data.kind.get() {
+    };
+    let label = create_memo(move || match data.kind.get() {
         DatabaseViewKind::Kanban => "Columns".to_owned(),
         _ => "Group by".to_owned(),
-    }));
+    });
     view! {
         <Labelled label={label}>
             <FieldPicker
@@ -187,50 +181,58 @@ fn GroupPicker(data: Data) -> NodeId {
 
 #[component]
 fn OrderPicker(data: Data) -> NodeId {
-    let options = create_memo(clone!(data -> move || {
+    let options = create_memo(move || {
         data.fields.with(|fields| {
             fields
                 .iter()
-                .filter(|field| field.field_type != DatabaseFieldType::Relation || !field.relation_options.multiple)
+                .filter(|field| {
+                    field.field_type != DatabaseFieldType::Relation
+                        || !field.relation_options.multiple
+                })
                 .cloned()
                 .collect::<Vec<DatabaseField>>()
         })
-    }));
-    let chosen = create_memo(clone!(data -> move || data.sort.get().map(|sort| sort.field_id)));
-    let picked = clone!(data -> move |field: Option<Uuid>| {
+    });
+    let chosen = create_memo(move || data.sort.get().map(|sort| sort.field_id));
+    let picked = move |field: Option<Uuid>| {
         let direction = data
             .sort
             .get_untracked()
             .map_or(SortDirection::Ascending, |sort| sort.direction);
-        data.operate_view(DatabaseView::set_sort(field.map(|field_id| DatabaseViewSort {
-            field_id,
-            direction,
+        data.operate_view(DatabaseView::set_sort(field.map(|field_id| {
+            DatabaseViewSort {
+                field_id,
+                direction,
+            }
         })));
-    });
-    let sorted = create_memo(clone!(data -> move || data.sort.get().is_some()));
-    let glyph = create_memo(clone!(data -> move || {
+    };
+    let sorted = create_memo(move || data.sort.get().is_some());
+    let glyph = create_memo(move || {
         match data.sort.get().map(|sort| sort.direction) {
             Some(SortDirection::Descending) => ICON_ARROW_DOWNWARD,
             _ => ICON_ARROW_UPWARD,
         }
         .to_owned()
-    }));
-    let direction_label = create_memo(clone!(data -> move || {
+    });
+    let direction_label = create_memo(move || {
         match data.sort.get().map(|sort| sort.direction) {
             Some(SortDirection::Descending) => "Descending",
             _ => "Ascending",
         }
         .to_owned()
-    }));
-    let flip = clone!(data -> move || {
+    });
+    let flip = move || {
         if let Some(sort) = data.sort.get_untracked() {
             let direction = match sort.direction {
                 SortDirection::Ascending => SortDirection::Descending,
                 SortDirection::Descending => SortDirection::Ascending,
             };
-            data.operate_view(DatabaseView::set_sort(Some(DatabaseViewSort { direction, ..sort })));
+            data.operate_view(DatabaseView::set_sort(Some(DatabaseViewSort {
+                direction,
+                ..sort
+            })));
         }
-    });
+    };
     view! {
         <Labelled label="Order by">
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -245,10 +247,10 @@ fn OrderPicker(data: Data) -> NodeId {
                 />
                 <Show condition={sorted}>
                     <IconButton
-                        glyph={glyph.clone()}
-                        label={direction_label.clone()}
+                        glyph={glyph}
+                        label={direction_label}
                         @test_id={"database-view.order-direction"}
-                        on_click={flip.clone()}
+                        on_click={flip}
                     />
                 </Show>
             </List>
@@ -258,29 +260,34 @@ fn OrderPicker(data: Data) -> NodeId {
 
 #[component]
 fn AxisPickers(data: Data) -> NodeId {
-    let options = create_memo(clone!(data -> move || {
+    let options = create_memo(move || {
         data.fields.with(|fields| {
             fields
                 .iter()
-                .filter(|field| matches!(field.field_type, DatabaseFieldType::Number | DatabaseFieldType::Datetime))
+                .filter(|field| {
+                    matches!(
+                        field.field_type,
+                        DatabaseFieldType::Number | DatabaseFieldType::Datetime
+                    )
+                })
                 .cloned()
                 .collect::<Vec<DatabaseField>>()
         })
-    }));
-    let pick_x = clone!(data -> move |field: Option<Uuid>| {
+    });
+    let pick_x = move |field: Option<Uuid>| {
         data.operate_view(DatabaseView::set_scatter_x(field));
-    });
-    let pick_y = clone!(data -> move |field: Option<Uuid>| {
+    };
+    let pick_y = move |field: Option<Uuid>| {
         data.operate_view(DatabaseView::set_scatter_y(field));
-    });
-    let (x_options, y_options) = (options.clone(), options);
-    let (x_chosen, y_chosen) = (data.scatter_x.clone(), data.scatter_y.clone());
+    };
+    let (x_options, y_options) = (options, options);
+    let (x_chosen, y_chosen) = (data.scatter_x, data.scatter_y);
     view! {
         <List spacing=SPACING>
             <Labelled label="X axis">
                 <FieldPicker
                     options={x_options}
-                    chosen={x_chosen.clone()}
+                    chosen={x_chosen}
                     none="None"
                     label="X axis"
                     picker_id={"database-view.scatter-x".to_owned()}
@@ -290,7 +297,7 @@ fn AxisPickers(data: Data) -> NodeId {
             <Labelled label="Y axis">
                 <FieldPicker
                     options={y_options}
-                    chosen={y_chosen.clone()}
+                    chosen={y_chosen}
                     none="None"
                     label="Y axis"
                     picker_id={"database-view.scatter-y".to_owned()}
@@ -303,9 +310,8 @@ fn AxisPickers(data: Data) -> NodeId {
 
 #[component]
 fn EmptyGroups(data: Data) -> NodeId {
-    let on = data.show_empty_groups.clone();
-    let toggle =
-        clone!(data -> move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on)));
+    let on = data.show_empty_groups;
+    let toggle = move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Body @sizing=ItemSize::Percent(100.0) content="Show empty groups" />
@@ -321,7 +327,7 @@ fn EmptyGroups(data: Data) -> NodeId {
 
 #[component]
 fn ShownFields(data: Data) -> NodeId {
-    let keys = create_memo(clone!(data -> move || {
+    let keys = create_memo(move || {
         let title = data.title_field.get();
         data.fields.with(|fields| {
             fields
@@ -330,30 +336,29 @@ fn ShownFields(data: Data) -> NodeId {
                 .map(|field| field.id)
                 .collect::<Vec<Uuid>>()
         })
-    }));
+    });
     view! {
         <List spacing=6.0>
             <Caption content="Shown on each row" />
             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
                 <ForEach keys={keys}>
                     {move |field: Uuid| {
-                        let data = data.clone();
-                        let name = create_memo(clone!(data -> move || {
+                        let name = create_memo(move || {
                             data.fields.with(|fields| {
                                 fields.iter().find(|known| known.id == field).map_or_else(String::new, |known| known.name.clone())
                             })
-                        }));
-                        let pressed = create_memo(clone!(data -> move || {
+                        });
+                        let pressed = create_memo(move || {
                             data.hidden_fields.with(|hidden| !hidden.contains(&field))
-                        }));
-                        let toggle = clone!(data -> move |shown: bool| {
+                        });
+                        let toggle = move |shown: bool| {
                             let mut hidden = data.hidden_fields.get_untracked();
                             hidden.retain(|held| *held != field);
                             if !shown {
                                 hidden.push(field);
                             }
                             data.operate_view(DatabaseView::set_hidden_fields(hidden));
-                        });
+                        };
                         view! {
                             <ToggleButton
                                 label={name}
@@ -393,36 +398,35 @@ pub fn FieldPicker(
     picker_id: String,
     on_change: Callback<Option<Uuid>>,
 ) -> NodeId {
-    let keys = create_memo(clone!(options -> move || {
-        options.with(|options| (0..=options.len()).collect::<Vec<usize>>())
-    }));
-    let selected = create_memo(clone!(options chosen -> move || {
-        match chosen.get() {
-            None => Some(0),
-            Some(chosen) => options
-                .with(|options| options.iter().position(|field| field.id == chosen))
-                .map(|index| index + 1),
-        }
-    }));
-    let names = options.clone();
-    let picked = clone!(options -> move |index: Option<usize>| {
+    let keys =
+        create_memo(move || options.with(|options| (0..=options.len()).collect::<Vec<usize>>()));
+    let selected = create_memo(move || match chosen.get() {
+        None => Some(0),
+        Some(chosen) => options
+            .with(|options| options.iter().position(|field| field.id == chosen))
+            .map(|index| index + 1),
+    });
+    let names = options;
+    let picked = move |index: Option<usize>| {
         let field = match index {
             None | Some(0) => None,
-            Some(index) => options.with_untracked(|options| options.get(index - 1).map(|field| field.id)),
+            Some(index) => {
+                options.with_untracked(|options| options.get(index - 1).map(|field| field.id))
+            }
         };
         on_change.call(field);
-    });
+    };
     view! {
         <Select
             options={view! {
                 <ForEach keys={keys}>
                     {move |index: usize| {
-                        let name = create_memo(clone!(names -> move || match index {
+                        let name = create_memo(move || match index {
                             0 => none.to_owned(),
                             index => names.with(|options| {
                                 options.get(index - 1).map_or_else(String::new, |field| field.name.clone())
                             }),
-                        }));
+                        });
                         view! {
                             <ChoiceOption label={name} />
                         }

@@ -1,21 +1,18 @@
-use std::cell::RefCell;
-
 use super::*;
 use crate::input::{BackEdge, BackGesture};
 use crate::reactive::{BackHandler, NodeRef, Text, build, view};
 
 #[test]
 fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
-    let heard = Rc::new(RefCell::new(Vec::<BackGesture>::new()));
-    let reports = Rc::clone(&heard);
+    let _root = crate::reactive::RootScope::new();
+    let (heard, set_heard) = create_signal(Vec::<BackGesture>::new());
     let page = NodeRef::new();
-    let page_ref = page.clone();
     let document = build(move || {
         view! {
             <BackHandler
-                on_gesture={move |gesture: BackGesture| reports.borrow_mut().push(gesture)}
+                on_gesture={move |gesture: BackGesture| set_heard.update(|heard| heard.push(gesture))}
             >
-                <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page_ref} />
+                <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
             </BackHandler>
         }
     });
@@ -39,7 +36,7 @@ fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
 
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(
-        *heard.borrow(),
+        heard.get_untracked(),
         [started, BackGesture::Progressed(1.0), BackGesture::Invoked]
     );
 }

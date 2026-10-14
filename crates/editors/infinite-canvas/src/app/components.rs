@@ -1,12 +1,11 @@
 use block_editor_beui::be_block::BlockContent;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Show, Spacer, clone, component, create_memo,
-    create_signal, view,
+    Align, Direction, ForEach, ItemSize, List, Show, Spacer, component, create_memo, create_signal,
+    view,
 };
 use block_editor_beui::beui::styled::{Accordion, Button, ButtonVariant, Caption, Separator};
 use block_editor_beui::block_ui::BlockLabel;
@@ -19,9 +18,9 @@ use super::state::{CanvasState, attach_component, remove_component, set_componen
 const SPACING: f32 = 10.0;
 
 #[component]
-pub(crate) fn CanvasComponents(state: Rc<CanvasState>) -> NodeId {
+pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
     let (open, set_open) = create_signal(true);
-    let schemas = create_memo(clone!(state -> move || {
+    let schemas = create_memo(move || {
         let mut seen = Vec::new();
         for entity in state.selected_entities() {
             for component in &entity.components {
@@ -31,15 +30,13 @@ pub(crate) fn CanvasComponents(state: Rc<CanvasState>) -> NodeId {
             }
         }
         seen
-    }));
-    let rows = Rc::clone(&state);
-    let add = clone!(state -> move || state.open_component_picker());
+    });
+    let add = move || state.open_component_picker();
     view! {
         <Accordion title="Components" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=SPACING>
                 <ForEach keys={schemas}>
                     {move |schema_id: Uuid| {
-                        let state = Rc::clone(&rows);
                         view! {
                             <ComponentRow state schema_id />
                         }
@@ -60,19 +57,19 @@ pub(crate) fn CanvasComponents(state: Rc<CanvasState>) -> NodeId {
 }
 
 #[component]
-fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
+fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     let schema = state
         .editor()
         .related_content::<DatabaseSchemaContent>(create_memo(move || Some(schema_id)));
     let fields = schema.project(|schema| schema.root().fields());
-    let fields = create_memo(clone!(fields -> move || fields.get()));
-    let named = create_memo(clone!(state -> move || {
+    let fields = create_memo(move || fields.get());
+    let named = create_memo(move || {
         state
             .label_of(schema_id)
             .map(|label: BlockLabel| label.name)
             .unwrap_or_else(|| "Component".to_owned())
-    }));
-    let attached = create_memo(clone!(state -> move || {
+    });
+    let attached = create_memo(move || {
         state
             .selected_entities()
             .iter()
@@ -83,15 +80,13 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
                     .any(|component| component.schema_id == schema_id)
             })
             .count()
-    }));
-    let selected = create_memo(clone!(state -> move || state.selected_entities().len()));
-    let partial =
-        create_memo(clone!(attached selected -> move || attached.get() != selected.get()));
-    let coverage = create_memo(clone!(attached selected -> move || {
-        format!("Attached to {} of {}", attached.get(), selected.get())
-    }));
-    let whole = create_memo(clone!(partial -> move || !partial.get()));
-    let values = create_memo(clone!(state -> move || {
+    });
+    let selected = create_memo(move || state.selected_entities().len());
+    let partial = create_memo(move || attached.get() != selected.get());
+    let coverage =
+        create_memo(move || format!("Attached to {} of {}", attached.get(), selected.get()));
+    let whole = create_memo(move || !partial.get());
+    let values = create_memo(move || {
         let mut shared: Option<RowValues> = None;
         for entity in state.selected_entities() {
             let Some(component) = entity
@@ -106,14 +101,17 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
                 Some(held) => held
                     .into_iter()
                     .filter(|(field, value)| {
-                        component.values.get(field).is_some_and(|held| held == value)
+                        component
+                            .values
+                            .get(field)
+                            .is_some_and(|held| held == value)
                     })
                     .collect(),
             });
         }
         shared.unwrap_or_default()
-    }));
-    let labels = create_memo(clone!(state -> move || {
+    });
+    let labels = create_memo(move || {
         let mut labels = ValueLabels::new();
         for entity in state.selected_entities() {
             for component in &entity.components {
@@ -127,37 +125,32 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
             }
         }
         labels
-    }));
+    });
     let read_only = state.editor().read_only();
-    let adding = Rc::clone(&state);
-    let removing = Rc::clone(&state);
-    let opening = Rc::clone(&state);
-    let changing = Rc::clone(&state);
-    let picking = Rc::clone(&state);
-    let add_all = clone!(adding -> move || {
-        adding.edit_components(|entities, selected| {
+    let add_all = move || {
+        state.edit_components(|entities, selected| {
             attach_component(entities, selected, schema_id);
         });
-    });
-    let remove = clone!(removing -> move || {
-        removing.edit_components(|entities, selected| {
+    };
+    let remove = move || {
+        state.edit_components(|entities, selected| {
             remove_component(entities, selected, schema_id);
         });
-    });
-    let open_schema = clone!(opening -> move || {
-        opening
+    };
+    let open_schema = move || {
+        state
             .editor()
             .host()
             .open_block(schema_id, DatabaseSchemaContent::CONTENT_TYPE);
-    });
-    let changed = clone!(changing -> move |change: DatabaseValueChange| {
-        changing.edit_components(|entities, selected| {
+    };
+    let changed = move |change: DatabaseValueChange| {
+        state.edit_components(|entities, selected| {
             set_component_value(entities, selected, schema_id, change.field_id, change.value);
         });
-    });
-    let picked = clone!(picking -> move |request: DatabaseBlockPickRequest| {
-        picking.open_value_picker(schema_id, request.field_id, request.block_type);
-    });
+    };
+    let picked = move |request: DatabaseBlockPickRequest| {
+        state.open_value_picker(schema_id, request.field_id, request.block_type);
+    };
     let prefix = format!("infinite-canvas.component.{schema_id:?}");
     let add_id = format!("{prefix}.add-to-all");
     let open_id = format!("{prefix}.open");
@@ -165,8 +158,8 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
     view! {
         <List spacing=6.0>
             <Caption content={named} />
-            <Show condition={partial.clone()}>
-                {move || clone!(add_all add_id coverage -> view! {
+            <Show condition={partial}>
+                {move || { let add_id = add_id.clone(); view! {
                     <List spacing=6.0>
                         <Caption content={coverage} />
                         <List direction=Direction::Horizontal spacing=4.0>
@@ -179,7 +172,7 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                         </List>
                     </List>
-                })}
+                } }}
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <Button
@@ -197,13 +190,13 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
             </List>
             <Show condition={whole}>
                 <DatabaseValueEditor
-                    fields={fields.clone()}
-                    values={values.clone()}
-                    labels={labels.clone()}
-                    disabled={read_only.clone()}
+                    fields={fields}
+                    values={values}
+                    labels={labels}
+                    disabled={read_only}
                     prefix={prefix.clone()}
-                    on_change={changed.clone()}
-                    on_pick={picked.clone()}
+                    on_change={changed}
+                    on_pick={picked}
                 />
             </Show>
             <Separator />

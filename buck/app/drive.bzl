@@ -5,7 +5,7 @@ def headless(name, program, app_name, args = [], data = False):
     native.command_alias(
         name = name,
         args = [
-            "$(location //crates/be-drive:be-drive-bin)",
+            "$(location //crates/be-drive:bin)",
             "launch",
             "--name=" + app_name,
             "--libraries=$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",

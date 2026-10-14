@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
 use crate::reactive::{
-    Child, ChildSegment, ChildValue, Children, ComponentContext, FromPlaced, IntoChild, IntoProp,
-    IntoSegment, IntoSlotHost, Memo, Placed, Prop, ReadSignal, Scope, SlotChild, SlotHost, SlotId,
+    Child, ChildSegment, ChildValue, Children, FromPlaced, IntoChild, IntoProp, IntoSegment,
+    IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId, create_binding,
     create_effect, with_document,
 };
-use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart};
+use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart, TextStyle};
 use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::node::{NodeId, NodeOf};
@@ -45,64 +45,36 @@ pub fn Text(
     let node = with_document(|document| {
         document.create_text(String::new(), DEFAULT_FONT_SIZE, Color32::WHITE)
     });
-    create_effect(move || {
-        with_document(|document| document.set_text_horizontal_align(node, align.get()))
+    create_binding(move || {
+        let style = TextStyle {
+            font_size: font_size.get(),
+            line_height: line_height.as_ref().map(Prop::get),
+            color: color.get(),
+            horizontal: align.get(),
+            vertical: vertical_align.get(),
+            wrap: wrap.get(),
+            monospace: monospace.get(),
+            bold: bold.get(),
+            italic: italic.get(),
+            icon: icon.get(),
+            clip: clip.get(),
+            underline: underline.get(),
+            ellipsis: ellipsis.get(),
+            padding: line_padding.get(),
+        };
+        with_document(|document| document.set_text_style(node, style));
     });
-    create_effect(move || {
-        with_document(|document| document.set_text_vertical_align(node, vertical_align.get()))
-    });
-    create_effect(move || with_document(|document| document.set_text_wrap(node, wrap.get())));
-    create_effect(move || {
-        with_document(|document| document.set_text_monospace(node, monospace.get()))
-    });
-    create_effect(move || with_document(|document| document.set_text_bold(node, bold.get())));
-    create_effect(move || with_document(|document| document.set_text_italic(node, italic.get())));
-    create_effect(move || with_document(|document| document.set_text_icon(node, icon.get())));
-    create_effect(move || with_document(|document| document.set_text_clip(node, clip.get())));
-    create_effect(move || {
-        with_document(|document| document.set_text_underline(node, underline.get()))
-    });
-    create_effect(move || {
-        with_document(|document| document.set_text_ellipsis(node, ellipsis.get()))
-    });
-    create_effect(move || with_document(|document| document.set_text(node, string.get())));
-    create_effect(move || {
-        with_document(|document| document.set_text_font_size(node, font_size.get()))
-    });
-    if let Some(line_height) = line_height {
-        create_effect(move || {
-            with_document(|document| document.set_text_line_height(node, Some(line_height.get())))
-        });
-    }
-    create_effect(move || with_document(|document| document.set_text_color(node, color.get())));
-    create_effect(move || {
-        with_document(|document| document.set_text_line_padding(node, line_padding.get()))
-    });
-    create_effect(move || with_document(|document| document.set_text_marks(node, marks.get())));
-    create_effect(move || with_document(|document| document.set_text_carets(node, carets.get())));
+    create_binding(move || with_document(|document| document.set_text(node, string.get())));
+    create_binding(move || with_document(|document| document.set_text_marks(node, marks.get())));
+    create_binding(move || with_document(|document| document.set_text_carets(node, carets.get())));
     children.mount(node);
     node.id()
 }
 
 pub enum TextChild {
     Span(Span),
+    Gap(Gap),
     Item(TextItem),
-}
-
-impl ChildValue for TextChild {
-    fn adopt_scope(&mut self, scope: Scope) {
-        match self {
-            TextChild::Span(span) => span.adopt_scope(scope),
-            TextChild::Item(item) => item.adopt_scope(scope),
-        }
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
-        match self {
-            TextChild::Span(span) => span.finish_component(component, scope),
-            TextChild::Item(item) => item.finish_component(component, scope),
-        }
-    }
 }
 
 crate::child_type!(TextChild);
@@ -117,6 +89,7 @@ impl SlotChild for TextChild {
                  it cannot be kept in a run of children away from one"
             ),
             TextChild::Item(item) => item.store(),
+            TextChild::Gap(gap) => TextPart::Gap(gap.width),
         }
     }
 }
@@ -128,6 +101,7 @@ impl SlotHost<TextChild> for TextHost {
         match child {
             TextChild::Span(span) => TextPart::Span(span.bind(self.0)),
             TextChild::Item(item) => item.store(),
+            TextChild::Gap(gap) => TextPart::Gap(gap.width),
         }
     }
 
@@ -217,11 +191,7 @@ pub struct Span {
     break_after: Prop<bool>,
 }
 
-impl ChildValue for Span {
-    fn adopt_scope(&mut self, scope: Scope) {
-        scope.into_parent();
-    }
-}
+impl ChildValue for Span {}
 
 fn bind<T: Clone + 'static>(
     text: NodeOf<TextNode>,
@@ -234,7 +204,7 @@ fn bind<T: Clone + 'static>(
     };
     let handle = handle.clone();
     create_effect(move || {
-        let value = read();
+        let value = read.get();
         with_document(|document| {
             document.update_text_span(text, &handle, |content| write(content, value))
         });
@@ -300,9 +270,7 @@ pub fn Span(
 ) -> Span {
     let text = text.unwrap_or_else(|| {
         let run = children.into_run();
-        Prop::Dynamic(Rc::new(move || {
-            run.items().iter().map(|piece| piece.0.get()).collect()
-        }))
+        Prop::dynamic(move || run.items().iter().map(|piece| piece.0.get()).collect())
     });
     Span {
         text,
@@ -311,6 +279,29 @@ pub fn Span(
         underline,
         strikethrough,
         break_after,
+    }
+}
+
+pub struct Gap {
+    width: f32,
+}
+
+impl ChildValue for Gap {}
+
+#[component]
+pub fn Gap(width: f32) -> Gap {
+    Gap { width }
+}
+
+impl IntoChild<TextChild> for Gap {
+    fn into_child(self) -> TextChild {
+        TextChild::Gap(self)
+    }
+}
+
+impl IntoSegment<TextChild> for Gap {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::One(TextChild::Gap(self))
     }
 }
 

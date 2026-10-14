@@ -14,19 +14,20 @@ use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_view::components::overlay::Overlay;
-use text_editor_core::{EditorCommand, MarkdownCommand};
+use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ForEach, Frame, IntoChild, List, Memo, NodeRef, Portal, RenderFn,
-    Show, Span, Text, TextChild, TextItem, VirtualList, clone, component_placed, create_effect,
+    Callback, Canvas, CanvasItem, ForEach, Frame, Gap, IntoChild, List, Memo, NodeRef, Portal,
+    RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList, component_placed, create_effect,
     create_memo, on_cleanup, untrack, with_document,
 };
 
+use super::colors::TextAreaColors;
 use super::rows::{
     BODY_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
-    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowOptions,
-    SpanKind, build_row, galley, line_range, rich_layout,
+    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowKey,
+    RowOptions, SpanKind, build_row, galley, line_range, rich_layout, row_key,
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
@@ -44,12 +45,11 @@ pub(super) enum Layer {
 #[component]
 pub(super) fn Lines(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
-    let fill = create_memo(clone!(cx -> move || Some(cx.view_height.get())));
-    let list = cx.list.clone();
-    let keys = cx.visible.clone();
-    let top = create_memo(clone!(cx -> move || Some(cx.padding.get().y)));
-    let bottom =
-        create_memo(clone!(cx -> move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0))));
+    let fill = create_memo(move || Some(cx.view_height.get()));
+    let list = cx.list;
+    let keys = cx.visible;
+    let top = create_memo(move || Some(cx.padding.get().y));
+    let bottom = create_memo(move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)));
     let estimate = cx.row_estimate();
     view! {
         <Frame @node_ref=&canvas min_height={fill}>
@@ -57,7 +57,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
                 <Frame height={top} />
                 <VirtualList @node_ref=&list keys item_size=estimate>
                     {move |line: usize| view! {
-                        <AreaRow cx={cx.clone()} line />
+                        <AreaRow cx={cx} line />
                     }}
                 </VirtualList>
                 <Frame height={bottom} />
@@ -69,23 +69,22 @@ pub(super) fn Lines(cx: Context) -> NodeId {
 #[component]
 pub(super) fn SingleLine(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
-    let model = row_model(&cx, 0);
-    let text = create_memo(clone!(cx model -> move || {
+    let model = row_model(cx, 0);
+    let text = create_memo(move || {
         let row = model.get();
         cx.metrics.get();
         let size = cx.font_size.get();
-        let body = galley("", FontId::proportional(size)).map_or(0.0, |galley| galley.line_height());
+        let body =
+            galley("", FontId::proportional(size)).map_or(0.0, |galley| galley.line_height());
         let laid = rich_layout(&row, size, (0.0, 0.0), f32::INFINITY)
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
-    }));
-    let canvas_width = create_memo(clone!(cx text -> move || {
-        text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH
-    }));
-    let canvas_height =
-        create_memo(clone!(cx text -> move || text.get().y + cx.padding.get().y * 2.0));
-    let x = create_memo(clone!(cx -> move || cx.padding.get().x - cx.shift.get()));
-    let y = create_memo(clone!(cx text -> move || {
+    });
+    create_effect(move || cx.set_text_extent.set(text.get()));
+    let canvas_width = create_memo(move || text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH);
+    let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
+    let x = create_memo(move || cx.padding.get().x - cx.shift.get());
+    let y = create_memo(move || {
         let padding = cx.padding.get();
         let line = text.get().y;
         let height = cx.view_height.get();
@@ -93,19 +92,14 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             true => (height - line) / 2.0,
             false => padding.y,
         }
-    }));
-    let text_width = create_memo(clone!(text -> move || text.get().x + CARET_WIDTH));
-    let text_height = create_memo(clone!(text -> move || text.get().y));
-    let (text_cx, text_model) = (cx.clone(), model.clone());
+    });
+    let text_width = create_memo(move || text.get().x + CARET_WIDTH);
+    let text_height = create_memo(move || text.get().y);
+    let text_model = model;
     view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
-            <CanvasItem
-                x={x.clone()}
-                y={y.clone()}
-                width={text_width.clone()}
-                height={text_height.clone()}
-            >
-                <AreaText cx={text_cx} model={text_model} />
+            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
+                <AreaText cx={cx} model={text_model} />
             </CanvasItem>
             <CanvasItem x y width={text_width} height={text_height} clip=false>
                 <RowText cx model text={GeometryCell::default()} wrap=false layer=Layer::Handles />
@@ -116,29 +110,28 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
 
 #[component]
 fn AreaRow(cx: Context, line: usize) -> NodeId {
-    let model = row_model(&cx, line);
-    let gutter = create_memo(clone!(cx -> move || Some(cx.gutter.get())));
-    let padding = create_memo(clone!(cx -> move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0)));
-    let inset = create_memo(clone!(cx -> move || cx.padding.get().x.min(CODE_OUTSET.x)));
-    let code = create_memo(clone!(cx model -> move || match model.get().code_block {
+    let model = row_model(cx, line);
+    let gutter = create_memo(move || Some(cx.gutter.get()));
+    let padding = create_memo(move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0));
+    let inset = create_memo(move || cx.padding.get().x.min(CODE_OUTSET.x));
+    let code = create_memo(move || match model.get().code_block {
         true => cx.colors.get().code_background,
         false => Color32::TRANSPARENT,
-    }));
-    let block = create_memo(clone!(model -> move || model.get().block));
+    });
+    let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
-    let has_block = create_memo(clone!(block -> move || renders && block.get().is_some()));
+    let has_block = create_memo(move || renders && block.get().is_some());
     let block_ref = NodeRef::new();
-    let block_cx = cx.clone();
-    let block_node = block_ref.clone();
+    let block_node = block_ref;
     let row = NodeRef::new();
     let text = GeometryCell::default();
-    register_row(&cx, line, &row, &text, &block_ref, &model);
-    let (gutter_cx, gutter_model) = (cx.clone(), model.clone());
+    register_row(&cx, line, &row, &text, &block_ref, model);
+    let gutter_model = model;
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width={gutter}>
-                    <Gutter cx={gutter_cx} model={gutter_model} />
+                    <Gutter cx={cx} model={gutter_model} />
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal={padding}>
                     <Frame color={code} padding_horizontal={inset}>
@@ -147,11 +140,10 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
                             <Show condition={has_block}>
                                 {move || {
                                     let (index, size) = block.get_untracked().unwrap_or_default();
-                                    let render = block_cx
+                                    let render = cx
                                         .block
-                                        .clone()
                                         .expect("a block is only shown when the area was given one");
-                                    let node = block_node.clone();
+                                    let node = block_node;
                                     view! {
                                         <BlockSlot @node_ref=&node render index size />
                                     }
@@ -169,7 +161,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
 fn AreaText(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let row = NodeRef::new();
     let text = GeometryCell::default();
-    register_row(&cx, 0, &row, &text, &NodeRef::new(), &model);
+    register_row(&cx, 0, &row, &text, &NodeRef::new(), model);
     view! {
         <Frame @node_ref=&row>
             <RowText cx model text wrap=false layer=Layer::Text />
@@ -183,82 +175,194 @@ fn register_row(
     row: &NodeRef,
     geometry: &GeometryCell,
     block: &NodeRef,
-    model: &Memo<Rc<Row>>,
+    model: Memo<Rc<Row>>,
 ) {
-    let id = cx.registered.get() + 1;
-    cx.registered.set(id);
-    cx.rows.borrow_mut().insert(
+    let held = cx.held.get();
+    let id = held.registered.get() + 1;
+    held.registered.set(id);
+    held.rows.borrow_mut().insert(
         line,
         RowEntry {
             id,
-            row: row.clone(),
+            row: *row,
             geometry: geometry.clone(),
-            model: model.clone(),
-            block: block.clone(),
+            model,
+            block: *block,
         },
     );
-    let registry = cx.clone();
+    let registry = cx.held;
     on_cleanup(move || {
-        let mut rows = registry.rows.borrow_mut();
-        if rows.get(&line).is_some_and(|entry| entry.id == id) {
-            rows.remove(&line);
-        }
+        registry.try_with(|held| {
+            let mut rows = held.rows.borrow_mut();
+            if rows.get(&line).is_some_and(|entry| entry.id == id) {
+                rows.remove(&line);
+            }
+        });
     });
 }
 
-fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
-    let cx = cx.clone();
+#[derive(Clone, PartialEq, Default)]
+struct RowCursors {
+    selection: Vec<std::ops::Range<usize>>,
+    carets: Vec<usize>,
+    anchor: Option<usize>,
+    handles: Vec<(beui_core::rich::CaretHandle, usize)>,
+}
+
+impl RowCursors {
+    fn selects(&self, byte: usize) -> bool {
+        self.selection.iter().any(|range| range.contains(&byte))
+    }
+}
+
+fn row_cursors(cx: Context, model: Memo<Rc<Row>>, layer: Layer) -> Memo<RowCursors> {
+    let span = create_memo(move || {
+        let row = model.get();
+        (row.start, row.end)
+    });
+    create_memo(move || {
+        cx.state.cursors().get();
+        let (start, end) = span.get();
+        let contains = |byte: &usize| *byte >= start && *byte <= end;
+        let carets = cx.state.caret_indices();
+        let touch = cx.state.touch_mode().get() && layer != Layer::Text;
+        let handles = match touch {
+            true => {
+                cx.state.caret_handle().get();
+                cx.shift.get();
+                untrack(|| cx.handles())
+                    .into_iter()
+                    .filter(|(_, byte)| contains(byte))
+                    .collect()
+            }
+            false => Vec::new(),
+        };
+        RowCursors {
+            selection: cx
+                .state
+                .selection_ranges()
+                .into_iter()
+                .filter(|range| range.start < range.end && range.start <= end && range.end > start)
+                .map(|range| range.start.max(start)..range.end.min(end + 1))
+                .collect(),
+            anchor: carets.first().copied().filter(contains),
+            carets: carets.into_iter().filter(contains).collect(),
+            handles,
+        }
+    })
+}
+
+#[derive(Clone, PartialEq)]
+struct RowEnv {
+    colors: TextAreaColors,
+    metrics: (f32, u64),
+    options: RowOptions,
+    client_colors: Vec<(u64, Color32)>,
+}
+
+const ROW_CACHE_LIMIT: usize = 1024;
+
+#[derive(Default)]
+pub(super) struct RowCache {
+    env: Option<RowEnv>,
+    rows: HashMap<u64, Vec<(RowKey, Rc<Row>)>>,
+    count: usize,
+}
+
+impl RowCache {
+    fn find(&mut self, env: &RowEnv, key: &RowKey) -> Option<Rc<Row>> {
+        if self.env.as_ref() != Some(env) {
+            self.env = Some(env.clone());
+            self.rows.clear();
+            self.count = 0;
+            return None;
+        }
+        self.rows
+            .get(&bytes_hash(key.bytes()))?
+            .iter()
+            .find(|(held, _)| held == key)
+            .map(|(_, row)| Rc::clone(row))
+    }
+
+    fn remember(&mut self, key: RowKey, row: Rc<Row>) {
+        if self.count >= ROW_CACHE_LIMIT {
+            self.rows.clear();
+            self.count = 0;
+        }
+        self.count += 1;
+        self.rows
+            .entry(bytes_hash(key.bytes()))
+            .or_default()
+            .push((key, row));
+    }
+}
+
+fn bytes_hash(bytes: &[u8]) -> u64 {
+    use std::hash::BuildHasher;
+
+    foldhash::fast::FixedState::with_seed(0).hash_one(bytes)
+}
+
+fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
     let content = cx.state.content();
-    let cursors = cx.state.cursors();
     create_memo(move || {
         content.get();
-        cursors.get();
-        cx.metrics.get();
         let starts = cx.starts.get();
         let tables = cx.tables.get();
         let widgets = cx.widgets.get();
-        let client_colors = cx.client_colors.get();
-        let colors = cx.colors.get();
         let composition = cx.composition.get();
         let placeholder = cx.placeholder.get();
-        let options = RowOptions {
-            body_size: cx.font_size.get(),
-            mask: cx.masked.get(),
-            single_line: cx.single_line,
+        let env = RowEnv {
+            colors: cx.colors.get(),
+            metrics: cx.metrics.get(),
+            options: RowOptions {
+                body_size: cx.font_size.get(),
+                mask: cx.masked.get(),
+                single_line: cx.single_line,
+            },
+            client_colors: cx.client_colors.get(),
         };
-        let selection = cx.state.selection_ranges();
-        Rc::new(cx.state.with_snapshot(|snapshot| {
+        cx.state.with_snapshot(|snapshot| {
             let (start, end, newline) =
                 line_range(&snapshot.bytes, &starts, line).unwrap_or((0, 0, false));
             let spacers = tables.get(&start).map_or(&[][..], Vec::as_slice);
             let placeholder = (snapshot.bytes.is_empty() && !placeholder.is_empty() && line == 0)
                 .then_some(placeholder.as_str());
             if !snapshot.loaded || snapshot.highlight.is_none() {
-                return Row {
+                return Rc::new(Row {
                     line,
                     start,
                     end,
                     ..Row::default()
+                });
+            }
+            let inputs = RowInputs {
+                snapshot,
+                widgets: &widgets,
+                client_colors: &env.client_colors,
+                composition: composition.as_ref(),
+                colors: &env.colors,
+                options: env.options,
+                spacers,
+                placeholder,
+            };
+            let key = row_key(&inputs, start, end, newline);
+            let held = cx.held.get();
+            if let Some(key) = &key
+                && let Some(row) = held.row_cache.borrow_mut().find(&env, key)
+            {
+                return match row.line == line && row.start == start {
+                    true => row,
+                    false => Rc::new(row.moved(line, start)),
                 };
             }
-            build_row(
-                &RowInputs {
-                    snapshot,
-                    widgets: &widgets,
-                    client_colors: &client_colors,
-                    composition: composition.as_ref(),
-                    selection: &selection,
-                    colors: &colors,
-                    options,
-                    spacers,
-                    placeholder,
-                },
-                line,
-                start,
-                end,
-                newline,
-            )
-        }))
+            cx.state.count_row_built();
+            let row = Rc::new(build_row(&inputs, line, start, end, newline));
+            if let Some(key) = key {
+                held.row_cache.borrow_mut().remember(key, Rc::clone(&row));
+            }
+            row
+        })
     })
 }
 
@@ -272,7 +376,7 @@ fn RowText(
 ) -> NodeId {
     let node = NodeRef::new();
     let placed = component_placed();
-    create_effect(clone!(node text -> move || {
+    create_effect(move || {
         placed.get();
         if layer != Layer::Handles
             && text.borrow().is_none()
@@ -283,19 +387,19 @@ fn RowText(
                 Some(document.text_geometry(text))
             });
         }
-    }));
-    let keys = create_memo(clone!(model -> move || piece_keys(&model.get(), layer)));
+    });
+    let keys = create_memo(move || piece_keys(&model.get(), layer));
+    let cursors = row_cursors(cx, model, layer);
     let padding = match cx.single_line {
         true => (0.0, 0.0),
         false => LINE_PADDING,
     };
-    let marks = create_memo(clone!(cx model -> move || {
+    let marks = create_memo(move || {
         if layer == Layer::Handles {
             return Vec::new();
         }
         let row = model.get();
         let colors = cx.colors.get();
-        cx.state.cursors().get();
         let mut marks: Vec<TextMark> = row
             .code
             .iter()
@@ -306,40 +410,32 @@ fn RowText(
                 outset: CODE_OUTSET,
             })
             .collect();
-        for range in cx.state.selection_ranges() {
-            if range.start < range.end && range.start <= row.end && range.end > row.start {
-                marks.push(TextMark::new(row.display_range(&range), colors.selection));
-            }
+        for range in &cursors.get().selection {
+            marks.push(TextMark::new(row.display_range(range), colors.selection));
         }
         for remote in cx.remote_cursors.get() {
             let range = remote.selection;
             if range.start < range.end && range.start <= row.end && range.end > row.start {
                 let [red, green, blue, _] = remote.color.to_array();
-                let fill = Color32::from_rgba_unmultiplied(red, green, blue, REMOTE_SELECTION_ALPHA);
+                let fill =
+                    Color32::from_rgba_unmultiplied(red, green, blue, REMOTE_SELECTION_ALPHA);
                 marks.push(TextMark::new(row.display_range(&range), fill));
             }
         }
         marks
-    }));
-    let carets = create_memo(clone!(cx model -> move || {
+    });
+    let carets = create_memo(move || {
         let row = model.get();
         let colors = cx.colors.get();
         let focused = cx.focused.get();
-        cx.state.cursors().get();
         let contains = |byte: usize| byte >= row.start && byte <= row.end;
         let mut carets = Vec::new();
-        let touch = cx.state.touch_mode().get();
-        cx.state.caret_handle().get();
-        if touch && layer != Layer::Text {
-            cx.shift.get();
-            for (handle, byte) in untrack(|| cx.handles()) {
-                if contains(byte) {
-                    carets.push(TextCaret {
-                        handle: Some(handle),
-                        ..TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH)
-                    });
-                }
-            }
+        let cursors = cursors.get();
+        for (handle, byte) in &cursors.handles {
+            carets.push(TextCaret {
+                handle: Some(*handle),
+                ..TextCaret::new(row.to_display(*byte), colors.caret, CARET_WIDTH)
+            });
         }
         if layer == Layer::Handles {
             return carets;
@@ -353,37 +449,34 @@ fn RowText(
             }
         }
         if let Some(byte) = cx.drop_caret.get().filter(|byte| contains(*byte)) {
-            carets.push(TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH));
+            carets.push(TextCaret::new(
+                row.to_display(byte),
+                colors.caret,
+                CARET_WIDTH,
+            ));
         }
         if focused {
-            for byte in cx.state.caret_indices() {
-                if contains(byte) {
-                    carets.push(TextCaret {
-                        blink: true,
-                        ..TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH)
-                    });
-                }
+            for byte in &cursors.carets {
+                carets.push(TextCaret {
+                    blink: true,
+                    ..TextCaret::new(row.to_display(*byte), colors.caret, CARET_WIDTH)
+                });
             }
         }
         carets
-    }));
-    let anchor_at = create_memo(clone!(cx model -> move || {
+    });
+    let anchor_at = create_memo(move || {
         let row = model.get();
-        cx.state.cursors().get();
         cx.focused.get();
-        let byte = cx.state.caret_indices().first().copied()?;
-        (byte >= row.start && byte <= row.end).then(|| row.to_display(byte))
-    }));
-    let anchored = create_memo(clone!(anchor_at -> move || {
-        layer != Layer::Handles && anchor_at.get().is_some()
-    }));
-    let color = create_memo(clone!(cx -> move || cx.colors.get().syntax.markdown_plain_text));
-    let font_size = create_memo(clone!(cx -> move || cx.font_size.get()));
-    let item_cx = cx.clone();
-    let item_model = model.clone();
+        cursors.get().anchor.map(|byte| row.to_display(byte))
+    });
+    let anchored = create_memo(move || layer != Layer::Handles && anchor_at.get().is_some());
+    let color = create_memo(move || cx.colors.get().syntax.markdown_plain_text);
+    let font_size = create_memo(move || cx.font_size.get());
+    let item_model = model;
     let anchor = cx.anchor;
-    let anchor_position = create_memo(clone!(anchor_at -> move || anchor_at.get()));
-    let anchor_node = create_memo(clone!(anchored -> move || anchored.get().then_some(anchor)));
+    let anchor_position = create_memo(move || anchor_at.get());
+    let anchor_node = create_memo(move || anchored.get().then_some(anchor));
     view! {
         <Text
             @node_ref=&node
@@ -396,15 +489,15 @@ fn RowText(
         >
             <ForEach keys={keys}>
                 {move |(key, _): (PieceKey, usize)| {
-                    row_piece(item_cx.clone(), item_model.clone(), layer, key)
+                    row_piece(cx, item_model, cursors, layer, key)
                 }}
             </ForEach>
             <Show condition={anchored}>
-                {move || clone!(anchor_position anchor_node -> view! {
+                {move || view! {
                     <TextItem at={anchor_position}>
                         <Portal node={anchor_node} />
                     </TextItem>
-                })}
+                }}
             </Show>
         </Text>
     }
@@ -419,6 +512,7 @@ enum PieceKey {
         underline: bool,
         strikethrough: bool,
         break_after: bool,
+        invisible: Option<usize>,
     },
     Space(u32),
     Inline(usize),
@@ -452,6 +546,7 @@ fn piece_keys(row: &Row, layer: Layer) -> Vec<(PieceKey, usize)> {
                         underline: style.underline && !handles,
                         strikethrough: style.strikethrough && !handles,
                         break_after: span.break_after,
+                        invisible: span.invisible.filter(|_| !handles),
                     }
                 }
                 SpanKind::Space(width) => PieceKey::Space(width.to_bits()),
@@ -464,7 +559,13 @@ fn piece_keys(row: &Row, layer: Layer) -> Vec<(PieceKey, usize)> {
         .collect()
 }
 
-fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> TextChild {
+fn row_piece(
+    cx: Context,
+    model: Memo<Rc<Row>>,
+    cursors: Memo<RowCursors>,
+    layer: Layer,
+    key: PieceKey,
+) -> TextChild {
     match key {
         PieceKey::Text {
             text,
@@ -473,27 +574,36 @@ fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> 
             underline,
             strikethrough,
             break_after,
+            invisible,
         } => {
             let font = FontId::new(f32::from_bits(size), family)
                 .bold(bold)
                 .italic(italic);
+            let color = create_memo(move || match invisible {
+                Some(byte) if cursors.get().selects(byte) => {
+                    cx.colors.get().syntax.scope(SynHlColorScope::Invisible)
+                }
+                _ => color,
+            });
             view! {
                 <Span text font color underline strikethrough break_after />
             }
             .into_child()
         }
         PieceKey::Space(width) => view! {
-            <TextItem>
-                <Frame width={Some(f32::from_bits(width))} height=Some(0.0) />
-            </TextItem>
+            <Gap width={f32::from_bits(width)} />
         }
         .into_child(),
         PieceKey::Inline(item) if layer == Layer::Handles => {
-            let size = create_memo(clone!(model -> move || {
-                model.get().inline.get(item).map_or(Vec2::ZERO, |item| item.size)
-            }));
-            let width = create_memo(clone!(size -> move || Some(size.get().x)));
-            let height = create_memo(clone!(size -> move || Some(size.get().y)));
+            let size = create_memo(move || {
+                model
+                    .get()
+                    .inline
+                    .get(item)
+                    .map_or(Vec2::ZERO, |item| item.size)
+            });
+            let width = create_memo(move || Some(size.get().x));
+            let height = create_memo(move || Some(size.get().y));
             view! {
                 <TextItem>
                     <Frame width height />
@@ -512,31 +622,31 @@ fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> 
 
 #[component]
 fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
-    let item = create_memo(clone!(model -> move || model.get().inline.get(index).cloned()));
-    let checkbox = create_memo(
-        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { .. }))),
-    );
-    let run = create_memo(
-        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Run))),
-    );
-    let widget = create_memo(clone!(checkbox run -> move || !checkbox.get() && !run.get()));
-    let (checkbox_cx, widget_cx, run_cx) = (cx.clone(), cx.clone(), cx);
-    let (checkbox_item, widget_item, run_item) = (item.clone(), item.clone(), item);
+    let item = create_memo(move || model.get().inline.get(index).cloned());
+    let checkbox = create_memo(move || {
+        matches!(
+            item.get().map(|item| item.inline),
+            Some(Inline::Checkbox { .. })
+        )
+    });
+    let run = create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Run)));
+    let widget = create_memo(move || !checkbox.get() && !run.get());
+    let (checkbox_item, widget_item, run_item) = (item, item, item);
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
                 {move || view! {
-                    <InlineCheckbox cx={checkbox_cx.clone()} item={checkbox_item.clone()} />
+                    <InlineCheckbox cx={cx} item={checkbox_item} />
                 }}
             </Show>
             <Show condition={widget}>
                 {move || view! {
-                    <WidgetPill cx={widget_cx.clone()} item={widget_item.clone()} />
+                    <WidgetPill cx={cx} item={widget_item} />
                 }}
             </Show>
             <Show condition={run}>
                 {move || view! {
-                    <RunChip cx={run_cx.clone()} item={run_item.clone()} />
+                    <RunChip cx={cx} item={run_item} />
                 }}
             </Show>
         </List>
@@ -545,14 +655,10 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
 
 #[component]
 fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let fill = create_memo(clone!(cx -> move || cx.colors.get().widget));
-    let width =
-        create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
-    let label =
-        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
-    let color = create_memo(
-        clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)),
-    );
+    let fill = create_memo(move || cx.colors.get().widget);
+    let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
+    let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
+    let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
     view! {
         <Frame width={width} height=RUN_CHIP_HEIGHT color={fill} radius=RUN_CHIP_RADIUS>
             <Text
@@ -569,24 +675,25 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 
 #[component]
 fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let checked = create_memo(
-        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { checked: true, .. }))),
-    );
-    let toggle_cx = cx.clone();
+    let checked = create_memo(move || {
+        matches!(
+            item.get().map(|item| item.inline),
+            Some(Inline::Checkbox { checked: true, .. })
+        )
+    });
     let on_change = Callback::new(move |_: bool| {
         let Some(Inline::Checkbox { line_start, .. }) =
             item.get_untracked().map(|item| item.inline)
         else {
             return;
         };
-        let position = toggle_cx.state.core().position(line_start);
-        toggle_cx
-            .state
+        let position = cx.state.with_core(|core| core.position(line_start));
+        cx.state
             .execute(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
                 position,
             )));
     });
-    let disabled = cx.disabled.clone();
+    let disabled = cx.disabled;
     if let Some(render) = &cx.checkbox {
         return render.call(TextCheckbox {
             checked,
@@ -601,7 +708,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             capture_presses=true
             tab_stop=false
             press_focus=false
-            on_change={move |checked: bool| on_change.call(checked)}
+            on_change={on_change}
         >
             {move |handle: ToggleHandle| view! {
                 <CheckboxBox cx handle />
@@ -613,11 +720,11 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 #[component]
 fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
     let checked = handle.checked;
-    let fill = create_memo(clone!(cx checked -> move || match checked.get() {
+    let fill = create_memo(move || match checked.get() {
         true => cx.colors.get().widget,
         false => Color32::TRANSPARENT,
-    }));
-    let outline = create_memo(clone!(cx -> move || cx.colors.get().gutter_arrow));
+    });
+    let outline = create_memo(move || cx.colors.get().gutter_arrow);
     let size = CHECKBOX_WIDTH;
     view! {
         <Frame
@@ -649,45 +756,40 @@ fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
 
 #[component]
 fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let index = create_memo(
-        clone!(item -> move || match item.get().map(|item| item.inline) {
-            Some(Inline::Widget(index)) => Some(index),
-            _ => None,
-        }),
-    );
-    let widget = create_memo(clone!(cx index -> move || {
+    let index = create_memo(move || match item.get().map(|item| item.inline) {
+        Some(Inline::Widget(index)) => Some(index),
+        _ => None,
+    });
+    let widget = create_memo(move || {
         let index = index.get()?;
         cx.widgets.get().get(index).cloned()
-    }));
-    let fill = create_memo(clone!(cx widget -> move || {
+    });
+    let fill = create_memo(move || {
         let colors = cx.colors.get();
         match widget.get().is_some_and(|widget| widget.broken) {
             true => colors.broken_widget,
             false => colors.widget,
         }
-    }));
-    let width =
-        create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
-    let icon = create_memo(
-        clone!(widget -> move || widget.get().and_then(|widget| widget.icon).unwrap_or("").to_owned()),
-    );
-    let has_icon = create_memo(clone!(icon -> move || !icon.get().is_empty()));
-    let label =
-        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
-    let color = create_memo(
-        clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)),
-    );
-    let font_size = create_memo(
-        clone!(item -> move || item.get().map_or(BODY_SIZE, |item| item.style.font.size)),
-    );
-    let bold =
-        create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.bold)));
-    let italic =
-        create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.italic)));
-    let monospace = create_memo(
-        clone!(item -> move || item.get().is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)),
-    );
-    let selected = create_memo(clone!(cx index -> move || {
+    });
+    let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
+    let icon = create_memo(move || {
+        widget
+            .get()
+            .and_then(|widget| widget.icon)
+            .unwrap_or("")
+            .to_owned()
+    });
+    let has_icon = create_memo(move || !icon.get().is_empty());
+    let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
+    let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
+    let font_size = create_memo(move || item.get().map_or(BODY_SIZE, |item| item.style.font.size));
+    let bold = create_memo(move || item.get().is_some_and(|item| item.style.font.bold));
+    let italic = create_memo(move || item.get().is_some_and(|item| item.style.font.italic));
+    let monospace = create_memo(move || {
+        item.get()
+            .is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)
+    });
+    let selected = create_memo(move || {
         cx.state.cursors().get();
         let Some(index) = index.get() else {
             return false;
@@ -696,12 +798,14 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             return false;
         };
         let ranges = cx.state.selection_ranges();
-        cx.selected_widget.is_some() && ranges.len() == 1 && ranges[0] == widget.range && !widget.block()
-    }));
+        cx.selected_widget.is_some()
+            && ranges.len() == 1
+            && ranges[0] == widget.range
+            && !widget.block()
+    });
     let pill = NodeRef::new();
-    let overlay_anchor = pill.clone();
-    let popup_cx = cx.clone();
-    let popup_index = index.clone();
+    let overlay_anchor = pill;
+    let popup_index = index;
     view! {
         <Frame
             @node_ref=&pill
@@ -713,7 +817,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>
                     {move || {
-                        let icon = icon.clone();
+                        let icon = icon;
                         view! {
                             <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
                                 <Text
@@ -738,10 +842,9 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                 />
                 <Show condition={selected}>
                     {move || {
-                        let anchor = overlay_anchor.clone();
-                        let render = popup_cx
+                        let anchor = overlay_anchor;
+                        let render = cx
                             .selected_widget
-                            .clone()
                             .expect("a widget only offers a popup when the area was given one");
                         let index = popup_index.get_untracked().unwrap_or_default();
                         view! {
@@ -780,9 +883,9 @@ fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
 
 #[component]
 fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
-    let number = create_memo(clone!(model -> move || (model.get().line + 1).to_string()));
-    let height = create_memo(clone!(model -> move || Some(model.get().line_height)));
-    let arrow = create_memo(clone!(cx model -> move || {
+    let number = create_memo(move || (model.get().line + 1).to_string());
+    let height = create_memo(move || Some(model.get().line_height));
+    let arrow = create_memo(move || {
         cx.state.content().get();
         let start = model.get().start;
         cx.state
@@ -795,13 +898,13 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
             })
             .unwrap_or("")
             .to_owned()
-    }));
-    let arrow_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_arrow));
-    let number_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_text));
+    });
+    let arrow_color = create_memo(move || cx.colors.get().gutter_arrow);
+    let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
         <Frame padding_left=GUTTER_PADDING_LEFT padding_right=GUTTER_PADDING_RIGHT>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Frame width=GUTTER_ARROW_SIZE height={height.clone()}>
+                <Frame width=GUTTER_ARROW_SIZE height={height}>
                     <Text
                         string={arrow}
                         icon=true

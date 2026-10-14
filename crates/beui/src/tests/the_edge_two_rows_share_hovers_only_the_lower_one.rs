@@ -5,17 +5,17 @@ const ROW: f32 = 20.0;
 
 #[test]
 fn the_edge_two_rows_share_hovers_only_the_lower_one() {
-    let upper = Rc::new(Cell::new(false));
-    let lower = Rc::new(Cell::new(false));
+    let _root = crate::reactive::RootScope::new();
+    let (upper, set_upper) = create_signal(false);
+    let (lower, set_lower) = create_signal(false);
     let document = build({
-        let (upper, lower) = (upper.clone(), lower.clone());
         move || {
             view! {
                 <List spacing=0.0>
-                    <Interactive on_hover_change={move |hovered| upper.set(hovered)}>
+                    <Interactive on_hover_change={move |hovered| set_upper.set(hovered)}>
                         <Frame height=ROW />
                     </Interactive>
-                    <Interactive on_hover_change={move |hovered| lower.set(hovered)}>
+                    <Interactive on_hover_change={move |hovered| set_lower.set(hovered)}>
                         <Frame height=ROW />
                     </Interactive>
                 </List>
@@ -26,11 +26,11 @@ fn the_edge_two_rows_share_hovers_only_the_lower_one() {
     harness.frame(Vec::new());
 
     harness.frame(vec![Event::PointerMoved(pos2(10.0, ROW - 0.5))]);
-    assert!(upper.get() && !lower.get());
+    assert!(upper.get_untracked() && !lower.get_untracked());
 
     harness.frame(vec![Event::PointerMoved(pos2(10.0, ROW))]);
     assert!(
-        !upper.get() && lower.get(),
+        !upper.get_untracked() && lower.get_untracked(),
         "a pointer on the edge between two rows hovers one of them"
     );
 }

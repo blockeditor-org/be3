@@ -6,6 +6,6 @@ cargo_test()
 
 cargo_binary()
 
-# The examples: `./scripts/buck run //crates/block-wasm-host:<example>-example`.
+# The examples: `./scripts/buck run //crates/block-wasm-host:example-<example>`.
 
 cargo_example("instantiate")

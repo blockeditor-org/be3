@@ -34,8 +34,8 @@ How the server runs on a VPS for real notes. The files referred to are in
 
 ## Install
 
-1. Build `//crates/block-app:dist` for the VPS
-   (`./scripts/buck build //crates/block-app:dist --out DIR`), copy `DIR/be-server`
+1. Build `//crates/be-server:dist` for the VPS
+   (`./scripts/buck build //crates/be-server:dist --out DIR`), copy `DIR/be-server`
    to `/usr/local/bin/be-server` and `DIR/build-id` to `/etc/be-server/build-id`.
    The server refuses clients of any other build, so upgrade it together with
    the web bundle and every device, all from one commit.

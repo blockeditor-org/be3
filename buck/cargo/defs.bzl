@@ -109,7 +109,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
         library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
     else:
         native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
-    test_run(name = name + "_run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name)
+    test_run(name = name + "-run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name)
 
 # A Rust test harness run with its LD_LIBRARY_PATH carried as
 # BE3_LD_LIBRARY_PATH and put back by the shell that starts it, so it survives
@@ -173,8 +173,8 @@ test_run = rule(
     impl = _test_run_impl,
 )
 
-# One of the crate's [[bin]] targets. A binary named like its package is
-# <name>-bin, since the library already has the name.
+# One of the crate's [[bin]] targets: :bin, or, in a crate with several, the
+# binary's own name.
 def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
     binaries = {binary["name"]: binary for binary in crate["binaries"]}
@@ -188,7 +188,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     if crate["library"] != None:
         own = [":" + crate["name"]]
     native.rust_binary(
-        name = name or (bin + "-bin" if bin == crate["name"] else bin),
+        name = name or ("bin" if len(binaries) == 1 else bin),
         crate = crate_name,
         crate_root = binary["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),
@@ -200,8 +200,8 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         **kwargs,
     )
 
-# One of the crate's examples, as a binary, named <example>-example:
-# `./scripts/buck run //crates/beui:survey-example`. It is built the way cargo
+# One of the crate's examples, as a binary, named example-<example>:
+# `./scripts/buck run //crates/beui:example-survey`. It is built the way cargo
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
@@ -213,7 +213,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     if crate["library"] != None:
         own = [":" + crate["name"]]
     native.rust_binary(
-        name = example + "-example",
+        name = "example-" + example,
         crate = crate_name,
         crate_root = examples[example]["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["examples"].get(example, {}).get("deps", []), own + extra_deps),
@@ -278,7 +278,7 @@ _FUZZ_FLAGS = [
 # seed, so a target that stops building or running fails verify.
 def cargo_fuzz(extra_features = [], runs = 20000):
     crate = _crate()
-    library = crate["name"] + "-fuzzing"
+    library = "fuzz-lib"
     compatible = ["prelude//os:linux", "prelude//cpu:x86_64"]
     cargo_library(
         name = library,
@@ -317,7 +317,7 @@ def cargo_fuzz(extra_features = [], runs = 20000):
             target_compatible_with = compatible,
             test = ":{}-bin".format(name),
         )
-        test_run(name = name + "-test_run", target_compatible_with = compatible, test = ":{}-test".format(name))
+        test_run(name = name + "-test-run", target_compatible_with = compatible, test = ":{}-test".format(name))
 
 def _fuzzing_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     fuzzing = refs.fuzzing[ConstraintValueInfo]
@@ -366,7 +366,7 @@ fuzz_target = rule(
     attrs = {
         "binary": attrs.dep(providers = [RunInfo]),
         "id": attrs.string(),
-        "_runner": attrs.default_only(attrs.dep(default = "root//crates/local-tools:local-tools-bin", providers = [RunInfo])),
+        "_runner": attrs.default_only(attrs.dep(default = "root//crates/local-tools:bin", providers = [RunInfo])),
     },
     impl = _fuzz_target_impl,
 )

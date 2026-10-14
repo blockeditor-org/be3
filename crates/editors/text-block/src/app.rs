@@ -10,7 +10,7 @@ mod toolbar;
 
 use beui::NodeId;
 use beui::reactive::{
-    ItemSize, List, NodeRef, Show, action_scope, clone, component, create_effect, create_memo,
+    ItemSize, List, NodeRef, Show, action_scope, component, create_effect, create_memo,
     create_signal, view,
 };
 use block_editor_beui::be_block::TextContent;
@@ -21,7 +21,7 @@ use crate::hex::{self, HexView};
 
 use embeds::ResolvedEmbed;
 use import_error::ImportError;
-use state::{DIRECT_EDITOR_WIDTH, Shared, State};
+use state::{DIRECT_EDITOR_WIDTH, State};
 use surface::TextSurface;
 use toolbar::{EditorMenu, FormatBar, format_actions};
 
@@ -41,45 +41,40 @@ impl block_editor_beui::BeuiApp for TextApp {
 
 #[component]
 pub fn TextEditor(editor: Editor) -> NodeId {
-    let state = State::new(editor.clone());
-    let replacing = state.clone();
-    editor.on_replace_child(move |old, new| replacing.replace_child(old, new));
+    let state = State::new(editor);
+    editor.on_replace_child(move |old, new| state.is_alive() && state.replace_child(old, new));
 
     let content = NodeRef::new();
     editor.content(&content);
     action_scope(&content);
-    intrinsic_size(&state);
-    let formats = format_actions(&state);
+    intrinsic_size(state);
+    let formats = format_actions(state);
 
-    let hex = state.hex_view.clone();
-    let text_shown = create_memo(clone!(hex -> move || !hex.get()));
-    let hex_shown = create_memo(clone!(hex -> move || hex.get()));
-    let surface_state = state.clone();
+    let hex = state.hex_view;
+    let text_shown = create_memo(move || !hex.get());
+    let hex_shown = create_memo(move || hex.get());
     let text_surface = move || {
-        let state = surface_state.clone();
         view! {
             <TextSurface @sizing=ItemSize::Percent(100.0) state={state} />
         }
     };
-    let hex_state = state.clone();
     let hex_surface = move || {
-        let state = hex_state.clone();
         view! {
             <HexView @sizing=ItemSize::Percent(100.0) state={state} />
         }
     };
     view! {
         <List @node_ref=&content spacing=0.0>
-            <EditorMenu state={state.clone()} />
-            <ImportError state={state.clone()} />
+            <EditorMenu state={state} />
+            <ImportError state={state} />
             <Show condition={text_shown} then={text_surface} />
             <Show condition={hex_shown} then={hex_surface} />
-            <FormatBar state={state.clone()} formats />
+            <FormatBar state={state} formats />
         </List>
     }
 }
 
-fn intrinsic_size(state: &Shared) {
+fn intrinsic_size(state: State) {
     let (width, set_width) = create_signal(DIRECT_EDITOR_WIDTH);
     let resized = state.editor.resized();
     create_effect(move || {
@@ -88,9 +83,9 @@ fn intrinsic_size(state: &Shared) {
         }
     });
     let content = state.text.content();
-    let hex = state.hex_view.clone();
-    let embeds = state.embeds.clone();
-    let measured = create_memo(clone!(state content hex width embeds -> move || {
+    let hex = state.hex_view;
+    let embeds = state.embeds;
+    let measured = create_memo(move || {
         content.get();
         let width = width.get();
         if !state.text.loaded() {
@@ -105,7 +100,7 @@ fn intrinsic_size(state: &Shared) {
             .map(ResolvedEmbed::widget)
             .collect::<Vec<_>>();
         state.text.measure(&widgets, width)
-    }));
-    let editor = state.editor.clone();
+    });
+    let editor = state.editor;
     create_effect(move || editor.set_intrinsic_size(measured.get()));
 }

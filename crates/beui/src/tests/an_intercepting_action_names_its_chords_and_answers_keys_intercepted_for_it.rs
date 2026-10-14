@@ -8,12 +8,12 @@ use crate::styled::{TextInput, text_input_value};
 
 #[test]
 fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it() {
-    let runs = Rc::new(Cell::new(0));
-    let counted = runs.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (runs, set_runs) = create_signal(0);
     let (open, set_open) = create_signal(false);
     let document = build(move || {
         Action::new("test.switch", "Switch", move || {
-            counted.set(counted.get() + 1)
+            set_runs.update(|runs| *runs += 1)
         })
         .shortcut(Chord::key(Key::Tab).alt())
         .shortcut(Chord::key(Key::Tab))
@@ -67,7 +67,7 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
     };
     harness.frame(vec![press(true), press(false)]);
     assert_eq!(
-        runs.get(),
+        runs.get_untracked(),
         1,
         "a key intercepted for the document runs its action"
     );

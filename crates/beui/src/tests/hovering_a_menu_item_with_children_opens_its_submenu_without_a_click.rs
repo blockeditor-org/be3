@@ -4,9 +4,9 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Share">
@@ -35,8 +35,7 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
     }]);
     harness.frame(Vec::new());
 
-    let inner = menu;
-    let content = unstyled::context_menu_menu(harness.document(), inner);
+    let content = unstyled::context_menu_menu(harness.document(), menu);
     let share_button = unstyled::menu_list_row_button(harness.document(), content, 0);
     assert!(unstyled::menu_list_row_submenu_content(harness.document(), content, 0).is_none());
 

@@ -128,10 +128,9 @@ pub(super) fn route(
     let pointer_events = ctx.input(|input| input.pointer_events.clone());
     let routed = std::mem::take(&mut doc.pointers.routed);
     let layers = doc.layers();
-    let blocking = layers.blocking();
     let reachable = |doc: &Document, sink: NodeId| {
         doc.layer_of(&layers, sink)
-            .is_some_and(|layer| layer >= blocking)
+            .is_some_and(|layer| layers.reachable(layer))
     };
     let mut deliveries: Vec<(NodeId, Vec<Forwarded>)> = Vec::new();
     let mut deliver = |to: Option<NodeId>, event: Forwarded| {
@@ -219,9 +218,7 @@ pub(super) fn route(
         if !doc.arena.contains(sink) {
             continue;
         }
-        let Some(on_forward) =
-            hit::interactive(doc, sink).map(|catcher| catcher.on_forward.clone())
-        else {
+        let Some(on_forward) = hit::interactive(doc, sink).map(|catcher| catcher.on_forward) else {
             continue;
         };
         on_forward.call(ForwardedInput {

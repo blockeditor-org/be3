@@ -18,7 +18,7 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Text, Track, clone, create_memo,
+    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Text, Track, create_memo,
     focus_ring,
 };
 
@@ -52,26 +52,26 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         open_switcher,
     } = handle;
     let theme = use_theme();
-    let counted = create_memo(clone!(others -> move || others.get() > 0));
-    let pictured = create_memo(clone!(icon -> move || !icon.get().is_empty()));
+    let counted = create_memo(move || others.get() > 0);
+    let pictured = create_memo(move || !icon.get().is_empty());
     view! {
         <List spacing=0.0>
             <Frame
-                color={theme.surface.clone()}
+                color={theme.surface}
                 padding_horizontal=BAR_PADDING
                 padding_vertical=BAR_PADDING
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={away}>
-                        {move || clone!(back -> view! {
+                        {move || view! {
                             <IconButton
                                 @test_id={"dock.back"}
                                 glyph=ICON_ARROW_BACK
                                 label="Back"
                                 variant=ButtonVariant::Ghost
-                                on_click={move || back.call()}
+                                on_click={back}
                             />
-                        })}
+                        }}
                     </Show>
                     <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=TITLE_PADDING>
                         <List
@@ -80,14 +80,14 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             spacing=TITLE_SPACING
                         >
                             <Show condition={pictured}>
-                                <Icon glyph={icon.clone()} color={theme.accent.clone()} />
+                                <Icon glyph={icon} color={theme.accent} />
                             </Show>
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
                                 @test_id={"dock.title"}
                                 string={title}
                                 font_size=FONT_BODY
-                                color={theme.text.clone()}
+                                color={theme.text}
                                 ellipsis=true
                             />
                         </List>
@@ -95,13 +95,13 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={counted}>
-                        {move || clone!(open_switcher -> view! {
+                        {move || view! {
                             <DockTabCount
-                                count={others.clone()}
-                                label={switch_label.clone()}
-                                on_click={move || open_switcher.call()}
+                                count={others}
+                                label={switch_label}
+                                on_click={open_switcher}
                             />
-                        })}
+                        }}
                     </Show>
                 </List>
             </Frame>
@@ -113,27 +113,27 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
 #[component]
 fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback) -> NodeId {
     let theme = use_theme();
-    let shown = create_memo(clone!(count -> move || count.get().to_string()));
+    let shown = create_memo(move || count.get().to_string());
     view! {
         <unstyled::Button
             @test_id={"dock.switch"}
             label
-            on_click={move || on_click.call()}
+            on_click={on_click}
             content={move |handle: unstyled::ButtonHandle| {
                 let unstyled::ButtonHandle { hovered, focused, .. } = handle;
-                let theme = theme.clone();
-                let fill = create_memo(clone!(theme -> move || match hovered.get() {
+                let theme = theme;
+                let fill = create_memo(move || match hovered.get() {
                     true => theme.hover.get(),
                     false => Color32::TRANSPARENT,
-                }));
-                let shown = shown.clone();
+                });
+                let shown = shown;
                 view! {
                     <Frame
                         width=COUNT_TARGET
                         height=COUNT_TARGET
                         color={fill}
                         radius=COUNT_TARGET_RADIUS
-                        outline={theme.accent.clone()}
+                        outline={theme.accent}
                         outline_width=FOCUS_RING_WIDTH
                         outline_visible={focus_ring(focused)}
                         align_horizontal=Align::Center
@@ -143,14 +143,14 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                             width=COUNT_SIDE
                             height=COUNT_SIDE
                             radius=COUNT_RADIUS
-                            outline={theme.text.clone()}
+                            outline={theme.text}
                             outline_width=COUNT_OUTLINE
                             outline_visible=true
                         >
                             <Text
                                 string={shown}
                                 font_size=FONT_SMALL
-                                color={theme.text.clone()}
+                                color={theme.text}
                                 align=TextAlign::Center
                             />
                         </Frame>
@@ -173,13 +173,13 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         home_icon,
         go_home,
     } = handle;
-    let none = create_memo(clone!(tabs -> move || tabs.with(Vec::is_empty)));
+    let none = create_memo(move || tabs.with(Vec::is_empty));
     let home_glyph = create_memo(move || match home_icon.get() {
         icon if icon.is_empty() => ICON_HOME.to_owned(),
         icon => icon,
     });
     view! {
-        <ModalSheet open rest={SHEET_STOPS[2]} on_close={move || close.call()}>
+        <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
                 <Frame padding_horizontal=SHEET_PADDING>
                     <Heading content="Open tabs" />
@@ -203,16 +203,16 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                     </List>
                 </Frame>
                 <Show condition={homed}>
-                    {move || clone!(go_home home_title home_glyph -> view! {
+                    {move || view! {
                         <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
                             <ActionRow
                                 @test_id={"dock.switcher.home"}
                                 label={home_title}
                                 glyph={home_glyph}
-                                on_click={move || go_home.call()}
+                                on_click={go_home}
                             />
                         </Frame>
-                    })}
+                    }}
                 </Show>
             </List>
         </ModalSheet>
@@ -231,16 +231,16 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         close,
     } = handle;
     let theme = use_theme();
-    let outline = create_memo(clone!(theme -> move || match current.get() {
+    let outline = create_memo(move || match current.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
+    });
     let id = tab.value();
     view! {
         <Frame
             height=CARD_HEIGHT
             radius=CARD_RADIUS
-            color={theme.surface_raised.clone()}
+            color={theme.surface_raised}
             outline={outline}
             outline_width=CARD_OUTLINE
             outline_visible=true
@@ -251,32 +251,32 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                 <ListRow
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={format!("dock.switcher.tab.{id}")}
-                    on_click={move || pick.call()}
+                    on_click={pick}
                 >
                     <Frame padding_vertical=CARD_PADDING>
                         <List spacing=CARD_LINES>
                             <List direction=Direction::Horizontal spacing=0.0>
-                                <Icon glyph={icon} color={theme.accent.clone()} />
+                                <Icon glyph={icon} color={theme.accent} />
                             </List>
                             <Text
                                 string={title}
                                 font_size=FONT_BODY
-                                color={theme.text.clone()}
+                                color={theme.text}
                                 ellipsis=true
                             />
                         </List>
                     </Frame>
                 </ListRow>
                 <Show condition={closable}>
-                    {move || clone!(close -> view! {
+                    {move || view! {
                         <IconButton
                             @test_id={format!("dock.switcher.close.{id}")}
                             glyph=ICON_CLOSE
                             label="Close tab"
                             variant=ButtonVariant::Ghost
-                            on_click={move || close.call()}
+                            on_click={close}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>

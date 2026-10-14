@@ -10,7 +10,7 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Child, ClickCallback, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo,
+    Align, Child, ClickCallback, Direction, Frame, ItemSize, List, Prop, Text, create_memo,
 };
 
 const WIDTH: f32 = 520.0;
@@ -29,7 +29,7 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
     view! {
         <unstyled::CommandPalette
             open
-            on_close={move || on_close.call()}
+            on_close={on_close}
             list_height=LIST_HEIGHT
             scrim=SCRIM
             search_placeholder="Run a command"
@@ -56,8 +56,8 @@ fn PalettePanel(children: Child) -> NodeId {
         <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
             <Frame
                 max_width=WIDTH
-                color={theme.surface_raised.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface_raised}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 outline_visible=true
                 radius=CARD_RADIUS
@@ -77,8 +77,8 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            color={theme.surface.clone()}
-            outline={theme.accent.clone()}
+            color={theme.surface}
+            outline={theme.accent}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
@@ -99,18 +99,18 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         hovered,
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme disabled -> move || {
-        match (disabled.get(), highlighted.get(), hovered.get()) {
+    let fill = create_memo(
+        move || match (disabled.get(), highlighted.get(), hovered.get()) {
             (true, _, _) | (false, false, false) => Color32::TRANSPARENT,
             (false, true, _) => theme.accent_soft.get(),
             (false, false, true) => theme.surface.get(),
-        }
-    }));
-    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        },
+    );
+    let text_color = create_memo(move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
-    let icon_color = text_color.clone();
+    });
+    let icon_color = text_color;
     let shortcut = shortcut.unwrap_or_default();
     view! {
         <Frame
@@ -133,7 +133,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
                 <Text
                     string={shortcut}
                     font_size=FONT_SMALL
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                     align=TextAlign::End
                 />
             </List>

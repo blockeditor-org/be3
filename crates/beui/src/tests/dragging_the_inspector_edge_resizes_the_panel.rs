@@ -3,9 +3,9 @@ use crate::reactive::{NodeRef, Text, build, view};
 
 #[test]
 fn dragging_the_inspector_edge_resizes_the_panel() {
+    let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let document = build({
-        let text = text.clone();
         move || {
             view! {
                 <Text @node_ref=&text string="Hello" font_size=14.0 color=Color32::WHITE />

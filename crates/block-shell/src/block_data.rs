@@ -1,9 +1,8 @@
 use std::collections::HashSet;
-use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Frame, Func, ItemSize, List, ReadSignal, Show, clone, component, create_effect, create_memo,
+    Frame, Func, ItemSize, List, ReadSignal, Show, component, create_effect, create_memo,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
@@ -26,14 +25,10 @@ struct Row {
 }
 
 #[component]
-pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn BlockData(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
     let (data, set_data) = create_signal(None::<String>);
-    let reading = Rc::downgrade(&workspace);
-    let read_info = info.clone();
+    let read_info = info;
     create_effect(move || {
-        let Some(workspace) = reading.upgrade() else {
-            return;
-        };
         let Some(id) = read_info.with(|info| info.as_ref().map(|info| info.item.id)) else {
             set_data.set(None);
             return;
@@ -41,29 +36,30 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
         set_data.set(workspace.debug_data(id));
     });
     let (expanded, set_expanded) = create_signal(HashSet::<String>::new());
-    let parsed = create_memo(clone!(data -> move || {
-        data.with(|data| data.as_ref().and_then(|data| serde_json::from_str::<Value>(data).ok()))
-    }));
-    let rows = create_memo(clone!(parsed expanded -> move || {
+    let parsed = create_memo(move || {
+        data.with(|data| {
+            data.as_ref()
+                .and_then(|data| serde_json::from_str::<Value>(data).ok())
+        })
+    });
+    let rows = create_memo(move || {
         parsed.with(|parsed| {
             parsed
                 .as_ref()
                 .map(|parsed| expanded.with(|expanded| build(parsed, expanded)))
                 .unwrap_or_default()
         })
-    }));
-    let keys = create_memo(clone!(rows -> move || {
+    });
+    let keys = create_memo(move || {
         rows.with(|rows| rows.iter().map(|row| row.path.clone()).collect::<Vec<_>>())
-    }));
-    let waiting = create_memo(clone!(data -> move || data.with(Option::is_none)));
-    let raw = create_memo(clone!(data parsed -> move || {
-        match parsed.with(Option::is_some) {
-            true => String::new(),
-            false => data.with(|data| data.clone().unwrap_or_default()),
-        }
-    }));
-    let unparsed = create_memo(clone!(raw -> move || !raw.with(String::is_empty)));
-    let item_rows = rows.clone();
+    });
+    let waiting = create_memo(move || data.with(Option::is_none));
+    let raw = create_memo(move || match parsed.with(Option::is_some) {
+        true => String::new(),
+        false => data.with(|data| data.clone().unwrap_or_default()),
+    });
+    let unparsed = create_memo(move || !raw.with(String::is_empty));
+    let item_rows = rows;
     let item = Func::new(move |path: String| {
         item_rows.with(|rows| {
             rows.iter()
@@ -76,7 +72,7 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                 })
         })
     });
-    let content_rows = rows.clone();
+    let content_rows = rows;
     view! {
         <Frame padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=ROW_SPACING>
@@ -84,11 +80,11 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                     <Caption content="This block has not finished loading yet." />
                 </Show>
                 <Show condition={unparsed}>
-                    {move || clone!(raw -> view! {
+                    {move || view! {
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <Code content={raw} />
                         </Scroll>
-                    })}
+                    }}
                 </Show>
                 <Tree
                     @sizing=ItemSize::Percent(100.0)
@@ -108,13 +104,13 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                 >
                     {move |face: TreeRowFace<String>| {
                         let path = face.key;
-                        let label = create_memo(clone!(content_rows -> move || {
+                        let label = create_memo(move || {
                             content_rows.with(|rows| {
                                 rows.iter()
                                     .find(|row| row.path == path)
                                     .map_or_else(String::new, |row| row.label.clone())
                             })
-                        }));
+                        });
                         view! {
                             <Code content={label} />
                         }

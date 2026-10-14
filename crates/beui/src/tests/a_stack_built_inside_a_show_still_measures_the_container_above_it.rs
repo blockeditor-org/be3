@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, List, Show, build, clone, create_signal, view};
+use crate::reactive::{ItemSize, List, Show, build, create_signal, view};
 use crate::styled::Stack;
 use crate::unstyled::Button;
 use crate::unstyled::Container;
@@ -9,9 +9,9 @@ const ITEM_HEIGHT: f32 = 20.0;
 
 #[test]
 fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
+    let _root = crate::reactive::RootScope::new();
     let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (toggle, left, right) = (toggle.clone(), left.clone(), right.clone());
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {
@@ -22,7 +22,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                                 <Text string="toggle" />
                             </Button>
                             <Show condition={visible}>
-                                {move || clone!(left right -> view! {
+                                {move || view! {
                                     <Stack spacing=0.0 breakpoint=BREAKPOINT>
                                         <Frame
                                             @sizing=ItemSize::Percent(50.0)
@@ -39,7 +39,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                                             <Spacer />
                                         </Frame>
                                     </Stack>
-                                })}
+                                }}
                             </Show>
                         </List>
                     }}

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use beui::NodeId;
 use beui::reactive::{
-    Memo, Prop, ReadSignal, clone, component, create_effect, create_memo, create_signal, view,
+    Memo, Prop, ReadSignal, component, create_effect, create_memo, create_signal, view,
 };
 use beui::styled::Link;
 use beui::styled::theme::FONT_BODY;
@@ -20,14 +20,14 @@ pub struct BlockDisplay {
 }
 
 pub fn watch_block_label(
-    editor: &Editor,
+    editor: Editor,
     target: Memo<Option<ChildTarget>>,
 ) -> ReadSignal<BlockDisplay> {
     let (shown, set_shown) = create_signal(BlockDisplay::default());
-    let shown_now = shown.clone();
+    let shown_now = shown;
     let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
     let blocks = editor.blocks();
-    let catalog = editor.host().clone();
+    let catalog = editor.host();
     create_effect(move || {
         let Some(next) = target.get() else {
             opened.borrow_mut().take();
@@ -74,22 +74,22 @@ pub fn BlockLink(
     #[prop(default = FONT_BODY)] font_size: Prop<f32>,
 ) -> NodeId {
     let target = create_memo(move || block.get());
-    let shown = watch_block_label(&editor, target.clone());
-    let host = editor.host().clone();
-    let label = create_memo(clone!(shown -> move || {
+    let shown = watch_block_label(editor, target);
+    let host = editor.host();
+    let label = create_memo(move || {
         let name = shown.with(|shown| shown.name.clone());
         match name.is_empty() {
             true => fallback.get(),
             false => name,
         }
-    }));
-    let glyph = create_memo(clone!(shown -> move || shown.with(|shown| shown.glyph.clone())));
-    let missing = create_memo(clone!(target -> move || target.get().is_none()));
-    let open = clone!(target -> move || {
+    });
+    let glyph = create_memo(move || shown.with(|shown| shown.glyph.clone()));
+    let missing = create_memo(move || target.get().is_none());
+    let open = move || {
         if let Some(target) = target.get_untracked() {
             host.open_block(target.id, target.block_type);
         }
-    });
+    };
     view! {
         <Link
             label={label}

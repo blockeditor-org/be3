@@ -1,23 +1,22 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{NodeRef, Text, build, clone, create_memo, create_signal, view};
+use crate::reactive::{NodeRef, Text, build, create_memo, create_signal, view};
 use crate::unstyled::BackSlide;
 
 #[test]
 fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
+    let _root = crate::reactive::RootScope::new();
     let (depth, set_depth) = create_signal(2_u32);
     let page = NodeRef::new();
-    let page_ref = page.clone();
     let document = build({
-        let depth = depth.clone();
         move || {
-            let nested = create_memo(clone!(depth -> move || depth.get() > 0));
+            let nested = create_memo(move || depth.get() > 0);
             view! {
                 <BackSlide
                     enabled={nested}
                     on_back={move || set_depth.set(depth.get_untracked() - 1)}
                 >
-                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page_ref} />
+                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
                 </BackSlide>
             }
         }
@@ -69,10 +68,14 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     assert_eq!(harness.rect(page.get()), resting);
 
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(Vec::new());
     assert_eq!(
         depth.get_untracked(),
-        0,
-        "back with no gesture before it goes back at once"
+        1,
+        "back with no gesture before it plays the same slide-away"
     );
+    assert!(harness.rect(page.get()).left() > resting.left());
+    harness.settle();
+    assert_eq!(depth.get_untracked(), 0, "and goes back once it is gone");
     assert!(!harness.frame(Vec::new()).window.handles_back);
 }

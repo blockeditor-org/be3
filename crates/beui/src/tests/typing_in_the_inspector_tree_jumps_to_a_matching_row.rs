@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn typing_in_the_inspector_tree_jumps_to_a_matching_row() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 
@@ -11,5 +12,5 @@ fn typing_in_the_inspector_tree_jumps_to_a_matching_row() {
     harness.type_text("te");
 
     assert_eq!(harness.focused_row_index(), Some(2));
-    assert_eq!(harness.inspector().state.selected.get(), None);
+    assert_eq!(harness.inspector().state().selected.get(), None);
 }

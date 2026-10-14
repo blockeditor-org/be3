@@ -3,8 +3,8 @@ use crate::reactive::{Direction, Frame, ItemSize, List, build, view, with_docume
 
 #[test]
 fn a_wrapping_row_flows_its_children_onto_more_lines() {
-    let tiles = Rc::new(RefCell::new(Vec::new()));
-    let sink = tiles.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (tiles, set_tiles) = create_signal(Vec::new());
 
     let document = build(move || {
         let row = view! {
@@ -14,14 +14,14 @@ fn a_wrapping_row_flows_its_children_onto_more_lines() {
                 <Frame @sizing=ItemSize::Fixed(40.0) height=20.0 />
             </List>
         };
-        sink.replace(with_document(|document| document.children(row)));
+        set_tiles.set(with_document(|document| document.children(row)));
         row
     });
 
     let mut harness = Harness::sized(document, Vec2::new(100.0, 200.0));
     harness.frame(Vec::new());
 
-    let tiles = tiles.borrow();
+    let tiles = tiles.get_untracked();
     assert_eq!(
         harness.rect(tiles[0]),
         Rect::from_min_size(Pos2::ZERO, Vec2::new(40.0, 20.0))

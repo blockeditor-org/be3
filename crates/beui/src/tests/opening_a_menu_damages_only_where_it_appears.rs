@@ -4,9 +4,9 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn opening_a_menu_damages_only_where_it_appears() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [_menu]) = toolbar_of({
-        let region = region.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />
