@@ -9,8 +9,13 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   in a new document each time (warm). It prints each page's cold time, the fastest, median
   and slowest warm time, the allocations one open makes, and a geometric mean of each
   column. `VERBOSE=1` prints every open, split into interaction, layout, paint and
-  accessibility; `GPU=1` adds the renderer's `prepare`, which on a machine without a GPU
-  mostly measures lavapipe and says little about a real one.
+  accessibility; `UNPLACED=1` lists what each open built but never laid out, by the
+  components it is in, which is what to build lazily; `GPU=1` adds the renderer's
+  `prepare`, which on a machine without a GPU mostly measures lavapipe and says little
+  about a real one.
+- The open bench builds a new document for each open, so the per-node tables a document
+  keeps grow from empty every time. A long-lived document reuses the slots of the nodes
+  it removed; don't chase the growth of those tables in a profile of the bench.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
 
 The target for opening a page is under 2 ms warm.
@@ -24,7 +29,9 @@ Time on a shared VM drifts by 10% or more between runs, which hides most single 
   on the base and again with `--out DIR/change`.
 - Compare each page's fastest warm open, never one run's median.
 - Allocation counts don't drift: the same build gives the same count to within one or two.
-  A change meant to allocate less shows up there even when its time is lost in noise.
+  A change meant to allocate less shows up there even when its time is lost in noise. They
+  are not time, though: reserving room for eight cleanups in every scope saved a
+  tenth of the allocations and made opening a page 2.5% slower.
 
 3. Profiling
 
@@ -71,3 +78,12 @@ nothing better is left.
 - Building the accessibility tree only while a screen reader asks for it. It is wanted
   often; make building it cheaper instead. Switching it off saved about 4%.
 - Rasterizing ASCII in idle time so a page's first open finds its glyphs ready.
+
+These were measured and changed nothing worth their code:
+
+- Unsubscribing a disposed computation lazily, compacting a signal's subscribers once half
+  are stale, instead of `retain`ing the list each time: subscriber lists are short.
+- Skipping the reactive context a disposing scope enters when disposal is already
+  untracked: checking cost more than it saved.
+- Giving a component no scope of its own until something is created in it: only about one
+  component scope in ten ends up empty, because nearly every component probes a binding.

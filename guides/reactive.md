@@ -321,7 +321,10 @@ before the batch around it ends, the way a memo's does. If that execution read
 nothing and left nothing to clean up, no computation is made at all; otherwise
 it reruns like an effect. Bind a property of a node that already exists with
 it, as the base components do with their props: most props are plain values,
-and a binding of one costs only its closure. Anything that has to wait for the
+and a binding of one costs only its closure. Each binding still costs a probe,
+so bind props that are applied together in one binding, as `Text` binds its
+whole `TextStyle`; the setters skip a value that has not changed, so rerunning
+the group for one prop touches nothing else. Anything that has to wait for the
 tree it is in to be built, such as moving focus, stays an effect.
 
 `create_effect` returns an `Effect` handle for explicit `dispose()` and
@@ -358,6 +361,10 @@ is running). `ScopeContext::child()` opens a scope under it that its handle
 owns, returning `None` if that scope is already gone, and `is_alive()` answers
 the same question on its own. This is how a list keeps per-item scopes across
 updates of the list itself while still reading what was provided above it.
+
+`on_release(target, key)` registers `target.release(key)` instead, for a
+`Release` target shared by many registrations, so it allocates nothing: beui
+queues a node's removal this way for every node a scope owns.
 
 `on_cleanup(|| ...)` registers a callback on the current scope. Every computation
 has a fresh execution scope: before it reruns, its old nested computations and

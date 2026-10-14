@@ -157,7 +157,9 @@ writes a `view!`, not a half-applied builder.
 Bind a signal or memo to a prop; do not read it while building and do not
 rebuild a subtree to show a new value. A `Prop<T>` takes a plain `T`, a
 `ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
-writes just that one property when the value changes.
+writes just that one property when the value changes. A prop holds a signal or
+memo it is given as it is; only a closure (`Prop::dynamic`) is boxed, so pass a
+memo rather than `move || memo.get()`.
 
 A `Prop<T>` is `Copy` whenever `T` is, like the signal behind it, so a
 component reads one in as many places as it needs. A `Prop<String>` or other
@@ -926,8 +928,9 @@ and reported clamped to the most colorful color at its lightness and hue
 `unstyled::ColorWheel`, which works in `WheelPoint`s (a hue and the triangle's
 saturation and value) and leaves the color model to its caller, and
 `ColorPickerState` is generic over the model (`Hsva` or `Oklch`). The faces are
-images rasterised on the CPU at the screen's pixel density, so they work on
-every renderer.
+a `Drawing` that a shader paints on the wgpu renderer, behind
+beui-components-styled's `gpu` feature; the DOM renderer cannot run it and
+fills it with magenta.
 
 `unstyled::Popover` is what both open: a trigger and an overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its
@@ -1009,6 +1012,14 @@ window that was covered comes up with its window; an inert layer rises alone,
 so a tooltip shown over a covered window leaves the window where it was.
 `Document::layers()` is worked out once for each change to the tree or the
 layers and shared until the next, so asking for it again costs nothing.
+
+Hand an `Overlay` what it shows as `content={move || ...}` rather than as
+children: it calls that the first time it opens, so a closed tooltip, select,
+menu or prompt costs its overlay node and nothing else. Children are built with
+the overlay, whether or not it ever opens; use them only for content that must
+exist while closed. State the rest of the component reads, such as which rows
+a select's search hides, belongs outside the content, derived from data rather
+than from nodes that may not have been built.
 
 Each layer has one `policy` (`LayerPolicy`):
 
@@ -1678,7 +1689,7 @@ paint over it.
 ```rust
 view! {
     <Drawing
-        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+        draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
         @sizing=ItemSize::Percent(100.0)
     />
 }
