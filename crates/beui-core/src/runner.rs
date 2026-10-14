@@ -137,6 +137,7 @@ pub struct Runner {
     actions: Vec<ActionGroup>,
     test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
     unpresented: bool,
+    occluded: bool,
     closing: bool,
     asked: WindowState,
     shown: WindowState,
@@ -178,6 +179,7 @@ impl Runner {
             actions: Vec::new(),
             test_ids: std::collections::HashMap::new(),
             unpresented: false,
+            occluded: false,
             closing: false,
             asked: WindowState::default(),
             shown: WindowState::default(),
@@ -242,6 +244,10 @@ impl Runner {
 
     pub fn has_events(&self) -> bool {
         !self.events.is_empty() || !self.intake.incoming.is_empty() || self.reports.pending()
+    }
+
+    pub fn set_occluded(&mut self, occluded: bool) {
+        self.occluded = occluded;
     }
 
     pub fn reports(&self) -> &WindowReports {
@@ -483,7 +489,18 @@ impl Runner {
             platform.set_fullscreen(fullscreen);
         }
 
-        let pending = renderers.prepare(&output, scale, self.app.clear_color());
+        let looked_at = !self.occluded
+            || self
+                .automation
+                .as_ref()
+                .is_some_and(Automation::wants_capture);
+        let pending = match looked_at {
+            true => renderers.prepare(&output, scale, self.app.clear_color()),
+            false => {
+                renderers.note(&output, scale, self.app.clear_color());
+                false
+            }
+        };
         let mut frame = Frame {
             pending,
             deferred: !self.events.is_empty() || self.reports.pending(),
@@ -545,6 +562,9 @@ impl Runner {
     }
 
     fn run_present(&mut self) -> bool {
+        if self.occluded && !self.unpresented {
+            return false;
+        }
         let background = self.app.clear_color();
         let Some(renderers) = self.renderers.as_mut() else {
             return false;
