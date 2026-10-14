@@ -1917,6 +1917,15 @@ its size, scale and fullscreen through its `WindowReports`. beui's own tests
 drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
 frame back for a screenshot.
 
+A window nobody can see is `Runner::set_occluded`: its frames still run (layout,
+paint, accessibility, the driver), but the runner hands each one's output to
+`Renderer::note` instead of `prepare` and presents nothing. `note` keeps only
+what the frame damaged, so the wgpu `Target` draws the union of every unseen
+frame's damage into its retained frame the next time it does draw; a renderer
+without `note` prepares as usual. The headless adapter is always occluded, so it
+draws only for a driver's `shot`: the frame that takes one prepares and
+presents, and is read back.
+
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,
 so pasting and composition behave like any other input on the page. Like the
