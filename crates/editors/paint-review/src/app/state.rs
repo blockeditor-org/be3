@@ -6,7 +6,7 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::paint::{ApprovedPainting, PaintReview};
 use block_editor_beui::be_block::{PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 use block_editor_beui::beui::reactive::{
-    ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+    ReadSignal, Stored, WriteSignal, create_effect, create_signal, store, untrack,
 };
 use block_editor_beui::{ContentProjection, Editor, Waker};
 
@@ -80,16 +80,10 @@ pub(crate) enum Shown {
     Waiting(Option<String>),
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Review {
     editor: Editor,
-    block: Rc<ContentProjection<PaintReviewContent>>,
     loaded: ReadSignal<bool>,
-    source: Source,
-    download: RefCell<Option<Download>>,
-    waker: RefCell<Waker>,
-    paintings: RefCell<Paintings>,
-    change: RefCell<Option<(String, Change)>>,
-    advanced: Cell<Option<Instant>>,
     pub(crate) found: ReadSignal<Vec<Painting>>,
     set_found: WriteSignal<Vec<Painting>>,
     pub(crate) approved: ReadSignal<Vec<ApprovedPainting>>,
@@ -113,10 +107,21 @@ pub(crate) struct Review {
     set_description: WriteSignal<Option<String>>,
     pub(crate) revision: ReadSignal<u64>,
     set_revision: WriteSignal<u64>,
+    inner: Stored<Inner>,
+}
+
+struct Inner {
+    block: Rc<ContentProjection<PaintReviewContent>>,
+    source: Source,
+    download: RefCell<Option<Download>>,
+    waker: RefCell<Waker>,
+    paintings: RefCell<Paintings>,
+    change: RefCell<Option<(String, Change)>>,
+    advanced: Cell<Option<Instant>>,
 }
 
 impl Review {
-    pub(crate) fn new(editor: Editor, source: Source) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, source: Source) -> Self {
         let block = editor.block_content::<PaintReviewContent>();
         let approved = block.project(|review| review.root().approved());
         let loaded = block.loaded();
@@ -131,16 +136,9 @@ impl Review {
         let (scale, set_scale) = create_signal(None);
         let (description, set_description) = create_signal(None);
         let (revision, set_revision) = create_signal(0);
-        Rc::new(Self {
+        Self {
             editor,
-            block,
             loaded,
-            source,
-            download: RefCell::new(None),
-            waker: RefCell::new(Waker::default()),
-            paintings: RefCell::new(Paintings::default()),
-            change: RefCell::new(None),
-            advanced: Cell::new(None),
             found,
             set_found,
             approved,
@@ -164,7 +162,16 @@ impl Review {
             set_description,
             revision,
             set_revision,
-        })
+            inner: store(Inner {
+                block,
+                source,
+                download: RefCell::new(None),
+                waker: RefCell::new(Waker::default()),
+                paintings: RefCell::new(Paintings::default()),
+                change: RefCell::new(None),
+                advanced: Cell::new(None),
+            }),
+        }
     }
 
     pub(crate) fn editor(&self) -> Editor {
@@ -176,49 +183,51 @@ impl Review {
     }
 
     pub(crate) fn rastered(&self) -> usize {
-        self.paintings.borrow().rastered()
+        let inner = self.inner.get();
+        inner.paintings.borrow().rastered()
     }
 
-    pub(crate) fn watch(self: &Rc<Self>) {
+    pub(crate) fn watch(self) {
         let (waker, woken) = self.editor.woken();
-        *self.waker.borrow_mut() = waker;
-        let review = Rc::clone(self);
+        self.inner.with(|inner| *inner.waker.borrow_mut() = waker);
         create_effect(move || {
             woken.with(|_| ());
-            untrack(|| review.raster());
+            untrack(|| self.raster());
         });
-        let review = Rc::clone(self);
-        self.editor.on_reply(move || review.fetch());
-        let review = Rc::clone(self);
+        self.editor.on_reply(move || {
+            if self.inner.is_alive() {
+                self.fetch();
+            }
+        });
         let editable = self.editor.editable();
         create_effect(move || {
-            review.pending.with(|_| ());
-            review.found.with(|_| ());
+            self.pending.with(|_| ());
+            self.found.with(|_| ());
             editable.with(|_| ());
-            review.block.revision();
-            untrack(|| review.settle());
+            self.inner.with(|inner| inner.block.revision());
+            untrack(|| self.settle());
         });
-        let review = Rc::clone(self);
         create_effect(move || {
-            let selected = review.selected.get();
-            review.showing.with(|_| ());
-            review.approved.with(|_| ());
-            review.found.with(|_| ());
+            let selected = self.selected.get();
+            self.showing.with(|_| ());
+            self.approved.with(|_| ());
+            self.found.with(|_| ());
             match selected {
-                Some(path) => review.request(&path),
-                None => review.forget(),
+                Some(path) => self.request(&path),
+                None => self.forget(),
             }
-            untrack(|| review.raster());
+            untrack(|| self.raster());
         });
         self.fetch();
     }
 
     fn fetch(&self) {
-        if self.download.borrow().is_none() {
-            *self.download.borrow_mut() =
-                Some(crate::download::start(&self.source, &self.editor.host()));
+        let inner = self.inner.get();
+        if inner.download.borrow().is_none() {
+            *inner.download.borrow_mut() =
+                Some(crate::download::start(&inner.source, &self.editor.host()));
         }
-        let result = self
+        let result = inner
             .download
             .borrow_mut()
             .as_mut()
@@ -235,7 +244,7 @@ impl Review {
                 }
             }
         }
-        let finished = self
+        let finished = inner
             .download
             .borrow()
             .as_ref()
@@ -244,8 +253,9 @@ impl Review {
     }
 
     pub(crate) fn raster(&self) {
-        let waker = self.waker.borrow().clone();
-        let changed = self.paintings.borrow_mut().settle(&waker);
+        let inner = self.inner.get();
+        let waker = inner.waker.borrow().clone();
+        let changed = inner.paintings.borrow_mut().settle(&waker);
         if changed {
             self.bump();
         }
@@ -256,7 +266,8 @@ impl Review {
     }
 
     pub(crate) fn refresh(&self) {
-        self.download.borrow_mut().take();
+        let inner = self.inner.get();
+        inner.download.borrow_mut().take();
         self.fetch();
     }
 
@@ -316,11 +327,12 @@ impl Review {
     }
 
     pub(crate) fn select(&self, path: &str) {
+        let inner = self.inner.get();
         self.set_selected.set(Some(path.to_owned()));
         self.set_showing.set(Showing::Current);
         self.set_frame.set(0);
         self.set_playing.set(false);
-        self.advanced.set(None);
+        inner.advanced.set(None);
         self.editor.fit();
     }
 
@@ -344,6 +356,7 @@ impl Review {
     }
 
     fn approve_now(&self, path: &str) -> bool {
+        let inner = self.inner.get();
         if !self.editable() {
             return true;
         }
@@ -351,7 +364,7 @@ impl Review {
         let Some(painting) = found.iter().find(|found| found.path == path) else {
             return true;
         };
-        let Some(approved) = self.block.read(|review| {
+        let Some(approved) = inner.block.read(|review| {
             review
                 .root()
                 .approval(path)
@@ -373,12 +386,13 @@ impl Review {
             }
             None => self.editor.create_child(&snapshot),
         };
-        self.block
+        inner.block
             .operate(PaintReview::approve(path, painting.hash.clone(), reference));
         true
     }
 
     pub(crate) fn unapprove(&self, path: &str) {
+        let inner = self.inner.get();
         if self.pending.get_untracked().as_deref() == Some(path) {
             self.set_pending.set(None);
         }
@@ -392,7 +406,7 @@ impl Review {
         self.editor
             .blocks()
             .set_parent(approval.snapshot, BlockParent::Detached);
-        self.block.operate(PaintReview::forget(path));
+        inner.block.operate(PaintReview::forget(path));
     }
 
     fn hash(&self, path: &str, showing: Showing) -> Result<String, Option<String>> {
@@ -436,25 +450,27 @@ impl Review {
     }
 
     pub(crate) fn request(&self, path: &str) {
+        let inner = self.inner.get();
         let mut kept = vec![self.difference_key(path)];
         for wanted in self.showing.get_untracked().wanted() {
             let Ok(hash) = self.hash(path, wanted) else {
                 continue;
             };
             kept.push(hash.clone());
-            if self.paintings.borrow().holds(&hash) {
+            if inner.paintings.borrow().holds(&hash) {
                 continue;
             }
             let Ok(data) = self.data(path, wanted) else {
                 continue;
             };
-            self.paintings.borrow_mut().want(&hash, data);
+            inner.paintings.borrow_mut().want(&hash, data);
         }
-        self.paintings.borrow_mut().keep(kept);
+        inner.paintings.borrow_mut().keep(kept);
     }
 
     pub(crate) fn forget(&self) {
-        self.paintings.borrow_mut().keep(Vec::new());
+        let inner = self.inner.get();
+        inner.paintings.borrow_mut().keep(Vec::new());
     }
 
     fn difference_key(&self, path: &str) -> String {
@@ -466,7 +482,8 @@ impl Review {
     }
 
     pub(crate) fn count(&self, path: &str, showing: Showing) -> usize {
-        let paintings = self.paintings.borrow();
+        let inner = self.inner.get();
+        let paintings = inner.paintings.borrow();
         let counts = showing
             .wanted()
             .into_iter()
@@ -480,14 +497,16 @@ impl Review {
     }
 
     pub(crate) fn rastering(&self) -> bool {
-        self.paintings.borrow().working()
+        let inner = self.inner.get();
+        inner.paintings.borrow().working()
     }
 
     pub(crate) fn loading(&self) -> Option<(usize, usize)> {
+        let inner = self.inner.get();
         let path = self.selected.get()?;
         let status = self.status(&path)?;
         let hash = self.hash(&path, self.shown_as(status)).ok()?;
-        self.paintings.borrow().loading(&hash)
+        inner.paintings.borrow().loading(&hash)
     }
 
     pub(crate) fn changed(&self, path: &str, status: Status) -> Option<(String, Option<usize>)> {
@@ -498,10 +517,11 @@ impl Review {
     }
 
     fn change(&self, path: &str) -> Option<(String, Option<usize>)> {
+        let inner = self.inner.get();
         let current_hash = self.hash(path, Showing::Current).ok()?;
         let approved_hash = self.hash(path, Showing::Approved).ok()?;
         let key = format!("{approved_hash}\u{1}{current_hash}");
-        if self
+        if inner
             .change
             .borrow()
             .as_ref()
@@ -514,9 +534,9 @@ impl Review {
                     description: format!("the paintings could not be compared: {error}"),
                     frame: None,
                 });
-            *self.change.borrow_mut() = Some((key, change));
+            *inner.change.borrow_mut() = Some((key, change));
         }
-        self.change
+        inner.change
             .borrow()
             .as_ref()
             .map(|(_, change)| (change.description.clone(), change.frame))
@@ -535,31 +555,34 @@ impl Review {
     }
 
     pub(crate) fn toggle_playback(&self) {
+        let inner = self.inner.get();
         let playing = !self.playing.get_untracked();
         self.set_playing.set(playing);
-        self.advanced.set(None);
+        inner.advanced.set(None);
     }
 
     pub(crate) fn next_advance(&self, count: usize, rendered: bool) -> Option<Duration> {
+        let inner = self.inner.get();
         if !self.playing.get_untracked() || count < 2 {
-            self.advanced.set(None);
+            inner.advanced.set(None);
             return None;
         }
         if !rendered {
             return None;
         }
-        Some(self.advanced.get().map_or(Duration::ZERO, |advanced| {
+        Some(inner.advanced.get().map_or(Duration::ZERO, |advanced| {
             FRAME_INTERVAL.saturating_sub(advanced.elapsed())
         }))
     }
 
     pub(crate) fn advance(&self, count: usize, rendered: bool) -> Option<Duration> {
+        let inner = self.inner.get();
         let wait = self.next_advance(count, rendered)?;
         if !wait.is_zero() {
             return Some(wait);
         }
         self.set_frame.set((self.frame.get_untracked() + 1) % count);
-        self.advanced.set(Some(Instant::now()));
+        inner.advanced.set(Some(Instant::now()));
         None
     }
 
@@ -581,11 +604,12 @@ impl Review {
     }
 
     fn single(&self, path: &str, showing: Showing, frame: usize) -> Shown {
+        let inner = self.inner.get();
         let hash = match self.hash(path, showing) {
             Ok(hash) => hash,
             Err(error) => return Shown::Waiting(error),
         };
-        match self.paintings.borrow_mut().rendered(&hash, frame) {
+        match inner.paintings.borrow_mut().rendered(&hash, frame) {
             Some(Ok(rendered)) => {
                 let description = rendered.description.clone();
                 Shown::Ready(vec![rendered], description)
@@ -596,13 +620,14 @@ impl Review {
     }
 
     fn pair(&self, path: &str, frame: usize) -> Result<(Rendered, Rendered), Shown> {
+        let inner = self.inner.get();
         let mut sides = Vec::new();
         for wanted in [Showing::Approved, Showing::Current] {
             let hash = match self.hash(path, wanted) {
                 Ok(hash) => hash,
                 Err(error) => return Err(Shown::Waiting(error)),
             };
-            match self.paintings.borrow_mut().rendered(&hash, frame) {
+            match inner.paintings.borrow_mut().rendered(&hash, frame) {
                 Some(Ok(rendered)) => sides.push(rendered),
                 Some(Err(error)) => return Err(Shown::Failed(error)),
                 None => return Err(Shown::Waiting(None)),
@@ -629,6 +654,7 @@ impl Review {
     }
 
     fn difference(&self, path: &str, frame: usize) -> Shown {
+        let inner = self.inner.get();
         let (approved, current) = match self.pair(path, frame) {
             Ok(pair) => pair,
             Err(shown) => return shown,
@@ -636,7 +662,7 @@ impl Review {
         let key = self.difference_key(path);
         let count = self.count(path, Showing::Difference);
         let painted = || Ok(crate::render::difference(&approved.image, &current.image));
-        let computed = self
+        let computed = inner
             .paintings
             .borrow_mut()
             .computed(&key, frame, count, painted);

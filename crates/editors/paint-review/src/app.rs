@@ -1,5 +1,4 @@
 use block_editor_beui::be_block::PaintReviewContent;
-use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, create_memo, view};
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -46,34 +45,29 @@ pub fn PaintReviewEditor(editor: Editor, source: Source) -> NodeId {
     let review = Review::new(editor, source);
     review.watch();
 
-    let counted = Rc::clone(&review);
     let count = create_memo(move || {
-        let Some(path) = counted.selected.get() else {
+        let Some(path) = review.selected.get() else {
             return 1;
         };
-        let Some(status) = counted.status(&path) else {
+        let Some(status) = review.status(&path) else {
             return 1;
         };
-        let _ = counted.revision.get();
-        counted.count(&path, counted.shown_as(status))
+        let _ = review.revision.get();
+        review.count(&path, review.shown_as(status))
     });
 
     let chrome = editor.chrome_shown();
     let bar_chrome = chrome;
-    let bar = Rc::clone(&review);
-    let listed = Rc::clone(&review);
-    let captioned = Rc::clone(&review);
-    let framed = Rc::clone(&review);
     view! {
         <List spacing=0.0>
-            <ReviewToolbar review={bar} shown={bar_chrome} />
+            <ReviewToolbar review={review} shown={bar_chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Sidebar side=Side::Left shown={chrome} width=SIDEBAR_WIDTH>
-                    <PaintingList review={listed} />
+                    <PaintingList review={review} />
                 </Sidebar>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <ReviewCaption review={captioned} />
-                    <FrameControls review={framed} count={count} />
+                    <ReviewCaption review={review} />
+                    <FrameControls review={review} count={count} />
                     <Stage
                         @sizing=ItemSize::Percent(100.0)
                         @test_id={"paint_review.stage"}

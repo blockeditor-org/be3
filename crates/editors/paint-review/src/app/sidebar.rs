@@ -1,9 +1,8 @@
-use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_DIFFERENCE, ICON_DONE_ALL, ICON_FIBER_NEW};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, List, Show, clone, component, create_memo, create_selector,
+    Align, Direction, ForEach, Frame, List, Show, component, create_memo, create_selector,
     view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, Icon, ListRow, use_theme};
@@ -13,9 +12,8 @@ use crate::download::BRANCH;
 use super::state::{Review, Status};
 
 #[component]
-pub(crate) fn PaintingList(review: Rc<Review>) -> NodeId {
-    let listed = Rc::clone(&review);
-    let entries = create_memo(clone!(listed -> move || listed.entries()));
+pub(crate) fn PaintingList(review: Review) -> NodeId {
+    let entries = create_memo(move || review.entries());
     let ready = create_memo(move || entries.get().is_some());
     let waiting = create_memo(move || !ready.get());
     let empty = create_memo(move || entries.get().is_some_and(|entries| entries.is_empty()));
@@ -34,7 +32,6 @@ pub(crate) fn PaintingList(review: Rc<Review>) -> NodeId {
             </Show>
             <ForEach keys={Status::ALL.to_vec()}>
                 {move |status: Status| {
-                    let review = Rc::clone(&review);
                     let entries = entries;
                     view! {
                         <StatusGroup review entries status />
@@ -53,7 +50,7 @@ pub(crate) fn PaintingList(review: Rc<Review>) -> NodeId {
 
 #[component]
 fn StatusGroup(
-    review: Rc<Review>,
+    review: Review,
     entries: block_editor_beui::beui::reactive::Memo<Option<Vec<super::state::Entry>>>,
     status: Status,
 ) -> NodeId {
@@ -81,7 +78,6 @@ fn StatusGroup(
                 </List>
                 <ForEach keys={paths}>
                     {move |path: String| {
-                        let review = Rc::clone(&review);
                         let chosen = here.memo(Some(path.clone()));
                         view! {
                             <PaintingRow review path selected={chosen} />
@@ -95,7 +91,7 @@ fn StatusGroup(
 
 #[component]
 fn PaintingRow(
-    review: Rc<Review>,
+    review: Review,
     path: String,
     selected: block_editor_beui::beui::reactive::Memo<bool>,
 ) -> NodeId {
