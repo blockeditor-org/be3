@@ -1894,6 +1894,9 @@ focused field into what is left, through every scroll it sits in.
   their worker threads, and the screens this way).
 - `busy` says whether work the app is waiting on, such as a server request or a
   plugin's frame, will still change what it shows. Only a driver reads it.
+- `environment` is the variables a program needs to open its windows inside an app
+  that hosts programs (block-app's Wayland compositor). Only a driver reads it,
+  for `drive env` and `drive exec`.
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,

@@ -378,6 +378,7 @@ impl Runner {
                 window: &self.asked,
                 fullscreen: self.context.fullscreen(),
                 actions: &self.actions,
+                environment: &|| self.app.environment(),
             };
             let mut world = World {
                 events: &mut self.events,
@@ -513,6 +514,7 @@ impl Runner {
                 window: &self.asked,
                 fullscreen: self.context.fullscreen(),
                 actions: &self.actions,
+                environment: &|| self.app.environment(),
             };
             let settled = Settled {
                 busy: self.app.busy(),

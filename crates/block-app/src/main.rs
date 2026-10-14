@@ -352,7 +352,11 @@ impl beui::App for Shell {
     }
 
     fn busy(&self) -> bool {
-        self.app.busy() || plugin_host::busy()
+        self.app.error.is_none() && (self.app.busy() || plugin_host::busy())
+    }
+
+    fn environment(&self) -> Vec<(String, String)> {
+        wayland::environment()
     }
 
     fn close_requested(&mut self) -> bool {
@@ -823,6 +827,10 @@ impl BlockApp {
     }
 
     fn busy(&self) -> bool {
+        self.error.is_none() && self.loading()
+    }
+
+    fn loading(&self) -> bool {
         self.pending_account_request.is_some()
             || self.pending_workspace_request.is_some()
             || !self.pending_transfers.is_empty()
@@ -2837,3 +2845,6 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -78,6 +78,72 @@ pub fn key_event(
     events.push(stroke(key, pressed, repeat, modifiers, typed));
 }
 
+pub fn typed(text: &str, held: Modifiers, events: &mut Vec<Event>) {
+    let mut loose = String::new();
+    for character in text.chars() {
+        let key = match character {
+            '\n' => Some((Key::Enter, false, None)),
+            '\t' => Some((Key::Tab, false, None)),
+            character => typeable(character).map(|(key, shift)| (key, shift, Some(character))),
+        };
+        let Some((key, shift, character)) = key else {
+            loose.push(character);
+            continue;
+        };
+        if !loose.is_empty() {
+            events.push(Event::Text(std::mem::take(&mut loose)));
+        }
+        let shifted = shift && !held.shift;
+        let mut state = held;
+        if shifted {
+            state.shift = true;
+            modifier_event(Key::Shift, true, state, events);
+        }
+        let text = character
+            .map(String::from)
+            .filter(|_| !(state.ctrl || state.alt || state.logo));
+        events.push(stroke(key, true, false, state, text));
+        events.push(stroke(key, false, false, state, None));
+        if shifted {
+            modifier_event(Key::Shift, false, held, events);
+        }
+    }
+    if !loose.is_empty() {
+        events.push(Event::Text(loose));
+    }
+}
+
+fn typeable(wanted: char) -> Option<(Key, bool)> {
+    if wanted.is_ascii_uppercase() {
+        return character(wanted.to_ascii_lowercase()).map(|key| (key, true));
+    }
+    let shifted = match wanted {
+        '!' => Key::One,
+        '@' => Key::Two,
+        '#' => Key::Three,
+        '$' => Key::Four,
+        '%' => Key::Five,
+        '^' => Key::Six,
+        '&' => Key::Seven,
+        '*' => Key::Eight,
+        '(' => Key::Nine,
+        ')' => Key::Zero,
+        '_' => Key::Minus,
+        '+' => Key::Plus,
+        ':' => Key::Semicolon,
+        '"' => Key::Quote,
+        '<' => Key::Comma,
+        '>' => Key::Period,
+        '?' => Key::Slash,
+        '|' => Key::Backslash,
+        '~' => Key::Backtick,
+        '{' => Key::BracketLeft,
+        '}' => Key::BracketRight,
+        other => return character(other).map(|key| (key, false)),
+    };
+    Some((shifted, true))
+}
+
 pub fn press(key: Key, modifiers: Modifiers, events: &mut Vec<Event>) {
     for pressed in [true, false] {
         events.push(stroke(key, pressed, false, modifiers, None));

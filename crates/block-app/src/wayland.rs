@@ -11,6 +11,6 @@ pub(crate) use linux::{
 };
 #[cfg(not(target_os = "linux"))]
 pub(crate) use unsupported::{
-    Programs, WindowActions, WindowSurface, after, before, close, create, exiting, focus,
+    Programs, WindowActions, WindowSurface, after, before, close, create, environment, exiting, focus,
     fullscreen, launch, listed, replace_gpu, revision, running, start,
 };

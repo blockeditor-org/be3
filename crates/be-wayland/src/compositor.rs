@@ -70,7 +70,8 @@ impl Compositor {
     pub fn new(server: Server, windows: Windows) -> Self {
         let gtk_profile = server
             .socket_name()
-            .and_then(|_| crate::gtk_settings::profile());
+            .and(server.runtime_dir())
+            .and_then(crate::gtk_settings::profile);
         Self {
             server,
             windows,
@@ -228,13 +229,22 @@ impl Compositor {
     }
 
     pub fn environment(&self) -> Vec<(&'static str, String)> {
+        let runtime = self
+            .server
+            .runtime_dir()
+            .map(|dir| ("XDG_RUNTIME_DIR", dir.to_string_lossy().into_owned()));
         let wayland = self.socket().map(|socket| ("WAYLAND_DISPLAY", socket));
         let x11 = self.x11_display().map(|display| ("DISPLAY", display));
         let gtk = self
             .gtk_profile
             .as_ref()
             .map(|profile| ("DCONF_PROFILE", profile.to_string_lossy().into_owned()));
-        wayland.into_iter().chain(x11).chain(gtk).collect()
+        runtime
+            .into_iter()
+            .chain(wayland)
+            .chain(x11)
+            .chain(gtk)
+            .collect()
     }
 
     fn launch(&mut self, launch: &Launch, now: Instant) {
