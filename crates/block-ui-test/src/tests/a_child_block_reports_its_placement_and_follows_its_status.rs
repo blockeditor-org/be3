@@ -15,6 +15,7 @@ fn a_child_block_reports_its_placement_and_follows_its_status() {
             block_id: SLIDE.into_bytes(),
             block_type: SLIDE_TYPE.into_bytes(),
             view_block: None,
+            editor: None,
         }
     );
     assert_eq!(placement.mode, ChildMode::Preview);

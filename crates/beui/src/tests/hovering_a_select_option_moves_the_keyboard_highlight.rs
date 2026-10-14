@@ -17,8 +17,7 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let inner = select;
-    let trigger = unstyled::select_trigger(harness.document(), inner);
+    let trigger = unstyled::select_trigger(harness.document(), select);
     with_installed(harness.document_mut(), |_| {
         crate::focus_within(trigger);
     });
@@ -27,16 +26,16 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(0)
     );
 
-    let cherry = unstyled::select_option_button(harness.document(), inner, 2);
+    let cherry = unstyled::select_option_button(harness.document(), select, 2);
     let cherry_pos = harness.center(cherry);
     harness.frame(vec![Event::PointerMoved(cherry_pos)]);
 
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(2)
     );
 
@@ -44,7 +43,7 @@ fn hovering_a_select_option_moves_the_keyboard_highlight() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        unstyled::select_highlighted(harness.document(), inner),
+        unstyled::select_highlighted(harness.document(), select),
         Some(1)
     );
 }

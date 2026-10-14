@@ -1,14 +1,14 @@
 use block_editor_beui::be_block::map::{MapColor, MapPoint};
 use block_editor_beui::beui::icons::ICON_LOCATION_ON;
 use block_editor_beui::beui::reactive::{
-    Align, CanvasItem, Frame, List, Prop, clone, component, create_memo, view,
+    Align, CanvasItem, Frame, List, Prop, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Caption, IconSized};
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 use block_editor_beui::beui::{Color32, Pos2, Rect, TextAlign};
 use uuid::Uuid;
 
-const MARKER_SIZE: f32 = 26.0;
-const RING_SIZE: f32 = MARKER_SIZE + 6.0;
+const MARKER_SIZE: TextSize = TextSize::Xl;
+const RING_SIZE: f32 = MARKER_SIZE.icon_px() + 6.0;
 const LABEL_HEIGHT: f32 = 18.0;
 const LABEL_WIDTH: f32 = 168.0;
 const HIT_RADIUS: f32 = 14.0;
@@ -34,12 +34,15 @@ pub(crate) fn Marker(
     selected: Prop<bool>,
     label: Prop<String>,
 ) -> CanvasItem {
-    let unit = create_memo(clone!(scale -> move || 1.0 / scale.get().max(f32::EPSILON)));
-    let x = create_memo(clone!(tip unit -> move || tip.get().x - LABEL_WIDTH / 2.0 * unit.get()));
-    let y = create_memo(clone!(tip unit -> move || tip.get().y - RING_SIZE * unit.get()));
-    let width = create_memo(clone!(unit -> move || LABEL_WIDTH * unit.get()));
-    let height = create_memo(clone!(unit -> move || MARKER_HEIGHT * unit.get()));
-    let named = create_memo(clone!(label -> move || !label.get().is_empty()));
+    let unit = create_memo(move || 1.0 / scale.get().max(f32::EPSILON));
+    let x = create_memo(move || tip.get().x - LABEL_WIDTH / 2.0 * unit.get());
+    let y = create_memo(move || tip.get().y - RING_SIZE * unit.get());
+    let width = create_memo(move || LABEL_WIDTH * unit.get());
+    let height = create_memo(move || MARKER_HEIGHT * unit.get());
+    let named = create_memo({
+        let label = label.clone();
+        move || !label.get().is_empty()
+    });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <List spacing=0.0 align=Align::Center>
@@ -51,11 +54,13 @@ pub(crate) fn Marker(
                     outline_width=2.0
                     outline_visible={selected}
                 >
-                    <IconSized
-                        glyph={ICON_LOCATION_ON.to_owned()}
-                        font_size=MARKER_SIZE
-                        color={color}
-                    />
+                    <Text
+                        size=MARKER_SIZE
+                        color={color.map(TextColor::Custom)}
+                        align=TextAlign::Center
+                    >
+                        <Icon glyph={ICON_LOCATION_ON.to_owned()} />
+                    </Text>
                 </Frame>
                 <Frame
                     visible={named}
@@ -64,7 +69,12 @@ pub(crate) fn Marker(
                     padding_horizontal=3.0
                     height=LABEL_HEIGHT
                 >
-                    <Caption content={label} align=TextAlign::Center color=LABEL_COLOR />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={label}
+                        align=TextAlign::Center
+                        color={TextColor::Custom(LABEL_COLOR)}
+                    />
                 </Frame>
             </List>
         </CanvasItem>
@@ -89,7 +99,10 @@ pub(crate) fn point_at(
 
 fn marker_rect(tip: Pos2) -> Rect {
     Rect::from_min_max(
-        Pos2::new(tip.x - MARKER_SIZE / 2.0, tip.y - MARKER_SIZE),
-        Pos2::new(tip.x + MARKER_SIZE / 2.0, tip.y),
+        Pos2::new(
+            tip.x - MARKER_SIZE.icon_px() / 2.0,
+            tip.y - MARKER_SIZE.icon_px(),
+        ),
+        Pos2::new(tip.x + MARKER_SIZE.icon_px() / 2.0, tip.y),
     )
 }

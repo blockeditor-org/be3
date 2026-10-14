@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::Pos2;
-use block_editor_beui::beui::reactive::{Memo, ReadSignal, WriteSignal};
+use block_editor_beui::beui::reactive::{Memo, ReadSignal, Stored, WriteSignal};
 use game_api::{Gesture, Spot};
 
 use super::{Action, GameModel};
@@ -21,9 +21,9 @@ pub(crate) struct Dragging {
     pub(crate) at: Pos2,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Play {
-    pub(crate) game: Rc<dyn GameModel>,
+    pub(crate) game: Stored<Rc<dyn GameModel>>,
     pub(crate) actions: Memo<Vec<Action>>,
     pub(crate) editable: Memo<bool>,
     pub(crate) selected: ReadSignal<Option<Spot>>,
@@ -110,7 +110,7 @@ impl Play {
     pub(crate) fn choose(&self, action: &Action) {
         self.set_selected.set(None);
         self.set_choices.set(Vec::new());
-        self.game.choose(action.effect.clone());
+        self.game.get().choose(action.effect.clone());
     }
 
     pub(crate) fn cancel(&self) {

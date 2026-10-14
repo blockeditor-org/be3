@@ -31,7 +31,7 @@ fn a_cursor_shape_a_client_names_is_shown_over_its_window() {
         device.set_shape(serial, shape);
         harness.settle();
         assert_eq!(
-            harness.output.as_ref().map(|output| output.cursor_icon),
+            harness.output.as_ref().map(|output| output.window.cursor),
             Some(icon),
             "{shape:?} is shown as {icon:?}"
         );
@@ -41,7 +41,7 @@ fn a_cursor_shape_a_client_names_is_shown_over_its_window() {
     harness.frame(vec![Event::PointerMoved(outside())]);
     harness.settle();
     assert_eq!(
-        harness.output.as_ref().map(|output| output.cursor_icon),
+        harness.output.as_ref().map(|output| output.window.cursor),
         Some(CursorIcon::Default),
         "the shape is the window's alone"
     );

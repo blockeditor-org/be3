@@ -1,15 +1,12 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 
 #[test]
 fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
-    let keys = Rc::new(RefCell::new(Vec::<Event>::new()));
+    let _root = crate::reactive::RootScope::new();
+    let (keys, set_keys) = create_signal(Vec::<Event>::new());
     let document = build({
-        let keys = Rc::clone(&keys);
         move || {
             view! {
                 <Canvas>
@@ -18,7 +15,7 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    keys.borrow_mut().extend(input.events);
+                                    set_keys.update(|keys| keys.extend(flattened(input)));
                                 }
                             }}
                         >
@@ -39,17 +36,17 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
     harness.click(pos2(50.0, 50.0));
     let focused = harness.document().focused_node();
     assert!(focused.is_some());
-    keys.borrow_mut().clear();
+    set_keys.update(|keys| keys.clear());
 
-    let tab = Event::Key {
+    let tab = Event::key(beui::KeyPress {
         key: Key::Tab,
         pressed: true,
         repeat: false,
         modifiers: Modifiers::NONE,
-    };
+    });
     harness.frame(vec![tab.clone(), Event::Text("a".to_owned())]);
 
-    assert_eq!(*keys.borrow(), [tab, Event::Text("a".to_owned())]);
+    assert_eq!(keys.get_untracked(), [tab, Event::Text("a".to_owned())]);
     assert_eq!(
         harness.document().focused_node(),
         focused,

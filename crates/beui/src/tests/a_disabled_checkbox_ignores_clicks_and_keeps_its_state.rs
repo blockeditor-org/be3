@@ -4,15 +4,15 @@ use crate::styled::Checkbox;
 
 #[test]
 fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
             <Checkbox
                 label="Minimum"
                 checked=false
                 disabled=true
-                on_change={move |checked| sink.borrow_mut().push(checked)}
+                on_change={move |checked| set_changes.update(|changes| changes.push(checked))}
             />
         }]
     });
@@ -23,5 +23,5 @@ fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
     harness.frame(Vec::new());
 
     assert!(!styled::checkbox_checked(harness.document(), checkbox));
-    assert!(changes.borrow().is_empty());
+    assert!(changes.with_untracked(|changes| changes.is_empty()));
 }

@@ -3,11 +3,14 @@ use crate::reactive::view;
 
 #[test]
 fn enter_activates_the_focused_button() {
-    let clicks = Rc::new(Cell::new(0));
-    let counter = clicks.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal(0);
     let (document, [button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton label="Click me" on_click={move || counter.set(counter.get() + 1)} />
+            <LabelledButton
+                label="Click me"
+                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+            />
         }]
     });
     let active = unstyled::button_active(&document, button);
@@ -19,5 +22,5 @@ fn enter_activates_the_focused_button() {
 
     harness.frame(vec![key_event(Key::Enter, false, Modifiers::NONE)]);
     assert!(!active.get());
-    assert_eq!(clicks.get(), 1);
+    assert_eq!(clicks.get_untracked(), 1);
 }

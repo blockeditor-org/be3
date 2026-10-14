@@ -9,20 +9,18 @@ const ITEM_HEIGHT: f32 = 20.0;
 
 #[test]
 fn a_nested_container_reports_its_own_width_not_the_windows() {
-    let sizes: Rc<RefCell<Vec<ReadSignal<Vec2>>>> = Rc::default();
-    let collapsed: Rc<RefCell<Vec<Memo<bool>>>> = Rc::default();
+    let _root = crate::reactive::RootScope::new();
+    let (sizes, set_sizes) = create_signal::<Vec<ReadSignal<Vec2>>>(Vec::new());
+    let (collapsed, set_collapsed) = create_signal::<Vec<Memo<bool>>>(Vec::new());
     let (outer_item, inner_item) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (sizes, collapsed) = (sizes.clone(), collapsed.clone());
-        let (outer_item, inner_item) = (outer_item.clone(), inner_item.clone());
         move || {
-            let inner_sizes = sizes.clone();
-            let inner_collapsed = collapsed.clone();
             view! {
                 <Container>
                     {move |size| {
-                        sizes.borrow_mut().push(size);
-                        collapsed.borrow_mut().push(narrower_than(BREAKPOINT));
+                        set_sizes.update(|sizes| sizes.push(size));
+                        let narrow = narrower_than(BREAKPOINT);
+                        set_collapsed.update(|collapsed| collapsed.push(narrow));
                         view! {
                             <List spacing=0.0>
                                 <Stack spacing=0.0 breakpoint=BREAKPOINT>
@@ -37,10 +35,9 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                                 <Frame width=INNER_WIDTH>
                                     <Container>
                                         {move |size| {
-                                            inner_sizes.borrow_mut().push(size);
-                                            inner_collapsed
-                                                .borrow_mut()
-                                                .push(narrower_than(BREAKPOINT));
+                                            set_sizes.update(|sizes| sizes.push(size));
+                                            let narrow = narrower_than(BREAKPOINT);
+                                            set_collapsed.update(|collapsed| collapsed.push(narrow));
                                             view! {
                                                 <Stack spacing=0.0 breakpoint=BREAKPOINT>
                                                     <Frame
@@ -66,11 +63,11 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
-    let sizes = sizes.borrow();
+    let sizes = sizes.get_untracked();
     assert_eq!(sizes[0].get().x, WIDE_VIEWPORT.x);
     assert_eq!(sizes[1].get().x, INNER_WIDTH);
 
-    let collapsed = collapsed.borrow();
+    let collapsed = collapsed.get_untracked();
     assert!(!collapsed[0].get());
     assert!(collapsed[1].get());
 

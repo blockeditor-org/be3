@@ -1,5 +1,5 @@
 use beui::pos2;
-use beui::reactive::{List, Overlay, OverlayAnchor, OverlayMode};
+use beui::reactive::{LayerPolicy, List, Overlay, OverlayAnchor};
 
 use super::*;
 
@@ -20,16 +20,15 @@ impl BeuiApp for WindowApp {
 fn Window(editor: Editor) -> NodeId {
     let windowed = Some(ChildTarget::new(WINDOWED, SLIDE_TYPE));
     let beneath = Some(ChildTarget::new(BENEATH, SLIDE_TYPE));
-    let inside = editor.clone();
     view! {
         <List spacing=0.0>
             <Overlay
                 anchor={OverlayAnchor::Point(pos2(40.0, 40.0))}
-                mode=OverlayMode::Floating
+                policy=LayerPolicy::Pass
                 open=true
             >
                 <Frame width=200.0 height=120.0>
-                    <ChildBlock editor={inside} block={windowed} mode=ChildMode::Live />
+                    <ChildBlock editor={editor} block={windowed} mode=ChildMode::Live />
                 </Frame>
             </Overlay>
             <Frame width=320.0 height=240.0>
@@ -43,7 +42,7 @@ fn Window(editor: Editor) -> NodeId {
 fn a_floating_overlay_covers_only_the_children_painted_beneath_it() {
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut test = BeuiTest::<WindowApp>::new(Editor::new(host, Uuid::new_v4()));
+    let mut test = BeuiTest::<WindowApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
     test.run();
     test.run();
 

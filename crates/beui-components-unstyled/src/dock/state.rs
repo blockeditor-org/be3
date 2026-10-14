@@ -490,6 +490,8 @@ pub struct DockState {
     switch: Option<DockSwitch>,
     #[serde(skip)]
     lookup: Lookup,
+    #[serde(skip)]
+    shows: u64,
 }
 
 impl Default for DockState {
@@ -511,6 +513,7 @@ impl DockState {
             fullscreen: None,
             switch: None,
             lookup: Lookup::default(),
+            shows: 0,
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -667,22 +670,6 @@ impl DockState {
         self.groups.retain(|group| !nested.contains(&group.id));
         self.surfaces.retain(|candidate| candidate.id != surface);
         self.settle_focus();
-    }
-
-    pub fn raise(&mut self, surface: SurfaceId) {
-        let Some(index) = self
-            .surfaces
-            .iter()
-            .position(|candidate| candidate.id == surface)
-        else {
-            return;
-        };
-        if index == 0 || index + 1 == self.surfaces.len() {
-            return;
-        }
-        let raised = self.surfaces.remove(index);
-        self.invalidate();
-        self.surfaces.push(raised);
     }
 
     pub fn tree_of(&self, leaf: LeafId) -> Option<Tree> {
@@ -951,9 +938,6 @@ impl DockState {
         }
         self.focus = Some(leaf);
         self.reveal(leaf);
-        if let Some(surface) = self.surface_of(leaf) {
-            self.raise(surface);
-        }
         self.remember_focus();
     }
 
@@ -974,6 +958,11 @@ impl DockState {
         };
         self.set_active_index(position.leaf, position.index);
         self.focus(position.leaf);
+        self.shows += 1;
+    }
+
+    pub fn shows(&self) -> u64 {
+        self.shows
     }
 
     pub fn push(&mut self, leaf: LeafId, tab: TabId) {

@@ -1,23 +1,23 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::reactive::{Frame, Interactive, List, build, view};
 
 #[test]
 fn a_touch_beside_a_control_reaches_the_nearest_one() {
-    let clicks: Rc<RefCell<Vec<&'static str>>> = Rc::default();
+    let _root = crate::reactive::RootScope::new();
+    let (clicks, set_clicks) = create_signal::<Vec<&'static str>>(Vec::new());
     let document = build({
-        let clicks = clicks.clone();
         move || {
-            let (left, right) = (clicks.clone(), clicks.clone());
             view! {
                 <Frame padding_horizontal=40.0 padding_vertical=40.0>
                     <List direction=Direction::Horizontal spacing=10.0>
-                        <Interactive on_click={move || left.borrow_mut().push("left")}>
+                        <Interactive
+                            on_click={move || set_clicks.update(|clicks| clicks.push("left"))}
+                        >
                             <Frame width=30.0 height=30.0 />
                         </Interactive>
-                        <Interactive on_click={move || right.borrow_mut().push("right")}>
+                        <Interactive
+                            on_click={move || set_clicks.update(|clicks| clicks.push("right"))}
+                        >
                             <Frame width=30.0 height=30.0 />
                         </Interactive>
                     </List>
@@ -37,16 +37,16 @@ fn a_touch_beside_a_control_reaches_the_nearest_one() {
     tap(&mut harness, pos2(77.0, 55.0));
     tap(&mut harness, pos2(95.0, 82.0));
     assert_eq!(
-        *clicks.borrow(),
+        clicks.get_untracked(),
         vec!["left", "left", "right", "right"],
         "a touch beside a control goes to the nearest one, and neighbours split the gap"
     );
 
-    clicks.borrow_mut().clear();
+    set_clicks.update(|clicks| clicks.clear());
     tap(&mut harness, pos2(10.0, 55.0));
     harness.click(pos2(32.0, 55.0));
     assert!(
-        clicks.borrow().is_empty(),
+        clicks.with_untracked(|clicks| clicks.is_empty()),
         "a touch out of reach, and a mouse beside a control, press nothing"
     );
 }

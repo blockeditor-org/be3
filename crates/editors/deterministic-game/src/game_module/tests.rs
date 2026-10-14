@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::GameModuleContent;
-use block_editor_beui::{Editor, EditorHost, PickedFile};
+use block_editor_beui::{Editor, EditorHost, OwnedEditor, PickedFile};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -16,8 +16,9 @@ fn editor(module: Vec<u8>) -> (BeuiTest<GameModuleApp>, Editor) {
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(ACCOUNT);
-    let editor = Editor::new(host.clone(), block);
-    let mut test = BeuiTest::new(editor.clone());
+    let owner = OwnedEditor::new(host.clone(), block);
+    let editor = *owner;
+    let mut test = BeuiTest::new(owner);
     test.hold(None, GameModuleContent::from_file("game.wasm", module));
     test.run();
     (test, editor)

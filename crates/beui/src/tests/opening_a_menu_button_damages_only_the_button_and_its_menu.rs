@@ -4,9 +4,9 @@ use crate::styled::MenuButton;
 
 #[test]
 fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
+    let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
     let document = build({
-        let button = button.clone();
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

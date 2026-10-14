@@ -3,8 +3,9 @@ use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view, wit
 
 #[test]
 fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
+    let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
-    let held = slot.clone();
+    let held = slot;
     let (shown, set_shown) = create_signal(true);
     let document = build(move || {
         view! {
@@ -12,7 +13,7 @@ fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
                 <Dynamic value={shown}>
                     {move |shown: bool| match shown {
                         true => {
-                            let slot = held.clone();
+                            let slot = held;
                             view! {
                                 <Frame height=100.0>
                                     <Embed slot={slot} />

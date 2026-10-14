@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session() {
-    let (mut fixture, profiles) = Fixture::new().with_sessions(&[
+    let (mut fixture, sessions) = Fixture::new().with_sessions(&[
         ("Laptop", WORKSPACE_EDITOR),
         ("Desk", WORKSPACE_EDITOR),
         ("Other desktop", LINUX_DESKTOP_EDITOR),
@@ -22,8 +22,8 @@ fn a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_ses
     let [(block, view, rect)] = placed[..] else {
         panic!("the session opens, and only it: {placed:?}");
     };
-    assert_eq!(block, profiles[0]);
-    assert_eq!(view, Some(profiles[0]), "the session is its own view");
+    assert_eq!(block, sessions[0]);
+    assert_eq!(view, Some(sessions[0]), "the session is its own view");
     assert!(
         rect.min.x > 0.0 && rect.min.y > 0.0,
         "the session floats in a window, at {rect:?}"
@@ -35,7 +35,7 @@ fn a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_ses
         fixture
             .test
             .store()
-            .block(profiles[0])
+            .block(sessions[0])
             .map(|info| info.parent),
         Some(BlockParent::Block(fixture.settings)),
         "closing the window keeps the session where it was"

@@ -1,14 +1,14 @@
-use beui::NodeId;
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
-    Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo,
-    Portal, Prop, ReadSignal, Render, Show, WriteSignal, clone, component, component_size,
+    Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, LayoutBuilder, List,
+    ListChild, Memo, Portal, Prop, ReadSignal, Render, Show, StoredCell, WriteSignal, component,
     create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack, use_context,
     view,
 };
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
+use beui::{NodeId, Vec2};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
 
@@ -37,8 +37,8 @@ struct ChromeLayout {
 
 impl ChromeLayout {
     fn offers_sheet(&self) -> Memo<bool> {
-        let narrow = self.narrow.clone();
-        let panels = self.panels.clone();
+        let narrow = self.narrow;
+        let panels = self.panels;
         create_memo(move || narrow.get() && !panels.get().is_empty())
     }
 }
@@ -71,82 +71,87 @@ pub(crate) fn ChromeRoot(
     #[prop(children)] content: Render<()>,
 ) -> NodeId {
     let phone = create_memo(move || phone.get());
-    let size = component_size();
-    let narrow = create_memo(clone!(size -> move || {
-        let width = size.get().x;
-        width > 0.0 && width < NARROW_WIDTH
-    }));
-    let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
-    let (open, set_open) = create_signal(false);
-    let (toolbars, set_toolbars) = create_signal(0usize);
-    let layout = ChromeLayout {
-        narrow,
-        panels: panels.clone(),
-        set_panels,
-        open: open.clone(),
-        set_open,
-        set_toolbars,
-    };
-    provide_context(layout.clone());
-    let content = content.call(());
-    let offers = layout.offers_sheet();
-    let sheet = create_memo(clone!(offers open -> move || offers.get() && open.get()));
-    let bare = create_memo(clone!(offers toolbars phone -> move || {
-        offers.get() && toolbars.get() == 0 && !phone.get()
-    }));
-    let listed = create_memo(clone!(offers phone -> move || offers.get() && phone.get()));
-    let opener = layout.set_open.clone();
-    let theme = use_theme();
-    let bar_color = theme.surface.clone();
-    let extent = create_memo(clone!(size -> move || size.get().y));
-    let close = layout.set_open.clone();
     view! {
-        <List spacing=0.0>
-            <Show condition={bare}>
-                <Frame color={bar_color.clone()}>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let narrow = create_memo(move || {
+                    let width = size.get().x;
+                    width > 0.0 && width < NARROW_WIDTH
+                });
+                let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
+                let (open, set_open) = create_signal(false);
+                let (toolbars, set_toolbars) = create_signal(0usize);
+                let layout = ChromeLayout {
+                    narrow,
+                    panels,
+                    set_panels,
+                    open,
+                    set_open,
+                    set_toolbars,
+                };
+                provide_context(layout.clone());
+                let content = content.call(());
+                let offers = layout.offers_sheet();
+                let sheet = create_memo(move || offers.get() && open.get());
+                let bare = create_memo(move || {
+                    offers.get() && toolbars.get() == 0 && !phone.get()
+                });
+                let listed = create_memo(move || offers.get() && phone.get());
+                let opener = layout.set_open;
+                let theme = use_theme();
+                let bar_color = theme.surface;
+                let extent = create_memo(move || size.get().y);
+                let close = layout.set_open;
+                view! {
                     <List spacing=0.0>
-                        <Frame
-                            padding_horizontal=BAND_PADDING_HORIZONTAL
-                            padding_vertical=BAND_PADDING_VERTICAL
-                        >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <SheetToggle />
-                            </List>
-                        </Frame>
-                        <Separator />
+                        <Show condition={bare}>
+                            <Frame color={bar_color}>
+                                <List spacing=0.0>
+                                    <Frame
+                                        padding_horizontal=BAND_PADDING_HORIZONTAL
+                                        padding_vertical=BAND_PADDING_VERTICAL
+                                    >
+                                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                            <SheetToggle />
+                                        </List>
+                                    </Frame>
+                                    <Separator />
+                                </List>
+                            </Frame>
+                        </Show>
+                        <Show condition={listed}>
+                            {move || view! {
+                                <PanelItem set_open={opener} />
+                            }}
+                        </Show>
+                        {content} @sizing=ItemSize::Percent(100.0)
+                        <Show condition={sheet}>
+                            {move || view! {
+                                <Sheet
+                                    extent={extent}
+                                    open={sheet}
+                                    rest={SHEET_STOPS[0]}
+                                    on_close={move || close.set(false)}
+                                >
+                                    <List spacing=0.0>
+                                        <ForEach keys={panels}>
+                                            {move |panel: NodeId| {
+                                                view! {
+                                                    <Portal
+                                                        @sizing=ItemSize::Percent(100.0)
+                                                        node={Some(panel)}
+                                                    />
+                                                }
+                                            }}
+                                        </ForEach>
+                                    </List>
+                                </Sheet>
+                            }}
+                        </Show>
                     </List>
-                </Frame>
-            </Show>
-            <Show condition={listed}>
-                {move || view! {
-                    <PanelItem set_open={opener.clone()} />
-                }}
-            </Show>
-            {content} @sizing=ItemSize::Percent(100.0)
-            <Show condition={sheet.clone()}>
-                {move || clone!(panels close -> view! {
-                    <Sheet
-                        extent={extent.clone()}
-                        open={sheet.clone()}
-                        rest={SHEET_STOPS[0]}
-                        on_close={move || close.set(false)}
-                    >
-                        <List spacing=0.0>
-                            <ForEach keys={panels}>
-                                {move |panel: NodeId| {
-                                    view! {
-                                        <Portal
-                                            @sizing=ItemSize::Percent(100.0)
-                                            node={Some(panel)}
-                                        />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                    </Sheet>
-                })}
-            </Show>
-        </List>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 
@@ -204,30 +209,30 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
     let layout = use_context::<ChromeLayout>();
     let narrow = narrow_chrome();
     let shown = create_memo(move || shown.get());
-    let docked = create_memo(clone!(shown narrow -> move || shown.get() && !narrow.get()));
-    let folded = create_memo(clone!(shown narrow -> move || shown.get() && narrow.get()));
-    let leading = create_memo(clone!(docked -> move || docked.get() && side == Side::Right));
-    let trailing = create_memo(clone!(docked -> move || docked.get() && side == Side::Left));
+    let docked = create_memo(move || shown.get() && !narrow.get());
+    let folded = create_memo(move || shown.get() && narrow.get());
+    let leading = create_memo(move || docked.get() && side == Side::Right);
+    let trailing = create_memo(move || docked.get() && side == Side::Left);
     if let Some(layout) = layout {
         fold_into_sheet(layout, body, folded);
     }
-    let held = create_memo(clone!(docked -> move || docked.get().then_some(body)));
+    let held = create_memo(move || docked.get().then_some(body));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame visible={leading} width=BORDER_WIDTH color={theme.border.clone()} />
-            <Frame visible={docked} width={width} color={theme.surface.clone()}>
+            <Frame visible={leading} width=BORDER_WIDTH color={theme.border} />
+            <Frame visible={docked} width={width} color={theme.surface}>
                 <Scroll>
                     <Portal node={held} />
                 </Scroll>
             </Frame>
-            <Frame visible={trailing} width=BORDER_WIDTH color={theme.border.clone()} />
+            <Frame visible={trailing} width=BORDER_WIDTH color={theme.border} />
         </List>
     }
 }
 
 fn fold_into_sheet(layout: ChromeLayout, body: NodeId, folded: Memo<bool>) {
-    let panels = layout.panels.clone();
-    let set_panels = layout.set_panels.clone();
+    let panels = layout.panels;
+    let set_panels = layout.set_panels;
     create_effect(move || {
         let wanted = folded.get();
         let listed = untrack(|| panels.get().contains(&body));
@@ -269,26 +274,24 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
     let theme = use_theme();
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
-    let narrow = create_memo(clone!(squeezed fit -> move || squeezed.get() && !fit.get()));
-    let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
+    let narrow = create_memo(move || squeezed.get() && !fit.get());
+    let roomy = create_memo(move || !narrow.get());
     let offers = match use_context::<ChromeLayout>() {
         Some(layout) => {
-            count_toolbar(&layout, shown.clone());
+            count_toolbar(&layout, shown);
             let offers = layout.offers_sheet();
-            create_memo(clone!(shown -> move || offers.get() && shown.get()))
+            create_memo(move || offers.get() && shown.get())
         }
         None => create_memo(|| false),
     };
-    let fitted_toggle = create_memo(clone!(offers squeezed fit -> move || {
-        offers.get() && squeezed.get() && fit.get()
-    }));
-    let spread = create_memo(clone!(roomy -> move || roomy.get().then_some(row)));
-    let scrolled = create_memo(clone!(narrow -> move || narrow.get().then_some(row)));
+    let fitted_toggle = create_memo(move || offers.get() && squeezed.get() && fit.get());
+    let spread = create_memo(move || roomy.get().then_some(row));
+    let scrolled = create_memo(move || narrow.get().then_some(row));
     view! {
-        <Frame visible={shown} color={theme.surface.clone()}>
+        <Frame visible={shown} color={theme.surface}>
             <List spacing=0.0>
                 <Show condition={roomy}>
-                    {move || clone!(fitted_toggle spread -> view! {
+                    {move || view! {
                         <Frame
                             padding_horizontal=BAND_PADDING_HORIZONTAL
                             padding_vertical=BAND_PADDING_VERTICAL
@@ -302,10 +305,10 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                    })}
+                    }}
                 </Show>
                 <Show condition={narrow}>
-                    {move || clone!(offers scrolled -> view! {
+                    {move || view! {
                         <Frame padding_vertical=BAND_PADDING_VERTICAL>
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Scroll
@@ -323,7 +326,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                    })}
+                    }}
                 </Show>
                 <Separator />
             </List>
@@ -332,9 +335,9 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
 }
 
 fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
-    let set_toolbars = layout.set_toolbars.clone();
-    let counted = std::rc::Rc::new(std::cell::Cell::new(false));
-    create_effect(clone!(counted set_toolbars -> move || {
+    let set_toolbars = layout.set_toolbars;
+    let counted = StoredCell::new(false);
+    create_effect(move || {
         let now = shown.get();
         if counted.replace(now) != now {
             set_toolbars.update(|count| match now {
@@ -342,7 +345,7 @@ fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
                 false => *count -= 1,
             });
         }
-    }));
+    });
     on_cleanup(move || {
         if counted.get() {
             set_toolbars.update(|count| *count -= 1);

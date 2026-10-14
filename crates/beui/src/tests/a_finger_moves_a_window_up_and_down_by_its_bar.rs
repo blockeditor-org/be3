@@ -3,6 +3,7 @@ use crate::unstyled::dock_state;
 
 #[test]
 fn a_finger_moves_a_window_up_and_down_by_its_bar() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     let window = floated_window(&mut harness, dock);

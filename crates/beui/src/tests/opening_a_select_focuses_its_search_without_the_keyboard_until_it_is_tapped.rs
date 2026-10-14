@@ -20,10 +20,10 @@ fn opening_a_select_focuses_its_search_without_the_keyboard_until_it_is_tapped()
     let at = harness.center(trigger);
     harness.touch(TouchPhase::Start, at);
     harness.touch(TouchPhase::End, at);
-    let area = harness.frame(Vec::new()).ime;
+    let area = harness.frame(Vec::new()).window.ime;
     assert!(unstyled::select_open(harness.document(), select));
     assert!(
-        area.as_ref().is_some_and(|area| !area.keyboard),
+        area.as_ref().is_some_and(|area| !area.keyboard.shown()),
         "the search takes text but holds the on-screen keyboard back: {area:?}"
     );
 
@@ -39,9 +39,9 @@ fn opening_a_select_focuses_its_search_without_the_keyboard_until_it_is_tapped()
     let at = harness.center(search);
     harness.touch(TouchPhase::Start, at);
     harness.touch(TouchPhase::End, at);
-    let area = harness.frame(Vec::new()).ime;
+    let area = harness.frame(Vec::new()).window.ime;
     assert!(
-        area.as_ref().is_some_and(|area| area.keyboard),
+        area.as_ref().is_some_and(|area| area.keyboard.shown()),
         "tapping the search asks for the on-screen keyboard: {area:?}"
     );
 }

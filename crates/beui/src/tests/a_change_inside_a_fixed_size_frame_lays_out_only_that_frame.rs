@@ -2,11 +2,10 @@ use super::*;
 
 #[test]
 fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
+    let _root = crate::reactive::RootScope::new();
     let list = NodeRef::new();
     let (beside, fixed, inner) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let list = list.clone();
-        let (beside, fixed, inner) = (beside.clone(), fixed.clone(), inner.clone());
         move || {
             view! {
                 <List @node_ref=&list spacing=0.0>
@@ -32,10 +31,10 @@ fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let settled = (
-        list_layouts.get(),
-        beside_layouts.get(),
-        fixed_layouts.get(),
-        inner_layouts.get(),
+        list_layouts.get_untracked(),
+        beside_layouts.get_untracked(),
+        fixed_layouts.get_untracked(),
+        inner_layouts.get_untracked(),
     );
     let placed = harness.rect(fixed);
 
@@ -43,17 +42,17 @@ fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        inner_layouts.get(),
+        inner_layouts.get_untracked(),
         settled.3 + 1,
         "the frame that changed is laid out again"
     );
     assert_eq!(
-        fixed_layouts.get(),
+        fixed_layouts.get_untracked(),
         settled.2 + 1,
         "the fixed-size frame holding it lays out its child again"
     );
     assert_eq!(
-        (list_layouts.get(), beside_layouts.get()),
+        (list_layouts.get_untracked(), beside_layouts.get_untracked()),
         (settled.0, settled.1),
         "nothing outside the fixed-size frame is laid out again"
     );

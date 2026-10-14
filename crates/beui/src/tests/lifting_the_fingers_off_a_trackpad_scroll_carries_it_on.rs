@@ -4,12 +4,12 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(400)}>
                         {|_: usize| view! {
                             <Frame padding_horizontal=0.0 padding_vertical=20.0>

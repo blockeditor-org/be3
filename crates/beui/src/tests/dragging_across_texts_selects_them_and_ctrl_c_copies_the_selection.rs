@@ -6,9 +6,9 @@ const TITLE: &str = "Fix the launcher";
 
 #[test]
 fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
+    let _root = crate::reactive::RootScope::new();
     let (title, labels, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (title, labels, region) = (title.clone(), labels.clone(), region.clone());
         move || {
             view! {
                 <SelectableText @node_ref=&region>

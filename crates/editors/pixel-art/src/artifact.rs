@@ -1,10 +1,11 @@
 use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
-use block_editor_beui::beui::styled::{Caption, NumberInput, use_theme};
+use block_editor_beui::beui::reactive::{Frame, List, Show, component, create_memo, view};
+use block_editor_beui::beui::styled::{NumberInput, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
-use block_editor_beui::{BlockList, BlockQuery, ContentProjection};
+use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -122,17 +123,19 @@ fn summary(settings: &ImageSettings) -> String {
 #[component]
 pub fn Settings(artifacts: Artifacts) -> NodeId {
     let data = artifacts.settings();
-    let decoded = create_memo(clone!(data -> move || ImageArtifact::decode(&data.get()).ok()));
-    let readable = create_memo(clone!(decoded -> move || decoded.get().is_some()));
-    let scale = create_memo(clone!(decoded -> move || {
-        decoded.get().map_or(1.0, |artifact| f64::from(artifact.settings.scale))
-    }));
-    let caption = create_memo(clone!(decoded -> move || match decoded.get() {
+    let decoded = create_memo(move || ImageArtifact::decode(&data.get()).ok());
+    let readable = create_memo(move || decoded.get().is_some());
+    let scale = create_memo(move || {
+        decoded
+            .get()
+            .map_or(1.0, |artifact| f64::from(artifact.settings.scale))
+    });
+    let caption = create_memo(move || match decoded.get() {
         Some(artifact) => summary(&artifact.settings),
         None => "These settings cannot be read.".to_owned(),
-    }));
+    });
     let edited = artifacts.clone();
-    let scaled = decoded.clone();
+    let scaled = decoded;
     let set_scale = move |value: f64| {
         let Some(mut artifact) = scaled.get_untracked() else {
             return;
@@ -145,14 +148,14 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
 
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=SETTINGS_PADDING
             padding_vertical=SETTINGS_PADDING
         >
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <NumberInput
-                        value={scale.clone()}
+                        value={scale}
                         min=1.0
                         max={f64::from(MAX_EXPORT_SCALE)}
                         label="Scale"
@@ -160,7 +163,11 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
                         on_change={set_scale.clone()}
                     />
                 </Show>
-                <Caption content={caption} @test_id={"pixel-art.export-summary"} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string={caption}
+                    @test_id={"pixel-art.export-summary"}
+                />
             </List>
         </Frame>
     }
@@ -168,7 +175,7 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
 
 pub struct Regeneration {
     host: EditorHost,
-    source: ContentProjection<PixelArtContent>,
+    source: OwnedContentProjection<PixelArtContent>,
     named: BlockList,
     target: Uuid,
     settings: ImageSettings,

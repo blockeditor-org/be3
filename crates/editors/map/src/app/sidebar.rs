@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::Map;
 use block_editor_beui::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_beui::beui::Color32;
@@ -7,12 +5,12 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_CIRCLE, ICON_DELETE, ICON_MY_LOCATION};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, IconButton, IconSized,
-    ListRow, NumberInput, Separator, Tooltip, use_theme,
+    Button, ButtonVariant, Checkbox, ColorInput, IconButton, ListRow, NumberInput, Separator,
+    Tooltip,
 };
 use block_editor_beui::beui::unstyled::Pressable;
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget};
@@ -21,6 +19,8 @@ use uuid::Uuid;
 use crate::points::marker_color;
 
 use super::state::MapState;
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PREVIEW_HEIGHT: f32 = 130.0;
 
@@ -61,142 +61,130 @@ const COLOR_PRESETS: [(&str, MapColor); 5] = [
 ];
 
 #[component]
-pub(crate) fn MapSidebar(state: Rc<MapState>) -> NodeId {
-    let selected = create_memo(clone!(state -> move || state.selected.get()));
-    let listing = create_memo(clone!(selected -> move || selected.get().is_none()));
-    let chosen = create_memo(clone!(selected -> move || selected.get().is_some()));
-    let region = Rc::clone(&state);
-    let list = Rc::clone(&state);
-    let details = Rc::clone(&state);
-    let dismiss = Rc::clone(&state);
-    let error = state.import_error.clone();
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
-    let theme = use_theme();
+pub(crate) fn MapSidebar(state: MapState) -> NodeId {
+    let selected = create_memo(move || state.selected.get());
+    let listing = create_memo(move || selected.get().is_none());
+    let chosen = create_memo(move || selected.get().is_some());
+    let error = state.import_error;
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
 
     view! {
         <List spacing=10.0>
-            <Heading content="Map" />
+            <Text style=TextStyle::HEADING string="Map" />
             <Separator />
-            <RegionInspector state={region} />
+            <RegionInspector state={state} />
             <Separator />
             <Show condition={listing}>
-                <PointList state={list.clone()} />
+                <PointList state={state} />
             </Show>
             <Show condition={chosen}>
-                <PointDetails state={details.clone()} selected={selected.clone()} />
+                <PointDetails state={state} selected={selected} />
             </Show>
             <Show condition={failed}>
-                {move || clone!(dismiss reason theme -> view! {
+                {move || view! {
                     <List spacing=4.0>
-                        <Caption content={reason} color={theme.danger.clone()} />
+                        <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
                         <Button
                             label="Dismiss"
                             variant=ButtonVariant::Secondary
-                            on_click={move || dismiss.dismiss_import_error()}
+                            on_click={move || state.dismiss_import_error()}
                         />
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }
 }
 
 #[component]
-fn RegionInspector(state: Rc<MapState>) -> NodeId {
-    let region = state.preview_region.clone();
-    let fixed = create_memo(clone!(region -> move || region.get().is_some()));
-    let loose = create_memo(clone!(fixed -> move || !fixed.get()));
-    let toggled = Rc::clone(&state);
-    let captured = Rc::clone(&state);
-    let zoomed = Rc::clone(&state);
-    let theme = use_theme();
-    let loose_color = theme.text_muted.clone();
+fn RegionInspector(state: MapState) -> NodeId {
+    let region = state.preview_region;
+    let fixed = create_memo(move || region.get().is_some());
+    let loose = create_memo(move || !fixed.get());
+    let loose_color = TextColor::Muted;
     view! {
         <List spacing=6.0>
-            <Body content="Preview region" />
+            <Text string="Preview region" />
             <Checkbox
                 label="Show a fixed region"
-                checked={fixed.clone()}
+                checked={fixed}
                 @test_id={"map.preview-region"}
                 on_change={move |on: bool| {
-                    let region = on.then(|| toggled.visible_region.get_untracked());
-                    toggled.record(Map::set_preview_region(region));
+                    let region = on.then(|| state.visible_region.get_untracked());
+                    state.record(Map::set_preview_region(region));
                 }}
             />
             <Show condition={loose}>
-                <Caption content="Previews show the whole world." color={loose_color.clone()} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Previews show the whole world."
+                    color={loose_color}
+                />
             </Show>
             <Show condition={fixed}>
-                {move || clone!(captured state zoomed -> view! {
+                {move || view! {
                     <List spacing=6.0>
-                        <RegionEdges state={Rc::clone(&state)} />
+                        <RegionEdges state={state} />
                         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                             <Button
                                 label="Use current view"
                                 variant=ButtonVariant::Secondary
                                 @test_id={"map.capture-region"}
                                 on_click={move || {
-                                    let region = Some(captured.visible_region.get_untracked());
-                                    captured.record(Map::set_preview_region(region));
+                                    let region = Some(state.visible_region.get_untracked());
+                                    state.record(Map::set_preview_region(region));
                                 }}
                             />
                             <Button
                                 label="Zoom to region"
                                 variant=ButtonVariant::Secondary
-                                on_click={move || zoomed.request_fit()}
+                                on_click={move || state.request_fit()}
                             />
                         </List>
                     </List>
-                })}
+                }}
             </Show>
         </List>
     }
 }
 
 #[component]
-fn RegionEdges(state: Rc<MapState>) -> NodeId {
-    let edge = |state: &Rc<MapState>,
-                label: &'static str,
+fn RegionEdges(state: MapState) -> NodeId {
+    let edge = |label: &'static str,
                 read: fn(&MapRegionEdges) -> f64,
                 write: fn(&mut MapRegionEdges, f64)| {
-        let read_state = Rc::clone(state);
         let value = create_memo(move || {
-            read_state
+            state
                 .preview_region
                 .get()
                 .map_or(0.0, |region| read(&MapRegionEdges::from(region)))
         });
-        let write_state = Rc::clone(state);
         (label, value, move |next: f64| {
-            let Some(region) = write_state.preview_region.get_untracked() else {
+            let Some(region) = state.preview_region.get_untracked() else {
                 return;
             };
             let mut edges = MapRegionEdges::from(region);
             write(&mut edges, next);
-            write_state.record(Map::set_preview_region(Some(edges.into())));
+            state.record(Map::set_preview_region(Some(edges.into())));
         })
     };
     let (north_label, north, set_north) = edge(
-        &state,
         "North",
         |edges| edges.north,
         |edges, value| edges.north = value,
     );
     let (south_label, south, set_south) = edge(
-        &state,
         "South",
         |edges| edges.south,
         |edges, value| edges.south = value,
     );
     let (west_label, west, set_west) = edge(
-        &state,
         "West",
         |edges| edges.west,
         |edges, value| edges.west = value,
     );
     let (east_label, east, set_east) = edge(
-        &state,
         "East",
         |edges| edges.east,
         |edges, value| edges.east = value,
@@ -282,30 +270,34 @@ fn Coordinate(
 }
 
 #[component]
-fn PointList(state: Rc<MapState>) -> NodeId {
-    let points = state.points.clone();
-    let ids = create_memo(clone!(points -> move || {
-        points.get().iter().map(|point| point.id).collect::<Vec<Uuid>>()
-    }));
-    let empty = create_memo(clone!(ids -> move || ids.get().is_empty()));
-    let any = create_memo(clone!(empty -> move || !empty.get()));
-    let theme = use_theme();
-    let hint = theme.text_muted.clone();
+fn PointList(state: MapState) -> NodeId {
+    let points = state.points;
+    let ids = create_memo(move || {
+        points
+            .get()
+            .iter()
+            .map(|point| point.id)
+            .collect::<Vec<Uuid>>()
+    });
+    let empty = create_memo(move || ids.get().is_empty());
+    let any = create_memo(move || !empty.get());
+    let hint = TextColor::Muted;
     view! {
         <List spacing=6.0>
-            <Body content="Points of interest" />
+            <Text string="Points of interest" />
             <Show condition={empty}>
-                <Caption
-                    content="Add blocks with the + button, by dragging them in from Files, or by pasting an image."
-                    color={hint.clone()}
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Add blocks with the + button, by dragging them in from Files, or by pasting an image."
+                    wrap=true
+                    color={hint}
                 />
             </Show>
             <Show condition={any}>
-                <Caption content="Select a marker to edit it." color={theme.text_muted.clone()} />
+                <Text style=TextStyle::CAPTION string="Select a marker to edit it." />
             </Show>
             <ForEach keys={ids}>
                 {move |id: Uuid| {
-                    let state = Rc::clone(&state);
                     view! {
                         <PointRow state id />
                     }
@@ -316,31 +308,28 @@ fn PointList(state: Rc<MapState>) -> NodeId {
 }
 
 #[component]
-fn PointRow(state: Rc<MapState>, id: Uuid) -> NodeId {
-    let named = Rc::clone(&state);
-    let point = create_memo(clone!(named -> move || {
-        named.points.get().into_iter().find(|point| point.id == id)
-    }));
-    let label = create_memo(clone!(point named -> move || point_name(&named, point.get())));
-    let swatch = create_memo(clone!(point -> move || {
-        point.get().map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
-    }));
-    let chosen = Rc::clone(&state);
-    let centred = Rc::clone(&state);
+fn PointRow(state: MapState, id: Uuid) -> NodeId {
+    let point = create_memo(move || state.points.get().into_iter().find(|point| point.id == id));
+    let label = create_memo(move || point_name(&state, point.get()));
+    let swatch = create_memo(move || {
+        point
+            .get()
+            .map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
+    });
     let test_id = format!("map.point.{id}");
     view! {
         <ListRow
             @test_id={test_id}
             on_click={move || {
-                chosen.select(Some(id));
-                if let Some(point) = centred.points.get_untracked().iter().find(|point| point.id == id) {
-                    centred.centre_on(point.position);
+                state.select(Some(id));
+                if let Some(point) = state.points.get_untracked().iter().find(|point| point.id == id) {
+                    state.centre_on(point.position);
                 }
             }}
             on_activate={move || {}}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} />
                 <Swatch color={swatch} />
             </List>
         </ListRow>
@@ -349,51 +338,41 @@ fn PointRow(state: Rc<MapState>, id: Uuid) -> NodeId {
 
 #[component]
 fn Swatch(color: Memo<Color32>) -> NodeId {
+    let color = create_memo(move || TextColor::Custom(color.get()));
     view! {
-        <IconSized glyph={ICON_CIRCLE.to_owned()} font_size=12.0 color={color} />
+        <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+            <Icon glyph={ICON_CIRCLE.to_owned()} />
+        </Text>
     }
 }
 
 #[component]
-fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
-    let held = Rc::clone(&state);
-    let point = create_memo(clone!(selected held -> move || {
+fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
+    let point = create_memo(move || {
         let id = selected.get()?;
-        held.points.get().into_iter().find(|point| point.id == id)
-    }));
-    let named = Rc::clone(&state);
-    let label = create_memo(clone!(point named -> move || point_name(&named, point.get())));
-    let target = Rc::clone(&state);
-    let block = create_memo(clone!(point target -> move || {
+        state.points.get().into_iter().find(|point| point.id == id)
+    });
+    let label = create_memo(move || point_name(&state, point.get()));
+    let block = create_memo(move || {
         let point = point.get()?;
-        let label = target.label_of(point.block_id)?;
+        let label = state.label_of(point.block_id)?;
         Some(ChildTarget::new(point.block_id, label.block_type))
-    }));
-    let openable = create_memo(clone!(block -> move || block.get().is_none()));
-    let back = Rc::clone(&state);
-    let opened = Rc::clone(&state);
-    let opened_block = block.clone();
-    let centred = Rc::clone(&state);
-    let centred_point = point.clone();
-    let removed = Rc::clone(&state);
-    let editor = state.editor().clone();
-    let latitude = create_memo(clone!(point -> move || {
-        point.get().map_or(0.0, |point| point.position.latitude)
-    }));
-    let longitude = create_memo(clone!(point -> move || {
-        point.get().map_or(0.0, |point| point.position.longitude)
-    }));
-    let moved = Rc::clone(&state);
-    let moved_point = point.clone();
-    let slid = Rc::clone(&state);
-    let slid_point = point.clone();
-    let tinted = Rc::clone(&state);
-    let tinted_point = point.clone();
-    let coloured = Rc::clone(&state);
-    let coloured_point = point.clone();
-    let custom = create_memo(clone!(point -> move || {
-        point.get().map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
-    }));
+    });
+    let openable = create_memo(move || block.get().is_none());
+    let opened_block = block;
+    let centred_point = point;
+    let editor = state.editor();
+    let latitude = create_memo(move || point.get().map_or(0.0, |point| point.position.latitude));
+    let longitude = create_memo(move || point.get().map_or(0.0, |point| point.position.longitude));
+    let moved_point = point;
+    let slid_point = point;
+    let tinted_point = point;
+    let coloured_point = point;
+    let custom = create_memo(move || {
+        point
+            .get()
+            .map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
+    });
 
     view! {
         <List spacing=8.0>
@@ -402,9 +381,9 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                     glyph={ICON_ARROW_BACK.to_owned()}
                     label="Back to all points"
                     @test_id={"map.point.back"}
-                    on_click={move || back.select(None)}
+                    on_click={move || state.select(None)}
                 />
-                <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} />
             </List>
             <Frame height=PREVIEW_HEIGHT radius=4>
                 <ChildBlock
@@ -421,7 +400,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                     disabled={openable}
                     on_click={move || {
                         if let Some(target) = opened_block.get_untracked() {
-                            opened.editor().host().open_block(target.id, target.block_type);
+                            state.editor().host().open_block(target.id, target.block_type);
                         }
                     }}
                 />
@@ -430,7 +409,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                     label="Centre the map here"
                     on_click={move || {
                         if let Some(point) = centred_point.get_untracked() {
-                            centred.centre_on(point.position);
+                            state.centre_on(point.position);
                         }
                     }}
                 />
@@ -440,12 +419,12 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                     @test_id={"map.point.remove"}
                     on_click={move || {
                         if let Some(point) = point.get_untracked() {
-                            removed.remove_point(point.id);
+                            state.remove_point(point.id);
                         }
                     }}
                 />
             </List>
-            <Body content="Position" />
+            <Text string="Position" />
             <NumberInput
                 value={latitude}
                 min={-MAX_LATITUDE}
@@ -456,7 +435,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                         return;
                     };
                     point.position.latitude = value;
-                    moved.record(Map::update(&[point]));
+                    state.record(Map::update(&[point]));
                 }}
             />
             <NumberInput
@@ -469,15 +448,14 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                         return;
                     };
                     point.position.longitude = value;
-                    slid.record(Map::update(&[point]));
+                    state.record(Map::update(&[point]));
                 }}
             />
-            <Body content="Colour" />
+            <Text string="Colour" />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ForEach keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}>
                     {move |name: String| {
-                        let state = Rc::clone(&coloured);
-                        let point = coloured_point.clone();
+                        let point = coloured_point;
                         view! {
                             <ColorPreset state point name />
                         }
@@ -493,7 +471,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
                     };
                     let [red, green, blue, _] = color.to_array();
                     point.color = MapColor::Rgb { red, green, blue };
-                    tinted.record(Map::update(&[point]));
+                    state.record(Map::update(&[point]));
                 }}
             />
         </List>
@@ -501,7 +479,7 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
 }
 
 #[component]
-fn ColorPreset(state: Rc<MapState>, point: Memo<Option<MapPoint>>, name: String) -> NodeId {
+fn ColorPreset(state: MapState, point: Memo<Option<MapPoint>>, name: String) -> NodeId {
     let Some((_, color)) = COLOR_PRESETS.into_iter().find(|(label, _)| *label == name) else {
         unreachable!("the preset was named by the list it came from");
     };
@@ -519,7 +497,9 @@ fn ColorPreset(state: Rc<MapState>, point: Memo<Option<MapPoint>>, name: String)
                     state.record(Map::update(&[chosen]));
                 }}
             >
-                <IconSized glyph={ICON_CIRCLE.to_owned()} font_size=16.0 color={swatch} />
+                <Text size=TextSize::Sm color={TextColor::Custom(swatch)} align=TextAlign::Center>
+                    <Icon glyph={ICON_CIRCLE.to_owned()} />
+                </Text>
             </Pressable>
         </Tooltip>
     }

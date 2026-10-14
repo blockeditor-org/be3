@@ -9,12 +9,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    CursorIcon, Event, FilePickRequest, Launch, Modifiers, Platform, PointerButton, Pos2, Setup,
-    TouchId, TouchPhase, Waker, vec2,
+    Event, Launch, Modifiers, Platform, PointerButton, Pos2, ScrollDelta, Setup, TouchId,
+    TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
+use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Runner, panic_message};
+use beui_core::runner::{Keystroke, Runner, panic_message};
+use beui_core::window::WindowState;
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime};
 use smithay::backend::input::Event as _;
@@ -55,7 +57,6 @@ use crate::recovery::{Card, Recovery};
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
-const WHEEL_STEP: f64 = 15.0;
 const LONGEST_WAIT: Duration = Duration::from_secs(3600);
 const BLANKED_FRAME: Duration = Duration::from_secs(1);
 const DARKEN_RETRY: Duration = Duration::from_secs(1);
@@ -103,18 +104,19 @@ impl Platform for Seat {
         self.clipboard = Some(text);
     }
 
-    fn paste(&mut self) -> Option<String> {
-        self.clipboard.clone()
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let text = kinds
+            .contains(&PasteKind::Text)
+            .then(|| self.clipboard.clone())
+            .flatten();
+        answer.send(text.map(Pasted::Text));
     }
 
-    fn pick_file(&mut self, _request: FilePickRequest) {}
-
-    fn set_cursor(&mut self, icon: CursorIcon, _touch_emulation: bool) {
-        self.displays.borrow_mut().icon = icon;
-    }
-
-    fn lock_pointer(&mut self, locked: bool) {
-        self.locked = locked;
+    fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        if window.cursor != shown.cursor {
+            self.displays.borrow_mut().icon = window.cursor;
+        }
+        self.locked = window.pointer_locked;
     }
 }
 
@@ -175,6 +177,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         }],
         setup,
     )?;
+    runner.reports().fullscreen(true);
+    runner.reports().scaled(displays.borrow().scale);
     let input = InputConfig::default();
     let platform = Seat {
         clipboard: None,
@@ -320,9 +324,7 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
 }
 
 impl Session {
-    fn end(mut self) -> Result<(), Box<dyn Error>> {
-        self.runner.exit();
-        let failure = self.runner.failure().map(str::to_owned);
+    fn end(self) -> Result<(), Box<dyn Error>> {
         let Session {
             runner,
             platform,
@@ -333,7 +335,7 @@ impl Session {
             drm,
             ..
         } = self;
-        drop(runner);
+        let finished = runner.finish();
         drop(platform);
         drop(displays);
         drop(devices);
@@ -341,10 +343,7 @@ impl Session {
         drop(libinput);
         drop(gbm);
         drop(drm);
-        match failure {
-            Some(failure) => Err(format!("the session ended after a panic: {failure}").into()),
-            None => Ok(()),
-        }
+        finished
     }
 
     fn idle(&mut self) {
@@ -528,26 +527,16 @@ impl Session {
 
     fn update(&mut self) {
         let now = self.now();
-        let scale = {
-            let mut displays = self.displays.borrow_mut();
-            for output in &mut displays.outputs {
-                output.framed();
-            }
-            displays.scale
-        };
-        let Some(frame) = self
-            .runner
-            .frame(&mut self.platform, scale, SafeArea::default())
-        else {
+        for output in &mut self.displays.borrow_mut().outputs {
+            output.framed();
+        }
+        let Some(frame) = self.runner.frame(&mut self.platform, SafeArea::default()) else {
             self.pacer.ran(now, false, None);
             if self.runner.exited() {
                 self.signal.stop();
             }
             return;
         };
-        if frame.close_requested && self.runner.close_requested() {
-            self.signal.stop();
-        }
         let wait = |after: Duration| (after != Duration::MAX).then(|| after.min(LONGEST_WAIT));
         match self.blanked {
             false => self.pacer.ran(
@@ -713,14 +702,19 @@ impl Session {
         }
     }
 
-    fn push(&mut self, event: Event) {
-        self.runner.push(event);
+    fn push(&mut self, input: impl Into<beui::Input>) {
+        self.runner.push(input);
         self.pacer.ask();
+    }
+
+    fn physical(&self, pos: Pos2) -> Pos2 {
+        let scale = self.displays.borrow().scale;
+        beui::pos2(pos.x * scale, pos.y * scale)
     }
 
     fn point(&mut self, pointer: Pos2) {
         self.place_pointer(pointer);
-        self.push(Event::PointerMoved(pointer));
+        self.push(Event::PointerMoved(self.physical(pointer)));
     }
 
     fn place_pointer(&mut self, pointer: Pos2) {
@@ -835,7 +829,8 @@ impl Session {
             InputEvent::PointerMotion { event } => {
                 let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
                 if self.platform.locked {
-                    self.push(Event::PointerMotion(delta));
+                    let scale = self.displays.borrow().scale;
+                    self.push(Event::PointerMotion(delta * scale));
                     return;
                 }
                 self.point(moved(self.pointer(), delta, &self.rects()));
@@ -848,28 +843,24 @@ impl Session {
                 let Some(button) = pointer_button(event.button_code()) else {
                     return;
                 };
-                self.push(Event::PointerButton {
-                    pos: self.pointer(),
-                    button,
-                    pressed: event.state() == ButtonState::Pressed,
-                    modifiers: self.keyboard.modifiers(),
-                });
+                let pos = self.physical(self.pointer());
+                self.runner
+                    .pointer_button(pos, button, event.state() == ButtonState::Pressed);
+                self.pacer.ask();
             }
             InputEvent::PointerAxis { event } => {
-                let amount = |axis| {
-                    event
-                        .amount(axis)
-                        .or_else(|| {
-                            event
-                                .amount_v120(axis)
-                                .map(|v120| v120 / 120.0 * WHEEL_STEP)
-                        })
-                        .unwrap_or(0.0) as f32
+                let notches = |axis| event.amount_v120(axis).map(|v120| -v120 as f32 / 120.0);
+                let delta = match (notches(Axis::Horizontal), notches(Axis::Vertical)) {
+                    (None, None) => {
+                        let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
+                        let scale = self.displays.borrow().scale;
+                        ScrollDelta::Pixels(
+                            vec2(amount(Axis::Horizontal), amount(Axis::Vertical)) * scale,
+                        )
+                    }
+                    (x, y) => ScrollDelta::Lines(vec2(x.unwrap_or(0.0), y.unwrap_or(0.0))),
                 };
-                let delta = vec2(-amount(Axis::Horizontal), -amount(Axis::Vertical));
-                if delta != beui::Vec2::ZERO {
-                    self.push(Event::Scroll(delta));
-                }
+                self.push(delta);
             }
             InputEvent::TouchDown { event } => {
                 let position = self.touch_position(&event);
@@ -903,13 +894,14 @@ impl Session {
         position: Pos2,
     ) {
         let finger: i32 = slot.into();
+        let pos = self.physical(position);
         self.push(Event::Touch {
             id: TouchId {
                 device: 0,
                 finger: u64::from(finger.max(0).unsigned_abs()),
             },
             phase,
-            pos: position,
+            pos,
             force: None,
         });
     }
@@ -928,8 +920,8 @@ impl Session {
             }
             return;
         }
-        for event in translated.events {
-            self.push(event);
+        for input in translated.inputs {
+            self.push(input);
         }
         match (pressed, translated.repeat) {
             (true, Some(repeated)) => self.start_repeat(code, repeated),
@@ -940,15 +932,13 @@ impl Session {
         }
     }
 
-    fn start_repeat(&mut self, code: u32, repeated: Vec<Event>) {
+    fn start_repeat(&mut self, code: u32, repeated: Keystroke) {
         self.stop_repeat();
         let interval = self.input.repeat_interval;
         let token = self.handle.insert_source(
             Timer::from_duration(self.input.repeat_delay),
             move |_, _, session| {
-                for event in &repeated {
-                    session.push(event.clone());
-                }
+                session.push(repeated.clone());
                 TimeoutAction::ToDuration(interval)
             },
         );

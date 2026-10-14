@@ -6,6 +6,7 @@ const CELL_HEIGHT: f32 = 20.0;
 
 #[test]
 fn a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view() {
+    let _root = crate::reactive::RootScope::new();
     let cells: Vec<NodeRef> = (0..CELLS).map(|_| NodeRef::new()).collect();
     let insides: Vec<NodeRef> = (0..CELLS).map(|_| NodeRef::new()).collect();
     let document = build({
@@ -17,7 +18,7 @@ fn a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view() {
                         <Grid columns={vec![Track::Fraction(1.0); 2]}>
                             <ForEach keys={indices(CELLS)}>
                                 {move |index: usize| {
-                                    let (cell, inside) = (cells[index].clone(), insides[index].clone());
+                                    let (cell, inside) = (cells[index], insides[index]);
                                     view! {
                                         <Frame @node_ref=&cell height=CELL_HEIGHT>
                                             <Frame @node_ref=&inside>

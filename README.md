@@ -14,20 +14,23 @@ See guides/buck2.md for detailed instructions
 
 ```
 # run app
-./scripts/buck run //crates/block-app:app
+./scripts/buck run //crates/block-app:native
 
 # test app
 ./scripts/verify
 
 # run for web
-./scripts/buck run //crates/block-app:web-serve
+./scripts/buck run //crates/block-app:web
 
 # run for android
 ./scripts/buck run //crates/block-app:android -- --install
 
 # run beui's demo
-./scripts/buck run //crates/beui-demo:demo
+./scripts/buck run //crates/beui-demo:native
 
-# run be-compositor
-./scripts/buck run //crates/be-compositor:be-compositor-bin
+# run block-app as a Wayland session, on this machine's displays (from a TTY)
+./scripts/buck run //crates/block-app:native -- --session
+
+# install block-app as a Wayland session your login screen offers
+./scripts/buck run //crates/block-app:install-session
 ```

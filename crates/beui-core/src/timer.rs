@@ -1,9 +1,9 @@
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::current::{try_with_document, with_document};
-use ::reactive::on_cleanup;
+use ::reactive::{Stored, on_cleanup, store};
 
 pub struct TimerState {
     due: Cell<Option<Instant>>,
@@ -26,30 +26,35 @@ impl TimerState {
     }
 }
 
-#[derive(Clone)]
-pub struct Timer(Rc<TimerState>);
+#[derive(Clone, Copy)]
+pub struct Timer(Stored<TimerState>);
 
 impl Timer {
     pub fn start(&self, delay: Duration) {
+        let Some(state) = self.0.try_get() else {
+            return;
+        };
         let due = now() + delay;
-        if self.0.due.get().is_some_and(|held| held <= due) {
+        if state.due.get().is_some_and(|held| held <= due) {
             return;
         }
-        self.0.due.set(Some(due));
+        state.due.set(Some(due));
         try_with_document(|document| document.request_repaint_after(delay));
     }
 
     pub fn restart(&self, delay: Duration) {
-        self.0.due.set(None);
+        self.stop();
         self.start(delay);
     }
 
     pub fn stop(&self) {
-        self.0.due.set(None);
+        self.0.try_with(|state| state.due.set(None));
     }
 
     pub fn running(&self) -> bool {
-        self.0.due.get().is_some()
+        self.0
+            .try_with(|state| state.due.get().is_some())
+            .unwrap_or(false)
     }
 }
 
@@ -57,16 +62,31 @@ pub fn now() -> Instant {
     try_with_document(|document| document.now()).unwrap_or_else(Instant::now)
 }
 
+thread_local! {
+    static PINNED_WALL_CLOCK: Cell<Option<(Instant, Duration)>> = const { Cell::new(None) };
+}
+
+pub fn pin_wall_clock(at: Option<(Instant, Duration)>) {
+    PINNED_WALL_CLOCK.with(|held| held.set(at));
+}
+
+pub fn wall_clock() -> Duration {
+    match PINNED_WALL_CLOCK.with(Cell::get) {
+        Some((at, since_epoch)) => since_epoch + now().saturating_duration_since(at),
+        None => SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default(),
+    }
+}
+
 pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
-    let state = Rc::new(TimerState {
+    let state = store(TimerState {
         due: Cell::new(None),
         work: Box::new(work),
     });
-    with_document(|document| document.register_timer(Rc::downgrade(&state)));
-    let held = Rc::clone(&state);
+    with_document(|document| document.register_timer(Rc::downgrade(&state.get())));
     on_cleanup(move || {
-        held.due.set(None);
-        drop(held);
+        state.try_with(|state| state.due.set(None));
     });
     Timer(state)
 }

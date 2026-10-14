@@ -1,22 +1,19 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::*;
 use crate::input::PointerPress;
 use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends() {
-    let presses: Rc<RefCell<Vec<Pos2>>> = Rc::default();
-    let drags: Rc<RefCell<Vec<Pos2>>> = Rc::default();
+    let _root = crate::reactive::RootScope::new();
+    let (presses, set_presses) = create_signal::<Vec<Pos2>>(Vec::new());
+    let (drags, set_drags) = create_signal::<Vec<Pos2>>(Vec::new());
     let document = build({
-        let (presses, drags) = (presses.clone(), drags.clone());
         move || {
             view! {
                 <Interactive
                     touch_drags=true
-                    on_press={move |press: PointerPress| presses.borrow_mut().push(press.pos)}
-                    on_drag={move |press: PointerPress| drags.borrow_mut().push(press.pos)}
+                    on_press={move |press: PointerPress| set_presses.update(|presses| presses.push(press.pos))}
+                    on_drag={move |press: PointerPress| set_drags.update(|drags| drags.push(press.pos))}
                 >
                     <Frame width=300.0 height=300.0 />
                 </Interactive>
@@ -36,12 +33,12 @@ fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends()
     ]);
 
     assert_eq!(
-        *presses.borrow(),
+        presses.get_untracked(),
         vec![pos2(100.0, 100.0)],
         "the press is where the finger landed"
     );
     assert_eq!(
-        *drags.borrow(),
+        drags.get_untracked(),
         vec![pos2(103.0, 100.0), pos2(103.0, 103.0)],
         "the move made in the frame of the release is still dragged to"
     );

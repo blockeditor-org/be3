@@ -7,6 +7,7 @@ pub mod frame;
 pub mod grid;
 pub mod interactive;
 pub mod layers;
+pub mod layout_builder;
 pub mod offset;
 pub mod overlay;
 pub mod portal;

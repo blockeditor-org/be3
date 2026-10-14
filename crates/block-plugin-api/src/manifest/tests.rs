@@ -20,6 +20,7 @@ pub(super) const DOCUMENT: &str = r#"{
     "entry_point": "counter.wasm"
 }"#;
 
+mod an_editor_for_any_block_type_is_found_for_every_type;
 mod an_empty_entry_point_is_rejected;
 mod manifest_document_defaults_what_the_host_can;
 mod manifest_document_rejects_a_bad_block_type;

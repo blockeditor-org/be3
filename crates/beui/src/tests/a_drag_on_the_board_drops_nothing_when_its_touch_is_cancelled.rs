@@ -5,8 +5,8 @@ use crate::unstyled::{DragPoint, DropHandle, DropTarget};
 
 #[test]
 fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
-    let dropped = Rc::new(Cell::new(None::<u32>));
-    let received = Rc::clone(&dropped);
+    let _root = crate::reactive::RootScope::new();
+    let (dropped, set_dropped) = create_signal(None::<u32>);
     let (document, [source, target]) = toolbar_of(move || {
         [
             view! {
@@ -14,7 +14,7 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
             },
             view! {
                 <DropTarget
-                    on_drop={move |(payload, _): (u32, DragPoint)| received.set(Some(payload))}
+                    on_drop={move |(payload, _): (u32, DragPoint)| set_dropped.set(Some(payload))}
                 >
                     {|_: DropHandle| view! {
                         <Frame width=100.0 height=100.0 />
@@ -31,16 +31,17 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
     harness.touch(TouchPhase::Start, from);
     harness.document().drag_board().begin(
         Rc::new(7_u32),
-        DragPoint {
-            pos: from,
-            modifiers: Modifiers::NONE,
-        },
+        DragPoint::at(from, Modifiers::NONE),
         Rc::new(|_| {}),
     );
     harness.touch(TouchPhase::Move, to);
     harness.touch(TouchPhase::Cancel, to);
 
-    assert_eq!(dropped.get(), None, "a cancelled touch drops nothing");
+    assert_eq!(
+        dropped.get_untracked(),
+        None,
+        "a cancelled touch drops nothing"
+    );
     assert!(
         !harness.document().dragging(),
         "but the board lets go of what it carried"

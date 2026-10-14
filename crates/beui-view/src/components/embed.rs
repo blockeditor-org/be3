@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::reactive::{Child, Prop, create_effect, with_document};
 use beui_core::base::embed::EmbedSlot;
 use beui_core::node::NodeId;
@@ -12,7 +10,7 @@ pub fn Embed(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     children: Option<Child>,
 ) -> NodeId {
-    let state = Rc::clone(&slot.0);
+    let state = slot.0.get();
     let embed = with_document(move |document| {
         let embed = document.create_embed(state);
         if let Some(child) = children {
@@ -20,7 +18,7 @@ pub fn Embed(
         }
         embed
     });
-    slot.0.node.set(Some(embed.id()));
+    slot.0.with(|held| held.node.set(Some(embed.id())));
     create_effect(move || {
         let punch = punch.get();
         with_document(|document| document.set_embed_punch(embed, punch));

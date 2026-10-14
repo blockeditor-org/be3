@@ -2,8 +2,11 @@ use super::*;
 
 #[test]
 fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
+    let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], Vec::new());
-    let (pressed, keyed, set_dialogs) = (dock.pressed, dock.keyed, dock.set_dialogs);
+    let (pressed, set_pressed, keyed, set_dialogs) =
+        (dock.pressed, dock.set_pressed, dock.keyed, dock.set_dialogs);
+    let attended = dock.attended;
     let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let parent = harness.rect(harness.find("content.1"));
@@ -11,7 +14,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     harness.click(corner);
     let field = harness.find("content.1");
     assert_eq!(harness.document().focused_node(), Some(field));
-    pressed.borrow_mut().clear();
+    set_pressed.update(|pressed| pressed.clear());
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         set_dialogs.set(vec![(10, 1, false)]);
@@ -26,11 +29,21 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     );
     harness.click(corner);
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![1],
         "a dialog that is not modal leaves its parent live"
     );
-    pressed.borrow_mut().clear();
+    harness.frame(Vec::new());
+    assert_eq!(
+        harness.document().focused_node(),
+        Some(field),
+        "and a press on the parent takes the focus there"
+    );
+    assert!(
+        attended.with_untracked(|attended| attended.is_empty()),
+        "without calling the dialog's attention"
+    );
+    set_pressed.update(|pressed| pressed.clear());
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         set_dialogs.set(vec![(10, 1, true)]);
@@ -44,15 +57,23 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     let inside = harness.center(dialog);
     harness.click(inside);
     assert_eq!(
-        *pressed.borrow(),
+        pressed.get_untracked(),
         vec![10],
         "the dialog stays above what blocks its parent"
     );
-    pressed.borrow_mut().clear();
+    set_pressed.update(|pressed| pressed.clear());
 
     harness.click(corner);
     harness.frame(Vec::new());
-    assert!(pressed.borrow().is_empty(), "the parent hears no press");
+    assert!(
+        pressed.with_untracked(|pressed| pressed.is_empty()),
+        "the parent hears no press"
+    );
+    assert_eq!(
+        attended.get_untracked(),
+        vec![10],
+        "it calls the modal dialog's attention instead"
+    );
     assert_eq!(
         harness.document().focused_node(),
         Some(dialog),
@@ -69,7 +90,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     );
     harness.key(Key::A, Modifiers::NONE);
     assert_eq!(
-        *keyed.borrow(),
+        keyed.get_untracked(),
         vec![10],
         "keys reach the dialog, not the parent"
     );
@@ -83,5 +104,9 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         "the focus goes back to the parent when the dialog closes"
     );
     harness.click(corner);
-    assert_eq!(*pressed.borrow(), vec![1], "the parent hears presses again");
+    assert_eq!(
+        pressed.get_untracked(),
+        vec![1],
+        "the parent hears presses again"
+    );
 }

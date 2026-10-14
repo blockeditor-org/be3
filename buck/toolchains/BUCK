@@ -158,7 +158,7 @@ toolchain_alias(
     visibility = ["PUBLIC"],
 )
 
-_release = ["-Copt-level=3", "-Cdebuginfo=0"]
+_release = ["-Copt-level=3", "-Cdebuginfo=0", "-Cforce-frame-pointers=yes"]
 
 pinned_rust_toolchain(
     name = "rust",

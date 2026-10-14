@@ -7,13 +7,12 @@ use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::{
-    CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+    CanvasView, Pasted, ReadSignal, Stored, WriteSignal, create_effect, create_signal, store,
+    untrack,
 };
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_beui::{
-    BlockFilter, ContentProjection, Drag, Editor, FileDrop, ImagePaster, PastedImage, Waker,
-};
+use block_editor_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
@@ -46,22 +45,25 @@ impl TileState {
     }
 }
 
-pub(crate) struct MapState {
-    editor: Editor,
-    preview: bool,
-    block: Rc<ContentProjection<MapContent>>,
+struct MapInner {
+    block: ContentProjection<MapContent>,
     dependencies: BlockList,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
     used: RefCell<HashMap<TileId, u64>>,
     uses: Cell<u64>,
     waker: RefCell<Waker>,
-    paster: RefCell<ImagePaster>,
     dragged: Cell<Option<(Uuid, Vec2)>>,
     pending_file_drop: Cell<Option<MapCoordinate>>,
+    view_center: Cell<MapCoordinate>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct MapState {
+    editor: Editor,
+    preview: bool,
     fit_requested: ReadSignal<bool>,
     set_fit_requested: WriteSignal<bool>,
-    view_center: Cell<MapCoordinate>,
     pub(crate) points: ReadSignal<Vec<MapPoint>>,
     pub(crate) preview_region: ReadSignal<Option<MapRegion>>,
     pub(crate) displayed_region: ReadSignal<MapRegion>,
@@ -81,10 +83,11 @@ pub(crate) struct MapState {
     set_reloads: WriteSignal<u64>,
     pub(crate) anchor: ReadSignal<[f64; 2]>,
     set_anchor: WriteSignal<[f64; 2]>,
+    inner: Stored<MapInner>,
 }
 
 impl MapState {
-    pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
+    pub(crate) fn new(editor: Editor, preview: bool) -> Self {
         let block = editor.block_content::<MapContent>();
         let points = block.project(|map| map.root().points());
         let preview_region = block.project(|map| map.root().preview_region);
@@ -98,24 +101,11 @@ impl MapState {
         let (reloads, set_reloads) = create_signal(0);
         let (fit_requested, set_fit_requested) = create_signal(true);
         let (anchor, set_anchor) = create_signal([0.0, 0.0]);
-        Rc::new(Self {
-            dependencies: editor
-                .blocks()
-                .watch(BlockQuery::References(editor.block_id())),
-            editor: editor.clone(),
+        Self {
+            editor,
             preview,
-            block,
-            worker: RefCell::new(None),
-            tiles: RefCell::new(HashMap::new()),
-            used: RefCell::new(HashMap::new()),
-            uses: Cell::new(0),
-            waker: RefCell::new(Waker::default()),
-            paster: RefCell::new(ImagePaster::default()),
-            dragged: Cell::new(None),
-            pending_file_drop: Cell::new(None),
             fit_requested,
             set_fit_requested,
-            view_center: Cell::new(MapRegion::WORLD.center()),
             points,
             preview_region,
             displayed_region,
@@ -135,11 +125,25 @@ impl MapState {
             set_reloads,
             anchor,
             set_anchor,
-        })
+            inner: store(MapInner {
+                dependencies: editor
+                    .blocks()
+                    .watch(BlockQuery::References(editor.block_id())),
+                block,
+                worker: RefCell::new(None),
+                tiles: RefCell::new(HashMap::new()),
+                used: RefCell::new(HashMap::new()),
+                uses: Cell::new(0),
+                waker: RefCell::new(Waker::default()),
+                dragged: Cell::new(None),
+                pending_file_drop: Cell::new(None),
+                view_center: Cell::new(MapRegion::WORLD.center()),
+            }),
+        }
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+    pub(crate) fn editor(&self) -> Editor {
+        self.editor
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -150,8 +154,8 @@ impl MapState {
         self.editor.block_types()
     }
 
-    pub(crate) fn tiles(&self) -> std::cell::Ref<'_, HashMap<TileId, TileState>> {
-        self.tiles.borrow()
+    pub(crate) fn with_tiles<R>(&self, read: impl FnOnce(&HashMap<TileId, TileState>) -> R) -> R {
+        self.inner.with(|inner| read(&inner.tiles.borrow()))
     }
 
     pub(crate) fn select(&self, id: Option<Uuid>) {
@@ -167,11 +171,12 @@ impl MapState {
     }
 
     pub(crate) fn reload_tiles(&self) {
-        if let Some(worker) = self.worker.borrow_mut().take() {
-            worker.forget(self.editor.host());
+        let inner = self.inner.get();
+        if let Some(worker) = inner.worker.borrow_mut().take() {
+            worker.forget(&self.editor.host());
         }
-        self.tiles.borrow_mut().clear();
-        self.used.borrow_mut().clear();
+        inner.tiles.borrow_mut().clear();
+        inner.used.borrow_mut().clear();
         self.set_last_error.set(None);
         self.bump();
         self.set_reloads.update(|reloads| *reloads += 1);
@@ -182,7 +187,8 @@ impl MapState {
     }
 
     pub(crate) fn record(&self, edit: Edit) {
-        self.block.operate(edit);
+        let inner = self.inner.get();
+        inner.block.operate(edit);
     }
 
     pub(crate) fn remove_point(&self, id: Uuid) {
@@ -203,21 +209,21 @@ impl MapState {
         self.set_selected.set(Some(point_id));
     }
 
-    pub(crate) fn open_picker(self: &Rc<Self>, at: Option<MapCoordinate>) {
-        let state = Rc::downgrade(self);
+    pub(crate) fn open_picker(self, at: Option<MapCoordinate>) {
         self.editor
             .pick_block(BlockFilter::default(), move |picked| {
-                if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
-                    state.place_picked(picked.id, at);
+                if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
+                    self.place_picked(picked.id, at);
                 }
             });
     }
 
     fn place_picked(&self, block_id: Uuid, at: Option<MapCoordinate>) {
+        let inner = self.inner.get();
         self.editor
             .blocks()
             .set_parent(block_id, BlockParent::Block(self.block_id()));
-        let position = at.unwrap_or_else(|| self.view_center.get());
+        let position = at.unwrap_or_else(|| inner.view_center.get());
         self.add_point(block_id, position);
     }
 
@@ -333,24 +339,22 @@ impl MapState {
         self.labels.get().get(&block).cloned()
     }
 
-    pub(crate) fn ask_to_paste(&self) {
-        self.take_paste(true);
-    }
-
     pub(crate) fn press(&self, at: Pos2) {
+        let inner = self.inner.get();
         let view = self.view();
         let points = self.points.get_untracked();
         let tip = |point: &MapPoint| self.screen(view.position(point.position));
         let hit = crate::points::point_at(&points, tip, at);
         self.set_selected.set(hit);
-        self.dragged.set(hit.and_then(|id| {
+        inner.dragged.set(hit.and_then(|id| {
             let point = points.iter().find(|point| point.id == id)?;
             Some((id, tip(point) - at))
         }));
     }
 
     pub(crate) fn drag(&self, at: Pos2) {
-        let Some((id, offset)) = self.dragged.get() else {
+        let inner = self.inner.get();
+        let Some((id, offset)) = inner.dragged.get() else {
             return;
         };
         let view = self.view();
@@ -367,11 +371,13 @@ impl MapState {
     }
 
     pub(crate) fn release(&self) {
-        self.dragged.take();
+        let inner = self.inner.get();
+        inner.dragged.take();
     }
 
     pub(crate) fn pan(&self, delta: Vec2) {
-        if self.dragged.get().is_none() {
+        let inner = self.inner.get();
+        if inner.dragged.get().is_none() {
             self.editor.pan(delta);
         }
     }
@@ -380,37 +386,33 @@ impl MapState {
         self.editor.zoom(factor);
     }
 
-    pub(crate) fn watch(self: &Rc<Self>) {
+    pub(crate) fn watch(self) {
+        let inner = self.inner.get();
         let (waker, woken) = self.editor.woken();
-        *self.waker.borrow_mut() = waker;
-        let state = Rc::clone(self);
+        *inner.waker.borrow_mut() = waker;
         create_effect(move || {
             woken.with(|_| ());
-            untrack(|| state.collect_tiles());
+            untrack(|| self.collect_tiles());
         });
-        let state = Rc::clone(self);
         self.editor.on_reply(move || {
-            state.collect_tiles();
-            state.take_paste(false);
+            if self.inner.is_alive() {
+                self.collect_tiles();
+            }
         });
-        let state = Rc::clone(self);
         let drag = self.editor.drag();
         create_effect(move || {
             let drag = drag.get();
-            untrack(|| state.take_drag(drag));
+            untrack(|| self.take_drag(drag));
         });
-        let state = Rc::clone(self);
         let files = self.editor.files();
         create_effect(move || {
             let drop = files.get();
-            untrack(|| state.take_files(drop));
+            untrack(|| self.take_files(drop));
         });
-        let state = Rc::clone(self);
-        create_effect(move || state.publish_references());
+        create_effect(move || self.publish_references());
         if self.preview {
             return;
         }
-        let state = Rc::clone(self);
         let world = self.editor.world();
         let placed = self.editor.placed();
         let canvas = self.editor.canvas();
@@ -418,9 +420,8 @@ impl MapState {
             world.with(|_| ());
             placed.with(|_| ());
             canvas.with(|_| ());
-            untrack(|| state.settle_anchor());
+            untrack(|| self.settle_anchor());
         });
-        let state = Rc::clone(self);
         let world = self.editor.world();
         let placed = self.editor.placed();
         let canvas = self.editor.canvas();
@@ -428,21 +429,22 @@ impl MapState {
             world.with(|_| ());
             placed.with(|_| ());
             canvas.with(|_| ());
-            state.anchor.with(|_| ());
-            state.preview_region.with(|_| ());
-            state.fit_requested.with(|_| ());
-            untrack(|| state.settle_view());
+            self.anchor.with(|_| ());
+            self.preview_region.with(|_| ());
+            self.fit_requested.with(|_| ());
+            untrack(|| self.settle_view());
         });
     }
 
     fn settle_view(&self) {
+        let inner = self.inner.get();
         let view = self.view();
         let visible = untrack(|| self.visible());
         let region = view.region(visible);
         if self.visible_region.get_untracked() != region {
             self.set_visible_region.set(region);
         }
-        self.view_center.set(view.coordinate(visible.center()));
+        inner.view_center.set(view.coordinate(visible.center()));
         if self.sized()
             && self.host_camera().is_some()
             && self.fit_requested.get_untracked()
@@ -465,8 +467,9 @@ impl MapState {
     }
 
     fn publish_references(&self) {
+        let inner = self.inner.get();
         let types = self.types();
-        let labels: HashMap<Uuid, BlockLabel> = self
+        let labels: HashMap<Uuid, BlockLabel> = inner
             .dependencies
             .read()
             .into_iter()
@@ -496,18 +499,19 @@ impl MapState {
     }
 
     fn take_files(&self, drop: Option<FileDrop>) {
+        let inner = self.inner.get();
         let Some(drop) = drop else {
-            self.pending_file_drop.set(None);
+            inner.pending_file_drop.set(None);
             return;
         };
         let view = self.view();
         let at = |position: Pos2| view.coordinate(self.unscreen(position));
         if !drop.dropped {
-            self.pending_file_drop.set(Some(at(drop.position)));
+            inner.pending_file_drop.set(Some(at(drop.position)));
             return;
         }
         self.set_import_error.set(None);
-        let base = self
+        let base = inner
             .pending_file_drop
             .take()
             .unwrap_or_else(|| at(drop.position));
@@ -522,19 +526,12 @@ impl MapState {
         }
     }
 
-    fn take_paste(&self, asked: bool) {
-        let pasted = self.paster.borrow_mut().paste(self.editor.host(), asked);
-        let Some(pasted) = pasted else {
-            return;
-        };
-        match pasted {
-            PastedImage::Image { name, data } => {
-                self.set_import_error.set(None);
-                let position = self.view_center.get();
-                self.import(ImageContent::from_file(name, data), position);
-            }
-            PastedImage::Failed(error) => self.set_import_error.set(Some(error)),
-            PastedImage::Empty => {}
+    pub(crate) fn take_paste(&self, pasted: Pasted) {
+        let inner = self.inner.get();
+        if let Pasted::Image(file) = pasted {
+            self.set_import_error.set(None);
+            let position = inner.view_center.get();
+            self.import(ImageContent::from_file(file.name, file.data), position);
         }
     }
 
@@ -544,23 +541,27 @@ impl MapState {
     }
 
     pub(crate) fn unwant_tile(&self, id: TileId) {
-        if !matches!(self.tiles.borrow().get(&id), Some(TileState::Loading)) {
+        let Some(inner) = self.inner.try_get() else {
+            return;
+        };
+        if !matches!(inner.tiles.borrow().get(&id), Some(TileState::Loading)) {
             return;
         }
-        let cancelled = self
+        let cancelled = inner
             .worker
             .borrow_mut()
             .as_mut()
             .is_some_and(|worker| worker.cancel(id));
         if cancelled {
-            self.tiles.borrow_mut().remove(&id);
+            inner.tiles.borrow_mut().remove(&id);
         }
     }
 
     pub(crate) fn use_tiles(&self, shown: &[TileId]) {
-        let uses = self.uses.get() + 1;
-        self.uses.set(uses);
-        let mut used = self.used.borrow_mut();
+        let inner = self.inner.get();
+        let uses = inner.uses.get() + 1;
+        inner.uses.set(uses);
+        let mut used = inner.used.borrow_mut();
         for tile in shown {
             let mut held = Some(*tile);
             while let Some(tile) = held {
@@ -568,7 +569,7 @@ impl MapState {
                 held = tile.parent();
             }
         }
-        let mut tiles = self.tiles.borrow_mut();
+        let mut tiles = inner.tiles.borrow_mut();
         if tiles.len() <= MAX_HELD_TILES {
             return;
         }
@@ -587,23 +588,25 @@ impl MapState {
     }
 
     pub(crate) fn want_tile(&self, id: TileId) {
-        let mut tiles = self.tiles.borrow_mut();
+        let inner = self.inner.get();
+        let mut tiles = inner.tiles.borrow_mut();
         if tiles.contains_key(&id) {
             return;
         }
         tiles.insert(id, TileState::Loading);
         drop(tiles);
         let host = self.editor.host();
-        let mut worker = self.worker.borrow_mut();
-        let worker = worker.get_or_insert_with(|| TileWorker::spawn(self.waker.borrow().clone()));
+        let mut worker = inner.worker.borrow_mut();
+        let worker = worker.get_or_insert_with(|| TileWorker::spawn(inner.waker.borrow().clone()));
         worker.request(id);
-        worker.dispatch(host);
+        worker.dispatch(&host);
     }
 
     fn collect_tiles(&self) {
+        let inner = self.inner.get();
         let host = self.editor.host();
-        let results = match self.worker.borrow_mut().as_mut() {
-            Some(worker) => worker.poll(host),
+        let results = match inner.worker.borrow_mut().as_mut() {
+            Some(worker) => worker.poll(&host),
             None => return,
         };
         if results.is_empty() {
@@ -620,7 +623,7 @@ impl MapState {
                     TileState::Failed
                 }
             };
-            self.tiles.borrow_mut().insert(result.id, state);
+            inner.tiles.borrow_mut().insert(result.id, state);
         }
         self.bump();
     }

@@ -19,6 +19,8 @@ pub(crate) use web::spawn_request;
 
 pub(crate) const HAS_EMBEDDED_SERVER: bool = cfg!(not(target_arch = "wasm32"));
 
+pub(crate) const SENDS_HEADERS: bool = cfg!(not(target_arch = "wasm32"));
+
 pub(crate) type RequestResult<T> = Receiver<T>;
 
 pub(crate) struct Deliver<T> {

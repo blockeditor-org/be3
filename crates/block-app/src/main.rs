@@ -48,7 +48,9 @@ use std::{
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, DisplaySettings, InputSettings, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{
+    BlockContent, DisplaySettings, InputSettings, Root, UiSettingsContent, WORKSPACE_EDITOR,
+};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -56,8 +58,8 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
 };
 use editors::{
-    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
-    plugin::PickSource,
+    ArtifactSession, ArtifactStatus, BlockOpen, EditorAction, EditorRegistry, PluginEditor,
+    SidebarDragSource, plugin::PickSource,
 };
 use local_settings::SettingsSync;
 use root_settings::RootSettings;
@@ -68,8 +70,8 @@ use uuid::Uuid;
 #[cfg(not(target_arch = "wasm32"))]
 const APP_ID: &str = "Block";
 
-pub(crate) fn commit() -> &'static str {
-    build_id::commit(build_id::current())
+pub(crate) fn build() -> &'static str {
+    build_id::current().unwrap_or("no build id")
 }
 
 fn run_options() -> beui::RunOptions {
@@ -213,7 +215,7 @@ pub async fn automate(
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: beui::AndroidApp) {
-    editors::plugin::discovery::load(&app);
+    editors::plugin::discovery::use_assets(app.clone());
     panic_guard::install();
     let storage_root = app.internal_data_path();
     let options = run_options();
@@ -246,7 +248,7 @@ impl Shell {
             wayland::create();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
-            view = Some(store.clone());
+            view = Some(store);
             let view = store;
             beui::reactive::view! {
                 <ui::Root view />
@@ -303,13 +305,19 @@ impl beui::App for Shell {
         host::begin(context, &self.document);
         wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
+        if let Some(theme) = self.app.theme.take() {
+            let theme = ui::styled_theme(theme);
+            if self.document.theme() != theme {
+                self.document.set_theme(theme);
+            }
+        }
         if let Some(open) = self.app.inspector_requested.take()
             && open
         {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        let store = self.view.clone();
+        let store = self.view;
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
             store.set(view);
@@ -391,25 +399,29 @@ struct BlockApp {
     reauth: Option<ReauthState>,
     invite_open: bool,
     invite_sent: u64,
+    agents_open: bool,
+    agents: Vec<be_protocol::Agent>,
+    agent_created: Option<accounts::AgentCredentials>,
     scheduled_workspace_list: bool,
     server_url: String,
     account: Account,
     root_settings: RootSettings,
-    choosing_profile: bool,
-    every_profile_type: bool,
+    choosing_session: bool,
+    every_session_type: bool,
     shell: Option<Uuid>,
     windows_sent: Option<u64>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
-    ui_settings: Option<Uuid>,
+    ui_settings: Option<Vec<(Uuid, u64)>>,
+    theme: Option<be_block::Theme>,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
     display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
-    editors: compositor::Editors,
+    editors: compositor::OwnedEditors,
 
     watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
@@ -456,6 +468,7 @@ struct PendingAccountRequest {
     receiver: platform::RequestResult<Result<Session, String>>,
     server: ServerLocation,
     url: String,
+    authorization: Option<String>,
 }
 
 enum WorkspaceOperation {
@@ -463,6 +476,9 @@ enum WorkspaceOperation {
     Create(String),
     Respond(Uuid, bool),
     Invite(Uuid, String, WorkspaceRole),
+    ListAgents(Uuid),
+    CreateAgent(Uuid, String, [u8; 32]),
+    RemoveAgent(Uuid, Uuid),
 }
 
 enum WorkspaceResult {
@@ -470,6 +486,10 @@ enum WorkspaceResult {
     Created(Workspace),
     Responded,
     Invited,
+    Agents(
+        Option<Vec<be_protocol::Agent>>,
+        Option<accounts::AgentCredentials>,
+    ),
 }
 
 type WorkspaceRequestError = AccountError;
@@ -514,7 +534,7 @@ const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
     let stamp = data_dir.join(build_id::FILE);
-    let current = build_id::current();
+    let current = build_id::current().map_err(io::Error::other)?;
     if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
         return Ok(());
     }
@@ -564,6 +584,7 @@ impl BlockApp {
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let client_id = app_state.client_id()?;
         let accounts = app_state.accounts()?;
+        accounts::authorize(&accounts);
         let active = app_state.active_account()?;
         let account = active
             .and_then(|(server, id)| {
@@ -580,13 +601,14 @@ impl BlockApp {
             name: String::new(),
             token: String::new(),
             last_workspace_id: None,
+            authorization: None,
         });
         let server_url = match &account.server {
             ServerLocation::Local => url.clone(),
             ServerLocation::Remote(remote) => remote.clone(),
         };
         let registry = Rc::new(EditorRegistry::new());
-        let editors = compositor::Editors::install(Rc::clone(&registry), client_id);
+        let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         Ok(Self {
             app_state,
             client_id,
@@ -608,12 +630,15 @@ impl BlockApp {
             reauth: None,
             invite_open: false,
             invite_sent: 0,
+            agents_open: false,
+            agents: Vec::new(),
+            agent_created: None,
             scheduled_workspace_list: false,
             server_url,
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
-            choosing_profile: false,
-            every_profile_type: false,
+            choosing_session: false,
+            every_session_type: false,
             shell: None,
             windows_sent: None,
             forwarded_picks: HashMap::new(),
@@ -621,6 +646,7 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
+            theme: None,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
             display_round: None,
@@ -828,6 +854,7 @@ impl BlockApp {
             register: true,
             remote: remote_url.is_some(),
             remote_url: remote_url.unwrap_or_default(),
+            authorization: String::new(),
             email: "dev@localhost".to_owned(),
             display_name: "Dev".to_owned(),
             password: "dev-password".to_owned(),
@@ -871,6 +898,9 @@ impl BlockApp {
         } else {
             ServerLocation::Local
         };
+        let authorization = Some(form.authorization.trim().to_owned())
+            .filter(|header| remote && !header.is_empty());
+        be_client::authorize(&url, authorization.clone());
         let requested = url.clone();
         let AccountForm {
             register,
@@ -905,6 +935,7 @@ impl BlockApp {
             receiver,
             server,
             url,
+            authorization,
         });
     }
 
@@ -926,6 +957,7 @@ impl BlockApp {
                     name: session.display_name,
                     token: session.token,
                     last_workspace_id: None,
+                    authorization: pending.authorization.clone(),
                 };
                 if let Err(error) = self.app_state.save_account(&saved) {
                     self.account_error = Some(error.to_string());
@@ -1001,6 +1033,23 @@ impl BlockApp {
                         .await
                         .map(|()| WorkspaceResult::Invited)
                 }
+                WorkspaceOperation::ListAgents(workspace) => {
+                    accounts::agents(url, token, workspace)
+                        .await
+                        .map(|agents| WorkspaceResult::Agents(Some(agents), None))
+                }
+                WorkspaceOperation::CreateAgent(workspace, name, key) => {
+                    let created =
+                        accounts::create_agent(url.clone(), token.clone(), workspace, name, key)
+                            .await?;
+                    let agents = accounts::agents(url, token, workspace).await.ok();
+                    Ok(WorkspaceResult::Agents(agents, Some(created)))
+                }
+                WorkspaceOperation::RemoveAgent(workspace, account) => {
+                    accounts::remove_agent(url.clone(), token.clone(), workspace, account).await?;
+                    let agents = accounts::agents(url, token, workspace).await?;
+                    Ok(WorkspaceResult::Agents(Some(agents), None))
+                }
             }
         });
         self.workspace_error = None;
@@ -1066,6 +1115,14 @@ impl BlockApp {
             Ok(WorkspaceResult::Invited) => {
                 self.invite_sent += 1;
                 self.invite_open = false;
+            }
+            Ok(WorkspaceResult::Agents(agents, created)) => {
+                if let Some(agents) = agents {
+                    self.agents = agents;
+                }
+                if created.is_some() {
+                    self.agent_created = created;
+                }
             }
             Err(error) if error.invalid_token => self.begin_reauth(),
             Err(error) => {
@@ -1179,11 +1236,11 @@ impl BlockApp {
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
-        self.choosing_profile = false;
+        self.choosing_session = false;
         self.shell = None;
         self.ui_settings = None;
-        self.input.set_block(None);
-        self.display.set_block(None);
+        self.input.set_layers(Vec::new());
+        self.display.set_layers(Vec::new());
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -1283,12 +1340,14 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
+        self.agents_open = false;
+        self.agent_created = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
-        self.choosing_profile = false;
+        self.choosing_session = false;
         self.shell = None;
         self.ui_settings = None;
-        self.input.set_block(None);
-        self.display.set_block(None);
+        self.input.set_layers(Vec::new());
+        self.display.set_layers(Vec::new());
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1530,9 +1589,12 @@ impl BlockApp {
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));
             self.show_block(
                 Some(copy.container),
-                copy_id,
-                block_type,
-                Some(copy.container),
+                BlockOpen {
+                    id: copy_id,
+                    block_type,
+                    via: Some(copy.container),
+                    editor: None,
+                },
             );
         }
     }
@@ -1556,7 +1618,8 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        let id = self.root_settings.ensure_profile(self.client_id)?;
+        self.root_settings.ensure_profile(self.client_id)?;
+        let id = self.root_settings.ensure_session(self.client_id)?;
         if let Some(previous) = self.shell.filter(|previous| *previous != id) {
             self.shell = None;
             let open: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
@@ -1565,7 +1628,7 @@ impl BlockApp {
             }
             self.block_types.remove(&previous);
         }
-        let shell_editor = self.root_settings.profile_editor(id)?;
+        let shell_editor = self.root_settings.session_editor(id)?;
         self.block_types.insert(id, shell_editor);
         if !self.editors.with(|open| open.contains_key(&id)) {
             let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
@@ -1602,10 +1665,10 @@ impl BlockApp {
         }
     }
 
-    fn show_block(&mut self, from: Option<Uuid>, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.block_types.insert(id, block_type);
+    fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
+        self.block_types.insert(open.id, open.block_type);
         if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
-            self.with_editor(handler, |handler| handler.show_block(id, block_type, via));
+            self.with_editor(handler, |handler| handler.show_block(open));
         }
     }
 
@@ -1982,11 +2045,7 @@ impl BlockApp {
 
     fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
-            EditorAction::OpenBlock {
-                id,
-                block_type,
-                via,
-            } => self.show_block(from, id, block_type, via),
+            EditorAction::OpenBlock(open) => self.show_block(from, open),
             EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
         }
     }
@@ -2056,6 +2115,8 @@ impl BlockApp {
     }
 
     fn frame(&mut self, context: &beui::Context) {
+        #[cfg(not(target_os = "linux"))]
+        let _ = context;
         if self.error.is_none()
             && let Some(report) = panic_guard::take_previous()
         {
@@ -2068,7 +2129,7 @@ impl BlockApp {
         }
         if self.error.is_none() {
             let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.run_frame(context);
+                self.run_frame();
             }));
             if caught.is_err() {
                 self.crashed(
@@ -2142,7 +2203,7 @@ impl BlockApp {
         ));
     }
 
-    fn run_frame(&mut self, context: &beui::Context) {
+    fn run_frame(&mut self) {
         performance::begin_frame();
         plugin_host::poll();
         #[cfg(target_os = "linux")]
@@ -2178,13 +2239,13 @@ impl BlockApp {
             performance::end_frame();
             return;
         }
-        self.sync_ui_settings(context);
+        self.sync_ui_settings();
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
-        if self.choosing_profile {
+        if self.choosing_session {
             self.root_settings.ensure();
             performance::end_frame();
             return;
@@ -2233,42 +2294,48 @@ impl BlockApp {
     }
 
     fn sync_local_settings(&mut self) {
-        if self.input.block().is_none() || self.display.block().is_none() {
-            let settings = self.root_settings.find().and_then(root_settings::settings);
-            if let Some(settings) = settings {
-                self.input.resolve(&settings, self.client_id);
-                self.display.resolve(&settings, self.client_id);
-            }
+        if self.root_settings.loaded() {
+            let settings = &self.root_settings;
+            self.input
+                .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
+            self.display
+                .set_layers(settings.layers(DisplaySettings::CONTENT_TYPE, self.client_id));
         }
         self.input.sync(&self.app_state);
         self.display.sync(&self.app_state);
     }
 
-    fn sync_ui_settings(&mut self, context: &beui::Context) {
-        if self.ui_settings.is_none() {
-            let Some(root_settings) = self.root_settings.find() else {
-                context.set_zoom_factor(1.0);
-                return;
-            };
-            let Some(settings) = root_settings::settings(root_settings) else {
-                return;
-            };
-            let Some(id) = settings.resolve(UiSettingsContent::CONTENT_TYPE, self.client_id) else {
-                context.set_zoom_factor(1.0);
-                return;
-            };
-            self.ui_settings = Some(id);
+    fn sync_ui_settings(&mut self) {
+        if !self.root_settings.loaded() {
+            return;
         }
-        let Some(id) = self.ui_settings else {
+        let layers = self
+            .root_settings
+            .layers(UiSettingsContent::CONTENT_TYPE, self.client_id);
+        let mut revisions = Vec::with_capacity(layers.len());
+        for block in &layers {
+            be::hold(*block, UiSettingsContent::CONTENT_TYPE);
+            let Some(revision) = be::content_revision(*block) else {
+                return;
+            };
+            revisions.push((*block, revision));
+        }
+        if self.ui_settings.as_ref() == Some(&revisions) {
+            return;
+        }
+        let Some(contents) = layers
+            .iter()
+            .map(|block| {
+                be::content(*block)
+                    .and_then(|content| UiSettingsContent::decode(&content.bytes).ok())
+                    .map(|content| content.root())
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
             return;
         };
-        be::hold(id, UiSettingsContent::CONTENT_TYPE);
-        let settings = be::content(id).and_then(|content| {
-            <be_block::UiSettingsContent as be_block::BlockContent>::decode(&content.bytes).ok()
-        });
-        if let Some(settings) = settings {
-            context.set_zoom_factor(settings.root().zoom());
-        }
+        self.ui_settings = Some(revisions);
+        self.theme = Some(be_block::layered(contents).theme());
     }
 
     fn command(&mut self, context: &beui::Context, command: UiCommand) {
@@ -2333,7 +2400,7 @@ impl BlockApp {
                     self.open_workspace(workspace);
                 }
             }
-            UiCommand::ChooseProfile(id) => {
+            UiCommand::ChooseSession(id) => {
                 if let Some(workspace) = self
                     .workspaces
                     .iter()
@@ -2341,18 +2408,24 @@ impl BlockApp {
                     .cloned()
                 {
                     self.open_workspace(workspace);
-                    self.choosing_profile = true;
+                    self.choosing_session = true;
                 }
             }
-            UiCommand::OpenProfile(profile) => {
+            UiCommand::SwitchSession => self.choosing_session = true,
+            UiCommand::CloseSessions => self.choosing_session = false,
+            UiCommand::OpenSession(session) => {
+                self.root_settings.use_session(self.client_id, session);
+                self.choosing_session = false;
+            }
+            UiCommand::OpenNewSession(editor) => {
+                self.root_settings.new_session(self.client_id, editor);
+                self.choosing_session = false;
+            }
+            UiCommand::EverySessionType(every) => self.every_session_type = every,
+            UiCommand::UseProfile(profile) => {
                 self.root_settings.use_profile(self.client_id, profile);
-                self.choosing_profile = false;
             }
-            UiCommand::OpenNewProfile(editor) => {
-                self.root_settings.new_profile(self.client_id, editor);
-                self.choosing_profile = false;
-            }
-            UiCommand::EveryProfileType(every) => self.every_profile_type = every,
+            UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
             UiCommand::RespondInvitation(id, accept) => {
                 self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
             }
@@ -2427,6 +2500,32 @@ impl BlockApp {
                 }
             }
             UiCommand::CloseInvite => self.invite_open = false,
+            UiCommand::OpenAgents => {
+                self.agents_open = true;
+                self.agent_created = None;
+                if let Some(workspace) = &self.workspace {
+                    let id = workspace.id;
+                    self.begin_workspace_request(WorkspaceOperation::ListAgents(id));
+                }
+            }
+            UiCommand::CloseAgents => {
+                self.agents_open = false;
+                self.agent_created = None;
+            }
+            UiCommand::CreateAgent(name) => {
+                if let (Some(workspace), Some(key)) = (&self.workspace, self.workspace_key)
+                    && !name.trim().is_empty()
+                {
+                    let id = workspace.id;
+                    self.begin_workspace_request(WorkspaceOperation::CreateAgent(id, name, key));
+                }
+            }
+            UiCommand::RemoveAgent(account) => {
+                if let Some(workspace) = &self.workspace {
+                    let id = workspace.id;
+                    self.begin_workspace_request(WorkspaceOperation::RemoveAgent(id, account));
+                }
+            }
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
             UiCommand::Debug(command) => debug::command(command),
@@ -2472,7 +2571,7 @@ impl BlockApp {
             (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
             (None, true, None) => ui::Screen::Workspaces,
             (None, true, Some(_)) if self.workspace_key.is_none() => ui::Screen::Unlock,
-            (None, true, Some(_)) if self.choosing_profile => ui::Screen::Profiles,
+            (None, true, Some(_)) if self.choosing_session => ui::Screen::Sessions,
             (None, true, Some(_)) => ui::Screen::Workspace,
         };
         let changes_saved = match screen {
@@ -2568,23 +2667,53 @@ impl BlockApp {
                 changes_saved,
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
+                sessions: self
+                    .root_settings
+                    .sessions(self.client_id, self.every_session_type)
+                    .into_iter()
+                    .map(|session| ui::SessionRow {
+                        id: session.id,
+                        name: session.name,
+                        kind: (session.editor != self.root_settings.shell())
+                            .then(|| root_settings::session_type_name(session.editor).to_owned()),
+                        current: session.current,
+                    })
+                    .collect(),
                 profiles: self
                     .root_settings
-                    .profiles(self.client_id, self.every_profile_type)
+                    .profiles(self.client_id)
                     .into_iter()
                     .map(|profile| ui::ProfileRow {
                         id: profile.id,
                         name: profile.name,
-                        kind: (profile.editor != self.root_settings.shell())
-                            .then(|| root_settings::session_type_name(profile.editor).to_owned()),
                         current: profile.current,
                     })
                     .collect(),
-                profiles_loaded: self.root_settings.loaded(),
-                every_profile_type: self.every_profile_type,
+                settings_loaded: self.root_settings.loaded(),
+                every_session_type: self.every_session_type,
                 session_type: self.root_settings.shell(),
                 can_close: !cfg!(target_arch = "wasm32"),
             },
+            agents: self.agents_open.then(|| ui::AgentsView {
+                workspace: workspace_name.clone(),
+                busy: self.pending_workspace_request.is_some(),
+                error: self.workspace_error.clone(),
+                agents: self
+                    .agents
+                    .iter()
+                    .map(|agent| ui::AgentRow {
+                        account: agent.account,
+                        name: agent.name.clone(),
+                    })
+                    .collect(),
+                created: self.agent_created.as_ref().map(|created| ui::CreatedAgent {
+                    name: created.name.clone(),
+                    server: created.server.clone(),
+                    workspace: created.workspace.to_string(),
+                    token: created.token.clone(),
+                    phrase: created.phrase.clone(),
+                }),
+            }),
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
                 busy: self.pending_workspace_request.is_some(),

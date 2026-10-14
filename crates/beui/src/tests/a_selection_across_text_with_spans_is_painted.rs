@@ -1,23 +1,19 @@
 use super::*;
-use crate::reactive::{NodeRef, SpanStyle, Text, TextSpan, build, view};
+use crate::reactive::{NodeRef, Span, Text, build, view};
 use crate::styled::SelectableText;
-
-const STRING: &str = "colored words";
 
 #[test]
 fn a_selection_across_text_with_spans_is_painted() {
+    let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let document = build({
-        let text = text.clone();
         move || {
-            let style = SpanStyle::new(crate::FontId::proportional(14.0), Color32::WHITE);
             view! {
                 <SelectableText>
-                    <Text
-                        @node_ref=&text
-                        string=STRING
-                        spans={vec![TextSpan::text(0..STRING.len(), style)]}
-                    />
+                    <Text @node_ref=&text>
+                        <Span color=Color32::WHITE>"colored "</Span>
+                        <Span font={crate::FontId::proportional(14.0).bold(true)}>"words"</Span>
+                    </Text>
                 </SelectableText>
             }
         }

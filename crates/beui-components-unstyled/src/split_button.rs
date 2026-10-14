@@ -9,8 +9,7 @@ use crate::menu_popup::MenuStyle;
 use beui_core::base::Direction;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Children, ClickCallback, List, Prop, Render, clone, component_accessibility,
-    create_memo,
+    Callback, Children, ClickCallback, List, Prop, Render, component_accessibility, create_memo,
 };
 
 #[component]
@@ -28,27 +27,21 @@ pub fn SplitButton(
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let disabled = create_memo(move || disabled.get());
-    component_accessibility(create_memo(clone!(label -> move || {
+    component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Group);
         node.set_label(label.get());
         node
-    })));
+    }));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <unstyled::Button
-                label
-                glyph
-                disabled={disabled.clone()}
-                on_click={move || on_click.call()}
-                content={main}
-            />
+            <unstyled::Button label glyph disabled={disabled} on_click={on_click} content={main} />
             <unstyled::MenuButton
                 items
                 label={menu_label}
                 disabled
                 menu
                 trigger={arrow}
-                on_select={move |path: Vec<usize>| on_select.call(path)}
+                on_select={on_select}
             />
         </List>
     }

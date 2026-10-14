@@ -5,8 +5,8 @@ use beui::{
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
-    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorHost,
-    EditorInstanceId, EditorRegion, HostReply, HostRequest, Occluder, PeerPresence, SeededContent,
+    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
+    EditorRegion, HostReply, HostRequest, Occluder, OwnedEditor, PeerPresence, SeededContent,
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::document::FRAME_INTERVAL;
 use crate::input::Input;
-use crate::{ContentStore, snapshot};
+use crate::{ContentStore, overflow, snapshot};
 
 pub(crate) mod capture;
 
@@ -50,10 +50,12 @@ pub struct BeuiTest<A: BeuiApp> {
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
     recording: Option<snapshot::Snapshot>,
+    overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
+    window: block_plugin_api::WindowRequests,
     intrinsic: Option<Vec2>,
     exited: bool,
     draft: Vec<u8>,
@@ -99,7 +101,7 @@ enum Kind {
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
-    pub fn new(editor: Editor) -> Self {
+    pub fn new(editor: OwnedEditor) -> Self {
         let block = editor.block_id();
         Self::open(
             Kind::Frame(block),
@@ -108,7 +110,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
-    pub fn with_view(editor: Editor, view: impl FnOnce() -> beui::NodeId + 'static) -> Self {
+    pub fn with_view(editor: OwnedEditor, view: impl FnOnce() -> beui::NodeId + 'static) -> Self {
         let block = editor.block_id();
         Self::open(
             Kind::Frame(block),
@@ -117,7 +119,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         )
     }
 
-    pub fn preview(editor: Editor) -> Self {
+    pub fn preview(editor: OwnedEditor) -> Self {
         let block = editor.block_id();
         Self::open(Kind::Preview(block), Adopted::Preview(editor), Vec::new())
     }
@@ -134,7 +136,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         beui::verify_paint(true);
         block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
-            Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
+            Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host(),
             Adopted::Creation(creation) => creation.host().clone(),
             Adopted::Artifacts(artifacts) => artifacts.host().clone(),
         };
@@ -212,10 +214,12 @@ impl<A: BeuiApp> BeuiTest<A> {
             menu: Vec::new(),
             output: None,
             recording: None,
+            overflows: Vec::new(),
             viewport: None,
             children: Vec::new(),
             occluders: Vec::new(),
             report: None,
+            window: block_plugin_api::WindowRequests::default(),
             intrinsic: None,
             exited: false,
             draft: data,
@@ -272,7 +276,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 instance: INSTANCE,
                 region,
                 metrics,
-                frame: self.frame.clone(),
+                frame: self.frame,
             }],
         }));
     }
@@ -459,6 +463,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.catalog(Catalog {
             types: descriptors,
             templates: Vec::new(),
+            editors: Vec::new(),
         });
     }
 
@@ -805,6 +810,11 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                     EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
                     EditorMessage::Menu { entries, .. } => self.menu.clone_from(entries),
+                    EditorMessage::Window {
+                        region: EditorRegion::Frame,
+                        window,
+                        ..
+                    } => self.window.clone_from(window),
                     _ => {}
                 }
                 self.sent.push(message);
@@ -949,18 +959,20 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn take_opens(&mut self) -> Vec<(Uuid, Uuid, Option<Uuid>)> {
+    pub fn take_opens(&mut self) -> Vec<block_editor_beui::OpenRequest> {
         self.take_where(|message| match message {
             EditorMessage::OpenBlock {
                 block_id,
                 block_type,
                 via,
+                editor,
                 ..
-            } => Some((
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*block_type),
-                via.map(Uuid::from_bytes),
-            )),
+            } => Some(block_editor_beui::OpenRequest {
+                block_id: Uuid::from_bytes(*block_id),
+                block_type: Uuid::from_bytes(*block_type),
+                via: via.map(Uuid::from_bytes),
+                editor: editor.map(Uuid::from_bytes),
+            }),
             _ => None,
         })
     }
@@ -1024,19 +1036,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         .pop()
     }
 
-    pub fn take_cursor_grab(&mut self) -> Option<bool> {
-        self.take_where(|message| match message {
-            EditorMessage::GrabCursor { grabbed, .. } => Some(*grabbed),
-            _ => None,
-        })
-        .pop()
-    }
-
     pub fn pointer_locked(&self) -> bool {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .pointer_locked
+        self.window.pointer_locked
     }
 
     pub fn pointer_motion(&mut self, delta: Vec2) {
@@ -1073,21 +1074,17 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn handles_back(&self) -> bool {
-        self.report
-            .as_ref()
-            .is_some_and(|report| report.handles_back)
+        self.window.handles_back
     }
 
     pub fn wants_keyboard(&self) -> bool {
-        self.report
-            .as_ref()
-            .is_some_and(|report| report.wants_keyboard)
+        self.window.wants_keyboard
     }
 
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
-        self.report
+        self.window
+            .intercepted_keys
             .iter()
-            .flat_map(|report| &report.intercepted_keys)
             .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
             .collect()
     }
@@ -1149,6 +1146,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         let mut collected = Vec::new();
         collect_text(self.document(), node, &mut collected);
         collected.join(" ")
+    }
+
+    pub fn accessible_label(&self, test_id: &str) -> Option<String> {
+        let document = self.document();
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document
+            .accessibility
+            .get(&node)?
+            .label()
+            .map(str::to_owned)
     }
 
     pub fn rect_of(&self, test_id: &str) -> Rect {
@@ -1291,18 +1300,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         if modifiers != held {
             self.push(Event::Modifiers(modifiers));
         }
-        self.push(Event::Key {
-            key,
-            pressed: true,
-            repeat: false,
-            modifiers,
-        });
-        self.push(Event::Key {
-            key,
-            pressed: false,
-            repeat: false,
-            modifiers,
-        });
+        self.push(Event::key(KeyPress::down(key, modifiers)));
+        self.push(Event::key(KeyPress::up(key, modifiers)));
         if modifiers != held {
             self.push(Event::Modifiers(held));
         }
@@ -1314,6 +1313,8 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn record(&mut self) {
         let frame = self.painted();
+        let found = overflow::overflows(self.document());
+        self.overflows.extend(found);
         match &mut self.recording {
             Some(recording) => recording.append(frame),
             None => self.recording = Some(frame),
@@ -1323,9 +1324,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn snapshot(&mut self, name: &str) {
         let painting = match self.recording.take() {
             Some(recording) => recording,
-            None => self.painted(),
+            None => {
+                let found = overflow::overflows(self.document());
+                self.overflows.extend(found);
+                self.painted()
+            }
         };
         snapshot::assert_snapshot(name, &painting);
+        overflow::assert_fits(name, std::mem::take(&mut self.overflows));
     }
 
     fn painted(&mut self) -> snapshot::Snapshot {
@@ -1349,6 +1355,7 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     if document.node_kind(node) == "text" {
         let detail = document.node_detail(node).unwrap_or_default();
         let text = detail.trim_matches('"');
+        collected.extend(document.text_icons(node));
         if !text.is_empty() {
             collected.push(text.to_owned());
         }

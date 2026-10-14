@@ -3,20 +3,19 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
 use beui_core::icons::ICON_CLOSE;
-use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, clone,
-    create_memo,
+    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, create_memo,
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};
-use crate::text::Icon;
+use crate::text::{Icon, Text, TextColor, TextSize};
+use beui_core::font::TextAlign;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
@@ -38,7 +37,6 @@ pub fn TextInput(
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
-    on_key_override: Callback<KeyPress, bool>,
 ) -> NodeId {
     let plain = create_memo(move || plain.get());
     let glyph = create_memo(move || glyph.get());
@@ -53,18 +51,12 @@ pub fn TextInput(
             select_on_focus
             label
             style={text_input_style()}
-            on_change={move |value| on_change.call(value)}
-            on_submit={move |value| on_submit.call(value)}
-            on_focus_change={move |focused| on_focus_change.call(focused)}
-            on_key_override={move |press| on_key_override.call(press)}
+            on_change={on_change}
+            on_submit={on_submit}
+            on_focus_change={on_focus_change}
         >
             {move |handle| view! {
-                <TextInputFrame
-                    handle
-                    plain={plain.clone()}
-                    glyph={glyph.clone()}
-                    clearable={clearable.clone()}
-                />
+                <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} />
             }}
         </unstyled::TextInput>
     }
@@ -87,23 +79,18 @@ fn TextInputFrame(
     } = handle;
     let clearable = create_memo(move || clearable.get() && !empty.get());
     let theme = use_theme();
-    let marked = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
-    let raised = create_memo(clone!(focused hovered -> move || {
-        !plain.get() || focused.get() || hovered.get()
-    }));
-    let border = create_memo(clone!(focused theme disabled -> move || {
-        field_border(&theme, disabled.get(), focused.get(), hovered.get())
-    }));
-    let fill = create_memo(clone!(theme disabled raised -> move || {
-        match (raised.get(), disabled.get()) {
-            (false, _) => Color32::TRANSPARENT,
-            (true, true) => theme.surface.get(),
-            (true, false) => theme.surface_raised.get(),
-        }
-    }));
+    let marked = create_memo(move || !glyph.get().is_empty());
+    let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
+    let border =
+        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let fill = create_memo(move || match (raised.get(), disabled.get()) {
+        (false, _) => Color32::TRANSPARENT,
+        (true, true) => theme.surface.get(),
+        (true, false) => theme.surface_raised.get(),
+    });
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -119,25 +106,27 @@ fn TextInputFrame(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
-                        {move || clone!(glyph theme -> view! {
+                        {move || view! {
                             <Frame padding_left=PADDING_HORIZONTAL>
-                                <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                                <Text color=TextColor::Muted align=TextAlign::Center>
+                                    <Icon glyph={glyph} />
+                                </Text>
                             </Frame>
-                        })}
+                        }}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        {move || clone!(clear -> view! {
+                        {move || view! {
                             <Frame padding_horizontal=CLEAR_PADDING>
                                 <IconButton
                                     glyph={ICON_CLOSE.to_owned()}
                                     label="Clear"
                                     size=IconButtonSize::Compact
                                     press_focus=false
-                                    on_click={move || clear.call()}
+                                    on_click={clear}
                                 />
                             </Frame>
-                        })}
+                        }}
                     </Show>
                 </List>
             </Frame>
@@ -148,11 +137,11 @@ fn TextInputFrame(
 pub fn text_input_style() -> TextInputStyle {
     let theme = use_theme();
     TextInputStyle {
-        font_size: Prop::Static(FONT_BODY),
-        color: theme.text.clone().into_prop(),
-        placeholder_color: theme.text_muted.clone().into_prop(),
-        selection_color: theme.accent_soft.clone().into_prop(),
-        caret_color: theme.accent.clone().into_prop(),
+        font_size: Prop::Static(TextSize::Base.px()),
+        color: theme.text.into_prop(),
+        placeholder_color: theme.text_muted.into_prop(),
+        selection_color: theme.accent_soft.into_prop(),
+        caret_color: theme.accent.into_prop(),
         padding_horizontal: Prop::Static(PADDING_HORIZONTAL),
         padding_vertical: Prop::Static(0.0),
         menu: menu_style(),

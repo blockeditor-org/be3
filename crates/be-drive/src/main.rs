@@ -9,7 +9,7 @@ use std::time::Duration;
 use beui_core::app::automation::socket::{read_reply, write_request};
 use beui_core::app::automation::{Reply, USAGE};
 
-const TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(30);
 const ANSWER_GRACE: Duration = Duration::from_secs(5);
 
 fn main() -> ExitCode {
@@ -24,8 +24,10 @@ fn main() -> ExitCode {
 }
 
 fn run(mut arguments: Vec<String>) -> Result<(), String> {
-    if arguments.first().map(String::as_str) == Some("launch") {
-        return launch::run(&arguments[1..]);
+    match arguments.first().map(String::as_str) {
+        Some("launch") => return launch::run(&arguments[1..]),
+        Some("run") => return launch::run_script(&arguments[1..]),
+        _ => {}
     }
     let mut timeout = TIMEOUT;
     let mut socket = std::env::var_os("BE_DRIVE_SOCKET").map(PathBuf::from);
@@ -58,22 +60,33 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     let socket = socket.ok_or(
         "BE_DRIVE_SOCKET is not set: source the env file the launcher printed, or pass --socket=PATH",
     )?;
-    let settled = |words: Vec<String>| options.iter().cloned().chain(words).collect::<Vec<_>>();
     if arguments == ["-"] {
-        let mut script = String::new();
-        std::io::Read::read_to_string(&mut std::io::stdin(), &mut script)
-            .map_err(|error| format!("could not read the commands: {error}"))?;
-        for line in script.lines() {
-            let words = words(line)?;
-            if words.is_empty() || words[0].starts_with('#') {
-                continue;
-            }
-            println!("> {}", line.trim());
-            command(&socket, settled(words), timeout)?;
-        }
-        return Ok(());
+        return script(&socket, &options, timeout);
     }
-    command(&socket, settled(arguments), timeout)
+    command(
+        &socket,
+        options.into_iter().chain(arguments).collect(),
+        timeout,
+    )
+}
+
+pub(crate) fn script(socket: &Path, options: &[String], timeout: Duration) -> Result<(), String> {
+    let mut script = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut script)
+        .map_err(|error| format!("could not read the commands: {error}"))?;
+    for line in script.lines() {
+        let words = words(line)?;
+        if words.is_empty() || words[0].starts_with('#') {
+            continue;
+        }
+        println!("> {}", line.trim());
+        command(
+            socket,
+            options.iter().cloned().chain(words).collect(),
+            timeout,
+        )?;
+    }
+    Ok(())
 }
 
 fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Result<(), String> {
@@ -104,7 +117,13 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
         }
         file = Some(PathBuf::from(arguments.remove(first + 1)));
     }
-    match request(socket, &arguments, timeout)? {
+    let closing = arguments.get(first).map(String::as_str) == Some("close");
+    let reply = match request(socket, &arguments, timeout) {
+        Err(Unanswered::Closed) if closing => Reply::Text("The window closed.\n".to_owned()),
+        Err(unanswered) => return Err(unanswered.to_string()),
+        Ok(reply) => reply,
+    };
+    match reply {
         Reply::Text(text) => {
             print!("{text}");
             Ok(())
@@ -176,7 +195,31 @@ fn words(line: &str) -> Result<Vec<String>, String> {
     Ok(words)
 }
 
-pub(crate) fn request(socket: &Path, words: &[String], timeout: Duration) -> Result<Reply, String> {
+pub(crate) enum Unanswered {
+    Closed,
+    Failed(String),
+}
+
+impl std::fmt::Display for Unanswered {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Closed => formatter.write_str("the app closed the connection without answering"),
+            Self::Failed(error) => formatter.write_str(error),
+        }
+    }
+}
+
+impl From<String> for Unanswered {
+    fn from(error: String) -> Self {
+        Self::Failed(error)
+    }
+}
+
+pub(crate) fn request(
+    socket: &Path,
+    words: &[String],
+    timeout: Duration,
+) -> Result<Reply, Unanswered> {
     let stream = UnixStream::connect(socket)
         .map_err(|error| format!("could not reach the app at {}: {error}", socket.display()))?;
     let deadline = timeout + ANSWER_GRACE;
@@ -187,14 +230,19 @@ pub(crate) fn request(socket: &Path, words: &[String], timeout: Duration) -> Res
     let mut writer = stream.try_clone().map_err(|error| error.to_string())?;
     write_request(&mut writer, words, timeout).map_err(|error| error.to_string())?;
     let reply = read_reply(&mut BufReader::new(stream)).map_err(|error| match error.kind() {
-        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => format!(
-            "the app did not answer within {} seconds; is it stuck? Its log says more",
-            deadline.as_secs()
-        ),
-        _ => format!("the app did not answer: {error}"),
+        std::io::ErrorKind::UnexpectedEof | std::io::ErrorKind::ConnectionReset => {
+            Unanswered::Closed
+        }
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => {
+            Unanswered::Failed(format!(
+                "the app did not answer within {} seconds; is it stuck? Its log says more",
+                deadline.as_secs()
+            ))
+        }
+        _ => Unanswered::Failed(format!("the app did not answer: {error}")),
     })?;
     match reply {
-        Reply::Error(error) => Err(error),
+        Reply::Error(error) => Err(Unanswered::Failed(error)),
         reply => Ok(reply),
     }
 }

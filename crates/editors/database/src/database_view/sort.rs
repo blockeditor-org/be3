@@ -1,14 +1,12 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
 use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::be_block::database_view::{DatabaseViewSort, SortDirection};
-use block_editor_beui::block_ui::BlockLabel;
+use block_editor_beui::be_block::database_view::{DatabaseViewSort, SortDirection, ViewFilter};
 use block_editor_beui::block_ui::database::block_reference_text;
 use uuid::Uuid;
 
-pub type BlockLabels = HashMap<Uuid, BlockLabel>;
+pub type BlockLabels = block_editor_beui::block_ui::database::ValueLabels;
 
 pub const ROW_HEADER_WIDTH: f32 = 44.0;
 pub const ROW_HEIGHT: f32 = 28.0;
@@ -39,6 +37,7 @@ pub fn display_rows(
     rows: &[DatabaseRow],
     selected: Option<usize>,
     sort: Option<DatabaseViewSort>,
+    filters: &[ViewFilter],
     fields: &[DatabaseField],
     labels: &BlockLabels,
 ) -> Vec<DisplayRow> {
@@ -46,6 +45,7 @@ pub fn display_rows(
         .iter()
         .cloned()
         .enumerate()
+        .filter(|(_, row)| filters.iter().all(|filter| filter.matches(row, fields)))
         .map(|(index, row)| DisplayRow { index, row })
         .collect();
     if let Some(sort) = sort
@@ -125,8 +125,15 @@ pub fn compare_database_values(
             [a.red, a.green, a.blue, a.alpha].cmp(&[b.red, b.green, b.blue, b.alpha])
         }
         (DatabaseValue::Datetime(a), DatabaseValue::Datetime(b)) => a.cmp(b),
-        (DatabaseValue::Block(a), DatabaseValue::Block(b)) => block_reference_text(a, labels)
-            .cmp(&block_reference_text(b, labels))
+        (DatabaseValue::Block(a), DatabaseValue::Block(b)) => {
+            block_reference_text(a, &labels.blocks)
+                .cmp(&block_reference_text(b, &labels.blocks))
+                .then_with(|| a.cmp(b))
+        }
+        (DatabaseValue::Relation(a), DatabaseValue::Relation(b)) => labels
+            .row(a)
+            .to_lowercase()
+            .cmp(&labels.row(b).to_lowercase())
             .then_with(|| a.cmp(b)),
         _ => Ordering::Equal,
     }
@@ -137,6 +144,7 @@ pub fn column_width(field_type: DatabaseFieldType) -> f32 {
         DatabaseFieldType::String
         | DatabaseFieldType::Enum
         | DatabaseFieldType::Block
+        | DatabaseFieldType::Relation
         | DatabaseFieldType::Datetime => 180.0,
         DatabaseFieldType::Number => 120.0,
         DatabaseFieldType::Boolean => 90.0,

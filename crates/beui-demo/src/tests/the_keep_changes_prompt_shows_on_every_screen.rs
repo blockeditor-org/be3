@@ -11,7 +11,7 @@ fn the_keep_changes_prompt_shows_on_every_screen() {
     let document = build(move || {
         let theme = use_theme();
         view! {
-            <Frame color={theme.background.clone()}>
+            <Frame color={theme.background}>
                 <KeepChanges
                     open=true
                     title="Keep these display settings?"

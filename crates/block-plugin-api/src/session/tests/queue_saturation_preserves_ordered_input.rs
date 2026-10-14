@@ -15,6 +15,7 @@ fn queue_saturation_preserves_ordered_input() {
                 key: *key,
                 pressed: true,
                 repeat: false,
+                text: None,
             }))
             .unwrap();
     }

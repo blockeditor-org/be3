@@ -4,9 +4,9 @@ use crate::styled::Accordion;
 
 #[test]
 fn accordion_headers_are_keyboard_operable_and_skip_collapsed_content() {
+    let _root = crate::reactive::RootScope::new();
     let child = NodeRef::new();
     let (document, [accordion, after]) = toolbar_of({
-        let child = child.clone();
         move || {
             [
                 view! {

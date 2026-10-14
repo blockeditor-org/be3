@@ -1,0 +1,16 @@
+#builtin.build .= () => std.Folder[
+  "sum.c" .= std.File: emit_sum(kw.list(kw.int): (1, 2, 3))
+]
+
+emit_sum :: (terms: kw.list(kw.int)) => kw.text: {
+  acc := kw.mut(kw.text).new: kw.text.fresh("t")
+  lines := kw.mut(kw.list(kw.text)).new: ("int \(acc.*) = 0;")
+  kw.for (term := terms) {
+    next := kw.text.fresh("t")
+    lines = lines.*.push("int \(next) = \(acc.*) + \(term);")
+    acc = next
+  }
+  -> lines.*.join("\n") + "\nreturn \(acc.*);\n"
+}
+std :: #builtin.std
+kw :: std.kw

@@ -21,7 +21,11 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
             found.push(serde_json::from_str(entry).map_err(|error| format!("{path}: {error}"))?);
         }
     }
-    let applied = fix(Path::new(root), &found)?;
+    let applied = if found.iter().any(failed_to_compile) {
+        BTreeSet::new()
+    } else {
+        fix(Path::new(root), &found)?
+    };
     let remaining: Vec<Value> = found
         .into_iter()
         .filter(|diagnostic| !applied.contains(&suggestions(diagnostic)))
@@ -40,6 +44,13 @@ fn file_name(span: &Value) -> &str {
 
 fn first_party(diagnostic: &Value) -> bool {
     spans(diagnostic).any(|span| file_name(span).starts_with("crates/"))
+}
+
+fn failed_to_compile(diagnostic: &Value) -> bool {
+    let code = diagnostic["code"]["code"].as_str().unwrap_or_default();
+    let lint = !code.is_empty()
+        && !(code.starts_with('E') && code[1..].bytes().all(|byte| byte.is_ascii_digit()));
+    diagnostic["level"] == "error" && spans(diagnostic).next().is_some() && !lint
 }
 
 fn suggestions(diagnostic: &Value) -> BTreeSet<Edit> {

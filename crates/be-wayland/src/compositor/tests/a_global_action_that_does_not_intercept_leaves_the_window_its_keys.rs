@@ -2,17 +2,7 @@ use super::*;
 
 fn super_g(harness: &mut Harness) {
     let logo = beui::Modifiers::LOGO;
-    let g = |pressed: bool| {
-        vec![
-            physical(KEY_G, pressed),
-            Event::Key {
-                key: Key::G,
-                pressed,
-                repeat: false,
-                modifiers: logo,
-            },
-        ]
-    };
+    let g = |pressed: bool| vec![stroke(Key::G, KEY_G, pressed, logo)];
     harness.frame([super_key(true), g(true), g(false), super_key(false)].concat());
     harness.settle();
 }

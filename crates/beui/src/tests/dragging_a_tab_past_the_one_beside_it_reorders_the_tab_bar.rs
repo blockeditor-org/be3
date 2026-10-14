@@ -3,6 +3,7 @@ use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

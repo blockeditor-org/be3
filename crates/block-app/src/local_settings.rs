@@ -1,6 +1,5 @@
 use be_block::be_model::{Document, Edit};
-use be_block::settings::Settings;
-use be_block::{BlockContent, LiveEdit, Root};
+use be_block::{BlockContent, Layered, LiveEdit, Root, layered};
 use uuid::Uuid;
 
 use crate::app_state::{AppStateError, AppStateStore};
@@ -17,8 +16,8 @@ pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
 }
 
 pub(crate) struct SettingsSync<R> {
-    block: Option<Uuid>,
-    seen: Option<(Uuid, u64)>,
+    layers: Vec<Uuid>,
+    seen: Option<Vec<(Uuid, u64)>>,
     applied: Option<R>,
     outbox: Outbox,
 }
@@ -81,7 +80,7 @@ fn edited<R: Root>(settings: &R, edits: &[Edit]) -> R {
 impl<R> Default for SettingsSync<R> {
     fn default() -> Self {
         Self {
-            block: None,
+            layers: Vec::new(),
             seen: None,
             applied: None,
             outbox: Outbox::default(),
@@ -89,7 +88,7 @@ impl<R> Default for SettingsSync<R> {
     }
 }
 
-impl<R: LocalSettings> SettingsSync<R> {
+impl<R: LocalSettings + Layered> SettingsSync<R> {
     pub(crate) fn boot(&mut self, store: &AppStateStore) {
         let name = R::NAME;
         match R::load(store) {
@@ -106,48 +105,53 @@ impl<R: LocalSettings> SettingsSync<R> {
         }
     }
 
-    pub(crate) fn block(&self) -> Option<Uuid> {
-        self.block
-    }
-
-    pub(crate) fn resolve(&mut self, settings: &Settings, client_id: Uuid) {
-        if self.block.is_none() {
-            let block = settings.resolve(R::CONTENT_TYPE, client_id);
-            if block.is_some() {
-                self.set_block(block);
-            }
+    pub(crate) fn set_layers(&mut self, layers: Vec<Uuid>) {
+        if self.layers == layers {
+            return;
         }
-    }
-
-    pub(crate) fn set_block(&mut self, block: Option<Uuid>) {
-        if self.block.is_some() && self.block != block {
+        if self.layers.last() != layers.last() {
             self.outbox.clear();
         }
-        self.block = block;
+        self.layers = layers;
         self.seen = None;
     }
 
     pub(crate) fn sync(&mut self, store: &AppStateStore) {
-        let Some(block) = self.block else {
+        let Some(&target) = self.layers.last() else {
             return;
         };
-        be::hold(block, R::CONTENT_TYPE);
-        let Some(revision) = be::content_revision(block) else {
-            return;
-        };
-        Self::write(block, self.outbox.send(revision));
-        if self.seen == Some((block, revision)) {
+        let mut revisions = Vec::with_capacity(self.layers.len());
+        for block in &self.layers {
+            be::hold(*block, R::CONTENT_TYPE);
+            let Some(revision) = be::content_revision(*block) else {
+                return;
+            };
+            revisions.push((*block, revision));
+        }
+        let target_revision = revisions.last().map_or(0, |(_, revision)| *revision);
+        Self::write(target, self.outbox.send(target_revision));
+        if self.seen.as_ref() == Some(&revisions) {
             return;
         }
-        let Some(content) =
-            be::content(block).and_then(|content| Document::<R>::decode(&content.bytes).ok())
+        let Some(mut contents) = self
+            .layers
+            .iter()
+            .map(|block| {
+                be::content(*block)
+                    .and_then(|content| Document::<R>::decode(&content.bytes).ok())
+                    .map(|content| content.root())
+            })
+            .collect::<Option<Vec<R>>>()
         else {
             return;
         };
-        self.seen = Some((block, revision));
-        let (settings, resend) = self.outbox.overlay(revision, content.root());
-        Self::write(block, resend);
-        self.receive(store, settings);
+        self.seen = Some(revisions);
+        if let Some(top) = contents.pop() {
+            let (top, resend) = self.outbox.overlay(target_revision, top);
+            Self::write(target, resend);
+            contents.push(top);
+        }
+        self.receive(store, layered(contents));
     }
 
     fn receive(&mut self, store: &AppStateStore, settings: R) {
@@ -165,7 +169,7 @@ impl<R: LocalSettings> SettingsSync<R> {
         self.save(store, &settings);
         self.applied = Some(settings);
         self.outbox.queue(edits);
-        if let Some(block) = self.block
+        if let Some(&block) = self.layers.last()
             && let Some(revision) = be::content_revision(block)
         {
             Self::write(block, self.outbox.send(revision));

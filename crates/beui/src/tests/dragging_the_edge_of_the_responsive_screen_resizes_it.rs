@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn dragging_the_edge_of_the_responsive_screen_resizes_it() {
+    let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
     harness.toggle_responsive();
     harness.frame(vec![]);

@@ -1,0 +1,20 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary()
+
+# be with its build-id file beside it, which it greets the server with:
+# `./scripts/buck run //crates/be-cli:native -- ARGS`.
+app(
+    name = "native",
+    binary = ":bin",
+    executable_name = "be",
+    files = ["//buck/app:build-id"],
+    manifests = [],
+    modules = [],
+    visibility = ["//crates/local-tools:"],
+)

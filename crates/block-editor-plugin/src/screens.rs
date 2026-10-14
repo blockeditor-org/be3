@@ -2,7 +2,7 @@ use block_plugin_api::{
     Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, ScreenId,
     ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
-use block_ui::{BlockCatalog, BlockTypeEntry, TemplateEntry};
+use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -115,9 +115,11 @@ impl Screens {
             inner.wake();
         });
         self.sessions.entry(instance).or_insert_with(|| {
+            let any = Uuid::from_bytes(block_plugin_api::ANY_BLOCK_TYPE);
             let open = apps
                 .iter()
                 .find(|(declared, _)| *declared == block_type)
+                .or_else(|| apps.iter().find(|(declared, _)| *declared == any))
                 .map(|(_, open)| *open)
                 .unwrap_or_else(|| panic!("this plugin has no editor for block type {block_type}"));
             EditorSession::new(instance, waker, open)
@@ -141,7 +143,9 @@ impl Screens {
         match message {
             Message::HelloAccepted(accepted) => {
                 self.surface = accepted.surface;
+                crate::theme::receive(accepted.theme);
             }
+            Message::Theme(theme) => crate::theme::receive(*theme),
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
@@ -334,13 +338,15 @@ impl Screens {
                 block_id,
                 block_type,
                 via,
+                editor,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.show_block(
-                        Uuid::from_bytes(*block_id),
-                        Uuid::from_bytes(*block_type),
-                        via.map(Uuid::from_bytes),
-                    );
+                    session.show_block(crate::ShowRequest {
+                        block_id: Uuid::from_bytes(*block_id),
+                        block_type: Uuid::from_bytes(*block_type),
+                        via: via.map(Uuid::from_bytes),
+                        editor: editor.map(Uuid::from_bytes),
+                    });
                 }
             }
             Message::Editor(EditorMessage::HistoryStates { instance, states }) => {
@@ -741,6 +747,15 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             TemplateCategory::Template => block_ui::TemplateCategory::Template,
         },
         dialog: template.dialog,
+    }))
+    .with_editors(catalog.editors.iter().map(|editor| {
+        EditorEntry {
+            editor: Uuid::from_bytes(editor.editor),
+            block_type: (editor.block_type != block_plugin_api::ANY_BLOCK_TYPE)
+                .then(|| Uuid::from_bytes(editor.block_type)),
+            name: editor.name.clone(),
+            icon: leak(&editor.icon_codepoint),
+        }
     }))
 }
 

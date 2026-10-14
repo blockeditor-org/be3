@@ -21,6 +21,7 @@ fn painted(output: &crate::FrameOutput) -> Vec<(Rect, Image, bool)> {
 
 #[test]
 fn a_picture_shows_its_thumbhash_until_the_image_arrives() {
+    let _root = crate::reactive::RootScope::new();
     let pixels: Vec<u8> = (0..30 * 7)
         .flat_map(|at: u32| [(at % 256) as u8, 90, 200 - (at % 200) as u8, 255])
         .collect();

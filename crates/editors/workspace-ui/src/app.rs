@@ -1,14 +1,14 @@
 use std::cell::Cell;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::FILES_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_FOLDER;
 use block_editor_beui::beui::reactive::{
-    Align, ForEach, Frame, ItemSize, List, NodeRef, clone, component, create_effect, create_memo,
-    untrack, view,
+    Align, ForEach, Frame, ItemSize, List, NodeRef, component, create_effect, create_memo, untrack,
+    view,
 };
-use block_editor_beui::beui::styled::{Caption, Docking, Heading, use_theme};
+use block_editor_beui::beui::styled::{Docking, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
 };
@@ -41,9 +41,8 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
     view! {
         <Container>
             {move |_| {
-                let workspace = Rc::clone(&workspace);
                 view! {
-                    <WorkspaceBody workspace={workspace} />
+                    <WorkspaceBody workspace />
                 }
             }}
         </Container>
@@ -51,51 +50,40 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
+fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let narrow = narrower_than(NARROW_WIDTH);
-    let sizing = Rc::downgrade(&workspace);
     let was_narrow = Cell::new(false);
     create_effect(move || {
         let now = narrow.get();
-        let Some(workspace) = sizing.upgrade() else {
-            return;
-        };
         if was_narrow.replace(now) != now {
             untrack(|| workspace.set_phone(now));
         }
     });
     let phone = workspace.phone();
-    let mode = create_memo(clone!(phone -> move || match phone.get() {
+    let mode = create_memo(move || match phone.get() {
         true => DockMode::Stacked,
         false => DockMode::Tiled,
-    }));
+    });
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     let failure = workspace.error();
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let failed = create_memo(move || failure.get().is_some());
+    let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
-    let files = Rc::clone(&workspace);
-    let blocks = Rc::clone(&workspace);
-    let programs = Rc::clone(&workspace);
-    let hosted = Rc::clone(&workspace);
-    let dialogs = Rc::clone(&workspace);
-    let pickers = Rc::clone(&workspace);
-    let shell_dialogs = Rc::clone(&workspace);
     let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} color={theme.background.clone()}>
+        <Frame @node_ref={&surface} color={theme.background}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
                         <DockPane id="files">
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
-                                <FilesPanel workspace={Rc::clone(&files)} />
+                                <FilesPanel workspace />
                             </DockTab>
                         </DockPane>
                         <DockPane
@@ -106,36 +94,36 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                         >
                             <ForEach keys={block_tabs}>
                                 {move |tab: TabId| view! {
-                                    <BlockTab workspace={Rc::clone(&blocks)} tab />
+                                    <BlockTab workspace tab />
                                 }}
                             </ForEach>
                             <ForEach keys={top_windows}>
                                 {move |window: HostWindowId| view! {
-                                    <WindowTab workspace={Rc::clone(&programs)} window />
+                                    <WindowTab workspace window />
                                 }}
                             </ForEach>
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={panels}>
                         {move |panel: HostPanel| view! {
-                            <PanelWindow workspace={Rc::clone(&hosted)} panel />
+                            <PanelWindow workspace panel />
                         }}
                     </ForEach>
                     <ForEach keys={dialog_windows}>
                         {move |(window, parent): (HostWindowId, HostWindowId)| view! {
-                            <AttachedWindow workspace={Rc::clone(&dialogs)} window parent />
+                            <AttachedWindow workspace window parent />
                         }}
                     </ForEach>
                 </Docking>
-                <PickerDialogs workspace={pickers} />
-                <WorkspaceDialogs workspace={shell_dialogs} />
+                <PickerDialogs workspace />
+                <WorkspaceDialogs workspace />
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
+fn FilesPanel(workspace: Workspace) -> NodeId {
     let phone = workspace.phone();
     let top_bar = create_memo(move || match phone.get() {
         true => TopBar::Phone,
@@ -147,7 +135,7 @@ fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
             .get()
             .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
     });
-    let editor = workspace.editor().clone();
+    let editor = workspace.editor();
     view! {
         <List spacing=0.0>
             <ChildBlock
@@ -172,8 +160,11 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Heading content="No file open" />
-                <Caption content="Open or create a file from Files to get started." />
+                <Text style=TextStyle::HEADING string="No file open" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Open or create a file from Files to get started."
+                />
             </List>
         </Frame>
     }

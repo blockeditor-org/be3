@@ -143,7 +143,15 @@ and sweep. Do not reintroduce one.
 ### be-server
 
 SQLite for metadata, a `FileStore` for objects, and a websocket carrying
-postcard frames.
+postcard frames. Where a websocket cannot get through (a proxy that refuses the
+upgrade), `POST .../http` carries the same frames (`http.rs`): the first body is
+the greeting, whose answer names a session in a `Be3-Session` header; each
+later post with that header carries client frames, answered in order with the
+frames the server has for the client then; a body is frames each after a
+four-byte big-endian length. The client sends whatever is queued in one post,
+and `Peer::fetch` asks for every missing object at once. A
+session is a connection like a websocket's, kept until it is idle for the same
+time, so notifications wait for the next post.
 
 - The database's schema is a list of `CREATE` statements (`schema.rs`), and
   `sqlite_schema::ensure` checks a database against it on open: it adds a
@@ -156,8 +164,10 @@ postcard frames.
 - A connection starts with a greeting outside the protocol: each side sends
   `be_protocol::hello` with its build id (`build_id::current()`, read from the
   `build-id` file beside the executable, or `--build-id-file`), and the server
-  closes the connection when the ids differ and neither is `unknown`
-  (`ClientError::Incompatible` on the client). Server and clients are upgraded
+  closes the connection when the ids differ (`ClientError::Incompatible` on the
+  client). A program with no id is an error, not a wildcard: the client fails
+  with `ClientError::NoBuild`, the server does not start, and a test installs
+  one with `build_id::install`. Server and clients are upgraded
   together from one commit, so the protocol itself is postcard and never
   versioned.
 - A publish is a compare-and-swap on the head. A publish against a stale head
@@ -188,6 +198,14 @@ postcard frames.
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
+  The server never reads `Authorization`, which is left to a gateway in front
+  of it. An administrator's `CreateAgent` makes an agent: an
+  editor account with no password, its workspace key sealed to a recovery key
+  the caller made for it, and a token, all answered once (guides/tracker.md).
+- An object is served only to a member who can view a block that holds it, by
+  a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
+  missing. A merge commit holds its extra parents' objects, so a `stash` that
+  was never a head stays readable.
 - The graph is cached per workspace in memory and dropped on any error so it
   reloads from the database rather than drifting.
 
@@ -259,7 +277,11 @@ before the `#`.
 `Peer` is a local object store plus a connection. `transport/` is what makes
 that connection portable: a `Writer` and a `Reader` per platform - tokio and
 tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
-`spawn` each one's executor wants. `Connection` above it is the same code
+`spawn` each one's executor wants. Natively, an `http(s)://` URL (`http_url`)
+takes the server's HTTP posts instead of a websocket (`transport/native/http.rs`),
+and both go through `HTTPS_PROXY`. `be_client::authorize` registers an
+`Authorization` header for a server's origin, which every native connection to
+it sends; a browser cannot add one to a websocket. `Connection` above it is the same code
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 
@@ -404,7 +426,8 @@ register default and old name) and the document's bytes. Keep it as a module
 of the block's tests, and test it with `schema::check_frozen::<Root>(REGISTRY,
 DOCUMENT)`, which fails when a frozen property is gone or retyped, a register
 default changed, the document no longer loads, or anything in it is no longer
-understood.
+understood. guides/frozen_formats.md lists what is frozen and the end-to-end
+snapshots of a server that hold it.
 
 `be-model` stores a document as a table of objects with ids, not as a tree of
 values, and every algorithm is written once against that table:
@@ -568,8 +591,8 @@ store of its own: history is be-store objects and be-commit commits.
 ## Running it
 
 ```
-./scripts/buck run //crates/be-server:be-server-bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
-./scripts/buck run //crates/be-server:be-server-bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
+./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
+./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
 ```
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
@@ -578,7 +601,7 @@ account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
 instead, and the web build always does (`./scripts/buck run
-//crates/block-app:web-serve` starts be-server beside it, closed to new
+//crates/block-app:web` starts be-server beside it, closed to new
 accounts).
 
 Tests start their own server on an ephemeral port; see `Harness` in
@@ -616,7 +639,7 @@ with no stamp is not stale. A stale block's frame shows `StaleNotice`
 (`surfaces::StaleBlock`) instead of its editor: Reset publishes the type's
 default content (`be::reset`), Delete deletes it as the shell would, and Try
 anyway shows the editor for the rest of the session (`be::try_anyway`). A block
-the app holds itself (`be::hold`: settings, the shell's profile) is reset by
+the app holds itself (`be::hold`: settings, the shell's session) is reset by
 the worker without asking, with a notice, since the app needs it to work. The
 app also deletes its local caches (`be-objects/`, `plugin-cache/`) whenever its
 build id changes; when the app becomes offline-first, those will have to stay.
@@ -735,8 +758,9 @@ the confirmed state and the pending edits. Applying an operation reports what it
 touched (`LiveEdit::apply_touching`), and a projection only runs when something
 it watches was touched; `guides/reactive.md` says how `project`, `field`, `ids`
 and `object` narrow that. `ContentProjection::read` answers `None` until the
-host has sent the content once, `loaded()` is a signal that turns true when it
-has, and `revision()` counts the changes an editor has seen, for code like the
+host has sent the content once, `operate` drops an edit made before then,
+`loaded()` is a signal that turns true when it has (`guides/reactive.md` says
+what an editor shows until it does), and `revision()` counts the changes an editor has seen, for code like the
 PDF pane that re-renders on a change rather than projecting.
 
 `block_editor_beui` re-exports `be_block`, so an editor names its content type
@@ -803,12 +827,12 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor: the zoom in
-`sync_ui_settings` comes from the UI settings block's content, and
-`sync_local_settings` hands the input settings block (keymap, key repeat, and
+The app can read a block itself, not only through an editor: the theme in
+`sync_ui_settings` comes from the UI settings, and
+`sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
-keyboard, and the display settings block (a mode per monitor, keyed by the
+keyboard, and the display settings (a mode per monitor, keyed by the
 monitor's EDID make, model and serial, or by its connector when it has no EDID)
 to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
 mode live. Every setting is an `Option`, and an unset one means the default:
@@ -848,7 +872,60 @@ Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
 answers with `HistoryStates` whenever they change.
 
-### Profiles and view state
+### Settings, settings profiles and sessions
+
+Each account keeps what is its own in a workspace under one top-level
+`Settings` block it authored. Every reader finds it by its author: a workspace
+administrator can see every block, including other accounts' `Settings`, and
+nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
+`RootSettings::owned` (block-app) list the account's own, and when two devices
+each made one before seeing the other's, both are read as one
+(`Settings::merged`, the lowest id winning a clash) and written through the
+lowest. The settings editor shows someone else's `Settings` or settings profile
+with a notice, and makes and changes nothing in it.
+
+Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
+`EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
+
+- The `Settings` block's `kinds` map a kind's content type to the block that
+  holds it for every device.
+- A settings profile is a `SettingsProfile` block, a child of the `Settings`
+  block listed in its `profiles`, with `kinds` of its own. Each device
+  (`device_profiles`, keyed by the client id) uses one, and block-app makes one
+  named after the device the first time a device opens the workspace.
+
+`Settings::layers(kind, profile)` lists a kind's blocks from the bottom, and
+`be_block::layered` folds their contents with the kind's `Layered::over`: what
+the profile sets wins field by field, and what it leaves unset falls through to
+the settings for every device, then to the built-in default. Every field of a
+layered kind is an `Option` for this. `Editor::inherited_settings` gives a
+kind's editor what the layers below its block resolve to, which the UI, input
+and display settings editors show for what is unset, and
+`Editor::effective_settings` what every layer resolves to, which is how the
+workspace reads `EditorSettings`: the default editor of each block type, keyed
+by the editor ids the host's catalog lists (see guides/adding_a_plugin_editor.md).
+The hotbar is not merged:
+the logic editors use the topmost layer that has one, and make one for every
+device when there is none yet (`RootSetting::ensure`).
+
+A session is what a person has open, and is separate from the settings, so
+starting a new one keeps them. It is an `EditorView` of a shell editor:
+workspace-ui (`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for
+a client run as the desktop with `block-app --session`. `Settings::sessions`
+lists every session, and `Settings::session(shell, client)` is the one this
+client uses for that shell, so the desktop and the app each keep their own while
+sharing the device's settings profile. The host opens the shell on that session,
+creating one named after the device when the client has none, and reopens the
+shell when it changes. block-app's sessions screen (the workspace list's
+dropdown, or Sessions and profiles in the app menu) picks the device's settings
+profile and its session, or starts a new one of either. A shell keeps its dock
+layout and recents in the session's state; every tab, and the file tree, is an
+`EditorView` child of the session that the layout references, and closing a tab
+detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
+own view, so a workspace session opened on the desktop keeps its tabs in its own
+session and closing it leaves that session alone.
+
+### View state
 
 What a person has open is blocks too, one generic type for all of it:
 `EditorView { editor, content, state }` names the editor that draws it, the
@@ -857,20 +934,6 @@ block it shows (none for the file tree or the workspace itself), and a
 blocks an entry points at; `references()` is `content` plus every entry's refs,
 and a deleted or replaced child is blanked or repointed in place, so the bytes
 can index into `refs`.
-
-A profile, or session, is an `EditorView` of a shell editor: workspace-ui
-(`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for a client run
-as the desktop with `block-app --session`. Each account has its own settings
-block (the top-level `Settings` block it authored); its `profiles` lists every
-profile, and `Settings::profile(shell, client)` is the one this client uses for
-that shell, so the desktop and the app each keep their own. The host opens the
-shell on that profile, creating one named after the device when the client has
-none, and reopens the shell when it changes. A shell keeps its dock layout and
-recents in the profile's state; every tab, and the file tree, is an
-`EditorView` child of the profile that the layout references, and closing a tab
-detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
-own view, so a workspace session opened on the desktop keeps its tabs in its own
-profile and closing it leaves that profile alone.
 
 Both shells are built from `crates/block-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;

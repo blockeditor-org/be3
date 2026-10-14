@@ -4,8 +4,8 @@ use crate::unstyled::{PointerLock, PointerLockHandle};
 
 #[test]
 fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let sink = changes.clone();
+    let _root = crate::reactive::RootScope::new();
+    let (changes, set_changes) = create_signal(Vec::new());
 
     let document = build(move || {
         let (locked, set_locked) = create_signal(false);
@@ -13,7 +13,7 @@ fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
             <PointerLock
                 locked
                 on_change={move |locked: bool| {
-                    sink.borrow_mut().push(locked);
+                    set_changes.update(|changes| changes.push(locked));
                     set_locked.set(locked);
                 }}
             >
@@ -27,12 +27,12 @@ fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
-    assert!(harness.frame(Vec::new()).pointer_locked);
+    assert!(harness.frame(Vec::new()).window.pointer_locked);
 
     harness.frame(vec![Event::Focus(false)]);
-    assert_eq!(*changes.borrow(), [true, false]);
+    assert_eq!(changes.get_untracked(), [true, false]);
     assert!(
-        !harness.frame(Vec::new()).pointer_locked,
+        !harness.frame(Vec::new()).window.pointer_locked,
         "a window that lost the keyboard should not still hold the pointer"
     );
 }

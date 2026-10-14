@@ -4,6 +4,7 @@ use crate::styled::{Button, ButtonVariant, Dialog, TextInput};
 
 #[test]
 fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
+    let _root = crate::reactive::RootScope::new();
     let (opener, field, go, target) = (
         NodeRef::new(),
         NodeRef::new(),
@@ -11,12 +12,10 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
         NodeRef::new(),
     );
     let document = build({
-        let (opener, field, go, target) =
-            (opener.clone(), field.clone(), go.clone(), target.clone());
         move || {
             let (open, set_open) = create_signal(false);
             let (aimed, set_aimed) = create_signal(false);
-            let (opening, closing, aiming) = (set_open.clone(), set_open.clone(), set_open);
+            let (opening, closing, aiming) = (set_open, set_open, set_open);
             view! {
                 <List spacing=8.0>
                     <Button
@@ -31,11 +30,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
                         label="Elsewhere"
                         focused={aimed}
                     />
-                    <Dialog
-                        open={open.clone()}
-                        title="Rename"
-                        on_dismiss={move || closing.set(false)}
-                    >
+                    <Dialog open={open} title="Rename" on_dismiss={move || closing.set(false)}>
                         <List spacing=8.0>
                             <TextInput @node_ref=&field value="" focused={open} />
                             <Button
@@ -65,7 +60,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
     );
 
     harness.key(Key::Escape, Modifiers::NONE);
-    harness.frame(Vec::new());
+    harness.settle();
     assert!(
         harness.document().focus_is_within(opener.get()),
         "closing it gives the focus back to the button that opened it"

@@ -3,6 +3,7 @@ use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

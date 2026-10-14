@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::CalendarContent;
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ impl Harness {
         let block = Uuid::new_v4();
         let host = EditorHost::default();
         host.set_editable(true);
-        let editor = Editor::new(host, block);
+        let editor = OwnedEditor::new(host, block);
         let mut harness = Self {
             editor: BeuiTest::new(editor),
         };

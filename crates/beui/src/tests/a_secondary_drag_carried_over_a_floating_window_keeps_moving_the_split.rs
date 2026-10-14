@@ -2,10 +2,12 @@ use super::*;
 
 #[test]
 fn a_secondary_drag_carried_over_a_floating_window_keeps_moving_the_split() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document,
         dock,
         presses,
+        ..
     } = split_dock(Some(Modifiers::LOGO));
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     floated_window(&mut harness, dock);
@@ -29,5 +31,5 @@ fn a_secondary_drag_carried_over_a_floating_window_keeps_moving_the_split() {
         before.width(),
         after.width()
     );
-    assert_eq!(presses.get(), 0);
+    assert_eq!(presses.get_untracked(), 0);
 }

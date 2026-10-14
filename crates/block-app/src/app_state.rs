@@ -61,6 +61,8 @@ pub struct SavedAccount {
 
     pub token: String,
     pub last_workspace_id: Option<Uuid>,
+    #[serde(default)]
+    pub authorization: Option<String>,
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

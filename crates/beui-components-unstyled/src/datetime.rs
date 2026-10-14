@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 pub const SECONDS_PER_DAY: i64 = 86_400;
 pub const MINUTES_PER_DAY: u32 = 24 * 60;
 
@@ -129,10 +127,7 @@ impl Date {
     }
 
     pub fn today() -> Self {
-        let seconds = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_secs() as i64)
-            .unwrap_or(0);
+        let seconds = beui_core::timer::wall_clock().as_secs() as i64;
         Self::from_days(seconds.div_euclid(SECONDS_PER_DAY))
     }
 
@@ -240,10 +235,7 @@ impl Time {
     }
 
     pub fn now() -> Self {
-        let seconds = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_secs() as i64)
-            .unwrap_or(0);
+        let seconds = beui_core::timer::wall_clock().as_secs() as i64;
         Self::from_minutes((seconds.rem_euclid(SECONDS_PER_DAY) / 60) as u32)
     }
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ForEach, NodeRef, build, view, with_reactive_scope};
+use crate::reactive::{ForEach, build, view, with_reactive_scope};
 
 #[component]
 fn Program(id: u64) -> unstyled::DockNode<u64> {
@@ -22,38 +22,30 @@ fn Program(id: u64) -> unstyled::DockNode<u64> {
 fn drawn_bottom_up(harness: &Harness) -> Vec<u64> {
     let document = harness.document();
     let mut programs = vec![1, 2, 3];
-    programs
-        .sort_by_key(|program| document.paint_order(harness.find(&format!("program.{program}"))));
+    programs.sort_by_key(|program| document.paint_order(harness.find(&format!("program.{program}"))));
     programs
 }
 
-fn stacked_bottom_up(
-    harness: &Harness,
-    dock: NodeId,
-    layout: &unstyled::DockingLayout<u64>,
-) -> Vec<u64> {
-    let state = unstyled::dock_state(harness.document(), dock);
-    state
-        .windows()
-        .iter()
-        .filter_map(|surface| layout.key_of(*state.surface_tabs(*surface).first()?))
-        .collect()
-}
-
-fn edit(harness: &mut Harness, change: impl FnOnce() + 'static) {
-    with_reactive_scope(harness.document_mut(), change);
-    harness.frame(Vec::new());
+fn window_of(harness: &Harness, program: u64) -> NodeId {
+    let document = harness.document();
+    let mut node = harness.find(&format!("program.{program}"));
+    while document
+        .arena
+        .kind_of::<crate::base::overlay::OverlayNode>(node)
+        .is_none()
+    {
+        node = document.arena.parent(node).expect("a floating window is an overlay");
+    }
+    node
 }
 
 #[test]
 fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
-    let dock = NodeRef::new();
-    let built = dock.clone();
+    let _root = crate::reactive::RootScope::new();
     let layout = unstyled::DockingLayout::<u64>::new();
-    let shown = layout.clone();
     let document = build(move || {
         view! {
-            <styled::Docking @node_ref=&built layout={shown}>
+            <styled::Docking layout>
                 <unstyled::DockPane
                     id="desktop"
                     empty={|| view! {
@@ -70,33 +62,23 @@ fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    let dock = dock.get();
     for program in [2, 3, 1] {
-        let layout = layout.clone();
-        edit(&mut harness, move || layout.show(&program));
+        with_reactive_scope(harness.document_mut(), move || layout.show(&program));
+        harness.frame(Vec::new());
     }
-    assert_eq!(stacked_bottom_up(&harness, dock, &layout), vec![2, 3, 1]);
+    assert_eq!(drawn_bottom_up(&harness), vec![2, 3, 1], "showing a window raises it");
+
+    let covering = window_of(&harness, 3);
+    harness.document_mut().raise_overlay(covering);
+    harness.frame(Vec::new());
+    assert_eq!(drawn_bottom_up(&harness), vec![2, 1, 3]);
+    assert_eq!(layout.focused(), Some(1), "the covered window keeps the focus");
+
+    with_reactive_scope(harness.document_mut(), move || layout.show(&1));
+    harness.frame(Vec::new());
     assert_eq!(
         drawn_bottom_up(&harness),
         vec![2, 3, 1],
-        "focusing a window raises it"
-    );
-    let saved = layout.snapshot();
-
-    for program in [2, 1] {
-        let layout = layout.clone();
-        edit(&mut harness, move || layout.show(&program));
-    }
-    assert_eq!(stacked_bottom_up(&harness, dock, &layout), vec![3, 2, 1]);
-    assert_eq!(drawn_bottom_up(&harness), vec![3, 2, 1]);
-
-    let restoring = layout.clone();
-    edit(&mut harness, move || restoring.restore(saved));
-    assert_eq!(layout.focused(), Some(1), "the focus stayed where it was");
-    assert_eq!(stacked_bottom_up(&harness, dock, &layout), vec![2, 3, 1]);
-    assert_eq!(
-        drawn_bottom_up(&harness),
-        vec![2, 3, 1],
-        "the windows are drawn in the order the dock stacks them, though the focus never moved"
+        "showing the window that has the focus still brings it back on top"
     );
 }

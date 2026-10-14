@@ -6,10 +6,10 @@ cargo_library()
 # EDITOR_MANIFESTS, a directory of <editor>/manifest.json, so that the
 # manifests are inputs of the test like any other and it runs on a worker.
 filegroup(
-    name = "editor_manifests",
+    name = "editor-manifests",
     srcs = {"{}/manifest.json".format(package.split("/")[-1]): "//{}:manifest".format(package) for package in editor_packages()},
 )
 
 cargo_test(
-    env = {"EDITOR_MANIFESTS": "$(location :editor_manifests)"},
+    env = {"EDITOR_MANIFESTS": "$(location :editor-manifests)"},
 )

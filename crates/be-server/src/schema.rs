@@ -116,4 +116,16 @@ const SCHEMA: &str = "
 
     CREATE INDEX block_edges_reference
         ON block_edges (workspace_id, reference_id);
+
+    CREATE TABLE agents (
+        account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        created_by      TEXT NOT NULL
+    );
+
+    CREATE INDEX commit_objects_hash
+        ON commit_objects (workspace_id, hash);
+
+    CREATE INDEX block_objects_hash
+        ON block_objects (workspace_id, hash);
 ";

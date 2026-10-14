@@ -6,7 +6,7 @@ use block_editor_beui::be_block::pixel_art::PixelColor;
 use block_editor_beui::be_block::pixel_art::{default_palette, size_of};
 use block_editor_beui::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
 use block_editor_beui::beui::reactive::{
-    Direction, ItemSize, List, clone, component, create_effect, create_memo, create_signal, view,
+    Direction, ItemSize, List, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
@@ -93,20 +93,19 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
 #[component]
 fn PixelArtEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<PixelArtContent>();
-    let tools = Tools::new(&editor, Rc::clone(&block));
+    let tools = Tools::new(editor, block);
     let pane = Pane::new();
     let shown = pane.shown();
     let size = block.project(size_of);
-    let size = create_memo(clone!(size -> move || size.get()));
+    let size = create_memo(move || size.get());
     let palette = block.project(|art| {
         art.field(ObjectId::ROOT, PixelArtDocument::PALETTE)
             .unwrap_or_else(default_palette)
     });
-    let palette = create_memo(clone!(palette -> move || palette.get()));
+    let palette = create_memo(move || palette.get());
     let (hovered, set_hovered) = create_signal(None::<(u16, u16)>);
 
-    let sized = editor.clone();
-    create_effect(clone!(size -> move || {
+    create_effect(move || {
         let (width, height) = size.get();
         if width == 0 || height == 0 {
             return;
@@ -115,39 +114,34 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
         let height = f32::from(height);
         let pixel =
             (EMBEDDED_LONG_SIDE / width.max(height)).max(EMBEDDED_SHORT_SIDE / width.min(height));
-        sized.set_intrinsic_size(Some(Vec2::new(width * pixel, height * pixel)));
-    }));
+        editor.set_intrinsic_size(Some(Vec2::new(width * pixel, height * pixel)));
+    });
 
     let chrome = editor.chrome_shown();
-    let canvas_size = size.clone();
-    let bar_tools = Rc::clone(&tools);
-    let left_tools = Rc::clone(&tools);
-    let canvas_tools = Rc::clone(&tools);
-    let label_tools = Rc::clone(&tools);
-    let colors_tools = Rc::clone(&tools);
-    let top_chrome = chrome.clone();
-    let left_chrome = chrome.clone();
+    let canvas_size = size;
+    let top_chrome = chrome;
+    let left_chrome = chrome;
     view! {
         <List spacing=0.0>
-            <TopBar tools={bar_tools} size={size.clone()} shown={top_chrome} />
+            <TopBar tools={tools} size={size} shown={top_chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Sidebar side=Side::Left shown={left_chrome} width=TOOLS_WIDTH>
-                    <ToolsPanel tools={left_tools} />
+                    <ToolsPanel tools={tools} />
                 </Sidebar>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                     <ArtworkCanvas
                         @sizing=ItemSize::Percent(100.0)
-                        tools={canvas_tools}
+                        tools={tools}
                         pane={pane}
                         shown={shown}
                         size={canvas_size}
-                        hovered={hovered.clone()}
+                        hovered={hovered}
                         set_hovered={set_hovered}
                     />
-                    <HoverLabel tools={label_tools} hovered={hovered} />
+                    <HoverLabel tools={tools} hovered={hovered} />
                 </List>
                 <Sidebar shown={chrome}>
-                    <ColorsPanel tools={colors_tools} palette={palette} />
+                    <ColorsPanel tools={tools} palette={palette} />
                 </Sidebar>
             </List>
             <Dialogs tools={tools} size={size} />
@@ -160,16 +154,14 @@ fn PixelArtPreview(editor: Editor) -> NodeId {
     let block = editor.block_content::<PixelArtContent>();
     let pane = Pane::new();
     let shown = pane.shown();
-    let refreshed = Rc::clone(&pane);
-    let watched = Rc::clone(&block);
-    create_effect(move || refreshed.refresh(&watched, true, &[], PixelColor::TRANSPARENT));
-    let image = create_memo(clone!(shown -> move || shown.get().artwork));
+    create_effect(move || pane.refresh(&block, true, &[], PixelColor::TRANSPARENT));
+    let image = create_memo(move || shown.get().artwork);
     view! {
         <Picture image={image} fit=ImageFit::Contain smooth=false />
     }
 }
 
-pub(crate) fn export(tools: &Rc<Tools>) {
+pub(crate) fn export(tools: Tools) {
     let editor = tools.editor();
     let name = editor
         .blocks()

@@ -3,8 +3,10 @@ use super::*;
 #[test]
 fn theme_messages_round_trip() {
     for message in [
-        Message::Theme(Theme { dark: true }),
-        Message::Theme(Theme { dark: false }),
+        Message::Theme(Theme::Dark),
+        Message::Theme(Theme::OledDark),
+        Message::Theme(Theme::Light),
+        Message::Theme(Theme::EInk),
     ] {
         assert_eq!(
             decode_frame(&encode_frame(&message).unwrap()).unwrap(),

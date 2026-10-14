@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn clicking_a_row_leaves_its_children_expanded() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::new(document);
 

@@ -4,14 +4,15 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use crate::theme::{FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
 use beui_view::reactive::Memo;
 use beui_view::reactive::{
-    Align, Direction, Frame, ItemSize, List, Prop, Show, Text, clone, create_memo, focus_ring,
+    Align, Direction, Frame, ItemSize, List, Prop, Show, create_memo, focus_ring,
 };
 
+use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
 
 const MARK_SPACING: f32 = 10.0;
@@ -29,21 +30,16 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let label_color = create_memo(clone!(selected theme -> move || {
-        let theme = theme.get();
-        if selected.get() {
-            theme.text
-        } else {
-            theme.text_muted
-        }
-    }));
-    let checked = selected.clone();
-    let fill_color =
-        create_memo(clone!(theme -> move || background(&theme, selected.get(), hovered.get())));
+    let label_color = create_memo(move || match selected.get() {
+        true => TextColor::Default,
+        false => TextColor::Muted,
+    });
+    let checked = selected;
+    let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
     view! {
         <Frame
             color={fill_color}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=1.0
@@ -60,7 +56,7 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
 fn ChoiceLabel(
     kind: Kind,
     label: Prop<String>,
-    color: Prop<Color32>,
+    color: Prop<TextColor>,
     checked: Memo<bool>,
 ) -> NodeId {
     let align = if kind == Kind::Tabs {
@@ -71,9 +67,9 @@ fn ChoiceLabel(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=MARK_SPACING>
             <Show condition={kind == Kind::Radio}>
-                <RadioMark checked={checked.clone()} />
+                <RadioMark checked={checked} />
             </Show>
-            <Text @sizing=ItemSize::Percent(100.0) string={label} font_size=FONT_BODY color align />
+            <Text @sizing=ItemSize::Percent(100.0) string={label} color align />
         </List>
     }
 }
@@ -81,7 +77,7 @@ fn ChoiceLabel(
 #[component]
 fn RadioMark(checked: Memo<bool>) -> NodeId {
     let theme = use_theme();
-    let ring_color = create_memo(clone!(checked theme -> move || ring(&theme, checked.get())));
+    let ring_color = create_memo(move || ring(&theme, checked.get()));
     view! {
         <Frame
             width=MARK_BOX
@@ -97,7 +93,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
                 visible={checked}
                 width=MARK_DOT
                 height=MARK_DOT
-                color={theme.accent.clone()}
+                color={theme.accent}
                 radius=MARK_RADIUS
             />
         </Frame>

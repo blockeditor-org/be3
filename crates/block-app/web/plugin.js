@@ -1,49 +1,19 @@
 // Instantiating a plugin in the browser.
 //
 // A plugin is the same bindgen-free wasm that wasmtime runs on every other
-// platform: its only imports are WASI and the be3 gpu abi. In a browser the
+// platform: its only imports are WASI and the be3 gpu abi, and, when it was
+// linked against the plugin SDK, the SDK, which is fetched from beside it and
+// linked to it here (dylink.js). In a browser the
 // abi is answered by block-gpu-shim, a second module that does have bindgen
 // and a real wgpu device in the worker, which draws what the plugin shows into
-// the canvases the page transferred to the worker. The two
-// modules have separate memories, so a call that only passes numbers is bound
-// straight to the shim's export, and a call that passes a pointer goes through
-// a wrapper here that copies the bytes into a scratch block the shim owns.
+// the canvases the page transferred to the worker. The two modules have
+// separate memories, so the shim is handed the plugin's and every import is
+// bound straight to the shim's export of the same name, which reads and writes
+// what a pointer points at in the plugin's memory itself.
 
+import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
 import * as threads from "./threads.js";
-
-// Where each pointer sits in the argument list, mirroring the declarations in
-// block-gpu-guest/src/imports.rs. A pointer is always followed by its length,
-// so only the pointer's position and which way the bytes travel is recorded. A
-// pair says the length counts something wider than a byte.
-const reads = {
-    create_buffer: [0],
-    create_texture: [0],
-    create_texture_view: [0],
-    create_sampler: [0],
-    create_bind_group_layout: [0],
-    create_bind_group: [0],
-    create_pipeline_layout: [0],
-    create_shader_module: [0],
-    create_render_pipeline: [0],
-    create_command_encoder: [0],
-    encoder_begin_render_pass: [0],
-    encoder_copy_texture_to_texture: [0],
-    queue_submit: [[0, 4]],
-    queue_write_texture: [0, 2],
-    queue_write_buffer: [2],
-    buffer_write_mapped: [2],
-    pass_set_bind_group: [[3, 4]],
-    surface_configure: [1],
-    host_send: [0],
-};
-
-const writes = {
-    device_limits: 0,
-    texture_describe: 1,
-    error_take: 0,
-    host_receive: 0,
-};
 
 function stub(module, name) {
     return () => {
@@ -51,53 +21,9 @@ function stub(module, name) {
     };
 }
 
-function forward(shim, memory, name) {
+function forward(shim, name) {
     const call = shim[name];
-    if (typeof call !== "function") {
-        return stub("be3", name);
-    }
-    const inbound = reads[name];
-    if (inbound !== undefined) {
-        const buffers = inbound.map((entry) =>
-            Array.isArray(entry) ? entry : [entry, 1],
-        );
-        return (...args) => {
-            let total = 0;
-            for (const [at, width] of buffers) {
-                total += args[at + 1] * width;
-            }
-            let address = shim.be3_scratch(total);
-            const host = new Uint8Array(shim.memory.buffer);
-            const guest = new Uint8Array(memory.buffer);
-            for (const [at, width] of buffers) {
-                const length = args[at + 1] * width;
-                host.set(guest.subarray(args[at], args[at] + length), address);
-                args[at] = address;
-                address += length;
-            }
-            return call(...args);
-        };
-    }
-    const at = writes[name];
-    if (at !== undefined) {
-        return (...args) => {
-            const capacity = args[at + 1];
-            const wanted = args[at];
-            const address = shim.be3_scratch(capacity);
-            args[at] = address;
-            const answer = call(...args);
-            const needed = Number(answer);
-            if (needed > 0 && needed <= capacity) {
-                const host = new Uint8Array(shim.memory.buffer);
-                new Uint8Array(memory.buffer).set(
-                    host.subarray(address, address + needed),
-                    wanted,
-                );
-            }
-            return answer;
-        };
-    }
-    return call;
+    return typeof call === "function" ? call : stub("be3", name);
 }
 
 function resolve(module, memory, shim) {
@@ -107,7 +33,7 @@ function resolve(module, memory, shim) {
         if (wanted.kind === "memory") {
             group[wanted.name] = memory;
         } else if (wanted.module === "wasi_snapshot_preview1") {
-            group[wanted.name] = wasi[wanted.name];
+            group[wanted.name] = wasi[wanted.name] ?? stub(wanted.module, wanted.name);
         } else if (wanted.module === "wasi") {
             group[wanted.name] = threads[wanted.name];
         } else if (wanted.module === "be3_host" && wanted.name === "host_panic") {
@@ -116,7 +42,7 @@ function resolve(module, memory, shim) {
                 throw new Error(new TextDecoder().decode(bytes));
             };
         } else if (wanted.module === "be3_gpu" || wanted.module === "be3_host") {
-            group[wanted.name] = forward(shim, memory, wanted.name);
+            group[wanted.name] = forward(shim, wanted.name);
         } else {
             group[wanted.name] = stub(wanted.module, wanted.name);
         }
@@ -188,21 +114,50 @@ function memoryLimits(bytes) {
     throw new Error("a plugin does not import the memory it runs in");
 }
 
+async function fetched(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`${url} could not be fetched: ${response.status}`);
+    }
+    return response.arrayBuffer();
+}
+
 export async function boot(shimUrl, moduleUrl, wake) {
     const shimModule = await import(shimUrl);
     const shim = await shimModule.default();
     await shimModule.start();
-    const bytes = await (await fetch(moduleUrl)).arrayBuffer();
-    const limits = memoryLimits(bytes);
-    const memory = new WebAssembly.Memory({ ...limits, shared: true });
-    const module = await WebAssembly.compile(bytes);
+    const bytes = await fetched(moduleUrl);
+    const plugin = await WebAssembly.compile(bytes);
+    const identity = dylink.sdkIdentity(shimModule, plugin);
+    const sdkBytes =
+        identity === null ? null : await fetched(new URL(shimModule.sdk_file_name(identity), moduleUrl));
+    if (sdkBytes !== null) {
+        shimModule.check_sdk(new Uint8Array(sdkBytes), identity);
+    }
+    const first = sdkBytes === null ? plugin : await WebAssembly.compile(sdkBytes);
+    const memory = new WebAssembly.Memory({ ...memoryLimits(sdkBytes ?? bytes), shared: true });
     wasi.bindMemory(memory);
-    threads.bindThreads(module, memory);
+    shimModule.bind(memory);
+    threads.bindThreads(first, memory);
     threads.bindWake(wake);
-    const instance = new WebAssembly.Instance(module, resolve(module, memory, shim));
-    const exports = instance.exports;
-    exports.__wasm_call_ctors?.();
-    exports.plugin_initialize_tls(exports.__tls_size.value, exports.__tls_align.value);
+    const runtime = new WebAssembly.Instance(first, resolve(first, memory, shim));
+    runtime.exports.__wasm_call_ctors?.();
+    let exports = runtime.exports;
+    if (first !== plugin) {
+        const layout = dylink.plan(shimModule, runtime, plugin, memory);
+        const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, memory, shim));
+        dylink.relocate(instance, layout);
+        instance.exports.plugin_initialize_tls(
+            runtime.exports.__tls_size.value,
+            runtime.exports.__tls_align.value,
+        );
+        dylink.placeThreadLocals(instance, memory, layout, runtime.exports.__tls_base.value);
+        threads.bindPlugin(plugin, layout);
+        instance.exports.__wasm_call_ctors?.();
+        exports = instance.exports;
+    } else {
+        exports.plugin_initialize_tls(exports.__tls_size.value, exports.__tls_align.value);
+    }
     exports.plugin_start();
     return {
         deliver: (frame) => shimModule.deliver(frame),
@@ -210,6 +165,7 @@ export async function boot(shimUrl, moduleUrl, wake) {
         show: (id, canvas, surface) => shimModule.show(id, canvas, surface),
         forget: (id) => shimModule.forget(id),
         paint: () => shimModule.paint(),
+        took: () => shimModule.took(),
         failure: () => shimModule.failure(),
         woken: () => shimModule.woken(),
         step: () => exports.plugin_step(),

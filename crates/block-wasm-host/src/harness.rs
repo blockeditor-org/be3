@@ -1,16 +1,13 @@
-use std::{
-    path::Path,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
+use block_gpu_host::calls::Guest;
+
 use crate::{
-    Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads,
-    transport, wake,
+    Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads, wake,
 };
 
 const START: &str = "_start";
@@ -18,6 +15,14 @@ const LISTING_CAPACITY: usize = 1 << 20;
 const CARRIED: [&str; 2] = ["--ignored", "--include-ignored"];
 const PANICKED: &str = " panicked at ";
 const ABORT: &str = "abort";
+const PANIC_MACHINERY: [&str; 5] = [
+    "core::panicking::",
+    "core::option::expect_failed",
+    "core::option::unwrap_failed",
+    "core::result::unwrap_failed",
+    "std::panicking::",
+];
+const TEST_HARNESS: &str = "test::__rust_begin_short_backtrace";
 const BACKTRACE_NOTE: &str = "note: run with `RUST_BACKTRACE=1`";
 
 impl Host {
@@ -143,14 +148,12 @@ impl Host {
             memory: memory.clone(),
             device: self.devices.open(),
             error: None,
-            inbox: Default::default(),
-            outbox: Vec::new(),
-            started: Instant::now(),
+            transport: Default::default(),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
             threads: threads::Spawner::new(
                 self.engine.clone(),
-                module.clone(),
+                crate::dylink::Program::Whole(module.clone()),
                 memory.clone(),
                 Arc::clone(&woken),
             ),
@@ -164,7 +167,6 @@ impl Host {
             .define(&store, "env", "memory", memory)
             .map_err(|error| format!("the test memory could not be linked: {error}"))?;
         gpu::link(&mut linker)?;
-        transport::link(&mut linker)?;
         crate::panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
@@ -186,7 +188,7 @@ impl Host {
             Ok(()) => Ok(0),
             Err(error) => match error.downcast_ref::<I32Exit>() {
                 Some(exit) => Ok(exit.0),
-                None if aborted(&error) => Err("the tests aborted".to_owned()),
+                None if aborted(&error) => Err(aborted_with_backtrace(&error)),
                 None => Err(format!("the tests trapped: {error:?}")),
             },
         }
@@ -200,6 +202,38 @@ fn aborted(error: &wasmtime::Error) -> bool {
             .and_then(|backtrace| backtrace.frames().first())
             .and_then(|frame| frame.func_name())
             == Some(ABORT)
+}
+
+fn aborted_with_backtrace(error: &wasmtime::Error) -> String {
+    let Some(backtrace) = error.downcast_ref::<WasmBacktrace>() else {
+        return "the tests aborted".to_owned();
+    };
+    let names: Vec<String> = backtrace
+        .frames()
+        .iter()
+        .map(|frame| match frame.func_name() {
+            Some(name) => format!("{:#}", rustc_demangle::demangle(name)),
+            None => format!("<function {}>", frame.func_index()),
+        })
+        .collect();
+    let end = names
+        .iter()
+        .position(|name| name.starts_with(TEST_HARNESS))
+        .unwrap_or(names.len());
+    let start = names[..end]
+        .iter()
+        .rposition(|name| {
+            PANIC_MACHINERY
+                .iter()
+                .any(|prefix| name.starts_with(prefix))
+        })
+        .map_or(0, |last| last + 1);
+    let mut message = "the tests aborted, at:".to_owned();
+    for name in &names[start..end] {
+        message.push_str("\n    ");
+        message.push_str(name);
+    }
+    message
 }
 
 fn why(stderr: &Tee, failure: &str) -> String {
@@ -216,7 +250,7 @@ fn why(stderr: &Tee, failure: &str) -> String {
                 .join("\n")
         });
     match panic {
-        Some(panic) => panic,
+        Some(panic) => format!("{panic}\n{failure}"),
         None => format!("{}\n{failure}", written.trim_end())
             .trim_start()
             .to_owned(),

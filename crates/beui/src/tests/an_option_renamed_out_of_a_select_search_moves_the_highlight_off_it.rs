@@ -1,0 +1,45 @@
+use super::*;
+use crate::reactive::{create_signal, view};
+use crate::styled::Select;
+
+#[test]
+fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
+    let mut rename = None;
+    let (document, [select]) = toolbar_of(|| {
+        let (label, set_label) = create_signal("Mango".to_owned());
+        rename = Some(set_label);
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption label={label} />
+        };
+        [view! {
+            <Select options selected=None />
+        }]
+    });
+    let rename = rename.expect("the options were built");
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+
+    let trigger = unstyled::select_trigger(harness.document(), select);
+    harness.click(harness.center(trigger));
+    harness.frame(Vec::new());
+    harness.type_text("an");
+    harness.frame(Vec::new());
+    harness.key(Key::ArrowDown, Modifiers::NONE);
+    harness.frame(Vec::new());
+    assert_eq!(
+        unstyled::select_highlighted(harness.document(), select),
+        Some(2),
+        "Mango is the second option the search shows"
+    );
+
+    with_installed(harness.document_mut(), |_| rename.set("Cherry".to_owned()));
+    harness.frame(Vec::new());
+
+    assert_eq!(
+        unstyled::select_highlighted(harness.document(), select),
+        Some(1),
+        "an option the search no longer shows gives the highlight to the first one it does"
+    );
+}

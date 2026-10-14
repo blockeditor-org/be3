@@ -1,5 +1,7 @@
-use crate::file_picker::FilePickRequest;
+use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::geometry::Vec2;
+use crate::runner::Platform;
+use crate::window::WindowReports;
 
 pub const MAX_PIXELS: f32 = 8192.0;
 
@@ -35,25 +37,30 @@ impl WindowSize {
     }
 }
 
+pub enum Resize {
+    Window(WindowSize),
+    Screen(Vec2),
+}
+
 pub struct Simulation {
     pub window: WindowSize,
     pub screen: Vec2,
     pub fullscreen: bool,
-    pub focused: bool,
     pub clipboard: Option<String>,
-    pub picks: Vec<FilePickRequest>,
+    reports: WindowReports,
 }
 
 impl Simulation {
-    pub fn new(window: WindowSize, screen: Option<Vec2>) -> Self {
-        Self {
+    pub fn new(window: WindowSize, screen: Option<Vec2>, reports: WindowReports) -> Self {
+        let simulation = Self {
             window,
             screen: screen.unwrap_or(window.size),
             fullscreen: false,
-            focused: true,
             clipboard: None,
-            picks: Vec::new(),
-        }
+            reports,
+        };
+        simulation.report_size();
+        simulation
     }
 
     pub fn shown(&self) -> Vec2 {
@@ -69,5 +76,54 @@ impl Simulation {
             shown.x.round().max(1.0) as u32,
             shown.y.round().max(1.0) as u32,
         )
+    }
+
+    fn report_size(&self) {
+        let (width, height) = self.physical();
+        self.reports.resized(width, height);
+        self.reports.scaled(self.window.scale);
+    }
+}
+
+impl Platform for Simulation {
+    fn copy(&mut self, text: String) {
+        self.clipboard = Some(text);
+    }
+
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let text = self
+            .clipboard
+            .clone()
+            .filter(|_| kinds.contains(&PasteKind::Text));
+        answer.send(text.map(Pasted::Text));
+    }
+
+    fn set_fullscreen(&mut self, fullscreen: bool) {
+        if self.fullscreen != fullscreen {
+            self.fullscreen = fullscreen;
+            self.reports.fullscreen(fullscreen);
+            self.report_size();
+        }
+    }
+
+    fn resize(&mut self, resize: Resize) -> Result<(), String> {
+        let (window, screen) = match resize {
+            Resize::Window(window) => (window, self.screen),
+            Resize::Screen(screen) => (self.window, screen),
+        };
+        let shown = WindowSize {
+            size: screen,
+            scale: window.scale,
+        };
+        if !shown.fits() {
+            return Err(format!(
+                "a {}x{} screen at scale {} is more than {} pixels across",
+                screen.x, screen.y, window.scale, MAX_PIXELS
+            ));
+        }
+        self.window = window;
+        self.screen = screen;
+        self.report_size();
+        Ok(())
     }
 }

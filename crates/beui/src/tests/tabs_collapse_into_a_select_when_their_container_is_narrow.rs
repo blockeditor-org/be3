@@ -7,9 +7,9 @@ const BREAKPOINT: f32 = 500.0;
 
 #[test]
 fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
+    let _root = crate::reactive::RootScope::new();
     let tabs = NodeRef::new();
     let document = build({
-        let tabs = tabs.clone();
         move || {
             view! {
                 <Container>
@@ -34,8 +34,7 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
-    let column = tabs;
-    let [wide] = harness.document().children(column)[..] else {
+    let [wide] = harness.document().children(tabs)[..] else {
         panic!("responsive tabs hold only the branch their width calls for");
     };
     assert!(harness.document().node_rect(wide).is_some());
@@ -47,7 +46,7 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     *harness.viewport_mut() = VIEWPORT;
     harness.frame(Vec::new());
 
-    let [narrow] = harness.document().children(column)[..] else {
+    let [narrow] = harness.document().children(tabs)[..] else {
         panic!("the narrow branch takes the place of the wide one");
     };
     assert_ne!(

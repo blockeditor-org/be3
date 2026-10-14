@@ -1,0 +1,25 @@
+[package]
+name = "be-frozen"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+be-block = { path = "../be-block" }
+be-cli = { path = "../be-cli" }
+be-client = { path = "../be-client" }
+be-graph = { path = "../be-graph" }
+be-keys = { path = "../be-keys" }
+be-protocol = { path = "../be-protocol" }
+be-server = { path = "../be-server" }
+be-store = { path = "../be-store" }
+build-id = { path = "../build-id" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+uuid = { version = "1", features = ["v4"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
+
+[lints]
+workspace = true

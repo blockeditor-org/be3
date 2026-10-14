@@ -4,11 +4,11 @@ use crate::styled::{Switch, switch_on};
 
 #[test]
 fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
+    let _root = crate::reactive::RootScope::new();
     let (tab, set_tab) = create_signal(0usize);
     let switch_ref = NodeRef::new();
 
     let (document, [_panel]) = toolbar_of({
-        let switch_ref = switch_ref.clone();
         move || {
             let condition = create_memo(move || tab.get() == 0);
             [view! {

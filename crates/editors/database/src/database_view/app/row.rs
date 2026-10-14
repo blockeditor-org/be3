@@ -1,0 +1,559 @@
+use block_editor_beui::be_block::database::{DatabaseValue, RowRef, short_id};
+use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::be_block::text::TextContent;
+use block_editor_beui::be_block::{BlockContent, ObjectId};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
+    ICON_ARROW_BACK, ICON_CLOSE, ICON_DELETE, ICON_EXPAND_LESS, ICON_EXPAND_MORE, ICON_MORE_HORIZ,
+    ICON_NOTE_ADD, ICON_OPEN_IN_NEW,
+};
+use block_editor_beui::beui::reactive::{
+    Align, BackHandler, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component,
+    create_memo, view,
+};
+use block_editor_beui::beui::styled::{
+    Button, ButtonVariant, IconButton, IconMenuButton, ListRow, Scroll, Select, Separator,
+    TextInput, use_theme,
+};
+use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
+use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
+use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
+use block_editor_beui::{ChildBlock, ChildMode, ChildTarget, narrow_chrome};
+use uuid::Uuid;
+
+use crate::database_view::app::controls::{ChoicePicker, MARK, MARK_SIZE};
+use crate::database_view::app::data::Data;
+use crate::database_view::app::list::{iconic, row_title, visible_groups};
+use block_editor_beui::beui::styled::{Text, TextStyle};
+
+const PADDING: f32 = 20.0;
+const SPACING: f32 = 8.0;
+const LABEL_WIDTH: f32 = 104.0;
+
+#[component]
+pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
+    let index = create_memo(move || {
+        data.row_ids
+            .with(|ids| ids.iter().position(|id| *id == row))
+    });
+    let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
+    let values = create_memo(move || {
+        let Some(index) = index.get() else {
+            return Default::default();
+        };
+        data.rows
+            .with(|rows| rows.get(index).map(|row| row.cells()).unwrap_or_default())
+    });
+    let page = create_memo(move || {
+        let index = index.get()?;
+        data.rows
+            .with(|rows| rows.get(index).and_then(|row| row.page()))
+    });
+    let title = create_memo(move || {
+        let field = data.title_field.get();
+        values.with(|values| match field.and_then(|field| values.get(&field)) {
+            Some(DatabaseValue::String(text)) => text.clone(),
+            _ => String::new(),
+        })
+    });
+    let untitled = title.with_untracked(String::is_empty);
+    let properties = create_memo(move || {
+        let title = data.title_field.get();
+        data.fields.with(|fields| {
+            fields
+                .iter()
+                .filter(|field| Some(field.id) != title && !several(field))
+                .map(|field| field.id)
+                .collect::<Vec<Uuid>>()
+        })
+    });
+    let link_fields = create_memo(move || {
+        data.fields.with(|fields| {
+            fields
+                .iter()
+                .filter(|field| several(field))
+                .map(|field| field.id)
+                .collect::<Vec<Uuid>>()
+        })
+    });
+    let groups = visible_groups(data);
+    let order = create_memo(move || {
+        let ids = data.row_ids.get();
+        groups.with(|groups| {
+            groups
+                .iter()
+                .flat_map(|group| group.rows.iter())
+                .filter_map(|index| ids.get(*index).copied())
+                .collect::<Vec<ObjectId>>()
+        })
+    });
+    let step = move |by: isize| {
+        order.with_untracked(|order| {
+            let Some(at) = order.iter().position(|held| *held == row) else {
+                return;
+            };
+            if let Some(next) = at.checked_add_signed(by).and_then(|at| order.get(at)) {
+                data.select_row(*next);
+            }
+        });
+    };
+    let (previous, next) = (step, step);
+    let retitled = move |text: String| {
+        let Some(field) = data.title_field.get_untracked() else {
+            return;
+        };
+        data.set_value(row, field, Some(DatabaseValue::String(text.clone())));
+        if let Some(page) = page.get_untracked() {
+            data.editor().blocks().set_name(page, Some(text));
+        }
+    };
+    let close = move || data.deselect();
+    let back = close;
+    let (close_narrow, close_wide) = (close, close);
+    let open_page = move || {
+        if let Some(index) = index.get_untracked() {
+            data.open_page(index);
+        }
+    };
+    let remove = move || data.remove_row(row);
+    let add_page = move || {
+        data.create_page(row, title.get_untracked());
+    };
+    let missing = create_memo(move || page.get().is_none());
+    let present = create_memo(move || page.get().is_some());
+    let target = create_memo(move || {
+        page.get()
+            .map(|page| ChildTarget::new(page, TextContent::CONTENT_TYPE))
+    });
+    let narrow = narrow_chrome();
+    let wide = create_memo(move || !narrow.get());
+    let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
+    let editor = data.editor();
+    let theme = use_theme();
+    view! {
+        <BackHandler on_back={back}>
+            <Frame color={theme.background}>
+                <List spacing=0.0>
+                    <Frame padding_horizontal=SPACING padding_vertical=6.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                            <Show condition={narrow}>
+                                <IconButton
+                                    glyph={ICON_ARROW_BACK.to_owned()}
+                                    label="Back to the list"
+                                    variant=ButtonVariant::Ghost
+                                    @test_id={"database-view.detail.back"}
+                                    on_click={close_narrow}
+                                />
+                            </Show>
+                            <IconButton
+                                glyph={ICON_EXPAND_LESS.to_owned()}
+                                label="Previous row"
+                                variant=ButtonVariant::Ghost
+                                @test_id={"database-view.detail.previous"}
+                                on_click={move || previous(-1)}
+                            />
+                            <IconButton
+                                glyph={ICON_EXPAND_MORE.to_owned()}
+                                label="Next row"
+                                variant=ButtonVariant::Ghost
+                                @test_id={"database-view.detail.next"}
+                                on_click={move || next(1)}
+                            />
+                            <Frame padding_horizontal=6.0>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={code}
+                                    @test_id={"database-view.detail.id"}
+                                />
+                            </Frame>
+                            <Frame @sizing=ItemSize::Percent(100.0) />
+                            <IconButton
+                                glyph={ICON_OPEN_IN_NEW.to_owned()}
+                                label="Open the page"
+                                variant=ButtonVariant::Ghost
+                                @test_id={"database-view.detail.open"}
+                                on_click={open_page}
+                            />
+                            <IconMenuButton
+                                label="More"
+                                glyph={ICON_MORE_HORIZ.to_owned()}
+                                @test_id={"database-view.detail.more"}
+                                items={view! {
+                                    <MenuItem
+                                        label="Delete row"
+                                        glyph={ICON_DELETE.to_owned()}
+                                        danger=true
+                                        disabled={delete_off}
+                                        row_test_id={"database-view.detail.delete".to_owned()}
+                                        on_click={remove}
+                                    />
+                                }}
+                            />
+                            <Show condition={wide}>
+                                <IconButton
+                                    glyph={ICON_CLOSE.to_owned()}
+                                    label="Close"
+                                    variant=ButtonVariant::Ghost
+                                    @test_id={"database-view.detail.close"}
+                                    on_click={close_wide}
+                                />
+                            </Show>
+                        </List>
+                    </Frame>
+                    <Separator />
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                            <List spacing={SPACING * 2.0}>
+                                <TextInput
+                                    value={title}
+                                    placeholder="Title"
+                                    disabled={title_off}
+                                    focused={untitled}
+                                    @test_id={"database-view.detail.title"}
+                                    on_change={retitled}
+                                />
+                                <List spacing=2.0>
+                                    <ForEach keys={properties}>
+                                        {move |field: Uuid| {
+                                            view! {
+                                                <Property data={data} row={row} field={field} />
+                                            }
+                                        }}
+                                    </ForEach>
+                                </List>
+                                <ForEach keys={link_fields}>
+                                    {move |field: Uuid| {
+                                        view! {
+                                            <LinkSection data={data} row={row} field={field} />
+                                        }
+                                    }}
+                                </ForEach>
+                                <Separator />
+                                <Show condition={missing}>
+                                    {move || view! {
+                                        <List direction=Direction::Horizontal spacing=0.0>
+                                            <Button
+                                                glyph={ICON_NOTE_ADD.to_owned()}
+                                                label="Write a description"
+                                                variant=ButtonVariant::Ghost
+                                                disabled={page_off}
+                                                @test_id={"database-view.detail.add-page"}
+                                                on_click={add_page}
+                                            />
+                                        </List>
+                                    }}
+                                </Show>
+                            </List>
+                        </Frame>
+                    </Scroll>
+                    <Show condition={present}>
+                        <ChildBlock
+                            @sizing=ItemSize::Percent(100.0)
+                            editor={editor}
+                            block={target}
+                            mode=ChildMode::Live
+                            own_frame=true
+                        />
+                    </Show>
+                </List>
+            </Frame>
+        </BackHandler>
+    }
+}
+
+pub fn several(field: &DatabaseField) -> bool {
+    field.field_type == DatabaseFieldType::Relation && field.relation_options.multiple
+}
+
+#[component]
+fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
+    let known = create_memo(move || {
+        data.fields
+            .with(|fields| fields.iter().find(|known| known.id == field).cloned())
+    });
+    let name = create_memo(move || {
+        known.with(|known| {
+            known
+                .as_ref()
+                .map(|known| known.name.clone())
+                .unwrap_or_default()
+        })
+    });
+    let choice = create_memo(move || {
+        known.with(|known| {
+            known
+                .as_ref()
+                .is_some_and(|known| known.field_type == DatabaseFieldType::Enum)
+        })
+    });
+    let other = create_memo(move || !choice.get());
+    let values = create_memo(move || {
+        let index = data
+            .row_ids
+            .with(|ids| ids.iter().position(|id| *id == row));
+        data.rows.with(|rows| {
+            index
+                .and_then(|index| rows.get(index))
+                .map(|row| row.cells())
+                .unwrap_or_default()
+        })
+    });
+    let chosen = create_memo(move || {
+        values.with(|values| match values.get(&field) {
+            Some(DatabaseValue::Enum(option)) => Some(*option),
+            _ => None,
+        })
+    });
+    let picked = move |option: Option<Uuid>| {
+        data.set_value(row, field, option.map(DatabaseValue::Enum));
+    };
+    let fields = create_memo(move || known.get().into_iter().collect::<Vec<_>>());
+    let changed = move |change: DatabaseValueChange| {
+        data.set_value(row, change.field_id, change.value);
+    };
+    let pick_block = move |request: DatabaseBlockPickRequest| {
+        if let Some(index) = data.index_of(row) {
+            data.pick_value(index, request);
+        }
+    };
+    let labels = data.labels;
+    let (choice_off, value_off) = (data.read_only, data.read_only);
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+            <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
+                <Text style=TextStyle::CAPTION string={name} ellipsis=true />
+            </Frame>
+            <Frame @sizing=ItemSize::Percent(100.0)>
+                <List spacing=0.0>
+                    <Show condition={choice}>
+                        {move || view! {
+                            <ChoicePicker
+                                field={known}
+                                chosen={chosen}
+                                disabled={choice_off}
+                                picker_id={format!("database-view.detail.field.{field}")}
+                                on_pick={picked}
+                            />
+                        }}
+                    </Show>
+                    <Show condition={other}>
+                        {move || view! {
+                            <DatabaseValueEditor
+                                fields={fields}
+                                values={values}
+                                labels={labels}
+                                disabled={value_off}
+                                prefix="database-view.detail"
+                                headings=false
+                                on_change={changed}
+                                on_pick={pick_block}
+                            />
+                        }}
+                    </Show>
+                </List>
+            </Frame>
+        </List>
+    }
+}
+
+#[component]
+fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
+    let known = create_memo(move || {
+        data.fields
+            .with(|fields| fields.iter().find(|known| known.id == field).cloned())
+    });
+    let links = create_memo(move || {
+        let index = data
+            .row_ids
+            .with(|ids| ids.iter().position(|id| *id == row));
+        data.rows.with(|rows| {
+            match index
+                .and_then(|index| rows.get(index))
+                .and_then(|row| row.get(field))
+            {
+                Some(DatabaseValue::Links(links)) => links,
+                Some(DatabaseValue::Relation(link)) => vec![link],
+                _ => Vec::new(),
+            }
+        })
+    });
+    let heading = create_memo(move || {
+        known.with(|known| {
+            known
+                .as_ref()
+                .map(|known| known.name.clone())
+                .unwrap_or_default()
+        })
+    });
+    let count = create_memo(move || match links.with(Vec::len) {
+        0 => String::new(),
+        count => count.to_string(),
+    });
+    let addable = create_memo(move || {
+        let Some(database) = known.with(|known| known.as_ref()?.relation_options.database) else {
+            return Vec::new();
+        };
+        let held = links.get();
+        let own = data.database_id.get().map(|database| RowRef {
+            database,
+            row: row.as_uuid(),
+        });
+        data.labels.with(|labels| {
+            labels
+                .rows_of(database)
+                .into_iter()
+                .filter(|(link, _)| !held.contains(link) && Some(*link) != own)
+                .collect::<Vec<_>>()
+        })
+    });
+    let add_keys = create_memo(move || {
+        addable.with(|rows| rows.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
+    });
+    let added = move |index: Option<usize>| {
+        let Some(link) = index.and_then(|index| {
+            addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
+        }) else {
+            return;
+        };
+        let mut wanted = links.get_untracked();
+        wanted.push(link);
+        data.set_value(row, field, Some(DatabaseValue::Links(wanted)));
+    };
+    let names = addable;
+    let add_off = data.read_only;
+    view! {
+        <List spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                <Text string={heading} />
+                <Text style=TextStyle::CAPTION string={count} />
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <Frame @sizing=ItemSize::Fixed(180.0)>
+                    <Select
+                        options={view! {
+                            <ForEach keys={add_keys}>
+                                {move |link: RowRef| {
+                                    let label = create_memo(move || {
+                                        names.with(|rows| {
+                                            rows.iter()
+                                                .find(|(held, _)| *held == link)
+                                                .map_or_else(String::new, |(_, label)| label.clone())
+                                        })
+                                    });
+                                    view! {
+                                        <ChoiceOption label={label} />
+                                    }
+                                }}
+                            </ForEach>
+                        }}
+                        selected={None}
+                        label="Link a row"
+                        placeholder="Link a row"
+                        disabled={add_off}
+                        @test_id={format!("database-view.detail.links.{field}.add")}
+                        on_change={added}
+                    />
+                </Frame>
+            </List>
+            <ForEach keys={links}>
+                {move |link: RowRef| {
+                    let links = links;
+                    view! {
+                        <LinkedRow data={data} row={row} field={field} link={link} links={links} />
+                    }
+                }}
+            </ForEach>
+        </List>
+    }
+}
+
+#[component]
+fn LinkedRow(
+    data: Data,
+    row: ObjectId,
+    field: Uuid,
+    link: RowRef,
+    links: Memo<Vec<RowRef>>,
+) -> NodeId {
+    let local = create_memo(move || {
+        let database = data.database_id.get()?;
+        if link.database != database {
+            return None;
+        }
+        data.index_of(ObjectId::from_uuid(link.row))
+    });
+    let option = create_memo(move || {
+        let index = local.get()?;
+        let entry = data.rows.with(|rows| rows.get(index).cloned())?;
+        data.fields.with(|fields| {
+            fields
+                .iter()
+                .filter(|field| iconic(field))
+                .find_map(|field| match entry.get(field.id) {
+                    Some(DatabaseValue::Enum(option)) => field.option(option).cloned(),
+                    _ => None,
+                })
+        })
+    });
+    let marked = create_memo(move || option.with(Option::is_some));
+    let code = create_memo(move || match local.get() {
+        Some(_) => short_id(&data.prefix.get(), link.row),
+        None => String::new(),
+    });
+    let label = create_memo(move || match local.get() {
+        Some(index) => {
+            let title = data.title_field.get();
+            data.rows.with(|rows| row_title(rows.get(index), title))
+        }
+        None => data.labels.with(|labels| labels.row(&link)),
+    });
+    let open = move || {
+        if local.get_untracked().is_some() {
+            data.select_row(ObjectId::from_uuid(link.row));
+        }
+    };
+    let remove = move || {
+        let wanted: Vec<RowRef> = links
+            .get_untracked()
+            .into_iter()
+            .filter(|held| *held != link)
+            .collect();
+        data.set_value(
+            row,
+            field,
+            (!wanted.is_empty()).then_some(DatabaseValue::Links(wanted)),
+        );
+    };
+    let read_only = data.read_only;
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <ListRow
+                @sizing=ItemSize::Percent(100.0)
+                @test_id={format!("database-view.detail.links.{field}.{}", link.row)}
+                on_click={open}
+                on_activate={open}
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Frame width=MARK_SIZE height=MARK_SIZE>
+                        <Frame visible={marked}>
+                            <ChoiceMark option={option} size=MARK />
+                        </Frame>
+                    </Frame>
+                    <Text style=TextStyle::CAPTION string={code} />
+                    <Text
+                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                        string={label}
+                        ellipsis=true
+                    />
+                </List>
+            </ListRow>
+            <IconButton
+                glyph={ICON_CLOSE.to_owned()}
+                label="Remove link"
+                variant=ButtonVariant::Ghost
+                disabled={read_only}
+                @test_id={format!("database-view.detail.links.{field}.{}.remove", link.row)}
+                on_click={remove}
+            />
+        </List>
+    }
+}

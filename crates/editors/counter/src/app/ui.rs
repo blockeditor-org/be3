@@ -2,9 +2,10 @@ use block_editor_beui::Editor;
 use block_editor_beui::be_block::{Counter as CounterModel, CounterContent, ObjectId};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
+    Align, Direction, Frame, ItemSize, List, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Display, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 20.0;
 const BUTTON_WIDTH: f32 = 44.0;
@@ -13,19 +14,19 @@ const BUTTON_WIDTH: f32 = 44.0;
 pub fn Counter(editor: Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
-    let shown = create_memo(clone!(count -> move || count.get().get().to_string()));
-    let decrement = clone!(counter -> move || counter.operate(CounterModel::add(-1)));
-    let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
-    let reset = clone!(counter -> move || {
+    let shown = create_memo(move || count.get().get().to_string());
+    let decrement = move || counter.operate(CounterModel::add(-1));
+    let increment = move || counter.operate(CounterModel::add(1));
+    let reset = move || {
         if let Some(edit) = counter.read(|content| content.root().reset()) {
             counter.operate(edit);
         }
-    });
+    };
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=16.0>
-                <Display content={shown} @test_id={"counter.value"} />
+                <Text style=TextStyle::DISPLAY string={shown} @test_id={"counter.value"} />
                 <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)

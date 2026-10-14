@@ -157,7 +157,6 @@ impl EditorMessage {
                 HostRequest::ListAccess(block_id) => existing(block_id),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
-                | HostRequest::PasteImage
                 | HostRequest::Fetch(_)
                 | HostRequest::ListData
                 | HostRequest::ReadData(_) => {}
@@ -167,7 +166,6 @@ impl EditorMessage {
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
                 | HostReply::FilePicked(_)
                 | HostReply::FileSaved(_)
-                | HostReply::ImagePasted(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
@@ -250,6 +248,7 @@ impl EditorMessage {
             | Self::PresentingChanged { .. }
             | Self::Resized { .. }
             | Self::LeaveFrame { .. }
+            | Self::Stopped { .. }
             | Self::BarAction { .. }
             | Self::Close { .. }
             | Self::DragLeft { .. }
@@ -257,7 +256,6 @@ impl EditorMessage {
             | Self::FileDropLeft { .. }
             | Self::DragAccepted { .. }
             | Self::AudioStatus { .. }
-            | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
             | Self::WatchHostValue { .. }
@@ -271,14 +269,13 @@ impl EditorMessage {
             | Self::ArtifactEdited { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactRegenerated { .. }
-            | Self::Cursor { .. }
-            | Self::Ime { .. }
+            | Self::Window { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::CopyText { .. }
-            | Self::PasteText { .. }
+            | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Performance { .. }

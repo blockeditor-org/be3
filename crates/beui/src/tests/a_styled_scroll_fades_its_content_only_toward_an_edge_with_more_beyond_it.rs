@@ -4,15 +4,14 @@ use crate::reactive::{
 };
 use crate::styled::Scroll;
 use crate::styled::theme::SCROLL_FADE;
-use beui_core::display::{Display, Layer};
-use beui_core::fade::Fade;
+use beui_core::display::{Group, Layer, Part};
 
 #[test]
 fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
+    let _root = crate::reactive::RootScope::new();
     let (rows, set_rows) = create_signal(2_usize);
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll.clone();
         move || {
             let keys = create_memo(move || (0..rows.get()).collect::<Vec<usize>>());
             view! {
@@ -33,8 +32,8 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
     let fades = |output: &crate::FrameOutput| {
         let mut fades = Vec::new();
         for layer in output.layers.iter() {
-            if let Layer::Display { display, .. } = layer {
-                collect(display, &mut fades);
+            if let Layer::Display(_, display) = layer {
+                collect(&display.parts, &mut fades);
             }
         }
         fades
@@ -79,11 +78,19 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
     );
 }
 
-fn collect(display: &Display, fades: &mut Vec<[f32; 4]>) {
-    for (_, entry, child) in display.children() {
-        if entry.fade != Fade::NONE {
-            fades.push(entry.fade.widths);
+fn collect(parts: &[Part], fades: &mut Vec<[f32; 4]>) {
+    for part in parts {
+        match part {
+            Part::Shapes { .. } => {}
+            Part::Child(_, _, child) => collect(&child.parts, fades),
+            Part::Group(group, inner) => {
+                if let Group::Mask { fade, .. } = group
+                    && !fade.is_none()
+                {
+                    fades.push(fade.widths);
+                }
+                collect(inner, fades);
+            }
         }
-        collect(child, fades);
     }
 }

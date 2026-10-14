@@ -9,7 +9,6 @@ use uuid::Uuid;
 
 mod audio;
 mod backend;
-mod clipboard;
 mod description;
 mod fonts;
 pub(crate) mod graph;
@@ -26,6 +25,7 @@ mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
 mod web_view;
+mod worker;
 
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;
@@ -100,6 +100,7 @@ pub(crate) enum HostContent {
         block_id: Uuid,
         block_type: Uuid,
         view_block: Option<Uuid>,
+        editor: Option<Uuid>,
     },
     Panel(block_plugin_api::HostPanel),
     Window(block_plugin_api::HostWindowId),
@@ -114,6 +115,16 @@ impl HostContent {
     pub(crate) fn block_id(&self) -> Option<Uuid> {
         match self {
             Self::Block { block_id, .. } => Some(*block_id),
+            Self::Panel(_)
+            | Self::Window(_)
+            | Self::Creation { .. }
+            | Self::ArtifactSettings(_) => None,
+        }
+    }
+
+    pub(crate) fn editor(&self) -> Option<Uuid> {
+        match self {
+            Self::Block { editor, .. } => *editor,
             Self::Panel(_)
             | Self::Window(_)
             | Self::Creation { .. }

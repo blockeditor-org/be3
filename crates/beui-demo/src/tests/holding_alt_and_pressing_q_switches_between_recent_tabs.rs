@@ -1,17 +1,19 @@
 use super::*;
 use beui::{Event, Key, Modifiers};
 
-const TEXT_PAGE: &str = "demo.code.Type scale";
+const TEXT_PAGE: &str = "demo.code.Text styles";
 const BUTTONS_PAGE: &str = "demo.code.Buttons";
 
 fn press(key: Key, modifiers: Modifiers) -> Vec<Event> {
     [true, false]
         .into_iter()
-        .map(|pressed| Event::Key {
-            key,
-            pressed,
-            repeat: false,
-            modifiers,
+        .map(|pressed| {
+            Event::key(beui::KeyPress {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+            })
         })
         .collect()
 }
@@ -20,7 +22,7 @@ fn press(key: Key, modifiers: Modifiers) -> Vec<Event> {
 fn holding_alt_and_pressing_q_switches_between_recent_tabs() {
     let mut test = demo(WIDE);
     open(&mut test, Page::Text);
-    open(&mut test, Page::Buttons);
+    open_beside(&mut test, Page::Buttons);
     assert!(test.shows(BUTTONS_PAGE) && !test.shows(TEXT_PAGE));
     let alt = Modifiers::ALT;
 

@@ -7,7 +7,6 @@ fn Floating(windows: Windows) -> NodeId {
         <List spacing=0.0>
             <ForEach keys={ids}>
                 {move |id: WindowId| {
-                    let windows = windows.clone();
                     let list = windows.list();
                     let size = create_memo(move || {
                         list.with(|list| {
@@ -16,7 +15,7 @@ fn Floating(windows: Windows) -> NodeId {
                                 .map_or(Vec2::ZERO, |info| info.size)
                         })
                     });
-                    let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                    let width = create_memo(move || Some(size.get().x));
                     let height = create_memo(move || Some(size.get().y));
                     view! {
                         <Frame width height>

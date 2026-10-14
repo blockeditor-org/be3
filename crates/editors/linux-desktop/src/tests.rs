@@ -4,11 +4,11 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, EditorHost, HostImage, HostProgram,
     HostWindow, HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels,
     MediaRequest, NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
-    Notifications, PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
-    WindowAction,
+    Notifications, OwnedEditor, PlayerCommand, Power, PowerAction, PowerAvailability,
+    ProgramAction, Programs, WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
@@ -79,7 +79,7 @@ impl Fixture {
         host.set_editable(true);
         host.set_client_id(client);
         host.set_view_block(Some(desktop));
-        let editor = Editor::new(host.clone(), desktop);
+        let editor = OwnedEditor::new(host.clone(), desktop);
         let mut test = BeuiTest::new(editor);
         test.hold(None, EditorView::document(LINUX_DESKTOP_EDITOR, None));
         Self {
@@ -99,22 +99,22 @@ impl Fixture {
             BlockParent::Root,
         ));
         let mut settings = SettingsContent::default();
-        let mut profiles = Vec::new();
+        let mut blocks = Vec::new();
         for (name, editor) in sessions {
-            let profile = Uuid::new_v4();
+            let session = Uuid::new_v4();
             let mut info = BlockInfo::new(
-                profile,
+                session,
                 EditorView::CONTENT_TYPE,
                 BlockParent::Block(self.settings),
             );
             info.set_name(*name);
             store.add_block(info);
-            store.hold(Some(profile), EditorView::document(*editor, None));
-            settings.apply(&Settings::add_profile(*editor, self.client, profile));
-            profiles.push(profile);
+            store.hold(Some(session), EditorView::document(*editor, None));
+            settings.apply(&Settings::add_session(*editor, self.client, session));
+            blocks.push(session);
         }
         self.test.hold(Some(self.settings), settings);
-        (self, profiles)
+        (self, blocks)
     }
 
     fn with_windows(ids: &[u64]) -> Self {

@@ -2,16 +2,20 @@ use super::*;
 
 #[test]
 fn a_nested_pausable_scope_waits_while_any_scope_around_it_is_paused() {
+    let _root = RootScope::new();
     let (count, set_count) = create_signal(0);
     let seen = Rc::new(RefCell::new(Vec::new()));
     let outer = Scope::detached().pausable();
-    let inner = outer.run(clone!(seen -> move || {
-        let inner = Scope::detached().pausable();
-        inner.run(move || {
-            create_effect(move || seen.borrow_mut().push(count.get()));
-        });
-        inner
-    }));
+    let inner = outer.run({
+        let seen = seen.clone();
+        move || {
+            let inner = Scope::detached().pausable();
+            inner.run(move || {
+                create_effect(move || seen.borrow_mut().push(count.get()));
+            });
+            inner
+        }
+    });
 
     outer.pause();
     inner.pause();

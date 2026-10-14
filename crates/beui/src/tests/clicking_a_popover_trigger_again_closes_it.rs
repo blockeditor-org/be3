@@ -5,9 +5,9 @@ use crate::unstyled::PopoverHandle;
 
 #[test]
 fn clicking_a_popover_trigger_again_closes_it() {
+    let _root = crate::reactive::RootScope::new();
     let popover = NodeRef::new();
     let document = build({
-        let popover = popover.clone();
         move || {
             view! {
                 <Popover @node_ref=&popover label="Filters">

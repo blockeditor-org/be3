@@ -1,21 +1,18 @@
-use std::rc::Rc;
 use uuid::Uuid;
 
 use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, NodeRef, ReadSignal,
-    Show, WriteSignal, clone, component, create_effect, create_memo, create_selector,
-    create_signal, view,
+    Show, WriteSignal, component, create_effect, create_memo, create_selector, create_signal, view,
 };
-use block_editor_beui::beui::styled::{
-    Body, Caption, IconButton, IconSized, ListRow, Scroll, Select, use_theme,
-};
+use block_editor_beui::beui::styled::{IconButton, ListRow, Scroll, Select, TextSize, use_theme};
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::beui::{Color32, NodeId, TextAlign, Vec2};
+use block_editor_beui::beui::{NodeId, TextAlign, Vec2};
 use block_editor_beui::{Editor, Toolbar};
 
 use super::entries::{Entry, Folder, FolderSort};
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const PADDING: f32 = 12.0;
 const TILE_SPACING: f32 = 10.0;
@@ -23,9 +20,9 @@ const ROW_HEIGHT: f32 = 24.0;
 const INTRINSIC_WIDTH: f32 = 400.0;
 const LARGE_TILE: Vec2 = Vec2::new(150.0, 118.0);
 const SMALL_TILE: Vec2 = Vec2::new(98.0, 78.0);
-const LARGE_ICON: f32 = 44.0;
-const SMALL_ICON: f32 = 28.0;
-const ROW_ICON: f32 = 16.0;
+const LARGE_ICON: TextSize = TextSize::Xl4;
+const SMALL_ICON: TextSize = TextSize::Xl;
+const ROW_ICON: TextSize = TextSize::Sm;
 const DROP_OUTLINE: f32 = 2.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -48,7 +45,7 @@ impl FolderView {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Cells {
     editor: Editor,
     entries: Memo<Vec<Entry>>,
@@ -58,21 +55,21 @@ struct Cells {
 
 impl Cells {
     fn keys(&self) -> Memo<Vec<Uuid>> {
-        let entries = self.entries.clone();
+        let entries = self.entries;
         create_memo(move || {
             entries.with(|entries| entries.iter().map(|entry| entry.reference).collect())
         })
     }
 
     fn entry(&self, key: Uuid) -> Memo<Option<Entry>> {
-        let entries = self.entries.clone();
+        let entries = self.entries;
         create_memo(move || {
             entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())
         })
     }
 
     fn open(&self, entry: Memo<Option<Entry>>) -> impl Fn() + use<> {
-        let host = self.editor.host().clone();
+        let host = self.editor.host();
         move || {
             let Some(entry) = entry.get_untracked() else {
                 return;
@@ -92,47 +89,45 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let (descending, set_descending) = create_signal(false);
     let (selected, set_selected) = create_signal(None::<Uuid>);
 
-    let folder = Rc::new(Folder::watch(
-        &editor,
-        &index,
-        sort.clone(),
-        descending.clone(),
-    ));
+    let folder = Folder::watch(editor, index, sort, descending);
     let entries = folder.entries();
-    let drop = super::drop::watch(&editor, &folder);
+    let drop = super::drop::watch(editor, folder);
 
-    let sized = editor.clone();
-    create_effect(clone!(entries mode -> move || {
+    create_effect(move || {
         let rows = entries.with(Vec::len).max(1);
         let height = match mode.get() {
             FolderView::LargeGrid => LARGE_TILE.y * rows.div_ceil(3) as f32,
             FolderView::SmallGrid => SMALL_TILE.y * rows.div_ceil(5) as f32,
             FolderView::List => ROW_HEIGHT * rows as f32,
         };
-        sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
-    }));
+        editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
+    });
 
-    let empty = create_memo(clone!(entries -> move || entries.with(Vec::is_empty)));
-    let unordered = create_memo(clone!(sort -> move || sort.get() == FolderSort::Intrinsic));
-    let direction_glyph = create_memo(clone!(descending -> move || match descending.get() {
+    let empty = create_memo(move || entries.with(Vec::is_empty));
+    let unordered = create_memo(move || sort.get() == FolderSort::Intrinsic);
+    let direction_glyph = create_memo(move || match descending.get() {
         true => ICON_ARROW_DOWNWARD.to_owned(),
         false => ICON_ARROW_UPWARD.to_owned(),
-    }));
-    let direction_label = create_memo(clone!(descending -> move || match descending.get() {
+    });
+    let direction_label = create_memo(move || match descending.get() {
         true => "Descending".to_owned(),
         false => "Ascending".to_owned(),
-    }));
-    let mode_index = create_memo(clone!(mode -> move || {
-        FolderView::ALL.iter().position(|shown| *shown == mode.get())
-    }));
-    let sort_index = create_memo(clone!(sort -> move || {
-        FolderSort::ALL.iter().position(|order| *order == sort.get())
-    }));
-    let flip = clone!(descending set_descending -> move || {
-        set_descending.set(!descending.get_untracked());
     });
+    let mode_index = create_memo(move || {
+        FolderView::ALL
+            .iter()
+            .position(|shown| *shown == mode.get())
+    });
+    let sort_index = create_memo(move || {
+        FolderSort::ALL
+            .iter()
+            .position(|order| *order == sort.get())
+    });
+    let flip = move || {
+        set_descending.set(!descending.get_untracked());
+    };
     let cells = Cells {
-        editor: editor.clone(),
+        editor,
         entries,
         selected,
         set_selected,
@@ -142,13 +137,13 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
-    let hovering = create_memo(clone!(drop -> move || drop.get().is_some()));
-    let outline = create_memo(clone!(drop theme -> move || match drop.get() {
+    let hovering = create_memo(move || drop.get().is_some());
+    let outline = create_memo(move || match drop.get() {
         Some(true) => theme.accent.get(),
         _ => theme.danger.get(),
-    }));
+    });
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <Select
@@ -202,8 +197,9 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                 >
                     <List spacing=0.0>
                         <Show condition={empty}>
-                            <Caption
-                                content="This folder is empty."
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="This folder is empty."
                                 align=TextAlign::Center
                                 @test_id={"folder.empty"}
                             />
@@ -211,7 +207,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <Dynamic value={mode}>
                                 {move |shown: FolderView| {
-                                    let cells = cells.clone();
                                     match shown {
                                         FolderView::List => view! {
                                             <EntryRows cells={cells} />
@@ -244,15 +239,15 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
 #[component]
 fn EntryRows(cells: Cells) -> NodeId {
     let keys = cells.keys();
-    let selected = cells.selected.clone();
+    let selected = cells.selected;
     let chosen = create_selector(move || selected.get());
     view! {
         <List spacing=2.0>
             <ForEach keys={keys}>
                 {move |key: Uuid| {
                     let entry = cells.entry(key);
-                    let open = cells.open(entry.clone());
-                    let set_selected = cells.set_selected.clone();
+                    let open = cells.open(entry);
+                    let set_selected = cells.set_selected;
                     let here = chosen.memo(Some(key));
                     view! {
                         <ListRow
@@ -262,13 +257,13 @@ fn EntryRows(cells: Cells) -> NodeId {
                             on_activate={open}
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <EntryGlyph entry={entry.clone()} size=ROW_ICON />
-                                <Body
+                                <EntryGlyph entry={entry} size=ROW_ICON />
+                                <Text
                                     @sizing=ItemSize::Percent(100.0)
-                                    content={name_of(entry.clone())}
-                                    color={name_color(entry.clone())}
+                                    string={name_of(entry)}
+                                    color={name_color(entry)}
                                 />
-                                <Caption content={type_of(entry)} />
+                                <Text style=TextStyle::CAPTION string={type_of(entry)} />
                             </List>
                         </ListRow>
                     }
@@ -279,17 +274,17 @@ fn EntryRows(cells: Cells) -> NodeId {
 }
 
 #[component]
-fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
+fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
     let keys = cells.keys();
-    let selected = cells.selected.clone();
+    let selected = cells.selected;
     let chosen = create_selector(move || selected.get());
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Start spacing=TILE_SPACING>
             <ForEach keys={keys}>
                 {move |key: Uuid| {
                     let entry = cells.entry(key);
-                    let open = cells.open(entry.clone());
-                    let set_selected = cells.set_selected.clone();
+                    let open = cells.open(entry);
+                    let set_selected = cells.set_selected;
                     let here = chosen.memo(Some(key));
                     view! {
                         <ListRow
@@ -301,13 +296,17 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
                         >
                             <Frame height={tile.y}>
                                 <List align=Align::Center justify=Justify::Center spacing=4.0>
-                                    <EntryGlyph entry={entry.clone()} size={icon_size} />
-                                    <Body
-                                        content={name_of(entry.clone())}
-                                        color={name_color(entry.clone())}
+                                    <EntryGlyph entry={entry} size={icon_size} />
+                                    <Text
+                                        string={name_of(entry)}
+                                        color={name_color(entry)}
                                         align=TextAlign::Center
                                     />
-                                    <Caption content={type_of(entry)} align=TextAlign::Center />
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string={type_of(entry)}
+                                        align=TextAlign::Center
+                                    />
                                 </List>
                             </Frame>
                         </ListRow>
@@ -319,8 +318,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
 }
 
 #[component]
-fn EntryGlyph(entry: Memo<Option<Entry>>, size: f32) -> NodeId {
-    let theme = use_theme();
+fn EntryGlyph(entry: Memo<Option<Entry>>, size: TextSize) -> NodeId {
     let glyph = create_memo(move || {
         let glyph = entry.get().map(|entry| entry.glyph).unwrap_or_default();
         match glyph.is_empty() {
@@ -329,7 +327,9 @@ fn EntryGlyph(entry: Memo<Option<Entry>>, size: f32) -> NodeId {
         }
     });
     view! {
-        <IconSized glyph={glyph} font_size={size} color={theme.text.clone()} />
+        <Text size={size} align=TextAlign::Center>
+            <Icon glyph={glyph} />
+        </Text>
     }
 }
 
@@ -345,13 +345,12 @@ fn type_of(entry: Memo<Option<Entry>>) -> Memo<String> {
     create_memo(move || entry.get().map(|entry| entry.type_name).unwrap_or_default())
 }
 
-fn name_color(entry: Memo<Option<Entry>>) -> Memo<Color32> {
-    let theme = use_theme();
+fn name_color(entry: Memo<Option<Entry>>) -> Memo<TextColor> {
     create_memo(move || {
         let automatic = entry.get().is_none_or(|entry| entry.automatic);
         match automatic {
-            true => theme.text_muted.get(),
-            false => theme.text.get(),
+            true => TextColor::Muted,
+            false => TextColor::Default,
         }
     })
 }

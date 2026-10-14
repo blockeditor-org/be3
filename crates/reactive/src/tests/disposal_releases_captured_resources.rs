@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn disposal_releases_captured_resources() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(1);
     let resource = Rc::new(());

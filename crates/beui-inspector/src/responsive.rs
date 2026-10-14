@@ -1,7 +1,5 @@
-use std::rc::Rc;
-
 use beui_components_styled::{
-    ButtonVariant, Caption, IconButton, NumberInput, Select, Separator, Theme, select_open,
+    ButtonVariant, IconButton, NumberInput, Select, Separator, Theme, select_open,
 };
 use beui_components_unstyled::ChoiceOption;
 use beui_core::document::Document;
@@ -10,11 +8,12 @@ use beui_core::icons::{ICON_CLOSE, ICON_SCREEN_ROTATION};
 use beui_core::node::NodeId;
 use beui_core::screen_simulation::{MAXIMUM_SIZE, MINIMUM_SIZE, ScreenSimulation};
 use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, ReadSignal, Spacer, WriteSignal,
-    clone, component, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, ReadSignal, RootScope, Scope,
+    Spacer, Stored, WriteSignal, component, create_memo, create_signal, view,
 };
 
 use super::State;
+use beui_components_styled::{Text, TextStyle};
 
 pub const HEIGHT: f32 = 51.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -54,6 +53,7 @@ pub struct Toolbar {
     pub set_screen: WriteSignal<ScreenSimulation>,
     device: NodeRef,
     zoom: NodeRef,
+    _scope: Scope,
 }
 
 impl Toolbar {
@@ -66,19 +66,22 @@ impl Toolbar {
     }
 }
 
-pub fn build(state: &Rc<State>) -> Toolbar {
-    let (screen, set_screen) = create_signal(state.screen_simulation.get().unwrap_or(DEFAULT));
+pub fn build(state: Stored<State>) -> Toolbar {
+    let owner = RootScope::new();
+    let (screen, set_screen) =
+        create_signal(state.get().screen_simulation.get().unwrap_or(DEFAULT));
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
-    let document = beui_view::reactive::build(clone!(state device zoom -> move || {
+    let document = beui_view::reactive::build(move || {
         view! {
             <ResponsiveToolbar state screen device zoom />
         }
-    }));
+    });
     Toolbar {
         document,
         set_screen,
         device,
         zoom,
+        _scope: owner.into_scope(),
     }
 }
 
@@ -96,22 +99,18 @@ fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
 
 #[component]
 fn ResponsiveToolbar(
-    state: Rc<State>,
+    state: Stored<State>,
     screen: ReadSignal<ScreenSimulation>,
     device: NodeRef,
     zoom: NodeRef,
 ) -> NodeId {
-    let selected_device = create_memo(clone!(screen -> move || {
-        Some(device_index(screen.get().size))
-    }));
-    let width = create_memo(clone!(screen -> move || f64::from(screen.get().size.x)));
-    let height = create_memo(clone!(screen -> move || f64::from(screen.get().size.y)));
-    let selected_zoom = create_memo(clone!(screen -> move || {
+    let selected_device = create_memo(move || Some(device_index(screen.get().size)));
+    let width = create_memo(move || f64::from(screen.get().size.x));
+    let height = create_memo(move || f64::from(screen.get().size.y));
+    let selected_zoom = create_memo(move || {
         let zoom = screen.get().zoom;
         ZOOMS.iter().position(|(_, candidate)| *candidate == zoom)
-    }));
-    let (device_state, width_state, height_state) = (state.clone(), state.clone(), state.clone());
-    let (rotate_state, zoom_state, close_state) = (state.clone(), state.clone(), state);
+    });
     view! {
         <List spacing=0.0>
             <Frame
@@ -138,7 +137,7 @@ fn ResponsiveToolbar(
                                 if let Some((_, size)) = index.and_then(|index| DEVICES.get(index))
                                     && *size != Vec2::ZERO
                                 {
-                                    device_state.update_screen(|screen| screen.resized(*size));
+                                    state.get().update_screen(|screen| screen.resized(*size));
                                 }
                             }}
                         />
@@ -151,13 +150,13 @@ fn ResponsiveToolbar(
                             max={f64::from(MAXIMUM_SIZE)}
                             label="Width"
                             on_change={move |width: f64| {
-                                width_state.update_screen(|screen| {
+                                state.get().update_screen(|screen| {
                                     screen.resized(vec2(width as f32, screen.size.y))
                                 });
                             }}
                         />
                     </Frame>
-                    <Caption content="x" />
+                    <Text style=TextStyle::CAPTION string="x" />
                     <Frame width=DIMENSION_WIDTH>
                         <NumberInput
                             @test_id={"inspector.responsive.height"}
@@ -166,7 +165,7 @@ fn ResponsiveToolbar(
                             max={f64::from(MAXIMUM_SIZE)}
                             label="Height"
                             on_change={move |height: f64| {
-                                height_state.update_screen(|screen| {
+                                state.get().update_screen(|screen| {
                                     screen.resized(vec2(screen.size.x, height as f32))
                                 });
                             }}
@@ -177,7 +176,7 @@ fn ResponsiveToolbar(
                         glyph={ICON_SCREEN_ROTATION.to_owned()}
                         label="Rotate"
                         variant=ButtonVariant::Ghost
-                        on_click={move || rotate_state.update_screen(ScreenSimulation::rotated)}
+                        on_click={move || state.get().update_screen(ScreenSimulation::rotated)}
                     />
                     <Frame width=ZOOM_WIDTH>
                         <Select
@@ -194,7 +193,7 @@ fn ResponsiveToolbar(
                             label="Zoom"
                             on_change={move |index: Option<usize>| {
                                 if let Some((_, zoom)) = index.and_then(|index| ZOOMS.get(index)) {
-                                    zoom_state.update_screen(|screen| ScreenSimulation {
+                                    state.get().update_screen(|screen| ScreenSimulation {
                                         zoom: *zoom,
                                         ..screen
                                     });
@@ -208,7 +207,7 @@ fn ResponsiveToolbar(
                         glyph={ICON_CLOSE.to_owned()}
                         label="Close responsive design mode"
                         variant=ButtonVariant::Ghost
-                        on_click={move || close_state.simulate_screen(None)}
+                        on_click={move || state.get().simulate_screen(None)}
                     />
                 </List>
             </Frame>

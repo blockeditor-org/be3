@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::presentation::{Presentation, PresentationContent};
@@ -15,30 +14,30 @@ pub struct Slide {
     pub name: String,
 }
 
+#[derive(Clone, Copy)]
 pub struct Slides {
     editor: Editor,
-    block: Rc<ContentProjection<PresentationContent>>,
+    block: ContentProjection<PresentationContent>,
     store: KeyedStore<Uuid, Slide>,
     selected: ReadSignal<Option<Uuid>>,
     set_selected: WriteSignal<Option<Uuid>>,
 }
 
 impl Slides {
-    pub fn new(editor: &Editor) -> Rc<Self> {
+    pub fn new(editor: Editor) -> Self {
         let block = editor.block_content::<PresentationContent>();
         let (selected, set_selected) = create_signal(None::<Uuid>);
-        let slides = Rc::new(Self {
-            editor: editor.clone(),
+        let slides = Self {
+            editor,
             block,
             store: KeyedStore::new(),
             selected,
             set_selected,
-        });
+        };
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
-        let updated = Rc::clone(&slides);
-        create_effect(move || updated.refresh(&dependencies));
+        create_effect(move || slides.refresh(&dependencies));
         slides
     }
 
@@ -47,7 +46,7 @@ impl Slides {
     }
 
     pub fn selected(&self) -> ReadSignal<Option<Uuid>> {
-        self.selected.clone()
+        self.selected
     }
 
     pub fn select(&self, id: Option<Uuid>) {
@@ -124,8 +123,9 @@ impl Slides {
         }
     }
 
-    pub fn add(self: &Rc<Self>, index: usize) {
-        let slides = Rc::clone(self);
+    pub fn add(&self, index: usize) {
+        let block = self.block;
+        let set_selected = self.set_selected;
         self.editor.pick_block(
             block_editor_beui::BlockFilter {
                 name: "Slide".into(),
@@ -139,14 +139,14 @@ impl Slides {
                     return;
                 };
                 let slide = Uuid::new_v4();
-                if let Some(edit) = slides.block.read(|presentation| {
+                if let Some(edit) = block.read(|presentation| {
                     presentation
                         .root()
                         .insert(ObjectId::from_uuid(slide), index, picked.id)
                 }) {
-                    slides.block.operate(edit);
+                    block.operate(edit);
                 }
-                slides.set_selected.set(Some(slide));
+                set_selected.set(Some(slide));
             },
         );
     }
