@@ -15,14 +15,18 @@ struct Slot {
     value: Option<Rc<dyn Any>>,
 }
 
-#[derive(Default)]
 struct Arena {
     slots: Vec<Slot>,
     free: Vec<u32>,
 }
 
 thread_local! {
-    static ARENA: RefCell<Arena> = RefCell::default();
+    static ARENA: RefCell<Arena> = const {
+        RefCell::new(Arena {
+            slots: Vec::new(),
+            free: Vec::new(),
+        })
+    };
 }
 
 pub(crate) fn insert(value: Rc<dyn Any>) -> Key {

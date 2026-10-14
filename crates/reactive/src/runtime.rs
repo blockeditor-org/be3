@@ -1,4 +1,3 @@
-use foldhash::HashMap;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
@@ -17,34 +16,40 @@ pub(crate) struct Runtime {
     pub(crate) flushing: Cell<bool>,
     pub(crate) memo_depth: Cell<usize>,
     pub(crate) zone: Cell<u64>,
-    pub(crate) parked: RefCell<HashMap<u64, Vec<Weak<Computation>>>>,
+    pub(crate) parked: RefCell<Vec<(u64, Vec<Weak<Computation>>)>>,
     pub(crate) sequence: Cell<u64>,
     pub(crate) flushes: Cell<u64>,
     pub(crate) removals: Cell<u64>,
 }
 
-impl Default for Runtime {
-    fn default() -> Self {
+impl Runtime {
+    const fn new() -> Self {
         Self {
-            observer: RefCell::new(no_computation()),
-            owner: RefCell::default(),
-            pending: RefCell::new(no_computation()),
-            probe: RefCell::default(),
-            queue: RefCell::default(),
-            depth: Cell::default(),
-            flushing: Cell::default(),
-            memo_depth: Cell::default(),
-            zone: Cell::default(),
-            parked: RefCell::default(),
-            sequence: Cell::default(),
-            flushes: Cell::default(),
-            removals: Cell::default(),
+            observer: RefCell::new(Weak::<Computation<fn() -> bool>>::new()),
+            owner: RefCell::new(Weak::new()),
+            pending: RefCell::new(Weak::<Computation<fn() -> bool>>::new()),
+            probe: RefCell::new(None),
+            queue: RefCell::new(VecDeque::new()),
+            depth: Cell::new(0),
+            flushing: Cell::new(false),
+            memo_depth: Cell::new(0),
+            zone: Cell::new(0),
+            parked: RefCell::new(Vec::new()),
+            sequence: Cell::new(0),
+            flushes: Cell::new(0),
+            removals: Cell::new(0),
         }
+    }
+
+    fn take_parked(&self, zone: u64) -> Option<Vec<Weak<Computation>>> {
+        let mut parked = self.parked.borrow_mut();
+        let at = parked.iter().position(|(held, _)| *held == zone)?;
+        Some(parked.swap_remove(at).1)
     }
 }
 
 thread_local! {
-    pub(crate) static RUNTIME: Runtime = Runtime::default();
+    pub(crate) static RUNTIME: Runtime = const { Runtime::new() };
 }
 
 pub(crate) struct Reset<T: Copy + 'static> {
@@ -278,12 +283,11 @@ fn run_queued(next: Weak<Computation>, flush: u64) {
     let current = RUNTIME.with(|runtime| runtime.zone.get());
     if computation.zone != 0 && current != 0 && computation.zone != current {
         RUNTIME.with(|runtime| {
-            runtime
-                .parked
-                .borrow_mut()
-                .entry(computation.zone)
-                .or_default()
-                .push(next);
+            let mut parked = runtime.parked.borrow_mut();
+            match parked.iter_mut().find(|(zone, _)| *zone == computation.zone) {
+                Some((_, waiting)) => waiting.push(next),
+                None => parked.push((computation.zone, vec![next])),
+            }
         });
         return;
     }
@@ -307,7 +311,7 @@ impl Drop for ZoneGuard {
 
 pub fn enter_zone(zone: u64) -> ZoneGuard {
     let previous = RUNTIME.with(|runtime| runtime.zone.replace(zone));
-    let parked = RUNTIME.with(|runtime| runtime.parked.borrow_mut().remove(&zone));
+    let parked = RUNTIME.with(|runtime| runtime.take_parked(zone));
     if let Some(parked) = parked {
         RUNTIME.with(|runtime| runtime.queue.borrow_mut().extend(parked));
         flush();
@@ -317,16 +321,17 @@ pub fn enter_zone(zone: u64) -> ZoneGuard {
 
 pub fn zone_pending(zone: u64) -> bool {
     RUNTIME.with(|runtime| {
-        runtime.parked.borrow().get(&zone).is_some_and(|parked| {
-            parked
-                .iter()
-                .any(|computation| computation.strong_count() > 0)
+        runtime.parked.borrow().iter().any(|(held, parked)| {
+            *held == zone
+                && parked
+                    .iter()
+                    .any(|computation| computation.strong_count() > 0)
         })
     })
 }
 
 pub fn forget_zone(zone: u64) {
-    RUNTIME.with(|runtime| runtime.parked.borrow_mut().remove(&zone));
+    RUNTIME.with(|runtime| runtime.take_parked(zone));
 }
 
 pub(crate) fn current_zone() -> u64 {
