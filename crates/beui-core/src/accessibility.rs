@@ -98,6 +98,7 @@ pub struct AccessibilityTree {
     parents: NodeMap<NodeId>,
     marks: NodeMap<u64>,
     reached: NodeMap<u64>,
+    gathered: NodeMap<Gathering>,
     pass: u64,
     focus: Option<AccessNodeId>,
     changed: Vec<NodeId>,
@@ -116,6 +117,13 @@ struct Entry {
 struct Gathered {
     children: Vec<AccessNodeId>,
     focus: Option<AccessNodeId>,
+}
+
+struct Gathering {
+    children: Vec<AccessNodeId>,
+    focus: Option<AccessNodeId>,
+    origin: Pos2,
+    at: Pos2,
 }
 
 impl AccessibilityTree {
@@ -137,12 +145,22 @@ impl AccessibilityTree {
         }
     }
 
+    pub fn mark_placed(&mut self, id: NodeId, parent: Option<NodeId>, arena: &Arena) {
+        if let Some(parent) = parent
+            && !self.parents.contains_key(&id)
+        {
+            self.parents.insert(id, parent);
+        }
+        self.mark(id, arena);
+    }
+
     pub fn forget(&mut self, id: NodeId, arena: &Arena) {
         self.mark(id, arena);
         self.entries.remove(&id);
         self.parents.remove(&id);
         self.marks.remove(&id);
         self.reached.remove(&id);
+        self.gathered.remove(&id);
     }
 
     pub fn reset(&mut self) {
@@ -224,6 +242,7 @@ struct Pass<'a> {
     tree: &'a mut AccessibilityTree,
     dropped: Vec<NodeId>,
     described: usize,
+    walked: usize,
 }
 
 impl Pass<'_> {
@@ -239,6 +258,7 @@ impl Pass<'_> {
         if !document.arena.contains(id) {
             return;
         }
+        self.walked += 1;
         if let Some(parent) = parent {
             self.tree.parents.insert(id, parent);
         }
@@ -265,9 +285,34 @@ impl Pass<'_> {
             .and_then(TextNode::accessible_text);
         let named = !document.node_test_ids(id).is_empty();
         if explicit.is_none() && text.is_none() && !named && !force {
-            for child in element.children() {
-                self.visit(child, Some(id), origin, false, out);
+            if !self.tree.stale(id)
+                && let Some(held) = self.tree.gathered.get(&id)
+                && held.origin == origin
+                && held.at == rect.min
+            {
+                out.children.extend_from_slice(&held.children);
+                if held.focus.is_some() {
+                    out.focus = held.focus;
+                }
+                return;
             }
+            let mut inner = Gathered::default();
+            for child in element.children() {
+                self.visit(child, Some(id), origin, false, &mut inner);
+            }
+            out.children.extend_from_slice(&inner.children);
+            if inner.focus.is_some() {
+                out.focus = inner.focus;
+            }
+            self.tree.gathered.insert(
+                id,
+                Gathering {
+                    children: inner.children,
+                    focus: inner.focus,
+                    origin,
+                    at: rect.min,
+                },
+            );
             return;
         }
 
@@ -343,11 +388,12 @@ impl Document {
             tree: &mut tree,
             dropped: Vec::new(),
             described: 0,
+            walked: 0,
         };
         let mut top = Gathered::default();
         pass.visit(root, None, Pos2::ZERO, true, &mut top);
-        let (dropped, described) = (pass.dropped, pass.described);
-        self.work.note_described(described);
+        let (dropped, described, walked) = (pass.dropped, pass.described, pass.walked);
+        self.work.note_described(described, walked);
         tree.purge(self, dropped);
         tree.pass = tree.pass.wrapping_add(1);
         tree.focus = top.focus;

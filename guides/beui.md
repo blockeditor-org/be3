@@ -355,7 +355,10 @@ hooks the higher crates fill in:
   Accessibility trees are published only between
   `Runner::accessibility_requested` and `accessibility_deactivated`, and
   `Context::accessibility_requested` says whether they are, so a host asks what it
-  embeds to describe itself only while something is listening.
+  embeds to describe itself only while something is listening. A document
+  describes again only the nodes a change or a move reached, and passes over a
+  subtree nothing in it changed (`FrameWork::walked_nodes` counts what it
+  visited).
   `Frame::wait` is how long the adapter may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.

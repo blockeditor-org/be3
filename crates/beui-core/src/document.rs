@@ -203,6 +203,7 @@ pub struct WorkCounters {
     painted_nodes: Cell<usize>,
     replayed_nodes: Cell<usize>,
     described_nodes: Cell<usize>,
+    walked_nodes: Cell<usize>,
 }
 
 impl WorkCounters {
@@ -214,10 +215,12 @@ impl WorkCounters {
         self.painted_nodes.set(0);
         self.replayed_nodes.set(0);
         self.described_nodes.set(0);
+        self.walked_nodes.set(0);
     }
 
-    pub fn note_described(&self, nodes: usize) {
+    pub fn note_described(&self, nodes: usize, walked: usize) {
         self.described_nodes.set(self.described_nodes.get() + nodes);
+        self.walked_nodes.set(self.walked_nodes.get() + walked);
     }
 
     fn gathered(&self) -> FrameWork {
@@ -229,6 +232,7 @@ impl WorkCounters {
             painted_nodes: self.painted_nodes.get(),
             replayed_nodes: self.replayed_nodes.get(),
             described_nodes: self.described_nodes.get(),
+            walked_nodes: self.walked_nodes.get(),
         }
     }
 }
@@ -1798,7 +1802,10 @@ impl Document {
             .insert(id, held)
             .map(|held| (held.given.clip, held.culled));
         if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
-            self.accessibility_tree.get_mut().mark(id, &self.arena);
+            let parent = self.layout_parent;
+            self.accessibility_tree
+                .get_mut()
+                .mark_placed(id, parent, &self.arena);
         }
         if previous.map(|previous| previous.rect.min) != Some(rect.min)
             || previous_held.map(|(_, was)| was) != Some(culled)
