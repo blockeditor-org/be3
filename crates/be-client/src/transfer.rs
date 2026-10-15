@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use be_block::{ARTIFACT, BlockMetadata, LOCAL_ID};
-use be_graph::BlockParent;
 use be_protocol::BlockSummary;
 use be_store::ObjectStore;
 use uuid::Uuid;
@@ -220,7 +219,10 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
 }
 
 impl<S: ObjectStore> Peer<S> {
-    pub async fn head_content(&self, summary: &BlockSummary) -> Result<Option<Vec<u8>>, ClientError> {
+    pub async fn head_content(
+        &self,
+        summary: &BlockSummary,
+    ) -> Result<Option<Vec<u8>>, ClientError> {
         let Some(head) = summary.head else {
             return Ok(None);
         };
