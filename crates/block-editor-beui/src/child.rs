@@ -1,8 +1,6 @@
 use beui::NodeId;
-use beui::reactive::{
-    Action, Callback, Embed, EmbedSlot, IntoProp, Memo, Prop, ReadSignal, Render, component,
-    create_memo, view,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use block_plugin_api::{BarAction, ChildLayer, ChildMode, TopBar, ViewChange};
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent};

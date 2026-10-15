@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Action, Chord, NodeRef, action_scope, build, view};
+use crate::reactive::*;
 
 #[component]
 fn Scoped(name: String, hits: WriteSignal<Vec<String>>) -> NodeId {

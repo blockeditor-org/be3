@@ -5,10 +5,9 @@ use beui::icons::{
     ICON_RADIO_BUTTON_PARTIAL, ICON_RADIO_BUTTON_UNCHECKED, ICON_SIGNAL_CELLULAR_ALT,
     ICON_SIGNAL_CELLULAR_ALT_1_BAR, ICON_SIGNAL_CELLULAR_ALT_2_BAR, ICON_STAR,
 };
-use beui::reactive::{Align, Frame, Layers, Prop, component, create_memo, view};
+use beui::reactive::*;
 use beui::styled::theme::ThemeKind;
-use beui::styled::use_theme;
-use beui::styled::{Icon, Text, TextColor, TextSize};
+use beui::styled::*;
 use beui::{Color32, NodeId};
 
 pub fn choice_glyph(icon: ChoiceIcon) -> &'static str {
@@ -122,8 +121,13 @@ pub fn ChoiceMark(
                         <Icon glyph={glyph} />
                     </Text>
                 </Frame>
-                <Frame visible={dotted} align_horizontal=Align::Center align_vertical=Align::Center>
-                    <Frame width=dot height=dot radius={(dot / 2.0) as u8} color={dot_color} />
+                <Frame visible={dotted} align=Align::Center>
+                    <Frame
+                        width=dot
+                        height=dot
+                        radius={Radius::custom((dot / 2.0).floor())}
+                        fill={ColorRole::custom(dot_color)}
+                    />
                 </Frame>
             </Layers>
         </Frame>

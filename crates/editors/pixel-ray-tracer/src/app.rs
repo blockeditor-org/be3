@@ -2,8 +2,8 @@ use block_editor_beui::be_block::PixelRayTracerContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
-use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
-use block_editor_beui::beui::styled::{Button, ButtonVariant};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Side, Sidebar, Toolbar};
@@ -13,7 +13,6 @@ pub(crate) mod canvas;
 pub(crate) mod panels;
 pub(crate) mod state;
 
-use block_editor_beui::beui::styled::{Text, TextStyle};
 use canvas::Artwork;
 use panels::{PropertiesPanel, ToolsPanel};
 use state::RayState;

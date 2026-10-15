@@ -1,9 +1,9 @@
 use super::*;
 use crate::base::ScrollPosition;
-use crate::reactive::{
-    ItemSize, List, Offset, ReadSignal, VirtualList, create_memo, create_signal,
-};
-use crate::styled::Scrollbar;
+use crate::primitives::Frame;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 const BAR_HEIGHT: f32 = 8.0;
 const ROWS: usize = 100;

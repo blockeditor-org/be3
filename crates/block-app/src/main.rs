@@ -35,7 +35,7 @@ mod tray;
 mod ui;
 mod wayland;
 
-use beui::styled::DocumentTheme;
+use beui::styled::*;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,

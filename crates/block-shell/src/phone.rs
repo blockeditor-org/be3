@@ -4,11 +4,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, component,
-    create_effect, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{ActionRow, ModalSheet, SHEET_STOPS};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
@@ -18,7 +15,6 @@ use super::panel::{Info, Refs, Watched, read_info};
 use super::tab::TabItem;
 use super::workspace::{PhoneSheet, Workspace};
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const SHEET_PADDING: f32 = 12.0;
 const SECTION_PADDING: f32 = 8.0;
@@ -143,9 +139,9 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
         workspace.new_file_near(id);
     };
     view! {
-        <Frame padding_horizontal=SECTION_PADDING padding_vertical=SECTION_PADDING>
+        <Frame padding=SECTION_PADDING>
             <List spacing=0.0>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
+                <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                         <Text color=TextColor::Accent align=TextAlign::Center>
                             <Icon glyph={glyph} />
@@ -221,7 +217,7 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
         <List spacing=0.0>
             <Show condition={some}>
                 {move || { let title = title.clone(); view! {
-                    <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
+                    <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION string={title} />
                     </Frame>
                 } }}

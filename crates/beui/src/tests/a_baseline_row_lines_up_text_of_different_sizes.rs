@@ -1,6 +1,7 @@
 use super::*;
 use crate::FontId;
-use crate::reactive::{Align, Direction, List, Text, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_baseline_row_lines_up_text_of_different_sizes() {
@@ -8,7 +9,7 @@ fn a_baseline_row_lines_up_text_of_different_sizes() {
         view! {
             <List direction=Direction::Horizontal align=Align::Baseline spacing=8.0>
                 <Text string="Small" font={FontId::proportional(12.0)} />
-                <Frame padding_top=6.0>
+                <Frame padding={Sides::new(0.0, 6.0, 0.0, 0.0)}>
                     <Text string="Large" font={FontId::proportional(28.0)} />
                 </Frame>
             </List>

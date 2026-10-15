@@ -1,15 +1,12 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_VOLUME_OFF;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Select, Slider, Switch};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{ChoiceOption, PopoverHandle};
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
 use super::media::volume_glyph;
 use super::popup::BarPopup;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const VOLUME_WIDTH: f32 = 280.0;
 const SPACING: f32 = 12.0;

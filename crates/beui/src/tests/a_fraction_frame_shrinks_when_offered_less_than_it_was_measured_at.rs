@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Align, Frame, List, NodeRef, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_fraction_frame_shrinks_when_offered_less_than_it_was_measured_at() {
@@ -10,9 +11,9 @@ fn a_fraction_frame_shrinks_when_offered_less_than_it_was_measured_at() {
         move || {
             view! {
                 <List align=Align::Start spacing=0.0>
-                    <Frame width={width}>
+                    <Frame width=width>
                         <List align=Align::Start spacing=0.0>
-                            <Frame @node_ref=&quarter width_fraction=0.25 height=10.0 />
+                            <Frame @node_ref=&quarter width={Extent::fraction(0.25)} height=10.0 />
                         </List>
                     </Frame>
                 </List>

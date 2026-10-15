@@ -2,17 +2,13 @@ use uuid::Uuid;
 
 use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, NodeRef, ReadSignal,
-    Show, WriteSignal, component, create_effect, create_memo, create_selector, create_signal, view,
-};
-use block_editor_beui::beui::styled::{IconButton, ListRow, Scroll, Select, TextSize, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, TextAlign, Vec2};
 use block_editor_beui::{Editor, Toolbar};
 
 use super::entries::{Entry, Folder, FolderSort};
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const PADDING: f32 = 12.0;
 const TILE_SPACING: f32 = 10.0;
@@ -143,7 +139,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         _ => theme.danger.get(),
     });
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <Select
@@ -189,11 +185,8 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @node_ref={&content}
-                    outline={outline}
-                    outline_width=DROP_OUTLINE
-                    outline_visible={hovering}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
+                    border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
+                    padding=PADDING
                 >
                     <List spacing=0.0>
                         <Show condition={empty}>

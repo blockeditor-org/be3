@@ -1,11 +1,8 @@
 use std::rc::Rc;
 
 use block_editor_beui::be_block::map::MapPoint;
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, Child, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    PasteKind, Pasted, component, create_effect, create_memo, create_selector, untrack, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
     Color32, CursorIcon, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextAlign, Vec2,
 };
@@ -18,7 +15,6 @@ use crate::tiles::TileId;
 use super::labels::{self, MapLabel};
 use super::state::MapState;
 use super::tiles::{self, Tile};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
 const ATTRIBUTION: &str = "© OpenStreetMap contributors";
@@ -94,7 +90,6 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     });
     let selection = create_selector(move || state.selected.get());
 
-    let theme = use_theme();
     let tile_scale = scale;
     let marker_scale = scale;
     let marker_world = world;
@@ -104,7 +99,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     state.editor().content(&content);
 
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Canvas view={camera} @test_id={"map.canvas"}>
@@ -162,7 +157,10 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> CanvasItem {
     let height = create_memo(move || rect.get().height());
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame visible={shown} outline=REGION_COLOR outline_width=1.5 outline_visible=true />
+            <Frame
+                visible={shown}
+                border={Border::new(ColorRole::Custom(REGION_COLOR)).width(1.5)}
+            />
         </CanvasItem>
     }
 }
@@ -205,7 +203,11 @@ fn PointMarker(
 #[component]
 fn Attribution() -> NodeId {
     view! {
-        <Frame height=ATTRIBUTION_HEIGHT color=HALO padding_horizontal=6.0>
+        <Frame
+            height=ATTRIBUTION_HEIGHT
+            fill={ColorRole::Custom(HALO)}
+            padding={Sides::horizontal(6.0)}
+        >
             <Text style=TextStyle::CAPTION string=ATTRIBUTION align=TextAlign::End />
         </Frame>
     }

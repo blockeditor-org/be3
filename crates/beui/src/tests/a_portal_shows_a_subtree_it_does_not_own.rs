@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, Portal, Show, create_signal, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_portal_shows_a_subtree_it_does_not_own() {

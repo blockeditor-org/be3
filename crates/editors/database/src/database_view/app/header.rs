@@ -1,21 +1,14 @@
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_SEARCH, ICON_TUNE};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, create_signal,
-    view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, IconButton, ModalSheet, Popover, Scroll, Separator, TextInput,
-    ToggleButton,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::narrow_chrome;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
 use crate::database_view::app::display::DisplayOptions;
 use crate::database_view::app::filters::{FilterBar, FilterList};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const GUTTER: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -43,7 +36,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
             </Show>
             <Show condition={failed}>
                 {move || view! {
-                    <Frame padding_horizontal=GUTTER padding_vertical=6.0>
+                    <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
@@ -70,7 +63,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
 fn WideHeader(data: Data) -> NodeId {
     let count = row_count(data);
     view! {
-        <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(6.0)}>
+        <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(6.0)}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text style=TextStyle::HEADING string={data.name} />
@@ -109,7 +102,7 @@ fn NarrowHeader(data: Data) -> NodeId {
     let close = move || set_sheet.set(false);
     let done = close;
     view! {
-        <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(8.0)}>
+        <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(8.0)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text
@@ -134,7 +127,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                     />
                 </List>
                 <ModalSheet open={sheet} on_close={close}>
-                    <Frame padding_horizontal={GUTTER * 1.5} padding_bottom={Some(GUTTER * 2.0)}>
+                    <Frame padding={Sides::horizontal(GUTTER * 1.5).bottom(GUTTER * 2.0)}>
                         <List spacing=GUTTER>
                             <List
                                 direction=Direction::Horizontal

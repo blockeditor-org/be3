@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn tab_moves_focus_to_the_next_button() {

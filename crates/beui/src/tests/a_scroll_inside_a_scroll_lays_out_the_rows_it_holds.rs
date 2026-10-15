@@ -1,6 +1,7 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_scroll_inside_a_scroll_lays_out_the_rows_it_holds() {

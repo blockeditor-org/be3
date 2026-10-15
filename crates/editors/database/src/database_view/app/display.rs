@@ -7,19 +7,13 @@ use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA,
     ICON_VIEW_KANBAN, ICON_VIEW_LIST,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
-    view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, IconButton, Select, Separator, Switch, TextInput, ToggleButton,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
 use crate::database_view::groups::groupable;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SPACING: f32 = 10.0;
 const LABEL_WIDTH: f32 = 96.0;

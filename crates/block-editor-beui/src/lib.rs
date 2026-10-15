@@ -41,12 +41,12 @@ pub trait BeuiApp: 'static {
     fn view(editor: Editor) -> beui::NodeId;
     fn preview_view(_editor: Editor) -> beui::NodeId {
         beui::reactive::view! {
-            <beui::reactive::Frame />
+            <beui::styled::Frame />
         }
     }
     fn creation_view(_creation: Creation) -> beui::NodeId {
         beui::reactive::view! {
-            <beui::reactive::Frame />
+            <beui::styled::Frame />
         }
     }
     fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
@@ -58,7 +58,7 @@ pub trait BeuiApp: 'static {
     }
     fn artifact_settings_view(_artifacts: Artifacts) -> beui::NodeId {
         beui::reactive::view! {
-            <beui::reactive::Frame />
+            <beui::styled::Frame />
         }
     }
     fn intrinsic_size() -> Option<beui::Vec2> {

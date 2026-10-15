@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::NodeRef;
+use crate::reactive::*;
 
 #[test]
 fn overscrolling_a_sheet_bounces_its_content_back() {

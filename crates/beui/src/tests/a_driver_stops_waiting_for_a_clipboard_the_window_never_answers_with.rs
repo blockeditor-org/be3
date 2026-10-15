@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{List, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with() {

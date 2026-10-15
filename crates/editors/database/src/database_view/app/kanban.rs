@@ -3,13 +3,8 @@ use block_editor_beui::be_block::database::{DatabaseValue, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, VirtualList,
-    component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::database::ChoiceMark;
 use uuid::Uuid;
@@ -18,7 +13,6 @@ use crate::database_view::app::controls::MARK;
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{Parts, group_test_key, row_parts, row_title};
 use crate::database_view::groups::{Group, GroupKey};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const COLUMN_WIDTH: f32 = 272.0;
 const FOLDED_WIDTH: f32 = 48.0;
@@ -41,12 +35,11 @@ pub fn Kanban(data: Data) -> NodeId {
                 .collect::<Vec<GroupKey>>()
         })
     });
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={missing}>
-                    <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                    <Frame padding=PADDING>
                         <Text
                             style=TextStyle::CAPTION
                             string="Choose the choice field whose options make the columns, under Display."
@@ -57,7 +50,7 @@ pub fn Kanban(data: Data) -> NodeId {
                 <Show condition={ready}>
                     {move || view! {
                         <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
-                            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                            <Frame padding=PADDING>
                                 <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
                                     <ForEach keys={columns}>
                                         {move |key: GroupKey| {
@@ -123,9 +116,13 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
         })
     });
     let unfold = move || data.toggle_group(key);
-    let theme = use_theme();
     view! {
-        <Frame width=FOLDED_WIDTH color={theme.surface} radius=10 padding_vertical=10.0>
+        <Frame
+            width=FOLDED_WIDTH
+            fill=ColorRole::Surface
+            radius=Radius::Lg
+            padding={Sides::vertical(10.0)}
+        >
             <List align=Align::Center spacing=8.0>
                 <ChoiceMark option={option} size=MARK />
                 <Text style=TextStyle::CAPTION string={count} />
@@ -193,7 +190,6 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         };
         data.set_cell(row, field_id, value.get_untracked());
     };
-    let theme = use_theme();
     view! {
         <DropTarget on_drop={dropped}>
             {move |handle: DropHandle| {
@@ -201,16 +197,13 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                 view! {
                     <Frame
                         width=COLUMN_WIDTH
-                        color={theme.surface}
-                        outline={theme.accent}
-                        outline_width=2.0
-                        radius=10
-                        outline_visible={over}
-                        padding_horizontal=8.0
-                        padding_bottom={Some(8.0)}
+                        fill=ColorRole::Surface
+                        border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                        radius=Radius::Lg
+                        padding={Sides::horizontal(8.0).bottom(8.0)}
                     >
                         <List spacing=CARD_SPACING>
-                            <Frame padding_left={Some(4.0)} padding_vertical=4.0>
+                            <Frame padding={Sides::vertical(4.0).left(4.0)}>
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
@@ -235,7 +228,9 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 <VirtualList keys={keys} item_size=CARD_HEIGHT overscan=CARD_HEIGHT>
                                     {move |row: ReadSignal<usize>| {
                                         view! {
-                                            <Frame padding_bottom={Some(CARD_SPACING)}>
+                                            <Frame
+                                                padding={Sides::new(0.0, 0.0, 0.0, CARD_SPACING)}
+                                            >
                                                 <KanbanCard data={data} row={row} />
                                             </Frame>
                                         }
@@ -281,16 +276,12 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
 
 #[component]
 fn CardFace(data: Data, row: usize) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=8
-            padding_horizontal=10.0
-            padding_vertical=8.0
+            fill=ColorRole::SurfaceRaised
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::custom(8.0)}
+            padding={Sides::symmetric(10.0, 8.0)}
         >
             <CardLines data={data} row={row} />
         </Frame>

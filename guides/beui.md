@@ -166,9 +166,9 @@ component reads one in as many places as it needs. A `Prop<String>` or other
 non-`Copy` prop is cloned into each closure that keeps it:
 
 ```rust
-let color = create_memo(move || paint(value.get()));
+let fill = create_memo(move || paint(value.get()));
 view! {
-    <Frame color>
+    <Frame fill>
         <Text string={value} />
     </Frame>
 }
@@ -235,9 +235,9 @@ direction:
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
-| `beui-view` | `beui::reactive`: `beui-tree` re-exported, with the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
+| `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, and layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
-| `beui-components-styled` | `beui::styled`: themes and styled controls |
+| `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
@@ -549,18 +549,24 @@ button), `.align(..)` overrides the list's `align` for that child, and
 `@sizing={ItemSize::Percent(100.0).max(320.0)}`.
 
 `Frame` combines optional sizing, an aspect ratio it centres
-its box within, padding, fill, outline, and visibility on one retained node.
-Its `width`, `min_width`, `max_width`, `height`, `min_height`, `max_height`
-and `aspect_ratio` each take an optional measurement, so a signal behind one
-can hand it back to nothing and leave that axis measuring intrinsically again;
-`width_fraction` and `height_fraction` take that share of the space the frame
-is offered, when that space is bounded. `padding_horizontal` and
-`padding_vertical` pad both sides of an axis and `padding_left`,
-`padding_top`, `padding_right` and `padding_bottom` override one side.
-`align_horizontal` and `align_vertical` place a child smaller than the frame
-inside it rather than stretching it over the frame, which is how a badge sits
-in a corner. `radius` rounds every corner and `radius_top_left` and its
-siblings override one.
+its box within, padding, fill, outline, and visibility on one retained node,
+each concern one prop. `width` and `height` take an `Extent`: an exact length
+(`Extent::px`, or a plain `f32`), a share of the space offered when it is
+bounded (`Extent::fraction`), and `.min(..)` and `.max(..)` bounds, so
+`Extent::at_most(320.0)` fills its room up to 320; a memo of `Option<f32>`
+hands an axis back to intrinsic measuring when it is `None`. `padding` takes
+`Sides` (`Sides::all`, `symmetric`, `horizontal`, `vertical`, then `.left(..)`
+and its siblings to override one side). `align` takes an `Align2` (a plain
+`Align` sets both axes) and places a child smaller than the frame inside it
+rather than stretching it over the frame, which is how a badge sits in a
+corner. The primitive takes concrete values: `fill` a `Color32`, `radius`
+`Corners`, and `outline` an `Option<Outline>`. The styled `Frame` apps use takes
+tokens instead: `fill` a `ColorRole` (a theme colour, or `ColorRole::Custom`
+for one that is not), `radius` a `Radius` (`Xs` to `Lg`, `Full`, or
+`Radius::Custom`), and `border` an `Option<Border>` (`Border::DEFAULT`,
+`Border::FOCUS`, `Border::new(role)` with `.width(..)` and `.offset(..)`;
+`focus_border` shows one only while the focus ring is visible). A
+`ColorRole::custom(..)` wraps a colour or a signal of one.
 `Layers` lays every child over the same box, sized to the largest, later
 children on top: content over a background, a badge over an icon. A child that
 should not fill the box goes in a `Frame` that aligns it. Pointer input is the
@@ -1794,6 +1800,15 @@ rectangle with magenta instead; a crate that draws with the gpu does so behind
 a feature that beui's `render` feature turns on, as beui-components-styled's
 `gpu` does.
 
+## Imports
+
+App code imports `beui::reactive::*` for the framework and `beui::styled::*`
+for components, and names anything else (`beui::unstyled::X`,
+`beui::styled::theme::X`) on its own line. `beui::primitives` is for beui's own
+crates, its tests and beui-demo's base pages; the source lint rejects it
+anywhere else, since a primitive takes raw colours and pixels where a styled
+component takes tokens.
+
 ## Use beui in a standalone app
 
 The default `beui` feature is `window`, which includes the winit runner and the
@@ -1801,10 +1816,8 @@ wgpu renderer. A standalone app builds its document once and implements
 `beui::App`:
 
 ```rust
-use beui::reactive::{
-    Frame, List, build, component, create_memo, create_signal, view,
-};
-use beui::styled::{Button, ButtonVariant, DocumentTheme, Text, TextStyle, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{App, Color32, Context, Document, NodeId, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -1815,10 +1828,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn Counter() -> NodeId {
     let (count, set_count) = create_signal(0i64);
     let label = create_memo(move || count.get().to_string());
-    let theme = use_theme();
 
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=8.0>
                 <Text style=TextStyle::DISPLAY string={label} />
                 <Button
@@ -2238,8 +2250,8 @@ a fragment written among siblings takes the places between them, and how
 `Show`, `Dynamic`, `Keyed` and `ForEach` fill a parent they do not own. `List`,
 `Stack`, `Scroll` and `Canvas` all keep their children that way.
 
-Use `Frame`'s `width` and `height` props (and their `min_`/`max_` forms) to constrain a component's own size,
-`max_width` for a box that fills the room it is given but stops at a limit, and
+Use `Frame`'s `width` and `height` props to constrain a component's own size,
+`Extent::at_most(..)` for a box that fills the room it is given but stops at a limit, and
 `@sizing` to describe how it participates among siblings in a `List`. Say a
 width once: a `Frame` nested inside one that carries the width
 is laid out within it, so the outer box is the only place the number belongs.
@@ -2351,7 +2363,7 @@ clicks and key events need no special handling. A host-driven update happens
 outside that context and must enter the document's reactive scope:
 
 ```rust
-use beui::reactive::{WriteSignal, with_reactive_scope};
+use beui::reactive::*;
 use beui::Document;
 
 fn set_value(document: &mut Document, value: &WriteSignal<String>, next: String) {

@@ -1,14 +1,8 @@
 use block_editor_beui::be_block::{
     Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component, create_memo,
-    create_selector, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Card, Checkbox, Progress, Scroll, TextInput, ToggleButton, use_theme,
-};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor};
 
@@ -84,13 +78,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
         }
     };
 
-    let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background}
-            padding_horizontal=PAGE_PADDING
-            padding_vertical=PAGE_PADDING
-        >
+        <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
                     <Text style=TextStyle::HEADING string="Checklist" />
@@ -197,9 +186,12 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
         })
     });
     let done = create_memo(move || item.with(|item| item.as_ref().is_some_and(|item| item.done)));
-    let theme = use_theme();
     view! {
-        <Frame color={theme.surface_raised} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
+        <Frame
+            fill=ColorRole::SurfaceRaised
+            radius=Radius::Md
+            padding={Sides::symmetric(12.0, 10.0)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)

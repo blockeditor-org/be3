@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {

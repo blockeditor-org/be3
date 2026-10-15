@@ -1,7 +1,7 @@
 use super::*;
 use crate::base::list::Align;
-use crate::reactive::view;
-use crate::styled::{Separator, Theme};
+use crate::reactive::*;
+use crate::styled::*;
 
 const LENGTH: f32 = 20.0;
 

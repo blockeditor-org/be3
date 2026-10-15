@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, Grid, GridCell, NodeRef, Track, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_grid_lines_its_cells_up_in_shared_columns() {

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Align, Direction, Frame, List, NodeRef, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_frame_pads_each_side_on_its_own() {
@@ -11,10 +12,7 @@ fn a_frame_pads_each_side_on_its_own() {
                 <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
                     <Frame
                         @node_ref=&outer
-                        padding_horizontal=5.0
-                        padding_top=1.0
-                        padding_right=3.0
-                        padding_bottom=4.0
+                        padding={Sides::horizontal(5.0).top(1.0).right(3.0).bottom(4.0)}
                     >
                         <Frame @node_ref=&inner width=20.0 height=10.0 />
                     </Frame>

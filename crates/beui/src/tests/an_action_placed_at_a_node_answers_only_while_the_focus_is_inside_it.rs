@@ -1,6 +1,6 @@
 use super::*;
 use crate::KeyAt;
-use crate::reactive::{Action, Chord, NodeRef, build, view};
+use crate::reactive::*;
 
 #[test]
 fn an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it() {

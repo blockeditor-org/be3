@@ -6,10 +6,8 @@ use beui_core::geometry::{Vec2, vec2};
 use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
-use beui_view::reactive::{
-    BackHandler, Callback, Child, ClickCallback, Frame, Layers, Prop, RenderFn, Shift, Show, Timer,
-    WriteSignal, create_effect, create_signal, create_timer, store, untrack, with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use super::rubber_band::MAX_ANIMATION_STEP;
 
@@ -293,7 +291,7 @@ pub fn BackSlide(
                         <Shift by={behind_shift}>
                             <Layers>
                                 {page}
-                                <Frame color={shade} />
+                                <Frame fill=shade />
                             </Layers>
                         </Shift>
                     }

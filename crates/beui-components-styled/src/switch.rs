@@ -1,22 +1,23 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use beui_core::color::Color32;
 
-use crate::theme::{BORDER_WIDTH, ThemeStore, control_outline, control_outline_visible, use_theme};
+use crate::theme::{ThemeStore, control_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Callback, Frame, Prop, create_memo};
+use beui_view::reactive::*;
 
 const WIDTH: f32 = 42.0;
 const HEIGHT: f32 = 24.0;
 const KNOB_SIZE: f32 = 18.0;
 const PADDING: f32 = 3.0;
-const TRACK_RADIUS: u8 = 12;
-const KNOB_RADIUS: u8 = 9;
+const TRACK_RADIUS: f32 = 12.0;
+const KNOB_RADIUS: f32 = 9.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
@@ -56,7 +57,8 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let knob_align = create_memo(move || knob_align(checked.get(), mixed.get()));
+    let knob_align =
+        create_memo(move || Align2::new(knob_align(checked.get(), mixed.get()), Align::Center));
     let track_color = create_memo(move || {
         track_fill(
             &theme,
@@ -71,24 +73,18 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
             <Frame
                 width=WIDTH
                 height=HEIGHT
-                color={track_color}
-                outline={control_outline(&theme)}
-                outline_width=BORDER_WIDTH
-                outline_visible={control_outline_visible(&theme)}
-                radius=TRACK_RADIUS
-                padding_horizontal=PADDING
-                padding_vertical=PADDING
-                align_horizontal={knob_align}
-                align_vertical=Align::Center
+                fill={ColorRole::custom(track_color)}
+                border={control_border(&theme)}
+                radius={Radius::custom(TRACK_RADIUS)}
+                padding=PADDING
+                align=knob_align
             >
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    color={theme.knob}
-                    outline={control_outline(&theme)}
-                    outline_width=BORDER_WIDTH
-                    outline_visible={control_outline_visible(&theme)}
-                    radius=KNOB_RADIUS
+                    fill=ColorRole::Knob
+                    border={control_border(&theme)}
+                    radius={Radius::custom(KNOB_RADIUS)}
                 />
             </Frame>
         </FocusRing>

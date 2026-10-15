@@ -5,7 +5,7 @@ struct BlockIgnoringApp;
 
 impl crate::BeuiApp for BlockIgnoringApp {
     fn view(_editor: crate::Editor) -> beui::NodeId {
-        beui::reactive::Frame().build()
+        beui::styled::Frame().build()
     }
 }
 

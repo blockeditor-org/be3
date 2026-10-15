@@ -1,7 +1,8 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{NodeRef, Text, build, create_signal, view, with_reactive_scope};
-use crate::styled::Dialog;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_back_gesture_slides_a_dialog_away_before_it_closes() {

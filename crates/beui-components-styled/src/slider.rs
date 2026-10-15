@@ -1,24 +1,21 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{
-    BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, knob_outline, knob_outline_visible,
-    use_theme,
-};
+use crate::theme::{ThemeStore, knob_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const HEIGHT: f32 = 20.0;
 const TRACK_HEIGHT: f32 = 6.0;
-const TRACK_RADIUS: u8 = 3;
+const TRACK_RADIUS: f32 = 3.0;
 const KNOB_SIZE: f32 = 16.0;
-const KNOB_RADIUS: u8 = 8;
+const KNOB_RADIUS: f32 = 8.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 
 #[component]
@@ -74,33 +71,28 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
+            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            radius=Radius::Md
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <Frame
                     @sizing={filled_percent}
                     height=TRACK_HEIGHT
-                    color={filled_color}
-                    radius=TRACK_RADIUS
+                    fill={ColorRole::custom(filled_color)}
+                    radius={Radius::custom(TRACK_RADIUS)}
                 />
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    color={knob_color}
-                    outline={knob_outline(&theme)}
-                    outline_width=BORDER_WIDTH
-                    outline_visible={knob_outline_visible(&theme)}
-                    radius=KNOB_RADIUS
+                    fill={ColorRole::custom(knob_color)}
+                    border={knob_border(&theme)}
+                    radius={Radius::custom(KNOB_RADIUS)}
                 />
                 <Frame
                     @sizing={rest_percent}
                     height=TRACK_HEIGHT
-                    color={theme.track}
-                    radius=TRACK_RADIUS
+                    fill=ColorRole::Track
+                    radius={Radius::custom(TRACK_RADIUS)}
                 />
             </List>
         </Frame>

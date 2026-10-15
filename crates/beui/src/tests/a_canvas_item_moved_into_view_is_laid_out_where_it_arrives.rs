@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, create_signal, with_reactive_scope};
+use crate::reactive::*;
 
 #[test]
 fn a_canvas_item_moved_into_view_is_laid_out_where_it_arrives() {

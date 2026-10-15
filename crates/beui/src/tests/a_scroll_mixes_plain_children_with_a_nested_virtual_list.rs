@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, create_binding, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const HEADER: f32 = 50.0;
 const FOOTER: f32 = 30.0;

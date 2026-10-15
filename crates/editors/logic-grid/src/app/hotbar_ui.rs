@@ -1,13 +1,6 @@
 use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
-use beui::reactive::Func;
-use beui::reactive::{
-    Align, Canvas, CanvasItem, Child, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    ReadSignal, Show, Spacer, component, create_memo, create_signal, store, view,
-};
-use beui::styled::{
-    Button, ButtonVariant, ContextMenu, Dialog, IconButton, MenuButton, Select, TextColor,
-    TextInput, TextSize, Tooltip, use_theme,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Picture;
 use beui::unstyled::{
     ChoiceOption, DragHandle, DragPoint, Draggable, DropHandle, DropTarget, MenuItem,
@@ -17,7 +10,6 @@ use beui::{CursorIcon, ImageFit, NodeId, TextAlign};
 use super::glyph::{GLYPH_HEIGHT, GLYPH_WIDTH, Glyph};
 use super::session::Session;
 use super::*;
-use beui::styled::{Text, TextStyle};
 
 const SLOT_SIZE: f32 = 64.0;
 const SLOT_INSET: f32 = 4.0;
@@ -195,18 +187,14 @@ fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: 
             model.drop_hotbar_slot(Some(target));
         });
     };
-    let theme = use_theme();
     view! {
         <DropTarget accepts={accepts} on_drop={dropped}>
             {move |handle: DropHandle| {
                 let DropHandle { over, .. } = handle;
                 view! {
                     <Frame
-                        outline={theme.accent}
-                        outline_width=2.0
-                        outline_offset=2.0
-                        outline_visible={over}
-                        radius=4
+                        border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0).offset(2.0)))}
+                        radius=Radius::Sm
                     >
                         {children}
                     </Frame>
@@ -241,10 +229,9 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
         <SlotDrop session={session} target={folder} folder=true>
             <Frame
                 @test_id={format!("logic-grid.column.{column}")}
-                color={fill}
-                radius=4
-                padding_horizontal=COLUMN_PADDING
-                padding_vertical=COLUMN_PADDING
+                fill={ColorRole::custom(fill)}
+                radius=Radius::Sm
+                padding=COLUMN_PADDING
             >
                 <List align=Align::Center spacing=4.0>
                     <Text style=TextStyle::CAPTION string={title} align=TextAlign::Center />
@@ -409,11 +396,9 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
         <Frame
             width=SLOT_SIZE
             height=SLOT_SIZE
-            color={fill}
-            outline={outline}
-            outline_width=1.5
-            outline_visible=true
-            radius=4
+            fill={ColorRole::custom(fill)}
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(1.5)))}
+            radius=Radius::Sm
         >
             <Canvas width=SLOT_SIZE height=SLOT_SIZE>
                 <CanvasItem x=SLOT_INSET y=SLOT_INSET width=GLYPH_WIDTH height=GLYPH_HEIGHT>
@@ -435,7 +420,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                     />
                 </CanvasItem>
                 <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
-                    <Frame visible={badged} color={theme.background} radius=3>
+                    <Frame visible={badged} fill=ColorRole::Background radius={Radius::custom(3.0)}>
                         <Text
                             string={hotkey}
                             size=TextSize::Xs

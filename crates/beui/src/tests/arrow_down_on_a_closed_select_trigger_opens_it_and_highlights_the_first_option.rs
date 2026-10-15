@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Select;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_option() {

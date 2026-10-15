@@ -1,13 +1,10 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
-use block_editor_beui::beui::reactive::{
-    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, TextInput, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
 
 use super::session::{PAGE, Session};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {
@@ -46,9 +43,8 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton

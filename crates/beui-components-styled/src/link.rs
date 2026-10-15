@@ -1,3 +1,4 @@
+use crate::frame::Radius;
 use accesskit::Role;
 use beui_macros::{component, view};
 
@@ -6,10 +7,10 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
-use beui_view::reactive::{ClickCallback, Prop, create_memo};
+use beui_view::reactive::*;
 
 const FOCUS_RING_OFFSET: f32 = 3.0;
-const FOCUS_RING_RADIUS: u8 = 4;
+const FOCUS_RING_RADIUS: f32 = 4.0;
 
 #[component]
 pub fn Link(
@@ -49,7 +50,7 @@ fn LinkFace(handle: unstyled::ButtonHandle, size: Prop<TextSize>) -> NodeId {
         create_memo(move || text_color(&theme, disabled.get(), hovered.get(), active.get()));
     let underlined = create_memo(move || hovered.get() || focused.get());
     view! {
-        <FocusRing focused radius=FOCUS_RING_RADIUS offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={Radius::custom(FOCUS_RING_RADIUS)} offset=FOCUS_RING_OFFSET>
             <Text size color underline={underlined}>
                 <Icon glyph={glyph} />
                 {label}

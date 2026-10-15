@@ -1,7 +1,8 @@
 use super::*;
-use crate::reactive::{Frame, view};
+use crate::primitives::Frame;
+use crate::reactive::*;
 use crate::screen_simulation::{MARGIN, ScreenSimulation};
-use crate::styled::Checkbox;
+use crate::styled::*;
 
 #[test]
 fn zooming_into_the_simulated_screen_follows_the_pointer() {

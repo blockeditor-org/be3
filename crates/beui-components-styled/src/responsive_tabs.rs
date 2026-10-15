@@ -6,10 +6,8 @@ use crate::theme::NARROW_WIDTH;
 use beui_components_unstyled::{ChoiceOption, narrower_than};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Children, List, Prop, ReadSignal, Show, create_effect, create_memo, create_signal,
-    set_component_state,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 #[component]
 pub fn ResponsiveTabs(

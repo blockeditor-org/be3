@@ -1,8 +1,5 @@
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, Drawing, Frame, Interactive, ItemSize, List, PlacementBuilder, ReadSignal,
-    component, create_memo, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
@@ -77,7 +74,6 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                     tool.get() == Tool::RayTrace && rays.get().is_some()
                 });
                 let camera = state.editor().canvas();
-                let theme = use_theme();
 
                 view! {
                     <Interactive
@@ -99,7 +95,7 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                             }
                         }}
                     >
-                        <Frame color={theme.background}>
+                        <Frame fill=ColorRole::Background>
                             <List spacing=0.0>
                                 <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
                                     <CanvasItem

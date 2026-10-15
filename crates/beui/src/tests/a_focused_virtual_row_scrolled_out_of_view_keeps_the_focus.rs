@@ -1,8 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Frame, Interactive, ItemSize, List, NodeRef, Offset, Text, VirtualList, build, create_memo,
-    view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {

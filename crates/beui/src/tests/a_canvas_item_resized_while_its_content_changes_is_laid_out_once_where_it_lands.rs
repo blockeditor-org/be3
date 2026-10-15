@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, create_memo, create_signal, with_reactive_scope};
+use crate::reactive::*;
 
 #[test]
 fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lands() {
@@ -14,7 +14,7 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
             <Frame width=600.0 height=400.0>
                 <Canvas>
                     <CanvasItem x=10.0 y=10.0 width height>
-                        <Frame padding_horizontal={inset}>
+                        <Frame padding={create_memo(move || Sides::horizontal(inset.get()))}>
                             <Frame @node_ref=&item />
                         </Frame>
                     </CanvasItem>

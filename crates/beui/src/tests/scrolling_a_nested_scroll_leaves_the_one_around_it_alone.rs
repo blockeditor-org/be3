@@ -1,7 +1,8 @@
 use super::*;
 use crate::FontId;
 use crate::geometry::vec2;
-use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, ListChild, component, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]

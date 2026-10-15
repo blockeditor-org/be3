@@ -1,11 +1,5 @@
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Child, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo,
-    Portal, Show, Spacer, component, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Dialog, ModalSheet, SHEET_STOPS, Scroll, Separator, Spinner, Tabs,
-    TextInput, TextSize, ToggleButton, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, ChoiceOption};
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::TemplateEntry;
@@ -19,7 +13,6 @@ use super::picker::{
     tile_key,
 };
 use super::workspace::Workspace;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const TILE_WIDTH: f32 = 132.0;
 const TILE_HEIGHT: f32 = 124.0;
@@ -108,7 +101,7 @@ fn ChooseDialog(
                 rest={SHEET_STOPS[2]}
                 on_close={move || act.call(PickAction::Close)}
             >
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=4.0>
+                <Frame padding={Sides::symmetric(SHEET_PADDING, 4.0)}>
                     <List spacing=10.0>
                         <Text style=TextStyle::TITLE string={sheet_title} />
                         <ChooseBody
@@ -217,7 +210,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     <ChoiceOption label="Link existing" />
                 }}
             />
-            <Frame height={height}>
+            <Frame height=height>
                 <List spacing=8.0>
                     <Show condition={tiling}>
                         {move || view! {
@@ -375,7 +368,7 @@ fn PlaceButton(
         BlockParent::Root | BlockParent::Detached => "picker.place.root".to_owned(),
     };
     view! {
-        <Frame padding_horizontal=3.0>
+        <Frame padding={Sides::horizontal(3.0)}>
             <ToggleButton
                 @test_id={named}
                 label
@@ -474,13 +467,10 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
         <Frame
             width=TILE_WIDTH
             height=TILE_HEIGHT
-            color={fill}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=5
-            padding_horizontal=6.0
-            padding_vertical=10.0
+            fill={ColorRole::custom(fill)}
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::custom(5.0)}
+            padding={Sides::symmetric(6.0, 10.0)}
         >
             <List spacing=6.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
@@ -617,7 +607,7 @@ fn CreateFrames(
                 fit=true
                 on_close={move || cancel.call(PickAction::CancelCreation)}
             >
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                <Frame padding=SHEET_PADDING>
                     <List spacing=10.0>
                         <Text style=TextStyle::TITLE string={title} />
                         <Portal node={in_sheet} />
@@ -673,7 +663,7 @@ fn CreateBody(
     let editor = workspace.editor();
     view! {
         <List spacing=10.0>
-            <Frame height={height}>
+            <Frame height=height>
                 <Subregion
                     editor={editor}
                     placed={placed}

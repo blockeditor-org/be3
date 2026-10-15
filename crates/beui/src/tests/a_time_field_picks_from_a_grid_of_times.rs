@@ -1,7 +1,7 @@
 use super::*;
 use crate::datetime::{DateTime, Time};
-use crate::reactive::view;
-use crate::styled::DateTimeField;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::DateTimeParts;
 
 #[test]

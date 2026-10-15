@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, Span, Text, build, view};
-use crate::styled::SelectableText;
+use crate::primitives::{Span, Text};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_selection_across_text_with_spans_is_painted() {

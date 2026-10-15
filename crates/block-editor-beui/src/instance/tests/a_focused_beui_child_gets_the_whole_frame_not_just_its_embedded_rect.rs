@@ -1,5 +1,6 @@
 use super::*;
-use beui::reactive::{Frame, view};
+use beui::reactive::*;
+use beui::styled::*;
 
 struct RecordingApp;
 

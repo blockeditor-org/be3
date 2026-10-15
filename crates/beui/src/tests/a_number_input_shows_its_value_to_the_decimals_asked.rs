@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{NumberInput, number_input_text};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_number_input_shows_its_value_to_the_decimals_asked() {

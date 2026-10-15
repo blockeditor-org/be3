@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, Frame, ItemSize, List, NodeRef, build};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn percent_sized_children_still_size_an_intrinsic_lists_height() {
@@ -12,15 +13,13 @@ fn percent_sized_children_still_size_an_intrinsic_lists_height() {
                     <List @node_ref=&row direction=Direction::Horizontal spacing=0.0>
                         <Frame
                             @sizing=ItemSize::Percent(50.0)
-                            padding_horizontal=0.0
-                            padding_vertical=20.0
+                            padding={Sides::symmetric(0.0, 20.0)}
                         >
                             <Spacer />
                         </Frame>
                         <Frame
                             @sizing=ItemSize::Percent(50.0)
-                            padding_horizontal=0.0
-                            padding_vertical=20.0
+                            padding={Sides::symmetric(0.0, 20.0)}
                         >
                             <Spacer />
                         </Frame>

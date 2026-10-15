@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::Func;
+use crate::reactive::*;
 use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 
 #[test]
@@ -27,7 +27,7 @@ fn the_innermost_drop_target_that_accepts_the_payload_takes_the_drop() {
                     on_drop={move |(payload, _): (u32, DragPoint)| set_landed.update(|landed| landed.push(("outer", payload)))}
                 >
                     {move |_: DropHandle| view! {
-                        <Frame padding_horizontal=20.0 padding_vertical=20.0>
+                        <Frame padding=20.0>
                             <DropTarget
                                 accepts={Func::new(|payload: u32| payload == 1)}
                                 on_drop={move |(payload, _): (u32, DragPoint)| set_landed.update(|landed| landed.push(("inner", payload)))}

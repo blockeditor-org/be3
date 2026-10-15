@@ -1,6 +1,6 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::view;
+use crate::reactive::*;
 use crate::unstyled::{PanZoomView, pan_zoom_view};
 
 #[test]

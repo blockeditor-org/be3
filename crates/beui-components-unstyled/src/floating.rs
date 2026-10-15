@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use beui_core::base::overlay::Placement;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{Child, NodeRef, Prop};
+use beui_view::reactive::*;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Edge {

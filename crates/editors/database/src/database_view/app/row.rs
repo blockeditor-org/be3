@@ -7,14 +7,8 @@ use block_editor_beui::beui::icons::{
     ICON_ARROW_BACK, ICON_CLOSE, ICON_DELETE, ICON_EXPAND_LESS, ICON_EXPAND_MORE, ICON_MORE_HORIZ,
     ICON_NOTE_ADD, ICON_OPEN_IN_NEW,
 };
-use block_editor_beui::beui::reactive::{
-    Align, BackHandler, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component,
-    create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, IconButton, IconMenuButton, ListRow, Scroll, Select, Separator,
-    TextInput, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
@@ -24,7 +18,6 @@ use uuid::Uuid;
 use crate::database_view::app::controls::{ChoicePicker, MARK, MARK_SIZE};
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{iconic, row_title, visible_groups};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 20.0;
 const SPACING: f32 = 8.0;
@@ -129,12 +122,11 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let wide = create_memo(move || !narrow.get());
     let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
     let editor = data.editor();
-    let theme = use_theme();
     view! {
         <BackHandler on_back={back}>
-            <Frame color={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <List spacing=0.0>
-                    <Frame padding_horizontal=SPACING padding_vertical=6.0>
+                    <Frame padding={Sides::symmetric(SPACING, 6.0)}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                             <Show condition={narrow}>
                                 <IconButton
@@ -159,7 +151,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 @test_id={"database-view.detail.next"}
                                 on_click={move || next(1)}
                             />
-                            <Frame padding_horizontal=6.0>
+                            <Frame padding={Sides::horizontal(6.0)}>
                                 <Text
                                     style=TextStyle::CAPTION
                                     string={code}
@@ -202,7 +194,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                     </Frame>
                     <Separator />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                        <Frame padding=PADDING>
                             <List spacing={SPACING * 2.0}>
                                 <TextInput
                                     value={title}

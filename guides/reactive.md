@@ -185,7 +185,7 @@ pub struct Theme {
 }
 
 let theme = ThemeStore::new(Theme::DARK);
-view! { <Frame color={theme.background} /> }
+let accent: Prop<Color32> = theme.accent.into_prop();
 theme.set_accent(Color32::WHITE);
 ```
 
@@ -439,10 +439,8 @@ with `view!` inside a `#[component]`, and build the document with `build`, which
 supplies the document ambiently and returns the finished `Document`.
 
 ```rust
-use beui::reactive::{
-    build, component, create_memo, create_signal, view, Button, Direction, List,
-    Text,
-};
+use beui::reactive::*;
+use beui::styled::*;
 
 #[component]
 fn App() -> beui::NodeId {
@@ -451,13 +449,9 @@ fn App() -> beui::NodeId {
     view! {
         <List spacing=0.0>
             <List direction=Direction::Horizontal spacing=8.0>
-                <Button on_click={move || set_count.update(|count| *count -= 1)}>
-                    <Text string="-" />
-                </Button>
+                <Button label="-" on_click={move || set_count.update(|count| *count -= 1)} />
                 <Text string={count_text} /> // updates itself when `count` changes
-                <Button on_click={move || set_count.update(|count| *count += 1)}>
-                    <Text string="+" />
-                </Button>
+                <Button label="+" on_click={move || set_count.update(|count| *count += 1)} />
             </List>
         </List>
     }
@@ -484,11 +478,11 @@ enough to read on their own may drop the braces: literals, paths, a call on a
 path, a unary expression, and a reference to a path.
 
 ```rust
-<Frame color=SURFACE>
+<Frame fill=ColorRole::Surface>
 <Text style=TextStyle::CAPTION string=count_text align=TextAlign::End />
 <List direction=Direction::Horizontal />
 <Frame @node_ref=&panel width=TRIGGER_WIDTH height=HEIGHT>
-<Frame color=Color32::from_gray(40) radius=4>
+<Frame fill=ColorRole::Accent radius=Radius::Sm>
 ```
 
 An attribute written as a bare name takes the value of the binding with that
@@ -552,8 +546,8 @@ memo straight to the prop; a memo only wakes the property when its value
 actually changes.
 
 ```rust
-let fill = create_memo(move || if hovered.get() { HOVER } else { REST });
-view! { <Frame color={fill} radius=RADIUS>{child}</Frame> }
+let fill = create_memo(move || if hovered.get() { ColorRole::Hover } else { ColorRole::Surface });
+view! { <Frame fill radius=Radius::Md>{child}</Frame> }
 ```
 
 `Prop<T>` reads with `get()`, which subscribes the computation around it, and

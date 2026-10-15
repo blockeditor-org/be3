@@ -1,12 +1,8 @@
 use block_editor_beui::be_block::database::DatabaseContent;
 use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
-use block_editor_beui::beui::reactive::{
-    Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, component,
-    create_effect, create_memo, store, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Scroll, use_theme};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockInfo, BlockList, BlockQuery};
 use block_editor_beui::{BlockLink, ChildBlock, ChildMode, ChildTarget, Editor, Sidebar};
@@ -45,16 +41,10 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List direction=Direction::Horizontal spacing=0.0>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=SECTION_SPACING>
                         <Text style=TextStyle::HEADING string="Views" />
                         <Show condition={none_yet}>

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Embed, EmbedSlot, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
 
 #[test]

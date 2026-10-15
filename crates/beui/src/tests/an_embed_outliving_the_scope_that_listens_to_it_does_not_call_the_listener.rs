@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Dynamic, Embed, EmbedSlot, Frame, create_signal, store, view, with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() {

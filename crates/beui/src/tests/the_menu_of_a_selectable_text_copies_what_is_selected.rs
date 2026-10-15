@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{List, NodeRef, Text, build, view};
-use crate::styled::SelectableText;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_menu_of_a_selectable_text_copies_what_is_selected() {

@@ -1,6 +1,6 @@
 use super::*;
 
-use beui::reactive::{Frame, build, with_reactive_scope};
+use beui::styled::*;
 
 struct Tray;
 

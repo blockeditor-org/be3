@@ -7,15 +7,8 @@ use block_editor_beui::beui::icons::{
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_INFO, ICON_LINK_OFF, ICON_MOVE_UP,
     ICON_NOTE_ADD, ICON_OPEN_WITH, ICON_SHARE,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal,
-    Show, Spacer, Stored, WriteSignal, component, create_effect, create_memo, create_signal,
-    focus_ring, store, view, with_document,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, ContextMenu, Dialog, IconButton, Tooltip, Tree, TreeRowFace,
-    tree_row_node, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout};
@@ -25,7 +18,6 @@ use super::export::{Export, Exporter, exportable};
 use super::phone::PhoneFiles;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 6.0;
@@ -140,7 +132,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         set_landing.set(landed);
     });
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={toolbar}>
                     <IconButton
@@ -172,7 +164,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         </Show>
                         <Show condition={failed}>
                             {move || view! {
-                                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                                <Frame padding=PADDING>
                                     <Text
                                         style=TextStyle::CAPTION
                                         string={reason}
@@ -578,11 +570,9 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
             <Frame
                 width=ADD_WIDTH
                 height=ADD_WIDTH
-                color={fill}
-                outline={theme.accent}
-                outline_width=1.0
-                outline_visible={focus_ring(focused)}
-                radius=3
+                fill={ColorRole::custom(fill)}
+                border={focus_border(focused, Border::new(ColorRole::Accent).width(1.0))}
+                radius={Radius::custom(3.0)}
             >
                 <Text size=TextSize::Xs color={color} align=TextAlign::Center>
                     <Icon glyph={ICON_ADD.to_owned()} />

@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, Interactive, view, with_reactive_scope};
-use crate::styled::ContextMenu;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::MenuItem;
 
 fn sheet_shown(harness: &Harness) -> bool {

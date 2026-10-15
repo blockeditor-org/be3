@@ -1,8 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Frame, Interactive, ItemSize, List, NodeRef, Offset, Text, VirtualList, build, create_memo,
-    view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {

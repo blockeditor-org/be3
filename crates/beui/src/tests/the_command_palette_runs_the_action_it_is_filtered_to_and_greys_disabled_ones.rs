@@ -1,7 +1,7 @@
 use super::*;
 use crate::KeyPress;
-use crate::reactive::{Action, NodeRef, build, create_signal, on_shortcut, view};
-use crate::styled::CommandPalette;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::{command_palette_highlighted, command_palette_row, command_palette_shown};
 
 #[test]

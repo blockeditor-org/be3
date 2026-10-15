@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::with_reactive_scope;
+use crate::reactive::*;
 use crate::unstyled::{DockMode, DockPane, DockSplit, DockTab, DockingLayout};
 
 #[test]

@@ -1,4 +1,5 @@
-use beui::reactive::{Frame, component, view};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
 use block_plugin_api::{HostWindow, HostWindowId};
 

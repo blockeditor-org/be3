@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{List, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_driver_resizes_a_headless_window_and_reads_its_state() {

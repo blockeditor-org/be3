@@ -1,15 +1,14 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{FOCUS_RING_WIDTH, RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_core::font::TextAlign;
 use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, ReadSignal, Show,
-    create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const ROW_HEIGHT: f32 = 52.0;
 const PADDING_HORIZONTAL: f32 = 12.0;
@@ -88,12 +87,10 @@ pub(crate) fn ActionRowFace(
     view! {
         <Frame
             height=ROW_HEIGHT
-            color={fill}
-            radius=RADIUS
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=PADDING_HORIZONTAL
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            border={focus_border(focused, Border::FOCUS)}
+            padding={Sides::horizontal(PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={has_glyph}>

@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Canvas, CanvasItem, Embed, EmbedSlot, build, create_signal, view, with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_embed_reports_its_placement_when_it_moves() {

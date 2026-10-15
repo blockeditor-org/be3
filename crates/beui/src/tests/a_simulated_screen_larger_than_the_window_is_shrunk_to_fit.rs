@@ -1,7 +1,8 @@
 use super::*;
-use crate::reactive::{Frame, view};
+use crate::primitives::Frame;
+use crate::reactive::*;
 use crate::screen_simulation::ScreenSimulation;
-use crate::styled::Checkbox;
+use crate::styled::*;
 
 #[test]
 fn a_simulated_screen_larger_than_the_window_is_shrunk_to_fit() {

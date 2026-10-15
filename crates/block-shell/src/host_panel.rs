@@ -1,5 +1,5 @@
 use block_editor_beui::beui::icons::{ICON_EXTENSION, ICON_HISTORY, ICON_LAYERS, ICON_SPEED};
-use block_editor_beui::beui::reactive::{component, view};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
 use block_editor_beui::{ChildMode, Editor, HostPanel, Subregion, SubregionContent};

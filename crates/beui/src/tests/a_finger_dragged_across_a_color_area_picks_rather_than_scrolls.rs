@@ -1,7 +1,8 @@
 use super::*;
 use crate::color::Hsva;
-use crate::reactive::view;
-use crate::styled::{ColorPicker, PICKER_WIDTH, Scroll};
+use crate::reactive::*;
+use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {

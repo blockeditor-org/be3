@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
@@ -5,18 +6,17 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 
 use crate::text::{Text, TextColor};
-use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const BOX_SIZE: f32 = 18.0;
 const MARK_SIZE: f32 = 10.0;
-const MARK_RADIUS: u8 = 2;
+const MARK_RADIUS: f32 = 2.0;
 const SPACING: f32 = 10.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 
@@ -69,20 +69,17 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    color={fill_color}
-                    outline={box_border}
-                    outline_width=BORDER_WIDTH
-                    radius=CHIP_RADIUS
-                    outline_visible={border_visible}
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    fill={ColorRole::custom(fill_color)}
+                    border={create_memo(move || border_visible.get().then(|| Border::new(ColorRole::Custom(box_border.get()))))}
+                    radius=Radius::Sm
+                    align=Align::Center
                 >
                     <Frame
                         visible={checked}
                         width=MARK_SIZE
                         height=MARK_SIZE
-                        color={mark_color}
-                        radius=MARK_RADIUS
+                        fill={ColorRole::custom(mark_color)}
+                        radius={Radius::custom(MARK_RADIUS)}
                     />
                 </Frame>
                 <Show condition={labeled}>

@@ -4,10 +4,8 @@ use beui_macros::{component, view};
 use beui_core::input::CursorIcon;
 
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Child, ClickCallback, Interactive, Prop, component_accessibility, create_memo,
-    create_signal, untrack,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 #[component]
 pub fn Pressable(

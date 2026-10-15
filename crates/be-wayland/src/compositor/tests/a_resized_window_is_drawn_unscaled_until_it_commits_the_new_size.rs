@@ -21,7 +21,7 @@ fn Pane(windows: Windows) -> NodeId {
                 {move |id: WindowId| {
                     let (width, height) = (width, height);
                     view! {
-                        <Frame width height>
+                        <Frame width=width height=height>
                             <WindowView windows id />
                         </Frame>
                     }

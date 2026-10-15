@@ -1,6 +1,7 @@
 use super::*;
 use crate::datetime::{Date, DateTime, Time};
-use crate::reactive::{Text, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{DateSegmentHandle, DateTimeField, date_time_field_text};
 
 #[test]

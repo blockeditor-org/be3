@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
-use beui::reactive::with_reactive_scope;
+use beui::reactive::*;
 use beui::{
     Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, NodeId, PointerButton,
     PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,

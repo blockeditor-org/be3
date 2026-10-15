@@ -4,14 +4,8 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_FORMAT_COLOR_RESET;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Track, component,
-    create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Accordion, Button, ButtonVariant, Checkbox, ColorInput, NumberDrag, NumberInput, Separator,
-    Shortcut, Slider, TextInput, ToggleButton, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
 
 use crate::geometry::*;
@@ -21,7 +15,6 @@ use super::layers::LayersSection;
 use super::paint::resolve_color;
 use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SPACING: f32 = 10.0;
 
@@ -407,7 +400,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 column_spacing=6.0
                 row_spacing=6.0
             >
-                <Frame align_vertical=Align::Center>
+                <Frame align={Align2::vertical(Align::Center)}>
                     <Text style=TextStyle::CAPTION string="X" />
                 </Frame>
                 <NumberInput
@@ -419,7 +412,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     on_change={x}
                     on_preview={x_preview}
                 />
-                <Frame align_vertical=Align::Center>
+                <Frame align={Align2::vertical(Align::Center)}>
                     <Text style=TextStyle::CAPTION string="Y" />
                 </Frame>
                 <NumberInput
@@ -431,7 +424,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     on_change={y}
                     on_preview={y_preview}
                 />
-                <Frame align_vertical=Align::Center>
+                <Frame align={Align2::vertical(Align::Center)}>
                     <Text style=TextStyle::CAPTION string="W" />
                 </Frame>
                 <NumberInput
@@ -444,7 +437,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     on_change={width}
                     on_preview={width_preview}
                 />
-                <Frame align_vertical=Align::Center>
+                <Frame align={Align2::vertical(Align::Center)}>
                     <Text style=TextStyle::CAPTION string="H" />
                 </Frame>
                 <NumberInput

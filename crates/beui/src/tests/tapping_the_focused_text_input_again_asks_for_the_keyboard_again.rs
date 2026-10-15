@@ -1,5 +1,5 @@
 use super::*;
-use crate::styled::TextInput;
+use crate::styled::*;
 
 fn keyboard(output: &crate::FrameOutput) -> Option<Keyboard> {
     output.window.ime.as_ref().map(|area| area.keyboard)

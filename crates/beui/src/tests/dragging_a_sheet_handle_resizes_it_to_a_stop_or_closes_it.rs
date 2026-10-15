@@ -1,7 +1,8 @@
 use super::*;
 use crate::input::BackGesture;
-use crate::reactive::{Frame, List, build, view};
-use crate::styled::Sheet;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {

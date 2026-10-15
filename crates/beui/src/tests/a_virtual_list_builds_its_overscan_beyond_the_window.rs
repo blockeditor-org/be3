@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Frame, ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_virtual_list_builds_its_overscan_beyond_the_window() {

@@ -2,11 +2,8 @@ use std::cell::Cell;
 use std::time::{Duration, Instant};
 
 use beui::accesskit::{Node, Role};
-use beui::reactive::{
-    Align, Direction, Drawing, Frame, ItemSize, List, NodeRef, Prop, component, create_memo,
-    create_signal, create_timer, draw_gpu, store, view,
-};
-use beui::styled::{Card, Shortcut};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{Edge, Floating, PointerLock, PointerLockHandle};
 use beui::{CursorIcon, Key, KeyPress, NodeId, Vec2};
 
@@ -133,7 +130,7 @@ pub(crate) fn Scene3DView() -> NodeId {
 #[component]
 fn Hint() -> NodeId {
     view! {
-        <Frame padding_vertical=HINT_INSET>
+        <Frame padding={Sides::vertical(HINT_INSET)}>
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
                     <Shortcut keys="Click" description="look around" />

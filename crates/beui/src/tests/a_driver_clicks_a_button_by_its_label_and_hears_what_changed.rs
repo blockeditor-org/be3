@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{List, ShowKeepAlive, Text, build, create_signal, view};
-use crate::styled::{Button, ButtonVariant};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {

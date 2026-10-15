@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::ForEach;
+use crate::reactive::*;
 use crate::unstyled::{DockMode, DockPane, DockTab, DockingLayout, TabId, dock_actions};
 
 const HOME: u64 = 1;

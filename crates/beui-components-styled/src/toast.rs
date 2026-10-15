@@ -1,10 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
-use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -13,10 +13,8 @@ use beui_core::icons::{ICON_CLOSE, ICON_ERROR, ICON_INFO};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Prop, Show, create_memo,
-    create_timer,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
@@ -87,11 +85,7 @@ pub fn Toasts(
             traps_focus=false
             open={open}
         >
-            <Frame
-                padding_horizontal=MARGIN
-                padding_vertical=MARGIN
-                width=Some(WIDTH + 2.0 * MARGIN)
-            >
+            <Frame padding=MARGIN width={WIDTH + 2.0 * MARGIN}>
                 <List spacing=SPACING>
                     <ForEach keys={toasts}>
                         {move |toast: Toast| {
@@ -127,7 +121,6 @@ fn ToastCard(
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
 ) -> NodeId {
-    let theme = use_theme();
     let Toast {
         id,
         title,
@@ -203,13 +196,10 @@ fn ToastCard(
     view! {
         <Frame
             @test_id={format!("toast.{id}")}
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
-            radius=RADIUS
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>

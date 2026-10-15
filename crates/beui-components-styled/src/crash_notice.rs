@@ -1,3 +1,4 @@
+use crate::frame::Frame;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -5,7 +6,8 @@ use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_ERROR, ICON_REFRESH};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, ClickCallback, Frame, List, Prop, Show, create_memo};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;
@@ -26,7 +28,7 @@ pub fn CrashNotice(
         move || !detail.get().is_empty()
     });
     view! {
-        <Frame @test_id={id} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
                 <Text size=TextSize::Xl color=TextColor::Danger align=TextAlign::Center>
                     <Icon glyph={ICON_ERROR.to_owned()} />

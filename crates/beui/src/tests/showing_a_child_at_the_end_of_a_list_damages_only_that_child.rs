@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{List, Show, build, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
@@ -8,10 +9,10 @@ fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame height=40.0 color=Color32::WHITE />
-                <Frame height=40.0 color=Color32::from_gray(128) />
+                <Frame height=40.0 fill=Color32::WHITE />
+                <Frame height=40.0 fill={Color32::from_gray(128)} />
                 <Show condition={shown}>
-                    <Frame height=20.0 color=Color32::BLACK />
+                    <Frame height=20.0 fill=Color32::BLACK />
                 </Show>
             </List>
         }

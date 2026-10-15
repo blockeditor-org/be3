@@ -1,6 +1,7 @@
 use super::*;
 use crate::image::{Image, ImageFit};
-use crate::reactive::{Frame, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Picture;
 
 #[test]

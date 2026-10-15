@@ -1,7 +1,8 @@
 use super::*;
-use crate::reactive::{NodeRef, build, view};
+use crate::primitives::Frame;
+use crate::reactive::*;
 use crate::styled::popover::PANEL_MAX_WIDTH;
-use crate::styled::{Checkbox, Popover};
+use crate::styled::*;
 use crate::unstyled::PopoverHandle;
 
 #[test]

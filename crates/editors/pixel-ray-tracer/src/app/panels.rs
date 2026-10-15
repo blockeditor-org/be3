@@ -4,18 +4,13 @@ use block_editor_beui::be_block::pixel_ray_tracer::{
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, List, Prop, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Slider, ToggleButton, Tooltip, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Pressable, SliderScale};
 
 use crate::overlay::palette_color;
 
 use super::state::{RayState, Surface, Tool};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SWATCH: f32 = 18.0;
 
@@ -112,11 +107,9 @@ fn Swatch(state: RayState, index: usize) -> NodeId {
                 <Frame
                     width=SWATCH
                     height=SWATCH
-                    color={color}
-                    radius=3
-                    outline={outline}
-                    outline_width=2.0
-                    outline_visible={picked}
+                    fill={ColorRole::custom(color)}
+                    radius={Radius::custom(3.0)}
+                    border={create_memo(move || picked.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(2.0)))}
                 />
             </Pressable>
         </Tooltip>

@@ -101,7 +101,7 @@ struct Views<A: BeuiApp> {
 }
 
 fn follow_host_theme(document: &mut beui::Document) {
-    use beui::styled::{DocumentTheme, Theme};
+    use beui::styled::*;
     let theme = match block_editor_plugin::host_theme() {
         block_plugin_api::Theme::Dark => Theme::DARK,
         block_plugin_api::Theme::OledDark => Theme::OLED,

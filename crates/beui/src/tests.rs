@@ -748,12 +748,10 @@ use crate::base::list::{Direction, ItemSize, ListNode};
 use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
-use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, ReadSignal, Spacer,
-    Text, VirtualList, WriteSignal, build, create_binding, create_signal, with_document,
-};
+use crate::primitives::{Frame, Text};
+use crate::reactive::*;
 use crate::styled;
-use crate::styled::DocumentTheme;
+use crate::styled::*;
 use crate::unstyled;
 use beui_macros::{component, view};
 
@@ -1433,14 +1431,14 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
     view! {
-        <Frame width=120.0 height=60.0 color=Color32::from_gray(80) radius=4 />
+        <Frame width=120.0 height=60.0 fill={Color32::from_gray(80)} radius=4.0 />
     }
 }
 
 #[component]
 pub(crate) fn ButtonFace(label: String) -> NodeId {
     view! {
-        <Frame color=Color32::from_gray(60) radius=4 padding_horizontal=20.0 padding_vertical=12.0>
+        <Frame fill={Color32::from_gray(60)} radius=4.0 padding={Sides::symmetric(20.0, 12.0)}>
             <Text string={label} color=Color32::WHITE />
         </Frame>
     }
@@ -1499,8 +1497,7 @@ pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
                                 });
                                 view! {
                                     <Frame
-                                        padding_horizontal=0.0
-                                        padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
+                                        padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
                                     >
                                         <Spacer />
                                     </Frame>
@@ -1575,7 +1572,7 @@ pub(crate) fn hello_column() -> HelloColumn {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Frame @node_ref=&padding padding_horizontal=4.0 padding_vertical=4.0>
+                    <Frame @node_ref=&padding padding=4.0>
                         <Text @node_ref=&text string="Hello" color=Color32::WHITE />
                     </Frame>
                 </List>
@@ -1610,9 +1607,19 @@ pub(crate) fn three_panels() -> ThreePanels {
         move || {
             view! {
                 <List @node_ref=&list spacing=0.0>
-                    <Frame @node_ref=&top height=100.0 color=Color32::WHITE radius=0 />
-                    <Frame @node_ref=&middle height=100.0 color={Color32::from_gray(40)} radius=0 />
-                    <Frame @node_ref=&bottom height=100.0 color={Color32::from_gray(80)} radius=0 />
+                    <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
+                    <Frame
+                        @node_ref=&middle
+                        height=100.0
+                        fill={Color32::from_gray(40)}
+                        radius=0.0
+                    />
+                    <Frame
+                        @node_ref=&bottom
+                        height=100.0
+                        fill={Color32::from_gray(80)}
+                        radius=0.0
+                    />
                 </List>
             }
         }
@@ -1632,8 +1639,8 @@ pub(crate) fn stacked_panels() -> StackedPanels {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Frame @node_ref=&upper height=100.0 color=Color32::WHITE radius=0 />
-                    <Frame @node_ref=&lower height=100.0 color={Color32::from_gray(40)} radius=0 />
+                    <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
+                    <Frame @node_ref=&lower height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
                 </List>
             }
         }
@@ -1787,8 +1794,6 @@ fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
         </unstyled::DockTab>
     }
 }
-
-use crate::reactive::Interactive;
 
 #[component]
 fn CountingPanel(id: u64, presses: WriteSignal<u32>) -> NodeId {
@@ -2026,7 +2031,6 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
-use crate::reactive::{DynamicSegment, ListChild};
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {
@@ -2061,8 +2065,6 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
         </ForEach>
     }
 }
-
-use crate::styled::{Button, ButtonVariant, Launcher, LauncherItem};
 
 fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
@@ -2384,7 +2386,7 @@ fn FocusPanel(
                 true
             }}
         >
-            <Frame width height />
+            <Frame width=width height=height />
         </Interactive>
     }
 }

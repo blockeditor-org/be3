@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn unchanged_input_reuses_layout_and_paint() {
@@ -8,7 +9,7 @@ fn unchanged_input_reuses_layout_and_paint() {
     let mut document = build({
         move || {
             view! {
-                <Frame @node_ref=&fill color=Color32::WHITE radius=0 />
+                <Frame @node_ref=&fill fill=Color32::WHITE radius=0.0 />
             }
         }
     });

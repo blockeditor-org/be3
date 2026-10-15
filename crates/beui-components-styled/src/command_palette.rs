@@ -1,17 +1,17 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{CommandRowHandle, TextInputHandle};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Child, ClickCallback, Direction, Frame, ItemSize, List, Prop, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const WIDTH: f32 = 520.0;
 const LIST_HEIGHT: f32 = 320.0;
@@ -51,18 +51,14 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
 
 #[component]
 fn PalettePanel(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+        <Frame padding=MARGIN>
             <Frame
-                max_width=WIDTH
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
-                radius=CARD_RADIUS
-                padding_horizontal=PADDING
-                padding_vertical=PADDING
+                width={Extent::at_most(WIDTH)}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Lg
+                padding=PADDING
             >
                 {children}
             </Frame>
@@ -73,15 +69,12 @@ fn PalettePanel(children: Child) -> NodeId {
 #[component]
 fn PaletteSearch(handle: TextInputHandle) -> NodeId {
     let TextInputHandle { field, .. } = handle;
-    let theme = use_theme();
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            color={theme.surface}
-            outline={theme.accent}
-            outline_width=BORDER_WIDTH
-            radius=RADIUS
-            outline_visible=true
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Accent)}
+            radius=Radius::Md
         >
             {field}
         </Frame>
@@ -114,10 +107,9 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
     let shortcut = shortcut.unwrap_or_default();
     view! {
         <Frame
-            color={fill}
-            radius=RADIUS
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=ROW_PADDING_VERTICAL
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            padding={Sides::symmetric(PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Frame width=ICON_WIDTH>

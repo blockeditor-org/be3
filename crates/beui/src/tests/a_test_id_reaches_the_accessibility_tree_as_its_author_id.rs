@@ -1,8 +1,9 @@
 use accesskit::Role;
 
 use super::*;
-use crate::reactive::{Frame, List, build, view};
-use crate::styled::{Button, ButtonVariant};
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_test_id_reaches_the_accessibility_tree_as_its_author_id() {

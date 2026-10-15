@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::Scope;
+use crate::reactive::*;
 
 #[test]
 fn a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it() {

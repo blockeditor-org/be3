@@ -1,3 +1,4 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::button::{ButtonFace, ButtonVariant};
@@ -5,7 +6,7 @@ use crate::context_menu::menu_style;
 use crate::focus_ring::FocusRing;
 use crate::icon_button::{IconButtonFace, IconButtonSize};
 use crate::text::{Icon, Text, TextSize};
-use crate::theme::{RADIUS, use_theme};
+use crate::theme::use_theme;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{MenuButtonHandle, MenuItem, Picture};
@@ -14,9 +15,8 @@ use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::image::Image;
 use beui_core::input::ScrollGesture;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Children, ClickCallback, Frame, List, Memo, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PICTURE_SIZE: f32 = TextSize::Base.icon_px();
 const PICTURE_PADDING: f32 = 6.0;
@@ -133,13 +133,12 @@ pub fn PictureMenuButton(
         let (image, pictured, plain) = (image, pictured, plain);
         view! {
             <Tooltip label disabled={open}>
-                <FocusRing focused radius={RADIUS + 2} offset=PICTURE_FOCUS_RING_OFFSET>
-                    <Frame
-                        color={fill}
-                        radius=RADIUS
-                        padding_horizontal=PICTURE_PADDING
-                        padding_vertical=PICTURE_PADDING
-                    >
+                <FocusRing
+                    focused
+                    radius={Radius::custom(Radius::Md.px() + 2.0)}
+                    offset=PICTURE_FOCUS_RING_OFFSET
+                >
+                    <Frame fill={ColorRole::custom(fill)} radius=Radius::Md padding=PICTURE_PADDING>
                         <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                             <List spacing=0.0 align=Align::Center>
                                 <Show condition={pictured}>

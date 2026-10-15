@@ -1,7 +1,8 @@
 use super::*;
 use crate::LayerPolicy;
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
-use crate::reactive::{Frame, NodeRef, Overlay, build, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {

@@ -1,7 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Frame, Interactive, NodeRef, build, create_signal, view};
-use crate::styled::Dialog;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_catcher_in_a_dialog_hears_a_press_on_it() {

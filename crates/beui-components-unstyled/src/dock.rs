@@ -40,14 +40,8 @@ use beui_core::image::Image;
 use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
-    Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
-    ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, StoredCell, WriteSignal,
-    component_accessibility, create_effect, create_memo, create_signal, create_timer, on_cleanup,
-    on_shortcut, owner_scope, provide_context, set_component_state, store, try_with_document,
-    untrack, use_context, with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
@@ -1361,11 +1355,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 on_cleanup(move || dock.keep_panels(&[]));
                 view! {
                     <List spacing=0.0>
-                        <Frame
-                            @sizing=ItemSize::Percent(100.0)
-                            padding_horizontal={inset}
-                            padding_vertical={inset}
-                        >
+                        <Frame @sizing=ItemSize::Percent(100.0) padding=inset>
                             <List spacing=0.0>
                                 <Dynamic value={mode}>
                                     {move |mode: DockMode| {
@@ -1439,7 +1429,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                     }
                 }}
             >
-                <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
+                <Frame @test_id="dock.fullscreen" width=width height=height>{body}</Frame>
             </Interactive>
         </Overlay>
     }
@@ -2047,11 +2037,7 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
                     let inset = dock.group_inset;
                     match group {
                         Some(group) => view! {
-                            <Frame
-                                padding_horizontal={inset}
-                                padding_vertical={inset}
-                                @sizing=ItemSize::Percent(100.0)
-                            >
+                            <Frame padding=inset @sizing=ItemSize::Percent(100.0)>
                                 <DockTreeView dock tree={Tree::Group(group)} />
                             </Frame>
                         },
@@ -2734,10 +2720,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             traps_focus=false
             open=true
         >
-            <Frame width={outer_width} height={outer_height}>
+            <Frame width=outer_width height=outer_height>
                 <Canvas>
                     <CanvasItem x=HANDLE_REACH y=HANDLE_REACH width={width} height={height}>
-                        <Frame @node_ref=&frame width={width} height={height}>
+                        <Frame @node_ref=&frame width=width height=height>
                             <Canvas>
                                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                     <Interactive
@@ -2975,7 +2961,7 @@ fn DockDragLayer(dock: State) -> NodeId {
                 traps_focus=false
                 open={marking}
             >
-                <Frame width={marker_width} height={marker_height}>{face}</Frame>
+                <Frame width=marker_width height=marker_height>{face}</Frame>
             </Overlay>
         </List>
     }

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, view};
-use crate::styled::ResponsiveTabs;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::Container;
 
 const BREAKPOINT: f32 = 500.0;

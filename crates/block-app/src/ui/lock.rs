@@ -5,10 +5,8 @@ use beui::datetime::{DateTime, HourCycle};
 use beui::icons::{
     ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
 };
-use beui::reactive::{
-    Action, Chord, ReadSignal, component, create_memo, create_signal, create_timer, now, view,
-};
-use beui::styled::{LockAction, LockScreen};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Key, NodeId};
 use block_plugin_api::PowerAction;
 

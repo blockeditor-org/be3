@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Select;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn hovering_a_select_option_moves_the_keyboard_highlight() {

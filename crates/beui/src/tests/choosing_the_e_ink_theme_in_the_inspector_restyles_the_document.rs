@@ -1,7 +1,7 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Card, Theme};
-use crate::styled::{Text, TextStyle};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn choosing_the_e_ink_theme_in_the_inspector_restyles_the_document() {

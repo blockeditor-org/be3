@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, field_border, use_theme};
+use crate::theme::{ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -13,10 +14,8 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, create_memo,
-    focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: f32 = 220.0;
@@ -98,21 +97,16 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
     });
     view! {
         <Frame
-            max_width=TRIGGER_MAX_WIDTH
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
+            width={Extent::at_most(TRIGGER_MAX_WIDTH)}
+            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            radius=Radius::Md
         >
             <Frame
                 height=HEIGHT
-                color={fill}
-                outline={border}
-                outline_width=BORDER_WIDTH
-                radius=RADIUS
-                outline_visible=true
-                padding_horizontal=PADDING_HORIZONTAL
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+                radius=Radius::Md
+                padding={Sides::horizontal(PADDING_HORIZONTAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
                     <Text
@@ -144,11 +138,9 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            color={theme.surface}
-            outline={border}
-            outline_width=BORDER_WIDTH
-            radius=RADIUS
-            outline_visible=true
+            fill=ColorRole::Surface
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+            radius=Radius::Md
         >
             {field}
         </Frame>
@@ -168,10 +160,9 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
         create_memo(move || option_background(&theme, highlighted.get(), hovered.get()));
     view! {
         <Frame
-            color={fill_color}
-            radius=RADIUS
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=OPTION_PADDING_VERTICAL
+            fill={ColorRole::custom(fill_color)}
+            radius=Radius::Md
+            padding={Sides::symmetric(PADDING_HORIZONTAL, OPTION_PADDING_VERTICAL)}
         >
             <Text string={label} align=TextAlign::Start />
         </Frame>
@@ -180,17 +171,13 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
 
 #[component]
 fn SelectPopup(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
             width=POPUP_WIDTH
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            radius=RADIUS
-            outline_visible=true
-            padding_horizontal=POPUP_PADDING
-            padding_vertical=POPUP_PADDING
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding=POPUP_PADDING
         >
             {children}
         </Frame>

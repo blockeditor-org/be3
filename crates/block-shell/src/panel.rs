@@ -3,10 +3,8 @@ use std::cell::RefCell;
 use block_editor_beui::be_block::profile::VIEW_EDITORS;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
-use block_editor_beui::beui::reactive::{
-    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, component, create_effect,
-    create_memo, create_signal, view,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{TabId, dock_menu};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -21,7 +19,6 @@ use super::phone::DetailsSheet;
 use super::status::StatusBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
@@ -248,7 +245,7 @@ fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
     });
     let heading = format!("{ICON_LOCK} No access");
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
                 <Text style=TextStyle::HEADING string={heading} />
                 <Text style=TextStyle::CAPTION string={first} />

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, ItemSize, List, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured() {

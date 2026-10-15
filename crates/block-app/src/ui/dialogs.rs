@@ -1,18 +1,14 @@
 use be_protocol::WorkspaceRole;
 use beui::NodeId;
 use beui::icons::ICON_DELETE;
-use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, component, create_effect,
-    create_memo, create_signal, untrack, view,
-};
-use beui::styled::{Button, ButtonVariant, Dialog, IconButton, Spinner, Tabs, TextInput};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use uuid::Uuid;
 
 use super::onboarding::ErrorText;
 
 use super::{AppViewStore, UiCommand, send};
-use beui::styled::{Text, TextStyle};
 
 #[component]
 pub(super) fn Dialogs(view: AppViewStore) -> NodeId {

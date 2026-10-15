@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, view};
-use crate::styled::TextInput;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field() {

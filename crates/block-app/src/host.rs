@@ -1,4 +1,5 @@
-use beui::styled::{self, DocumentTheme, ThemeKind};
+use beui::styled;
+use beui::styled::*;
 use std::{
     cell::RefCell,
     sync::{

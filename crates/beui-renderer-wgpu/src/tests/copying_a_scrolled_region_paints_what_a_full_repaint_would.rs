@@ -1,6 +1,7 @@
 use super::*;
 use beui_components_unstyled::Scroll;
-use beui_view::reactive::{ForEach, Frame, List, build, view};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const SHADES: [Color32; 3] = [
     Color32::from_rgb(200, 40, 0),
@@ -11,16 +12,14 @@ const SHADES: [Color32; 3] = [
 fn scrolling() -> Document {
     build(|| {
         view! {
-            <Frame color=Color32::from_rgb(20, 20, 20) radius=0>
+            <Frame fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
                 <List spacing=0.0>
-                    <Frame height=12.0 color=Color32::WHITE radius=0 />
+                    <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
                     <Frame
                         height=40.0
-                        color=Color32::from_rgb(20, 20, 20)
-                        radius=0
-                        outline=Color32::from_rgb(250, 250, 120)
-                        outline_width=1.0
-                        outline_visible=true
+                        fill={Color32::from_rgb(20, 20, 20)}
+                        radius=0.0
+                        outline={Outline::new(Color32::from_rgb(250, 250, 120), 1.0)}
                     >
                         <Scroll @test_id="scroll">
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>
@@ -29,8 +28,8 @@ fn scrolling() -> Document {
                                         <Frame
                                             width=30.0
                                             height=6.0
-                                            radius=0
-                                            color={SHADES[row % SHADES.len()]}
+                                            radius=0.0
+                                            fill={SHADES[row % SHADES.len()]}
                                         />
                                     </Frame>
                                 }}

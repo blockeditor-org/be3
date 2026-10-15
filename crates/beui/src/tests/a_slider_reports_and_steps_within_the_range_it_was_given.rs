@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Slider;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_slider_reports_and_steps_within_the_range_it_was_given() {

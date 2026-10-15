@@ -1,12 +1,8 @@
 use std::cell::Cell;
 
 use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
-use beui::reactive::{
-    Canvas, CanvasItem, Direction, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, PlacementBuilder, Prop, ReadSignal, Show, Spacer, component, create_effect,
-    create_memo, draw_gpu, focus_takes_text, on_shortcut, store, view,
-};
-use beui::styled::{Button, ButtonVariant, IconButton, Separator, TextColor};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
 use block_editor_beui::{Editor, Loading, Side, Sidebar, Toolbar};
 
@@ -15,7 +11,6 @@ use super::panels::Panels;
 use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
-use beui::styled::{Text, TextStyle};
 
 const ZOOM_STEP: f32 = 1.25;
 
@@ -282,8 +277,8 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
     let width = create_memo(move || rect.get()[2] - rect.get()[0]);
     let height = create_memo(move || rect.get()[3] - rect.get()[1]);
     let text = create_memo(move || label.get().map(|label| label.text).unwrap_or_default());
-    let font = create_memo(move || {
-        beui::FontId::proportional(
+    let size = create_memo(move || {
+        TextSize::Custom(
             label
                 .get()
                 .map_or(LabelKind::Port.font_size(zoom.get()), |label| {
@@ -291,7 +286,9 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
                 }),
         )
     });
-    let color = create_memo(move || label.get().map_or(LABEL_COLOR, |label| label.kind.color()));
+    let color = create_memo(move || {
+        TextColor::Custom(label.get().map_or(LABEL_COLOR, |label| label.kind.color()))
+    });
     let align = create_memo(move || label.get().map_or(TextAlign::Center, |label| label.align));
     let vertical_align = create_memo(move || {
         label
@@ -300,13 +297,7 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
     });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <beui::reactive::Text
-                string={text}
-                font
-                color={color}
-                align={align}
-                vertical_align={vertical_align}
-            />
+            <Text string={text} size color={color} align={align} vertical_align={vertical_align} />
         </CanvasItem>
     }
 }

@@ -3,7 +3,7 @@ pub mod keyboard;
 use std::array;
 use std::time::{Duration, Instant};
 
-use beui_components_styled::theme::CARD_RADIUS;
+use beui_components_styled::Radius;
 use beui_components_styled::{TextSize, Theme};
 use beui_core::color::Color32;
 use beui_core::context::{Context, InputSimulation};
@@ -624,7 +624,7 @@ impl MouseSimulation {
             } else {
                 Theme::DARK.text
             };
-            painter.rect_filled(*bounds, f32::from(CARD_RADIUS), fill);
+            painter.rect_filled(*bounds, Radius::Lg.px(), fill);
             glyph(
                 painter,
                 bounds.center(),

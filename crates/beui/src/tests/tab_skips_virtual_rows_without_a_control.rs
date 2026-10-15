@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Dynamic, Frame, Interactive, ItemSize, List, NodeRef, Offset, VirtualList, build, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const ROWS: usize = 200;
 const FOCUSABLE: usize = 150;

@@ -1,7 +1,7 @@
 use super::*;
 use crate::datetime::Date;
-use crate::reactive::view;
-use crate::styled::Calendar;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year() {

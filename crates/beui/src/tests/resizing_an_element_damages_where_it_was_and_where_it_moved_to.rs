@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{List, WriteSignal, create_memo, create_signal, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const SHORT: f32 = 60.0;
 const TALL: f32 = 120.0;
@@ -17,12 +18,12 @@ fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
             let height = create_memo(move || if tall.get() { TALL } else { SHORT });
             view! {
                 <List spacing=0.0>
-                    <Frame height={height} color=Color32::WHITE radius=0 />
+                    <Frame height=height fill=Color32::WHITE radius=0.0 />
                     <Frame
                         @node_ref=&bottom
-                        height={BOTTOM}
-                        color={Color32::from_gray(40)}
-                        radius=0
+                        height=BOTTOM
+                        fill={Color32::from_gray(40)}
+                        radius=0.0
                     />
                 </List>
             }

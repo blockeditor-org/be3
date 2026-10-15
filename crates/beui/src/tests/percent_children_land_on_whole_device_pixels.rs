@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, ItemSize, List, build, view, with_document};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const SCALE: f32 = 1.5;
 

@@ -1,7 +1,7 @@
 use super::*;
 use crate::color::Hsva;
-use crate::reactive::view;
-use crate::styled::{ColorPicker, PICKER_WIDTH};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {

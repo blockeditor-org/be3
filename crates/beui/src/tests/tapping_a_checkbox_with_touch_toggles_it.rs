@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Checkbox;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn tapping_a_checkbox_with_touch_toggles_it() {

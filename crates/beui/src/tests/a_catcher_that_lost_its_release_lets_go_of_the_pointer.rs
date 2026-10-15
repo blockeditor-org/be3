@@ -1,6 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {

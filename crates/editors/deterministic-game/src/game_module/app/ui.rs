@@ -1,14 +1,11 @@
 use block_editor_beui::be_block::GameModuleContent;
-use block_editor_beui::beui::reactive::{
-    Direction, Frame, ItemSize, List, NodeRef, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{Editor, FileChooser, Sidebar};
 use game_host::Game;
 
 use super::{filter, imported};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -52,16 +49,10 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List direction=Direction::Horizontal spacing=0.0>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=SPACING>
                         <Show condition={named}>
                             <Text

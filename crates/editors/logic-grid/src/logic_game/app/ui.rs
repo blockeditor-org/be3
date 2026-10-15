@@ -2,14 +2,8 @@ use uuid::Uuid;
 
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
-use block_editor_beui::beui::reactive::ClickCallback;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, component,
-    create_effect, create_memo, create_selector, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, IconButton, Link, ListRow, Scroll, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use logicgame::challenges::{ChallengeId, generate_challenge};
 
@@ -17,7 +11,6 @@ use crate::logic_game::binary_addition::ui::BinaryAddition;
 
 use super::game::{Game, Level, Solution};
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const PADDING: f32 = 16.0;
 const ROW_SPACING: f32 = 8.0;
@@ -69,10 +62,9 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
 
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
-            <Frame @node_ref={&content} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill=ColorRole::Background>
+            <Frame @node_ref={&content} padding=PADDING>
                 <List spacing=ROW_SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                         <Text style=TextStyle::HEADING string="Levels" />
@@ -157,7 +149,7 @@ fn LevelRow(
             </ListRow>
             <Show condition={expanded}>
                 {move || { let goal = goal.clone(); view! {
-                    <Frame padding_left=INDENT>
+                    <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::CAPTION string={goal} wrap=true />
                             <Show condition={shows_quiz}>

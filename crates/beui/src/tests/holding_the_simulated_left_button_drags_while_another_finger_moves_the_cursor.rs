@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Slider;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor() {

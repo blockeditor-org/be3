@@ -1,6 +1,5 @@
 use super::*;
 use beui::KeyAt;
-use beui::reactive::LayerLevel;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
@@ -69,11 +68,7 @@ mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
-use beui::reactive::{
-    ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
-    component, create_memo, create_signal, view, with_reactive_scope,
-};
-use beui::styled::TextInput;
+use beui::styled::*;
 use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
@@ -154,7 +149,7 @@ fn Shown(windows: Windows) -> NodeId {
                             let width = create_memo(move || Some(size.get().x));
                             let height = create_memo(move || Some(size.get().y));
                             view! {
-                                <Frame width height>
+                                <Frame width=width height=height>
                                     <WindowView windows id />
                                 </Frame>
                             }

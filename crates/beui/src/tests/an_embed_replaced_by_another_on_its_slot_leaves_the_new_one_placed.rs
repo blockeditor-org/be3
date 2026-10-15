@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Keyed, List, ReadSignal, build, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
@@ -10,10 +11,10 @@ fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame width=20.0 height=20.0 color={color} />
+                <Frame width=20.0 height=20.0 fill=color />
                 <Keyed value={key} key={|key: u32| key}>
                     {|_: ReadSignal<u32>| view! {
-                        <Frame width=300.0 height=200.0 color=Color32::from_gray(128) />
+                        <Frame width=300.0 height=200.0 fill={Color32::from_gray(128)} />
                     }}
                 </Keyed>
             </List>

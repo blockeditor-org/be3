@@ -1,8 +1,8 @@
 use accesskit::Role;
 
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {

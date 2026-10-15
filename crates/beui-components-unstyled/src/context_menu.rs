@@ -7,10 +7,8 @@ use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, Show,
-    create_effect, create_memo, create_signal, last_pointer, set_component_state,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 struct State {
     overlay: NodeRef,

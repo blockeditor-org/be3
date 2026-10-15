@@ -3,14 +3,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD, ICON_REFRESH,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer,
-    component, create_effect, create_memo, create_signal, untrack, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Card, Chip, Dialog, IconButton, IconButtonSize, Scroll, Select, Spinner,
-    TextInput,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{
     AccessLevel, BlockParent, ChildMode, ChildState, Subregion, SubregionContent,
@@ -20,7 +14,6 @@ use uuid::Uuid;
 use super::share::{GRANTABLE, Member, Person, ShareAction};
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextSize, TextStyle};
 
 const MEMBERS_HEIGHT: f32 = 280.0;
 const SETTINGS_HEIGHT: f32 = 96.0;
@@ -215,7 +208,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
             on_dismiss={move || workspace.close_dialog()}
         >
             <List spacing=12.0>
-                <Frame height={height}>
+                <Frame height=height>
                     <Subregion
                         editor={editor}
                         placed={placed}
@@ -547,7 +540,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
     });
     let removable = create_memo(move || member.get().is_some_and(|member| member.removable));
     view! {
-        <Frame padding_vertical=4.0>
+        <Frame padding={Sides::vertical(4.0)}>
             <Card>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>

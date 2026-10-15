@@ -5,11 +5,8 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, List, Memo, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Scroll, use_theme};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::root_settings::is_own_settings;
 use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor, Loaded};
 use uuid::Uuid;
@@ -58,12 +55,11 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let loaded =
         editor.loaded::<SettingsContent>(&[BlockQuery::Roots, BlockQuery::Children(block)]);
     let children = editor.watch_blocks(BlockQuery::Children(block));
-    let theme = use_theme();
     view! {
         <Loaded loaded={loaded}>
-            <Frame color={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <Scroll>
-                    <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                    <Frame padding=PADDING>
                         <List spacing=SPACING>
                             <Text style=TextStyle::HEADING string="Settings" />
                             <Show condition={others}>
@@ -167,12 +163,11 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         }) == Some(Some(block))
     });
     let unused = create_memo(move || !used.get() && !blocked.get());
-    let theme = use_theme();
     view! {
         <Loaded loaded={loaded}>
-            <Frame color={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <Scroll>
-                    <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                    <Frame padding=PADDING>
                         <List spacing=SPACING>
                             <Text style=TextStyle::HEADING string="Settings profile" />
                             <Show condition={others}>

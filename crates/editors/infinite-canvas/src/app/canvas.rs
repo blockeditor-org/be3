@@ -3,12 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo, PasteKind,
-    Pasted, PlacementBuilder, ReadSignal, Show, component, create_effect, create_memo,
-    create_signal, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
 use uuid::Uuid;

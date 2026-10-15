@@ -7,10 +7,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::beui::icons::ICON_WEB_ASSET;
-use block_editor_beui::beui::reactive::{
-    Dynamic, Frame, ItemSize, Layers, List, Memo, ReadSignal, RenderFn, Spacer, Stored,
-    WriteSignal, batch, component, create_effect, create_memo, create_signal, store, untrack, view,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
@@ -35,7 +33,6 @@ use super::window::{
     WindowPanel, floating_window, kept_window, shown_size, tab_window, window_picture, window_tab,
     window_title,
 };
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 pub const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -1320,7 +1317,7 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
         })
     });
     view! {
-        <Frame visible={shown} padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame visible={shown} padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
                 <Text style=TextStyle::CAPTION string={message} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />

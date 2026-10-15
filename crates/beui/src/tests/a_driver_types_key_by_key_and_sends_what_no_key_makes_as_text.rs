@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, create_signal, view};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 use beui_core::app::automation::keys::typed;
 
 #[test]

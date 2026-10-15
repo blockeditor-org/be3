@@ -1,7 +1,7 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Checkbox;
-use crate::styled::{Text, TextStyle};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn the_screen_reader_follows_focus_that_tab_moves() {

@@ -2,7 +2,8 @@ use super::*;
 use crate::base::drawing::DrawingNode;
 use crate::damage::Region;
 use crate::drawing::Drawing;
-use crate::reactive::{Drawing, draw_gpu, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::renderer::{Draw, DrawAt};
 
 struct Blank;
