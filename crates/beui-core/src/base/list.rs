@@ -282,28 +282,46 @@ impl ListNode {
     ) -> Line {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let sizes: Vec<Sizing> = self.items.iter().map(|item| item.size).collect();
-        let mut intrinsic_lengths = Vec::with_capacity(sizes.len());
-        for item in self.items.iter() {
+        let mut slots = Vec::with_capacity(self.items.len());
+        for (index, item) in self.items.iter().enumerate() {
             let intrinsic = match item.size.size {
                 ItemSize::Intrinsic => true,
                 ItemSize::Percent(_) => !available_main.is_finite(),
                 ItemSize::Fixed(_) => false,
             };
-            intrinsic_lengths.push(match intrinsic {
+            let length = match intrinsic {
                 true => {
                     let available = self.axes(f32::INFINITY, available_cross);
                     let size = crate::layout::measure(doc, painter, item.child, available);
                     self.main_and_cross(size).0
                 }
                 false => 0.0,
+            };
+            let gap = match index {
+                0 => 0.0,
+                _ => grid.snap(item.size.gap.unwrap_or(spacing)),
+            };
+            slots.push(Slot {
+                size: item.size,
+                gap,
+                length,
             });
         }
-        let gaps = self.gaps(spacing, grid);
-        let lengths = distribute(grid, available_main, &gaps, &sizes, &intrinsic_lengths);
-        let mut line = Line::default();
-        for ((item, main), gap) in self.items.iter().zip(lengths).zip(gaps) {
-            let placed = self.placed(doc, painter, item, main, available_cross, gap, placing);
+        distribute(grid, available_main, &mut slots);
+        let mut line = Line {
+            items: Vec::with_capacity(slots.len()),
+            ..Line::default()
+        };
+        for (item, slot) in self.items.iter().zip(&slots) {
+            let placed = self.placed(
+                doc,
+                painter,
+                item,
+                slot.length,
+                available_cross,
+                slot.gap,
+                placing,
+            );
             line.items.push(placed);
         }
         line.finish();
@@ -382,6 +400,35 @@ impl ListNode {
             .collect()
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn place_line(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        rect: Rect,
+        out: &Rects,
+        line: &Line,
+        line_start: f32,
+        cross: f32,
+    ) {
+        let grid = doc.pixel_grid();
+        let (available_main, _) = self.main_and_cross(rect.size());
+        let leftover = match available_main.is_finite() {
+            true => (available_main - line.main).max(0.0),
+            false => 0.0,
+        };
+        let starts = justified(grid, self.justify, leftover, &line.items);
+        for (item, start) in line.items.iter().zip(starts) {
+            let (offset, length) = self.cross_place(grid, item, line, cross);
+            let offset = self.axes(start, line_start + offset);
+            let child_rect = Rect::from_min_size(
+                pos2(rect.left() + offset.x, rect.top() + offset.y),
+                self.axes(item.main, length),
+            );
+            crate::layout::layout(doc, painter, item.child, child_rect, out);
+        }
+    }
+
     fn cross_place(&self, grid: PixelGrid, item: &Placed, line: &Line, cross: f32) -> (f32, f32) {
         let length = match item.align {
             Align::Stretch => cross,
@@ -449,33 +496,15 @@ impl Element for ListNode {
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let (available_main, available_cross) = self.main_and_cross(rect.size());
-        let grid = doc.pixel_grid();
-        let spacing = grid.snap(self.spacing);
-        let lines = match self.wrap {
-            true => self.lines(doc, painter, available_main),
-            false => vec![self.line(doc, painter, available_main, available_cross, true)],
-        };
-        let single = lines.len() == 1 && !self.wrap;
+        if !self.wrap {
+            let line = self.line(doc, painter, available_main, available_cross, true);
+            self.place_line(doc, painter, rect, out, &line, 0.0, available_cross);
+            return;
+        }
+        let spacing = doc.pixel_grid().snap(self.spacing);
         let mut line_start = 0.0f32;
-        for line in &lines {
-            let cross = match single {
-                true => available_cross,
-                false => line.cross,
-            };
-            let leftover = match available_main.is_finite() {
-                true => (available_main - line.main).max(0.0),
-                false => 0.0,
-            };
-            let starts = justified(grid, self.justify, leftover, &line.items);
-            for (item, start) in line.items.iter().zip(starts) {
-                let (offset, length) = self.cross_place(grid, item, line, cross);
-                let offset = self.axes(start, line_start + offset);
-                let child_rect = Rect::from_min_size(
-                    pos2(rect.left() + offset.x, rect.top() + offset.y),
-                    self.axes(item.main, length),
-                );
-                crate::layout::layout(doc, painter, item.child, child_rect, out);
-            }
+        for line in &self.lines(doc, painter, available_main) {
+            self.place_line(doc, painter, rect, out, line, line_start, line.cross);
             line_start += line.cross + spacing;
         }
     }
@@ -525,7 +554,12 @@ impl Element for ListNode {
     }
 }
 
-fn justified(grid: PixelGrid, justify: Justify, leftover: f32, items: &[Placed]) -> Vec<f32> {
+fn justified(
+    grid: PixelGrid,
+    justify: Justify,
+    leftover: f32,
+    items: &[Placed],
+) -> impl Iterator<Item = f32> + '_ {
     let count = items.len() as f32;
     let (lead, between) = match justify {
         Justify::Start => (0.0, 0.0),
@@ -540,7 +574,7 @@ fn justified(grid: PixelGrid, justify: Justify, leftover: f32, items: &[Placed])
     items
         .iter()
         .enumerate()
-        .map(|(index, item)| {
+        .map(move |(index, item)| {
             if index > 0 {
                 exact += between;
             }
@@ -549,7 +583,6 @@ fn justified(grid: PixelGrid, justify: Justify, leftover: f32, items: &[Placed])
             exact += item.main;
             start
         })
-        .collect()
 }
 
 pub fn distribute_main_axis<S: Copy + Into<Sizing>>(
@@ -559,89 +592,99 @@ pub fn distribute_main_axis<S: Copy + Into<Sizing>>(
     sizes: &[S],
     intrinsic_lengths: &[f32],
 ) -> Vec<f32> {
-    let sizes: Vec<Sizing> = sizes.iter().map(|size| (*size).into()).collect();
-    let gaps: Vec<f32> = sizes
-        .iter()
-        .enumerate()
-        .map(|(index, size)| match index {
-            0 => 0.0,
-            _ => grid.snap(size.gap.unwrap_or(spacing)),
-        })
-        .collect();
-    distribute(grid, available_main, &gaps, &sizes, intrinsic_lengths)
-}
-
-fn distribute(
-    grid: PixelGrid,
-    available_main: f32,
-    gaps: &[f32],
-    sizes: &[Sizing],
-    intrinsic_lengths: &[f32],
-) -> Vec<f32> {
-    let basis: Vec<f32> = sizes
+    let mut slots: Vec<Slot> = sizes
         .iter()
         .zip(intrinsic_lengths)
-        .map(|(size, length)| {
-            let length = match size.size {
-                ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
-                ItemSize::Intrinsic => *length,
-                ItemSize::Percent(_) if !available_main.is_finite() => *length,
-                ItemSize::Percent(_) => return 0.0,
-            };
-            grid.snap(size.clamp(length))
+        .enumerate()
+        .map(|(index, (size, length))| {
+            let size: Sizing = (*size).into();
+            Slot {
+                size,
+                gap: match index {
+                    0 => 0.0,
+                    _ => grid.snap(size.gap.unwrap_or(spacing)),
+                },
+                length: *length,
+            }
         })
         .collect();
-    if !available_main.is_finite() {
-        return basis;
+    distribute(grid, available_main, &mut slots);
+    slots.into_iter().map(|slot| slot.length).collect()
+}
+
+#[derive(Clone, Copy)]
+struct Slot {
+    size: Sizing,
+    gap: f32,
+    length: f32,
+}
+
+fn percent(size: &Sizing) -> bool {
+    matches!(size.size, ItemSize::Percent(_))
+}
+
+fn distribute(grid: PixelGrid, available_main: f32, slots: &mut [Slot]) {
+    for slot in slots.iter_mut() {
+        let length = match slot.size.size {
+            ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
+            ItemSize::Intrinsic => slot.length,
+            ItemSize::Percent(_) if !available_main.is_finite() => slot.length,
+            ItemSize::Percent(_) => {
+                slot.length = 0.0;
+                continue;
+            }
+        };
+        slot.length = grid.snap(slot.size.clamp(length));
     }
-    let percent = |size: &Sizing| matches!(size.size, ItemSize::Percent(_));
-    let taken: f32 = gaps.iter().sum::<f32>()
-        + sizes
-            .iter()
-            .zip(&basis)
-            .filter(|(size, _)| !percent(size))
-            .map(|(_, length)| length)
-            .sum::<f32>();
+    if !available_main.is_finite() {
+        return;
+    }
+    let taken: f32 = slots
+        .iter()
+        .map(|slot| match percent(&slot.size) {
+            true => slot.gap,
+            false => slot.gap + slot.length,
+        })
+        .sum();
     let remaining = grid.snap(available_main - taken);
-    let parts: Vec<Part> = sizes
-        .iter()
-        .filter(|size| percent(size))
-        .map(|size| match size.size {
-            ItemSize::Percent(weight) => Part::new(weight, size.min, size.max),
-            _ => unreachable!(),
-        })
-        .collect();
-    let least: f32 = parts.iter().map(|part| part.min).sum();
-    let shares = snapped_run(grid, &share(remaining.max(0.0), &parts));
-    let overflow = least - remaining;
-    let cuts = match overflow > 0.0 {
-        true => {
-            let parts: Vec<Part> = sizes
-                .iter()
-                .zip(&basis)
-                .map(|(size, length)| match percent(size) {
-                    true => Part::new(0.0, 0.0, 0.0),
-                    false => Part::new(
-                        size.shrink * length,
-                        0.0,
-                        (length - size.min.max(0.0)).max(0.0),
-                    ),
-                })
-                .collect();
-            snapped_run(grid, &share(overflow, &parts))
+    let mut least = 0.0f32;
+    if slots.iter().any(|slot| percent(&slot.size)) {
+        let parts: Vec<Part> = slots
+            .iter()
+            .filter_map(|slot| match slot.size.size {
+                ItemSize::Percent(weight) => {
+                    Some(Part::new(weight, slot.size.min, slot.size.max))
+                }
+                _ => None,
+            })
+            .collect();
+        least = parts.iter().map(|part| part.min).sum();
+        let shares = snapped_run(grid, &share(remaining.max(0.0), &parts));
+        let mut shares = shares.into_iter();
+        for slot in slots.iter_mut().filter(|slot| percent(&slot.size)) {
+            slot.length = shares.next().unwrap_or(0.0);
         }
-        false => vec![0.0; sizes.len()],
-    };
-    let mut shares = shares.into_iter();
-    sizes
-        .iter()
-        .zip(basis)
-        .zip(cuts)
-        .map(|((size, length), cut)| match percent(size) {
-            true => shares.next().unwrap_or(0.0),
-            false => length - cut,
-        })
-        .collect()
+    }
+    let overflow = least - remaining;
+    if overflow > 0.0 {
+        let parts: Vec<Part> = slots
+            .iter()
+            .map(|slot| match percent(&slot.size) {
+                true => Part::new(0.0, 0.0, 0.0),
+                false => Part::new(
+                    slot.size.shrink * slot.length,
+                    0.0,
+                    (slot.length - slot.size.min.max(0.0)).max(0.0),
+                ),
+            })
+            .collect();
+        let cuts = snapped_run(grid, &share(overflow, &parts));
+        for (slot, cut) in slots.iter_mut().zip(cuts) {
+            if !percent(&slot.size) {
+                slot.length -= cut;
+            }
+        }
+    }
 }
 
 impl Document {
