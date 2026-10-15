@@ -3,16 +3,12 @@ use beui::reactive::*;
 use beui::styled::*;
 use block_plugin_api::HostPanel;
 
-use super::onboarding::ErrorText;
 use super::{UiCommand, send};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
     KillPlugin(String),
     CrashPlugin(String),
-    RefreshVersions,
-    Install(u64),
-    OpenUrl(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,42 +49,11 @@ pub(crate) struct PluginsView {
     pub(crate) runtimes: Vec<RuntimeView>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct RunView {
-    pub(crate) id: u64,
-    pub(crate) number: u64,
-    pub(crate) branch: String,
-    pub(crate) event: String,
-    pub(crate) sha: String,
-    pub(crate) created: String,
-    pub(crate) status: String,
-    pub(crate) url: String,
-    pub(crate) current: bool,
-    pub(crate) succeeded: bool,
-    pub(crate) installing: bool,
-    pub(crate) error: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum VersionRuns {
-    Loading,
-    Failed(String),
-    Loaded(Vec<RunView>),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct VersionView {
-    pub(crate) build: String,
-    pub(crate) can_install: bool,
-    pub(crate) runs: VersionRuns,
-}
-
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DebugView {
     pub(crate) client: Option<Vec<Line>>,
     pub(crate) performance: Option<Vec<PerformanceRow>>,
     pub(crate) plugins: Option<PluginsView>,
-    pub(crate) version: Option<VersionView>,
 }
 
 #[derive(Clone)]
@@ -132,12 +97,6 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                                 let plugins = create_memo(move || debug.get().plugins);
                                 view! {
                                     <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
-                                }
-                            }
-                            HostPanel::Version => {
-                                let version = create_memo(move || debug.get().version);
-                                view! {
-                                    <VersionPanel @sizing=ItemSize::Percent(100.0) version />
                                 }
                             }
                         }
@@ -404,134 +363,6 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                     }}
                 </ForEach>
             </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
-    let build = create_memo(move || {
-        version
-            .get()
-            .map(|version| version.build)
-            .unwrap_or_default()
-    });
-    let can_install = create_memo(move || version.get().is_some_and(|version| version.can_install));
-    let runs = create_memo(move || version.get().map(|version| version.runs));
-    let loading = create_memo(move || matches!(runs.get(), Some(VersionRuns::Loading)));
-    let error = create_memo(move || match runs.get() {
-        Some(VersionRuns::Failed(error)) => Some(error),
-        _ => None,
-    });
-    let loaded = create_memo(move || match runs.get() {
-        Some(VersionRuns::Loaded(runs)) => runs,
-        _ => Vec::new(),
-    });
-    let none = create_memo(
-        move || matches!(runs.get(), Some(VersionRuns::Loaded(runs)) if runs.is_empty()),
-    );
-    let keys = create_memo(move || {
-        loaded
-            .get()
-            .into_iter()
-            .map(|run| run.id)
-            .collect::<Vec<_>>()
-    });
-    view! {
-        <Frame padding=PANEL_PADDING>
-            <List spacing=8.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text style=TextStyle::CAPTION string="Running build:" />
-                    <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={build} />
-                    <Button
-                        label="Refresh"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| debug(DebugCommand::RefreshVersions)}
-                    />
-                </List>
-                <Show condition={loading}>
-                    <Spinner />
-                </Show>
-                <ErrorText text={error} />
-                <Show condition={none}>
-                    <Text style=TextStyle::CAPTION string="No workflow runs found." />
-                </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <ForEach keys={keys}>
-                        {move |id: u64| {
-                            let loaded = loaded;
-                            let run = create_memo(move || loaded.get().into_iter().find(|run| run.id == id));
-                            view! {
-                                <RunCard run can_install={can_install} />
-                            }
-                        }}
-                    </ForEach>
-                </Scroll>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
-    let field = |read: fn(&RunView) -> String| {
-        create_memo(move || run.get().map(|run| read(&run)).unwrap_or_default())
-    };
-    let title = field(|run| format!("#{} {} ({})", run.number, run.branch, run.event));
-    let details = field(|run| format!("{} · {} · {}", run.sha, run.created, run.status));
-    let url = field(|run| run.url.clone());
-    let install_label = field(|run| match run.installing {
-        true => "Installing…".to_owned(),
-        false => "Install".to_owned(),
-    });
-    let current = create_memo(move || run.get().is_some_and(|run| run.current));
-    let cannot_install = create_memo(move || {
-        !can_install.get()
-            || !run
-                .get()
-                .is_some_and(|run| run.succeeded && !run.installing)
-    });
-    let error = create_memo(move || run.get().and_then(|run| run.error));
-    let install = run;
-    view! {
-        <Frame padding={Sides::vertical(4.0)}>
-            <Frame
-                fill=ColorRole::Surface
-                border={Border::new(ColorRole::Border).width(1.0)}
-                radius=Radius::Md
-                padding={Sides::symmetric(10.0, 8.0)}
-            >
-                <List spacing=4.0>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Text style=TextStyle::HEADING string={title} />
-                        <Show condition={current}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="running"
-                                color=TextColor::Accent
-                            />
-                        </Show>
-                    </List>
-                    <Text style=TextStyle::CAPTION string={details} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Link
-                            label="View on GitHub"
-                            on_click={move || debug(DebugCommand::OpenUrl(url.get_untracked()))}
-                        />
-                        <Button
-                            label={install_label}
-                            variant=ButtonVariant::Secondary
-                            disabled={cannot_install}
-                            on_click={move || {
-                                if let Some(run) = install.get_untracked() {
-                                    debug(DebugCommand::Install(run.id));
-                                }
-                            }}
-                        />
-                    </List>
-                    <ErrorText text={error} />
-                </List>
-            </Frame>
         </Frame>
     }
 }

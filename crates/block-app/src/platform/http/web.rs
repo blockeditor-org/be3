@@ -1,9 +1,5 @@
-use std::{cell::RefCell, rc::Rc};
-
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-
-type Outcome = Rc<RefCell<Option<Result<Vec<u8>, String>>>>;
 
 pub(crate) fn fetch(
     url: String,
@@ -11,27 +7,6 @@ pub(crate) fn fetch(
     deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
 ) {
     wasm_bindgen_futures::spawn_local(async move { deliver(run(url, headers).await) });
-}
-
-pub(crate) struct Fetch {
-    state: Outcome,
-}
-
-impl Fetch {
-    pub(crate) fn get(url: String, headers: Vec<(&'static str, String)>) -> Self {
-        let state = Rc::new(RefCell::new(None));
-        let state_for_task = state.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            let result = run(url, headers).await;
-            *state_for_task.borrow_mut() = Some(result);
-            crate::host::wake();
-        });
-        Self { state }
-    }
-
-    pub(crate) fn poll(&self) -> Option<Result<Vec<u8>, String>> {
-        self.state.borrow_mut().take()
-    }
 }
 
 fn describe(error: &JsValue) -> String {

@@ -20,7 +20,7 @@ use crate::wayland::WindowActions;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
-    RunView, RuntimeView, VersionRuns, VersionView,
+    RuntimeView,
 };
 
 thread_local! {
