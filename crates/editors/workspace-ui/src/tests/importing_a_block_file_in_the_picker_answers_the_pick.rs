@@ -36,7 +36,10 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         BlockLocation::Block(parent.into_bytes()),
         "the import lands where a created block would"
     );
-    assert!(fixture.says("Importing..."), "the picker waits for the file");
+    assert!(
+        fixture.says("Importing..."),
+        "the picker waits for the file"
+    );
 
     fixture
         .test

@@ -864,7 +864,8 @@ pub(crate) fn list_access(
 type Exported = Result<(String, Vec<u8>), String>;
 
 pub(crate) fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static) {
-    let Some((name, blocks)) = with_shared(|shared| exported(&shared.graph, block)).flatten() else {
+    let Some((name, blocks)) = with_shared(|shared| exported(&shared.graph, block)).flatten()
+    else {
         reply(Err("This block is not loaded yet.".to_owned()));
         return;
     };

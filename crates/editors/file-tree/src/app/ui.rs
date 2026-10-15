@@ -507,7 +507,11 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
 }
 
 #[component]
-pub(crate) fn ExportAs(exporter: Exporter, row: Memo<Option<Row>>, row_test_id: String) -> MenuItem {
+pub(crate) fn ExportAs(
+    exporter: Exporter,
+    row: Memo<Option<Row>>,
+    row_test_id: String,
+) -> MenuItem {
     let block = create_memo(move || {
         row.get()
             .filter(|row| row.access.can_view())

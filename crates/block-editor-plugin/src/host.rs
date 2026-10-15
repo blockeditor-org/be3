@@ -10,11 +10,11 @@ use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
-    BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
-    ChildStatus, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostAction, HostPanel,
-    HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
-    ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
-    encode_host,
+    BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
+    ChildRect, ChildStatus, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostAction,
+    HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
+    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -1194,7 +1194,10 @@ impl EditorHost {
             BlockImport::Imported {
                 block_id,
                 block_type,
-            } => Ok(Some((Uuid::from_bytes(block_id), Uuid::from_bytes(block_type)))),
+            } => Ok(Some((
+                Uuid::from_bytes(block_id),
+                Uuid::from_bytes(block_type),
+            ))),
             BlockImport::Cancelled => Ok(None),
             BlockImport::Failed(error) => Err(error),
         })

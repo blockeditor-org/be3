@@ -1,7 +1,7 @@
+use block_editor_beui::beui::icons::ICON_UPLOAD_FILE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, ChoiceOption};
-use block_editor_beui::beui::icons::ICON_UPLOAD_FILE;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{

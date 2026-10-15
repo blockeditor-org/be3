@@ -186,7 +186,10 @@ impl Pick {
         }
     }
 
-    pub(crate) fn imported(mut self, imported: Result<Option<(Uuid, Uuid)>, String>) -> PickOutcome {
+    pub(crate) fn imported(
+        mut self,
+        imported: Result<Option<(Uuid, Uuid)>, String>,
+    ) -> PickOutcome {
         self.importing = None;
         match imported {
             Ok(Some((block, block_type))) if self.allowed(block_type) => {
