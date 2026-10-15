@@ -1,3 +1,4 @@
+pub use accesskit;
 use bincode::Options;
 use serde::{Deserialize, Serialize};
 pub use serde_bytes::ByteBuf;
@@ -17,7 +18,7 @@ pub use linux::{
     NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
     NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction, PowerAvailability,
     ProgramAction, Programs, ScreenLocked, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
-    TrayToggle, WindowAction,
+    TrayToggle, WindowAction, WindowOrigin,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -31,6 +32,7 @@ pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
+pub const MAX_ACCESSIBILITY_NODES: usize = 64 * 1024;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
@@ -133,7 +135,7 @@ pub enum Pasted {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
-    pub nodes: Vec<DescribedNode>,
+    pub tree: Option<accesskit::TreeUpdate>,
     pub actions: Vec<DescribedAction>,
 }
 
@@ -145,33 +147,6 @@ pub struct DescribedAction {
     pub enabled: bool,
     pub checked: Option<bool>,
     pub live: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DescribedNode {
-    pub depth: u16,
-    pub role: String,
-    pub label: String,
-    pub value: String,
-    pub toggled: Option<Toggled>,
-    pub disabled: bool,
-    pub focused: bool,
-    pub rect: Option<ChildRect>,
-    pub actions: Vec<String>,
-    pub test_ids: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum NodeValue {
-    Text(String),
-    Number(f64),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Toggled {
-    Off,
-    On,
-    Mixed,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -279,6 +254,7 @@ pub enum ChildMode {
     Passive,
     Active,
     Live,
+    InPlace,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -304,6 +280,7 @@ pub enum ChildContent {
         block_id: [u8; 16],
         block_type: [u8; 16],
         view_block: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
     WebView(WebViewId),
     Host(HostPanel),
@@ -322,7 +299,7 @@ pub enum HostPanel {
     BlockStack,
     Performance,
     Plugins,
-    Version,
+    BeuiDemo,
 }
 
 impl HostPanel {
@@ -330,7 +307,7 @@ impl HostPanel {
         Self::BlockStack,
         Self::Performance,
         Self::Plugins,
-        Self::Version,
+        Self::BeuiDemo,
     ];
 
     pub fn title(self) -> &'static str {
@@ -338,7 +315,7 @@ impl HostPanel {
             Self::BlockStack => "Block Stack State",
             Self::Performance => "Performance",
             Self::Plugins => "Plugins",
-            Self::Version => "App Version",
+            Self::BeuiDemo => "beui demo",
         }
     }
 }
@@ -531,6 +508,15 @@ impl PluginManifest {
         self.editors
             .iter()
             .find(|editor| editor.block_type == block_type)
+            .or_else(|| {
+                self.editors
+                    .iter()
+                    .find(|editor| editor.block_type == ANY_BLOCK_TYPE)
+            })
+    }
+
+    pub fn editor_id(&self) -> [u8; 16] {
+        editor_id(&self.identity.id)
     }
 }
 
@@ -610,6 +596,30 @@ pub struct TemplateDescriptor {
 pub struct Catalog {
     pub types: Vec<BlockTypeDescriptor>,
     pub templates: Vec<TemplateDescriptor>,
+    pub editors: Vec<EditorDescriptor>,
+}
+
+pub const ANY_BLOCK_TYPE: [u8; 16] = [0; 16];
+
+pub const ANY_BLOCK_TYPE_NAME: &str = "any";
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorDescriptor {
+    pub editor: [u8; 16],
+    pub block_type: [u8; 16],
+    pub name: String,
+    pub icon_codepoint: String,
+}
+
+pub fn editor_id(plugin_id: &str) -> [u8; 16] {
+    const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
+    const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
+    plugin_id
+        .bytes()
+        .fold(OFFSET, |hash, byte| {
+            (hash ^ u128::from(byte)).wrapping_mul(PRIME)
+        })
+        .to_be_bytes()
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -867,6 +877,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowBlock {
@@ -874,6 +885,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         via: Option<[u8; 16]>,
+        editor: Option<[u8; 16]>,
     },
 
     ShowPanel {
@@ -1697,6 +1709,7 @@ pub enum Message {
     Input(InputBatch),
     DrawFrame {
         now_micros: u64,
+        seen: bool,
     },
     FrameNeeded,
     FrameReady(FrameReady),
@@ -1717,9 +1730,12 @@ pub enum Message {
     },
     NodeAction {
         screen: ScreenId,
-        node: u32,
-        action: String,
-        value: Option<NodeValue>,
+        request: accesskit::ActionRequest,
+    },
+    Extension {
+        key: [u8; 16],
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
     },
 }
 
@@ -1770,7 +1786,7 @@ impl Message {
             | Self::FrameNeeded
             | Self::FrameReady(_)
             | Self::Children(_) => Direction::ToHost,
-            Self::Error(_) => Direction::Either,
+            Self::Error(_) | Self::Extension { .. } => Direction::Either,
             Self::Editor(editor) => editor.direction(),
         }
     }
@@ -2504,6 +2520,14 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
                 collection(report.claims.len())?;
+                if let Some(tree) = report
+                    .description
+                    .as_ref()
+                    .and_then(|description| description.tree.as_ref())
+                    && tree.nodes.len() > MAX_ACCESSIBILITY_NODES
+                {
+                    return Err(DecodeError::LimitExceeded("accessibility nodes"));
+                }
             }
             Ok(())
         }
@@ -2534,17 +2558,20 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 string(&template.name)?;
                 string(&template.icon_codepoint)?;
             }
+            collection(value.editors.len())?;
+            for editor in &value.editors {
+                string(&editor.name)?;
+                string(&editor.icon_codepoint)?;
+            }
             Ok(())
         }
         Message::Children(value) => validate_children(value),
         Message::RunAction { id, .. } => string(id),
-        Message::NodeAction { action, value, .. } => {
-            string(action)?;
-            match value {
-                Some(NodeValue::Text(text)) => string(text),
-                _ => Ok(()),
-            }
-        }
+        Message::Extension { payload, .. } => blob(payload),
+        Message::NodeAction { request, .. } => match &request.data {
+            Some(accesskit::ActionData::Value(value)) => text(value),
+            _ => Ok(()),
+        },
         Message::ChildStatuses(value) => {
             collection(value.len())?;
             for status in value {

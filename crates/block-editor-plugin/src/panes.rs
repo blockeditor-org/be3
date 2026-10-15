@@ -10,6 +10,7 @@ use crate::screens::{Dirty, Screens};
 pub(crate) struct Panes {
     generation: Option<u64>,
     repainting: HashSet<EditorInstanceId>,
+    unpainted: HashSet<EditorInstanceId>,
 }
 
 pub(crate) struct Ran {
@@ -23,6 +24,7 @@ impl Panes {
         layout: &ScreenLayout,
         screens: &mut Screens,
         fresh: &HashSet<u32>,
+        seen: bool,
     ) -> Ran {
         let mut repaint = Duration::MAX;
         let moved = self.generation != Some(layout.generation);
@@ -35,6 +37,10 @@ impl Panes {
             false => screens.take_dirty(),
         };
         let repainting = std::mem::take(&mut self.repainting);
+        let unpainted = match seen {
+            true => std::mem::take(&mut self.unpainted),
+            false => HashSet::new(),
+        };
         let mut painting = Vec::new();
         for placement in &layout.screens {
             let Some(session) = screens.session(placement.instance) else {
@@ -44,6 +50,7 @@ impl Panes {
             if changed
                 || dirty.contains(placement.instance)
                 || repainting.contains(&placement.instance)
+                || unpainted.contains(&placement.instance)
             {
                 let age = block_gpu_guest::surface_age(placement.surface);
                 let frame = session.run(placement.region, layout.generation, age);
@@ -54,8 +61,12 @@ impl Panes {
                     self.repainting.insert(placement.instance);
                 }
             }
-            if changed {
-                painting.push(*placement);
+            match (changed, seen) {
+                (true, true) => painting.push(*placement),
+                (true, false) => {
+                    self.unpainted.insert(placement.instance);
+                }
+                (false, _) => {}
             }
         }
         Ran {

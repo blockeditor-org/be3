@@ -358,7 +358,7 @@ impl<S: ObjectStore> Tracker<S> {
         }
     }
 
-    pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
+    pub async fn outermost(&self, entry: &Entry) -> Result<Entry, String> {
         let index = self.index().await?;
         let shell = entry
             .parent
@@ -368,7 +368,11 @@ impl<S: ObjectStore> Tracker<S> {
                 entry.block_type == DatabaseContent::CONTENT_TYPE
                     && parent.block_type == DatabaseViewContent::CONTENT_TYPE
             });
-        let deleted = shell.unwrap_or(entry);
+        Ok(shell.unwrap_or(entry).clone())
+    }
+
+    pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
+        let deleted = &self.outermost(entry).await?;
         self.peer.delete(deleted.id).await.map_err(explain)?;
         self.invalidate().await;
         Ok(format!(
@@ -441,7 +445,7 @@ impl<S: ObjectStore> Tracker<S> {
             .unwrap_or_default())
     }
 
-    async fn database_with_prefix(&self, prefix: &str) -> Result<Option<Uuid>, String> {
+    pub(crate) async fn database_with_prefix(&self, prefix: &str) -> Result<Option<Uuid>, String> {
         let index = self.index().await?;
         let mut found = Vec::new();
         for entry in index

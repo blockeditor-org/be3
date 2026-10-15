@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{List, build, view};
-use crate::styled::{Button, ButtonVariant};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger() {

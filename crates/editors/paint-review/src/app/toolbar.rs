@@ -5,12 +5,8 @@ use block_editor_beui::beui::icons::{
     ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW, ICON_REFRESH, ICON_VERTICAL_SPLIT, ICON_ZOOM_IN,
     ICON_ZOOM_OUT,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, List, Memo, Prop, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, IconButton, Slider, ToggleButton, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 use super::state::{Review, Showing, Status};
 
@@ -18,8 +14,6 @@ const ZOOM_STEP: f32 = 1.25;
 
 #[component]
 pub(crate) fn ReviewToolbar(review: Review, shown: Prop<bool>) -> NodeId {
-    let theme = use_theme();
-
     let status = create_memo(move || {
         let path = review.selected.get()?;
         review.status(&path)
@@ -84,7 +78,7 @@ pub(crate) fn ReviewToolbar(review: Review, shown: Prop<bool>) -> NodeId {
             </Show>
             <ZoomControls review={review} />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger} />
+                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
             </Show>
         </Toolbar>
     }
@@ -191,16 +185,11 @@ pub(crate) fn ReviewCaption(review: Review) -> NodeId {
         }
         parts.join(" · ")
     });
-    let theme = use_theme();
     view! {
-        <Frame visible={chosen} padding_horizontal=12.0 padding_vertical=6.0>
+        <Frame visible={chosen} padding={Sides::symmetric(12.0, 6.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Body content={path} @test_id={"paint_review.path"} />
-                <Caption
-                    content={summary}
-                    color={theme.text_muted}
-                    @test_id={"paint_review.summary"}
-                />
+                <Text string={path} @test_id={"paint_review.path"} />
+                <Text style=TextStyle::CAPTION string={summary} @test_id={"paint_review.summary"} />
             </List>
         </Frame>
     }
@@ -233,10 +222,9 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
     });
     let differs = create_memo(move || changed_frame.get().is_some());
     let jump_frame = changed_frame;
-    let theme = use_theme();
 
     view! {
-        <Frame visible={many} padding_horizontal=12.0 padding_vertical=6.0>
+        <Frame visible={many} padding={Sides::symmetric(12.0, 6.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
                     glyph={ICON_CHEVRON_LEFT.to_owned()}
@@ -274,7 +262,7 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                         }
                     }}
                 </Dynamic>
-                <Caption content={position} color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string={position} />
                 <Show condition={differs}>
                     {move || view! {
                         <Button

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, Frame, ItemSize, List, build, view, with_document};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_wrapping_row_flows_its_children_onto_more_lines() {

@@ -1,19 +1,18 @@
+use crate::frame::Radius;
 use beui_macros::{component, view};
 
 use crate::color_picker::{ColorPicker, ColorSwatch};
 use crate::focus_ring::FocusRing;
 use crate::popover::PopoverPanel;
 use crate::text_input::TextInput;
-use crate::theme::RADIUS;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, HexText, PopoverHandle, PopoverTriggerHandle};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, ItemSize, List, Memo, Prop, create_effect, create_memo, create_signal,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const SWATCH_WIDTH: f32 = 32.0;
 const SWATCH_HEIGHT: f32 = 24.0;
@@ -96,7 +95,11 @@ fn SwatchTrigger(
     } = handle;
     view! {
         <Tooltip label disabled={open}>
-            <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
+            <FocusRing
+                focused
+                radius={Radius::custom(Radius::Md.px() + 2.0)}
+                offset=FOCUS_RING_OFFSET
+            >
                 <ColorSwatch color width=SWATCH_WIDTH height=SWATCH_HEIGHT />
             </FocusRing>
         </Tooltip>

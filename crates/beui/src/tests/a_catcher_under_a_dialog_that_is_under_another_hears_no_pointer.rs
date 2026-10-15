@@ -1,9 +1,9 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{
-    Frame, Interactive, NodeRef, Text, build, create_signal, view, with_reactive_scope,
-};
-use crate::styled::Dialog;
+use crate::primitives::Frame;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
@@ -27,7 +27,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
                         </Interactive>
                     </Dialog>
                     <Dialog open={above} title="Above" width=200.0 on_dismiss={|| {}}>
-                        <Text string="Body" font_size=14.0 color=Color32::WHITE />
+                        <Text string="Body" color=Color32::WHITE />
                     </Dialog>
                 </List>
             }

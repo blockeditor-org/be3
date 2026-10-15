@@ -1,35 +1,22 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use accesskit::{Node, Role};
-
-use beui_core::color::Color32;
-
 use crate::screen_reader::Command;
-use beui_components_styled::theme::{BORDER_WIDTH, CHIP_RADIUS};
-use beui_components_styled::{
-    Button, ButtonVariant, Caption, Checkbox, Code, Heading, IconSized, RadioGroup, Scroll,
-    Separator, Slider, Tabs, Theme, Tree, TreeRowFace,
-};
-use beui_components_unstyled as unstyled;
+use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
 use beui_core::context::RendererChoices;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
-use beui_core::icons::ICON_CLOSE;
+use beui_core::icons::{ICON_ARROW_SELECTOR_TOOL, ICON_CLOSE};
 use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, RootScope,
-    Scope, Show, ShowKeepAlive, Spacer, Stored, StoredCell, WriteSignal, component, create_memo,
-    create_signal, view,
-};
+use beui_core::performance::PerformanceSnapshot;
+use beui_core::performance::PerformanceTimings;
+use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
-use beui_core::performance::PerformanceSnapshot;
-use beui_core::performance::PerformanceTimings;
 
 const HEADER_PADDING: f32 = 12.0;
 const HEADER_SPACING: f32 = 8.0;
@@ -37,10 +24,6 @@ const BODY_PADDING: f32 = 8.0;
 const FOOTER_PADDING: f32 = 10.0;
 const FOOTER_SPACING: f32 = 3.0;
 const ROW_SPACING: f32 = 6.0;
-const TOGGLE_PADDING_HORIZONTAL: f32 = 8.0;
-const TOGGLE_PADDING_VERTICAL: f32 = 3.0;
-const CLOSE_PADDING: f32 = 3.0;
-const CLOSE_ICON_SIZE: f32 = 16.0;
 const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
 const BLUR_MIDPOINT: f32 = 12.0;
@@ -90,7 +73,6 @@ const TOUCH_GUIDE: [&str; 5] = [
     "Double tap - activate",
     "Two finger tap - repeat, drag two fingers - scroll",
 ];
-const THEME: Theme = Theme::DARK;
 
 #[derive(Clone, Default, PartialEq)]
 pub struct Summary {
@@ -145,12 +127,13 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
                     percentage(snapshot.paint_cache_hits, snapshot.samples)
                 ),
                 format!(
-                    "Reused: {} of {} measured | {} of {} painted | {} accessibility nodes rebuilt",
+                    "Reused: {} of {} measured | {} of {} painted | {} accessibility nodes rebuilt of {} walked",
                     work.reused_measurements,
                     work.reused_measurements + work.measured,
                     work.replayed_nodes,
                     work.replayed_nodes + work.painted_nodes,
-                    work.described_nodes
+                    work.described_nodes,
+                    work.walked_nodes
                 ),
             )
         };
@@ -250,19 +233,20 @@ pub fn build(state: Stored<State>) -> Panel {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />
-                <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
+                <Frame @sizing=ItemSize::Percent(100.0) fill=ColorRole::Surface>
                     <List spacing=0.0>
-                        <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
+                        <Frame padding=HEADER_PADDING>
                             <List spacing=HEADER_SPACING>
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
                                     spacing=HEADER_SPACING
                                 >
-                                    <Heading content="Inspector" />
-                                    <Caption
+                                    <Text style=TextStyle::HEADING string="Inspector" />
+                                    <Text
+                                        style=TextStyle::CAPTION
                                         @sizing=ItemSize::Percent(100.0)
-                                        content={count_text}
+                                        string={count_text}
                                         align=TextAlign::End
                                     />
                                     <ShowKeepAlive condition={header_tree_visible}>
@@ -307,7 +291,6 @@ pub fn build(state: Stored<State>) -> Panel {
                                             selected={selected}
                                             ancestors={move |key: Key| ancestors(lineage, key)}
                                             padding=BODY_PADDING
-                                            focus_color={Some(THEME.accent)}
                                             row_test_id={move |key: Key| key.test_id()}
                                             reveal_test_id={"inspector.reveal".to_owned()}
                                             on_select={move |key: Key| state.get().select_row(key)}
@@ -358,12 +341,16 @@ pub fn build(state: Stored<State>) -> Panel {
                             </List>
                         </Frame>
                         <Separator />
-                        <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
+                        <Frame padding=FOOTER_PADDING>
                             <List spacing=0.0>
                                 <ShowKeepAlive condition={footer_tree_visible}>
                                     <List spacing=FOOTER_SPACING>
-                                        <Code content={selection_text} />
-                                        <Code content={bounds_text} color={THEME.text_muted} />
+                                        <Text style=TextStyle::CODE string={selection_text} />
+                                        <Text
+                                            style=TextStyle::CODE
+                                            string={bounds_text}
+                                            color=TextColor::Muted
+                                        />
                                     </List>
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={footer_performance_visible}>
@@ -374,9 +361,10 @@ pub fn build(state: Stored<State>) -> Panel {
                                     />
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={footer_simulation_visible}>
-                                    <Code
-                                        content={native_pixel_ratio_text}
-                                        color={THEME.text_muted}
+                                    <Text
+                                        style=TextStyle::CODE
+                                        string={native_pixel_ratio_text}
+                                        color=TextColor::Muted
                                     />
                                 </ShowKeepAlive>
                             </List>
@@ -413,12 +401,11 @@ pub fn build_bar(state: Stored<State>) -> Bar {
     let (selected, set_selected) = create_signal(1);
     let document = beui_view::reactive::build(|| {
         view! {
-            <Frame color={THEME.surface} radius=0>
+            <Frame fill=ColorRole::Surface>
                 <List spacing=0.0>
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
-                        padding_horizontal=BAR_PADDING_HORIZONTAL
-                        padding_vertical=BAR_PADDING_VERTICAL
+                        padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
                     >
                         <List
                             direction=Direction::Horizontal
@@ -467,8 +454,8 @@ fn SimulationPanel(
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
     view! {
-        <Scroll focus_color={Some(THEME.accent)}>
-            <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+        <Scroll>
+            <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
@@ -490,7 +477,7 @@ fn SimulationPanel(
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Heading content="Device pixel ratio" />
+                        <Text style=TextStyle::HEADING string="Device pixel ratio" />
                         <RadioGroup
                             @test_id={"inspector.simulation.pixel_ratio"}
                             options={view! {
@@ -516,7 +503,7 @@ fn SimulationPanel(
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Heading content="Theme" />
+                        <Text style=TextStyle::HEADING string="Theme" />
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
                             options={view! {
@@ -604,8 +591,8 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
     };
     view! {
         <List spacing=TIMING_SPACING>
-            <Heading content="Back gesture" />
-            <Caption content={caption} />
+            <Text style=TextStyle::HEADING string="Back gesture" />
+            <Text style=TextStyle::CAPTION string={caption} />
             <Slider
                 @test_id={"inspector.simulation.back"}
                 label="Back gesture progress"
@@ -636,8 +623,8 @@ fn FilterSection(state: Stored<State>) -> NodeId {
     let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
-            <Heading content="Filters" />
-            <Caption content={blur_text} />
+            <Text style=TextStyle::HEADING string="Filters" />
+            <Text style=TextStyle::CAPTION string={blur_text} />
             <Slider
                 @test_id={"inspector.simulation.blur"}
                 label="Blur"
@@ -650,7 +637,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                     set_blur_text.set(blur_label(value));
                 }}
             />
-            <Caption content={contrast_text} />
+            <Text style=TextStyle::CAPTION string={contrast_text} />
             <Slider
                 @test_id={"inspector.simulation.contrast"}
                 label="Reduce contrast"
@@ -660,7 +647,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                     set_contrast_text.set(contrast_label(value));
                 }}
             />
-            <Caption content="Colour vision" />
+            <Text style=TextStyle::CAPTION string="Colour vision" />
             <RadioGroup
                 @test_id={"inspector.simulation.color_vision"}
                 options={view! {
@@ -697,7 +684,7 @@ fn contrast_label(amount: f32) -> String {
 fn ScreenReaderSection(state: Stored<State>) -> NodeId {
     view! {
         <List spacing=TIMING_SPACING>
-            <Heading content="Screen reader" />
+            <Text style=TextStyle::HEADING string="Screen reader" />
             <Checkbox
                 @test_id={"inspector.accessibility.enabled"}
                 label="Expose the accessibility tree"
@@ -726,10 +713,10 @@ fn ScreenReaderSection(state: Stored<State>) -> NodeId {
 fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
     view! {
         <List spacing=FOOTER_SPACING>
-            <Caption content={title.to_owned()} color={THEME.text} />
+            <Text style=TextStyle::CAPTION string={title.to_owned()} color=TextColor::Default />
             <ForEach keys={lines.to_vec()}>
                 {|line: &'static str| view! {
-                    <Caption content={line.to_owned()} wrap=true />
+                    <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
                 }}
             </ForEach>
         </List>
@@ -785,14 +772,14 @@ fn PerformancePanel(
     let accessibility = timing_values(performance, |timings| timings.accessibility);
     let other = timing_values(performance, |timings| timings.other);
     view! {
-        <Scroll focus_color={Some(THEME.accent)}>
-            <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+        <Scroll>
+            <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <List spacing=FOOTER_SPACING>
-                        <Code content={latest_work} />
-                        <Code content={scene} color={THEME.text_muted} />
-                        <Code content={cache} color={THEME.text_muted} />
-                        <Code content={reuse} color={THEME.text_muted} />
+                        <Text style=TextStyle::CODE string={latest_work} />
+                        <Text style=TextStyle::CODE string={scene} color=TextColor::Muted />
+                        <Text style=TextStyle::CODE string={cache} color=TextColor::Muted />
+                        <Text style=TextStyle::CODE string={reuse} color=TextColor::Muted />
                     </List>
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -801,8 +788,12 @@ fn PerformancePanel(
                             align=Align::Center
                             spacing=TIMING_SPACING
                         >
-                            <Heading @sizing=ItemSize::Percent(100.0) content="CPU time" />
-                            <Caption content="milliseconds" />
+                            <Text
+                                style=TextStyle::HEADING
+                                @sizing=ItemSize::Percent(100.0)
+                                string="CPU time"
+                            />
+                            <Text style=TextStyle::CAPTION string="milliseconds" />
                         </List>
                         <TimingHeader />
                         <TimingRow label="Document" values={total} />
@@ -814,7 +805,7 @@ fn PerformancePanel(
                     </List>
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Heading content="Visualize" />
+                        <Text style=TextStyle::HEADING string="Visualize" />
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
@@ -853,7 +844,7 @@ fn RendererSection(
     let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
-            <Heading content="Renderer" />
+            <Text style=TextStyle::HEADING string="Renderer" />
             <Show condition={choosable}>
                 <RadioGroup
                     @test_id={"inspector.performance.renderer.choice"}
@@ -873,7 +864,7 @@ fn RendererSection(
                 />
             </Show>
             <Show condition={missing}>
-                <Caption content="Not reported by this host" />
+                <Text style=TextStyle::CAPTION string="Not reported by this host" />
             </Show>
             <ForEach keys={rows}>
                 {|(label, value): (&'static str, String)| view! {
@@ -889,10 +880,10 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Separator />
-            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={Some(THEME.accent)}>
-                <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+            <Scroll @sizing=ItemSize::Percent(100.0)>
+                <Frame padding=BODY_PADDING>
                     <List spacing=TIMING_SPACING>
-                        <Heading content="Properties" />
+                        <Text style=TextStyle::HEADING string="Properties" />
                         <ForEach keys={properties}>
                             {|(label, value): (String, String)| view! {
                                 <LabeledRow label value />
@@ -909,11 +900,16 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
 fn LabeledRow(label: String, value: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Caption @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH) content={label} />
-            <Caption
+            <Text
+                style=TextStyle::CAPTION
+                @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH)
+                string={label}
+            />
+            <Text
+                style=TextStyle::CAPTION
                 @sizing=ItemSize::Percent(100.0)
-                content={value}
-                color={THEME.text}
+                string={value}
+                color=TextColor::Default
                 wrap=true
             />
         </List>
@@ -925,9 +921,24 @@ fn TimingHeader() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <Caption @sizing=ItemSize::Fixed(54.0) content="Current" align=TextAlign::End />
-            <Caption @sizing=ItemSize::Fixed(54.0) content="Average" align=TextAlign::End />
-            <Caption @sizing=ItemSize::Fixed(54.0) content="Peak" align=TextAlign::End />
+            <Text
+                style=TextStyle::CAPTION
+                @sizing=ItemSize::Fixed(54.0)
+                string="Current"
+                align=TextAlign::End
+            />
+            <Text
+                style=TextStyle::CAPTION
+                @sizing=ItemSize::Fixed(54.0)
+                string="Average"
+                align=TextAlign::End
+            />
+            <Text
+                style=TextStyle::CAPTION
+                @sizing=ItemSize::Fixed(54.0)
+                string="Peak"
+                align=TextAlign::End
+            />
         </List>
     }
 }
@@ -937,10 +948,25 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Caption @sizing=ItemSize::Percent(100.0) content={label} />
-            <Code @sizing=ItemSize::Fixed(54.0) content={current} align=TextAlign::End />
-            <Code @sizing=ItemSize::Fixed(54.0) content={average} align=TextAlign::End />
-            <Code @sizing=ItemSize::Fixed(54.0) content={peak} align=TextAlign::End />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) string={label} />
+            <Text
+                style=TextStyle::CODE
+                @sizing=ItemSize::Fixed(54.0)
+                string={current}
+                align=TextAlign::End
+            />
+            <Text
+                style=TextStyle::CODE
+                @sizing=ItemSize::Fixed(54.0)
+                string={average}
+                align=TextAlign::End
+            />
+            <Text
+                style=TextStyle::CODE
+                @sizing=ItemSize::Fixed(54.0)
+                string={peak}
+                align=TextAlign::End
+            />
         </List>
     }
 }
@@ -975,79 +1001,30 @@ fn percentage(count: usize, total: usize) -> usize {
     count.saturating_mul(100) / total.max(1)
 }
 
-pub fn toggle_fill(picking: bool) -> Color32 {
-    if picking {
-        THEME.accent
-    } else {
-        THEME.surface_raised
-    }
-}
-
-pub fn toggle_text(picking: bool) -> Color32 {
-    if picking { THEME.on_accent } else { THEME.text }
-}
-
 #[component]
 fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
-    let label_color = create_memo(move || toggle_text(picking.get()));
-    let fill_color = create_memo(move || toggle_fill(picking.get()));
     view! {
-        <unstyled::Pressable on_click={move || state.get().toggle_picking()}>
-            <Frame
-                color={fill_color}
-                outline={THEME.border}
-                outline_width=BORDER_WIDTH
-                radius=CHIP_RADIUS
-                outline_visible=true
-                padding_horizontal=TOGGLE_PADDING_HORIZONTAL
-                padding_vertical=TOGGLE_PADDING_VERTICAL
-            >
-                <Code content="Pick" align=TextAlign::Center color={label_color} />
-            </Frame>
-        </unstyled::Pressable>
+        <ToggleButton
+            label="Pick"
+            glyph={ICON_ARROW_SELECTOR_TOOL.to_owned()}
+            icon_only=true
+            pressed={picking}
+            on_change={move |_| state.get().toggle_picking()}
+        />
     }
 }
 
 #[component]
 fn CloseButton(state: Stored<State>) -> NodeId {
-    let (hovered, set_hovered) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
-    let fill_color = create_memo(move || close_fill(hovered.get()));
-    let outline_color = create_memo(move || close_outline(focused.get()));
-    let mut accessibility = Node::new(Role::Button);
-    accessibility.set_label("Close inspector");
     view! {
-        <unstyled::Pressable
-            accessibility={Prop::Static(accessibility)}
+        <IconButton
+            glyph={ICON_CLOSE.to_owned()}
+            label="Close inspector"
+            variant=ButtonVariant::Ghost
+            size=IconButtonSize::Compact
             on_click={move || state.get().close()}
-            on_hover_change={move |hovered| set_hovered.set(hovered)}
-            on_focus_change={move |focused| set_focused.set(focused)}
-        >
-            <Frame
-                color={fill_color}
-                outline={outline_color}
-                outline_width=BORDER_WIDTH
-                radius=CHIP_RADIUS
-                outline_visible=true
-                padding_horizontal=CLOSE_PADDING
-                padding_vertical=CLOSE_PADDING
-            >
-                <IconSized glyph=ICON_CLOSE font_size=CLOSE_ICON_SIZE color={THEME.text_muted} />
-            </Frame>
-        </unstyled::Pressable>
+        />
     }
-}
-
-fn close_fill(hovered: bool) -> Color32 {
-    if hovered {
-        THEME.pressed
-    } else {
-        Color32::TRANSPARENT
-    }
-}
-
-fn close_outline(focused: bool) -> Color32 {
-    if focused { THEME.accent } else { THEME.border }
 }
 
 fn entry_field<T: Clone + Default + PartialEq + 'static>(
@@ -1073,9 +1050,14 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
             align=Align::Center
             spacing=ROW_SPACING
         >
-            <Code content={kind} />
-            <Code @sizing=ItemSize::Percent(100.0) content={detail} color={THEME.text_muted} />
-            <Code content={size} color={THEME.text_muted} align=TextAlign::End />
+            <Text style=TextStyle::CODE string={kind} />
+            <Text
+                style=TextStyle::CODE
+                @sizing=ItemSize::Percent(100.0)
+                string={detail}
+                color=TextColor::Muted
+            />
+            <Text style=TextStyle::CODE string={size} color=TextColor::Muted align=TextAlign::End />
         </List>
     }
 }

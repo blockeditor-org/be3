@@ -1,8 +1,8 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::{Theme, UiSettings, UiSettingsContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{ForEach, Frame, List, component, create_memo, view};
-use block_editor_beui::beui::styled::{Caption, Select, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 
 const PADDING: f32 = 20.0;
@@ -23,11 +23,10 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
         )
     });
     let read_only = editor.read_only();
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=8.0>
-                <Caption content="Theme" />
+                <Text style=TextStyle::CAPTION string="Theme" />
                 <Select
                     options={view! {
                         <ChoiceOption label={inherited_label} />

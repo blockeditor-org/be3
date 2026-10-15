@@ -1,9 +1,7 @@
 use super::*;
 use crate::node::NodeId;
-use crate::reactive::{
-    Children, Prop, Show, Text, build, component, create_memo, on_cleanup, view,
-    with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 struct Note {
     label: String,

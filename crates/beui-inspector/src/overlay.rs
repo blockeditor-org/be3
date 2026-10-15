@@ -3,12 +3,13 @@ use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::painter::Painter;
 
+use beui_components_styled::Radius;
 use beui_components_styled::Theme;
-use beui_components_styled::theme::{CHIP_RADIUS, FONT_SMALL};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 
 use super::tree;
+use beui_components_styled::TextSize;
 
 const HIGHLIGHT: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 56);
 const OUTLINE_WIDTH: f32 = 1.0;
@@ -70,7 +71,7 @@ fn faded(color: Color32, alpha: f32) -> Color32 {
 }
 
 fn label(painter: &Painter, rect: Rect, text: &str) {
-    let galley = painter.layout(text, FontId::monospace(FONT_SMALL), f32::INFINITY);
+    let galley = painter.layout(text, FontId::monospace(TextSize::Sm.px()), f32::INFINITY);
     let size = galley.size() + vec2(LABEL_PADDING, LABEL_PADDING) * 2.0;
     let clip = painter.clip_rect();
     let above = rect.top() - LABEL_GAP - size.y;
@@ -81,7 +82,7 @@ fn label(painter: &Painter, rect: Rect, text: &str) {
     };
     let left = rect.left().min(clip.right() - size.x).max(clip.left());
     let box_rect = Rect::from_min_size(pos2(left, top), size);
-    painter.rect_filled(box_rect, f32::from(CHIP_RADIUS), Theme::DARK.accent);
+    painter.rect_filled(box_rect, Radius::Sm.px(), Theme::DARK.accent);
     painter.galley(
         box_rect.min + vec2(LABEL_PADDING, LABEL_PADDING),
         galley,

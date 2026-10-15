@@ -1,7 +1,7 @@
 use super::*;
 use crate::input::KeyPress;
-use crate::reactive::{focus_takes_text, on_shortcut};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[component]
 fn LetterShortcut(taken: WriteSignal<u32>) -> NodeId {

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Checkbox;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor() {

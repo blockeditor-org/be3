@@ -1,8 +1,8 @@
 mod access;
 mod artifact;
-mod block_data;
 mod dialogs;
 mod host_panel;
+mod kept;
 mod linked;
 mod menu;
 mod panel;
@@ -17,7 +17,10 @@ mod window;
 mod workspace;
 
 pub use dialogs::WorkspaceDialogs;
+pub use kept::KeptWindow;
 pub use picker_view::PickerDialogs;
+pub use saved::saved_windows;
+pub use window::{window_tab, window_title};
 pub use workspace::{
     AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, WindowTab,
     Workspace,

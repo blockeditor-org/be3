@@ -38,8 +38,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
             chunks,
             time: 1_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: b"sealed with content".to_vec(),
         })
         .await;

@@ -1,10 +1,8 @@
 use block_editor_beui::Editor;
+use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef,
-    ReadSignal, Show, Text, WriteSignal, component, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
 use block_editor_beui::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
 
@@ -12,8 +10,6 @@ const SIDEBAR_WIDTH: f32 = 220.0;
 const RAIL_WIDTH: f32 = 44.0;
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 10.0;
-const HEADING_SIZE: f32 = 16.0;
-const LABEL_SIZE: f32 = 12.0;
 const CARD_TITLE_SIZE: f32 = 17.0;
 const CARD_LABEL_SIZE: f32 = 11.0;
 const CARD_PADDING: f32 = 12.0;
@@ -144,7 +140,6 @@ fn Sidebar(
     set_selected: WriteSignal<Option<usize>>,
     set_open: WriteSignal<bool>,
 ) -> NodeId {
-    let theme = use_theme();
     let scale = editor.scale();
     let readout = create_memo(move || format!("Zoom {:.0}%", scale.get() * 100.0));
     let chosen = create_memo(move || match selected.get() {
@@ -156,22 +151,13 @@ fn Sidebar(
     let fit = move || editor.fit();
     let hide = move || set_open.set(false);
     view! {
-        <Frame
-            color={theme.surface}
-            padding_horizontal=PANEL_PADDING
-            padding_vertical=PANEL_PADDING
-        >
+        <Frame fill=ColorRole::Surface padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
-                <Text
-                    string="Pan and Zoom"
-                    font_size=HEADING_SIZE
-                    color={theme.text}
-                    @test_id={"pan_zoom.title"}
-                />
+                <Text string="Pan and Zoom" size=TextSize::Lg @test_id={"pan_zoom.title"} />
                 <Text
                     string={readout}
-                    font_size=LABEL_SIZE
-                    color={theme.text_muted}
+                    size=TextSize::Sm
+                    color=TextColor::Muted
                     @test_id={"pan_zoom.zoom"}
                 />
                 <List direction=Direction::Horizontal spacing=6.0>
@@ -197,8 +183,8 @@ fn Sidebar(
                 <Separator />
                 <Text
                     string={chosen}
-                    font_size=LABEL_SIZE
-                    color={theme.text_muted}
+                    size=TextSize::Sm
+                    color=TextColor::Muted
                     @test_id={"pan_zoom.selected"}
                 />
                 <List spacing=4.0>
@@ -239,19 +225,15 @@ fn FocusRow(editor: Editor, index: usize, set_selected: WriteSignal<Option<usize
 
 #[component]
 fn Rail(set_open: WriteSignal<bool>) -> NodeId {
-    let theme = use_theme();
     let show = move || set_open.set(true);
     view! {
-        <Frame color={theme.surface} padding_horizontal=6.0 padding_vertical=PANEL_PADDING>
+        <Frame fill=ColorRole::Surface padding={Sides::symmetric(6.0, PANEL_PADDING)}>
             <List spacing=0.0>
                 <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
-                    <Frame
-                        color={theme.surface_raised}
-                        radius=6
-                        padding_horizontal=8.0
-                        padding_vertical=8.0
-                    >
-                        <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} color={theme.text} />
+                    <Frame fill=ColorRole::SurfaceRaised radius=Radius::Md padding=8.0>
+                        <Text align=TextAlign::Center>
+                            <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} />
+                        </Text>
                     </Frame>
                 </unstyled::Button>
             </List>
@@ -295,9 +277,11 @@ fn CardView(
     };
     let title_size = scaled(scale, CARD_TITLE_SIZE);
     let label_size = scaled(scale, CARD_LABEL_SIZE);
+    let title_size = create_memo(move || TextSize::Custom(title_size.get()));
+    let label_size = create_memo(move || TextSize::Custom(label_size.get()));
     let padding = scaled(scale, CARD_PADDING);
     let spacing = scaled(scale, CARD_SPACING);
-    let radius = create_memo(move || (CARD_RADIUS * scale.get()) as u8);
+    let radius = create_memo(move || Radius::custom((CARD_RADIUS * scale.get()).floor()));
     let outline_width = scaled(scale, CARD_OUTLINE);
     let position = format!("{:.0}, {:.0}", card.x, card.y);
     let select = move || set_selected.set(Some(index));
@@ -312,17 +296,14 @@ fn CardView(
         >
             <Interactive cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
-                    color={theme.surface_raised}
-                    outline={outline}
-                    outline_width={outline_width}
-                    outline_visible=true
-                    radius={radius}
-                    padding_horizontal={padding}
-                    padding_vertical={padding}
+                    fill=ColorRole::SurfaceRaised
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(outline_width.get())))}
+                    radius=radius
+                    padding=padding
                 >
                     <List spacing={spacing}>
-                        <Text string={card.name} font_size={title_size} color={theme.text} />
-                        <Text string={position} font_size={label_size} color={theme.text_muted} />
+                        <Text string={card.name} size={title_size} />
+                        <Text string={position} size={label_size} color=TextColor::Muted />
                     </List>
                 </Frame>
             </Interactive>
@@ -330,6 +311,6 @@ fn CardView(
     }
 }
 
-fn scaled(scale: ReadSignal<f32>, base: f32) -> block_editor_beui::beui::reactive::Memo<f32> {
+fn scaled(scale: ReadSignal<f32>, base: f32) -> Memo<f32> {
     create_memo(move || (base * scale.get()).max(1.0))
 }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::input::KeyPress;
-use crate::reactive::{NodeRef, build, create_signal, on_shortcut, view, with_reactive_scope};
-use crate::styled::{Button, ButtonVariant, Dialog};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {

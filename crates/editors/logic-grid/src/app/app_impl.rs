@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 
 use beui::NodeId;
-use beui::reactive::view;
+use beui::reactive::*;
+use block_editor_beui::Loaded;
 use block_editor_beui::{ArtifactDescription, Artifacts, Creation, Editor};
 
 use super::ui::LogicGridView;
@@ -11,8 +12,11 @@ pub struct LogicGridApp;
 
 impl block_editor_beui::BeuiApp for LogicGridApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::LogicGridContent>(&[]);
         view! {
-            <LogicGridView editor={editor} />
+            <Loaded loaded={loaded}>
+                <LogicGridView editor={editor} />
+            </Loaded>
         }
     }
 

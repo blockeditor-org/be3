@@ -558,9 +558,11 @@ fn named_paintings(crates: &Path) -> BTreeSet<String> {
             }
         }
         let paints = fs::read_to_string(directory.join("BUCK")).is_ok_and(|build| {
-            build
-                .lines()
-                .any(|line| line.starts_with("editor(") || line.starts_with("plugin_tests("))
+            build.lines().any(|line| {
+                line.starts_with("editor(")
+                    || line.starts_with("plugin_tests(")
+                    || line.trim() == "paints = True,"
+            })
         });
         let Some(name) = directory.file_name().map(|name| name.to_string_lossy()) else {
             continue;

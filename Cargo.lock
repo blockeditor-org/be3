@@ -24,6 +24,8 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320"
 dependencies = [
+ "enumn",
+ "serde",
  "uuid",
 ]
 
@@ -258,6 +260,15 @@ name = "anyhow"
 version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
+
+[[package]]
+name = "app-tests"
+version = "0.1.0"
+dependencies = [
+ "be-drive",
+ "beui-core",
+ "paint-snapshot",
+]
 
 [[package]]
 name = "appendlist"
@@ -710,6 +721,7 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "image",
+ "paint-snapshot",
 ]
 
 [[package]]
@@ -1035,6 +1047,7 @@ dependencies = [
  "beui-tree",
  "foldhash 0.2.0",
  "geometry",
+ "paint-format",
  "raw-window-handle",
  "reactive",
  "thumbhash",
@@ -1280,6 +1293,7 @@ dependencies = [
  "be-wayland",
  "beui",
  "beui-adapter-drm",
+ "beui-demo",
  "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
@@ -1350,6 +1364,7 @@ dependencies = [
  "block-plugin-api",
  "block-ui",
  "geometry",
+ "paint-format",
  "reactive",
  "serde_bytes",
  "serde_json",
@@ -1402,6 +1417,7 @@ dependencies = [
 name = "block-plugin-api"
 version = "0.1.0"
 dependencies = [
+ "accesskit",
  "bincode",
  "serde",
  "serde_bytes",
@@ -1485,6 +1501,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5"
 dependencies = [
  "objc2 0.6.4",
+]
+
+[[package]]
+name = "block_debug"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-ui-test",
+ "uuid",
 ]
 
 [[package]]
@@ -2781,6 +2807,17 @@ name = "enumflags2_derive"
 version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "enumn"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5176,12 +5213,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "paint-format"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
 name = "paint-snapshot"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "flate2",
  "image",
+ "paint-format",
  "serde",
  "sha2",
 ]

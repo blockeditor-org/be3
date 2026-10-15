@@ -199,8 +199,7 @@ pub enum ClientMessage {
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
-        references_added: Vec<Uuid>,
-        references_removed: Vec<Uuid>,
+        references: Vec<Uuid>,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
     },

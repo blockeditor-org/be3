@@ -7,6 +7,7 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
+use beui_core::base::ItemSize;
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -27,10 +28,8 @@ use crate::text_menu::TextContextMenu;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use beui_view::reactive::{
-    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, create_effect,
-    create_memo, create_signal, set_component_state, store,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
 const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
@@ -86,6 +85,7 @@ pub fn TextInput(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] password: Prop<bool>,
     #[prop(default = false)] select_on_focus: Prop<bool>,
+    #[prop(default = false)] multiline: bool,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
@@ -154,7 +154,11 @@ pub fn TextInput(
         syntax: SyntaxColors::uniform(color.get()),
         ..TextAreaColors::DEFAULT
     });
-    let accessibility = crate::labelled_node(Role::TextInput, accessibility, label);
+    let role = match multiline {
+        true => Role::MultilineTextInput,
+        false => Role::TextInput,
+    };
+    let accessibility = crate::labelled_node(role, accessibility, label);
 
     let opener = store(Cell::new(None::<Callback<Pos2>>));
     let open_menu = move |at: Pos2| {
@@ -166,11 +170,63 @@ pub fn TextInput(
     let menu_disabled = disabled;
     let field_disabled = disabled;
     let handle_focused = is_focused;
-    view! {
+    let surround = move |field: Child, padded: bool| {
+        let field = match padded {
+            true => view! {
+                <Frame
+                    padding={create_memo(move || Sides::symmetric(padding_horizontal.get(), padding_vertical.get()))}
+                >
+                    {field}
+                </Frame>
+            },
+            false => field,
+        };
+        view! {
+            <TextContextMenu
+                @node_ref=&menu_node
+                state={state}
+                menu
+                masked={masked_menu}
+                disabled={menu_disabled}
+                child_size={match padded {
+                    true => ItemSize::Intrinsic,
+                    false => ItemSize::Percent(100.0),
+                }}
+            >
+                {move |open: Callback<Pos2>| {
+                    opener.with(|opener| opener.set(Some(open)));
+                    match content {
+                        Some(build) => build.call(TextInputHandle {
+                            field,
+                            hovered,
+                            focused: handle_focused,
+                            disabled: field_disabled,
+                            empty,
+                            clear,
+                        }),
+                        None => field,
+                    }
+                }}
+            </TextContextMenu>
+        }
+    };
+    let surround = store(RefCell::new(Some(surround)));
+    let surround = move |field: Child, padded: bool| {
+        let wrap = surround
+            .with(|surround| surround.borrow_mut().take())
+            .expect("a text input wraps its field once");
+        wrap(field, padded)
+    };
+    let padding = create_memo(move || match multiline {
+        true => Vec2::new(padding_horizontal.get(), padding_vertical.get()),
+        false => Vec2::ZERO,
+    });
+    let area_node = view! {
         <TextArea
             @node_ref=&area
             state={state}
-            single_line=true
+            single_line={!multiline}
+            line_numbers=false
             colors
             placeholder
             password={masked}
@@ -178,7 +234,7 @@ pub fn TextInput(
             keyboard_on_focus
             disabled={disabled}
             font_size
-            padding=Vec2::ZERO
+            padding
             accessibility
             on_menu={open_menu}
             on_submit={move || on_submit.call(text_of(state))}
@@ -193,36 +249,12 @@ pub fn TextInput(
                 set_hovered.set(is_hovered);
                 on_hover_change.call(is_hovered);
             }}
-            frame={move |field: Child| {
-                let field = view! {
-                    <Frame padding_horizontal padding_vertical>{field}</Frame>
-                };
-                view! {
-                    <TextContextMenu
-                        @node_ref=&menu_node
-                        state={state}
-                        menu
-                        masked={masked_menu}
-                        disabled={menu_disabled}
-                    >
-                        {move |open: Callback<Pos2>| {
-                            opener.with(|opener| opener.set(Some(open)));
-                            match content {
-                                Some(build) => build.call(TextInputHandle {
-                                    field,
-                                    hovered,
-                                    focused: handle_focused,
-                                    disabled: field_disabled,
-                                    empty,
-                                    clear,
-                                }),
-                                None => field,
-                            }
-                        }}
-                    </TextContextMenu>
-                }
-            }}
+            frame={move |field: Child| surround(field, true)}
         />
+    };
+    match multiline {
+        true => surround(area_node, false),
+        false => area_node,
     }
 }
 

@@ -1,10 +1,7 @@
 use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, ReadSignal, Show, Spacer, component,
-    create_memo, view,
-};
-use block_editor_beui::beui::styled::{Caption, MenuButton};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
@@ -43,9 +40,9 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
     let nothing_contains = create_memo(|| None);
     view! {
         <Toolbar spacing=SPACING>
-            <Caption content={type_label} />
+            <Text style=TextStyle::CAPTION string={type_label} />
             <Show condition={loading}>
-                <Caption content="Relationships loading…" />
+                <Text style=TextStyle::CAPTION string="Relationships loading…" />
             </Show>
             <Show condition={loaded}>
                 {move || view! {

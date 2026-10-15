@@ -1,13 +1,15 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::focus_ring::FocusRing;
-use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextSize};
+use crate::theme::use_theme;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
+use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Action, ClickCallback, Frame, Prop, create_memo};
+use beui_view::reactive::*;
 
 const PADDING: f32 = 8.0;
 const COMPACT_PADDING: f32 = 2.0;
@@ -28,10 +30,10 @@ impl IconButtonSize {
         }
     }
 
-    fn glyph(self) -> f32 {
+    fn glyph(self) -> TextSize {
         match self {
-            IconButtonSize::Compact => FONT_BODY,
-            IconButtonSize::Regular => ICON_SIZE,
+            IconButtonSize::Compact => TextSize::Xs,
+            IconButtonSize::Regular => TextSize::Base,
         }
     }
 
@@ -90,19 +92,22 @@ pub(crate) fn IconButtonFace(
     let theme = use_theme();
     let fill_color =
         create_memo(move || variant.fill(&theme, disabled.get(), hovered.get(), active.get()));
-    let icon_color = create_memo(move || variant.label(&theme, disabled.get()));
+    let icon_color = create_memo(move || variant.label(disabled.get()));
     view! {
-        <FocusRing focused radius={RADIUS + 4} offset={size.focus_ring_offset()}>
+        <FocusRing
+            focused
+            radius={Radius::custom(Radius::Md.px() + 4.0)}
+            offset={size.focus_ring_offset()}
+        >
             <Frame
-                color={fill_color}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                radius=RADIUS
-                outline_visible={variant == ButtonVariant::Secondary}
-                padding_horizontal={size.padding()}
-                padding_vertical={size.padding()}
+                fill={ColorRole::custom(fill_color)}
+                border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
+                radius=Radius::Md
+                padding={size.padding()}
             >
-                <IconSized glyph={glyph} font_size={size.glyph()} color={icon_color} />
+                <Text size={size.glyph()} color={icon_color} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
             </Frame>
         </FocusRing>
     }

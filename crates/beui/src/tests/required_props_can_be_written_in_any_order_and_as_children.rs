@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Child, List, Prop, Text, build, component, create_memo, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[component]
 fn Joined(prefix: Prop<String>, suffix: Prop<String>, children: Child) -> NodeId {

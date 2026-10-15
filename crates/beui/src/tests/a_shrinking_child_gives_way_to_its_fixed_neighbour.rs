@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, Frame, ItemSize, List, NodeRef, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_shrinking_child_gives_way_to_its_fixed_neighbour() {

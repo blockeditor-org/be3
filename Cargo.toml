@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/app-tests",
     "crates/be-block",
     "crates/be-cli",
     "crates/be-client",
@@ -56,6 +57,7 @@ members = [
     "crates/build-id",
     "crates/cvl2",
     "crates/editors/audio-block",
+    "crates/editors/block-debug",
     "crates/editors/browser-tab",
     "crates/editors/calendar",
     "crates/editors/checklist",
@@ -90,6 +92,7 @@ members = [
     "crates/ghostty-vt",
     "crates/local-tools",
     "crates/logicgame",
+    "crates/paint-format",
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
     "crates/reactive",

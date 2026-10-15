@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, Show, create_signal, view, with_reactive_scope};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {

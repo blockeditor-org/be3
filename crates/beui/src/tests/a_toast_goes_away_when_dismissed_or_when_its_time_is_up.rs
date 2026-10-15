@@ -1,5 +1,6 @@
 use super::*;
-use crate::styled::{TOAST_DURATION, Toast, Toasts};
+use crate::primitives::Frame;
+use crate::styled::*;
 
 #[test]
 fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {

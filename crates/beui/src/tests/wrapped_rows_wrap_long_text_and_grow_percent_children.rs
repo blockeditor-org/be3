@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, Frame, ItemSize, List, NodeRef, Text, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const LONG: &str = "a caption far too long to sit on one line of this narrow wrapping row";
 

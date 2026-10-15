@@ -1,6 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Embed, EmbedSlot, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_catcher_that_declines_a_press_declines_the_embed_inside_it() {

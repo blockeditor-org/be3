@@ -1,24 +1,25 @@
+use crate::frame::{Border, Frame, Radius, focus_border};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
 use crate::color_picker::thumb;
-use crate::theme::{BORDER_WIDTH, use_theme};
+use crate::theme::BORDER_WIDTH;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
 use beui_core::color::{Color32, Hsva, Oklch};
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_view::reactive::{Callback, Draw, Drawing, Frame, Prop, create_memo, focus_ring};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub const WHEEL_SIZE: f32 = 200.0;
 const RING_WIDTH: f32 = 22.0;
 const RING_GAP: f32 = 4.0;
 const THUMB_RADIUS: f32 = 7.0;
 const GRAB_SLOP: f32 = 10.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 2.0;
 const GAMUT_LINE_WIDTH: f32 = 1.25;
 const OUTLINE_DARK: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
@@ -216,15 +217,11 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
             );
         }) as Draw
     });
-    let theme = use_theme();
-    let ring_radius = (WHEEL_SIZE / 2.0) as u8 + 2;
+    let ring_radius = (WHEEL_SIZE / 2.0).floor() + 2.0;
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius=ring_radius
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
+            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            radius={Radius::custom(ring_radius)}
         >
             <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
                 <Drawing draw />

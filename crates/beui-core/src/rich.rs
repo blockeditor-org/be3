@@ -41,6 +41,12 @@ pub enum Piece<'a> {
         size: Vec2,
     },
     Gap(f32),
+    Icon {
+        glyph: &'a str,
+        style: SpanStyle,
+        spacing: f32,
+        text_size: f32,
+    },
 }
 
 impl<'a> Piece<'a> {
@@ -56,7 +62,7 @@ impl<'a> Piece<'a> {
         match self {
             Piece::Text { text, .. } => text.len(),
             Piece::Inline { .. } => OBJECT.len(),
-            Piece::Gap(_) => 0,
+            Piece::Gap(_) | Piece::Icon { .. } => 0,
         }
     }
 
@@ -70,6 +76,16 @@ pub enum SpanKind {
     Text,
     Inline(usize, Vec2),
     Gap(f32),
+    Icon(f32),
+}
+
+impl SpanKind {
+    fn spacing(self) -> f32 {
+        match self {
+            SpanKind::Icon(spacing) => spacing,
+            _ => 0.0,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -195,12 +211,12 @@ pub struct RichRun {
 
 impl RichRun {
     fn text(&self) -> bool {
-        self.galley.is_some()
+        self.galley.is_some() && self.kind == SpanKind::Text
     }
 
     fn x_of(&self, index: usize) -> f32 {
         match &self.galley {
-            Some(galley) if index > self.range.start => {
+            Some(galley) if index > self.range.start && self.text() => {
                 self.x
                     + galley
                         .cursor_pos(pos2(0.0, 0.0), index - self.range.start)
@@ -213,7 +229,7 @@ impl RichRun {
 
     fn stops(&self, into: &mut Vec<(usize, f32)>) {
         into.push((self.range.start, self.x));
-        if let Some(galley) = &self.galley {
+        if let Some(galley) = self.galley.as_ref().filter(|_| self.text()) {
             for line in galley.lines() {
                 for (index, x) in &line.cursors {
                     into.push((self.range.start + index, self.x + x));
@@ -250,13 +266,25 @@ impl RichLine {
                 .map_or(0.0, |run| run.x_of(index))
     }
 
+    pub fn x_after(&self, index: usize) -> f32 {
+        self.runs
+            .iter()
+            .rev()
+            .find(|run| run.range.start < index)
+            .map_or_else(
+                || self.x_of(index),
+                |run| self.left + run.x_of(index.min(run.range.end)),
+            )
+    }
+
     pub fn run_left(&self, run: &RichRun) -> f32 {
         self.left + run.x
     }
 
     pub fn run_top(&self, run: &RichRun) -> f32 {
         match &run.galley {
-            Some(galley) => self.top + self.baseline - galley.baseline(),
+            Some(galley) if run.text() => self.top + self.baseline - galley.baseline(),
+            Some(galley) => self.top + (self.height - galley.line_height()) / 2.0,
             None => self.top + (self.height - run.height) / 2.0,
         }
     }
@@ -286,6 +314,7 @@ impl<F: FnMut(&str, FontId) -> Galley> Shaper for F {
 
 struct Builder<'a> {
     text: &'a str,
+    pieces: &'a [Piece<'a>],
     spans: &'a [TextSpan],
     shaper: &'a mut dyn Shaper,
     paragraph: Range<usize>,
@@ -294,8 +323,13 @@ struct Builder<'a> {
 
 impl Builder<'_> {
     fn runs(&mut self, from: usize, to: usize) -> Vec<RichRun> {
-        let mut runs = Vec::new();
+        let mut runs: Vec<RichRun> = Vec::new();
         let mut x = 0.0;
+        let spaced = |runs: &[RichRun], kind: SpanKind| {
+            runs.last().map_or(0.0, |last: &RichRun| {
+                last.kind.spacing().max(kind.spacing())
+            })
+        };
         let first = self
             .spans
             .partition_point(|span| {
@@ -308,6 +342,7 @@ impl Builder<'_> {
                 let at = span.range.start;
                 let last = at == to && to == self.paragraph.end;
                 if at >= from && (at < to || last) {
+                    x += spaced(&runs, span.kind);
                     let run = self.run(index, at..at, x);
                     x += run.width;
                     runs.push(run);
@@ -326,6 +361,7 @@ impl Builder<'_> {
             if start >= end {
                 continue;
             }
+            x += spaced(&runs, span.kind);
             let run = self.run(index, start..end, x);
             x += run.width;
             runs.push(run);
@@ -390,6 +426,29 @@ impl Builder<'_> {
                 height: 0.0,
                 galley: None,
             },
+            SpanKind::Icon(_) => {
+                let (glyph, text_size) = match self.pieces[piece] {
+                    Piece::Icon {
+                        glyph, text_size, ..
+                    } => (glyph, text_size),
+                    _ => ("", 0.0),
+                };
+                let galley = self.shaper.galley(glyph, style.font);
+                let height = self
+                    .shaper
+                    .galley("", FontId::proportional(text_size))
+                    .line_height();
+                RichRun {
+                    piece,
+                    range,
+                    style,
+                    kind,
+                    x,
+                    width: galley.size().x,
+                    height,
+                    galley: Some(galley),
+                }
+            }
         }
     }
 
@@ -497,8 +556,14 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
                 (fallback, SpanKind::Inline(inline, size), false)
             }
             Piece::Gap(width) => (fallback, SpanKind::Gap(width), false),
+            Piece::Icon { style, spacing, .. } => (style, SpanKind::Icon(spacing), false),
         };
-        if text.len() > start || matches!(kind, SpanKind::Gap(_)) {
+        let shown = match *piece {
+            Piece::Icon { glyph, .. } => !glyph.is_empty(),
+            Piece::Gap(_) => true,
+            _ => text.len() > start,
+        };
+        if shown {
             spans.push(TextSpan {
                 piece: index,
                 range: start..text.len(),
@@ -538,6 +603,7 @@ impl RichLayout {
         let strut = (strut.baseline(), strut.line_height());
         let mut builder = Builder {
             text,
+            pieces,
             spans: &spans,
             shaper,
             paragraph: 0..0,
@@ -627,7 +693,14 @@ impl RichLayout {
             if line.width <= width {
                 continue;
             }
-            let Some(style) = line.runs.last().map(|run| run.style) else {
+            let Some(style) = line
+                .runs
+                .iter()
+                .rev()
+                .find(|run| run.kind == SpanKind::Text)
+                .or(line.runs.last())
+                .map(|run| run.style)
+            else {
                 continue;
             };
             let ellipsis = shaper.galley(ELLIPSIS, style.font);
@@ -639,12 +712,14 @@ impl RichLayout {
             for run in &line.runs {
                 if run.x + run.width <= budget {
                     cut = run.range.end;
-                    style = run.style;
-                    piece = run.piece;
+                    if run.kind == SpanKind::Text {
+                        style = run.style;
+                        piece = run.piece;
+                    }
                     runs.push(run.clone());
                     continue;
                 }
-                if let Some(galley) = &run.galley {
+                if let Some(galley) = run.galley.as_ref().filter(|_| run.text()) {
                     let kept = galley.lines().first().map_or(0, |first| {
                         first
                             .cursors
@@ -672,7 +747,9 @@ impl RichLayout {
             }
             let joined = match runs.last() {
                 Some(RichRun {
-                    galley: Some(last), ..
+                    galley: Some(last),
+                    kind: SpanKind::Text,
+                    ..
                 }) => Some(shaper.galley(&format!("{}{ELLIPSIS}", last.text()), style.font)),
                 _ => None,
             };
@@ -762,7 +839,7 @@ impl RichLayout {
                     return None;
                 }
                 let left = line.x_of(start);
-                let right = line.x_of(end).max(left + 1.0);
+                let right = line.x_after(end).max(left + 1.0);
                 Some(Rect::from_min_max(
                     pos2(left, line.top),
                     pos2(right, line.top + line.height),
@@ -809,7 +886,7 @@ fn line(
     let mut baseline = strut.0;
     let mut height = strut.1;
     for run in &runs {
-        if let Some(galley) = &run.galley {
+        if let Some(galley) = run.galley.as_ref().filter(|_| run.text()) {
             baseline = baseline.max(galley.baseline());
         }
         height = height.max(run.height);

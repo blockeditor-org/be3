@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::NodeRef;
+use crate::reactive::*;
 
 #[test]
 fn a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds() {

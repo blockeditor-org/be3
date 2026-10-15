@@ -490,6 +490,8 @@ pub struct DockState {
     switch: Option<DockSwitch>,
     #[serde(skip)]
     lookup: Lookup,
+    #[serde(skip)]
+    shows: u64,
 }
 
 impl Default for DockState {
@@ -511,6 +513,7 @@ impl DockState {
             fullscreen: None,
             switch: None,
             lookup: Lookup::default(),
+            shows: 0,
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -955,6 +958,11 @@ impl DockState {
         };
         self.set_active_index(position.leaf, position.index);
         self.focus(position.leaf);
+        self.shows += 1;
+    }
+
+    pub fn shows(&self) -> u64 {
+        self.shows
     }
 
     pub fn push(&mut self, leaf: LeafId, tab: TabId) {
@@ -1061,6 +1069,9 @@ impl DockState {
             return false;
         }
         self.recent.retain(|other| *other != tab);
+        if self.fullscreen.is_some_and(|shown| shown.tab == tab) {
+            self.fullscreen = None;
+        }
         self.normalize();
         self.settle_focus();
         true

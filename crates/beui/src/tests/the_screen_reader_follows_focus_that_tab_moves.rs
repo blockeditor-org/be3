@@ -1,13 +1,14 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Checkbox, Heading};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn the_screen_reader_follows_focus_that_tab_moves() {
     let (document, [_heading, _first, second]) = toolbar_of(|| {
         [
             view! {
-                <Heading content="Settings" />
+                <Text style=TextStyle::HEADING string="Settings" />
             },
             view! {
                 <Checkbox label="Show timings" checked=false />

@@ -167,32 +167,26 @@ impl BlockGraph {
         Ok(())
     }
 
-    pub fn apply_references(
-        &mut self,
-        id: Uuid,
-        added: &[Uuid],
-        removed: &[Uuid],
-    ) -> Result<(), GraphError> {
-        if !self.blocks.contains_key(&id) {
-            return Err(GraphError::NotFound(id));
+    pub fn set_references(&mut self, id: Uuid, references: &[Uuid]) -> Result<(), GraphError> {
+        let mut ordered = Vec::with_capacity(references.len());
+        for reference in references {
+            if !ordered.contains(reference) {
+                ordered.push(*reference);
+            }
         }
-        for reference in removed {
-            self.node_mut(id)?
-                .references
-                .retain(|held| held != reference);
-            if let Some(backrefs) = self.backrefs.get_mut(reference) {
+        let previous = std::mem::replace(&mut self.node_mut(id)?.references, ordered.clone());
+        for reference in previous {
+            if !ordered.contains(&reference)
+                && let Some(backrefs) = self.backrefs.get_mut(&reference)
+            {
                 backrefs.remove(&id);
                 if backrefs.is_empty() {
-                    self.backrefs.remove(reference);
+                    self.backrefs.remove(&reference);
                 }
             }
         }
-        for reference in added {
-            let node = self.node_mut(id)?;
-            if !node.references.contains(reference) {
-                node.references.push(*reference);
-            }
-            self.backrefs.entry(*reference).or_default().insert(id);
+        for reference in ordered {
+            self.backrefs.entry(reference).or_default().insert(id);
         }
         Ok(())
     }

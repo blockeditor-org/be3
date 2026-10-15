@@ -1,4 +1,3 @@
-use beui::reactive::{List, create_signal};
 use block_editor_beui::{BarAction, TopBar};
 
 use super::*;

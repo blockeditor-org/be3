@@ -156,10 +156,12 @@ impl Host {
                 crate::dylink::Program::Whole(module.clone()),
                 memory.clone(),
                 Arc::clone(&woken),
+                Arc::clone(&self.interrupt),
             ),
             wake: Arc::clone(&woken),
         };
         let mut store = Store::new(&self.engine, state);
+        crate::interrupt::watch(&mut store, true);
         let mut linker: Linker<State> = Linker::new(&self.engine);
         p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked: {error}"))?;

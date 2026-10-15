@@ -11,6 +11,7 @@ mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_visible_editor_shows_its_user_as_active;
 mod an_open_beui_overlay_is_reported_over_the_child_it_covers;
+mod the_frame_and_the_preview_of_one_block_both_load_its_content;
 
 fn session<A: BeuiApp>(block_type: Uuid) -> EditorSession {
     let mut session =

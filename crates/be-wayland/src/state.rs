@@ -180,6 +180,13 @@ pub struct KeyboardConfig {
     pub repeat_rate: i32,
 }
 
+fn first_window() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| u64::try_from(since.as_micros()).unwrap_or(0))
+        .max(1)
+}
+
 impl State {
     pub fn new(
         handle: &DisplayHandle,
@@ -246,7 +253,7 @@ impl State {
             popups: PopupManager::default(),
             popup_grab: None,
             windows: Vec::new(),
-            next_window: 1,
+            next_window: first_window(),
             events: Vec::new(),
             committed: Vec::new(),
             cursor: CursorImageStatus::default_named(),
@@ -1142,6 +1149,10 @@ pub(crate) fn collect_layers(
             let (Some(view), Some(buffer)) = (data.view(), data.buffer_size()) else {
                 return;
             };
+            let single_pixel = data
+                .buffer()
+                .is_some_and(|buffer| crate::single_pixel::color(buffer).is_some());
+            let view = crate::held_view::shown(states, view, single_pixel);
             let origin = *location + view.offset;
             layers.push(Layer {
                 surface: surface.clone(),
@@ -1237,6 +1248,7 @@ impl CompositorHandler for State {
     }
 
     fn commit(&mut self, surface: &WlSurface) {
+        crate::held_view::before_commit(surface);
         on_commit_buffer_handler::<Self>(surface);
         self.popups.commit(surface);
         if let Some(PopupKind::Xdg(popup)) = self.popups.find_popup(surface)

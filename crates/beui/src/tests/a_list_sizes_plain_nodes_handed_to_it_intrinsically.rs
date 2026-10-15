@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, Frame, List, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_list_sizes_plain_nodes_handed_to_it_intrinsically() {

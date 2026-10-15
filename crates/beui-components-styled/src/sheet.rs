@@ -1,11 +1,13 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use crate::theme::{BORDER_WIDTH, use_theme};
+use crate::theme::BORDER_WIDTH;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SHEET_STOPS, SheetGripHandle};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Child, ClickCallback, Frame, List, Prop, Render};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const HANDLE_HEIGHT: f32 = 24.0;
 const GRIP_WIDTH: f32 = 36.0;
@@ -73,20 +75,23 @@ pub fn ModalSheet(
 
 #[component]
 fn SheetPanel(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame color={theme.surface}>{children}</Frame>
+        <Frame fill=ColorRole::Surface>{children}</Frame>
     }
 }
 
 #[component]
 fn SheetGrip() -> NodeId {
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
-            <Frame height=BORDER_WIDTH color={theme.border} />
-            <Frame height=HANDLE_HEIGHT align_horizontal=Align::Center align_vertical=Align::Center>
-                <Frame width=GRIP_WIDTH height=GRIP_HEIGHT radius=2 color={theme.text_muted} />
+            <Frame height=BORDER_WIDTH fill=ColorRole::Border />
+            <Frame height=HANDLE_HEIGHT align=Align::Center>
+                <Frame
+                    width=GRIP_WIDTH
+                    height=GRIP_HEIGHT
+                    radius=Radius::Xs
+                    fill=ColorRole::TextMuted
+                />
             </Frame>
         </List>
     }

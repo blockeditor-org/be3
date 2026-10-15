@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Align, Direction, List, NodeRef, Spacer, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {

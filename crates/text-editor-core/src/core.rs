@@ -87,7 +87,7 @@ impl Selection {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CursorPosition {
     pub pos: Selection,
-    pub vertical_move_start: Option<Position>,
+    pub vertical_move_start: Option<(Position, VerticalMoveMode)>,
     pub node_select_start: Option<Selection>,
     pub drag_info: Option<DragInfo>,
 }
@@ -1057,7 +1057,10 @@ impl Core {
         for index in 0..original_len {
             let cursor = self.cursor_positions[index];
             let focus = cursor.pos.focus.resolve(&document);
-            let target_position = cursor.vertical_move_start.unwrap_or(cursor.pos.focus);
+            let target_position = match cursor.vertical_move_start {
+                Some((start, start_mode)) if start_mode == mode => start,
+                _ => cursor.pos.focus,
+            };
             let target_index = target_position.resolve(&document);
             let target_column = target_index - line_start(document.bytes(), target_index);
             let current_line_start = line_start(document.bytes(), focus);
@@ -1114,7 +1117,7 @@ impl Core {
                 VerticalMoveMode::Move => {
                     self.cursor_positions[index] = CursorPosition {
                         pos: Selection::at(stopped_position),
-                        vertical_move_start: Some(target_position),
+                        vertical_move_start: Some((target_position, mode)),
                         node_select_start: None,
                         drag_info: None,
                     };
@@ -1122,14 +1125,14 @@ impl Core {
                 VerticalMoveMode::Select => {
                     self.cursor_positions[index] = CursorPosition {
                         pos: Selection::range(cursor.pos.anchor, stopped_position),
-                        vertical_move_start: Some(target_position),
+                        vertical_move_start: Some((target_position, mode)),
                         node_select_start: None,
                         drag_info: cursor.drag_info,
                     };
                 }
                 VerticalMoveMode::Duplicate => self.cursor_positions.push(CursorPosition {
                     pos: Selection::at(stopped_position),
-                    vertical_move_start: Some(target_position),
+                    vertical_move_start: Some((target_position, mode)),
                     node_select_start: None,
                     drag_info: None,
                 }),

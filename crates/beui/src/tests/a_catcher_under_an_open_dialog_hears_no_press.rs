@@ -1,7 +1,9 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, Text, build, create_signal, view};
-use crate::styled::Dialog;
+use crate::primitives::Frame;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_catcher_under_an_open_dialog_hears_no_press() {
@@ -24,7 +26,7 @@ fn a_catcher_under_an_open_dialog_hears_no_press() {
                         </CanvasItem>
                     </Canvas>
                     <Dialog open={open} title="Event" width=300.0 on_dismiss={|| {}}>
-                        <Text string="Body" font_size=14.0 color=Color32::WHITE />
+                        <Text string="Body" color=Color32::WHITE />
                     </Dialog>
                 </List>
             }

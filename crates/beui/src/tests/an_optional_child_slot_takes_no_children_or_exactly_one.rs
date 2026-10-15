@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, List, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_optional_child_slot_takes_no_children_or_exactly_one() {

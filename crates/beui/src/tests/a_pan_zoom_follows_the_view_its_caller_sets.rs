@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{create_signal, view, with_reactive_scope};
+use crate::reactive::*;
 use crate::unstyled::PanZoomView;
 
 #[test]

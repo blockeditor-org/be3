@@ -1,4 +1,4 @@
-use crate::format::{Content, Frame, Snapshot};
+use crate::{Content, Frame, Snapshot};
 
 pub struct Difference {
     pub description: String,

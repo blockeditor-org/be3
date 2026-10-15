@@ -1,6 +1,5 @@
 mod client;
 mod plugins;
-pub(crate) mod version;
 
 use std::{cell::RefCell, collections::HashMap};
 
@@ -17,15 +16,7 @@ fn is_shown(panel: HostPanel) -> bool {
 }
 
 pub(crate) fn panel_shown(panel: HostPanel) {
-    let first = SHOWN.with(|shown| {
-        let mut shown = shown.borrow_mut();
-        let count = shown.entry(panel).or_default();
-        *count += 1;
-        *count == 1
-    });
-    if first && panel == HostPanel::Version {
-        version::open();
-    }
+    SHOWN.with(|shown| *shown.borrow_mut().entry(panel).or_default() += 1);
     crate::host::request_repaint();
 }
 
@@ -41,18 +32,13 @@ pub(crate) fn panel_hidden(panel: HostPanel) {
     });
 }
 
-pub(crate) fn poll() {
-    if is_shown(HostPanel::Version) {
-        version::poll();
-    }
-}
-
 pub(crate) fn command(command: DebugCommand) {
     match command {
         DebugCommand::KillPlugin(plugin_id) => crate::plugin_host::kill(&plugin_id),
-        DebugCommand::RefreshVersions => version::refresh(),
-        DebugCommand::Install(run) => version::install(run),
-        DebugCommand::OpenUrl(url) => crate::platform::open_url(&url),
+        DebugCommand::CrashPlugin(plugin_id) => crate::plugin_host::crash(
+            &plugin_id,
+            "It was crashed from the Plugins panel.".to_owned(),
+        ),
     }
 }
 
@@ -61,6 +47,5 @@ pub(crate) fn view() -> DebugView {
         client: is_shown(HostPanel::BlockStack).then(client::lines),
         performance: is_shown(HostPanel::Performance).then(crate::performance::rows),
         plugins: is_shown(HostPanel::Plugins).then(plugins::view),
-        version: is_shown(HostPanel::Version).then(version::view),
     }
 }

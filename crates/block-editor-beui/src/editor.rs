@@ -4,11 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block::presence::PresenceKind;
-use beui::reactive::{
-    Callback, CanvasView, EmbedSlot, Memo, NodeRef, OwnedSignal, OwnedStored, Prop, ReadSignal,
-    RootScope, Scope, Stored, WriteSignal, create_effect, create_memo, create_signal, on_cleanup,
-    untrack,
-};
+use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
@@ -123,11 +119,18 @@ pub struct Drag {
     pub dropped: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RawContent {
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChildTarget {
     pub id: Uuid,
     pub block_type: Uuid,
     pub view_block: Option<Uuid>,
+    pub editor: Option<Uuid>,
 }
 
 impl ChildTarget {
@@ -136,7 +139,13 @@ impl ChildTarget {
             id,
             block_type,
             view_block: None,
+            editor: None,
         }
+    }
+
+    pub fn edited_with(mut self, editor: Option<Uuid>) -> Self {
+        self.editor = editor;
+        self
     }
 
     pub fn viewed_by(mut self, view_block: Uuid) -> Self {
@@ -168,6 +177,7 @@ impl SubregionContent {
                 block_id: target.id.into_bytes(),
                 block_type: target.block_type.into_bytes(),
                 view_block: target.view_block.map(Uuid::into_bytes),
+                editor: target.editor.map(Uuid::into_bytes),
             },
             Self::WebView(web_view) => ChildContent::WebView(*web_view),
             Self::Host(panel) => ChildContent::Host(*panel),
@@ -324,6 +334,13 @@ pub(crate) fn defer_graph_changes(host: &EditorHost) {
 
 type Pump = Rc<dyn Fn()>;
 
+#[derive(Default)]
+pub(crate) struct Contents {
+    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
+    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
+    due: Rc<RefCell<Vec<Option<Uuid>>>>,
+}
+
 #[derive(Clone, Copy)]
 pub struct Editor(Stored<EditorState>);
 
@@ -334,16 +351,22 @@ pub struct OwnedEditor {
 
 impl OwnedEditor {
     pub fn new(host: EditorHost, block: Uuid) -> Self {
-        Self::scaled(host, block, Rc::default())
+        Self::scaled(host, block, Rc::default(), Rc::default())
     }
 
-    pub(crate) fn scaled(host: EditorHost, block: Uuid, beui: Rc<Cell<BeuiScale>>) -> Self {
+    pub(crate) fn scaled(
+        host: EditorHost,
+        block: Uuid,
+        beui: Rc<Cell<BeuiScale>>,
+        contents: Rc<Contents>,
+    ) -> Self {
         defer_graph_changes(&host);
         let owner = RootScope::new();
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
         let (world, set_world) = create_signal(None::<Vec2>);
         let (scale, set_scale) = create_signal(1.0_f32);
         let (chrome, set_chrome) = create_signal(true);
+        let (placed_content, set_placed_content) = create_signal(None::<Rect>);
         let (editable, set_editable) = create_signal(host.editable());
         let (presenting, set_presenting) = create_signal(false);
         let (drag, set_drag) = create_signal(None::<Drag>);
@@ -364,11 +387,13 @@ impl OwnedEditor {
             world,
             scale,
             chrome,
+            placed_content,
             editable,
             set_canvas,
             set_world,
             set_scale,
             set_chrome,
+            set_placed_content,
             set_editable,
             presenting,
             set_presenting,
@@ -387,14 +412,12 @@ impl OwnedEditor {
             pending_reveal: Cell::new(None),
             replace: RefCell::new(None),
             content: RefCell::new(None),
-            projections: RefCell::new(std::collections::HashMap::new()),
+            contents,
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             pick: RefCell::new(None),
-            pumps: RefCell::default(),
-            due: Rc::default(),
             seen: Cell::new(None),
             shown_rect: Cell::new(None),
             children_moved: Cell::new(false),
@@ -414,6 +437,10 @@ impl OwnedEditor {
 
     pub fn editor(&self) -> Editor {
         self.editor
+    }
+
+    pub(crate) fn contents(&self) -> Rc<Contents> {
+        Rc::clone(&self.editor.state().contents)
     }
 }
 
@@ -435,11 +462,13 @@ struct EditorState {
     world: ReadSignal<Option<Vec2>>,
     scale: ReadSignal<f32>,
     chrome: ReadSignal<bool>,
+    placed_content: ReadSignal<Option<Rect>>,
     editable: ReadSignal<bool>,
     set_canvas: WriteSignal<Option<CanvasView>>,
     set_world: WriteSignal<Option<Vec2>>,
     set_scale: WriteSignal<f32>,
     set_chrome: WriteSignal<bool>,
+    set_placed_content: WriteSignal<Option<Rect>>,
     set_editable: WriteSignal<bool>,
     presenting: ReadSignal<bool>,
     set_presenting: WriteSignal<bool>,
@@ -458,14 +487,12 @@ struct EditorState {
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<(NodeRef, u64)>>,
-    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
+    contents: Rc<Contents>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
-    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
-    due: Rc<RefCell<Vec<Option<Uuid>>>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
     children_moved: Cell<bool>,
@@ -514,6 +541,16 @@ impl Editor {
         C: be_block::LiveEdit + Clone + Default,
     {
         self.projection(None)
+    }
+
+    pub fn loaded<C>(&self, queries: &[BlockQuery]) -> Memo<bool>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        let content = self.block_content::<C>().loaded();
+        let blocks = self.blocks();
+        let lists: Vec<BlockList> = queries.iter().map(|query| blocks.watch(*query)).collect();
+        create_memo(move || content.get() && lists.iter().all(BlockList::is_loaded))
     }
 
     pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
@@ -579,12 +616,51 @@ impl Editor {
             .create(content, BlockParent::Block(self.state().block))
     }
 
+    pub fn raw_block_content(&self) -> ReadSignal<Option<RawContent>> {
+        let state = self.state();
+        let cached = state
+            .contents
+            .projections
+            .borrow()
+            .get(&None)
+            .and_then(|held| held.downcast_ref::<OwnedSignal<Option<RawContent>>>())
+            .map(OwnedSignal::read);
+        if let Some(read) = cached {
+            return read;
+        }
+        let owned = OwnedSignal::new(None::<RawContent>);
+        let (read, write) = (owned.read(), owned.write());
+        let host = state.host.clone();
+        state.contents.pumps.borrow_mut().insert(
+            None,
+            Rc::new(move || {
+                for update in host.take_content_updates(None) {
+                    match update {
+                        crate::ContentUpdate::Snapshot(content) => write.set(Some(RawContent {
+                            content_type: content.content_type,
+                            bytes: content.bytes,
+                        })),
+                        crate::ContentUpdate::Operations(_) => host.request_content_resend(None),
+                    }
+                }
+            }),
+        );
+        state.contents.due.borrow_mut().push(None);
+        state
+            .contents
+            .projections
+            .borrow_mut()
+            .insert(None, Box::new(owned));
+        read
+    }
+
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
         let state = self.state();
         let cached = state
+            .contents
             .projections
             .borrow()
             .get(&block)
@@ -595,18 +671,20 @@ impl Editor {
         }
         let owned = OwnedContentProjection::<C>::new(state.host.clone(), block);
         let source = owned.handle();
-        let due = Rc::downgrade(&state.due);
+        let due = Rc::downgrade(&state.contents.due);
         source.on_due(move || {
             if let Some(due) = due.upgrade() {
                 due.borrow_mut().push(block);
             }
         });
         state
+            .contents
             .pumps
             .borrow_mut()
             .insert(block, Rc::new(move || source.pump()));
-        state.due.borrow_mut().push(block);
+        state.contents.due.borrow_mut().push(block);
         state
+            .contents
             .projections
             .borrow_mut()
             .insert(block, Box::new(owned));
@@ -655,6 +733,7 @@ impl Editor {
 
     pub fn history(&self, block: Uuid) -> Memo<BlockHistory> {
         let host = self.state().host.clone();
+        host.watch_history([block]);
         let revision = self.pushed(Pushed::Histories);
         create_memo(move || {
             revision.get();
@@ -668,6 +747,15 @@ impl Editor {
         create_memo(move || {
             revision.get();
             host.version_status()
+        })
+    }
+
+    pub fn version_known(&self) -> Memo<bool> {
+        let host = self.state().host.clone();
+        let revision = self.pushed(Pushed::Version);
+        create_memo(move || {
+            revision.get();
+            host.version_known()
         })
     }
 
@@ -698,17 +786,30 @@ impl Editor {
 
     pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
         let host = self.state().host.clone();
-        let revision = self
-            .state()
-            .host_values
-            .borrow_mut()
-            .entry(T::KEY)
-            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(T::KEY)))
-            .read();
+        let revision = self.host_value_revision(T::KEY);
         create_memo(move || {
             revision.get();
             host.host_value::<T>()
         })
+    }
+
+    pub fn host_offers<T: HostValue>(&self) -> Memo<bool> {
+        let host = self.state().host.clone();
+        let revision = self.host_value_revision(T::KEY);
+        create_memo(move || {
+            revision.get();
+            host.host_offers::<T>()
+        })
+    }
+
+    fn host_value_revision(&self, key: &'static str) -> ReadSignal<u64> {
+        let host = &self.state().host;
+        self.state()
+            .host_values
+            .borrow_mut()
+            .entry(key)
+            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(key)))
+            .read()
     }
 
     pub fn act<A: HostAction>(&self, action: A) {
@@ -739,6 +840,10 @@ impl Editor {
         self.state().chrome
     }
 
+    pub fn placed_content(&self) -> ReadSignal<Option<Rect>> {
+        self.state().placed_content
+    }
+
     pub fn presenting(&self) -> ReadSignal<bool> {
         self.state().presenting
     }
@@ -750,6 +855,15 @@ impl Editor {
     pub fn block_types(&self) -> Rc<BlockCatalog> {
         self.state().pushed.track(Pushed::Catalog);
         self.state().host.block_types()
+    }
+
+    pub fn block_types_known(&self) -> Memo<bool> {
+        let host = self.state().host.clone();
+        let revision = self.pushed(Pushed::Catalog);
+        create_memo(move || {
+            revision.get();
+            host.block_types_known()
+        })
     }
 
     pub fn set_intrinsic_size(&self, size: Option<Vec2>) {
@@ -999,7 +1113,7 @@ impl Editor {
         if pushed {
             state.host.flush_graph();
         }
-        let mut due = std::mem::take(&mut *state.due.borrow_mut());
+        let mut due = std::mem::take(&mut *state.contents.due.borrow_mut());
         if pushed {
             due.extend(state.host.updated_content());
         }
@@ -1026,6 +1140,9 @@ impl Editor {
                     ..files
                 }));
             state.set_chrome.set(state.host.chrome_shown());
+            state
+                .set_placed_content
+                .set(state.host.placed_content().map(|rect| rect.scaled(ratio)));
             state.set_editable.set(state.host.editable());
             state.set_presenting.set(state.host.presenting());
             state.set_drag.set(state.host.drag().map(|drag| Drag {
@@ -1066,7 +1183,7 @@ impl Editor {
     fn pump(&self, blocks: Vec<Option<Uuid>>) {
         let pumps: Vec<_> = {
             let state = self.state();
-            let held = state.pumps.borrow();
+            let held = state.contents.pumps.borrow();
             let mut pumped = std::collections::HashSet::new();
             blocks
                 .into_iter()
@@ -1259,6 +1376,38 @@ impl Creation {
 }
 
 impl Editor {
+    pub fn effective_settings<R>(&self) -> Memo<R>
+    where
+        R: be_block::Layered + PartialEq + 'static,
+        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
+    {
+        let editor = *self;
+        create_memo(move || {
+            let layers = crate::root_settings::RootSettings::default()
+                .read(&editor)
+                .map(|held| {
+                    crate::root_settings::layers(
+                        &editor,
+                        &held,
+                        R::CONTENT_TYPE,
+                        editor.host().client_id(),
+                    )
+                })
+                .unwrap_or_default();
+            be_block::layered(
+                layers
+                    .defaults
+                    .into_iter()
+                    .chain(layers.own)
+                    .filter_map(|block| {
+                        editor
+                            .content_of::<be_block::be_model::Document<R>>(block)
+                            .read(|content| content.root())
+                    }),
+            )
+        })
+    }
+
     pub fn inherited_settings<R>(&self) -> Memo<R>
     where
         R: be_block::Layered + PartialEq + 'static,

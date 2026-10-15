@@ -1,13 +1,7 @@
 use std::cell::Cell;
 
-use beui::reactive::{
-    Align, Direction, Draw, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo, Prop, Show,
-    Spacer, component, create_memo, create_signal, store, view,
-};
-use beui::styled::{
-    Accordion, Body, Button, ButtonVariant, Caption, Code, Dialog, ListRow, Scroll, Separator,
-    use_theme,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{FontId, NodeId, Painter, PointerPress};
 
 use super::session::Session;
@@ -79,17 +73,16 @@ pub(super) fn Panels(session: Session) -> NodeId {
 fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Caption @sizing=ItemSize::Fixed(LABEL_WIDTH) content={label} />
-            <Code @sizing=ItemSize::Percent(100.0) content={value} wrap=true />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(LABEL_WIDTH) string={label} />
+            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={value} wrap=true />
         </List>
     }
 }
 
 #[component]
 fn Problem(content: Prop<String>) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Caption content={content} color={theme.danger} wrap=true />
+        <Text style=TextStyle::CAPTION string={content} color=TextColor::Danger wrap=true />
     }
 }
 
@@ -100,7 +93,7 @@ fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
     view! {
         <List spacing=4.0>
             <Show condition={empty}>
-                <Caption content="None" />
+                <Text style=TextStyle::CAPTION string="None" />
             </Show>
             <ForEach keys={keys}>
                 {move |index: usize| {
@@ -416,14 +409,18 @@ fn SimulationPanel(session: Session) -> NodeId {
                 <Problem content={problem} />
             </Show>
             <Show condition={idle}>
-                <Caption content="Run a step to compile and execute the circuit." wrap=true />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Run a step to compile and execute the circuit."
+                    wrap=true
+                />
             </Show>
             <Show condition={compiled}>
                 {move || view! {
                     <List spacing=SPACING>
                         <Rows rows={summary} />
                         <Separator />
-                        <Body content="Call stack" />
+                        <Text string="Call stack" />
                         <List spacing=2.0>
                             <ForEach keys={frames}>
                                 {move |index: usize| {
@@ -443,16 +440,16 @@ fn SimulationPanel(session: Session) -> NodeId {
                                     };
                                     view! {
                                         <ListRow selected={selected} on_click={chose}>
-                                            <Body content={label} />
+                                            <Text string={label} />
                                         </ListRow>
                                     }
                                 }}
                             </ForEach>
                         </List>
                         <Separator />
-                        <Body content="Instructions" />
+                        <Text string="Instructions" />
                         <Show condition={no_instructions}>
-                            <Caption content="No instructions" />
+                            <Text style=TextStyle::CAPTION string="No instructions" />
                         </Show>
                         <List spacing=2.0>
                             <ForEach keys={instructions}>
@@ -467,9 +464,9 @@ fn SimulationPanel(session: Session) -> NodeId {
                             </ForEach>
                         </List>
                         <Separator />
-                        <Body content="Inputs" />
+                        <Text string="Inputs" />
                         <Show condition={no_inputs}>
-                            <Caption content="None" />
+                            <Text style=TextStyle::CAPTION string="None" />
                         </Show>
                         <List spacing=4.0>
                             <ForEach keys={inputs}>
@@ -484,13 +481,13 @@ fn SimulationPanel(session: Session) -> NodeId {
                             </ForEach>
                         </List>
                         <Separator />
-                        <Body content="Outputs" />
+                        <Text string="Outputs" />
                         <Rows rows={outputs} />
                         <Separator />
-                        <Body content="Wire groups" />
+                        <Text string="Wire groups" />
                         <Rows rows={wires} />
                         <Separator />
-                        <Body content="Storage" />
+                        <Text string="Storage" />
                         <Rows rows={storage} />
                     </List>
                 }}
@@ -515,9 +512,13 @@ fn InstructionRow(
     let unresolved = create_memo(move || row.get().is_none_or(|row| row.2 != Some(true)));
     let target = move || session.update(|model| model.select_instruction_target(index));
     view! {
-        <Frame color={fill} radius=3 padding_horizontal=4.0>
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius={Radius::custom(3.0)}
+            padding={Sides::horizontal(4.0)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Code @sizing=ItemSize::Percent(100.0) content={text} />
+                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={text} />
                 <Show condition={calls}>
                     <Button
                         label="Target"
@@ -543,9 +544,9 @@ fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> Nod
     });
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=4.0>
-            <Caption content={label} />
+            <Text style=TextStyle::CAPTION string={label} />
             <Show condition={deleted}>
-                <Caption content="deleted" />
+                <Text style=TextStyle::CAPTION string="deleted" />
             </Show>
             <ForEach keys={bits}>
                 {move |bit: u32| {
@@ -652,7 +653,7 @@ fn ChallengePanel(session: Session) -> NodeId {
     let rows_shown = shown;
     view! {
         <List spacing=SPACING>
-            <Body content={goal} />
+            <Text string={goal} />
             <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=SPACING>
                 <Button
                     label="Step test"
@@ -674,7 +675,11 @@ fn ChallengePanel(session: Session) -> NodeId {
             <Show condition={working}>
                 {move || view! {
                     <List spacing=2.0>
-                        <Caption content={status} @test_id={"logic-grid.challenge-status"} />
+                        <Text
+                            style=TextStyle::CAPTION
+                            string={status}
+                            @test_id={"logic-grid.challenge-status"}
+                        />
                         <Scroll direction=Direction::Horizontal>
                             <List spacing=2.0>
                                 <TableRow cells={header} />
@@ -710,8 +715,8 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
                         cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
                     });
                     view! {
-                        <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding_horizontal=2.0>
-                            <Body content={text} />
+                        <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding={Sides::horizontal(2.0)}>
+                            <Text string={text} />
                         </Frame>
                     }
                 }}
@@ -746,15 +751,14 @@ fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId
 #[component]
 fn TickCell(cell: Memo<Option<(String, Option<bool>)>>) -> NodeId {
     let text = create_memo(move || cell.get().map(|cell| cell.0).unwrap_or_default());
-    let theme = use_theme();
     let color = create_memo(move || match cell.get().and_then(|cell| cell.1) {
-        Some(true) => theme.text.get(),
-        Some(false) => theme.danger.get(),
-        None => theme.text_muted.get(),
+        Some(true) => TextColor::Default,
+        Some(false) => TextColor::Danger,
+        None => TextColor::Muted,
     });
     view! {
-        <Frame width=CELL_WIDTH padding_horizontal=2.0>
-            <Code content={text} color={color} />
+        <Frame width=CELL_WIDTH padding={Sides::horizontal(2.0)}>
+            <Text style=TextStyle::CODE string={text} color={color} />
         </Frame>
     }
 }
@@ -875,9 +879,9 @@ fn DebuggerPanel(session: Session) -> NodeId {
         <List spacing=SPACING>
             <Rows rows={summary} />
             <Separator />
-            <Body content="Validation errors" />
+            <Text string="Validation errors" />
             <Show condition={valid}>
-                <Caption content="No validation errors" />
+                <Text style=TextStyle::CAPTION string="No validation errors" />
             </Show>
             <ForEach keys={error_keys}>
                 {move |index: usize| {
@@ -890,9 +894,9 @@ fn DebuggerPanel(session: Session) -> NodeId {
                 }}
             </ForEach>
             <Separator />
-            <Body content="Entities" />
+            <Text string="Entities" />
             <Show condition={empty}>
-                <Caption content="No entities" />
+                <Text style=TextStyle::CAPTION string="No entities" />
             </Show>
             <ForEach keys={entity_keys}>
                 {move |entity: DebugEntity| {
@@ -1013,7 +1017,7 @@ fn GraphPanel(session: Session) -> NodeId {
         <List spacing=SPACING>
             <Rows rows={counts} />
             <Show condition={empty}>
-                <Caption content="The generated graph is empty." />
+                <Text style=TextStyle::CAPTION string="The generated graph is empty." />
             </Show>
             <Show condition={drawn}>
                 {move || { let draw = draw.clone(); view! {
@@ -1065,7 +1069,7 @@ fn GraphCanvas(
     };
     view! {
         <Interactive on_hover_move={over} on_hover_change={left}>
-            <Frame width={width} height={height}>
+            <Frame width=width height=height>
                 <Drawing draw={draw} />
             </Frame>
         </Interactive>

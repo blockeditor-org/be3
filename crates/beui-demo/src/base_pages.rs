@@ -2,11 +2,10 @@ use super::*;
 use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
-use beui::reactive::Dismiss;
-use beui::reactive::{
-    Dynamic, Fade, Gap, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay,
-    Placement, ReadSignal, Shift, Track,
-};
+use beui::primitives::Frame;
+use beui::primitives::Icon;
+use beui::primitives::Span;
+use beui::primitives::Text;
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -43,33 +42,27 @@ fn FrameSwatches() -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
-            <Frame width=SWATCH height=SWATCH color={theme.accent} />
-            <Frame width=SWATCH height=SWATCH color={theme.accent} radius=12 />
-            <Frame width=SWATCH height=SWATCH radius=36 color={theme.success} />
+            <Frame width=SWATCH height=SWATCH fill={theme.accent} />
+            <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
+            <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.success} />
             <Frame
                 width=SWATCH
                 height=SWATCH
-                outline={theme.text}
-                outline_width=2.0
-                outline_visible=true
-                radius=8
+                outline={create_memo(move || Some(Outline::new(theme.text.get(), 2.0)))}
+                radius=8.0
             />
             <Frame
                 width=SWATCH
                 height=SWATCH
-                color={theme.surface_raised}
-                outline={theme.accent}
-                outline_width=2.0
-                outline_offset=4.0
-                outline_visible=true
-                radius=8
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0)))}
+                radius=8.0
             />
             <Frame
                 width=SWATCH
                 height=SWATCH
-                color={theme.warning}
-                radius_top_left=Some(36)
-                radius_bottom_right=Some(36)
+                fill={theme.warning}
+                radius={Corners::new(36.0, 0.0, 36.0, 0.0)}
             />
         </List>
     }
@@ -94,14 +87,12 @@ fn AlignedBox(align: Align) -> NodeId {
     view! {
         <Frame
             height=SWATCH
-            color={theme.surface_raised}
-            radius=RADIUS
-            padding_horizontal=8.0
-            padding_vertical=8.0
-            align_horizontal=align
-            align_vertical=align
+            fill={theme.surface_raised}
+            radius={Radius::Md.px()}
+            padding=8.0
+            align=align
         >
-            <Frame width=BADGE height=BADGE color={theme.accent} radius=4 />
+            <Frame width=BADGE height=BADGE fill={theme.accent} radius=4.0 />
         </Frame>
     }
 }
@@ -113,11 +104,10 @@ fn FrameSizes() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Frame
-                max_width=Some(320.0)
-                color={theme.surface_raised}
-                radius=RADIUS
-                padding_horizontal=12.0
-                padding_vertical=8.0
+                width={Extent::at_most(320.0)}
+                fill={theme.surface_raised}
+                radius={Radius::Md.px()}
+                padding={Sides::symmetric(12.0, 8.0)}
             >
                 <Text
                     string="This frame stops growing at 320 points wide."
@@ -126,10 +116,10 @@ fn FrameSizes() -> NodeId {
                 />
             </Frame>
             <Frame
-                width=Some(160.0)
+                width=160.0
                 aspect_ratio=Some(16.0 / 9.0)
-                color={theme.accent_soft}
-                radius=RADIUS
+                fill={theme.accent_soft}
+                radius={Radius::Md.px()}
             />
         </List>
     }
@@ -148,6 +138,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             <Sample title="Spans" code={vec![TextRuns::SOURCE]}>
                 <TextRuns />
             </Sample>
+            <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
+                <TextIcons />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -159,12 +152,45 @@ fn TextStyles() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text string="Plain text" color={theme.text} />
-            <Text string="Bold text" color={theme.text} bold=true />
-            <Text string="Italic text" color={theme.text} italic=true />
+            <Text
+                string="Bold text"
+                color={theme.text}
+                font={FontId::proportional(14.0).bold(true)}
+            />
+            <Text
+                string="Italic text"
+                color={theme.text}
+                font={FontId::proportional(14.0).italic(true)}
+            />
             <Text string="Underlined text" color={theme.text} underline=true />
-            <Text string="Monospace text" color={theme.text} monospace=true />
-            <Text string="Large accent text" font_size=24.0 color={theme.accent} />
-            <Text string={ICON_STAR.to_owned()} font_size=24.0 color={theme.warning} icon=true />
+            <Text string="Monospace text" color={theme.text} font={FontId::monospace(14.0)} />
+            <Text
+                string="Large accent text"
+                color={theme.accent}
+                font={FontId::proportional(24.0)}
+            />
+            <Text color={theme.warning} font={FontId::proportional(24.0)}>
+                <Icon glyph={ICON_STAR.to_owned()} />
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TextIcons() -> NodeId {
+    let theme = use_theme();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text color={theme.text}>
+                <Icon glyph=ICON_STAR color={theme.warning} spacing_em=0.25 />
+                "An icon is a span that holds no bytes"
+            </Text>
+            <Text color={theme.text} font={FontId::proportional(20.0)} wrap=true>
+                "It takes its size from the text"
+                <Icon glyph=ICON_STAR scale=1.25 spacing_em=0.25 />
+                "scaled, and its room from both sides"
+            </Text>
         </List>
     }
 }
@@ -237,11 +263,11 @@ fn Tile(label: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            min_height={Some(TILE_HEIGHT)}
-            color={theme.surface_raised}
-            radius=RADIUS
-            padding_horizontal=12.0
-            align_vertical=Align::Center
+            height={Extent::at_least(TILE_HEIGHT)}
+            fill={theme.surface_raised}
+            radius={Radius::Md.px()}
+            padding={Sides::horizontal(12.0)}
+            align={Align2::vertical(Align::Center)}
         >
             <Text string={label} color={theme.text} wrap=true />
         </Frame>
@@ -413,7 +439,7 @@ fn DynamicShape() -> NodeId {
             <Dynamic value={round}>
                 {move |round: bool| match round {
                     true => view! {
-                        <Frame width=SWATCH height=SWATCH radius=36 color={theme.accent} />
+                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                     },
                     false => view! {
                         <Text string="Rebuilt whenever its value changes" color={theme.text} />
@@ -477,18 +503,20 @@ fn InteractiveCard() -> NodeId {
             >
                 <Frame
                     height=CARD_HEIGHT
-                    color={fill}
-                    outline={theme.accent}
-                    outline_width=2.0
-                    outline_visible={focus_ring(focused)}
-                    radius=CARD_RADIUS
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    fill=fill
+                    outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
+                    radius={Radius::Lg.px()}
+                    align=Align::Center
                 >
                     <Text string={log} color={theme.text} />
                 </Frame>
             </Interactive>
-            <Text string={state} color={theme.text_muted} monospace=true wrap=true />
+            <Text
+                string={state}
+                color={theme.text_muted}
+                wrap=true
+                font={FontId::monospace(14.0)}
+            />
         </List>
     }
 }
@@ -521,30 +549,27 @@ fn BadgedCard() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <Layers>
                 <Frame
-                    width=Some(200.0)
+                    width=200.0
                     height=CARD_HEIGHT
-                    color={theme.surface_raised}
-                    radius=CARD_RADIUS
-                    padding_horizontal=12.0
-                    padding_vertical=12.0
+                    fill={theme.surface_raised}
+                    radius={Radius::Lg.px()}
+                    padding=12.0
                 >
                     <Text string="Inbox" color={theme.text} />
                 </Frame>
-                <Frame
-                    align_horizontal=Align::End
-                    align_vertical=Align::Start
-                    padding_horizontal=8.0
-                    padding_vertical=8.0
-                >
+                <Frame align={Align2::new(Align::End, Align::Start)} padding=8.0>
                     <Frame
                         width=BADGE
                         height=BADGE
-                        radius=11
-                        color={theme.danger}
-                        align_horizontal=Align::Center
-                        align_vertical=Align::Center
+                        radius=11.0
+                        fill={theme.danger}
+                        align=Align::Center
                     >
-                        <Text string="3" font_size=12.0 color={theme.on_accent} bold=true />
+                        <Text
+                            string="3"
+                            color={theme.on_accent}
+                            font={FontId::proportional(12.0).bold(true)}
+                        />
                     </Frame>
                 </Frame>
             </Layers>
@@ -566,12 +591,12 @@ fn NudgedTile() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive on_click={move || set_nudged.update(|nudged| *nudged = !*nudged)}>
-                <Frame color={face} radius=RADIUS padding_horizontal=16.0 padding_vertical=10.0>
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
                     <Text string="Nudge" color={ink} />
                 </Frame>
             </Interactive>
             <Shift by={by}>
-                <Frame width=SWATCH height=SWATCH color={theme.accent} radius=12 />
+                <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
             </Shift>
         </List>
     }
@@ -614,10 +639,9 @@ fn AnchoredOverlay() -> NodeId {
             >
                 <Frame
                     @node_ref=&target
-                    color={face}
-                    radius=RADIUS
-                    padding_horizontal=16.0
-                    padding_vertical=10.0
+                    fill=face
+                    radius={Radius::Md.px()}
+                    padding={Sides::symmetric(16.0, 10.0)}
                 >
                     <Text string="Open the overlay" color={ink} />
                 </Frame>
@@ -628,17 +652,14 @@ fn AnchoredOverlay() -> NodeId {
                 open={open}
                 on_dismiss={move |_: Dismiss| dismiss.set(false)}
             >
-                <Frame padding_vertical=4.0>
+                <Frame padding={Sides::vertical(4.0)}>
                     <Frame
                         @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
-                        color={theme.surface_raised}
-                        outline={theme.border}
-                        outline_width=1.0
-                        outline_visible=true
-                        radius=CARD_RADIUS
-                        padding_horizontal=12.0
-                        padding_vertical=12.0
+                        fill={theme.surface_raised}
+                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        radius={Radius::Lg.px()}
+                        padding=12.0
                     >
                         <Text
                             string="An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."

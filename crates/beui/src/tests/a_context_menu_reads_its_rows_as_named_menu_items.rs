@@ -1,8 +1,8 @@
 use accesskit::Role;
 
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_context_menu_reads_its_rows_as_named_menu_items() {

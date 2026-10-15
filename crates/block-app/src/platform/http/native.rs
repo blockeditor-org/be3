@@ -1,12 +1,6 @@
-use std::{io::Read, sync::mpsc, thread, time::Duration};
-
-use crate::host::waking_channel;
+use std::{io::Read, thread, time::Duration};
 
 const TIMEOUT: Duration = Duration::from_secs(30);
-
-pub(crate) struct Fetch {
-    receiver: mpsc::Receiver<Result<Vec<u8>, String>>,
-}
 
 pub(crate) fn fetch(
     url: String,
@@ -14,20 +8,6 @@ pub(crate) fn fetch(
     deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
 ) {
     thread::spawn(move || deliver(run(&url, &headers)));
-}
-
-impl Fetch {
-    pub(crate) fn get(url: String, headers: Vec<(&'static str, String)>) -> Self {
-        let (sender, receiver) = waking_channel();
-        fetch(url, headers, move |result| {
-            let _ = sender.send(result);
-        });
-        Self { receiver }
-    }
-
-    pub(crate) fn poll(&self) -> Option<Result<Vec<u8>, String>> {
-        self.receiver.try_recv().ok()
-    }
 }
 
 fn run(url: &str, headers: &[(&'static str, String)]) -> Result<Vec<u8>, String> {

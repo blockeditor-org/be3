@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{ForEach, NodeRef, Text, build, view};
-use crate::styled::{Slider, Tabs};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::Scroll;
 
 #[test]
@@ -22,7 +23,7 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
                     <Slider @node_ref=&slider value=0.5 />
                     <ForEach keys={indices(20)}>
                         {|_: usize| view! {
-                            <Text string="Content" font_size=14.0 color=Color32::WHITE />
+                            <Text string="Content" color=Color32::WHITE />
                         }}
                     </ForEach>
                 </Scroll>

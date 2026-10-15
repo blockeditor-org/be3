@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, List, NodeRef, build, create_signal, view, with_reactive_scope};
-use crate::styled::ModalSheet;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {

@@ -4,7 +4,7 @@ use text_editor_core::{
 };
 
 use beui_core::input::{Key, KeyPress};
-use beui_view::reactive::copy_text;
+use beui_view::reactive::*;
 
 use super::{Context, TextAreaState};
 

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Align, Frame, List, NodeRef, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_frame_takes_a_fraction_of_the_space_it_is_offered() {
@@ -9,7 +10,7 @@ fn a_frame_takes_a_fraction_of_the_space_it_is_offered() {
         move || {
             view! {
                 <List align=Align::Start spacing=0.0>
-                    <Frame @node_ref=&quarter width_fraction=0.25 height=10.0 />
+                    <Frame @node_ref=&quarter width={Extent::fraction(0.25)} height=10.0 />
                 </List>
             }
         }

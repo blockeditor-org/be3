@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 use crate::unstyled::{MAX_SCALE, MIN_SCALE, PanZoomView, pan_zoom_view};
 
 #[test]

@@ -34,8 +34,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
             chunks: first_chunks.clone(),
             time: 1_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;
@@ -52,8 +51,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
             chunks: second_chunks.clone(),
             time: 2_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;

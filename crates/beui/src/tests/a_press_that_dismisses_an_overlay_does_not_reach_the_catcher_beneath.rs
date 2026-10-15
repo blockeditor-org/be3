@@ -1,7 +1,9 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, Text, build, create_signal, view};
-use crate::styled::Dialog;
+use crate::primitives::Frame;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 const WIDE: Vec2 = Vec2::new(1600.0, 1000.0);
 
@@ -40,7 +42,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
                         width=300.0
                         on_dismiss={move || set_open.set(false)}
                     >
-                        <Text string="Body" font_size=14.0 color=Color32::WHITE />
+                        <Text string="Body" color=Color32::WHITE />
                     </Dialog>
                 </List>
             }

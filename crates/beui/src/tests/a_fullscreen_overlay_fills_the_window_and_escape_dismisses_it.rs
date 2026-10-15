@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, create_signal, view, with_reactive_scope};
-use crate::styled::Fullscreen;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
@@ -16,7 +17,7 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
                         open={open}
                         on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
-                        <Frame color=Color32::WHITE @node_ref={&content} />
+                        <Frame fill=Color32::WHITE @node_ref={&content} />
                     </Fullscreen>
                 </List>
             }

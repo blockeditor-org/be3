@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, List, NodeRef, Span, Text, TextItem, build, view};
+use crate::primitives::Span;
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::{Color32, FontId};
 
 const WRAP: f32 = 90.0;

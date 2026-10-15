@@ -1,10 +1,8 @@
 use super::*;
 use crate::KeyAt;
 use crate::KeyPress;
-use crate::reactive::{
-    Action, Chord, build, create_memo, create_signal, view, with_reactive_scope,
-};
-use crate::styled::{TextInput, text_input_value};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it() {

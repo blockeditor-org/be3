@@ -1,7 +1,8 @@
 use super::*;
 use crate::base::Direction;
 use crate::geometry::vec2;
-use crate::reactive::{ForEach, ItemSize, List, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]
@@ -17,11 +18,7 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
                     <ForEach keys={indices(20)}>
                         {|index: usize| view! {
                             <Frame width=120.0>
-                                <Text
-                                    string={format!("Card {index}")}
-                                    font_size=14.0
-                                    color=Color32::WHITE
-                                />
+                                <Text string={format!("Card {index}")} color=Color32::WHITE />
                             </Frame>
                         }}
                     </ForEach>

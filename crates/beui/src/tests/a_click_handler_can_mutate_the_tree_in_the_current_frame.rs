@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {
@@ -13,7 +14,7 @@ fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {
                     label="replace"
                     on_click={|| with_document(|document| {
                         let replacement = view! {
-                            <Frame color=Color32::BLACK radius=0 />
+                            <Frame fill=Color32::BLACK radius=0.0 />
                         };
                         document.set_root(replacement);
                     })}

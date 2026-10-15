@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Action, Chord, build, create_signal, view};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone() {

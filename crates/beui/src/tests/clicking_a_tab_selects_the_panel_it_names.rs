@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Tabs;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn clicking_a_tab_selects_the_panel_it_names() {

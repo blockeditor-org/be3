@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const HEADER: f32 = 50.0;
 const FOOTER: f32 = 30.0;
@@ -25,8 +26,11 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                                     keys={indices(ROWS)}
                                     item_size=VIRTUAL_ITEM_HEIGHT
                                 >
-                                    {move |index: usize| {
-                                        set_built.update(|built| built.push(index));
+                                    {move |index: ReadSignal<usize>| {
+                                        create_binding(move || {
+                                            let index = index.get();
+                                            set_built.update(|built| built.push(index));
+                                        });
                                         view! {
                                             <Frame height=VIRTUAL_ITEM_HEIGHT>
                                                 <Spacer />

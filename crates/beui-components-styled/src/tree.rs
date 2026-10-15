@@ -1,11 +1,12 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use std::hash::Hash;
 
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::scroll::Scroll;
-use crate::text::IconSized;
-use crate::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -13,18 +14,17 @@ use beui_components_unstyled::{
 };
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::font::TextAlign;
 use beui_core::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
 };
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, ClickCallback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop,
-    ReadSignal, RenderFn, Spacer, create_memo, focus_ring, set_component_state,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const INDENT: f32 = 12.0;
 const CHEVRON_WIDTH: f32 = 16.0;
-const CHEVRON_RADIUS: u8 = 3;
+const CHEVRON_RADIUS: f32 = 3.0;
 const ROW_HEIGHT: f32 = 22.0;
 const SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 4.0;
@@ -51,7 +51,6 @@ pub fn Tree<K>(
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = 0.0)] padding: f32,
-    #[prop(default = None)] focus_color: Prop<Option<Color32>>,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
@@ -75,8 +74,8 @@ where
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     view! {
         <List spacing=0.0>
-            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport} focus_color>
-                <Frame padding_horizontal={padding} padding_vertical={padding}>
+            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
+                <Frame padding=padding>
                     <unstyled::Tree
                         @node_ref={&tracked}
                         keys
@@ -122,7 +121,7 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
         Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWNWARD.to_owned(),
     });
     view! {
-        <Frame padding_horizontal=REVEAL_PADDING padding_vertical=REVEAL_PADDING>
+        <Frame padding=REVEAL_PADDING>
             <Button
                 @test_id={named}
                 glyph={glyph}
@@ -200,12 +199,10 @@ where
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}
                     height=ROW_HEIGHT
-                    color={fill}
-                    outline={outline_color}
-                    outline_width=OUTLINE_WIDTH
-                    outline_visible={outlined}
-                    radius=RADIUS
-                    padding_horizontal=PADDING_HORIZONTAL
+                    fill={ColorRole::custom(fill)}
+                    border={create_memo(move || outlined.get().then(|| Border::new(ColorRole::Custom(outline_color.get())).width(OUTLINE_WIDTH)))}
+                    radius=Radius::Md
+                    padding={Sides::horizontal(PADDING_HORIZONTAL)}
                 >
                     <unstyled::TreeRowArea target>{content.call(face)}</unstyled::TreeRowArea>
                 </Frame>
@@ -257,8 +254,8 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
     let ring = focus_ring(focused);
     let outlined = create_memo(move || marked.get() || ring.get());
     let color = create_memo(move || match marked.get() || hovered.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let glyph = create_memo(move || match expanded.get() {
         true => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
@@ -269,13 +266,13 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
             <Frame
                 width=CHEVRON_WIDTH
                 height=ROW_HEIGHT
-                color={fill}
-                outline={theme.accent}
-                outline_width=OUTLINE_WIDTH
-                outline_visible={outlined}
-                radius=CHEVRON_RADIUS
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || outlined.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                radius={Radius::custom(CHEVRON_RADIUS)}
             >
-                <IconSized glyph={glyph} font_size=FONT_SMALL color={color} />
+                <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
             </Frame>
         </Tooltip>
     }

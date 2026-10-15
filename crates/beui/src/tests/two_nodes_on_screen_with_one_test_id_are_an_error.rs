@@ -1,7 +1,8 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use super::*;
-use crate::reactive::{Frame, List, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn two_nodes_on_screen_with_one_test_id_are_an_error() {

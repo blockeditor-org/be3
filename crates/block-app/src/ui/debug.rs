@@ -1,22 +1,14 @@
 use beui::NodeId;
-use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text, VirtualList,
-    component, create_memo, on_cleanup, use_context, view,
-};
-use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Heading, Link, Scroll, Spinner, use_theme,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use block_plugin_api::HostPanel;
 
-use super::onboarding::ErrorText;
 use super::{UiCommand, send};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
     KillPlugin(String),
-    RefreshVersions,
-    Install(u64),
-    OpenUrl(String),
+    CrashPlugin(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,42 +49,11 @@ pub(crate) struct PluginsView {
     pub(crate) runtimes: Vec<RuntimeView>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct RunView {
-    pub(crate) id: u64,
-    pub(crate) number: u64,
-    pub(crate) branch: String,
-    pub(crate) event: String,
-    pub(crate) sha: String,
-    pub(crate) created: String,
-    pub(crate) status: String,
-    pub(crate) url: String,
-    pub(crate) current: bool,
-    pub(crate) succeeded: bool,
-    pub(crate) installing: bool,
-    pub(crate) error: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum VersionRuns {
-    Loading,
-    Failed(String),
-    Loaded(Vec<RunView>),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct VersionView {
-    pub(crate) build: String,
-    pub(crate) can_install: bool,
-    pub(crate) runs: VersionRuns,
-}
-
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DebugView {
     pub(crate) client: Option<Vec<Line>>,
     pub(crate) performance: Option<Vec<PerformanceRow>>,
     pub(crate) plugins: Option<PluginsView>,
-    pub(crate) version: Option<VersionView>,
 }
 
 #[derive(Clone)]
@@ -110,9 +71,8 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
             .unwrap_or_default()
     });
     let shown = create_memo(move || panel);
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Dynamic value={shown}>
                     {move |panel: HostPanel| {
@@ -139,12 +99,9 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                                     <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
                                 }
                             }
-                            HostPanel::Version => {
-                                let version = create_memo(move || debug.get().version);
-                                view! {
-                                    <VersionPanel @sizing=ItemSize::Percent(100.0) version />
-                                }
-                            }
+                            HostPanel::BeuiDemo => view! {
+                                <beui_demo::Demo @sizing=ItemSize::Percent(100.0) />
+                            },
                         }
                     }}
                 </Dynamic>
@@ -167,9 +124,9 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
     view! {
         <Scroll>
             <VirtualList keys={keys} item_size=LINE_HEIGHT>
-                {move |index: usize| {
+                {move |index: ReadSignal<usize>| {
                     let lines = lines;
-                    let line = create_memo(move || lines.get().get(index).cloned());
+                    let line = create_memo(move || lines.with(|lines| lines.get(index.get()).cloned()));
                     view! {
                         <LineView line />
                     }
@@ -181,29 +138,37 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
 
 #[component]
 fn LineView(line: Memo<Option<Line>>) -> NodeId {
-    let theme = use_theme();
     let indent = create_memo(move || {
-        Some(
+        Sides::new(
             line.get()
                 .map_or(0.0, |line| f32::from(line.indent) * INDENT),
+            0.0,
+            0.0,
+            0.0,
         )
     });
     let text = create_memo(move || line.get().map(|line| line.text).unwrap_or_default());
     let style = create_memo(move || line.get().map_or(LineStyle::Body, |line| line.style));
     let color = create_memo(move || match style.get() {
-        LineStyle::Heading | LineStyle::Body | LineStyle::Code => theme.text.get(),
-        LineStyle::Muted => theme.text_muted.get(),
-        LineStyle::Error => theme.danger.get(),
+        LineStyle::Heading | LineStyle::Body | LineStyle::Code => TextColor::Default,
+        LineStyle::Muted => TextColor::Muted,
+        LineStyle::Error => TextColor::Danger,
     });
-    let bold = create_memo(move || style.get() == LineStyle::Heading);
-    let monospace = create_memo(move || style.get() == LineStyle::Code);
+    let weight = create_memo(move || match style.get() {
+        LineStyle::Heading => Weight::Bold,
+        _ => Weight::Normal,
+    });
+    let family = create_memo(move || match style.get() {
+        LineStyle::Code => Family::Mono,
+        _ => Family::Sans,
+    });
     let size = create_memo(move || match style.get() {
-        LineStyle::Heading => 14.0,
-        _ => 12.0,
+        LineStyle::Heading => TextSize::Base,
+        _ => TextSize::Sm,
     });
     view! {
-        <Frame padding_left={indent}>
-            <Text string={text} font_size={size} color={color} bold monospace wrap=true />
+        <Frame padding=indent>
+            <Text string={text} size color weight family wrap=true />
         </Frame>
     }
 }
@@ -212,7 +177,7 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
 fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
     let lines = create_memo(move || client.get().unwrap_or_default());
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <LinesView lines />
         </Frame>
     }
@@ -223,7 +188,7 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
     let rows = create_memo(move || performance.get().unwrap_or_default());
     let keys = create_memo(move || (0..rows.get().len()).collect::<Vec<_>>());
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <Scroll>
                 <PerformanceLine
                     row={create_memo(|| Some(PerformanceRow {
@@ -250,7 +215,6 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
 
 #[component]
 fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
-    let theme = use_theme();
     let cell = |read: fn(&PerformanceRow) -> String| {
         create_memo(move || row.get().map(|row| read(&row)).unwrap_or_default())
     };
@@ -258,39 +222,38 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
     let current = cell(|row| row.current.clone());
     let average = cell(|row| row.average.clone());
     let peak = cell(|row| row.peak.clone());
-    let bold = create_memo(move || row.get().is_some_and(|row| row.heading));
+    let weight = create_memo(move || match row.get().is_some_and(|row| row.heading) {
+        true => Weight::Bold,
+        false => Weight::Normal,
+    });
     view! {
         <List direction=Direction::Horizontal spacing=8.0>
             <Text
                 @sizing=ItemSize::Percent(100.0)
                 string={name}
-                font_size=12.0
-                color={theme.text}
-                bold={bold}
+                size=TextSize::Sm
+                weight={weight}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={current}
-                font_size=12.0
-                color={theme.text}
-                monospace=true
-                bold={bold}
+                size=TextSize::Sm
+                family=Family::Mono
+                weight={weight}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={average}
-                font_size=12.0
-                color={theme.text}
-                monospace=true
-                bold={bold}
+                size=TextSize::Sm
+                family=Family::Mono
+                weight={weight}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={peak}
-                font_size=12.0
-                color={theme.text}
-                monospace=true
-                bold
+                size=TextSize::Sm
+                family=Family::Mono
+                weight={weight}
             />
         </List>
     }
@@ -321,7 +284,7 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
     let idle = create_memo(move || runtime_keys.get().is_empty());
     let running = create_memo(move || format!("Running ({})", runtime_keys.get().len()));
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <Scroll>
                 <ForEach keys={line_keys}>
                     {move |index: usize| {
@@ -332,9 +295,9 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
                         }
                     }}
                 </ForEach>
-                <Heading content={running} />
+                <Text style=TextStyle::HEADING string={running} />
                 <Show condition={idle}>
-                    <Caption content="no editor plugins are running" />
+                    <Text style=TextStyle::CAPTION string="no editor plugins are running" />
                 </Show>
                 <ForEach keys={runtime_keys}>
                     {move |id: String| {
@@ -369,16 +332,28 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
     });
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let kill = id.clone();
+    let crash = id.clone();
+    let crash_id = format!("debug.plugins.crash.{id}");
     view! {
-        <Frame padding_vertical=6.0>
+        <Frame padding={Sides::vertical(6.0)}>
             <List spacing=2.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Heading content={id} />
-                    <Caption @sizing=ItemSize::Percent(100.0) content={state} />
+                    <Text style=TextStyle::HEADING string={id} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                        string={state}
+                    />
                     <Button
                         label="Kill"
                         variant=ButtonVariant::Secondary
                         on_click={move || debug(DebugCommand::KillPlugin(kill.clone()))}
+                    />
+                    <Button
+                        label="Crash"
+                        variant=ButtonVariant::Secondary
+                        @test_id={crash_id}
+                        on_click={move || debug(DebugCommand::CrashPlugin(crash.clone()))}
                     />
                 </List>
                 <ForEach keys={keys}>
@@ -391,134 +366,6 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                     }}
                 </ForEach>
             </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
-    let build = create_memo(move || {
-        version
-            .get()
-            .map(|version| version.build)
-            .unwrap_or_default()
-    });
-    let can_install = create_memo(move || version.get().is_some_and(|version| version.can_install));
-    let runs = create_memo(move || version.get().map(|version| version.runs));
-    let loading = create_memo(move || matches!(runs.get(), Some(VersionRuns::Loading)));
-    let error = create_memo(move || match runs.get() {
-        Some(VersionRuns::Failed(error)) => Some(error),
-        _ => None,
-    });
-    let loaded = create_memo(move || match runs.get() {
-        Some(VersionRuns::Loaded(runs)) => runs,
-        _ => Vec::new(),
-    });
-    let none = create_memo(
-        move || matches!(runs.get(), Some(VersionRuns::Loaded(runs)) if runs.is_empty()),
-    );
-    let keys = create_memo(move || {
-        loaded
-            .get()
-            .into_iter()
-            .map(|run| run.id)
-            .collect::<Vec<_>>()
-    });
-    view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
-            <List spacing=8.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Caption content="Running build:" />
-                    <Code @sizing=ItemSize::Percent(100.0) content={build} />
-                    <Button
-                        label="Refresh"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| debug(DebugCommand::RefreshVersions)}
-                    />
-                </List>
-                <Show condition={loading}>
-                    <Spinner />
-                </Show>
-                <ErrorText text={error} />
-                <Show condition={none}>
-                    <Caption content="No workflow runs found." />
-                </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <ForEach keys={keys}>
-                        {move |id: u64| {
-                            let loaded = loaded;
-                            let run = create_memo(move || loaded.get().into_iter().find(|run| run.id == id));
-                            view! {
-                                <RunCard run can_install={can_install} />
-                            }
-                        }}
-                    </ForEach>
-                </Scroll>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
-    let theme = use_theme();
-    let field = |read: fn(&RunView) -> String| {
-        create_memo(move || run.get().map(|run| read(&run)).unwrap_or_default())
-    };
-    let title = field(|run| format!("#{} {} ({})", run.number, run.branch, run.event));
-    let details = field(|run| format!("{} · {} · {}", run.sha, run.created, run.status));
-    let url = field(|run| run.url.clone());
-    let install_label = field(|run| match run.installing {
-        true => "Installing…".to_owned(),
-        false => "Install".to_owned(),
-    });
-    let current = create_memo(move || run.get().is_some_and(|run| run.current));
-    let cannot_install = create_memo(move || {
-        !can_install.get()
-            || !run
-                .get()
-                .is_some_and(|run| run.succeeded && !run.installing)
-    });
-    let error = create_memo(move || run.get().and_then(|run| run.error));
-    let install = run;
-    view! {
-        <Frame padding_vertical=4.0>
-            <Frame
-                color={theme.surface}
-                outline={theme.border}
-                outline_width=1.0
-                outline_visible=true
-                radius=6
-                padding_horizontal=10.0
-                padding_vertical=8.0
-            >
-                <List spacing=4.0>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Heading content={title} />
-                        <Show condition={current}>
-                            <Caption content="running" color={theme.accent} />
-                        </Show>
-                    </List>
-                    <Caption content={details} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Link
-                            label="View on GitHub"
-                            on_click={move || debug(DebugCommand::OpenUrl(url.get_untracked()))}
-                        />
-                        <Button
-                            label={install_label}
-                            variant=ButtonVariant::Secondary
-                            disabled={cannot_install}
-                            on_click={move || {
-                                if let Some(run) = install.get_untracked() {
-                                    debug(DebugCommand::Install(run.id));
-                                }
-                            }}
-                        />
-                    </List>
-                    <ErrorText text={error} />
-                </List>
-            </Frame>
         </Frame>
     }
 }

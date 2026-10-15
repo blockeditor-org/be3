@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{BackHandler, NodeRef, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
@@ -12,7 +13,7 @@ fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
             <BackHandler
                 on_gesture={move |gesture: BackGesture| set_heard.update(|heard| heard.push(gesture))}
             >
-                <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
+                <Text string="Page" color=Color32::WHITE @node_ref={&page} />
             </BackHandler>
         }
     });

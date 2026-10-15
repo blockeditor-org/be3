@@ -1,19 +1,18 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::text::IconSized;
-use crate::theme::{FOCUS_RING_WIDTH, FONT_HEADING, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
 use beui_core::document::Document;
 use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, Text, create_memo,
-    focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const SPACING: f32 = 8.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -36,7 +35,7 @@ pub fn Accordion(
             }}
             open
         >
-            <Frame padding_horizontal=PADDING_HORIZONTAL>{children}</Frame>
+            <Frame padding={Sides::horizontal(PADDING_HORIZONTAL)}>{children}</Frame>
         </unstyled::Disclosure>
     }
 }
@@ -52,28 +51,26 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     let theme = use_theme();
     let header_color = create_memo(move || header_fill(&theme, hovered.get()));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
-    let marker_color = theme.text_muted;
-    let title_color = theme.text;
+    let marker_color = TextColor::Muted;
+    let title_color = TextColor::Default;
     view! {
         <Frame
-            color={header_color}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+            fill={ColorRole::custom(header_color)}
+            border={focus_border(focused, Border::FOCUS.offset(2.0))}
+            radius=Radius::Md
+            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
                     string={title}
-                    font_size=FONT_HEADING
+                    size=TextSize::Lg
                     color={title_color}
                     align=TextAlign::Start
                 />
-                <IconSized glyph={marker_glyph} font_size=FONT_HEADING color={marker_color} />
+                <Text size=TextSize::Sm color={marker_color} align=TextAlign::Center>
+                    <Icon glyph={marker_glyph} />
+                </Text>
             </List>
         </Frame>
     }

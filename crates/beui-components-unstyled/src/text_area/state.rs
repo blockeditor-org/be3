@@ -14,7 +14,7 @@ use text_editor_core::{
 };
 
 use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_view::reactive::{NodeRef, ReadSignal, Stored, WriteSignal, create_signal, store};
+use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
 use super::rows::{
@@ -145,13 +145,19 @@ impl Find {
     }
 }
 
+type CursorCache = (
+    Vec<CursorPosition>,
+    Vec<(Option<usize>, Option<usize>)>,
+    Option<std::ops::Range<usize>>,
+);
+
 struct Inner {
     core: RefCell<Core>,
     snapshot: RefCell<Snapshot>,
     heights: RefCell<HashMap<u64, (f32, f32)>>,
     find: Find,
     canvas: NodeRef,
-    cursor_cache: RefCell<(Vec<CursorPosition>, Option<std::ops::Range<usize>>)>,
+    cursor_cache: RefCell<CursorCache>,
     selecting: Cell<bool>,
     show_runs: Cell<bool>,
     touch_mode: ReadSignal<bool>,
@@ -202,7 +208,7 @@ impl TextAreaState {
             heights: RefCell::default(),
             find: Find::new(),
             canvas: NodeRef::new(),
-            cursor_cache: RefCell::new((Vec::new(), None)),
+            cursor_cache: RefCell::new((Vec::new(), Vec::new(), None)),
             selecting: Cell::new(false),
             show_runs: Cell::new(false),
             touch_mode,
@@ -787,7 +793,17 @@ impl TextAreaState {
         let inner = self.0.get();
         let positions = {
             let core = inner.core.borrow();
-            (core.cursor_positions().to_vec(), core.composition())
+            let cursors = core.cursor_positions();
+            let indices = cursors
+                .iter()
+                .map(|cursor| {
+                    (
+                        core.position_index(cursor.pos.anchor),
+                        core.position_index(cursor.pos.focus),
+                    )
+                })
+                .collect();
+            (cursors.to_vec(), indices, core.composition())
         };
         if *inner.cursor_cache.borrow() == positions {
             return;

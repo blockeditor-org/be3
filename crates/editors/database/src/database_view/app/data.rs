@@ -16,9 +16,7 @@ use block_editor_beui::be_block::database_view::{
     DatabaseView, DatabaseViewContent, DatabaseViewKind, DatabaseViewSort, ViewFilter,
 };
 use block_editor_beui::be_block::text::{TextBlock, TextContent};
-use block_editor_beui::beui::reactive::{
-    Memo, WriteSignal, create_effect, create_memo, create_signal,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_labels};
@@ -50,6 +48,7 @@ pub struct ViewData {
     pub inverses: Memo<Vec<Inverse>>,
     pub rows: Memo<Vec<DatabaseRow>>,
     pub row_ids: Memo<Vec<ObjectId>>,
+    pub row_index: Memo<HashMap<ObjectId, usize>>,
     pub prefix: Memo<String>,
     pub title_field: Memo<Option<Uuid>>,
     pub fields: Memo<Vec<DatabaseField>>,
@@ -72,6 +71,7 @@ pub struct ViewData {
     pub selected: Memo<Option<Selection>>,
     pub error: Memo<Option<String>>,
     pub read_only: Memo<bool>,
+    pub loaded: Memo<bool>,
 }
 
 impl ViewData {
@@ -80,42 +80,40 @@ impl ViewData {
         let database_ref = view.project(|view| view.root().database);
         let database_id = create_memo(move || database_ref.get());
         let database = editor.related_content::<DatabaseContent>(database_id);
-        let schema_ref = database.project(|database| database.root().schema);
+        let schema_ref = database.field(ObjectId::ROOT, Database::SCHEMA);
         let schema_id = create_memo(move || schema_ref.get());
         let schema = editor.related_content::<DatabaseSchemaContent>(schema_id);
 
-        let rows = database.project(|database| {
-            database
-                .root()
-                .rows
-                .iter()
-                .map(|row| row.value.clone())
-                .collect::<Vec<DatabaseRow>>()
+        let stored = database.objects(ObjectId::ROOT, Database::ROWS);
+        let row_ids = create_memo(move || {
+            stored.with(|rows| rows.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
         });
-        let row_ids = database.project(|database| {
-            database
-                .root()
-                .rows
-                .iter()
-                .map(|row| row.id)
-                .collect::<Vec<ObjectId>>()
+        let row_index = create_memo(move || {
+            row_ids.with(|ids| {
+                ids.iter()
+                    .enumerate()
+                    .map(|(index, id)| (*id, index))
+                    .collect::<HashMap<ObjectId, usize>>()
+            })
         });
-        let row_ids = create_memo(move || row_ids.get());
-        let inverses = watch_inverses(editor, database_id);
+        let found_inverses = watch_inverses(editor, database_id);
+        let inverses = create_memo(move || found_inverses.get().unwrap_or_default());
         let rows = create_memo(move || {
-            let ids = row_ids.get();
-            let inverses = inverses.get();
-            rows.get()
-                .into_iter()
-                .zip(ids)
-                .map(|(row, id)| {
-                    inverses
-                        .iter()
-                        .fold(row, |row, inverse| inverse.shown_on(&row, id.as_uuid()))
+            inverses.with(|inverses| {
+                stored.with(|rows| {
+                    rows.iter()
+                        .map(|(id, row)| {
+                            let mut row = row.as_ref().clone();
+                            for inverse in inverses {
+                                inverse.show_on(&mut row, id.as_uuid());
+                            }
+                            row
+                        })
+                        .collect::<Vec<DatabaseRow>>()
                 })
-                .collect::<Vec<DatabaseRow>>()
+            })
         });
-        let prefix = database.project(|database| database.root().prefix.clone());
+        let prefix = database.field(ObjectId::ROOT, Database::PREFIX);
         let prefix = create_memo(move || prefix.get());
         let title_field = schema.project(|schema| schema.root().title_field());
         let title_field = create_memo(move || title_field.get());
@@ -161,14 +159,33 @@ impl ViewData {
         });
         let targets = create_memo(move || fields.with(|fields| relation_targets(fields)));
         let row_labels = watch_row_labels(editor, targets);
-        let labels = watch_labels(editor, database_id, rows, row_labels);
+        let (labels, labels_loaded) = watch_labels(editor, database_id, rows, row_labels.labels);
 
         let (selected, set_selected) = create_signal(None::<Selection>);
         let (error, set_error) = create_signal(None::<String>);
         let (search, set_search) = create_signal(String::new());
         let (toggled, set_toggled) = create_signal(HashSet::<GroupKey>::new());
-        let views = watch_views(editor, database_id);
-        let name = watch_name(editor, database_id);
+        let (views, views_loaded) = watch_views(editor, database_id);
+        let (name, name_loaded) = watch_name(editor, database_id);
+        let view_loaded = view.loaded();
+        let database_settled = database.settled();
+        let schema_settled = schema.settled();
+        let (loaded, set_loaded) = create_signal(false);
+        create_effect(move || {
+            let ready = view_loaded.get()
+                && database_id.get().is_none_or(|_| {
+                    database_settled.get()
+                        && (schema_id.get().is_none() || schema_settled.get())
+                        && found_inverses.with(Option::is_some)
+                        && row_labels.loaded.get()
+                        && labels_loaded.get()
+                        && views_loaded.get()
+                        && name_loaded.get()
+                });
+            if ready {
+                set_loaded.set(true);
+            }
+        });
         let search = create_memo(move || search.get());
         let groups = create_memo(move || {
             let search = search.get();
@@ -217,6 +234,7 @@ impl ViewData {
             inverses,
             rows,
             row_ids,
+            row_index,
             prefix,
             title_field,
             fields,
@@ -239,6 +257,7 @@ impl ViewData {
             selected: create_memo(move || selected.get()),
             error: create_memo(move || error.get()),
             read_only: editor.read_only(),
+            loaded: create_memo(move || loaded.get()),
         }
     }
 
@@ -400,8 +419,8 @@ impl ViewData {
     }
 
     pub fn index_of(&self, row: ObjectId) -> Option<usize> {
-        self.row_ids
-            .with_untracked(|ids| ids.iter().position(|id| *id == row))
+        self.row_index
+            .with_untracked(|indices| indices.get(&row).copied())
     }
 
     pub fn add_row(&self, values: Vec<(Uuid, DatabaseValue)>) -> ObjectId {
@@ -418,18 +437,19 @@ impl ViewData {
             self.set_inverse(&inverse, row, value);
             return;
         }
-        let edit = self.database.read(|database| {
-            let database = database.root();
-            match value {
-                Some(DatabaseValue::Links(targets)) => database.set_links(row, field, &targets),
-                None => Database::set_value(row, field, None)
+        let edit = match value {
+            Some(DatabaseValue::Links(targets)) => self
+                .database
+                .read(|database| database.root().set_links(row, field, &targets)),
+            None => self.database.read(|database| {
+                Database::set_value(row, field, None)
                     .0
                     .into_iter()
-                    .chain(database.set_links(row, field, &[]).0)
-                    .collect(),
-                Some(value) => Database::set_value(row, field, Some(&value)),
-            }
-        });
+                    .chain(database.root().set_links(row, field, &[]).0)
+                    .collect()
+            }),
+            Some(value) => Some(Database::set_value(row, field, Some(&value))),
+        };
         if let Some(edit) = edit {
             self.database.operate(edit);
         }
@@ -577,8 +597,9 @@ fn watch_labels(
     database_id: Memo<Option<Uuid>>,
     rows: Memo<Vec<DatabaseRow>>,
     row_labels: Memo<std::collections::BTreeMap<RowRef, String>>,
-) -> Memo<BlockLabels> {
+) -> (Memo<BlockLabels>, Memo<bool>) {
     let (labels, set_labels) = create_signal(HashMap::<Uuid, BlockLabel>::new());
+    let (loaded, set_loaded) = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     create_effect(move || {
@@ -592,7 +613,7 @@ fn watch_labels(
                 client.watch(BlockQuery::References(database_id)),
             ));
         }
-        let Some((_, references)) = watched.as_ref() else {
+        let Some((_, references)) = watched.as_ref().filter(|(_, list)| list.is_loaded()) else {
             return;
         };
         let types = editor.block_types();
@@ -607,15 +628,21 @@ fn watch_labels(
                 .filter_map(|reference| Some((reference, known.get(&reference)?.clone())))
                 .collect()
         }));
+        set_loaded.set(true);
     });
-    create_memo(move || BlockLabels {
+    let labels = create_memo(move || BlockLabels {
         blocks: labels.get(),
         rows: row_labels.get(),
-    })
+    });
+    (labels, create_memo(move || loaded.get()))
 }
 
-fn watch_views(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uuid, String)>> {
+fn watch_views(
+    editor: Editor,
+    database_id: Memo<Option<Uuid>>,
+) -> (Memo<Vec<(Uuid, String)>>, Memo<bool>) {
     let (views, set_views) = create_signal(Vec::<(Uuid, String)>::new());
+    let (loaded, set_loaded) = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     let own = editor.block_id();
@@ -627,7 +654,7 @@ fn watch_views(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uui
         if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
             *watched = Some((database_id, client.watch(BlockQuery::Backrefs(database_id))));
         }
-        let Some((_, backrefs)) = watched.as_ref() else {
+        let Some((_, backrefs)) = watched.as_ref().filter(|(_, list)| list.is_loaded()) else {
             return;
         };
         let mut found: Vec<(Uuid, String)> = backrefs
@@ -650,12 +677,17 @@ fn watch_views(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uui
             }
         }
         set_views.set(found);
+        set_loaded.set(true);
     });
-    create_memo(move || views.get())
+    (
+        create_memo(move || views.get()),
+        create_memo(move || loaded.get()),
+    )
 }
 
-fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
+fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> (Memo<String>, Memo<bool>) {
     let (name, set_name) = create_signal(String::new());
+    let (loaded, set_loaded) = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     create_effect(move || {
@@ -666,7 +698,7 @@ fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
         if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
             *watched = Some((database_id, client.watch(BlockQuery::Block(database_id))));
         }
-        let Some((_, block)) = watched.as_ref() else {
+        let Some((_, block)) = watched.as_ref().filter(|(_, list)| list.is_loaded()) else {
             return;
         };
         let named = block
@@ -676,8 +708,12 @@ fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
             .and_then(|info| info.name())
             .filter(|name| !name.trim().is_empty());
         set_name.set(named.unwrap_or_else(|| "Database".to_owned()));
+        set_loaded.set(true);
     });
-    create_memo(move || name.get())
+    (
+        create_memo(move || name.get()),
+        create_memo(move || loaded.get()),
+    )
 }
 
 fn row_references(rows: &[DatabaseRow]) -> Vec<Uuid> {

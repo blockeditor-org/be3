@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, with_reactive_scope};
+use crate::reactive::*;
 
 #[test]
 fn a_closed_sheet_gives_its_space_back() {

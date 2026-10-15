@@ -1,5 +1,10 @@
 use super::*;
 use beui::KeyAt;
+use beui::TextAlign;
+use beui::icons::{
+    ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_FOLDER, ICON_INFO, ICON_SAVE, ICON_SCHEDULE,
+    ICON_WARNING,
+};
 
 const COLUMN_SPACING: f32 = 20.0;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
@@ -13,7 +18,6 @@ const TREE_HEIGHT: f32 = 240.0;
 const NESTED_SCROLL_HEIGHT: f32 = 160.0;
 const NESTED_SCROLL_ROWS: usize = 30;
 const SWATCH_HEIGHT: f32 = 28.0;
-const LARGE_ICON: f32 = 28.0;
 const SPINNER_WIDTH: f32 = 120.0;
 const DIALOG_WIDTH: f32 = 380.0;
 const LAUNCHER_ICON_PIXELS: u32 = 64;
@@ -67,7 +71,7 @@ pub(crate) fn LabelledSwitch(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Switch label on on_change={on_change} />
-            <Body content={label} />
+            <Text string={label} />
         </List>
     }
 }
@@ -78,46 +82,59 @@ pub(crate) fn DockingPage() -> NodeId {
         <ScrollPage>
             <Sample title="The dock around this page" code={vec![DemoShell::SOURCE]}>
                 <List spacing=SECTION_SPACING>
-                    <Paragraph
-                        content="Drag a tab by its label. Drop it over the middle of a pane to join \
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Drag a tab by its label. Drop it over the middle of a pane to join \
                          that pane, over an edge to split it, or over a tab bar to land between the \
                          tabs there. With a finger, pull the tab down out of its bar first: sliding \
                          along the bar scrolls it. The arrow keys walk a tab bar, and Ctrl+Tab and \
                          Ctrl+Shift+Tab walk the tabs of whichever pane you are in."
+                        wrap=true
                     />
-                    <Paragraph
-                        content="Drag the bar between two panes to resize them, or focus it with Tab \
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Drag the bar between two panes to resize them, or focus it with Tab \
                          and use the arrow keys. Drag the grip at the start of a pane's bar to move \
                          the whole pane, or right-click it to move the tabs into a sidebar and back."
+                        wrap=true
                     />
-                    <Paragraph
-                        content="Hold Alt while dragging a tab, or right-click one and pop it out, to \
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Hold Alt while dragging a tab, or right-click one and pop it out, to \
                          float it in a window. A window moves by the grip at the left of its bar and \
                          resizes from any edge."
+                        wrap=true
                     />
-                    <Paragraph
-                        content="Drop a tab onto the middle of another tab to group them: the group \
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Drop a tab onto the middle of another tab to group them: the group \
                          becomes one tab, and choosing it shows a second tab bar holding the tabs \
                          inside. A group ungroups from its own right-click menu."
+                        wrap=true
                     />
-                    <Paragraph
-                        content="A page picked in Components takes the place of the page shown, in \
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="A page picked in Components takes the place of the page shown, in \
                          the same tab. Hold Ctrl (Cmd on a Mac) while picking one to open it in a \
                          tab of its own instead."
+                        wrap=true
                     />
-                    <Caption
-                        content="Mobile, in the toolbar, stacks the panes as a phone would."
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Mobile, in the toolbar, stacks the panes as a phone would."
                         wrap=true
                     />
                 </List>
             </Sample>
             <Sample title="Switching tabs" code={vec![switch_tabs_with_alt_q::SOURCE]}>
-                <Paragraph
-                    content="Hold Alt and press Q to switch between the tabs you looked at last, \
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="Hold Alt and press Q to switch between the tabs you looked at last, \
                      in every pane and window: each Q moves one further back, Shift+Q one \
                      forward, letting go of Alt shows the one chosen, and Escape with Alt still \
                      held keeps the tab you were on. The dock binds no key to this itself; the demo binds Alt+Q \
                      where a desktop binds Alt+Tab."
+                    wrap=true
                 />
             </Sample>
             <Sample title="State follows the tab" code={vec![EditCounter::SOURCE]}>
@@ -168,8 +185,9 @@ fn AttachedDialogs() -> NodeId {
                     }}
                 />
             </List>
-            <Caption
-                content="A dialog hangs from the tab that opened it: it floats in the middle of \
+            <Text
+                style=TextStyle::CAPTION
+                string="A dialog hangs from the tab that opened it: it floats in the middle of \
                  that tab, hides when another tab is shown in its place and comes back with it, \
                  and is never a tab of its own. A modal one takes every press and key meant \
                  for its tab until it closes, and the focus goes back to the tab when it does."
@@ -191,9 +209,9 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
     };
     let id = tab.map_or(0, TabId::value);
     view! {
-        <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+        <Frame padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
-                <Body content={message} />
+                <Text string={message} />
                 <List direction=Direction::Horizontal spacing=ROW_SPACING>
                     <Button
                         @test_id={format!("demo.dialog.{id}.nested")}
@@ -243,10 +261,11 @@ fn ContentDrag() -> NodeId {
                         }
                     }}
                 />
-                <Body content="Alt moves and resizes windows" />
+                <Text string="Alt moves and resizes windows" />
             </List>
-            <Caption
-                content="A dock can be given a drag modifier, which is off unless asked for. \
+            <Text
+                style=TextStyle::CAPTION
+                string="A dock can be given a drag modifier, which is off unless asked for. \
                  While it is held, dragging anywhere in a window, its bar and tabs included, \
                  moves the whole window, and dragging with the right button resizes it from \
                  its nearest edge or corner, or moves the split nearest the pointer in a docked \
@@ -282,11 +301,12 @@ fn EditCounter() -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={move || set_count.update(|count| *count += 1)}
                 />
-                <Caption content={counted} />
+                <Text style=TextStyle::CAPTION string={counted} />
             </List>
             <Show condition={moved}>
-                <Caption
-                    content="Drag this tab somewhere else: the count comes with it."
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Drag this tab somewhere else: the count comes with it."
                     wrap=true
                 />
             </Show>
@@ -298,6 +318,9 @@ fn EditCounter() -> NodeId {
 #[component]
 fn FullscreenTab() -> NodeId {
     let control = use_dock_tab();
+    if let Some(control) = control.as_ref() {
+        control.offer_fullscreen();
+    }
     let shown = create_memo(move || control.as_ref().is_some_and(|control| control.fullscreen()));
     let label = create_memo(move || match shown.get() {
         true => "Leave fullscreen".to_owned(),
@@ -330,9 +353,11 @@ fn FullscreenTab() -> NodeId {
                     }}
                 />
             </List>
-            <Caption
-                content="The tab covers the whole window, its bar and every pane around it. \
-                 Escape or the same button brings it back."
+            <Text
+                style=TextStyle::CAPTION
+                string="The tab covers the whole window, its bar and every pane around it. \
+                 Escape or the same button brings it back. Full screen in the tab's \
+                 right-click menu shows it the same way."
                 wrap=true
             />
         </List>
@@ -343,8 +368,20 @@ fn FullscreenTab() -> NodeId {
 pub(crate) fn TextPage() -> NodeId {
     view! {
         <ScrollPage>
-            <Sample title="Type scale" code={vec![TypeScale::SOURCE]}>
+            <Sample title="Text styles" code={vec![TypeScale::SOURCE]}>
                 <TypeScale />
+            </Sample>
+            <Sample title="Sizes" code={vec![TextSizes::SOURCE]}>
+                <TextSizes />
+            </Sample>
+            <Sample title="Colour roles and weights" code={vec![TextColors::SOURCE]}>
+                <TextColors />
+            </Sample>
+            <Sample title="Icons in text" code={vec![InlineIcons::SOURCE]}>
+                <InlineIcons />
+            </Sample>
+            <Sample title="Inherited style" code={vec![InheritedStyle::SOURCE]}>
+                <InheritedStyle />
             </Sample>
             <Sample title="Icons and chips" code={vec![IconsAndChips::SOURCE]}>
                 <IconsAndChips />
@@ -367,28 +404,122 @@ pub(crate) fn TextPage() -> NodeId {
 fn TypeScale() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Display content="Display" />
-            <Title content="Title" />
-            <Heading content="Heading" />
-            <Body content="Body text for labels and values." />
-            <Caption content="Caption text, muted, for secondary details." />
-            <Paragraph
-                content="A paragraph wraps to the width it is given, so it reads well \
+            <Text style=TextStyle::DISPLAY string="Display" />
+            <Text style=TextStyle::TITLE string="Title" />
+            <Text style=TextStyle::HEADING string="Heading" />
+            <Text string="Body text for labels and values." />
+            <Text style=TextStyle::CAPTION string="Caption text, muted, for secondary details." />
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="A paragraph wraps to the width it is given, so it reads well \
                  in a narrow pane as well as a wide one."
+                wrap=true
             />
-            <Code content="let answer = 6 * 7;" />
+            <Text style=TextStyle::CODE string="let answer = 6 * 7;" />
         </List>
     }
 }
 
 #[sample]
 #[component]
+fn TextSizes() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <ForEach keys={TextSize::ALL.to_vec()}>
+                {|size: TextSize| view! {
+                    <Text size wrap=true>
+                        <Icon glyph=ICON_TEXT_FIELDS />
+                        {format!("{} {}", size.name(), size.px())}
+                    </Text>
+                }}
+            </ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TextColors() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <ForEach keys={TextColor::ROLES.to_vec()}>
+                {|color: TextColor| view! {
+                    <Text color>{format!("The {} role", color.name())}</Text>
+                }}
+            </ForEach>
+            <Text>
+                "Regular, "
+                <Span weight=Weight::Bold>"bold"</Span>
+                ", "
+                <Span italic=true>"italic"</Span>
+                " and "
+                <Span family=Family::Mono>"monospace"</Span>
+                " in one line."
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn InlineIcons() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text>
+                <Icon glyph=ICON_SAVE />
+                "Save"
+            </Text>
+            <Text style=TextStyle::CAPTION>
+                <Icon glyph=ICON_SCHEDULE />
+                "Edited five minutes ago"
+            </Text>
+            <Text size=TextSize::Lg color=TextColor::Success>
+                <Icon glyph=ICON_CHECK_CIRCLE />
+                "Every check passed"
+            </Text>
+            <Text>
+                "Open"
+                <Icon glyph=ICON_OPEN_IN_NEW color=TextColor::Accent />
+            </Text>
+            <Text wrap=true>
+                "An icon sits in a sentence like a word: the "
+                <Icon glyph=ICON_FOLDER />
+                "folder and the "
+                <Icon glyph=ICON_ATTACH_FILE color=TextColor::Muted />
+                "attachment keep their room from the text, and a selection never takes them."
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn InheritedStyle() -> NodeId {
+    view! {
+        <TextStyleProvider style={TextStyle::new().size(TextSize::Sm).color(TextColor::Muted)}>
+            <List spacing=SECTION_SPACING>
+                <Text>"Small and muted, from the provider around it."</Text>
+                <Text weight=Weight::Bold>"Still small and muted, but bold."</Text>
+                <Text color=TextColor::Danger>
+                    <Icon glyph=ICON_WARNING />
+                    "Its own colour wins over the provider's."
+                </Text>
+            </List>
+        </TextStyleProvider>
+    }
+}
+
+#[sample]
+#[component]
 fn IconsAndChips() -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <Icon glyph=ICON_STAR />
-            <IconSized glyph=ICON_PALETTE font_size=LARGE_ICON color={theme.accent} />
+            <Text align=TextAlign::Center>
+                <Icon glyph=ICON_STAR />
+            </Text>
+            <Text size=TextSize::Xl color=TextColor::Accent align=TextAlign::Center>
+                <Icon glyph=ICON_PALETTE />
+            </Text>
             <Chip label="Chip" />
             <Chip label="Another chip" />
         </List>
@@ -429,7 +560,7 @@ fn Links() -> NodeId {
                 />
                 <Link label="Unavailable" disabled=true />
             </List>
-            <Caption content={followed} />
+            <Text style=TextStyle::CAPTION string={followed} />
         </List>
     }
 }
@@ -439,10 +570,12 @@ fn Links() -> NodeId {
 fn SelectableParagraph() -> NodeId {
     view! {
         <SelectableText child_size=ItemSize::Percent(100.0)>
-            <Paragraph
-                content="Drag across this paragraph to select it, or long-press a \
-                 word with a finger. Right-click it for Copy and Select All."
-            />
+            <Text style=TextStyle::PARAGRAPH wrap=true>
+                <Icon glyph=ICON_INFO />
+                "Drag across this paragraph to select it, or long-press a word with a finger. \
+                 Right-click it for Copy and Select All. The icon is not part of the text, so a \
+                 copy never carries it."
+            </Text>
         </SelectableText>
     }
 }
@@ -481,15 +614,19 @@ fn FocusedTile() -> NodeId {
                     label="Open the album"
                     on_click={move || set_opened.set("Opened the album".to_owned())}
                     content={move |handle: beui::unstyled::ButtonHandle| view! {
-                        <FocusRing focused={handle.focused} radius={CARD_RADIUS + 3} offset=3.0>
+                        <FocusRing
+                            focused={handle.focused}
+                            radius={Radius::custom(Radius::Lg.px() + 3.0)}
+                            offset=3.0
+                        >
                             <Card>
-                                <Body content={handle.label} />
+                                <Text string={handle.label} />
                             </Card>
                         </FocusRing>
                     }}
                 />
             </List>
-            <Caption content={opened} />
+            <Text style=TextStyle::CAPTION string={opened} />
         </List>
     }
 }
@@ -527,7 +664,7 @@ fn ButtonVariants() -> NodeId {
                 />
                 <Button label="Disabled" variant=ButtonVariant::Primary disabled=true />
             </List>
-            <Caption content={clicked} />
+            <Text style=TextStyle::CAPTION string={clicked} />
         </List>
     }
 }
@@ -561,8 +698,11 @@ fn IconButtons() -> NodeId {
                 />
                 <IconButton glyph=ICON_EDIT label="Edit" disabled=true />
             </List>
-            <Caption content="Hover an icon button to see its label as a tooltip." />
-            <Caption content={clicked} />
+            <Text
+                style=TextStyle::CAPTION
+                string="Hover an icon button to see its label as a tooltip."
+            />
+            <Text style=TextStyle::CAPTION string={clicked} />
         </List>
     }
 }
@@ -586,7 +726,7 @@ fn PinToggle() -> NodeId {
                     }}
                 />
             </List>
-            <Caption content={pinned} />
+            <Text style=TextStyle::CAPTION string={pinned} />
         </List>
     }
 }
@@ -637,10 +777,16 @@ fn NameInput() -> NodeId {
                 placeholder="Type a name"
                 on_change={move |value: String| set_greeting.set(greeting_label(&value))}
             />
-            <Caption content={greeting} />
-            <Caption
-                content="Click to place the caret, drag to select, and Ctrl+Z to undo."
+            <Text style=TextStyle::CAPTION string={greeting} />
+            <Text
+                style=TextStyle::CAPTION
+                string="Click to place the caret, drag to select, and Ctrl+Z to undo."
                 wrap=true
+            />
+            <TextInput
+                value=String::new()
+                placeholder="A note, over several lines"
+                multiline=true
             />
         </List>
     }
@@ -668,7 +814,7 @@ fn SeatsInput() -> NodeId {
                 label="Seats"
                 on_change={move |value| set_seats.set(value)}
             />
-            <Caption content={seats_text} />
+            <Text style=TextStyle::CAPTION string={seats_text} />
         </List>
     }
 }
@@ -683,20 +829,22 @@ fn LoadSliders() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Caption content="Simulated load" />
-                <Caption
+                <Text style=TextStyle::CAPTION string="Simulated load" />
+                <Text
+                    style=TextStyle::CAPTION
                     @sizing=ItemSize::Percent(100.0)
-                    content={load_text}
+                    string={load_text}
                     align=TextAlign::End
                 />
             </List>
             <Slider value=0.4 label="Load" on_change={move |value| set_load.set(value)} />
             <Progress value={load} />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Caption content="Zoom, with 1x in the middle" />
-                <Caption
+                <Text style=TextStyle::CAPTION string="Zoom, with 1x in the middle" />
+                <Text
+                    style=TextStyle::CAPTION
                     @sizing=ItemSize::Percent(100.0)
-                    content={zoom_text}
+                    string={zoom_text}
                     align=TextAlign::End
                 />
             </List>
@@ -708,7 +856,7 @@ fn LoadSliders() -> NodeId {
                 label="Zoom"
                 on_change={move |value| set_zoom.set(value)}
             />
-            <Caption content="Something that takes as long as it takes" />
+            <Text style=TextStyle::CAPTION string="Something that takes as long as it takes" />
             <Spinner width=SPINNER_WIDTH label="Working" />
         </List>
     }
@@ -757,7 +905,7 @@ fn LightSwitches() -> NodeId {
                         set_every_hall.set(on);
                     }}
                 />
-                <Body content="Every light" />
+                <Text string="Every light" />
             </List>
             <LabelledSwitch
                 label="Kitchen"
@@ -815,7 +963,7 @@ fn UpdateModes() -> NodeId {
                     }
                 }}
             />
-            <Caption content={mode_text} />
+            <Text style=TextStyle::CAPTION string={mode_text} />
         </List>
     }
 }
@@ -827,7 +975,7 @@ fn ColorListbox() -> NodeId {
     let (color_text, set_color_text) = create_signal("Blue selected".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption content="Type to search" />
+            <Text style=TextStyle::CAPTION string="Type to search" />
             <Listbox
                 options={view! {
                     <ChoiceOption label="Amber" />
@@ -842,7 +990,7 @@ fn ColorListbox() -> NodeId {
                     }
                 }}
             />
-            <Caption content={color_text} />
+            <Text style=TextStyle::CAPTION string={color_text} />
         </List>
     }
 }
@@ -873,7 +1021,7 @@ fn FruitSelect() -> NodeId {
                     set_fruit_text.set(text);
                 }}
             />
-            <Caption content={fruit_text} />
+            <Text style=TextStyle::CAPTION string={fruit_text} />
             <Select
                 options={view! {
                     <ForEach keys={FRUITS.to_vec()}>
@@ -906,7 +1054,7 @@ fn ScaleTabs() -> NodeId {
                 selected={scale}
                 on_change={move |selected| set_scale.set(selected)}
             />
-            <Caption content={scale_text} />
+            <Text style=TextStyle::CAPTION string={scale_text} />
         </List>
     }
 }
@@ -923,8 +1071,9 @@ fn PeriodTabs() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption
-                content="Tabs that turn into a select when there is no room for them"
+            <Text
+                style=TextStyle::CAPTION
+                string="Tabs that turn into a select when there is no room for them"
                 wrap=true
             />
             <ResponsiveTabs
@@ -938,7 +1087,7 @@ fn PeriodTabs() -> NodeId {
                 breakpoint=TABS_NARROW_WIDTH
                 on_change={move |selected| set_period.set(selected)}
             />
-            <Caption content={period_text} />
+            <Text style=TextStyle::CAPTION string={period_text} />
         </List>
     }
 }
@@ -1005,7 +1154,7 @@ fn DayField() -> NodeId {
                 today={Some(today)}
                 on_change={move |next| set_day.set(next)}
             />
-            <Caption content={day_text} />
+            <Text style=TextStyle::CAPTION string={day_text} />
         </List>
     }
 }
@@ -1029,7 +1178,7 @@ fn AlarmField() -> NodeId {
                 today={Some(today)}
                 on_change={move |next| set_alarm.set(next)}
             />
-            <Caption content={alarm_text} />
+            <Text style=TextStyle::CAPTION string={alarm_text} />
         </List>
     }
 }
@@ -1057,7 +1206,7 @@ fn MeetingField() -> NodeId {
                 step_minutes=30
                 on_change={move |next| set_meeting.set(next)}
             />
-            <Caption content={meeting_text} wrap=true />
+            <Text style=TextStyle::CAPTION string={meeting_text} wrap=true />
         </List>
     }
 }
@@ -1073,7 +1222,7 @@ fn BookingCalendar() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption content="Limited to the next 60 days" />
+            <Text style=TextStyle::CAPTION string="Limited to the next 60 days" />
             <Calendar
                 selected={booked}
                 min={Some(today)}
@@ -1081,7 +1230,7 @@ fn BookingCalendar() -> NodeId {
                 today={Some(today)}
                 on_change={move |date| set_booked.set(Some(date))}
             />
-            <Caption content={booked_text} />
+            <Text style=TextStyle::CAPTION string={booked_text} />
         </List>
     }
 }
@@ -1093,7 +1242,7 @@ fn AccentInput() -> NodeId {
         create_signal(Color32::from_rgba_unmultiplied(0xF7, 0x6B, 0x15, 0xC0));
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption content="Click the swatch to pick" />
+            <Text style=TextStyle::CAPTION string="Click the swatch to pick" />
             <ColorInput
                 value={accent}
                 label="Accent"
@@ -1119,8 +1268,8 @@ fn PaintPicker() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
-            <Caption content={paint_text} />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
 }
@@ -1140,8 +1289,8 @@ fn HueWheel() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
-            <Caption content={paint_text} />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
 }
@@ -1163,14 +1312,14 @@ fn PerceptualWheel() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption content="Turning the hue keeps lightness and chroma" />
+            <Text style=TextStyle::CAPTION string="Turning the hue keeps lightness and chroma" />
             <OklchColorWheel
                 value={paint}
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
-            <Caption content={paint_text} />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
 }
@@ -1221,11 +1370,13 @@ fn GlobalActions() -> NodeId {
     let locked = create_memo(move || format!("Locked {} times", locks.get()));
     view! {
         <List spacing=SECTION_SPACING>
-            <Paragraph
-                content="A global action answers its chord wherever the focus is, even in a text \
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="A global action answers its chord wherever the focus is, even in a text \
                  field or under an open menu; Super chords count like Ctrl and Alt. While a \
                  program's window or a plugin editor has the focus, its keys are its own, unless \
                  the action intercepts them."
+                wrap=true
             />
             <Shortcut
                 keys={lock_keys}
@@ -1239,7 +1390,7 @@ fn GlobalActions() -> NodeId {
                 <Button action={lock} variant=ButtonVariant::Primary />
                 <Button action={palette} variant=ButtonVariant::Secondary />
             </List>
-            <Caption content={locked} />
+            <Text style=TextStyle::CAPTION string={locked} />
             <CommandPalette open on_close={move || set_open.set(false)} />
         </List>
     }
@@ -1294,16 +1445,21 @@ fn CardMenu() -> NodeId {
             >
                 <Card>
                     <List spacing=4.0>
-                        <Caption content="Right-click or long-press this card" />
-                        <Paragraph
-                            content="A mouse opens the menu at the pointer and a finger opens \
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Right-click or long-press this card"
+                        />
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string="A mouse opens the menu at the pointer and a finger opens \
                              it as a sheet. Paste stays disabled until Copy is chosen; Share \
                              opens a submenu on hover or Right Arrow, and Left Arrow closes it."
+                            wrap=true
                         />
                     </List>
                 </Card>
             </ContextMenu>
-            <Caption content={menu_text} />
+            <Text style=TextStyle::CAPTION string={menu_text} />
         </List>
     }
 }
@@ -1371,12 +1527,13 @@ fn TrayIcons() -> NodeId {
                     }}
                 />
             </List>
-            <Caption
-                content="A picture, or a glyph without one. Chat activates on a click and shows \
+            <Text
+                style=TextStyle::CAPTION
+                string="A picture, or a glyph without one. Chat activates on a click and shows \
                  its menu on a right click; Sync shows its menu on either."
                 wrap=true
             />
-            <Caption content={outcome} />
+            <Text style=TextStyle::CAPTION string={outcome} />
         </List>
     }
 }
@@ -1417,7 +1574,7 @@ fn SortMenus() -> NodeId {
                     on_select={move |_: Vec<usize>| more.set("Sorted in reverse".to_owned())}
                 />
             </List>
-            <Caption content={sort_text} />
+            <Text style=TextStyle::CAPTION string={sort_text} />
         </List>
     }
 }
@@ -1459,8 +1616,8 @@ fn RunButtons() -> NodeId {
                     on_select={move |_: Vec<usize>| set_save_text.set("Saved a copy".to_owned())}
                 />
             </List>
-            <Caption content={run_text} />
-            <Caption content={save_text} />
+            <Text style=TextStyle::CAPTION string={run_text} />
+            <Text style=TextStyle::CAPTION string={save_text} />
         </List>
     }
 }
@@ -1567,7 +1724,7 @@ fn FilterPopover(handle: PopoverHandle) -> NodeId {
     let close = handle.close;
     view! {
         <List spacing=SECTION_SPACING>
-            <Heading content="Filters" />
+            <Text style=TextStyle::HEADING string="Filters" />
             <Checkbox label="Only starred" checked=false />
             <Checkbox label="Include archived" checked=true />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1598,7 +1755,7 @@ fn DiscardDialog() -> NodeId {
                     on_click={move || open_dialog.set(true)}
                 />
             </List>
-            <Caption content={outcome} />
+            <Text style=TextStyle::CAPTION string={outcome} />
             <Dialog
                 open={dialog}
                 title="Discard changes?"
@@ -1606,8 +1763,10 @@ fn DiscardDialog() -> NodeId {
                 on_dismiss={move || dismiss_dialog.set(false)}
             >
                 <List spacing=ROW_SPACING>
-                    <Paragraph
-                        content="Escape, a click outside or the back gesture dismisses a dialog."
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Escape, a click outside or the back gesture dismisses a dialog."
+                        wrap=true
                     />
                     <List
                         direction=Direction::Horizontal
@@ -1652,7 +1811,11 @@ fn KeepModeChange() -> NodeId {
                     on_click={move || set_asking.set(true)}
                 />
             </List>
-            <Caption content={outcome} @test_id={"demo.keep_changes.outcome"} />
+            <Text
+                style=TextStyle::CAPTION
+                string={outcome}
+                @test_id={"demo.keep_changes.outcome"}
+            />
             <KeepChanges
                 open={asking}
                 title="Keep these display settings?"
@@ -1689,7 +1852,7 @@ fn ScreenLock() -> NodeId {
                     }}
                 />
             </List>
-            <Caption content="The password is beui." />
+            <Text style=TextStyle::CAPTION string="The password is beui." />
             <LockScreen
                 open={locked}
                 time="09:41"
@@ -1796,7 +1959,7 @@ fn ProgramLauncher() -> NodeId {
                     on_click={move || showing.set(true)}
                 />
             </List>
-            <Caption content={outcome} />
+            <Text style=TextStyle::CAPTION string={outcome} />
             <Launcher
                 open={launcher}
                 items
@@ -1831,11 +1994,12 @@ fn LongSheet() -> NodeId {
                     on_click={move || open_sheet.set(true)}
                 />
             </List>
-            <Caption
-                content="Swipe up on the sheet to raise it, then keep swiping to scroll its rows."
+            <Text
+                style=TextStyle::CAPTION
+                string="Swipe up on the sheet to raise it, then keep swiping to scroll its rows."
                 wrap=true
             />
-            <Caption content={picked} />
+            <Text style=TextStyle::CAPTION string={picked} />
             <ModalSheet open={sheet} rest=0.5 on_close={move || dismiss_sheet.set(false)}>
                 <List spacing=0.0>
                     <ForEach keys={(1..=60).collect::<Vec<usize>>()}>
@@ -1890,12 +2054,13 @@ fn ActionsSheet() -> NodeId {
                     }}
                 />
             </List>
-            <Caption
-                content="Tap the button to see its menu as a sheet; swipe it down, or tap above \
+            <Text
+                style=TextStyle::CAPTION
+                string="Tap the button to see its menu as a sheet; swipe it down, or tap above \
                  it, to close it. A click opens the same menu under the button."
                 wrap=true
             />
-            <Caption content={outcome} />
+            <Text style=TextStyle::CAPTION string={outcome} />
         </List>
     }
 }
@@ -1903,7 +2068,6 @@ fn ActionsSheet() -> NodeId {
 #[sample]
 #[component]
 fn ToastArea() -> NodeId {
-    let theme = use_theme();
     let area = beui::reactive::NodeRef::new();
     let (toasts, set_toasts) = create_signal(vec![
         Toast {
@@ -1933,10 +2097,9 @@ fn ToastArea() -> NodeId {
         <Frame
             @node_ref=&area
             height=TOAST_AREA_HEIGHT
-            color={theme.surface}
-            radius=CARD_RADIUS
-            padding_horizontal=12.0
-            padding_vertical=12.0
+            fill=ColorRole::Surface
+            radius=Radius::Lg
+            padding=12.0
         >
             <List spacing=0.0>
                 <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
@@ -1963,7 +2126,7 @@ fn ToastArea() -> NodeId {
                             notify.update(|toasts| toasts.push(message_toast(id)));
                         }}
                     />
-                    <Text string={chosen} font_size=14.0 color={theme.text_muted} />
+                    <Text string={chosen} color=TextColor::Muted />
                 </List>
                 <Toasts
                     anchor={area}
@@ -2085,19 +2248,22 @@ fn FullscreenButton() -> NodeId {
 #[sample]
 #[component]
 fn FullscreenBody(on_close: ClickCallback) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background}
-            padding_horizontal=PAGE_PADDING
-            padding_vertical=PAGE_PADDING
-        >
+        <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Title @sizing=ItemSize::Percent(100.0) content="Fullscreen" />
+                    <Text
+                        style=TextStyle::TITLE
+                        @sizing=ItemSize::Percent(100.0)
+                        string="Fullscreen"
+                    />
                     <Button label="Close" variant=ButtonVariant::Secondary on_click={on_close} />
                 </List>
-                <Paragraph content="This covers the whole window. Escape closes it too." />
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="This covers the whole window. Escape closes it too."
+                    wrap=true
+                />
             </List>
         </Frame>
     }
@@ -2128,8 +2294,9 @@ pub(crate) fn RowsPage() -> NodeId {
 fn CardStrip() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption
-                content="A horizontal list scrolls with Shift+scroll, a sideways swipe, a touch \
+            <Text
+                style=TextStyle::CAPTION
+                string="A horizontal list scrolls with Shift+scroll, a sideways swipe, a touch \
                  drag, or the arrow keys once something in it has focus."
                 wrap=true
             />
@@ -2139,7 +2306,7 @@ fn CardStrip() -> NodeId {
                     keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
                     item_size=STRIP_ITEM_WIDTH
                 >
-                    {move |index: usize| view! {
+                    {move |index: ReadSignal<usize>| view! {
                         <StripCard index />
                     }}
                 </VirtualList>
@@ -2151,14 +2318,14 @@ fn CardStrip() -> NodeId {
 #[sample]
 #[component]
 fn FittedScroll() -> NodeId {
-    let theme = use_theme();
     let (count, set_count) = create_signal(FITTED_SCROLL_ROWS);
     let rows = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
     let adding = set_count;
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption
-                content="With max_length a scroll is as long as what it holds, up to that length, \
+            <Text
+                style=TextStyle::CAPTION
+                string="With max_length a scroll is as long as what it holds, up to that length, \
                  and scrolls from there on."
                 wrap=true
             />
@@ -2174,15 +2341,14 @@ fn FittedScroll() -> NodeId {
                     on_click={move || set_count.update(|count| *count = count.saturating_sub(1))}
                 />
             </List>
-            <Frame outline={theme.border} outline_width=1.0 outline_visible=true radius=RADIUS>
+            <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
                     <ForEach keys={rows}>
                         {move |index: usize| view! {
                             <Frame
-                                padding_horizontal=ROW_PADDING_HORIZONTAL
-                                padding_vertical=ROW_PADDING_VERTICAL
+                                padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                             >
-                                <Body content={format!("Row {}", index + 1)} />
+                                <Text string={format!("Row {}", index + 1)} />
                             </Frame>
                         }}
                     </ForEach>
@@ -2194,20 +2360,17 @@ fn FittedScroll() -> NodeId {
 
 #[sample]
 #[component]
-fn StripCard(index: usize) -> NodeId {
-    let theme = use_theme();
+fn StripCard(index: ReadSignal<usize>) -> NodeId {
+    let label = create_memo(move || format!("Card {}", index.get()));
     view! {
-        <Frame padding_horizontal=4.0 padding_vertical=0.0>
+        <Frame padding={Sides::symmetric(4.0, 0.0)}>
             <Frame
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=1.0
-                outline_visible=true
-                radius=RADIUS
-                padding_horizontal=12.0
-                padding_vertical=10.0
+                fill=ColorRole::SurfaceRaised
+                border={Border::new(ColorRole::Border).width(1.0)}
+                radius=Radius::Md
+                padding={Sides::symmetric(12.0, 10.0)}
             >
-                <Body content={format!("Card {index}")} align=TextAlign::Center />
+                <Text string={label} align=TextAlign::Center />
             </Frame>
         </Frame>
     }
@@ -2238,12 +2401,17 @@ fn ThousandsOfRows() -> NodeId {
                     on=false
                     on_change={move |on| set_compact.set(on)}
                 />
-                <Caption @sizing=ItemSize::Percent(100.0) content={status} align=TextAlign::End />
+                <Text
+                    style=TextStyle::CAPTION
+                    @sizing=ItemSize::Percent(100.0)
+                    string={status}
+                    align=TextAlign::End
+                />
             </List>
             <Separator />
             <Scroll @sizing=ItemSize::Fixed(ROWS_HEIGHT)>
                 <VirtualList keys={(0..ROW_COUNT).collect::<Vec<usize>>()} item_size={row_height}>
-                    {move |index: usize| {
+                    {move |index: ReadSignal<usize>| {
                         let set_selected = set_selected;
                         let set_status = set_status;
                         view! {
@@ -2253,6 +2421,7 @@ fn ThousandsOfRows() -> NodeId {
                                 timings={timings}
                                 compact={compact}
                                 on_click={move || {
+                                    let index = index.get_untracked();
                                     set_selected.set(Some(index));
                                     set_status.set(format!("Row {index} selected"));
                                 }}
@@ -2268,13 +2437,13 @@ fn ThousandsOfRows() -> NodeId {
 #[sample]
 #[component]
 fn ScrollRow(
-    index: usize,
+    index: ReadSignal<usize>,
     selection: Selector<Option<usize>>,
     timings: ReadSignal<bool>,
     compact: ReadSignal<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
-    let selected = selection.memo(Some(index));
+    let selected = create_memo(move || selection.is_selected(&Some(index.get())));
     view! {
         <unstyled::Button
             on_click={on_click}
@@ -2288,7 +2457,7 @@ fn ScrollRow(
 #[sample]
 #[component]
 fn ScrollRowFace(
-    index: usize,
+    index: ReadSignal<usize>,
     handle: unstyled::ButtonHandle,
     selected: Memo<bool>,
     timings: ReadSignal<bool>,
@@ -2302,12 +2471,11 @@ fn ScrollRowFace(
         false => ROW_PADDING_VERTICAL,
     });
     let theme = use_theme();
-    let value_color = create_memo(move || {
-        let theme = theme.get();
-        match selected.get() {
-            true => theme.accent,
-            false => theme.text_muted,
-        }
+    let label = create_memo(move || format!("Row {}", index.get()));
+    let timing = create_memo(move || format!("{} ms", 7 + index.get() * 3 % 91));
+    let value_color = create_memo(move || match selected.get() {
+        true => TextColor::Accent,
+        false => TextColor::Muted,
     });
     let fill_color = create_memo(move || {
         let theme = theme.get();
@@ -2319,19 +2487,17 @@ fn ScrollRowFace(
     });
     view! {
         <Frame
-            color={fill_color}
-            outline={theme.accent}
-            outline_width=2.0
-            radius=RADIUS
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=ROW_PADDING_HORIZONTAL
-            padding_vertical={vertical}
+            fill={ColorRole::custom(fill_color)}
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            radius=Radius::Md
+            padding={create_memo(move || Sides::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                <Body @sizing=ItemSize::Percent(100.0) content={format!("Row {index}")} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} />
                 <Frame visible={timings}>
-                    <Caption
-                        content={format!("{} ms", 7 + index * 3 % 91)}
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={timing}
                         align=TextAlign::End
                         color={value_color}
                     />
@@ -2375,8 +2541,9 @@ fn ProjectTree() -> NodeId {
     let reveal = set_collapsed;
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption
-                content="Arrow keys walk the tree and Enter selects; a chevron or an arrow key opens and closes a folder"
+            <Text
+                style=TextStyle::CAPTION
+                string="Arrow keys walk the tree and Enter selects; a chevron or an arrow key opens and closes a folder"
                 wrap=true
             />
             <Tree
@@ -2401,10 +2568,10 @@ fn ProjectTree() -> NodeId {
                 }}
             >
                 {move |row: TreeRowFace<usize>| view! {
-                    <Body content={TREE_NODES[row.key].0} />
+                    <Text string={TREE_NODES[row.key].0} />
                 }}
             </Tree>
-            <Caption content={status_text} />
+            <Text style=TextStyle::CAPTION string={status_text} />
         </List>
     }
 }
@@ -2474,6 +2641,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Separators and borders" code={vec![Separators::SOURCE]}>
                 <Separators />
             </Sample>
+            <Sample title="Frame tokens" code={vec![FrameTokens::SOURCE]}>
+                <FrameTokens />
+            </Sample>
             <Sample title="A scroll inside a scroll" code={vec![NestedScroll::SOURCE]}>
                 <NestedScroll />
             </Sample>
@@ -2483,24 +2653,87 @@ pub(crate) fn LayoutPage() -> NodeId {
 
 #[sample]
 #[component]
+fn FrameTokens() -> NodeId {
+    const BORDERS: [(&str, Border); 4] = [
+        ("default", Border::DEFAULT),
+        ("focus", Border::FOCUS),
+        ("danger, 2", Border::new(ColorRole::Danger).width(2.0)),
+        ("offset 3", Border::DEFAULT.offset(3.0)),
+    ];
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+                <ForEach keys={ColorRole::ROLES.to_vec()}>
+                    {|role: ColorRole| view! {
+                        <List spacing=4.0>
+                            <Frame
+                                width=88.0
+                                height=32.0
+                                fill=role
+                                border=Border::DEFAULT
+                                radius=Radius::Sm
+                            />
+                            <Text style=TextStyle::CAPTION string={role.name()} />
+                        </List>
+                    }}
+                </ForEach>
+            </List>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+                <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>
+                    {|index: usize| view! {
+                        <List spacing=4.0>
+                            <Frame
+                                width=48.0
+                                height=48.0
+                                fill=ColorRole::AccentSoft
+                                radius={Radius::ALL[index]}
+                            />
+                            <Text style=TextStyle::CAPTION string={Radius::ALL[index].name()} />
+                        </List>
+                    }}
+                </ForEach>
+            </List>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+                <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>
+                    {|index: usize| view! {
+                        <List spacing=4.0>
+                            <Frame
+                                width=88.0
+                                height=48.0
+                                fill=ColorRole::Surface
+                                border={Some(BORDERS[index].1)}
+                                radius=Radius::Md
+                            />
+                            <Text style=TextStyle::CAPTION string={BORDERS[index].0} />
+                        </List>
+                    }}
+                </ForEach>
+            </List>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn StackedCards() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Caption
-                content="A stack lays its children side by side, and one above the other once it is narrow."
+            <Text
+                style=TextStyle::CAPTION
+                string="A stack lays its children side by side, and one above the other once it is narrow."
                 wrap=true
             />
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
                 <Card @sizing=ItemSize::Percent(50.0)>
                     <List spacing=4.0>
-                        <Caption content="Left" />
-                        <Display content="42" />
+                        <Text style=TextStyle::CAPTION string="Left" />
+                        <Text style=TextStyle::DISPLAY string="42" />
                     </List>
                 </Card>
                 <Card @sizing=ItemSize::Percent(50.0)>
                     <List spacing=4.0>
-                        <Caption content="Right" />
-                        <Display content="17" />
+                        <Text style=TextStyle::CAPTION string="Right" />
+                        <Text style=TextStyle::DISPLAY string="17" />
                     </List>
                 </Card>
             </Stack>
@@ -2515,17 +2748,21 @@ fn Accordions() -> NodeId {
         <Card>
             <List spacing=ROW_SPACING>
                 <Accordion title="About" open=true>
-                    <Paragraph
-                        content="beui keeps a retained tree of nodes. Base nodes carry \
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="beui keeps a retained tree of nodes. Base nodes carry \
                          behaviour only, unstyled components compose them, and the \
                          styled components paint them."
+                        wrap=true
                     />
                 </Accordion>
                 <Separator />
                 <Accordion title="Layout" open=false>
-                    <Paragraph
-                        content="Layout is linear in the number of nodes, and only the \
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Layout is linear in the number of nodes, and only the \
                          parts of the tree whose inputs changed are laid out again."
+                        wrap=true
                     />
                 </Accordion>
             </List>
@@ -2539,16 +2776,16 @@ fn Separators() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Body content="One" />
+                <Text string="One" />
                 <Separator direction=Direction::Vertical length=TOOLBAR_RULE_LENGTH />
-                <Body content="Two" />
+                <Text string="Two" />
                 <Separator direction=Direction::Vertical length=TOOLBAR_RULE_LENGTH />
-                <Body content="Three" />
+                <Text string="Three" />
             </List>
             <Separator />
-            <Bordered corner_radius=CARD_RADIUS>
-                <Frame padding_horizontal=ROW_SPACING padding_vertical=ROW_SPACING>
-                    <Body content="A border drawn around whatever it holds" />
+            <Bordered corner_radius=Radius::Lg>
+                <Frame padding=ROW_SPACING>
+                    <Text string="A border drawn around whatever it holds" />
                 </Frame>
             </Bordered>
         </List>
@@ -2565,7 +2802,7 @@ fn NestedScroll() -> NodeId {
                     <List spacing=4.0>
                         <ForEach keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}>
                             {move |line: usize| view! {
-                                <Body content={format!("Line {line}")} />
+                                <Text string={format!("Line {line}")} />
                             }}
                         </ForEach>
                     </List>
@@ -2645,7 +2882,11 @@ fn ZoomableStage() -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Caption @sizing=ItemSize::Percent(100.0) content={zoom_label} />
+                <Text
+                    style=TextStyle::CAPTION
+                    @sizing=ItemSize::Percent(100.0)
+                    string={zoom_label}
+                />
                 <Button
                     @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
                     label="-"
@@ -2669,9 +2910,10 @@ fn ZoomableStage() -> NodeId {
                 view={stage_view}
                 on_change={move |view| stage.set(view)}
             />
-            <Caption
+            <Text
+                style=TextStyle::CAPTION
                 wrap=true
-                content="Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
+                string="Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom, \
                  and drag with the middle button. Tab to it for arrows, + and -."
             />
         </List>
@@ -2711,13 +2953,10 @@ fn CanvasBoard(
     focused: ReadSignal<bool>,
 ) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
-    let theme = use_theme();
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            radius=RADIUS
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            radius=Radius::Md
         >
             <Canvas view>
                 <StageCard card=first scale={scale} />
@@ -2733,21 +2972,17 @@ fn CanvasBoard(
 #[component]
 fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> CanvasItem {
     let (x, y, width, height, label) = card;
-    let theme = use_theme();
-    let font_size = create_memo(move || STAGE_LABEL_SIZE * scale.get());
+    let size = create_memo(move || TextSize::Custom(STAGE_LABEL_SIZE * scale.get()));
     let padding = create_memo(move || STAGE_PADDING * scale.get());
     view! {
         <CanvasItem x y width height>
             <Frame
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=1.0
-                outline_visible=true
-                radius=CARD_RADIUS
-                padding_horizontal={padding}
-                padding_vertical={padding}
+                fill=ColorRole::SurfaceRaised
+                border={Border::new(ColorRole::Border).width(1.0)}
+                radius=Radius::Lg
+                padding=padding
             >
-                <Text string={label.to_string()} font_size={font_size} color={theme.text} />
+                <Text string={label.to_string()} size />
             </Frame>
         </CanvasItem>
     }
@@ -2772,9 +3007,11 @@ pub(crate) fn ThemesPage() -> NodeId {
 fn ThemedSamples() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <Paragraph
-                content="Theme, in the toolbar, changes the theme of the whole document. \
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="Theme, in the toolbar, changes the theme of the whole document. \
                  A theme provider restyles only what it holds, as the samples below show."
+                wrap=true
             />
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
                 <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::DARK>
@@ -2799,19 +3036,14 @@ fn ThemedSamples() -> NodeId {
 #[sample]
 #[component]
 fn ThemeSample(name: &'static str) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background}
-            radius=CARD_RADIUS
-            padding_horizontal=ROW_SPACING
-            padding_vertical=ROW_SPACING
-        >
+        <Frame fill=ColorRole::Background radius=Radius::Lg padding=ROW_SPACING>
             <Card>
                 <List spacing=SECTION_SPACING>
-                    <Heading content={name} />
-                    <Caption
-                        content="Every styled component reads its colors from the theme."
+                    <Text style=TextStyle::HEADING string={name} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Every styled component reads its colors from the theme."
                         wrap=true
                     />
                     <Checkbox label="A checkbox" checked=true />

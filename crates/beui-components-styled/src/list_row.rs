@@ -1,12 +1,13 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ButtonHandle;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, ClickCallback, Frame, Prop, create_memo, focus_ring};
+use beui_view::reactive::*;
 
 const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 4.0;
@@ -42,13 +43,10 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
         create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
     view! {
         <Frame
-            color={fill_color}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+            fill={ColorRole::custom(fill_color)}
+            border={focus_border(focused, Border::FOCUS)}
+            radius=Radius::Md
+            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             {children}
         </Frame>

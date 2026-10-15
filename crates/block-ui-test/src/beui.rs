@@ -339,6 +339,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.with_bar(closable, TopBar::Shown)
     }
 
+    pub fn without_top_bar(self) -> Self {
+        self.with_bar(false, TopBar::Hidden)
+    }
+
     pub fn on_phone(self) -> Self {
         self.with_bar(false, TopBar::Phone)
     }
@@ -464,6 +468,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.catalog(Catalog {
             types: descriptors,
             templates: Vec::new(),
+            editors: Vec::new(),
         });
     }
 
@@ -766,6 +771,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.clock += FRAME_INTERVAL;
         inbox.push(Message::DrawFrame {
             now_micros: self.clock.as_micros() as u64,
+            seen: true,
         });
         for message in inbox {
             self.deliver(message);
@@ -959,18 +965,20 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn take_opens(&mut self) -> Vec<(Uuid, Uuid, Option<Uuid>)> {
+    pub fn take_opens(&mut self) -> Vec<block_editor_beui::OpenRequest> {
         self.take_where(|message| match message {
             EditorMessage::OpenBlock {
                 block_id,
                 block_type,
                 via,
+                editor,
                 ..
-            } => Some((
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*block_type),
-                via.map(Uuid::from_bytes),
-            )),
+            } => Some(block_editor_beui::OpenRequest {
+                block_id: Uuid::from_bytes(*block_id),
+                block_type: Uuid::from_bytes(*block_type),
+                via: via.map(Uuid::from_bytes),
+                editor: editor.map(Uuid::from_bytes),
+            }),
             _ => None,
         })
     }
@@ -1353,6 +1361,7 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     if document.node_kind(node) == "text" {
         let detail = document.node_detail(node).unwrap_or_default();
         let text = detail.trim_matches('"');
+        collected.extend(document.text_icons(node));
         if !text.is_empty() {
             collected.push(text.to_owned());
         }

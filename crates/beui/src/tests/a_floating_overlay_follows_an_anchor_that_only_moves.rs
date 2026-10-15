@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, create_signal, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{Edge, Floating};
 
 #[test]
@@ -11,7 +12,7 @@ fn a_floating_overlay_follows_an_anchor_that_only_moves() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame height={banner} />
+                <Frame height=banner />
                 <Frame height=100.0 @node_ref={&stage} />
                 <Floating anchor={stage} edge=Edge::TopEnd>
                     <Frame width=40.0 height=20.0 @node_ref={&pill} />

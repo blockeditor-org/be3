@@ -19,7 +19,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
 | `./scripts/buck run //crates/block-app:native` | the app, with every plugin beside it |
-| `./scripts/buck test //crates/block-app:smoke` | the app headless on a worker, closed once its plugins have drawn, which it must exit cleanly from; `:smoke-desktop` with `--desktop` |
+| `./scripts/buck test //crates/app-tests:test` | the app tests: block-app headless with every plugin, driven and painted as a whole; add `-- --env UPDATE_SNAPSHOTS=1` to accept their paintings |
 | `./scripts/buck build //crates/block-app:native-dist --out DIR` | a platform's release of the app; `//crates/be-server:dist` is the server's |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
@@ -52,7 +52,7 @@ carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and the app shows the id
 as its build. The id is the hash of the tree, not of a commit, so two commits
 of the same tree (a pull request's head and the merge queue's commit of it)
-share every cached bundle, APK and smoke test. Since only the bundles read the
+share every cached bundle, APK and app test run. Since only the bundles read the
 file, a new id rebuilds nothing else.
 
 ## What `./scripts/buck` does
@@ -217,6 +217,12 @@ crate's `:test-run`, an action that runs them on a worker and is cached like
 any other: it outputs the paintings that changed and the names of the ones it
 compared, and `./scripts/verify` copies the first into `snapshots/` and
 deletes the paintings no test named.
+
+**Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are
+treated the same way: `:test` runs here and `:test-run` is the action
+`./scripts/verify` reads paintings from. `run_env` is the environment the test
+runs with, kept out of its compile. crates/app-tests is the one: it runs
+block-app's `:native` headless, so it runs on Linux x86_64 only.
 
 `compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
 in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads

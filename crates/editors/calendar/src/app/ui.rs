@@ -3,14 +3,8 @@ use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal,
-    component, create_effect, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, DateTimeField, Dialog, IconButton, Tabs, TextInput,
-    use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Editor, Toolbar};
@@ -101,9 +95,8 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton
@@ -124,7 +117,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         @test_id={"calendar.next"}
                         on_click={next}
                     />
-                    <Body content={header} />
+                    <Text string={header} />
                     <Tabs
                         options={view! {
                             <ChoiceOption label={CalendarView::Day.label()} />
@@ -149,12 +142,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         on_click={add}
                     />
                 </Toolbar>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=0.0>
                         <Dynamic value={mode}>
                             {move |shown: CalendarView| {
@@ -289,7 +277,7 @@ fn EventDialog(
                     @test_id={"calendar.form.title"}
                     on_change={edit_title}
                 />
-                <Caption content="Starts" />
+                <Text style=TextStyle::CAPTION string="Starts" />
                 <DateTimeField
                     value={start}
                     label="Starts"
@@ -297,7 +285,7 @@ fn EventDialog(
                     @test_id={"calendar.form.start"}
                     on_change={edit_start}
                 />
-                <Caption content="Ends" />
+                <Text style=TextStyle::CAPTION string="Ends" />
                 <DateTimeField
                     value={end}
                     label="Ends"
@@ -306,7 +294,7 @@ fn EventDialog(
                     on_change={edit_end}
                 />
                 <Show condition={backwards}>
-                    <Caption content="The event ends before it starts." />
+                    <Text style=TextStyle::CAPTION string="The event ends before it starts." />
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button

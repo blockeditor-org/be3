@@ -60,6 +60,7 @@ const SCHEMA: &str = "
         workspace_id    TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         reference_id    TEXT NOT NULL,
+        position        INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (workspace_id, block_id, reference_id)
     );
 

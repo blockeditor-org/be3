@@ -1,7 +1,8 @@
 use super::*;
 use crate::LayerPolicy;
 use crate::base::overlay::{OverlayAnchor, Placement};
-use crate::reactive::{Frame, Overlay, build, on_finger_tap, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {

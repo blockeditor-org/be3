@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{Draw, Drawing, NodeRef, Prop, build, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::Draw;
+use crate::reactive::*;
 
 #[test]
 fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {

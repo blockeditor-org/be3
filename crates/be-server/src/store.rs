@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::{BTreeMap, HashMap, hash_map::Entry},
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -1057,14 +1057,23 @@ pub(crate) fn load_graph(
         graph.set_parent(parse_uuid(id)?, parent)?;
     }
     {
-        let mut statement = connection
-            .prepare("SELECT block_id, reference_id FROM block_edges WHERE workspace_id = ?1")?;
+        let mut statement = connection.prepare(
+            "SELECT block_id, reference_id FROM block_edges WHERE workspace_id = ?1
+                 ORDER BY block_id, position, rowid",
+        )?;
         let rows = statement.query_map([workspace.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
+        let mut edges: BTreeMap<Uuid, Vec<Uuid>> = BTreeMap::new();
         for row in rows {
             let (block, reference) = row?;
-            graph.apply_references(parse_uuid(&block)?, &[parse_uuid(&reference)?], &[])?;
+            edges
+                .entry(parse_uuid(&block)?)
+                .or_default()
+                .push(parse_uuid(&reference)?);
+        }
+        for (block, references) in edges {
+            graph.set_references(block, &references)?;
         }
     }
     {

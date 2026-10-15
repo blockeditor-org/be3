@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Separator, Theme};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_vertical_separator_rules_down_the_row_it_sits_in() {

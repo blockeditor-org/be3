@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Align, Frame, Interactive, Layers, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn the_top_layer_takes_a_click_over_the_layer_below() {
@@ -16,7 +17,7 @@ fn the_top_layer_takes_a_click_over_the_layer_below() {
                     >
                         <Frame width=100.0 height=100.0 />
                     </Interactive>
-                    <Frame align_horizontal=Align::End align_vertical=Align::Start>
+                    <Frame align={Align2::new(Align::End, Align::Start)}>
                         <Interactive
                             capture_presses=true
                             on_click={move || set_above.update(|above| *above += 1)}

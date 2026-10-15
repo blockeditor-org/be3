@@ -1,34 +1,31 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::Scrollbar;
-use crate::text::IconSized;
-use crate::theme::{
-    BORDER_WIDTH, ICON_SIZE, SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme,
-};
+use crate::text::{Icon, Text};
+use crate::theme::{SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
-use beui_core::color::Color32;
+use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Children, Frame, List, ListChild, Memo, Prop, Spacer, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const MARKER_SIZE: f32 = 28.0;
-const MARKER_RADIUS: u8 = 14;
+const MARKER_RADIUS: f32 = 14.0;
 
 #[component]
 pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(default = None)] focus_color: Prop<Option<Color32>>,
     #[prop(default = None)] max_length: Option<f32>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
-    let focus = focus_ring(focus_color);
+    let theme = use_theme();
     let along = direction;
     let scroll = view! {
         <unstyled::Scroll
@@ -36,7 +33,7 @@ pub fn Scroll(
             reveal
             direction
             fit={max_length.is_some()}
-            focus_color={focus}
+            focus_color={theme.accent}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />
@@ -77,7 +74,6 @@ pub fn scrollbar_style() -> ScrollbarStyle {
 
 #[component]
 fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
-    let theme = use_theme();
     let glyph = axis.map(|axis| {
         match axis {
             Direction::Vertical => ICON_HEIGHT,
@@ -87,24 +83,19 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
     });
     view! {
         <Frame
-            width={Some(MARKER_SIZE)}
-            height={Some(MARKER_SIZE)}
-            radius=MARKER_RADIUS
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
+            width=MARKER_SIZE
+            height=MARKER_SIZE
+            radius={Radius::custom(MARKER_RADIUS)}
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
         >
             <List align=Align::Center spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
-                <IconSized glyph font_size=ICON_SIZE color={theme.text} />
+                <Text align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
             </List>
         </Frame>
     }
-}
-
-fn focus_ring(color: Prop<Option<Color32>>) -> Memo<Color32> {
-    let theme = use_theme();
-    create_memo(move || color.get().unwrap_or_else(|| theme.accent.get()))
 }

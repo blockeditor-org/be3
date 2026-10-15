@@ -4,7 +4,7 @@ use super::*;
 pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
     view! {
         <Scroll>
-            <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+            <Frame padding=PAGE_PADDING>
                 <List spacing=PAGE_SPACING children />
             </Frame>
         </Scroll>
@@ -19,7 +19,12 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Heading @sizing=ItemSize::Percent(100.0) content={title} wrap=true />
+                <Text
+                    style=TextStyle::HEADING
+                    @sizing=ItemSize::Percent(100.0)
+                    string={title}
+                    wrap=true
+                />
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
                     label="Code"
@@ -48,19 +53,19 @@ fn CodeBlock(source: String) -> NodeId {
     });
     view! {
         <Frame
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=RADIUS
-            padding_horizontal=CODE_PADDING
-            padding_vertical=CODE_PADDING
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius=Radius::Md
+            padding=CODE_PADDING
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
-                <Text font_size=FONT_SMALL color={theme.text} monospace=true wrap=true>
+                <Text size=TextSize::Sm family=Family::Mono wrap=true>
                     <ForEach keys={tokens}>
                         {move |(start, end, color): (usize, usize, Color32)| view! {
-                            <Span text={source[start..end].to_owned()} color />
+                            <Span
+                                text={source[start..end].to_owned()}
+                                color={TextColor::Custom(color)}
+                            />
                         }}
                     </ForEach>
                 </Text>

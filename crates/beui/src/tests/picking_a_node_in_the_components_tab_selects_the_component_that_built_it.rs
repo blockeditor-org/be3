@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn picking_a_node_in_the_components_tab_selects_the_component_that_built_it() {

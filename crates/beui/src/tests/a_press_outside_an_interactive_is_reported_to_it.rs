@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, Interactive, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_press_outside_an_interactive_is_reported_to_it() {

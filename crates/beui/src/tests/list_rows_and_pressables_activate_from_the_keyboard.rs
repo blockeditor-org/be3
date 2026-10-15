@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Text, view};
-use crate::styled::ListRow;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn list_rows_and_pressables_activate_from_the_keyboard() {
@@ -10,12 +11,12 @@ fn list_rows_and_pressables_activate_from_the_keyboard() {
         [
             view! {
                 <ListRow on_click={move || set_count.update(|count| *count += 1)}>
-                    <Text string="Row" font_size=14.0 color=Color32::WHITE />
+                    <Text string="Row" color=Color32::WHITE />
                 </ListRow>
             },
             view! {
                 <unstyled::Pressable on_click={move || set_count.update(|count| *count += 1)}>
-                    <Text string="Press" font_size=14.0 color=Color32::WHITE />
+                    <Text string="Press" color=Color32::WHITE />
                 </unstyled::Pressable>
             },
         ]

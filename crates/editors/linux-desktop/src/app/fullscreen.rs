@@ -1,7 +1,7 @@
 use beui::KeyAt;
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::ICON_FULLSCREEN;
-use block_editor_beui::beui::reactive::{Action, Chord};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Editor, HostWindows, WindowAction};
 
 pub(super) fn bind_fullscreen(editor: Editor) {

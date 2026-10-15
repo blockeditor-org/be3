@@ -1,8 +1,9 @@
 use block_editor_beui::be_block::PixelRayTracerContent;
 
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
-use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
-use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Side, Sidebar, Toolbar};
@@ -22,14 +23,20 @@ pub struct PixelRayTracerApp;
 
 impl block_editor_beui::BeuiApp for PixelRayTracerApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelRayTracerContent>(&[]);
         view! {
-            <PixelRayTracerEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelRayTracerEditor editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelRayTracerContent>(&[]);
         view! {
-            <PixelRayTracerPreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelRayTracerPreview editor={editor} />
+            </Loaded>
         }
     }
 
@@ -81,12 +88,11 @@ fn PixelRayTracerPreview(editor: Editor) -> NodeId {
 #[component]
 fn RayToolbar(state: RayState, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
     let fit = state.editor();
-    let theme = use_theme();
     let size = format!("{PIXEL_RAY_TRACER_SIZE} × {PIXEL_RAY_TRACER_SIZE}");
     view! {
         <Toolbar shown={shown}>
-            <Body content="Pixel Ray Tracer" />
-            <Caption content={size} color={theme.text_muted} />
+            <Text string="Pixel Ray Tracer" />
+            <Text style=TextStyle::CAPTION string={size} />
             <Button
                 label="Fit view"
                 variant=ButtonVariant::Secondary

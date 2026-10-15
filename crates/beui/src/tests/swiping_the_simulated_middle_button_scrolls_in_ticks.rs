@@ -1,6 +1,7 @@
 use super::*;
 use crate::mouse_simulation::{SCROLL_TICK, WHEEL_LINE};
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]

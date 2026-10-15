@@ -3,10 +3,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use beui::reactive::{
-    ForEach, Frame, List, Span, Text, WriteSignal, build, create_memo, create_signal, enter, view,
-};
-use beui::styled::TextArea;
+use beui::primitives::{Span, Text};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::TextAreaState;
 use beui::{Context, Document, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Vec2, pos2};
 use text_editor_core::TextBuffer;

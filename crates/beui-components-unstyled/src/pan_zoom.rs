@@ -6,11 +6,8 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Interactive, Memo, PlacementBuilder, Prop, ReadSignal, Render, WriteSignal,
-    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
-    untrack,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub const MIN_SCALE: f32 = 0.05;
 pub const MAX_SCALE: f32 = 32.0;

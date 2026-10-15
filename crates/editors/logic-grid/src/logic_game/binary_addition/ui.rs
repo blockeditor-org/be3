@@ -1,13 +1,8 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::logic_game::QuizRow;
 use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
-use block_editor_beui::beui::reactive::{
-    Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
-    Show, Spacer, Stored, component, create_memo, create_signal, store, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Bordered, Button, ButtonVariant, Caption, Code, Icon, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 
 use super::{BinaryAdditionQuiz, next_answer};
@@ -84,13 +79,11 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
         set_checked.set(false);
     };
 
-    let theme = use_theme();
-    let success = theme.success;
     view! {
         <List spacing=ROW_SPACING>
-            <Body content={title} />
-            <Bordered corner_radius=8>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+            <Text string={title} />
+            <Bordered corner_radius={Radius::custom(8.0)}>
+                <Frame padding=PADDING>
                     <ProblemGrid
                         quiz={quiz}
                         block={block}
@@ -116,10 +109,18 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     on_click={reset}
                 />
                 <Show condition={passed}>
-                    <Caption content="This page is correct." color={theme.success} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="This page is correct."
+                        color=TextColor::Success
+                    />
                 </Show>
                 <Show condition={failed}>
-                    <Caption content="Some blanks still need work." color={theme.danger} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Some blanks still need work."
+                        color=TextColor::Danger
+                    />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -142,10 +143,10 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                 </Show>
                 <Show condition={done}>
                     {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={success} />
-                            <Caption content="Every problem is correct." color={success} />
-                        </List>
+                        <Text style=TextStyle::CAPTION color=TextColor::Success>
+                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                            "Every problem is correct."
+                        </Text>
                     }}
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -173,7 +174,6 @@ fn ProblemGrid(
     let carry_expected =
         create_memo(move || quiz.get().problems()[page.get()].carry_bits().to_vec());
     let sum_expected = create_memo(move || quiz.get().problems()[page.get()].sum_bits().to_vec());
-    let theme = use_theme();
     view! {
         <List spacing=ROW_SPACING>
             <BitRow
@@ -188,12 +188,7 @@ fn ProblemGrid(
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
                 <Spacer @sizing=ItemSize::Fixed(LABEL_WIDTH) />
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    height=RULE_HEIGHT
-                    color={theme.border}
-                    radius=0
-                />
+                <Frame @sizing=ItemSize::Percent(100.0) height=RULE_HEIGHT fill=ColorRole::Border />
             </List>
             <BitRow
                 label="sum"
@@ -239,7 +234,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Caption content={sign} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION string={sign} align=TextAlign::End />
             </Frame>
             <ForEach keys={bits}>
                 {move |column: usize| {
@@ -250,7 +245,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
                     });
                     view! {
                         <Frame width=CELL>
-                            <Code content={bit} align=TextAlign::Center />
+                            <Text style=TextStyle::CODE string={bit} align=TextAlign::Center />
                         </Frame>
                     }
                 }}
@@ -274,7 +269,7 @@ fn BitRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
             <Frame width=LABEL_WIDTH>
-                <Caption content={label} align=TextAlign::End />
+                <Text style=TextStyle::CAPTION string={label} align=TextAlign::End />
             </Frame>
             <ForEach keys={columns}>
                 {move |column: usize| {
@@ -325,11 +320,8 @@ fn BitCell(
     view! {
         <Frame
             width=CELL
-            outline={outline}
-            outline_width=1.0
-            outline_offset=1.0
-            outline_visible={wrong}
-            radius=4
+            border={create_memo(move || wrong.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(1.0).offset(1.0)))}
+            radius=Radius::Sm
         >
             <Button
                 label={label}

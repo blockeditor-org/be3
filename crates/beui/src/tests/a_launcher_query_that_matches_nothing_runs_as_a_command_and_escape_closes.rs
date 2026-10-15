@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, view};
-use crate::styled::{Launcher, LauncherItem};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes() {

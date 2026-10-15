@@ -1,10 +1,8 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::{Counter as CounterModel, CounterContent, ObjectId};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Display, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 const PADDING: f32 = 20.0;
 const BUTTON_WIDTH: f32 = 44.0;
@@ -21,11 +19,10 @@ pub fn Counter(editor: Editor) -> NodeId {
             counter.operate(edit);
         }
     };
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=16.0>
-                <Display content={shown} @test_id={"counter.value"} />
+                <Text style=TextStyle::DISPLAY string={shown} @test_id={"counter.value"} />
                 <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)

@@ -6,12 +6,8 @@ use beui::icons::{
     ICON_CLOSE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_INFO, ICON_REDO, ICON_SHARE, ICON_TERMINAL,
     ICON_UNDO,
 };
-use beui::reactive::{
-    Action, Chord, ClickCallback, ItemSize, List, Memo, OwnedSignal, ReadSignal, Stored,
-    WriteSignal, component, create_effect, create_memo, create_signal, menu_actions, on_finger_tap,
-    on_key, provide_context, store, untrack, use_context, view,
-};
-use beui::styled::CommandPalette;
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Document, Key, KeyAt, KeyPhase};
 use block_plugin_api::{BarAction, MenuEntry};
 
@@ -23,6 +19,7 @@ const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FrameBar {
     pub shown: bool,
+    pub framed: bool,
     pub closable: bool,
     pub on_phone: bool,
 }
@@ -316,15 +313,17 @@ pub(crate) fn FrameMenu(
     let shown = create_memo(move || bar.get().shown && !on_phone.get());
     let closable = create_memo(move || bar.get().closable);
     let live = create_memo(move || shown.get() || on_phone.get());
+    let framed = create_memo(move || bar.get().framed);
+    let answering = create_memo(move || live.get() || framed.get());
     let (state, set_state) = create_signal(BarState::default());
     let watched = store(Watched {
         editor,
         list: RefCell::new(None),
         watching: Cell::new(false),
     });
-    let actions = frame_actions(editor, watched, state, live, closable, on_exit);
-    let visible = live;
-    let tapping = live;
+    let actions = frame_actions(editor, watched, state, answering, closable, on_exit);
+    let visible = answering;
+    let tapping = answering;
     on_finger_tap(move |fingers: usize| {
         tapping.get_untracked() && watched.with(|watched| watched.finger_tap(fingers))
     });

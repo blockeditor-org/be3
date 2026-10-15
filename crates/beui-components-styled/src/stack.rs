@@ -4,7 +4,7 @@ use crate::theme::NARROW_WIDTH;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::narrower_than;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Children, ListChild, Prop};
+use beui_view::reactive::*;
 
 #[component]
 pub fn Stack(

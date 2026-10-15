@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn recolouring_a_nested_frame_repaints_it_alone() {
@@ -8,14 +9,8 @@ fn recolouring_a_nested_frame_repaints_it_alone() {
     let mut document = build({
         move || {
             view! {
-                <Frame
-                    @node_ref=&outer
-                    color=Color32::WHITE
-                    radius=0
-                    padding_horizontal=20.0
-                    padding_vertical=20.0
-                >
-                    <Frame @node_ref=&inner height=40.0 color={Color32::from_gray(40)} radius=0 />
+                <Frame @node_ref=&outer fill=Color32::WHITE radius=0.0 padding=20.0>
+                    <Frame @node_ref=&inner height=40.0 fill={Color32::from_gray(40)} radius=0.0 />
                 </Frame>
             }
         }

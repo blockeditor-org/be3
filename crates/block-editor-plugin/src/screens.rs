@@ -2,7 +2,7 @@ use block_plugin_api::{
     Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, ScreenId,
     ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
-use block_ui::{BlockCatalog, BlockTypeEntry, TemplateEntry};
+use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -115,13 +115,35 @@ impl Screens {
             inner.wake();
         });
         self.sessions.entry(instance).or_insert_with(|| {
+            let any = Uuid::from_bytes(block_plugin_api::ANY_BLOCK_TYPE);
             let open = apps
                 .iter()
                 .find(|(declared, _)| *declared == block_type)
+                .or_else(|| apps.iter().find(|(declared, _)| *declared == any))
                 .map(|(_, open)| *open)
                 .unwrap_or_else(|| panic!("this plugin has no editor for block type {block_type}"));
             EditorSession::new(instance, waker, open)
         })
+    }
+
+    pub(crate) fn paintings(&mut self) -> Message {
+        let mut paintings = paint_format::ScreenPaintings::default();
+        for placement in self.layout.screens.clone() {
+            if let Some(painting) = self
+                .sessions
+                .get_mut(&placement.instance)
+                .and_then(|session| session.painting(placement.region))
+            {
+                paintings.screens.push((placement.screen.0, painting));
+                if paintings.encoded_len() > block_plugin_api::MAX_BLOB_BYTES {
+                    paintings.screens.pop();
+                }
+            }
+        }
+        Message::Extension {
+            key: paint_format::PAINTING_EXTENSION,
+            payload: paintings.encode(),
+        }
     }
 
     pub(crate) fn layout(&self) -> &ScreenLayout {
@@ -147,8 +169,9 @@ impl Screens {
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
-            Message::DrawFrame { now_micros } => {
+            Message::DrawFrame { now_micros, seen } => {
                 crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
+                SEEN.store(*seen, std::sync::atomic::Ordering::Relaxed);
                 return false;
             }
             Message::Editor(EditorMessage::Open {
@@ -336,13 +359,15 @@ impl Screens {
                 block_id,
                 block_type,
                 via,
+                editor,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.show_block(
-                        Uuid::from_bytes(*block_id),
-                        Uuid::from_bytes(*block_type),
-                        via.map(Uuid::from_bytes),
-                    );
+                    session.show_block(crate::ShowRequest {
+                        block_id: Uuid::from_bytes(*block_id),
+                        block_type: Uuid::from_bytes(*block_type),
+                        via: via.map(Uuid::from_bytes),
+                        editor: editor.map(Uuid::from_bytes),
+                    });
                 }
             }
             Message::Editor(EditorMessage::HistoryStates { instance, states }) => {
@@ -491,19 +516,14 @@ impl Screens {
                 self.requests = set.screens.clone();
                 self.relayout();
             }
-            Message::NodeAction {
-                screen,
-                node,
-                action,
-                value,
-            } => {
+            Message::NodeAction { screen, request } => {
                 let Some((instance, region)) = self.screen(*screen) else {
                     return false;
                 };
                 let Some(session) = self.sessions.get_mut(&instance) else {
                     return false;
                 };
-                session.node_action(region, *node as usize, action, value.clone());
+                session.node_action(region, request.clone());
             }
             Message::RunAction { screen, id } => {
                 let Some((instance, region)) = self.screen(*screen) else {
@@ -744,10 +764,25 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
         },
         dialog: template.dialog,
     }))
+    .with_editors(catalog.editors.iter().map(|editor| {
+        EditorEntry {
+            editor: Uuid::from_bytes(editor.editor),
+            block_type: (editor.block_type != block_plugin_api::ANY_BLOCK_TYPE)
+                .then(|| Uuid::from_bytes(editor.block_type)),
+            name: editor.name.clone(),
+            icon: leak(&editor.icon_codepoint),
+        }
+    }))
 }
 
 static DESCRIBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 pub(crate) fn describing() -> bool {
     DESCRIBE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+static SEEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+pub(crate) fn seen() -> bool {
+    SEEN.load(std::sync::atomic::Ordering::Relaxed)
 }

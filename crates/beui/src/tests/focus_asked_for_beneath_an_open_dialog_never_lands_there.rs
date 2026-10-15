@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Interactive, NodeRef, build, create_signal, view};
-use crate::styled::{Dialog, TextInput};
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn focus_asked_for_beneath_an_open_dialog_never_lands_there() {

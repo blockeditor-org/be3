@@ -1,4 +1,24 @@
 use super::*;
+use accesskit::{Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate};
+
+fn checklist_tree() -> TreeUpdate {
+    let mut root = Node::new(Role::Window);
+    root.set_children(vec![NodeId(2)]);
+    let mut done = Node::new(Role::CheckBox);
+    done.set_label("Buy milk");
+    done.set_value("x".repeat(MAX_STRING_BYTES + 1));
+    done.set_toggled(Toggled::True);
+    done.set_bounds(Rect::new(8.0, 48.0, 208.0, 72.0));
+    done.add_action(accesskit::Action::Click);
+    done.add_action(accesskit::Action::Focus);
+    done.set_author_id("checklist.done");
+    TreeUpdate {
+        nodes: vec![(NodeId(1), root), (NodeId(2), done)],
+        tree: Some(Tree::new(NodeId(1))),
+        tree_id: TreeId::ROOT,
+        focus: NodeId(2),
+    }
+}
 
 #[test]
 fn frame_screens_and_reports_round_trip() {
@@ -55,23 +75,7 @@ fn frame_screens_and_reports_round_trip() {
             },
         }],
         description: Some(Description {
-            nodes: vec![DescribedNode {
-                depth: 0,
-                role: "CheckBox".to_owned(),
-                label: "Buy milk".to_owned(),
-                value: "x".repeat(MAX_STRING_BYTES + 1),
-                toggled: Some(Toggled::On),
-                disabled: false,
-                focused: true,
-                rect: Some(ChildRect {
-                    x: 8.0,
-                    y: 48.0,
-                    width: 200.0,
-                    height: 24.0,
-                }),
-                actions: vec!["Click".to_owned(), "Focus".to_owned()],
-                test_ids: vec!["checklist.done".to_owned()],
-            }],
+            tree: Some(checklist_tree()),
             actions: vec![DescribedAction {
                 id: "checklist.clear".to_owned(),
                 label: "Clear completed".to_owned(),
@@ -82,8 +86,10 @@ fn frame_screens_and_reports_round_trip() {
             }],
         }),
     }]);
+    let encoded = encode_frame(&frames).unwrap();
     assert_eq!(
-        decode_frame(&encode_frame(&frames).unwrap()).unwrap(),
-        frames
+        encode_frame(&decode_frame(&encoded).unwrap()).unwrap(),
+        encoded,
+        "AccessKit compares nodes by the order their properties were set in, so compare encodings"
     );
 }

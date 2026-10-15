@@ -21,6 +21,11 @@ fn host_window_messages_round_trip() {
             rgba: vec![1, 2, 3, 4],
         }),
         raised: 0,
+        origin: WindowOrigin {
+            program: Some("foot.desktop".into()),
+            command: vec!["foot".into(), "--server".into()],
+            launch: Some(9),
+        },
     };
     host_value_round_trips::<HostWindows>(vec![window.clone()]);
     for action in [

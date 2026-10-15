@@ -1,6 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 fn moves(log: ReadSignal<Vec<ForwardedInput>>) -> Vec<Pos2> {
     log.with_untracked(|log| {

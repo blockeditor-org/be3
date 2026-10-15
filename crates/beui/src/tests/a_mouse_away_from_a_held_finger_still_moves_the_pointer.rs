@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Interactive, NodeRef};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {

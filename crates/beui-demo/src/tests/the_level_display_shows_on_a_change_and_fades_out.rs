@@ -1,14 +1,13 @@
 use std::time::Duration;
 
 use beui::icons::ICON_VOLUME_UP;
-use beui::reactive::{Frame, List, build, create_signal, view};
-use beui::styled::{Button, ButtonVariant, LevelOsd, OSD_DURATION, OsdLevel, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 
 use super::*;
 
 fn level_display() -> DocumentTest {
     let document = build(move || {
-        let theme = use_theme();
         let (shown, set_shown) = create_signal(0_u64);
         let level = Some(OsdLevel {
             glyph: ICON_VOLUME_UP.to_owned(),
@@ -17,7 +16,7 @@ fn level_display() -> DocumentTest {
             muted: false,
         });
         view! {
-            <Frame color={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <List spacing=0.0>
                     <Button
                         @test_id={"test.show"}

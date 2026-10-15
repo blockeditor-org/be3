@@ -1,6 +1,7 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ForEach, ItemSize, List, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]

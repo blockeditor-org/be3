@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Action, Chord, NodeRef, action_scope, build, view};
+use crate::reactive::*;
 
 #[test]
 fn a_capturing_action_answers_before_the_focused_control() {

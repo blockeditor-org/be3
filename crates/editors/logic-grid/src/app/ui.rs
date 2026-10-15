@@ -1,14 +1,10 @@
 use std::cell::Cell;
 
 use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
-use beui::reactive::{
-    Canvas, CanvasItem, Direction, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, PlacementBuilder, Prop, ReadSignal, Show, Spacer, Text, component, create_effect,
-    create_memo, draw_gpu, focus_takes_text, on_shortcut, store, view,
-};
-use beui::styled::{Body, Button, ButtonVariant, Caption, IconButton, Separator, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
-use block_editor_beui::{Editor, Side, Sidebar, Toolbar};
+use block_editor_beui::{Editor, Loading, Side, Sidebar, Toolbar};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::Panels;
@@ -30,9 +26,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={waiting}>
-                <Frame padding_horizontal=16.0 padding_vertical=16.0>
-                    <Caption content="Loading the grid" />
-                </Frame>
+                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
             </Show>
             <Show condition={loaded}>
                 {move || view! {
@@ -109,9 +103,8 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
     let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
     let zoom_in = move || editor.zoom(ZOOM_STEP);
     let recenter = move || editor.fit();
-    let theme = use_theme();
-    let problem_color = theme.danger;
-    let error_color = theme.danger;
+    let problem_color = TextColor::Danger;
+    let error_color = TextColor::Danger;
     view! {
         <Toolbar shown={shown}>
             <Button
@@ -123,21 +116,22 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
                 on_click={compile}
             />
             <Show condition={challenged}>
-                <Body content={challenge} />
+                <Text string={challenge} />
             </Show>
             <Show condition={misplaced}>
-                <Caption content={problem_text} color={problem_color} />
+                <Text style=TextStyle::CAPTION string={problem_text} color={problem_color} />
             </Show>
             <Show condition={failed}>
-                <Caption
-                    content={compile_error}
+                <Text
+                    style=TextStyle::CAPTION
+                    string={compile_error}
                     color={error_color}
                     @test_id={"logic-grid.compile-error"}
                 />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton glyph={ICON_ZOOM_OUT.to_owned()} label="Zoom out" on_click={zoom_out} />
-            <Caption content={percent} />
+            <Text style=TextStyle::CAPTION string={percent} />
             <IconButton glyph={ICON_ZOOM_IN.to_owned()} label="Zoom in" on_click={zoom_in} />
             <IconButton
                 glyph={ICON_FIT_SCREEN.to_owned()}
@@ -284,13 +278,17 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
     let height = create_memo(move || rect.get()[3] - rect.get()[1]);
     let text = create_memo(move || label.get().map(|label| label.text).unwrap_or_default());
     let size = create_memo(move || {
-        label
-            .get()
-            .map_or(LabelKind::Port.font_size(zoom.get()), |label| {
-                label.kind.font_size(zoom.get())
-            })
+        TextSize::Custom(
+            label
+                .get()
+                .map_or(LabelKind::Port.font_size(zoom.get()), |label| {
+                    label.kind.font_size(zoom.get())
+                }),
+        )
     });
-    let color = create_memo(move || label.get().map_or(LABEL_COLOR, |label| label.kind.color()));
+    let color = create_memo(move || {
+        TextColor::Custom(label.get().map_or(LABEL_COLOR, |label| label.kind.color()))
+    });
     let align = create_memo(move || label.get().map_or(TextAlign::Center, |label| label.align));
     let vertical_align = create_memo(move || {
         label
@@ -299,13 +297,7 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
     });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Text
-                string={text}
-                font_size={size}
-                color={color}
-                align={align}
-                vertical_align={vertical_align}
-            />
+            <Text string={text} size color={color} align={align} vertical_align={vertical_align} />
         </CanvasItem>
     }
 }

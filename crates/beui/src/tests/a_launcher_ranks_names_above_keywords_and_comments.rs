@@ -1,4 +1,4 @@
-use crate::styled::{LauncherItem, launcher_rank};
+use crate::styled::*;
 
 fn item(key: &str, title: &str, detail: &str, terms: &[&str]) -> LauncherItem {
     LauncherItem {

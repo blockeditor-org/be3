@@ -2,10 +2,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Justify, List, Memo, component, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Dialog, MenuButton, Paragraph};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::{Editor, Power, PowerAction, PowerAvailability};
 
@@ -121,7 +119,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             />
             <Dialog open title on_dismiss={dismiss}>
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Paragraph content={explained} />
+                    <Text style=TextStyle::PARAGRAPH string={explained} wrap=true />
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center

@@ -10,9 +10,7 @@ fn a_frame_paints_its_outline_over_its_fill() {
         frame,
         beui_core::base::frame::FrameStyle {
             fill: interior,
-            outline: Color32::WHITE,
-            outline_width: 1.0,
-            outline_visible: true,
+            outline: Some(beui_core::base::frame::Outline::new(Color32::WHITE, 1.0)),
             ..Default::default()
         },
     );

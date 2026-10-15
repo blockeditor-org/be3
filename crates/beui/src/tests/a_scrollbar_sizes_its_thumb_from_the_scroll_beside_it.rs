@@ -1,7 +1,9 @@
 use super::*;
 use crate::base::ScrollPosition;
-use crate::reactive::{ItemSize, List, Offset, VirtualList, create_signal};
-use crate::styled::Scrollbar;
+use crate::primitives::Frame;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 const BAR_HEIGHT: f32 = 8.0;
 const ROWS: usize = 100;
@@ -21,11 +23,10 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
                         on_change={move |reported| set_position.set(reported)}
                     >
                         <VirtualList keys={indices(ROWS)} item_size=ROW_HEIGHT>
-                            {move |index: usize| view! {
+                            {move |index: ReadSignal<usize>| view! {
                                 <Frame height=ROW_HEIGHT>
                                     <Text
-                                        string={format!("Row {index}")}
-                                        font_size=14.0
+                                        string={create_memo(move || format!("Row {}", index.get()))}
                                         color=Color32::WHITE
                                     />
                                 </Frame>

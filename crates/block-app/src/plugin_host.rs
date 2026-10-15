@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use beui::{Rect, Vec2, vec2};
+use beui::{Rect, Vec2};
 use block_plugin_api::{
     ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, EditorRegion,
     InteractionMode, PluginManifest, ResizeMode, ScreenId,
@@ -38,21 +38,22 @@ pub(crate) use runtime::place_screens;
 #[cfg(target_os = "linux")]
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
-    PACING, artifact, artifact_draft, aspect_ratio, block_picked, busy, close, commit_creation,
-    creation, creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill,
-    menu, menu_pick, poll, present, presenting, publish, record_pacing, regenerate_artifact,
-    region_size, replace_child, replace_gpu, report_child_bars, report_child_views,
-    report_children, request_pick, resized, revoke_frame_child, running, set_artifact_states,
-    set_focus, set_presence_visible, set_shell, settle, show_block, show_dialog, show_panel,
-    start_frames, take_actions, take_artifact_outcome, take_artifact_watch, take_bar_actions,
-    take_block_pick, take_child_commits, take_child_menu_picks, take_created, take_focus_report,
-    take_leaving, take_pick_answers, take_view_changes,
+    PACING, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
+    commit_creation, crash, creation, creation_ready, drawing, flush, frame_child, frame_rects,
+    hold, install, intrinsic_size, kill, menu, menu_pick, poll, present, presenting, publish,
+    record_pacing, regenerate_artifact, region_size, replace_child, replace_gpu, report_child_bars,
+    report_child_views, report_children, request_painting, request_pick, resized,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible, set_shell,
+    settle, show_block, show_dialog, show_panel, start_frames, take_actions, take_artifact_outcome,
+    take_artifact_watch, take_bar_actions, take_block_pick, take_child_commits,
+    take_child_menu_picks, take_crashed, take_created, take_focus_report, take_leaving,
+    take_pick_answers, take_view_changes,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
     intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
     region_damage, region_drawing, region_placed, region_view, take_block_drags, take_changed,
-    take_region_actions, unmount_region, unplace_region,
+    take_focus_request, take_region_actions, unmount_region, unplace_region,
 };
 #[cfg(all(
     feature = "web-view",
@@ -100,6 +101,7 @@ pub(crate) enum HostContent {
         block_id: Uuid,
         block_type: Uuid,
         view_block: Option<Uuid>,
+        editor: Option<Uuid>,
     },
     Panel(block_plugin_api::HostPanel),
     Window(block_plugin_api::HostWindowId),
@@ -120,6 +122,16 @@ impl HostContent {
             | Self::ArtifactSettings(_) => None,
         }
     }
+
+    pub(crate) fn editor(&self) -> Option<Uuid> {
+        match self {
+            Self::Block { editor, .. } => *editor,
+            Self::Panel(_)
+            | Self::Window(_)
+            | Self::Creation { .. }
+            | Self::ArtifactSettings(_) => None,
+        }
+    }
 }
 
 impl HostChild {
@@ -132,7 +144,10 @@ impl HostChild {
     }
 
     pub(crate) fn is_active(&self) -> bool {
-        matches!(self.mode, ChildMode::Active | ChildMode::Live)
+        matches!(
+            self.mode,
+            ChildMode::Active | ChildMode::Live | ChildMode::InPlace
+        )
     }
 }
 
@@ -211,15 +226,14 @@ pub(crate) struct ScreenStatus {
     pub(crate) child_generation: u64,
 }
 
-pub(crate) fn preview_size(size: Vec2, scale_factor: f32) -> Vec2 {
-    const STEP: f32 = 64.0;
+pub(crate) fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
     const MAXIMUM: f32 = 2048.0;
     let scale = scale_factor.max(f32::EPSILON);
-    let pixels = size * scale;
-    vec2(
-        ((pixels.x / STEP).ceil() * STEP).clamp(STEP, MAXIMUM),
-        ((pixels.y / STEP).ceil() * STEP).clamp(STEP, MAXIMUM),
-    ) / scale
+    let largest = size.x.max(size.y) * scale;
+    match largest > MAXIMUM {
+        true => MAXIMUM / largest * scale,
+        false => scale,
+    }
 }
 
 pub(crate) struct CreationSlot<'a> {

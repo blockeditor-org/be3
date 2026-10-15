@@ -1,13 +1,8 @@
 use beui::icons::ICON_TUNE;
-use beui::reactive::{
-    Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, LayoutBuilder, List,
-    ListChild, Memo, Portal, Prop, ReadSignal, Render, Show, StoredCell, WriteSignal, component,
-    create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack, use_context,
-    view,
-};
+use beui::reactive::*;
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
-use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
+use beui::styled::*;
 use beui::{NodeId, Vec2};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
@@ -105,11 +100,10 @@ pub(crate) fn ChromeRoot(
                 view! {
                     <List spacing=0.0>
                         <Show condition={bare}>
-                            <Frame color={bar_color}>
+                            <Frame fill={ColorRole::custom(bar_color)}>
                                 <List spacing=0.0>
                                     <Frame
-                                        padding_horizontal=BAND_PADDING_HORIZONTAL
-                                        padding_vertical=BAND_PADDING_VERTICAL
+                                        padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
                                     >
                                         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                             <SheetToggle />
@@ -195,7 +189,7 @@ pub fn Sidebar(
 ) -> NodeId {
     view! {
         <SidebarFrame side shown width>
-            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+            <Frame padding=PADDING>
                 <List spacing=SPACING children={children} />
             </Frame>
         </SidebarFrame>
@@ -205,7 +199,6 @@ pub fn Sidebar(
 #[component]
 fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child) -> NodeId {
     let body = children;
-    let theme = use_theme();
     let layout = use_context::<ChromeLayout>();
     let narrow = narrow_chrome();
     let shown = create_memo(move || shown.get());
@@ -219,13 +212,13 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
     let held = create_memo(move || docked.get().then_some(body));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame visible={leading} width=BORDER_WIDTH color={theme.border} />
-            <Frame visible={docked} width={width} color={theme.surface}>
+            <Frame visible={leading} width=BORDER_WIDTH fill=ColorRole::Border />
+            <Frame visible={docked} width=width fill=ColorRole::Surface>
                 <Scroll>
                     <Portal node={held} />
                 </Scroll>
             </Frame>
-            <Frame visible={trailing} width=BORDER_WIDTH color={theme.border} />
+            <Frame visible={trailing} width=BORDER_WIDTH fill=ColorRole::Border />
         </List>
     }
 }
@@ -271,7 +264,6 @@ pub fn Toolbar(
 fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
     let row = children;
     let shown = create_memo(move || shown.get());
-    let theme = use_theme();
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
     let narrow = create_memo(move || squeezed.get() && !fit.get());
@@ -288,18 +280,17 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
     let spread = create_memo(move || roomy.get().then_some(row));
     let scrolled = create_memo(move || narrow.get().then_some(row));
     view! {
-        <Frame visible={shown} color={theme.surface}>
+        <Frame visible={shown} fill=ColorRole::Surface>
             <List spacing=0.0>
                 <Show condition={roomy}>
                     {move || view! {
                         <Frame
-                            padding_horizontal=BAND_PADDING_HORIZONTAL
-                            padding_vertical=BAND_PADDING_VERTICAL
+                            padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
                                 <Show condition={fitted_toggle}>
-                                    <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
                                         <SheetToggle />
                                     </Frame>
                                 </Show>
@@ -309,18 +300,18 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                 </Show>
                 <Show condition={narrow}>
                     {move || view! {
-                        <Frame padding_vertical=BAND_PADDING_VERTICAL>
+                        <Frame padding={Sides::vertical(BAND_PADDING_VERTICAL)}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Scroll
                                     @sizing=ItemSize::Percent(100.0)
                                     direction=Direction::Horizontal
                                 >
-                                    <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
                                         <Portal node={scrolled} />
                                     </Frame>
                                 </Scroll>
                                 <Show condition={offers}>
-                                    <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
                                         <SheetToggle />
                                     </Frame>
                                 </Show>

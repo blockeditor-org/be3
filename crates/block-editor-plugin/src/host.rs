@@ -79,7 +79,13 @@ pub struct FileDrop {
     pub dropped: bool,
 }
 
-pub type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OpenRequest {
+    pub block_id: Uuid,
+    pub block_type: Uuid,
+    pub via: Option<Uuid>,
+    pub editor: Option<Uuid>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ChildCommit {
@@ -100,6 +106,7 @@ pub struct ShowRequest {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub via: Option<Uuid>,
+    pub editor: Option<Uuid>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -409,8 +416,9 @@ pub struct EditorHost {
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
-    version_status: Rc<RefCell<block_plugin_api::VersionStatus>>,
+    version_status: Rc<RefCell<Option<block_plugin_api::VersionStatus>>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
+    block_types_known: Rc<Cell<bool>>,
     drag: Rc<Cell<Option<BlockDrag>>>,
     files: Rc<RefCell<Option<FileDrop>>>,
     drag_accepted: Rc<Cell<Option<bool>>>,
@@ -442,6 +450,7 @@ pub struct EditorHost {
     menu_picks: Rc<RefCell<Vec<String>>>,
     child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
     chrome: Rc<Cell<Option<bool>>>,
+    placed_content: Rc<Cell<Option<Rect>>>,
     content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
     paste_requested: Rc<Cell<bool>>,
@@ -507,13 +516,24 @@ impl EditorHost {
     }
 
     pub fn open_block(&self, block_id: Uuid, block_type: Uuid) {
-        self.opens.borrow_mut().push((block_id, block_type, None));
+        self.push_open(block_id, block_type, None, None);
+    }
+
+    pub fn open_block_with(&self, block_id: Uuid, block_type: Uuid, editor: Uuid) {
+        self.push_open(block_id, block_type, None, Some(editor));
     }
 
     pub fn open_block_via(&self, block_id: Uuid, block_type: Uuid, container: Uuid) {
-        self.opens
-            .borrow_mut()
-            .push((block_id, block_type, Some(container)));
+        self.push_open(block_id, block_type, Some(container), None);
+    }
+
+    fn push_open(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>, editor: Option<Uuid>) {
+        self.opens.borrow_mut().push(OpenRequest {
+            block_id,
+            block_type,
+            via,
+            editor,
+        });
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
@@ -570,16 +590,26 @@ impl EditorHost {
     }
 
     pub fn host_value<T: HostValue>(&self) -> T::Value {
-        let mut values = self.host_values.borrow_mut();
-        if !values.watched.contains(T::KEY) {
-            values.watched.insert(T::KEY.to_owned());
-            values.unreported.push(T::KEY.to_owned());
-        }
-        values
+        self.watch_host_value(T::KEY);
+        self.host_values
+            .borrow()
             .values
             .get(T::KEY)
             .and_then(|bytes| decode_host(bytes))
             .unwrap_or_default()
+    }
+
+    pub fn host_offers<T: HostValue>(&self) -> bool {
+        self.watch_host_value(T::KEY);
+        self.host_values.borrow().values.contains_key(T::KEY)
+    }
+
+    fn watch_host_value(&self, key: &str) {
+        let mut values = self.host_values.borrow_mut();
+        if !values.watched.contains(key) {
+            values.watched.insert(key.to_owned());
+            values.unreported.push(key.to_owned());
+        }
     }
 
     pub fn set_host_value<T: HostValue>(&self, value: &T::Value) {
@@ -622,12 +652,8 @@ impl EditorHost {
         std::mem::take(&mut self.host_values.borrow_mut().actions)
     }
 
-    pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.shows.borrow_mut().push(ShowRequest {
-            block_id,
-            block_type,
-            via,
-        });
+    pub fn show_block(&self, request: ShowRequest) {
+        self.shows.borrow_mut().push(request);
         self.push(Pushed::Shows);
     }
 
@@ -676,10 +702,10 @@ impl EditorHost {
     }
 
     pub fn watch_history(&self, blocks: impl IntoIterator<Item = Uuid>) {
-        let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
-        blocks.sort();
-        blocks.dedup();
-        *self.watched_history.borrow_mut() = blocks;
+        let mut watched = self.watched_history.borrow_mut();
+        watched.extend(blocks);
+        watched.sort();
+        watched.dedup();
     }
 
     pub fn history(&self, block_id: Uuid) -> BlockHistory {
@@ -847,16 +873,24 @@ impl EditorHost {
     }
 
     pub fn set_version_status(&self, status: block_plugin_api::VersionStatus) {
-        *self.version_status.borrow_mut() = status;
+        *self.version_status.borrow_mut() = Some(status);
         self.push(Pushed::Version);
     }
 
     pub fn version_status(&self) -> block_plugin_api::VersionStatus {
-        self.version_status.borrow().clone()
+        self.version_status.borrow().clone().unwrap_or_default()
+    }
+
+    pub fn version_known(&self) -> bool {
+        self.version_status.borrow().is_some()
     }
 
     pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
         std::mem::take(&mut self.block_commands.borrow_mut())
+    }
+
+    pub fn block_types_known(&self) -> bool {
+        self.block_types_known.get()
     }
 
     pub fn block_types(&self) -> Rc<BlockCatalog> {
@@ -904,7 +938,7 @@ impl EditorHost {
         self.content_updates.borrow().keys().copied().collect()
     }
 
-    pub(crate) fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
+    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
         self.content_updates
             .borrow_mut()
             .remove(&block)
@@ -942,7 +976,7 @@ impl EditorHost {
         std::mem::take(&mut self.content_operations.borrow_mut())
     }
 
-    pub(crate) fn request_content_resend(&self, block: Option<Uuid>) {
+    pub fn request_content_resend(&self, block: Option<Uuid>) {
         let mut requests = self.resend_requests.borrow_mut();
         if !requests.contains(&block) {
             requests.push(block);
@@ -1058,11 +1092,18 @@ impl EditorHost {
 
     pub fn view(&self) -> Option<Rect> {
         let origin = self.region.get().origin;
-        self.view.get().map(|view| view.rect.translate(origin))
+        self.framed_view().map(|view| view.rect.translate(origin))
     }
 
     pub fn view_scale(&self) -> Option<f32> {
-        self.view.get().map(|view| view.scale)
+        self.framed_view().map(|view| view.scale)
+    }
+
+    fn framed_view(&self) -> Option<View> {
+        let region = self.region.get().region;
+        matches!(region, None | Some(EditorRegion::Frame))
+            .then(|| self.view.get())
+            .flatten()
     }
 
     pub fn pan_view(&self, delta: Vec2) {
@@ -1309,6 +1350,16 @@ impl EditorHost {
         self.chrome.get().unwrap_or(true)
     }
 
+    pub fn placed_content(&self) -> Option<Rect> {
+        self.placed_content.get()
+    }
+
+    pub fn set_placed_content(&self, placed: Option<Rect>) {
+        if self.placed_content.replace(placed) != placed {
+            self.changed();
+        }
+    }
+
     pub fn set_chrome_shown(&self, chrome: bool) {
         if self.chrome.replace(Some(chrome)) != Some(chrome) {
             self.changed();
@@ -1457,6 +1508,7 @@ impl EditorHost {
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         *self.block_types.borrow_mut() = catalog;
+        self.block_types_known.set(true);
         self.push(Pushed::Catalog);
     }
 

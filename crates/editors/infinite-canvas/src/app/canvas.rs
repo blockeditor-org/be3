@@ -3,12 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo, PasteKind,
-    Pasted, PlacementBuilder, ReadSignal, Show, component, create_effect, create_memo,
-    create_signal, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
 use uuid::Uuid;
@@ -17,7 +13,7 @@ use crate::geometry::*;
 
 use super::menu::CanvasMenu;
 use super::overlay::{Artboard, Backdrop, Overlay};
-use super::paint::{Camera, EntityPaint, Palette};
+use super::paint::{Camera, EntityPaint, Palette, resolve_color};
 use super::state::CanvasState;
 
 const ITEM_MARGIN: f32 = 2.0;
@@ -27,12 +23,17 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
-                create_effect(move || state.set_stage(placed.get()));
+                let parent = state.editor().placed_content();
+                let shown = create_memo(move || match parent.get() {
+                    Some(parent) => parent.intersect(placed.get()),
+                    None => placed.get(),
+                });
+                create_effect(move || state.set_stage(shown.get()));
 
                 let view = state.editor().canvas();
                 let world = state.editor().world();
                 let camera = create_memo(move || {
-                    super::state::camera_view(view.get(), world.get(), placed.get(), state.centre())
+                    super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
                 });
                 let ids = create_memo(move || {
                     state
@@ -44,49 +45,58 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 let embeds = ids;
                 let shape_camera = camera;
                 let overlay_camera = camera;
-                let overlay_stage = placed;
+                let overlay_stage = shown;
                 let backdrop_camera = camera;
-                let backdrop_stage = placed;
+                let backdrop_stage = shown;
+                let inset = create_memo(move || {
+                    let (placed, shown) = (placed.get(), shown.get());
+                    Sides::new(
+                        (shown.left() - placed.left()).max(0.0),
+                        (shown.top() - placed.top()).max(0.0),
+                        (placed.right() - shown.right()).max(0.0),
+                        (placed.bottom() - shown.bottom()).max(0.0),
+                    )
+                });
                 let placement = camera;
                 let previewing = state.previewing();
                 view! {
                     <CanvasMenu disabled={previewing}>
-                        <CanvasSurface state={state}>
-                            <Canvas
-                                view={create_memo(move || Some(placement.get()))}
-                                @test_id={"infinite-canvas.canvas"}
-                            >
-                                <Show condition={!previewing}>
+                        <Frame padding={inset}>
+                            <CanvasSurface state={state}>
+                                <Canvas
+                                    view={create_memo(move || Some(placement.get()))}
+                                    @test_id={"infinite-canvas.canvas"}
+                                >
                                     <CanvasBackdrop
                                         state={state}
                                         camera={backdrop_camera}
                                         stage={backdrop_stage}
                                     />
-                                </Show>
-                                <ForEach keys={ids}>
-                                    {move |id: Uuid| {
-                                        let camera = shape_camera;
-                                        view! {
-                                            <EntityShape state id camera />
-                                        }
-                                    }}
-                                </ForEach>
-                                <ForEach keys={embeds}>
-                                    {move |id: Uuid| {
-                                        view! {
-                                            <EntityEmbed state id />
-                                        }
-                                    }}
-                                </ForEach>
-                                <Show condition={!previewing}>
-                                    <CanvasOverlay
-                                        state={state}
-                                        camera={overlay_camera}
-                                        stage={overlay_stage}
-                                    />
-                                </Show>
-                            </Canvas>
-                        </CanvasSurface>
+                                    <ForEach keys={ids}>
+                                        {move |id: Uuid| {
+                                            let camera = shape_camera;
+                                            view! {
+                                                <EntityShape state id camera />
+                                            }
+                                        }}
+                                    </ForEach>
+                                    <ForEach keys={embeds}>
+                                        {move |id: Uuid| {
+                                            view! {
+                                                <EntityEmbed state id />
+                                            }
+                                        }}
+                                    </ForEach>
+                                    <Show condition={!previewing}>
+                                        <CanvasOverlay
+                                            state={state}
+                                            camera={overlay_camera}
+                                            stage={overlay_stage}
+                                        />
+                                    </Show>
+                                </Canvas>
+                            </CanvasSurface>
+                        </Frame>
                     </CanvasMenu>
                 }
             }}
@@ -131,11 +141,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 }
 
 #[component]
-fn CanvasOverlay(
-    state: CanvasState,
-    camera: Memo<CanvasView>,
-    stage: ReadSignal<Rect>,
-) -> CanvasItem {
+fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
@@ -147,7 +153,15 @@ fn CanvasOverlay(
             stage: stage.get(),
             empty: state.entities.get().is_empty(),
             gesture: state.gesture.get(),
+            outlines: super::state::selected_outlines(&state.displayed(), &state.selection.get()),
             frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
+            line: state.selected_line().and_then(|line| {
+                let shown = state
+                    .displayed()
+                    .into_iter()
+                    .find(|entity| entity.id == line.id)?;
+                Some(line_ends(&shown))
+            }),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
             presence: state.presence.get(),
@@ -174,11 +188,7 @@ fn CanvasOverlay(
 }
 
 #[component]
-fn CanvasBackdrop(
-    state: CanvasState,
-    camera: Memo<CanvasView>,
-    stage: ReadSignal<Rect>,
-) -> CanvasItem {
+fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
@@ -192,6 +202,10 @@ fn CanvasBackdrop(
                 CanvasEntityKind::Artboard { name } => Some(Artboard {
                     bounds: entity_bounds(&entity),
                     name: name.clone(),
+                    fill: resolve_color(
+                        entity.style.fill.unwrap_or_default(),
+                        theme.background.get(),
+                    ),
                 }),
                 _ => None,
             })
@@ -199,8 +213,8 @@ fn CanvasBackdrop(
         let backdrop = Backdrop {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             stage: stage.get(),
-            background: theme.background.get(),
             label: theme.text_muted.get(),
+            chrome: !state.previewing(),
             artboards,
         };
         if shown.borrow().as_ref() == Some(&backdrop) {
@@ -304,9 +318,10 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
         Some(entity) => match entity.kind {
             CanvasEntityKind::DirectEditor { .. } => match state.focused_editor.get() == Some(id) {
                 true => ChildMode::Active,
-                false => match state.shows_preview(id) {
-                    true => ChildMode::Preview,
-                    false => ChildMode::Passive,
+                false => match (state.shows_preview(id), state.works_in_place(id)) {
+                    (true, _) => ChildMode::Preview,
+                    (false, true) => ChildMode::InPlace,
+                    (false, false) => ChildMode::Passive,
                 },
             },
             _ => ChildMode::Preview,

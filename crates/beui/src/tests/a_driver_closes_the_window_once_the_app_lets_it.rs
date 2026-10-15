@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{List, Show, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 struct Guarded {
     document: Document,

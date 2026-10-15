@@ -14,7 +14,7 @@ use reactive::{
 
 use crate::{EditorHost, host::ContentUpdate};
 
-type Run<C> = Rc<dyn Fn(&C)>;
+type Run<C> = Rc<dyn Fn(&C, &[Touched])>;
 
 struct Watchers<C> {
     unkeyed: Vec<(u64, Run<C>)>,
@@ -145,7 +145,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         T: Clone + PartialEq + 'static,
     {
         let (read, write) = create_signal(project(&self.visible.borrow()));
-        self.register(key, Rc::new(move |content| write.set(project(content))));
+        self.register(key, Rc::new(move |content, _| write.set(project(content))));
         read
     }
 
@@ -185,12 +185,12 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     {
         let store: KeyedStore<K, V> = KeyedStore::new();
         project(&self.visible.borrow(), &store);
-        self.register(None, Rc::new(move |content| project(content, &store)));
+        self.register(None, Rc::new(move |content, _| project(content, &store)));
         store
     }
 
     fn operate(&self, operation: C::Op) {
-        if !self.host.editable() {
+        if !self.host.editable() || !self.loaded.get() {
             return;
         }
         self.operate_anyway(operation);
@@ -222,7 +222,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         let runs = self.watchers.borrow().touched_by(&touched);
         batch(|| {
             for run in runs {
-                run(&self.visible.borrow());
+                run(&self.visible.borrow(), &touched);
             }
         });
     }
@@ -463,11 +463,101 @@ where
         })
     }
 
+    pub fn objects<M: 'static, T>(
+        &self,
+        owner: ObjectId,
+        field: FieldRef<M, List<T>>,
+    ) -> ReadSignal<Objects<T>>
+    where
+        T: Model + 'static,
+    {
+        let projection = self.inner();
+        let read = move |content: &Document<R>, touched: &[Touched], held: &Objects<T>| {
+            let everything = touched.contains(&Touched::Everything);
+            let changed: HashSet<ObjectId> = touched
+                .iter()
+                .filter_map(|touched| match touched {
+                    Touched::Subtree(id) => Some(*id),
+                    _ => None,
+                })
+                .collect();
+            let kept: HashMap<ObjectId, Rc<T>> = match everything {
+                true => HashMap::new(),
+                false => held
+                    .iter()
+                    .filter(|(id, _)| !changed.contains(id))
+                    .map(|(id, object)| (*id, Rc::clone(object)))
+                    .collect(),
+            };
+            content
+                .ids(owner, field)
+                .into_iter()
+                .filter_map(|id| match kept.get(&id) {
+                    Some(object) => Some((id, Rc::clone(object))),
+                    None => Some((id, Rc::new(content.read::<T>(id)?))),
+                })
+                .collect::<Vec<_>>()
+        };
+        let first = read(
+            &projection.visible.borrow(),
+            &[Touched::Everything],
+            &Objects::default(),
+        );
+        let (objects, write) = create_signal(Objects(Rc::new(first)));
+        projection.register(
+            Some(Touched::Subtree(owner)),
+            Rc::new(move |content, touched| {
+                let next = objects.with_untracked(|held| read(content, touched, held));
+                write.set(Objects(Rc::new(next)));
+            }),
+        );
+        objects
+    }
+
     pub fn object<T>(&self, id: ObjectId) -> ReadSignal<Option<T>>
     where
         T: Model + Clone + PartialEq + 'static,
     {
         self.project_on(Touched::Subtree(id), move |content| content.read::<T>(id))
+    }
+}
+
+pub struct Objects<T>(Rc<Vec<(ObjectId, Rc<T>)>>);
+
+impl<T> Objects<T> {
+    pub fn iter(&self) -> impl Iterator<Item = &(ObjectId, Rc<T>)> {
+        self.0.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<T> Default for Objects<T> {
+    fn default() -> Self {
+        Self(Rc::new(Vec::new()))
+    }
+}
+
+impl<T> Clone for Objects<T> {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
+impl<T> PartialEq for Objects<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.len() == other.0.len()
+            && self
+                .0
+                .iter()
+                .zip(other.0.iter())
+                .all(|((id, held), (other_id, other))| id == other_id && Rc::ptr_eq(held, other))
     }
 }
 

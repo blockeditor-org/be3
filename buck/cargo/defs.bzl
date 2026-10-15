@@ -1,4 +1,5 @@
 load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
+load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "crates")
 
@@ -83,7 +84,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, *
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
 # action's LD_LIBRARY_PATH with their own.
-def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
+def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
@@ -97,6 +98,17 @@ def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
         features = _per_platform(crate, lambda entry: entry["test_features"]),
         srcs = _srcs(kwargs),
     )
+    if paints:
+        native.rust_binary(
+            name = name + "-harness",
+            env = _env(crate, library["crate"], env),
+            rustc_flags = rustc_flags + ["--test"],
+            target_compatible_with = kwargs.get("target_compatible_with", []),
+            **common,
+        )
+        painting_test(name = name, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+        painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+        return
     if "LD_LIBRARY_PATH" in env:
         compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
         native.rust_binary(
@@ -140,6 +152,68 @@ library_path_test = rule(
         "labels": attrs.list(attrs.string(), default = []),
     },
     impl = _library_path_test_impl,
+)
+
+# A native test that compares paintings, as plugin tests do (buck/wasm/defs.bzl):
+# :test runs here, so that UPDATE_SNAPSHOTS=1 writes into snapshots/, and
+# :test-run is the action ./scripts/verify builds on a worker, which accepts
+# every painting and outputs the ones that changed and the ones it compared.
+# crates/app-tests is one: block-app with its plugins, driven headless.
+def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    env = dict(ctx.attrs.env)
+    env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
+    command = cmd_args(ctx.attrs.harness[RunInfo])
+    return inject_test_run_info(
+        ctx,
+        ExternalRunnerTestInfo(
+            command = [command],
+            env = env,
+            labels = ctx.attrs.labels,
+            run_from_project_root = True,
+            type = "rust",
+            use_project_relative_paths = False,
+        ),
+    ) + [DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs)]
+
+painting_test = rule(
+    attrs = {
+        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
+        "harness": attrs.dep(providers = [RunInfo]),
+        "labels": attrs.list(attrs.string(), default = []),
+        "manifest": attrs.source(),
+        "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
+    },
+    impl = _painting_test_impl,
+)
+
+def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
+    paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
+    env = dict(ctx.attrs.env)
+    env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
+    env["UPDATE_SNAPSHOTS"] = "1"
+    ctx.actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
+            "sh",
+            paintings.as_output(),
+            ctx.attrs.harness[RunInfo],
+            hidden = ctx.attrs._inputs[DefaultInfo].default_outputs,
+        ),
+        category = "painting_test",
+        env = env,
+    )
+    return [DefaultInfo(default_output = paintings)]
+
+painting_test_run = rule(
+    attrs = {
+        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
+        "harness": attrs.dep(providers = [RunInfo]),
+        "manifest": attrs.source(),
+        "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
+    },
+    impl = _painting_test_run_impl,
 )
 
 # A test as an action, which is how ./scripts/verify runs it: buck2 runs a test

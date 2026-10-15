@@ -263,11 +263,26 @@ impl OverlayNode {
         let anchored = self.anchor_node().and_then(|id| out.get(&id));
         self.anchored = anchored;
         let area = self.area(doc, viewport, anchored);
-        let content_size = crate::layout::measure(doc, painter, content, area.size());
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(_) => anchored.unwrap_or(area),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
             OverlayAnchor::Rect(rect) => *rect,
+        };
+        let inside = matches!(
+            self.placement,
+            Placement::InsideTop
+                | Placement::InsideTopEnd
+                | Placement::InsideBottom
+                | Placement::InsideBottomEnd
+        );
+        let available = match inside {
+            true => anchor_rect.intersect(area).size().max(Vec2::ZERO),
+            false => area.size(),
+        };
+        let measured = crate::layout::measure(doc, painter, content, available);
+        let content_size = match inside {
+            true => measured.min(available),
+            false => measured,
         };
         let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);

@@ -6,11 +6,8 @@ mod toasts;
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
-use block_editor_beui::beui::reactive::{
-    Memo, ReadSignal, Stored, Timer, WriteSignal, create_effect, create_memo, create_signal,
-    create_timer, now, store, untrack,
-};
-use block_editor_beui::beui::styled::{Toast, ToastAction};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
     Editor, NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     Notifications, ScreenLocked,
@@ -52,6 +49,7 @@ impl Listed {
 pub(crate) struct DesktopNotifications {
     shared: Stored<Shared>,
     revision: ReadSignal<u64>,
+    pub(crate) offered: Memo<bool>,
     locked: Memo<bool>,
     browsing: ReadSignal<bool>,
     set_browsing: WriteSignal<bool>,
@@ -96,6 +94,7 @@ impl DesktopNotifications {
         Self {
             shared,
             revision,
+            offered: editor.host_offers::<Notifications>(),
             locked: editor.host_value::<ScreenLocked>(),
             browsing,
             set_browsing,

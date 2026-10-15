@@ -3,16 +3,13 @@ use std::cell::Cell;
 use block_editor_beui::be_block::FILES_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_FOLDER;
-use block_editor_beui::beui::reactive::{
-    Align, ForEach, Frame, ItemSize, List, NodeRef, component, create_effect, create_memo, untrack,
-    view,
-};
-use block_editor_beui::beui::styled::{Caption, Docking, Heading, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
 };
 use block_editor_beui::{
-    ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId,
+    ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
@@ -36,15 +33,19 @@ impl block_editor_beui::BeuiApp for WorkspaceUiApp {
 
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
-    let workspace = Workspace::new(editor, true);
+    let workspace = Workspace::new(editor, true, false);
+    let layout = editor.view_content().map(|view| view.loaded());
+    let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
-        <Container>
-            {move |_| {
-                view! {
-                    <WorkspaceBody workspace />
-                }
-            }}
-        </Container>
+        <Loaded loaded={loaded} label="Loading the workspace">
+            <Container>
+                {move |_| {
+                    view! {
+                        <WorkspaceBody workspace />
+                    }
+                }}
+            </Container>
+        </Loaded>
     }
 }
 
@@ -73,9 +74,8 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
-    let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} color={theme.background}>
+        <Frame @node_ref={&surface} fill=ColorRole::Background>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
@@ -98,7 +98,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             </ForEach>
                             <ForEach keys={top_windows}>
                                 {move |window: HostWindowId| view! {
-                                    <WindowTab workspace window />
+                                    <WindowTab workspace key={window} />
                                 }}
                             </ForEach>
                         </DockPane>
@@ -157,10 +157,13 @@ fn FilesPanel(workspace: Workspace) -> NodeId {
 #[component]
 fn EmptyPanel() -> NodeId {
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Heading content="No file open" />
-                <Caption content="Open or create a file from Files to get started." />
+                <Text style=TextStyle::HEADING string="No file open" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Open or create a file from Files to get started."
+                />
             </List>
         </Frame>
     }

@@ -18,6 +18,14 @@ pub struct HostWindow {
     pub focused: bool,
     pub icon: Option<HostImage>,
     pub raised: u64,
+    pub origin: WindowOrigin,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowOrigin {
+    pub program: Option<String>,
+    pub command: Vec<String>,
+    pub launch: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -73,6 +81,7 @@ pub struct PowerAvailability {
     pub restart: bool,
     pub power_off: bool,
     pub log_out: bool,
+    pub ending: bool,
 }
 
 impl PowerAvailability {
@@ -199,14 +208,24 @@ pub struct HostProgram {
     pub generic_name: String,
     pub comment: String,
     pub keywords: Vec<String>,
+    pub wm_class: Option<String>,
     pub icon: Option<HostImage>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProgramAction {
-    List { icon_size: u32 },
-    Launch(String),
+    List {
+        icon_size: u32,
+    },
+    Launch {
+        program: String,
+        launch: Option<u64>,
+    },
     Run(String),
+    Exec {
+        command: Vec<String>,
+        launch: Option<u64>,
+    },
 }
 
 impl ProgramAction {

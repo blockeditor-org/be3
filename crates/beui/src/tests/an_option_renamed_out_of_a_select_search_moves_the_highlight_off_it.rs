@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{create_signal, view};
-use crate::styled::Select;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {

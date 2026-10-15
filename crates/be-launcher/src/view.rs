@@ -4,19 +4,8 @@ use beui::icons::{
     ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_FRAME_INSPECT, ICON_MERGE, ICON_REFRESH,
     ICON_SEARCH,
 };
-#[cfg(target_os = "android")]
-use beui::reactive::Portal;
-use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, component,
-    create_memo, view,
-};
-use beui::reactive::{held_modifiers, with_document};
-#[cfg(not(target_os = "android"))]
-use beui::styled::Separator;
-use beui::styled::theme::{FONT_BODY, FONT_SMALL};
-use beui::styled::{
-    Caption, Heading, Icon, IconButton, ListRow, Scroll, Spinner, Tabs, TextInput, use_theme,
-};
+use beui::reactive::*;
+use beui::styled::*;
 #[cfg(target_os = "android")]
 use beui::unstyled::BackSlide;
 use beui::unstyled::ChoiceOption;
@@ -32,6 +21,7 @@ use crate::time::{now, relative};
 use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
 use crate::workspace::{MainActions, Workspace};
+use beui::TextAlign;
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
@@ -40,7 +30,7 @@ const SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 4.0;
 const CHIP_PADDING_HORIZONTAL: f32 = 7.0;
 const CHIP_PADDING_VERTICAL: f32 = 1.0;
-const CHIP_RADIUS: u8 = 9;
+const CHIP_RADIUS: f32 = 9.0;
 pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
 #[cfg(not(target_os = "android"))]
 const CURRENT: &str = "checked out";
@@ -79,9 +69,9 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                             <Portal node={Some(sidebar)} />
                         }}
                     >
-                        <Frame color={page} radius=0>
+                        <Frame fill={ColorRole::custom(page)}>
                             <List spacing=0.0>
-                                <Frame padding_horizontal=8.0 padding_vertical=4.0>
+                                <Frame padding={Sides::symmetric(8.0, 4.0)}>
                                     <IconButton
                                         glyph=ICON_ARROW_BACK
                                         label="Back to the pull requests"
@@ -110,10 +100,9 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 #[cfg(not(target_os = "android"))]
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface}>
+            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) fill=ColorRole::Surface>
                 <Sidebar model={model} />
             </Frame>
             <Separator direction=Direction::Vertical />
@@ -127,7 +116,6 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 
 #[component]
 fn Sidebar(model: Model) -> NodeId {
-    let theme = use_theme();
     let repository = create_memo(move || match model.repository.get() {
         Loaded::Loading => "Connecting to GitHub".to_owned(),
         Loaded::Ready(name) => name,
@@ -179,12 +167,12 @@ fn Sidebar(model: Model) -> NodeId {
     let query = model.query;
     view! {
         <List spacing=0.0>
-            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+            <Frame padding=PADDING>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Heading content="Pull requests" />
-                            <Caption content={repository} />
+                            <Text style=TextStyle::HEADING string="Pull requests" />
+                            <Text style=TextStyle::CAPTION string={repository} />
                         </List>
                         <IconButton
                             glyph=ICON_FRAME_INSPECT
@@ -203,7 +191,9 @@ fn Sidebar(model: Model) -> NodeId {
                         on_change={show}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
+                        <Text color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph=ICON_SEARCH />
+                        </Text>
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
                             value={query}
@@ -215,19 +205,19 @@ fn Sidebar(model: Model) -> NodeId {
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner width=20.0 label="Loading pull requests" />
-                            <Caption content="Loading pull requests" />
+                            <Text style=TextStyle::CAPTION string="Loading pull requests" />
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text string={error} font_size=FONT_BODY color={theme.danger} wrap=true />
+                        <Text string={error} color=TextColor::Danger wrap=true />
                     </Show>
                     <Show condition={empty}>
-                        <Caption content={empty_text} />
+                        <Text style=TextStyle::CAPTION string={empty_text} />
                     </Show>
                 </List>
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding_horizontal=PADDING padding_bottom=PADDING>
+                <Frame padding={Sides::horizontal(PADDING).bottom(PADDING)}>
                     <List spacing=0.0>
                         <ForEach keys={visible}>
                             {move |number: u64| {
@@ -259,7 +249,6 @@ fn matches(pull_request: &PullRequest, query: &str) -> bool {
 
 #[component]
 fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
-    let theme = use_theme();
     let number = pull_request.get_untracked().number;
     let selected = model.selection.memo(Some(number));
     let title = create_memo(move || pull_request.get().title);
@@ -286,8 +275,8 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List direction=Direction::Horizontal spacing=8.0>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                    <Text string={title} font_size=FONT_BODY color={theme.text} wrap=true />
-                    <Caption content={details} />
+                    <Text string={title} wrap=true />
+                    <Text style=TextStyle::CAPTION string={details} />
                     <Show condition={has_tags}>
                         <Labels labels={labels} checked_out={checked_out} />
                     </Show>
@@ -299,16 +288,17 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 
 #[component]
 pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
-    let theme = use_theme();
     let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let color = create_memo(move || match state.get() {
-        State::Open => theme.success.get(),
-        State::Draft => theme.text_muted.get(),
-        State::Merged => MERGED,
-        State::Closed => theme.danger.get(),
+        State::Open => TextColor::Success,
+        State::Draft => TextColor::Muted,
+        State::Merged => TextColor::Custom(MERGED),
+        State::Closed => TextColor::Danger,
     });
     view! {
-        <Icon glyph color />
+        <Text color align=TextAlign::Center>
+            <Icon glyph={glyph} />
+        </Text>
     }
 }
 
@@ -347,15 +337,14 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
 
 #[component]
 fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
-    let ink = create_memo(move || readable_on(color.get()));
+    let ink = create_memo(move || TextColor::Custom(readable_on(color.get())));
     view! {
         <Frame
-            color
-            radius=CHIP_RADIUS
-            padding_horizontal=CHIP_PADDING_HORIZONTAL
-            padding_vertical=CHIP_PADDING_VERTICAL
+            fill={ColorRole::custom(color)}
+            radius={Radius::custom(CHIP_RADIUS)}
+            padding={Sides::symmetric(CHIP_PADDING_HORIZONTAL, CHIP_PADDING_VERTICAL)}
         >
-            <Text string={text} font_size=FONT_SMALL color={ink} />
+            <Text string={text} size=TextSize::Sm color={ink} />
         </Frame>
     }
 }

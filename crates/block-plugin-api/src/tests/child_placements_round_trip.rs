@@ -17,6 +17,7 @@ fn child_placements_round_trip() {
                     block_id: [3; 16],
                     block_type: [5; 16],
                     view_block: None,
+                    editor: None,
                 },
                 rect: ChildRect {
                     x: 12.0,
@@ -45,6 +46,7 @@ fn child_placements_round_trip() {
                     block_id: [7; 16],
                     block_type: [5; 16],
                     view_block: None,
+                    editor: None,
                 },
                 rect: ChildRect {
                     x: 12.0,
@@ -73,6 +75,7 @@ fn child_placements_round_trip() {
                     block_id: [7; 16],
                     block_type: [5; 16],
                     view_block: None,
+                    editor: None,
                 },
                 rect: ChildRect {
                     x: 0.0,

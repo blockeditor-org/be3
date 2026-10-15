@@ -2,15 +2,10 @@ use uuid::Uuid;
 
 use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, NodeRef, ReadSignal,
-    Show, WriteSignal, component, create_effect, create_memo, create_selector, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Caption, IconButton, IconSized, ListRow, Scroll, Select, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::beui::{Color32, NodeId, TextAlign, Vec2};
+use block_editor_beui::beui::{NodeId, TextAlign, Vec2};
 use block_editor_beui::{Editor, Toolbar};
 
 use super::entries::{Entry, Folder, FolderSort};
@@ -21,9 +16,9 @@ const ROW_HEIGHT: f32 = 24.0;
 const INTRINSIC_WIDTH: f32 = 400.0;
 const LARGE_TILE: Vec2 = Vec2::new(150.0, 118.0);
 const SMALL_TILE: Vec2 = Vec2::new(98.0, 78.0);
-const LARGE_ICON: f32 = 44.0;
-const SMALL_ICON: f32 = 28.0;
-const ROW_ICON: f32 = 16.0;
+const LARGE_ICON: TextSize = TextSize::Xl4;
+const SMALL_ICON: TextSize = TextSize::Xl;
+const ROW_ICON: TextSize = TextSize::Sm;
 const DROP_OUTLINE: f32 = 2.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -144,7 +139,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         _ => theme.danger.get(),
     });
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <Select
@@ -190,16 +185,14 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @node_ref={&content}
-                    outline={outline}
-                    outline_width=DROP_OUTLINE
-                    outline_visible={hovering}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
+                    border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
+                    padding=PADDING
                 >
                     <List spacing=0.0>
                         <Show condition={empty}>
-                            <Caption
-                                content="This folder is empty."
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="This folder is empty."
                                 align=TextAlign::Center
                                 @test_id={"folder.empty"}
                             />
@@ -258,12 +251,12 @@ fn EntryRows(cells: Cells) -> NodeId {
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                                 <EntryGlyph entry={entry} size=ROW_ICON />
-                                <Body
+                                <Text
                                     @sizing=ItemSize::Percent(100.0)
-                                    content={name_of(entry)}
+                                    string={name_of(entry)}
                                     color={name_color(entry)}
                                 />
-                                <Caption content={type_of(entry)} />
+                                <Text style=TextStyle::CAPTION string={type_of(entry)} />
                             </List>
                         </ListRow>
                     }
@@ -274,7 +267,7 @@ fn EntryRows(cells: Cells) -> NodeId {
 }
 
 #[component]
-fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
+fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
     let keys = cells.keys();
     let selected = cells.selected;
     let chosen = create_selector(move || selected.get());
@@ -297,12 +290,16 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
                             <Frame height={tile.y}>
                                 <List align=Align::Center justify=Justify::Center spacing=4.0>
                                     <EntryGlyph entry={entry} size={icon_size} />
-                                    <Body
-                                        content={name_of(entry)}
+                                    <Text
+                                        string={name_of(entry)}
                                         color={name_color(entry)}
                                         align=TextAlign::Center
                                     />
-                                    <Caption content={type_of(entry)} align=TextAlign::Center />
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string={type_of(entry)}
+                                        align=TextAlign::Center
+                                    />
                                 </List>
                             </Frame>
                         </ListRow>
@@ -314,8 +311,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
 }
 
 #[component]
-fn EntryGlyph(entry: Memo<Option<Entry>>, size: f32) -> NodeId {
-    let theme = use_theme();
+fn EntryGlyph(entry: Memo<Option<Entry>>, size: TextSize) -> NodeId {
     let glyph = create_memo(move || {
         let glyph = entry.get().map(|entry| entry.glyph).unwrap_or_default();
         match glyph.is_empty() {
@@ -324,7 +320,9 @@ fn EntryGlyph(entry: Memo<Option<Entry>>, size: f32) -> NodeId {
         }
     });
     view! {
-        <IconSized glyph={glyph} font_size={size} color={theme.text} />
+        <Text size={size} align=TextAlign::Center>
+            <Icon glyph={glyph} />
+        </Text>
     }
 }
 
@@ -340,13 +338,12 @@ fn type_of(entry: Memo<Option<Entry>>) -> Memo<String> {
     create_memo(move || entry.get().map(|entry| entry.type_name).unwrap_or_default())
 }
 
-fn name_color(entry: Memo<Option<Entry>>) -> Memo<Color32> {
-    let theme = use_theme();
+fn name_color(entry: Memo<Option<Entry>>) -> Memo<TextColor> {
     create_memo(move || {
         let automatic = entry.get().is_none_or(|entry| entry.automatic);
         match automatic {
-            true => theme.text_muted.get(),
-            false => theme.text.get(),
+            true => TextColor::Muted,
+            false => TextColor::Default,
         }
     })
 }

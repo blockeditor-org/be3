@@ -5,12 +5,8 @@ use std::{
 };
 
 use be_graph::Access;
-use beui::reactive::{
-    Callback, Canvas, CanvasItem, ClickCallback, Dynamic, ForEach, Frame, Interactive, Layers,
-    Memo, NodeRef, Overlay, OverlayAnchor, OwnedStored, Placement, PlacementBuilder, Portal, Prop,
-    ReadSignal, Show, Stored, WriteSignal, component, create_effect, create_memo, create_signal,
-    on_cleanup, on_global_key, provide_context, store, use_context, view, with_document,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
@@ -186,16 +182,35 @@ impl Editors {
         })
     }
 
-    fn ensure(&self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>, parent: Uuid) {
+    fn ensure(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        view_block: Option<Uuid>,
+        editor: Option<Uuid>,
+        parent: Uuid,
+    ) {
         let state = self.0.get();
         if parent != id {
             state.parents.borrow_mut().insert(id, parent);
         }
         let registry = self.registry();
-        self.with(|open| {
-            open.entry(id)
-                .or_insert_with(|| registry.open(id, block_type).viewed_by(view_block));
+        let wanted = editor.filter(|editor| registry.edits(*editor, block_type));
+        let replaced = self.with(|open| {
+            let kept = open.get(&id).is_some_and(|existing| {
+                wanted.is_none_or(|wanted| existing.editor_id() == Some(wanted))
+            });
+            if kept {
+                return None;
+            }
+            open.insert(
+                id,
+                registry
+                    .open_with(id, block_type, wanted)
+                    .viewed_by(view_block),
+            )
         });
+        drop(replaced);
     }
 
     fn ensure_creation(&self, key: CreationKey, editor: Uuid, template: &str) -> bool {
@@ -802,32 +817,30 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
-    if !presented {
-        let counted = store(Cell::new(false));
-        create_effect(move || {
-            any.get();
-            if counted.with(Cell::get) {
-                return;
+    let counted = store(Cell::new(false));
+    create_effect(move || {
+        any.get();
+        if counted.with(Cell::get) {
+            return;
+        }
+        let shown = editors().with(|open| match open.get_mut(&block) {
+            Some(editor) => {
+                editor.shown(true);
+                true
             }
-            let shown = editors().with(|open| match open.get_mut(&block) {
-                Some(editor) => {
-                    editor.shown(true);
-                    true
+            None => false,
+        });
+        counted.with(|counted| counted.set(shown));
+    });
+    on_cleanup(move || {
+        if counted.with(Cell::get) {
+            editors().with(|open| {
+                if let Some(editor) = open.get_mut(&block) {
+                    editor.shown(false);
                 }
-                None => false,
             });
-            counted.with(|counted| counted.set(shown));
-        });
-        on_cleanup(move || {
-            if counted.with(Cell::get) {
-                editors().with(|open| {
-                    if let Some(editor) = open.get_mut(&block) {
-                        editor.shown(false);
-                    }
-                });
-            }
-        });
-    }
+        }
+    });
     let shown = create_memo(move || {
         any.get();
         presented
@@ -887,7 +900,7 @@ enum Resolution {
 fn Notice(item: HostItem) -> NodeId {
     let content = create_memo(move || item.clone());
     view! {
-        <Frame align_horizontal=beui::Align::Center align_vertical=beui::Align::Center>
+        <Frame align=beui::Align::Center>
             <HostItemFace content />
         </Frame>
     }
@@ -1069,6 +1082,7 @@ fn BlockFrameView(
                         }
                         let rect = viewport_rect.get();
                         let content = content_size.get();
+                        let covered = chrome.get() == Chrome::None;
                         let mut state = viewport.get_untracked();
                         if let Some(previous) = state.center.replace(rect.center()) {
                             state.pan += previous - rect.center();
@@ -1076,7 +1090,7 @@ fn BlockFrameView(
                         if state.auto_fit.is_none() {
                             state.auto_fit = Some(true);
                         }
-                        if state.auto_fit == Some(true) {
+                        if state.auto_fit == Some(true) && !covered {
                             fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
                         }
                         if state != viewport.get_untracked() {
@@ -1193,14 +1207,44 @@ fn BlockFrameView(
                         command(Command::Pan(delta));
                     }
                 };
+                let gestures_at = move |pos: Pos2| {
+                    let origin = rect.get_untracked().min.to_vec2();
+                    gestures
+                        && viewport_rect.get_untracked().contains(pos)
+                        && !steered.get_untracked().is_some_and(|rect| rect.contains(pos))
+                        && !plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+                            frame
+                                .floating
+                                .iter()
+                                .any(|floating| floating.translate(origin).contains(pos))
+                        })
+                };
+                let placed_zoom = create_memo(move || {
+                    if handle.pan_and_zoom || !embedded || content.get().is_some() {
+                        return 1.0;
+                    }
+                    revision.get();
+                    let shown = rect.get();
+                    plugin_host::assigned_size(&plugin_id.get(), instance)
+                        .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
+                        .map_or(1.0, |assigned| {
+                            (shown.width() / assigned.x).min(shown.height() / assigned.y)
+                        })
+                });
                 let child_view = child_view(block, EditorRegion::Frame);
                 view! {
-                    <Interactive on_scroll={scroll} on_zoom={zoom} on_pan_drag={pan}>
+                    <Interactive
+                        on_scroll={scroll}
+                        on_zoom={zoom}
+                        on_pan_drag={pan}
+                        gestures_at={gestures_at}
+                    >
                         <PluginRegion
                             editor={region_editor}
                             region=EditorRegion::Frame
                             frame={frame}
                             view={editor_view}
+                            zoom={placed_zoom}
                             passive={passive}
                             child_view
                         />
@@ -1269,7 +1313,7 @@ fn HostedChild(
     });
     let kind = create_memo(move || {
         any.get();
-        let (id, block_type, view_block) = match content.get() {
+        let (id, block_type, view_block, editor) = match content.get() {
             None => return Kind::Missing,
             Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
             Some(HostContent::Window(window)) => {
@@ -1292,12 +1336,13 @@ fn HostedChild(
                 block_id,
                 block_type,
                 view_block,
-            }) => (block_id, block_type, view_block),
+                editor,
+            }) => (block_id, block_type, view_block, editor),
         };
         if nesting.above.with(|above| above.contains(&id)) {
             return Kind::Unavailable;
         }
-        editors.ensure(id, block_type, view_block, parent);
+        editors.ensure(id, block_type, view_block, editor, parent);
         let Some(child) = child.get() else {
             return Kind::Missing;
         };
@@ -1371,7 +1416,13 @@ fn HostedChild(
     let keys = create_memo(move || {
         content
             .get()
-            .map(|content| (content.block_id().unwrap_or_default(), kind.get()))
+            .map(|content| {
+                (
+                    content.block_id().unwrap_or_default(),
+                    kind.get(),
+                    content.editor(),
+                )
+            })
             .into_iter()
             .collect::<Vec<_>>()
     });
@@ -1381,7 +1432,7 @@ fn HostedChild(
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
                     <ForEach keys={keys}>
-                        {move |(id, kind): (Uuid, Kind)| {
+                        {move |(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
                             let reporter = reporter_for(parent, region, key);
                             match kind {
                                 Kind::Missing | Kind::Unavailable => view! {
@@ -1560,7 +1611,11 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         available,
         intrinsic,
         aspect_ratio,
-        active: available && child.is_active(),
+        active: available
+            && match child.mode {
+                ChildMode::Active => child.frame_owner,
+                _ => child.is_active(),
+            },
         interaction,
         capabilities,
         resize,

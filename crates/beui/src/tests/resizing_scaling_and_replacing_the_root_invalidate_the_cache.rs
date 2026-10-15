@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
@@ -8,7 +9,7 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     let mut document = build({
         move || {
             view! {
-                <Text @node_ref=&text string="hello" font_size=14.0 color=Color32::WHITE />
+                <Text @node_ref=&text string="hello" color=Color32::WHITE />
             }
         }
     });
@@ -29,7 +30,7 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     assert!(harness.document.node_rect(text).is_none());
     let fill = with_installed(harness.document_mut(), |_| {
         view! {
-            <Frame color=Color32::BLACK radius=0 />
+            <Frame fill=Color32::BLACK radius=0.0 />
         }
     });
     harness.document.set_root(fill);

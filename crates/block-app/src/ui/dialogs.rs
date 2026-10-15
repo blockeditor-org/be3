@@ -1,14 +1,8 @@
 use be_protocol::WorkspaceRole;
 use beui::NodeId;
 use beui::icons::ICON_DELETE;
-use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, component, create_effect,
-    create_memo, create_signal, untrack, view,
-};
-use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Dialog, IconButton, Paragraph, Spinner, Tabs,
-    TextInput,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use uuid::Uuid;
 
@@ -84,13 +78,14 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Caption content={workspace} />
-                <Caption
-                    content="An agent is an account for a program, such as a coding agent, that reads and edits this workspace through the be command line tool. It sees only the blocks you share with it."
+                <Text style=TextStyle::CAPTION string={workspace} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="An agent is an account for a program, such as a coding agent, that reads and edits this workspace through the be command line tool. It sees only the blocks you share with it."
                     wrap=true
                 />
                 <Show condition={none}>
-                    <Caption content="No agents yet." />
+                    <Text style=TextStyle::CAPTION string="No agents yet." />
                 </Show>
                 <ForEach keys={keys}>
                     {move |account: Uuid| {
@@ -105,7 +100,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                         });
                         view! {
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                                <Text @sizing=ItemSize::Percent(100.0) string={label} />
                                 <IconButton
                                     glyph={ICON_DELETE.to_owned()}
                                     label="Remove agent"
@@ -116,7 +111,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                         }
                     }}
                 </ForEach>
-                <Caption content="Name" />
+                <Text style=TextStyle::CAPTION string="Name" />
                 <TextInput
                     value={name}
                     label="Agent name"
@@ -164,14 +159,14 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
     let phrase = field(|created| created.phrase.clone());
     view! {
         <List spacing=6.0>
-            <Paragraph content={heading} />
-            <Code content="BE3_SERVER" />
+            <Text style=TextStyle::PARAGRAPH string={heading} wrap=true />
+            <Text style=TextStyle::CODE string="BE3_SERVER" />
             <TextInput value={server} label="BE3_SERVER" @test_id={"app.agents.server"} />
-            <Code content="BE3_WORKSPACE" />
+            <Text style=TextStyle::CODE string="BE3_WORKSPACE" />
             <TextInput value={workspace} label="BE3_WORKSPACE" @test_id={"app.agents.workspace"} />
-            <Code content="BE3_TOKEN" />
+            <Text style=TextStyle::CODE string="BE3_TOKEN" />
             <TextInput value={token} label="BE3_TOKEN" @test_id={"app.agents.token"} />
-            <Code content="BE3_RECOVERY_PHRASE" />
+            <Text style=TextStyle::CODE string="BE3_RECOVERY_PHRASE" />
             <TextInput value={phrase} label="BE3_RECOVERY_PHRASE" @test_id={"app.agents.phrase"} />
         </List>
     }
@@ -223,14 +218,14 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Caption content={workspace} />
-                <Caption content="Email address" />
+                <Text style=TextStyle::CAPTION string={workspace} />
+                <Text style=TextStyle::CAPTION string="Email address" />
                 <TextInput
                     value={email}
                     label="Email address"
                     on_change={move |value: String| set_email.set(value)}
                 />
-                <Caption content="Role" />
+                <Text style=TextStyle::CAPTION string="Role" />
                 <Tabs
                     selected={role_index}
                     on_change={move |index: usize| set_administrator.set(index == 1)}
@@ -239,7 +234,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                         <ChoiceOption label={WorkspaceRole::Administrator.label()} />
                     }}
                 />
-                <Caption content={description} />
+                <Text style=TextStyle::CAPTION string={description} />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
                         label="Send invitation"
@@ -264,11 +259,11 @@ fn AboutPanel() -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Paragraph content="Block" />
-                <Caption content="Version" />
-                <Code content={env!("CARGO_PKG_VERSION").to_owned()} />
-                <Caption content="Build" />
-                <Code content={crate::build().to_owned()} />
+                <Text style=TextStyle::PARAGRAPH string="Block" wrap=true />
+                <Text style=TextStyle::CAPTION string="Version" />
+                <Text style=TextStyle::CODE string={env!("CARGO_PKG_VERSION").to_owned()} />
+                <Text style=TextStyle::CAPTION string="Build" />
+                <Text style=TextStyle::CODE string={crate::build().to_owned()} />
             </List>
         </Frame>
     }
@@ -299,7 +294,7 @@ fn DiscardDialog(view: AppViewStore) -> NodeId {
     view! {
         <Dialog open={open} title={title} on_dismiss={|| send(UiCommand::CancelDiscard)}>
             <List spacing=12.0>
-                <Paragraph content={message} />
+                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button
                         label={button}

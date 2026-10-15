@@ -29,6 +29,7 @@ pub mod overflow;
 pub mod page;
 pub mod paint;
 pub mod painter;
+pub mod painting;
 pub mod performance;
 pub mod pixel_grid;
 pub mod renderer;

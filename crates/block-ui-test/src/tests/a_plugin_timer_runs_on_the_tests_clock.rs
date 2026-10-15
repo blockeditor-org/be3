@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use beui::reactive::{create_memo, create_signal, create_timer, now};
-
 use super::*;
 
 const ALARM: Duration = Duration::from_secs(60);
@@ -46,5 +44,9 @@ fn a_plugin_timer_runs_on_the_tests_clock() {
     test.advance(Duration::from_secs(1));
 
     let rang: u128 = test.label("alarm").parse().expect("the alarm rang");
-    assert!((ALARM.as_millis()..ALARM.as_millis() + 50).contains(&rang));
+    let last_step = Duration::from_secs(1).as_millis();
+    assert!(
+        (ALARM.as_millis()..ALARM.as_millis() + last_step).contains(&rang),
+        "the alarm rang {rang}ms after it was set"
+    );
 }

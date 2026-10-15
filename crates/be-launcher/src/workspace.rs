@@ -3,15 +3,8 @@ use beui::icons::{
     ICON_BUILD, ICON_DOWNLOAD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
     ICON_TERMINAL,
 };
-use beui::reactive::{
-    Align, Direction, DynamicSegment, ForEach, Frame, ItemSize, List, ListChild, Memo, ReadSignal,
-    Show, Text, VirtualList, component, create_memo, view,
-};
-use beui::styled::theme::FONT_BODY;
-use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Docking, Icon, IconButton, Scroll, Spinner, SplitButton,
-    TextInput, use_theme,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{DockEntry, DockPane, DockTab, MenuItem};
 
 use crate::detail::Detail;
@@ -20,6 +13,7 @@ use crate::model::{COMMON, Loaded, Model, Tab};
 use crate::pane::TerminalPane;
 use crate::targets::{Action, Target};
 use crate::view::{PADDING, state_glyph};
+use beui::TextAlign;
 
 const SPACING: f32 = 8.0;
 const TARGET_ROW: f32 = 44.0;
@@ -50,9 +44,14 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
     let pane = model.pane;
     view! {
         <List spacing=0.0>
-            <Frame padding_horizontal=PADDING padding_vertical=12.0>
+            <Frame padding={Sides::symmetric(PADDING, 12.0)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                    <Caption @sizing=ItemSize::Percent(100.0) content={head} ellipsis=true />
+                    <Text
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                        string={head}
+                        ellipsis=true
+                    />
                     <Show condition={running}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>
@@ -80,7 +79,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         <TargetList model />
                     </DockTab>
                     <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
-                        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                        <Frame padding=PADDING>
                             <TerminalPane pane />
                         </Frame>
                     </DockTab>
@@ -126,7 +125,6 @@ fn PullRequestTab(model: Model, number: u64) -> DockEntry<Tab> {
 
 #[component]
 fn TargetList(model: Model) -> NodeId {
-    let theme = use_theme();
     let loading = create_memo(move || model.targets.get() == Some(Loaded::Loading));
     let error = create_memo(move || match model.targets.get() {
         Some(Loaded::Failed(error)) => error,
@@ -168,10 +166,12 @@ fn TargetList(model: Model) -> NodeId {
     let refresh = move || model.refresh_targets();
     view! {
         <List spacing=0.0>
-            <Frame padding_horizontal=PADDING padding_vertical=4.0>
+            <Frame padding={Sides::symmetric(PADDING, 4.0)}>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
+                        <Text color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph=ICON_SEARCH />
+                        </Text>
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
                             value={query}
@@ -185,23 +185,27 @@ fn TargetList(model: Model) -> NodeId {
                             on_click={refresh}
                         />
                     </List>
-                    <Caption content={count} />
+                    <Text style=TextStyle::CAPTION string={count} />
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Spinner width=20.0 label="Listing targets" />
-                            <Caption content="Asking buck2 for the targets" />
+                            <Text style=TextStyle::CAPTION string="Asking buck2 for the targets" />
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text string={error} font_size=FONT_BODY color={theme.danger} wrap=true />
+                        <Text string={error} color=TextColor::Danger wrap=true />
                     </Show>
                 </List>
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <VirtualList keys item_size=TARGET_ROW>
-                    {move |label: String| {
+                    {move |label: ReadSignal<String>| {
                         let target = create_memo(move || {
-                            shown.get().into_iter().find(|target| target.label == label)
+                            label.with(|label| {
+                                shown.with(|shown| {
+                                    shown.iter().find(|target| &target.label == label).cloned()
+                                })
+                            })
                         });
                         view! {
                             <TargetRow model={model} target />
@@ -247,10 +251,10 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
     };
     let busy = model.running;
     view! {
-        <Frame padding_horizontal=PADDING padding_vertical=4.0>
+        <Frame padding={Sides::symmetric(PADDING, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Code @sizing=ItemSize::Percent(100.0) content={label} />
-                <Caption content={kind} />
+                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={label} />
+                <Text style=TextStyle::CAPTION string={kind} />
                 <Show condition={buildable}>
                     <Button
                         label="Build"
@@ -349,14 +353,16 @@ pub(crate) fn Notes(
             {move || view! {
                 <List spacing=8.0>
                     <Show condition={fork}>
-                        <Caption
-                            content="This pull request comes from a fork, so scripts/switch cannot check it out."
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="This pull request comes from a fork, so scripts/switch cannot check it out."
                             wrap=true
                         />
                     </Show>
                     <Show condition={deleted}>
-                        <Caption
-                            content="Its branch was deleted, so there is nothing to check out."
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Its branch was deleted, so there is nothing to check out."
                             wrap=true
                         />
                     </Show>

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::NodeRef;
+use crate::reactive::*;
 
 #[test]
 fn a_sheet_is_never_taller_than_what_it_holds() {

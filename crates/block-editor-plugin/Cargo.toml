@@ -9,6 +9,7 @@ be-block = { path = "../be-block" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-ui = { path = "../block-ui" }
 geometry = { path = "../geometry" }
+paint-format = { path = "../paint-format" }
 reactive = { path = "../reactive" }
 serde_bytes = "0.11"
 serde_json = "1"

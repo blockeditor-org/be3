@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{create_timer, view};
+use crate::reactive::*;
 
 #[test]
 fn a_timer_asks_for_frames_until_its_work_settles() {

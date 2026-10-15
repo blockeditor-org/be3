@@ -1,6 +1,5 @@
 use super::*;
 
-use beui::styled::TextInput;
 use beui::{Key, Modifiers};
 use block_editor_beui::BlockHistory;
 

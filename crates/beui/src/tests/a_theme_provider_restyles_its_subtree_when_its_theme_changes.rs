@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{create_signal, view, with_reactive_scope};
-use crate::styled::{Button, ButtonVariant, Theme, ThemeProvider};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_theme_provider_restyles_its_subtree_when_its_theme_changes() {

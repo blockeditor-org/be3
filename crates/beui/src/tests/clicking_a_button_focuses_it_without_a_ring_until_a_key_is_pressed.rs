@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Button;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed() {

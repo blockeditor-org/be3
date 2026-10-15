@@ -1,6 +1,6 @@
 use be_block::BlockContent as _;
+use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_plugin_api::WindowRequests;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
@@ -9,6 +9,7 @@ use block_plugin_api::{
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewId,
 };
+use block_plugin_api::{DescribedAction, WindowRequests};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -128,6 +129,7 @@ struct Instance {
     next_replacement: u64,
     leaving: bool,
     content: Option<ContentLink>,
+    prefetched: Vec<Uuid>,
     watched: HashMap<Uuid, ContentLink>,
     shown: std::collections::HashSet<(Uuid, Uuid)>,
     block_queries: Vec<block_plugin_api::BlockQuery>,
@@ -156,6 +158,12 @@ impl ContentLink {
             peers_sent: None,
             described: None,
         }
+    }
+
+    fn opening(block: Uuid, content_type: Uuid) -> Self {
+        let mut link = Self::new(content_type);
+        link.opened = prefetch(block, content_type);
+        link
     }
 
     fn describe(&mut self, block: Uuid) {
@@ -224,7 +232,7 @@ impl ContentLink {
     }
 }
 
-pub(super) type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+pub(super) type OpenRequest = crate::editors::BlockOpen;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Focus {
@@ -306,12 +314,43 @@ impl Instance {
             blocks_seen: None,
             version_sent: None,
             stale: true,
+            prefetched: match role {
+                InstanceRole::Editor(block) => prefetched_references(block),
+                InstanceRole::Creation(..) | InstanceRole::Artifact(..) => Vec::new(),
+            },
             content: match role {
-                InstanceRole::Editor(block) => own_content_type(block).map(ContentLink::new),
+                InstanceRole::Editor(block) => own_content_type(block)
+                    .map(|content_type| ContentLink::opening(block.id, content_type)),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
         }
     }
+}
+
+const PREFETCHED_REFERENCES: usize = 4;
+
+fn prefetch(block: Uuid, content_type: Uuid) -> bool {
+    let fetch = crate::be::has_head(block) && crate::be::content_revision(block).is_none();
+    if fetch {
+        crate::be::open(block, content_type);
+    }
+    fetch
+}
+
+fn prefetched_references(block: EditorBlock) -> Vec<Uuid> {
+    let Some(node) = crate::be::node(block.id) else {
+        return Vec::new();
+    };
+    if node.references.len() > PREFETCHED_REFERENCES {
+        return Vec::new();
+    }
+    node.references
+        .iter()
+        .filter_map(|reference| crate::be::node(*reference))
+        .filter(|node| node.access.can_view() && crate::be::is_known(node.content_type))
+        .filter(|node| prefetch(node.id, node.content_type))
+        .map(|node| node.id)
+        .collect()
 }
 
 fn own_content_type(block: EditorBlock) -> Option<Uuid> {
@@ -384,6 +423,7 @@ impl Instance {
     fn holds(&self, block: Uuid) -> bool {
         (self.content.is_some() && self.role.block().is_some_and(|own| own.id == block))
             || self.watched.contains_key(&block)
+            || self.prefetched.contains(&block)
     }
 
     fn follows(&self, block: Uuid) -> bool {
@@ -437,6 +477,13 @@ pub(super) struct Placement {
     pub(super) pass: u64,
 }
 
+pub(super) struct Described<'a> {
+    pub(super) screen: ScreenId,
+    pub(super) actions: &'a [DescribedAction],
+    pub(super) focused: bool,
+    pub(super) tree: &'a mut Embedded,
+}
+
 struct Screen {
     input: InputAdapter,
     placement: Option<Placement>,
@@ -447,6 +494,8 @@ struct Screen {
     holding: bool,
     used: Option<Vec2>,
     report: Option<FrameReport>,
+    accessibility: Embedded,
+    focus_requested: bool,
     dragging: bool,
     file_dropping: bool,
     window: WindowRequests,
@@ -497,10 +546,6 @@ pub(super) struct NextScreens {
 }
 
 impl Instances {
-    pub(super) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     pub(super) fn translate(&self, message: &mut Message, inward: bool) {
         let mut carries = false;
         message.visit_block_ids(&mut |_, _, _| carries = true);
@@ -577,7 +622,11 @@ impl Instances {
             .block()
             .filter(|_| entry.content.is_some())
             .map(|block| block.id);
-        for block in own.into_iter().chain(entry.watched.keys().copied()) {
+        let held = own
+            .into_iter()
+            .chain(entry.watched.keys().copied())
+            .chain(entry.prefetched.iter().copied());
+        for block in held {
             if !self.holds_content(block) {
                 crate::be::close(block);
             }
@@ -682,6 +731,8 @@ impl Instances {
                 holding: false,
                 used: None,
                 report: None,
+                accessibility: Embedded::new(beui::accessibility::next_document_id()),
+                focus_requested: false,
                 dragging: false,
                 file_dropping: false,
                 window: WindowRequests::default(),
@@ -734,11 +785,21 @@ impl Instances {
     }
 
     pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: EditorRegion) {
-        if let Some(screen) = self.screen_mut(instance, region)
-            && screen.mounted <= 1
-        {
+        if let Some(screen) = self.screen_mut(instance, region) {
             screen.unplace();
         }
+    }
+
+    pub(super) fn awaiting_content(&self) -> bool {
+        self.entries.values().any(|entry| {
+            let mounted = entry.screens.values().any(|screen| screen.mounted > 0);
+            match (entry.role.block(), &entry.content) {
+                (Some(block), Some(link)) => {
+                    mounted && link.sent.is_none() && crate::be::may_load(block.id)
+                }
+                _ => false,
+            }
+        })
     }
 
     pub(super) fn has_mounted(&self) -> bool {
@@ -918,7 +979,11 @@ impl Instances {
                 .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
-        let mut messages = screen.input.forward(input, id);
+        let zoom = match screen.request.metrics.logical_width > 0.0 {
+            true => input.rect.width() / screen.request.metrics.logical_width,
+            false => 1.0,
+        };
+        let mut messages = screen.input.forward(input, id, zoom);
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));
         let revoked =
@@ -984,6 +1049,10 @@ impl Instances {
         let changed = entry.presenting != presenting;
         entry.presenting = presenting;
         changed
+    }
+
+    pub(super) fn assigned_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
+        self.entries.get(&instance)?.reported_size
     }
 
     pub(super) fn resized(&mut self, instance: EditorInstanceId, size: Vec2) -> Vec<Message> {
@@ -1514,10 +1583,12 @@ impl Instances {
                     block_id,
                     block_type,
                     view_block,
+                    editor,
                 } => super::HostContent::Block {
                     block_id: Uuid::from_bytes(*block_id),
                     block_type: Uuid::from_bytes(*block_type),
                     view_block: view_block.map(Uuid::from_bytes),
+                    editor: editor.map(Uuid::from_bytes),
                 },
                 ChildContent::Host(panel) => super::HostContent::Panel(*panel),
                 ChildContent::Window(window) => super::HostContent::Window(*window),
@@ -1558,7 +1629,10 @@ impl Instances {
                 .filter(|occluder| occluder.after as usize > index)
                 .map(|occluder| host_rect(occluder.rect, origin, stretch))
                 .collect();
-            if matches!(mode, ChildMode::Active | ChildMode::Live) {
+            if matches!(
+                mode,
+                ChildMode::Active | ChildMode::Live | ChildMode::InPlace
+            ) {
                 let interactive = child_rect.intersect(child_clip);
                 if interactive.is_positive() {
                     holes.holes.push(Hole {
@@ -1870,13 +1944,21 @@ impl Instances {
 
     pub(super) fn set_frame_reports(&mut self, reports: Vec<FrameReport>) -> bool {
         let mut changed = false;
-        for report in reports {
+        for mut report in reports {
+            let mut tree = report
+                .description
+                .as_mut()
+                .and_then(|description| description.tree.take());
             for entry in self.entries.values_mut() {
                 if let Some(screen) = entry
                     .screens
                     .values_mut()
                     .find(|screen| screen.request.screen == report.screen)
                 {
+                    if let Some(tree) = tree.take() {
+                        screen.accessibility.update(tree);
+                        changed = true;
+                    }
                     changed |= screen.report.as_ref() != Some(&report);
                     screen.report = Some(report.clone());
                 }
@@ -1896,6 +1978,42 @@ impl Instances {
             .get(&region)?
             .report
             .as_ref()
+    }
+
+    pub(super) fn described(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<Described<'_>> {
+        let screen = self.entries.get_mut(&instance)?.screens.get_mut(&region)?;
+        let description = screen.report.as_ref()?.description.as_ref()?;
+        Some(Described {
+            screen: screen.request.screen,
+            actions: &description.actions,
+            focused: screen.input.focused(),
+            tree: &mut screen.accessibility,
+        })
+    }
+
+    pub(super) fn request_focus(&mut self, screen: ScreenId) {
+        for entry in self.entries.values_mut() {
+            for placed in entry.screens.values_mut() {
+                if placed.request.screen == screen {
+                    placed.focus_requested = true;
+                }
+            }
+        }
+    }
+
+    pub(super) fn take_focus_request(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> bool {
+        self.entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+            .is_some_and(|screen| std::mem::take(&mut screen.focus_requested))
     }
 
     pub(super) fn drive_web_views(&mut self, pass: u64) -> Vec<Message> {
@@ -2341,15 +2459,17 @@ impl Instances {
                 block_id,
                 block_type,
                 via,
+                editor,
             } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.opens.push((
-                    Uuid::from_bytes(block_id),
-                    Uuid::from_bytes(block_type),
-                    via.map(Uuid::from_bytes),
-                ));
+                entry.opens.push(OpenRequest {
+                    id: Uuid::from_bytes(block_id),
+                    block_type: Uuid::from_bytes(block_type),
+                    via: via.map(Uuid::from_bytes),
+                    editor: editor.map(Uuid::from_bytes),
+                });
                 true
             }
             EditorMessage::Focused {
@@ -2914,18 +3034,17 @@ impl Instances {
     pub(super) fn show_block(
         &mut self,
         instance: EditorInstanceId,
-        block_id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
+        open: OpenRequest,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
         vec![Message::Editor(EditorMessage::ShowBlock {
             instance,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
-            via: via.map(Uuid::into_bytes),
+            block_id: open.id.into_bytes(),
+            block_type: open.block_type.into_bytes(),
+            via: open.via.map(Uuid::into_bytes),
+            editor: open.editor.map(Uuid::into_bytes),
         })]
     }
 

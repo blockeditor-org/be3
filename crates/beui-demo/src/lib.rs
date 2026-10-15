@@ -13,26 +13,9 @@ use beui::icons::{
     ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN,
     ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP, ICON_WIDGETS,
 };
-use beui::reactive::{
-    Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
-    ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    Span, Stored, Text, VirtualList, WriteSignal, batch, build, create_effect, create_memo,
-    create_selector, create_signal, focus_ring, held_modifiers, on_shortcut, provide_context,
-    store, untrack, use_context, view, with_document,
-};
-use beui::styled::DocumentTheme;
-use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
-use beui::styled::{
-    Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
-    Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, CrashNotice,
-    DateTimeField, Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton,
-    IconButtonSize, IconSized, KeepChanges, Launcher, LauncherItem, LevelOsd, Link, ListRow,
-    Listbox, LockAction, LockScreen, MenuButton, ModalSheet, NumberInput, OklchColorWheel,
-    OsdLevel, Paragraph, PictureMenuButton, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
-    Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, StaleNotice,
-    Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts,
-    ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
-};
+use beui::reactive::*;
+use beui::styled::theme::NARROW_WIDTH;
+use beui::styled::*;
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockDialog, DockMode, DockPane, DockSplit, DockTab,
     DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
@@ -263,7 +246,7 @@ impl Page {
     fn summary(self) -> &'static str {
         match self {
             Page::Docking => "Tabs, splits, windows and groups",
-            Page::Text => "Type scale, icons, chips, links",
+            Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
             Page::Choices => "Radio groups, listboxes, tabs",
@@ -317,14 +300,21 @@ impl DemoApp {
             document: build(move || {
                 provide_context(Today(today));
                 view! {
-                    <Container>
-                        {move |_| view! {
-                            <DemoShell />
-                        }}
-                    </Container>
+                    <Demo />
                 }
             }),
         }
+    }
+}
+
+#[component]
+pub fn Demo() -> NodeId {
+    view! {
+        <Container>
+            {move |_| view! {
+                <DemoShell />
+            }}
+        </Container>
     }
 }
 
@@ -349,9 +339,8 @@ impl DemoApp {
 #[cfg(test)]
 #[component]
 fn LonePage(page: Page) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <PageView page />
         </Frame>
     }
@@ -558,7 +547,6 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
 #[sample]
 #[component]
 fn DemoShell() -> NodeId {
-    let theme = use_theme();
     let dialogs = DemoDialogs::new();
     let pages = Pages::new(dialogs);
     let (mobile, set_mobile) = create_signal(false);
@@ -579,9 +567,9 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
-                <Frame padding_horizontal=SHELL_PADDING padding_vertical=SHELL_PADDING>
+                <Frame padding=SHELL_PADDING>
                     <DemoToolbar pages mobile set_mobile />
                 </Frame>
                 <Separator />
@@ -737,9 +725,9 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
     let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <Title content="beui" />
+            <Text style=TextStyle::TITLE string="beui" />
             <Show condition={wide}>
-                <Caption content="retained mode ui" />
+                <Text style=TextStyle::CAPTION string="retained mode ui" />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
@@ -771,6 +759,7 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
                 }}
             />
             <IconButton
+                @test_id={"demo.inspector"}
                 glyph=ICON_BUG_REPORT
                 label="Open the inspector"
                 variant=ButtonVariant::Ghost
@@ -789,7 +778,7 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
 fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
     view! {
         <Scroll>
-            <Frame padding_horizontal=CATALOG_PADDING padding_vertical=CATALOG_PADDING>
+            <Frame padding=CATALOG_PADDING>
                 <List spacing=0.0>
                     <CatalogGroup
                         title="Styled"
@@ -828,10 +817,10 @@ fn CatalogGroup(
 ) -> NodeId {
     view! {
         <List spacing=0.0>
-            <Frame padding_horizontal=CATALOG_GROUP_PADDING padding_vertical=CATALOG_GROUP_PADDING>
+            <Frame padding=CATALOG_GROUP_PADDING>
                 <List spacing=2.0>
-                    <Heading content={title} />
-                    <Caption content={summary} ellipsis=true />
+                    <Text style=TextStyle::HEADING string={title} />
+                    <Text style=TextStyle::CAPTION string={summary} ellipsis=true />
                 </List>
             </Frame>
             <ForEach keys={listed}>
@@ -856,10 +845,12 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
     view! {
         <ListRow @test_id={format!("demo.catalog.{}", page.title())} selected on_click={open}>
             <List direction=Direction::Horizontal align=Align::Center spacing=CATALOG_SPACING>
-                <Icon glyph={page.icon()} />
+                <Text align=TextAlign::Center>
+                    <Icon glyph={page.icon()} />
+                </Text>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Body content={page.title()} />
-                    <Caption content={page.summary()} ellipsis=true />
+                    <Text string={page.title()} />
+                    <Text style=TextStyle::CAPTION string={page.summary()} ellipsis=true />
                 </List>
             </List>
         </ListRow>
@@ -869,10 +860,13 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
 #[component]
 fn EmptyPanel() -> NodeId {
     view! {
-        <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+        <Frame padding=PAGE_PADDING>
             <List spacing=4.0 align=Align::Center>
-                <Heading content="Nothing open" />
-                <Caption content="Open a page from Components to get started." />
+                <Text style=TextStyle::HEADING string="Nothing open" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Open a page from Components to get started."
+                />
             </List>
         </Frame>
     }

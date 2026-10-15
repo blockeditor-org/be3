@@ -1,17 +1,14 @@
 use block_editor_beui::be_block::profile::{RECENTS, VIEW_EDITORS};
 use block_editor_beui::be_block::{
-    BlockContent, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
+    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::beui::icons::ICON_WEB_ASSET;
-use block_editor_beui::beui::reactive::{
-    Frame, ItemSize, List, Memo, ReadSignal, Spacer, Stored, WriteSignal, batch, component,
-    create_effect, create_memo, create_signal, store, untrack, view,
-};
-use block_editor_beui::beui::styled::{Caption, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
@@ -26,13 +23,15 @@ use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
+use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
 use super::picker::{Pick, PickAction, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, shown_size, tab_window, window_picture, window_tab, window_title,
+    WindowPanel, floating_window, kept_window, shown_size, tab_window, window_picture, window_tab,
+    window_title,
 };
 
 pub const FILES: TabId = TabId::new(1);
@@ -73,8 +72,6 @@ pub struct Workspace {
     set_titles: WriteSignal<HashMap<TabId, String>>,
     simulated: ReadSignal<HashMap<Uuid, AccessLevel>>,
     set_simulated: WriteSignal<HashMap<Uuid, AccessLevel>>,
-    debugged: ReadSignal<HashSet<Uuid>>,
-    set_debugged: WriteSignal<HashSet<Uuid>>,
     error: ReadSignal<Option<String>>,
     set_error: WriteSignal<Option<String>>,
     files: ReadSignal<Option<Uuid>>,
@@ -92,17 +89,23 @@ pub struct Workspace {
     pub(crate) share: ReadSignal<Option<Share>>,
     set_share: WriteSignal<Option<Share>>,
     windows: Memo<Vec<HostWindow>>,
+    keeps_windows: bool,
+    kept: ReadSignal<Kept>,
+    set_kept: WriteSignal<Kept>,
+    desk: Memo<kept::Desk>,
+    held: ReadSignal<bool>,
+    set_held: WriteSignal<bool>,
     panels: ReadSignal<Vec<HostPanel>>,
     set_panels: WriteSignal<Vec<HostPanel>>,
+    default_editors: Memo<EditorSettings>,
 }
 
 impl Workspace {
-    pub fn new(editor: Editor, with_files: bool) -> Self {
+    pub fn new(editor: Editor, with_files: bool, keeps_windows: bool) -> Self {
         let (tabs, set_tabs) = create_signal(Tabs::new());
         let (views, set_views) = create_signal(HashMap::new());
         let (titles, set_titles) = create_signal(HashMap::new());
         let (simulated, set_simulated) = create_signal(HashMap::new());
-        let (debugged, set_debugged) = create_signal(HashSet::new());
         let (error, set_error) = create_signal(None);
         let (files, set_files) = create_signal(None);
         let (routes, set_routes) = create_signal(0);
@@ -113,6 +116,12 @@ impl Workspace {
         let (share, set_share) = create_signal(None);
         let (panels, set_panels) = create_signal(Vec::new());
         let windows = editor.host_value::<HostWindows>();
+        let (kept, set_kept) = create_signal(Kept::default());
+        let desk = create_memo(move || {
+            kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
+        });
+        let (held, set_held) = create_signal(false);
+        let default_editors = editor.effective_settings::<EditorSettings>();
         let workspace = Self {
             state: store(State {
                 layout: DockingLayout::new(),
@@ -134,8 +143,6 @@ impl Workspace {
             set_titles,
             simulated,
             set_simulated,
-            debugged,
-            set_debugged,
             error,
             set_error,
             files,
@@ -148,11 +155,18 @@ impl Workspace {
             set_sheet,
             picks,
             set_picks,
+            default_editors,
             dialog,
             set_dialog,
             share,
             set_share,
             windows,
+            keeps_windows,
+            kept,
+            set_kept,
+            desk,
+            held,
+            set_held,
             panels,
             set_panels,
         };
@@ -185,7 +199,77 @@ impl Workspace {
         create_effect(move || {
             workspace.show_raised(&mut seen.borrow_mut());
         });
+        create_effect(move || {
+            workspace.settle_kept();
+        });
         workspace
+    }
+
+    fn settle_kept(&self) {
+        let desk = self.desk.get();
+        let kept = self.kept.get();
+        if !kept.restored {
+            return;
+        }
+        self.windows.with(|windows| {
+            for (window, key) in &desk.claims {
+                let fullscreen = kept
+                    .records
+                    .iter()
+                    .any(|record| record.key == *key && record.fullscreen);
+                if fullscreen {
+                    self.host().act(WindowAction::Fullscreen {
+                        window: *window,
+                        fullscreen: true,
+                    });
+                }
+            }
+            let next = kept::settle(&kept, &desk, windows);
+            untrack(|| self.set_kept.set(next));
+        });
+    }
+
+    pub fn desk(&self) -> Memo<Vec<HostWindowId>> {
+        let desk = self.desk;
+        create_memo(move || desk.with(|desk| desk.keys.clone()))
+    }
+
+    pub fn bound(&self, key: HostWindowId) -> Memo<Option<HostWindowId>> {
+        let desk = self.desk;
+        create_memo(move || desk.with(|desk| desk.window(key)))
+    }
+
+    fn window_key(&self, window: HostWindowId) -> HostWindowId {
+        self.desk.with_untracked(|desk| desk.key(window))
+    }
+
+    pub fn placeholders(&self) -> Memo<Vec<HostWindowId>> {
+        let desk = self.desk;
+        create_memo(move || desk.with(|desk| desk.placeholders.clone()))
+    }
+
+    pub fn placeholder(&self, key: HostWindowId) -> Option<KeptWindow> {
+        self.kept.with(|kept| {
+            kept.records
+                .iter()
+                .find(|record| record.key == key)
+                .cloned()
+        })
+    }
+
+    pub fn dismiss(&self, key: HostWindowId) {
+        if !self
+            .desk
+            .with_untracked(|desk| desk.placeholders.contains(&key))
+        {
+            return;
+        }
+        self.set_kept
+            .update(|kept| kept.records.retain(|record| record.key != key));
+    }
+
+    pub fn hold_saving(&self, held: bool) {
+        self.set_held.set(held);
     }
 
     fn show_raised(&self, seen: &mut HashMap<HostWindowId, u64>) {
@@ -220,7 +304,7 @@ impl Workspace {
                         None => break,
                     }
                 }
-                inner.layout.show(&window_tab(root));
+                inner.layout.show(&window_tab(self.window_key(root)));
             }
         });
     }
@@ -285,7 +369,7 @@ impl Workspace {
     }
 
     pub fn open_block(&self, id: Uuid, block_type: Uuid) {
-        self.open(TabItem { id, block_type }, None);
+        self.open(TabItem::new(id, block_type), None);
     }
 
     pub(crate) fn host(&self) -> EditorHost {
@@ -308,27 +392,6 @@ impl Workspace {
             .or_else(|| self.blocks().info(id))
     }
 
-    pub(crate) fn debug_data(&self, id: Uuid) -> Option<String> {
-        let info = self.info(id)?;
-        let parent = match info.parent {
-            BlockParent::Root => "root".to_owned(),
-            BlockParent::Detached => "detached".to_owned(),
-            BlockParent::Block(parent) => parent.to_string(),
-        };
-        let data = serde_json::json!({
-            "id": info.id.to_string(),
-            "type": info.block_type.to_string(),
-            "author": info.author.to_string(),
-            "parent": parent,
-            "name": info.name(),
-            "named_by_hand": info.named_by_hand(),
-            "references": info.references.iter().map(Uuid::to_string).collect::<Vec<_>>(),
-            "access": info.access.label(),
-            "artifact_source": info.artifact().map(|artifact| artifact.source_type.to_string()),
-        });
-        serde_json::to_string(&data).ok()
-    }
-
     pub(crate) fn types(&self) -> Rc<BlockCatalog> {
         self.editor.block_types()
     }
@@ -339,10 +402,6 @@ impl Workspace {
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<AccessLevel> {
         self.simulated.with(|simulated| simulated.get(&id).copied())
-    }
-
-    pub(crate) fn is_debugged(&self, id: Uuid) -> bool {
-        self.debugged.with(|debugged| debugged.contains(&id))
     }
 
     fn show_requested(&self) {
@@ -366,10 +425,7 @@ impl Workspace {
         }
         for request in self.host().take_show_requests() {
             self.open(
-                TabItem {
-                    id: request.block_id,
-                    block_type: request.block_type,
-                },
+                TabItem::new(request.block_id, request.block_type).edited_with(request.editor),
                 request.via,
             );
         }
@@ -589,13 +645,31 @@ impl Workspace {
                 self.set_tabs.set(tabs);
                 self.set_views.set(views);
                 self.set_panels.set(panels);
+                self.keep(restored.windows);
                 inner.layout.restore(restored.dock);
             });
+        }
+        if !self.kept.with_untracked(|kept| kept.restored) {
+            self.keep(Vec::new());
         }
         if self.with_files {
             let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
             self.set_files.set(files);
         }
+    }
+
+    fn keep(&self, records: Vec<KeptWindow>) {
+        if !self.keeps_windows {
+            return;
+        }
+        let seen = self
+            .windows
+            .with_untracked(|windows| windows.iter().map(|window| window.id).collect());
+        self.set_kept.set(Kept {
+            restored: true,
+            records,
+            seen,
+        });
     }
 
     fn save(&self) {
@@ -604,10 +678,19 @@ impl Workspace {
         let tabs = self.tabs.get();
         let views = self.views.get();
         let files = self.files.get();
-        if !inner.restored.get() {
+        let windows = match self.keeps_windows {
+            true => self.kept.with(|kept| {
+                self.desk.with(|desk| {
+                    self.windows
+                        .with(|windows| kept::saved(kept, desk, windows))
+                })
+            }),
+            false => Vec::new(),
+        };
+        if !inner.restored.get() || self.held.get() {
             return;
         }
-        let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views);
+        let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, windows);
         untrack(|| self.editor.set_view_state(LAYOUT, Some(&state)));
     }
 
@@ -750,6 +833,9 @@ impl Workspace {
         self.record_via(item.id, via);
         self.record_type(item.id, item.block_type);
         if let Some(tab) = self.tab_showing(item.id) {
+            if item.editor.is_some() {
+                self.switch_editor(tab, item);
+            }
             inner.layout.show(&tab);
             inner.active.set(Some(item.id));
             return;
@@ -771,6 +857,50 @@ impl Workspace {
         inner.active.set(Some(item.id));
     }
 
+    fn switch_editor(&self, tab: TabId, item: TabItem) {
+        let mut tabs = self.tabs.get_untracked();
+        let Some(held) = tabs.get_mut(&tab) else {
+            return;
+        };
+        if held.editor == item.editor {
+            return;
+        }
+        held.editor = item.editor;
+        if !VIEW_EDITORS.contains(&item.block_type) {
+            let mut views = self.views.get_untracked();
+            if let Some(view) = views.remove(&tab)
+                && view != item.id
+            {
+                self.blocks().set_parent(view, BlockParent::Detached);
+            }
+            if let Some(view) = self.create_view(item.block_type, Some(item.id)) {
+                views.insert(tab, view);
+            }
+            self.set_views.set(views);
+        }
+        self.set_tabs.set(tabs);
+    }
+
+    pub(crate) fn editor_of(&self, item: &TabItem) -> Option<Uuid> {
+        let types = self.types();
+        item.editor
+            .filter(|editor| {
+                types
+                    .editor(*editor)
+                    .is_some_and(|entry| entry.edits(item.block_type))
+            })
+            .or_else(|| {
+                self.default_editors
+                    .with(|defaults| defaults.default_editor(item.block_type))
+                    .filter(|editor| {
+                        types
+                            .editor(*editor)
+                            .is_some_and(|entry| entry.edits(item.block_type))
+                    })
+            })
+            .or_else(|| types.built_in_editor(item.block_type))
+    }
+
     pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
         self.set_sheet.set(sheet);
     }
@@ -790,8 +920,12 @@ impl Workspace {
     }
 
     fn close(&self, tab: TabId) {
-        if let Some(window) = tab_window(tab) {
-            self.host().act(WindowAction::Close(window));
+        if let Some(key) = tab_window(tab) {
+            match self.desk.with_untracked(|desk| desk.window(key)) {
+                Some(window) => self.host().act(WindowAction::Close(window)),
+                None if self.keeps_windows => self.dismiss(key),
+                None => self.host().act(WindowAction::Close(key)),
+            }
             return;
         }
         if let Some(panel) = tab_panel(tab) {
@@ -824,9 +958,6 @@ impl Workspace {
         let mut simulated = self.simulated.get_untracked();
         simulated.remove(&id);
         self.set_simulated.set(simulated);
-        let mut debugged = self.debugged.get_untracked();
-        debugged.remove(&id);
-        self.set_debugged.set(debugged);
         if inner.active.get() == Some(id) {
             inner.active.set(None);
             self.rerouted();
@@ -864,22 +995,10 @@ impl Workspace {
     }
 
     pub(crate) fn simulate(&self, id: Uuid, level: AccessLevel) {
-        let mut debugged = self.debugged.get_untracked();
-        debugged.remove(&id);
-        self.set_debugged.set(debugged);
         let mut simulated = self.simulated.get_untracked();
         simulated.insert(id, level);
         self.set_simulated.set(simulated);
         self.host().simulate_access(id, level);
-    }
-
-    pub(crate) fn debug(&self, id: Uuid, debugging: bool) {
-        let mut debugged = self.debugged.get_untracked();
-        match debugging {
-            true => debugged.insert(id),
-            false => debugged.remove(&id),
-        };
-        self.set_debugged.set(debugged);
     }
 
     pub(crate) fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
@@ -956,13 +1075,7 @@ impl Workspace {
                         None => {}
                     }
                 }
-                workspace.open(
-                    TabItem {
-                        id: picked.id,
-                        block_type: picked.block_type,
-                    },
-                    container,
-                );
+                workspace.open(TabItem::new(picked.id, picked.block_type), container);
             },
         );
     }
@@ -1022,106 +1135,95 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
 }
 
 #[component]
-pub fn WindowTab(workspace: Workspace, window: HostWindowId) -> DockEntry<TabId> {
+pub fn WindowTab(
+    workspace: Workspace,
+    key: HostWindowId,
+    #[prop(default = false)] offers_fullscreen: bool,
+    placeholder: Option<RenderFn<HostWindowId>>,
+) -> DockEntry<TabId> {
+    let bound = workspace.bound(key);
     let windows = workspace.windows;
-    let name = create_memo(move || {
-        windows.with(|windows| {
-            windows
-                .iter()
-                .find(|listed| listed.id == window)
-                .map_or_else(|| "Window".to_owned(), window_title)
-        })
+    let info = create_memo(move || {
+        let window = bound.get()?;
+        windows.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
     });
-    let listed = workspace.windows;
-    let responding = create_memo(move || {
-        listed.with(|windows| {
-            windows
-                .iter()
-                .find(|listed| listed.id == window)
-                .is_none_or(|listed| listed.responding)
-        })
+    let name = create_memo(move || match info.get() {
+        Some(info) => window_title(&info),
+        None => workspace
+            .placeholder(key)
+            .map(|kept| match kept.title.is_empty() {
+                true => kept.app_id,
+                false => kept.title,
+            })
+            .filter(|title| !title.is_empty())
+            .unwrap_or_else(|| "Window".to_owned()),
     });
+    let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
     let title = create_memo(move || match responding.get() {
         true => name.get(),
         false => format!("{} (not responding)", name.get()),
     });
-    let listed = workspace.windows;
     let fullscreen = create_memo(move || {
-        listed.with(|windows| {
-            let area = windows
-                .iter()
-                .find(|listed| listed.id == window)?
-                .fullscreen?;
-            Some(Rect::from_min_size(
-                pos2(area.x, area.y),
-                vec2(area.width, area.height),
-            ))
-        })
+        let area = info.get()?.fullscreen?;
+        Some(Rect::from_min_size(
+            pos2(area.x, area.y),
+            vec2(area.width, area.height),
+        ))
     });
-    let listed = workspace.windows;
-    let focused = create_memo(move || {
-        listed.with(|windows| {
-            windows
-                .iter()
-                .any(|listed| listed.id == window && listed.focused)
-        })
-    });
-    let listed = workspace.windows;
+    let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let size = create_memo(move || {
-        listed.with(|windows| {
-            windows
-                .iter()
-                .find(|listed| listed.id == window)
-                .map(|listed| vec2(listed.size.width, listed.size.height))
-        })
+        info.get()
+            .map(|info| vec2(info.size.width, info.size.height))
     });
-    let listed = workspace.windows;
-    let icon = create_memo(move || {
-        listed.with(|windows| {
-            windows
-                .iter()
-                .find(|listed| listed.id == window)?
-                .icon
-                .clone()
-        })
-    });
-    let picture = create_memo(move || icon.get().as_ref().and_then(window_picture));
+    let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
     let editor = workspace.editor();
+    let tab = window_tab(key);
     view! {
-        <DockTab
-            id={window_tab(window)}
-            title
-            icon=ICON_WEB_ASSET
-            picture
-            on_close={move || workspace.close(window_tab(window))}
-        >
-            <WindowPanel
-                editor={editor}
-                window
-                fullscreen={fullscreen}
-                name={name}
-                responding={responding}
-                focused={focused}
-                size={size}
-            />
+        <DockTab id={tab} title icon=ICON_WEB_ASSET picture on_close={move || workspace.close(tab)}>
+            <Layers>
+                <Dynamic value={bound}>
+                    {move |bound: Option<HostWindowId>| match (bound, placeholder) {
+                        (Some(window), _) => view! {
+                            <WindowPanel
+                                editor={editor}
+                                window
+                                offers_fullscreen
+                                fullscreen={fullscreen}
+                                name={name}
+                                responding={responding}
+                                focused={focused}
+                                size={size}
+                            />
+                        },
+                        (None, Some(placeholder)) => placeholder.call(key),
+                        (None, None) => view! {
+                            <Frame />
+                        },
+                    }}
+                </Dynamic>
+            </Layers>
         </DockTab>
     }
 }
 
 #[component]
-pub fn FloatingWindow(workspace: Workspace, window: HostWindowId) -> DockNode<TabId> {
+pub fn FloatingWindow(
+    workspace: Workspace,
+    key: HostWindowId,
+    placeholder: RenderFn<HostWindowId>,
+) -> DockNode<TabId> {
+    let window = workspace.bound(key).get_untracked();
     let rect = workspace
         .windows
         .get_untracked()
         .iter()
-        .find(|listed| listed.id == window)
-        .map(floating_window)
-        .unwrap_or_else(|| panel_window(HostPanel::BlockStack));
-    let key = format!("window.{}", window.0);
+        .find(|listed| Some(listed.id) == window)
+        .map_or_else(|| kept_window(key), floating_window);
+    let pane = format!("window.{}", key.0);
     view! {
-        <DockWindow id={key.clone()} rect>
-            <DockPane id={key}>
-                <WindowTab workspace window />
+        <DockWindow id={pane.clone()} rect>
+            <DockPane id={pane}>
+                <WindowTab workspace key offers_fullscreen=true placeholder={placeholder} />
             </DockPane>
         </DockWindow>
     }
@@ -1155,7 +1257,7 @@ pub fn AttachedWindow(
     view! {
         <DockDialog
             id={window_tab(window)}
-            parent={window_tab(parent)}
+            parent={window_tab(workspace.window_key(parent))}
             title={title}
             icon=ICON_WEB_ASSET
             size
@@ -1165,6 +1267,7 @@ pub fn AttachedWindow(
             <WindowPanel
                 editor={editor}
                 window
+                offers_fullscreen=false
                 fullscreen={fullscreen}
                 name={title}
                 responding={responding}
@@ -1197,17 +1300,15 @@ pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
 
 #[component]
 pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame visible={failed}>
-            <Caption content={reason} color={theme.danger} />
+            <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
         </Frame>
     }
 }
 
 #[component]
 pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
-    let theme = use_theme();
     let shown = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
     let message = create_memo(move || {
         state.with(|state| match &state.error {
@@ -1216,9 +1317,9 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
         })
     });
     view! {
-        <Frame visible={shown} padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame visible={shown} padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
-                <Caption content={message} color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string={message} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>

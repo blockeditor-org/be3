@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, Frame, ItemSize, List, NodeRef, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_percent_child_stops_at_its_max_and_hands_the_rest_on() {

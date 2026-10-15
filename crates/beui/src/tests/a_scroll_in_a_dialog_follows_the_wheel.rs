@@ -1,6 +1,8 @@
 use super::*;
-use crate::reactive::{NodeRef, Show};
-use crate::styled::{Dialog, Scroll};
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn a_scroll_in_a_dialog_follows_the_wheel() {

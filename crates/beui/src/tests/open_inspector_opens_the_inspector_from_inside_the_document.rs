@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{view, with_document};
+use crate::reactive::*;
 
 #[test]
 fn open_inspector_opens_the_inspector_from_inside_the_document() {
