@@ -1,6 +1,6 @@
 use image::RgbaImage;
 
-use crate::format::{Content, Frame, Glyph, RoundedRect, Snapshot, Texture};
+use crate::{Content, Frame, Glyph, RoundedRect, Snapshot, Texture};
 
 pub fn render(snapshot: &Snapshot, frame: usize) -> Result<RgbaImage, String> {
     let frame: &Frame = snapshot.frame(frame)?;
@@ -217,7 +217,7 @@ impl Sampler {
 fn fill(
     canvas: &mut RgbaImage,
     clip: [i64; 4],
-    corners: [crate::format::Vertex; 3],
+    corners: [crate::Vertex; 3],
     scale: f32,
     sampler: &Sampler,
 ) {

@@ -114,6 +114,7 @@ pub(crate) struct Shared {
     pub(crate) presence_revision: u64,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
+    pub(crate) owing: usize,
     pub(crate) connected: bool,
     pub(crate) error: Option<String>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
@@ -1444,6 +1445,10 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         .values()
         .filter(|session| !session.is_clean())
         .count();
+    let owing = sessions
+        .values()
+        .filter(|session| session.owes_seal())
+        .count();
     let published: Vec<Published> = sessions
         .iter_mut()
         .map(|(block, session)| {
@@ -1468,8 +1473,9 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         })
         .collect();
     let mut held = shared.lock().unwrap();
+    let mut changed = held.owing != owing;
     held.unsealed = unsealed;
-    let mut changed = false;
+    held.owing = owing;
     for published in published {
         let block = published.block;
         if held.histories.get(&block) != Some(&published.history) {

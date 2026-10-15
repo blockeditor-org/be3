@@ -1731,6 +1731,11 @@ pub enum Message {
         screen: ScreenId,
         request: accesskit::ActionRequest,
     },
+    Extension {
+        key: [u8; 16],
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
 }
 
 impl Message {
@@ -1780,7 +1785,7 @@ impl Message {
             | Self::FrameNeeded
             | Self::FrameReady(_)
             | Self::Children(_) => Direction::ToHost,
-            Self::Error(_) => Direction::Either,
+            Self::Error(_) | Self::Extension { .. } => Direction::Either,
             Self::Editor(editor) => editor.direction(),
         }
     }
@@ -2561,6 +2566,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         }
         Message::Children(value) => validate_children(value),
         Message::RunAction { id, .. } => string(id),
+        Message::Extension { payload, .. } => blob(payload),
         Message::NodeAction { request, .. } => match &request.data {
             Some(accesskit::ActionData::Value(value)) => text(value),
             _ => Ok(()),

@@ -1003,6 +1003,10 @@ impl EditorSession {
         frame
     }
 
+    pub(crate) fn painting(&mut self, region: EditorRegion) -> Option<paint_format::Painting> {
+        self.app.painting(region)
+    }
+
     #[cfg(target_arch = "wasm32")]
     pub fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
         self.app.paint(target)

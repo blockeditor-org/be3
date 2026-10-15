@@ -2246,6 +2246,7 @@ impl Driven {
                     Reply::Text(text) => Ok(text),
                     Reply::Error(error) => Err(error),
                     Reply::Image { .. } => Err("an image".to_owned()),
+                    Reply::Painting(_) => Err("a painting".to_owned()),
                 };
             }
         }

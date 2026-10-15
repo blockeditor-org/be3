@@ -128,6 +128,10 @@ pub fn write_reply(writer: &mut impl Write, reply: &Reply) -> io::Result<()> {
             writeln!(writer, "image {width} {height}")?;
             writer.write_all(rgba)?;
         }
+        Reply::Painting(bytes) => {
+            writeln!(writer, "painting {}", bytes.len())?;
+            writer.write_all(bytes)?;
+        }
     }
     writer.flush()
 }
@@ -157,6 +161,7 @@ pub fn read_reply(reader: &mut impl BufRead) -> io::Result<Reply> {
         Some("error") => Ok(Reply::Error(
             String::from_utf8(read(number(1)?)?).map_err(|_| invalid())?,
         )),
+        Some("painting") => Ok(Reply::Painting(read(number(1)?)?)),
         Some("image") => {
             let (width, height) = (number(1)?, number(2)?);
             Ok(Reply::Image {

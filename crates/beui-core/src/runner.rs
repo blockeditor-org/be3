@@ -386,6 +386,9 @@ impl Runner {
                 context: &self.context,
             };
             automation.begin(&view, &mut world);
+            if automation.take_painting_request() {
+                self.app.request_painting();
+            }
             if automation.take_close() {
                 let accepted = self.app.close_requested();
                 automation.closed(accepted);
@@ -537,6 +540,15 @@ impl Runner {
             }
             if automation.wants_capture() && !self.unpresented {
                 automation.captured(renderers.capture());
+            }
+            if automation.wants_painting() {
+                automation.painted(crate::painting::painting(
+                    &output,
+                    screen,
+                    scale,
+                    self.app.clear_color(),
+                    crate::painting::Punches::Erase,
+                ));
             }
         }
         self.output = Some(output);

@@ -196,6 +196,7 @@ fn name(message: &Message) -> &'static str {
         Message::Describe(_) => "a description request",
         Message::RunAction { .. } => "an action to run",
         Message::NodeAction { .. } => "an action on a described node",
+        Message::Extension { .. } => "an extension message",
     }
 }
 

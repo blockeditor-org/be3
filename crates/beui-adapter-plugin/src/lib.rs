@@ -247,6 +247,23 @@ impl PluginSurface {
         rect.scaled(context.pixels_per_point() / region.scale_factor)
     }
 
+    pub fn painting(&self) -> Option<beui_core::painting::Painting> {
+        let output = self.runner.output()?;
+        let (width, height) = self.surface.borrow().size?;
+        let pixels_per_point = output.pixels_per_point();
+        beui_core::painting::painting(
+            output,
+            beui_core::geometry::vec2(
+                width as f32 / pixels_per_point,
+                height as f32 / pixels_per_point,
+            ),
+            pixels_per_point,
+            beui_core::color::Color32::TRANSPARENT,
+            beui_core::painting::Punches::Erase,
+        )
+        .ok()
+    }
+
     pub fn take_output(&mut self) -> Option<FrameOutput> {
         self.runner.take_output()
     }

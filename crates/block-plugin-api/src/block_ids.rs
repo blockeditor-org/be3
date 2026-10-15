@@ -61,7 +61,8 @@ impl Message {
             | Self::ChildStatuses(_)
             | Self::Describe(_)
             | Self::RunAction { .. }
-            | Self::NodeAction { .. } => {}
+            | Self::NodeAction { .. }
+            | Self::Extension { .. } => {}
         }
     }
 }
