@@ -772,8 +772,11 @@ very top shows a row inserted above the rest rather than holding the rows below
 in place.
 
 Rows belong to their keys, not to their positions. Scrolling reuses the rows
-that stay in view and disposes the effects of the ones that leave, and the item
-builder runs once per key for as long as that row stays in view. Changing `keys`
+that stay in view, and keeps the ones that just left, as many as are in view
+and only while they are within a window's length of it, so scrolling back
+shows them without building them again; anything further away is disposed
+with its effects, so a long jump or a list scrolled out of view keeps nothing.
+The item builder runs once per key for as long as its row is kept. Changing `keys`
 keeps every row whose key is still there: inserting a key anywhere builds only
 its row, and only if it lands in view; removing one disposes only its row; and
 the sizes the list measured move with their keys. A key inserted or removed

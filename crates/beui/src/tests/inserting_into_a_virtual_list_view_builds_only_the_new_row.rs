@@ -22,7 +22,10 @@ fn inserting_into_a_virtual_list_view_builds_only_the_new_row() {
     assert_eq!(after.len(), rows.len());
     assert_eq!(after[..INSERTED_AT], rows[..INSERTED_AT]);
     assert_eq!(after[INSERTED_AT + 1..], rows[INSERTED_AT..rows.len() - 1]);
-    assert!(!harness.document.contains(*rows.last().unwrap()));
+    assert!(
+        harness.document.contains(*rows.last().unwrap()),
+        "the row pushed just out of view is kept to be shown again"
+    );
     assert_eq!(
         harness.rect(after[INSERTED_AT + 1]).top(),
         (INSERTED_AT + 1) as f32 * VIRTUAL_ITEM_HEIGHT
