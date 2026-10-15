@@ -1,6 +1,7 @@
 mod dylink;
 mod gpu;
 mod harness;
+mod interrupt;
 mod panic;
 mod precompile;
 mod state;
@@ -26,15 +27,19 @@ use wasmtime::{
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use dylink::Program;
+use interrupt::Interrupt;
 use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
+pub use interrupt::Interrupter;
 pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
 pub use wasm_dylink::sdk_file_name;
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
+
+const INTERRUPTED: &str = "the plugin was stopped while it ran";
 
 const CONSTRUCTORS: &str = "__wasm_call_ctors";
 
@@ -47,6 +52,7 @@ pub struct Host {
     engine: Engine,
     sdks: Sdks,
     devices: Devices,
+    interrupt: Arc<Interrupt>,
 }
 
 #[derive(Clone)]
@@ -74,6 +80,7 @@ impl Host {
     ) -> Result<Self, String> {
         let (engine, sdks) = engine(cache)?;
         Ok(Self {
+            interrupt: Interrupt::new(engine.clone()),
             engine,
             sdks,
             devices: Devices::Given(device, queue),
@@ -86,10 +93,15 @@ impl Host {
     ) -> Result<Self, String> {
         let (engine, sdks) = engine(cache)?;
         Ok(Self {
+            interrupt: Interrupt::new(engine.clone()),
             engine,
             sdks,
             devices: Devices::OnDemand(Arc::new(connect)),
         })
+    }
+
+    pub fn interrupter(&self) -> Interrupter {
+        Interrupter::new(&self.interrupt)
     }
 
     pub fn load(&self, path: &Path) -> Result<Plugin, String> {
@@ -210,6 +222,7 @@ impl Plugin {
             program.clone(),
             memory.clone(),
             Arc::clone(&wake),
+            Arc::clone(&host.interrupt),
         );
         let state = State {
             wasi,
@@ -223,6 +236,7 @@ impl Plugin {
             wake: Arc::clone(&wake),
         };
         let mut store = Store::new(&engine, state);
+        interrupt::watch(&mut store, true);
         let mut linker: Linker<State> = Linker::new(&engine);
         p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked: {error}"))?;
@@ -288,11 +302,18 @@ impl Plugin {
         if self.stopped {
             return Ok(());
         }
+        if self.interrupted() {
+            self.stopped = true;
+            return Err(INTERRUPTED.to_owned());
+        }
         if let Some(failure) = self.store.data_mut().threads.take_failure() {
             self.stopped = true;
             return Err(failure);
         }
         let outcome = function.call(&mut self.store, ()).map_err(|error| {
+            if self.store.data().threads.halts(true) {
+                return INTERRUPTED.to_owned();
+            }
             panic::message(&error).unwrap_or_else(|| format!("the plugin trapped: {error}"))
         });
         if let Err(error) = outcome {
@@ -358,7 +379,13 @@ impl Plugin {
         }
         self.stopped = true;
         self.store.data().threads.stop();
-        let _ = self.shutdown.call(&mut self.store, ());
+        if !self.interrupted() {
+            let _ = self.shutdown.call(&mut self.store, ());
+        }
+    }
+
+    fn interrupted(&self) -> bool {
+        self.store.data().threads.halts(true)
     }
 }
 
@@ -457,6 +484,7 @@ fn configuration() -> Config {
     config.shared_memory(true);
     config.wasm_bulk_memory(true);
     config.wasm_exceptions(true);
+    config.epoch_interruption(true);
     config.wasm_backtrace_max_frames(NonZeroUsize::new(BACKTRACE_FRAMES));
     if std::env::var_os("BE3_PERF_MAP").is_some() {
         config.profiler(wasmtime::ProfilingStrategy::PerfMap);
