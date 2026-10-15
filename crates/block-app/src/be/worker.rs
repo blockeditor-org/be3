@@ -1468,8 +1468,8 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         })
         .collect();
     let mut held = shared.lock().unwrap();
+    let mut changed = held.unsealed != unsealed;
     held.unsealed = unsealed;
-    let mut changed = false;
     for published in published {
         let block = published.block;
         if held.histories.get(&block) != Some(&published.history) {

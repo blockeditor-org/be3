@@ -206,6 +206,9 @@ pub async fn automate(
         beui::automation::Reply::Image { .. } => {
             Err("the browser takes screenshots itself: use drive shot".into())
         }
+        beui::automation::Reply::Painting(_) => {
+            Err("the web build does not answer paint; run the app natively".into())
+        }
     }
 }
 
@@ -254,7 +257,7 @@ impl Shell {
         document.on_interacted(plugin_host::start_frames);
         document.on_laid_out(|| {
             plugin_host::settle();
-            compositor::notify_plugins();
+            compositor::notify_after_layout();
         });
         Self {
             document,
@@ -350,7 +353,8 @@ impl beui::App for Shell {
     }
 
     fn busy(&self) -> bool {
-        self.app.error.is_none() && (self.app.busy() || plugin_host::busy())
+        self.app.error.is_none()
+            && (self.app.busy() || plugin_host::busy() || compositor::owes_frame())
     }
 
     fn environment(&self) -> Vec<(String, String)> {
@@ -359,6 +363,10 @@ impl beui::App for Shell {
 
     fn drawing(&self) -> bool {
         plugin_host::drawing()
+    }
+
+    fn request_painting(&mut self) {
+        plugin_host::request_painting();
     }
 
     fn close_requested(&mut self) -> bool {

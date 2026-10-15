@@ -55,6 +55,8 @@ pub trait App {
     fn drawing(&self) -> bool {
         false
     }
+
+    fn request_painting(&mut self) {}
 }
 
 pub struct Setup {

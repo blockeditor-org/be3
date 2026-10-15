@@ -13,11 +13,6 @@ export_file(
 )
 
 export_file(
-    name = "smoke.sh",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
     name = "web-dev.sh",
     visibility = ["PUBLIC"],
 )

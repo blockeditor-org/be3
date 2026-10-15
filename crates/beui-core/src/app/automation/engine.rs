@@ -36,6 +36,8 @@ pub const USAGE: &str = "Reading:
   env                       NAME=VALUE lines a program needs to show its windows inside the app,
                             such as WAYLAND_DISPLAY; empty when the app hosts no programs
   shot [TARGET]             a screenshot, of TARGET only when given
+  paint [TARGET]            what the window paints, plugins included, as a paint snapshot,
+                            of TARGET only when given
 Pointer:
   click TARGET [right|middle|double]
   move TARGET               move the pointer onto TARGET (hover)
@@ -141,6 +143,11 @@ enum Phase {
     Capturing {
         crop: Option<Rect>,
         drawn: bool,
+    },
+    Painting {
+        asked: bool,
+        ready: bool,
+        crop: Option<[f32; 4]>,
     },
     Reading {
         pasted: std::sync::mpsc::Receiver<Pasted>,
@@ -331,6 +338,12 @@ impl Automation {
         if let Phase::Capturing { drawn, .. } = &mut active.phase {
             *drawn = !settled.drawing;
         }
+        if let Phase::Painting {
+            asked: true, ready, ..
+        } = &mut active.phase
+        {
+            *ready = quiet;
+        }
         let mut failed = None;
         match &mut active.phase {
             Phase::Input {
@@ -433,6 +446,47 @@ impl Automation {
                 ..
             })
         )
+    }
+
+    pub fn take_painting_request(&mut self) -> bool {
+        match &mut self.active {
+            Some(Active {
+                phase: Phase::Painting { asked, .. },
+                ..
+            }) if !*asked => {
+                *asked = true;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn wants_painting(&self) -> bool {
+        matches!(
+            self.active,
+            Some(Active {
+                phase: Phase::Painting { ready: true, .. },
+                ..
+            })
+        )
+    }
+
+    pub fn painted(&mut self, painting: Result<crate::painting::Painting, String>) {
+        let Some(Active {
+            phase: Phase::Painting { crop, .. },
+            ..
+        }) = &self.active
+        else {
+            return;
+        };
+        let crop = *crop;
+        self.finish(match painting {
+            Ok(painting) => match crop {
+                Some(crop) => Reply::Painting(painting.cropped(crop).encode()),
+                None => Reply::Painting(painting.encode()),
+            },
+            Err(error) => Reply::Error(error),
+        });
     }
 
     pub fn captured(&mut self, capture: Option<Capture>) {
@@ -1072,6 +1126,26 @@ impl Automation {
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing { crop, drawn: false }))
+            }
+            "paint" => {
+                let scale = view.pixels_per_point;
+                let crop = match arguments.first() {
+                    Some(target) => {
+                        let rect = locate(target, view.lines)?;
+                        Some([
+                            rect.min.x / scale,
+                            rect.min.y / scale,
+                            rect.max.x / scale,
+                            rect.max.y / scale,
+                        ])
+                    }
+                    None => None,
+                };
+                Ok(Started::Phase(Phase::Painting {
+                    asked: false,
+                    ready: false,
+                    crop,
+                }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }

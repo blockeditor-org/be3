@@ -198,6 +198,50 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+pub(crate) fn start(
+    program: &str,
+    arguments: Vec<String>,
+    size: &str,
+    libraries: Option<String>,
+    dir: &Path,
+    log: &Path,
+) -> Result<Child, String> {
+    Launch {
+        program: Some(program.to_owned()),
+        data: true,
+        fresh: true,
+        libraries,
+        size: Some(size.to_owned()),
+        arguments,
+        ..Launch::default()
+    }
+    .start(dir, Some(log))
+}
+
+pub(crate) fn wait_for_exit(mut child: Child, timeout: Duration) -> Result<(), String> {
+    let pid = child.id();
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(child.wait());
+    });
+    match receiver.recv_timeout(timeout) {
+        Ok(Ok(status)) if status.success() => Ok(()),
+        Ok(Ok(status)) => Err(format!("the app exited with {status}")),
+        Ok(Err(error)) => Err(format!("could not wait for the app: {error}")),
+        Err(_) => {
+            kill_group(pid);
+            Err(format!(
+                "the app did not exit within {} seconds of closing",
+                timeout.as_secs()
+            ))
+        }
+    }
+}
+
+pub(crate) fn kill(pid: u32) {
+    kill_group(pid);
+}
+
 pub fn run_script(arguments: &[String]) -> Result<(), String> {
     let mut launch = parse(arguments, RUN_USAGE)?;
     launch.fresh = true;

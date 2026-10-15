@@ -658,7 +658,8 @@ fn send(command: Command) {
 }
 
 pub(crate) fn busy() -> bool {
-    with_shared(|shared| shared.pending > 0 || !shared.graph.loaded).unwrap_or_default()
+    with_shared(|shared| shared.pending > 0 || shared.unsealed > 0 || !shared.graph.loaded)
+        .unwrap_or_default()
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -740,6 +741,11 @@ pub(crate) fn has_head(block: Uuid) -> bool {
 
 pub(crate) fn node(block: Uuid) -> Option<Node> {
     with_shared(|shared| shared.graph.get(block).cloned())?
+}
+
+pub(crate) fn may_load(block: Uuid) -> bool {
+    node(block).is_none_or(|node| node.access.can_view())
+        && with_shared(|shared| !shared.unreadable.contains_key(&block)).unwrap_or_default()
 }
 
 pub(crate) fn access(block: Uuid) -> be_graph::Access {

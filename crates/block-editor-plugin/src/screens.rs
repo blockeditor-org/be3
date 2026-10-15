@@ -126,6 +126,23 @@ impl Screens {
         })
     }
 
+    pub(crate) fn paintings(&mut self) -> Message {
+        let mut paintings = paint_format::ScreenPaintings::default();
+        for placement in self.layout.screens.clone() {
+            if let Some(painting) = self
+                .sessions
+                .get_mut(&placement.instance)
+                .and_then(|session| session.painting(placement.region))
+            {
+                paintings.screens.push((placement.screen.0, painting));
+            }
+        }
+        Message::Extension {
+            key: paint_format::PAINTING_EXTENSION,
+            payload: paintings.encode(),
+        }
+    }
+
     pub(crate) fn layout(&self) -> &ScreenLayout {
         &self.layout
     }
