@@ -62,33 +62,12 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 view! {
                     <CanvasMenu disabled={previewing}>
                         <Frame padding={inset}>
-                        <CanvasSurface state={state}>
-                            <Canvas
-                                view={create_memo(move || Some(placement.get()))}
-                                @test_id={"infinite-canvas.canvas"}
-                            >
-                                <CanvasBackdrop
-                                    state={state}
-                                    camera={backdrop_camera}
-                                    stage={backdrop_stage}
-                                />
-                                <ForEach keys={ids}>
-                                    {move |id: Uuid| {
-                                        let camera = shape_camera;
-                                        view! {
-                                            <EntityShape state id camera />
-                                        }
-                                    }}
-                                </ForEach>
-                                <ForEach keys={embeds}>
-                                    {move |id: Uuid| {
-                                        view! {
-                                            <EntityEmbed state id />
-                                        }
-                                    }}
-                                </ForEach>
-                                <Show condition={!previewing}>
-                                    <CanvasOverlay
+                            <CanvasSurface state={state}>
+                                <Canvas
+                                    view={create_memo(move || Some(placement.get()))}
+                                    @test_id={"infinite-canvas.canvas"}
+                                >
+                                    <CanvasBackdrop
                                         state={state}
                                         camera={backdrop_camera}
                                         stage={backdrop_stage}
