@@ -19,12 +19,20 @@ fn add_root_block(app: &mut AppTest, label: &str) {
 fn add_to_canvas(app: &mut AppTest, target: &str) {
     app.click("#infinite-canvas.dock.block");
     app.wait("Dialog \"Add block\"");
-    while app
-        .tree()
-        .lines()
-        .any(|line| line.contains(target) && line.contains("offscreen"))
-    {
+    let hidden = |app: &mut AppTest| {
+        app.tree()
+            .lines()
+            .any(|line| line.contains(target) && line.contains("offscreen"))
+    };
+    for _ in 0..50 {
+        if !hidden(app) {
+            break;
+        }
         app.run(&["wheel", "Dialog \"Add block\"", "3"]);
+    }
+    if hidden(app) {
+        let tree = app.tree();
+        panic!("scrolling the add-block dialog never showed {target:?}:\n{tree}");
     }
     app.click(target);
     app.gone("Dialog \"Add block\"");

@@ -9,8 +9,6 @@ fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
     add_to_canvas(&mut app, "Label value=\"Pixel Art\"");
     let card = app.place("GenericContainer #infinite-canvas.entity.");
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
-    app.crop("#workspace.block");
-    app.record();
 
     app.run(&["click", &inside]);
     app.wait("Pane \"Pixel Art\"");
@@ -25,7 +23,6 @@ fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
         (artwork.0 - card.0).abs() < card.2 && (artwork.1 - card.1).abs() < card.3,
         "the artwork stays where the card was, at {artwork:?} rather than {card:?}"
     );
-    app.record();
 
     app.run(&["wheel", &inside, "2"]);
     let panned = app.place(ARTWORK);
@@ -48,11 +45,9 @@ fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
         zoomed.1 + zoomed.3 / 2.0
     );
     app.run(&["click", &pixel]);
-    app.record();
 
     app.key("Escape");
     app.wait("#infinite-canvas.dock");
     app.gone("Pane \"Pixel Art\"");
-    app.snapshot("a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it");
     app.close();
 }

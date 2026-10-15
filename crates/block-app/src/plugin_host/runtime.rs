@@ -846,6 +846,10 @@ pub(crate) fn report_children(
         let messages = runtime
             .instances
             .set_child_statuses(instance, region, statuses);
+        if !messages.is_empty() {
+            runtime.pacing.needed = true;
+            host::request_repaint();
+        }
         runtime.send(messages);
     });
 }
