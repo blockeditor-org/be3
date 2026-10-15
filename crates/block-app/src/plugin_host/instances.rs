@@ -785,9 +785,7 @@ impl Instances {
     }
 
     pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: EditorRegion) {
-        if let Some(screen) = self.screen_mut(instance, region)
-            && screen.mounted <= 1
-        {
+        if let Some(screen) = self.screen_mut(instance, region) {
             screen.unplace();
         }
     }
