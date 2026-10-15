@@ -115,7 +115,7 @@ impl Pick {
             PickAction::Search(search) => self.search = search,
             PickAction::Name(name) => self.name = name,
             PickAction::Place(place) => {
-                if self.place.is_some() {
+                if self.place.is_some() && self.importing.is_none() {
                     self.place = Some(place);
                 }
             }

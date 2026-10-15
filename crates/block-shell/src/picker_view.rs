@@ -367,6 +367,9 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
             .collect::<Vec<BlockParent>>()
     });
     let chosen = create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.place)));
+    let importing = create_memo(move || {
+        held.with(|held| held.as_ref().is_some_and(|held| held.importing.is_some()))
+    });
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
@@ -388,7 +391,13 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
                                         places.get().into_iter().find(|place| place.parent == parent)
                                     });
                                     view! {
-                                        <PlaceButton act={act} chosen={chosen} parent place />
+                                        <PlaceButton
+                                            act={act}
+                                            chosen={chosen}
+                                            importing
+                                            parent
+                                            place
+                                        />
                                     }
                                 }}
                             </ForEach>
@@ -405,6 +414,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
 fn PlaceButton(
     act: Act,
     chosen: Memo<Option<BlockParent>>,
+    importing: Memo<bool>,
     parent: BlockParent,
     place: Memo<Option<Place>>,
 ) -> NodeId {
@@ -422,6 +432,7 @@ fn PlaceButton(
                 label
                 glyph
                 pressed
+                disabled={importing}
                 on_change={move |_: bool| act.call(PickAction::Place(parent))}
             />
         </Frame>
