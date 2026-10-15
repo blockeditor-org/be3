@@ -1293,6 +1293,7 @@ dependencies = [
  "be-wayland",
  "beui",
  "beui-adapter-drm",
+ "beui-demo",
  "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",

@@ -299,16 +299,23 @@ pub enum HostPanel {
     BlockStack,
     Performance,
     Plugins,
+    BeuiDemo,
 }
 
 impl HostPanel {
-    pub const ALL: [Self; 3] = [Self::BlockStack, Self::Performance, Self::Plugins];
+    pub const ALL: [Self; 4] = [
+        Self::BlockStack,
+        Self::Performance,
+        Self::Plugins,
+        Self::BeuiDemo,
+    ];
 
     pub fn title(self) -> &'static str {
         match self {
             Self::BlockStack => "Block Stack State",
             Self::Performance => "Performance",
             Self::Plugins => "Plugins",
+            Self::BeuiDemo => "beui demo",
         }
     }
 }
