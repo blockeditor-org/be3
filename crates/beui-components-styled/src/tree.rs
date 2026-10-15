@@ -51,7 +51,6 @@ pub fn Tree<K>(
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = 0.0)] padding: f32,
-    #[prop(default = ColorRole::Accent)] focus_color: Prop<ColorRole>,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
@@ -75,7 +74,7 @@ where
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     view! {
         <List spacing=0.0>
-            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport} focus_color>
+            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                 <Frame padding=padding>
                     <unstyled::Tree
                         @node_ref={&tracked}

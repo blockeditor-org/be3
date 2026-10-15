@@ -7,7 +7,6 @@ use crate::theme::{SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
-use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
 use beui_core::node::NodeId;
@@ -22,12 +21,11 @@ pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(default = ColorRole::Accent)] focus_color: Prop<ColorRole>,
     #[prop(default = None)] max_length: Option<f32>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
-    let focus = focus_ring(focus_color);
+    let theme = use_theme();
     let along = direction;
     let scroll = view! {
         <unstyled::Scroll
@@ -35,7 +33,7 @@ pub fn Scroll(
             reveal
             direction
             fit={max_length.is_some()}
-            focus_color={focus}
+            focus_color={theme.accent}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />
@@ -100,9 +98,4 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
             </List>
         </Frame>
     }
-}
-
-fn focus_ring(color: Prop<ColorRole>) -> Memo<Color32> {
-    let theme = use_theme();
-    create_memo(move || color.get().resolve(&theme))
 }
