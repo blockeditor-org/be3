@@ -8,10 +8,16 @@ use crate::headless::HeadlessPlugin;
 #[test]
 fn a_new_plugin_counts_its_frame_time_from_its_own_first_frame() {
     let mut earlier = HeadlessPlugin::new("earlier", "Earlier", "0");
-    earlier.receive(Message::DrawFrame { now_micros: 0 });
+    earlier.receive(Message::DrawFrame {
+        now_micros: 0,
+        seen: true,
+    });
     let started = Instant::now();
     let mut later = HeadlessPlugin::new("later", "Later", "0");
-    later.receive(Message::DrawFrame { now_micros: 0 });
+    later.receive(Message::DrawFrame {
+        now_micros: 0,
+        seen: true,
+    });
     let now = frame_time().expect("a drawn frame sets the frame time");
     assert!(
         now >= started,

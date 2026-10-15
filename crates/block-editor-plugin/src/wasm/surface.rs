@@ -96,7 +96,9 @@ impl Surfaces {
         if self.layout.is_empty() {
             return Ok(Vec::new());
         }
-        let ran = self.panes.run(&self.layout, screens, &self.fresh);
+        let ran = self
+            .panes
+            .run(&self.layout, screens, &self.fresh, crate::screens::seen());
         let repaint = ran.repaint;
         let mut presented = None;
         if !ran.painting.is_empty() {

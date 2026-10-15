@@ -766,6 +766,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.clock += FRAME_INTERVAL;
         inbox.push(Message::DrawFrame {
             now_micros: self.clock.as_micros() as u64,
+            seen: true,
         });
         for message in inbox {
             self.deliver(message);

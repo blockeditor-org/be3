@@ -30,6 +30,20 @@ pub trait Root: Model + Send + Sync + 'static {
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
         let _ = metadata;
     }
+
+    fn name_in(document: &Document<Self>) -> Option<String>
+    where
+        Self: Sized,
+    {
+        document.root().name()
+    }
+
+    fn describe_in(document: &Document<Self>, metadata: &mut crate::BlockMetadata)
+    where
+        Self: Sized,
+    {
+        document.root().describe(metadata);
+    }
 }
 
 impl<R: Root> BlockContent for Document<R> {
@@ -50,7 +64,7 @@ impl<R: Root> BlockContent for Document<R> {
     }
 
     fn name(&self) -> Option<String> {
-        self.root().name()
+        R::name_in(self)
     }
 
     fn references(&self) -> Vec<Uuid> {
@@ -62,7 +76,7 @@ impl<R: Root> BlockContent for Document<R> {
     }
 
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
-        self.root().describe(metadata);
+        R::describe_in(self, metadata);
     }
 }
 

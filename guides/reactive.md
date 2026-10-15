@@ -286,9 +286,12 @@ operation reports what it touched, and `project` watches everything,
 `project_on(key, ...)` one key, and `project_keyed` fills a `KeyedStore`. On a
 `be-model` document the projection can be narrower still: `field(object, FIELD)`
 runs for one field of one object, `ids(owner, LIST)` for the order of one list,
-and `object::<T>(id)` for one object and everything inside it. The checklist's
-rows each watch their own item and its list watches only its order, so ticking
-one item runs one row. A watcher is dropped with the reactive scope that made it.
+`object::<T>(id)` for one object and everything inside it, and
+`objects(owner, LIST)` for every object of one list, each behind an `Rc` that an
+edit replaces only for the objects it touched, so a list of hundreds re-reads one
+when one changes. The checklist's rows each watch their own item and its list
+watches only its order, so ticking one item runs one row. Read a single field
+with `field` rather than through `root()`, which decodes the whole document. A watcher is dropped with the reactive scope that made it.
 
 Keep a projection cheap and pure; it must not operate. Write through
 `ContentProjection::operate`, which applies the operation to what the view

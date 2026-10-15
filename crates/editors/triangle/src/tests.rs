@@ -18,5 +18,6 @@ fn region() -> Region {
         spec: FrameSpec::default(),
         monitors: Vec::new(),
         describe: None,
+        seen: true,
     }
 }

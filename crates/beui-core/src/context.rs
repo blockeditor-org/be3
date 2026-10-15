@@ -78,6 +78,7 @@ struct Inner {
     accessibility_active: Cell<bool>,
     accessibility_requested: Cell<bool>,
     automated: Cell<bool>,
+    seen: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<String>>,
     hit_query: Cell<Option<Pos2>>,
@@ -271,6 +272,7 @@ impl Context {
                 accessibility_active: Cell::new(true),
                 accessibility_requested: Cell::new(false),
                 automated: Cell::new(false),
+                seen: Cell::new(true),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
                 hit_query: Cell::new(None),
@@ -354,6 +356,14 @@ impl Context {
 
     pub fn automated(&self) -> bool {
         self.inner.automated.get()
+    }
+
+    pub fn set_seen(&self, seen: bool) {
+        self.inner.seen.set(seen);
+    }
+
+    pub fn seen(&self) -> bool {
+        self.inner.seen.get()
     }
 
     pub fn publish_actions(&self, group: ActionGroup) {

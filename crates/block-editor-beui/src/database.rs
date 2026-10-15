@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use be_block::database::{
-    DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses,
+    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
 };
 use be_block::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
@@ -809,7 +809,7 @@ fn source_inverses(
 ) -> ReadSignal<Option<Vec<Inverse>>> {
     let content = editor.content_of::<DatabaseContent>(source);
     let content_settled = crate::content_settled(editor, source, content.loaded());
-    let schema_id = content.project(|content| content.root().schema);
+    let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
     let (found, set_found) = create_signal(None);
     create_effect(move || {
         if !content_settled.get() {
@@ -822,15 +822,20 @@ fn source_inverses(
         let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
         let schema_settled = crate::content_settled(editor, schema, schema_content.loaded());
         let schema = schema_content.project(|schema| schema.root());
-        let database = content.project(|content| content.root());
+        let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
         create_effect(move || {
             if schema_settled.get() {
-                set_found.set(Some(inverses(
-                    target,
-                    source,
-                    &database.get(),
-                    &schema.get(),
-                )));
+                let found = rows.with(|rows| {
+                    schema.with(|schema| {
+                        inverses_of(
+                            target,
+                            source,
+                            rows.iter().map(|(id, row)| (*id, row.as_ref())),
+                            schema,
+                        )
+                    })
+                });
+                set_found.set(Some(found));
             }
         });
     });
@@ -898,7 +903,7 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
 fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
     let content = editor.content_of::<DatabaseContent>(database);
     let content_settled = crate::content_settled(editor, database, content.loaded());
-    let schema_id = content.project(|content| content.root().schema);
+    let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
     let (titles, set_titles) = create_signal(None);
     create_effect(move || {
         if !content_settled.get() {
@@ -916,20 +921,35 @@ fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTit
                 Some((_, title)) => title.get(),
                 None => None,
             };
-            let projected = content.project(move |content| {
-                let root = content.root();
-                root.rows
-                    .iter()
-                    .map(|row| {
-                        let link = RowRef {
-                            database,
-                            row: row.id.as_uuid(),
-                        };
-                        (link, root.title(row.id, title))
-                    })
-                    .collect::<Vec<_>>()
+            let prefix = content.field(be_block::ObjectId::ROOT, Database::PREFIX);
+            let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
+            create_effect(move || {
+                let prefix = prefix.get();
+                let projected = rows.with(|rows| {
+                    rows.iter()
+                        .map(|(id, row)| {
+                            let link = RowRef {
+                                database,
+                                row: id.as_uuid(),
+                            };
+                            let named =
+                                title.and_then(|field| row.value(field)).and_then(|value| {
+                                    match value {
+                                        DatabaseValue::String(text) if !text.trim().is_empty() => {
+                                            Some(text.clone())
+                                        }
+                                        _ => None,
+                                    }
+                                });
+                            (
+                                link,
+                                named.unwrap_or_else(|| short_id(&prefix, id.as_uuid())),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                });
+                set_titles.set(Some(projected));
             });
-            create_effect(move || set_titles.set(Some(projected.get())));
         });
     });
     titles
