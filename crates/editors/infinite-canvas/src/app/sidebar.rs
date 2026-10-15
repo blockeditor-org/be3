@@ -1293,6 +1293,7 @@ fn TextContent(state: CanvasState) -> NodeId {
             placeholder={placeholder}
             disabled={locked}
             focused={focused}
+            multiline=true
             @test_id={"infinite-canvas.text"}
             on_change={changed}
             on_focus_change={left}

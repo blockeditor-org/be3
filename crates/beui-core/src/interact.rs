@@ -112,6 +112,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
         Event::Focus(true) => doc.keyboard = true,
         Event::Focus(false) => {
             doc.keyboard = false;
+            doc.pointers.space = false;
             doc.keys.held.clear();
             doc.cancel_focus_activation();
             if ctx.pointer_locked() {
@@ -128,6 +129,9 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             return Ok(false);
         }
         Event::Key { press, .. } => {
+            if press.key == Key::Space && !press.repeat {
+                doc.pointers.space = press.pressed;
+            }
             if press.pressed {
                 doc.acted = Acted::Keys;
             }

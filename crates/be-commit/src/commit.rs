@@ -96,9 +96,7 @@ impl Commit {
         self
     }
 
-    pub fn with_references(mut self, mut references: Vec<Uuid>) -> Self {
-        references.sort_unstable();
-        references.dedup();
+    pub fn with_references(mut self, references: Vec<Uuid>) -> Self {
         self.references = references;
         self
     }
@@ -108,16 +106,6 @@ impl Commit {
 pub struct ReferenceDelta {
     pub added: usize,
     pub removed: usize,
-}
-
-pub fn reference_delta(before: &[Uuid], after: &[Uuid]) -> (Vec<Uuid>, Vec<Uuid>) {
-    let before: HashSet<_> = before.iter().copied().collect();
-    let after_set: HashSet<_> = after.iter().copied().collect();
-    let mut added: Vec<_> = after_set.difference(&before).copied().collect();
-    let mut removed: Vec<_> = before.difference(&after_set).copied().collect();
-    added.sort_unstable();
-    removed.sort_unstable();
-    (added, removed)
 }
 
 pub struct CommitStore<S> {

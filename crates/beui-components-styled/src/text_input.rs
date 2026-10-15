@@ -18,6 +18,8 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use beui_core::font::TextAlign;
 
 const HEIGHT: f32 = 34.0;
+const MULTILINE_HEIGHT: f32 = 104.0;
+const PADDING_VERTICAL: f32 = 8.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const CLEAR_PADDING: f32 = 6.0;
@@ -34,10 +36,15 @@ pub fn TextInput(
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] clearable: Prop<bool>,
+    #[prop(default = false)] multiline: bool,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
 ) -> NodeId {
+    let mut style = text_input_style();
+    if multiline {
+        style.padding_vertical = Prop::Static(PADDING_VERTICAL);
+    }
     let plain = create_memo(move || plain.get());
     let glyph = create_memo(move || glyph.get());
     let clearable = create_memo(move || clearable.get());
@@ -50,13 +57,20 @@ pub fn TextInput(
             password
             select_on_focus
             label
-            style={text_input_style()}
+            multiline
+            style={style}
             on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >
             {move |handle| view! {
-                <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} />
+                <TextInputFrame
+                    handle
+                    plain={plain}
+                    glyph={glyph}
+                    clearable={clearable}
+                    multiline
+                />
             }}
         </unstyled::TextInput>
     }
@@ -68,6 +82,7 @@ fn TextInputFrame(
     plain: Memo<bool>,
     glyph: Memo<String>,
     clearable: Memo<bool>,
+    multiline: bool,
 ) -> NodeId {
     let TextInputHandle {
         field,
@@ -94,12 +109,22 @@ fn TextInputFrame(
             radius=Radius::Md
         >
             <Frame
-                height=HEIGHT
+                height={match multiline {
+                    true => MULTILINE_HEIGHT,
+                    false => HEIGHT,
+                }}
                 fill={ColorRole::custom(fill)}
                 border={create_memo(move || raised.get().then(|| Border::new(ColorRole::Custom(border.get()))))}
                 radius=Radius::Md
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                <List
+                    direction=Direction::Horizontal
+                    align={match multiline {
+                        true => Align::Stretch,
+                        false => Align::Center,
+                    }}
+                    spacing=0.0
+                >
                     <Show condition={marked}>
                         {move || view! {
                             <Frame padding={Sides::new(PADDING_HORIZONTAL, 0.0, 0.0, 0.0)}>

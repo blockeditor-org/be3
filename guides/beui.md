@@ -638,7 +638,9 @@ gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
 plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
-fix to how text is edited lands in both. A menu is never asked for as a dropdown
+fix to how text is edited lands in both. `multiline` makes it the multiline area
+instead, with `line_numbers` off, where Enter starts a new line and the field's
+chrome wraps the whole scrolling area rather than one line. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an

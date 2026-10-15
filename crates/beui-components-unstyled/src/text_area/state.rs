@@ -145,6 +145,12 @@ impl Find {
     }
 }
 
+type CursorCache = (
+    Vec<CursorPosition>,
+    Vec<(Option<usize>, Option<usize>)>,
+    Option<std::ops::Range<usize>>,
+);
+
 struct Inner {
     core: RefCell<Core>,
     snapshot: RefCell<Snapshot>,
@@ -178,13 +184,6 @@ struct Inner {
     set_layout: WriteSignal<TextAreaLayout>,
 }
 
-#[derive(Default, PartialEq)]
-struct CursorCache {
-    positions: Vec<CursorPosition>,
-    indices: Vec<(Option<usize>, Option<usize>)>,
-    composition: Option<std::ops::Range<usize>>,
-}
-
 #[derive(Clone, Copy)]
 pub struct TextAreaState(Stored<Inner>);
 
@@ -209,7 +208,7 @@ impl TextAreaState {
             heights: RefCell::default(),
             find: Find::new(),
             canvas: NodeRef::new(),
-            cursor_cache: RefCell::new(CursorCache::default()),
+            cursor_cache: RefCell::new((Vec::new(), Vec::new(), None)),
             selecting: Cell::new(false),
             show_runs: Cell::new(false),
             touch_mode,
@@ -792,10 +791,10 @@ impl TextAreaState {
 
     fn sync_cursors(&self) {
         let inner = self.0.get();
-        let cursors = {
+        let positions = {
             let core = inner.core.borrow();
-            let positions = core.cursor_positions().to_vec();
-            let indices = positions
+            let cursors = core.cursor_positions();
+            let indices = cursors
                 .iter()
                 .map(|cursor| {
                     (
@@ -804,16 +803,12 @@ impl TextAreaState {
                     )
                 })
                 .collect();
-            CursorCache {
-                positions,
-                indices,
-                composition: core.composition(),
-            }
+            (cursors.to_vec(), indices, core.composition())
         };
-        if *inner.cursor_cache.borrow() == cursors {
+        if *inner.cursor_cache.borrow() == positions {
             return;
         }
-        *inner.cursor_cache.borrow_mut() = cursors;
+        *inner.cursor_cache.borrow_mut() = positions;
         inner.cursor_counter.set(inner.cursor_counter.get() + 1);
         inner.set_cursors.set(inner.cursor_counter.get());
     }

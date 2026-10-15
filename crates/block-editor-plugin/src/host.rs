@@ -450,6 +450,7 @@ pub struct EditorHost {
     menu_picks: Rc<RefCell<Vec<String>>>,
     child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
     chrome: Rc<Cell<Option<bool>>>,
+    placed_content: Rc<Cell<Option<Rect>>>,
     content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
     paste_requested: Rc<Cell<bool>>,
@@ -1347,6 +1348,16 @@ impl EditorHost {
 
     pub fn chrome_shown(&self) -> bool {
         self.chrome.get().unwrap_or(true)
+    }
+
+    pub fn placed_content(&self) -> Option<Rect> {
+        self.placed_content.get()
+    }
+
+    pub fn set_placed_content(&self, placed: Option<Rect>) {
+        if self.placed_content.replace(placed) != placed {
+            self.changed();
+        }
     }
 
     pub fn set_chrome_shown(&self, chrome: bool) {

@@ -199,6 +199,7 @@ impl<A: BeuiApp> Views<A> {
         let set_bar = chrome.set_bar();
         let bar = FrameBar {
             shown: region.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
+            framed: region.chrome_drawn(),
             closable: spec.content.is_some(),
             on_phone: spec.top_bar.phone(),
         };
@@ -309,21 +310,21 @@ impl<A: BeuiApp> BeuiInstance<A> {
         })
     }
 
-    fn zones_pending(&self) -> bool {
-        let frame = self
-            .views
-            .chrome
-            .as_ref()
-            .map(|chrome| chrome.document().zone());
-        let preview = self
-            .views
-            .preview_document
-            .as_ref()
-            .map(beui::Document::zone);
-        frame
-            .into_iter()
-            .chain(preview)
-            .any(beui::reactive::zone_pending)
+    fn zone_pending(&self, region: EditorRegion) -> bool {
+        let zone = match region {
+            EditorRegion::Frame => self
+                .views
+                .chrome
+                .as_ref()
+                .map(|chrome| chrome.document().zone()),
+            EditorRegion::Preview => self
+                .views
+                .preview_document
+                .as_ref()
+                .map(beui::Document::zone),
+            _ => None,
+        };
+        zone.is_some_and(beui::reactive::zone_pending)
     }
 }
 
@@ -500,7 +501,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: to_region(rect),
             })
             .collect();
-        if self.zones_pending() {
+        if self.zone_pending(region.region) {
             frame.repaint_after = Some(Duration::ZERO);
         }
         frame

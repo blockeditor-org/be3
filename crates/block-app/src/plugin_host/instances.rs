@@ -546,10 +546,6 @@ pub(super) struct NextScreens {
 }
 
 impl Instances {
-    pub(super) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     pub(super) fn translate(&self, message: &mut Message, inward: bool) {
         let mut carries = false;
         message.visit_block_ids(&mut |_, _, _| carries = true);
@@ -789,9 +785,7 @@ impl Instances {
     }
 
     pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: EditorRegion) {
-        if let Some(screen) = self.screen_mut(instance, region)
-            && screen.mounted <= 1
-        {
+        if let Some(screen) = self.screen_mut(instance, region) {
             screen.unplace();
         }
     }
@@ -985,7 +979,11 @@ impl Instances {
                 .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
-        let mut messages = screen.input.forward(input, id);
+        let zoom = match screen.request.metrics.logical_width > 0.0 {
+            true => input.rect.width() / screen.request.metrics.logical_width,
+            false => 1.0,
+        };
+        let mut messages = screen.input.forward(input, id, zoom);
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));
         let revoked =
@@ -1051,6 +1049,10 @@ impl Instances {
         let changed = entry.presenting != presenting;
         entry.presenting = presenting;
         changed
+    }
+
+    pub(super) fn assigned_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
+        self.entries.get(&instance)?.reported_size
     }
 
     pub(super) fn resized(&mut self, instance: EditorInstanceId, size: Vec2) -> Vec<Message> {
@@ -1627,7 +1629,10 @@ impl Instances {
                 .filter(|occluder| occluder.after as usize > index)
                 .map(|occluder| host_rect(occluder.rect, origin, stretch))
                 .collect();
-            if matches!(mode, ChildMode::Active | ChildMode::Live) {
+            if matches!(
+                mode,
+                ChildMode::Active | ChildMode::Live | ChildMode::InPlace
+            ) {
                 let interactive = child_rect.intersect(child_clip);
                 if interactive.is_positive() {
                     holes.holes.push(Hole {
