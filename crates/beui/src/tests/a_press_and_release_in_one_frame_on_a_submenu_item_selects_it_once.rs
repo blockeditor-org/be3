@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::MenuButton;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {

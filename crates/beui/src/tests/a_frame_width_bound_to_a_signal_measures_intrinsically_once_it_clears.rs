@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{view, with_reactive_scope};
+use crate::reactive::*;
 
 const GIVEN_WIDTH: f32 = 80.0;
 const CHILD_WIDTH: f32 = 20.0;
@@ -14,7 +14,7 @@ fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>
-                    <Frame @node_ref=&outer width={width}>
+                    <Frame @node_ref=&outer width=width>
                         <Frame width=CHILD_WIDTH height=CHILD_HEIGHT />
                     </Frame>
                     <Spacer @sizing=ItemSize::Percent(100.0) />

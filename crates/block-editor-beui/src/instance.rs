@@ -101,7 +101,7 @@ struct Views<A: BeuiApp> {
 }
 
 fn follow_host_theme(document: &mut beui::Document) {
-    use beui::styled::{DocumentTheme, Theme};
+    use beui::styled::*;
     let theme = match block_editor_plugin::host_theme() {
         block_plugin_api::Theme::Dark => Theme::DARK,
         block_plugin_api::Theme::OledDark => Theme::OLED,
@@ -309,23 +309,39 @@ impl<A: BeuiApp> BeuiInstance<A> {
         })
     }
 
-    fn zones_pending(&self) -> bool {
-        let frame = self
-            .views
-            .chrome
-            .as_ref()
-            .map(|chrome| chrome.document().zone());
-        frame.into_iter().any(beui::reactive::zone_pending)
+    fn zone_pending(&self, region: EditorRegion) -> bool {
+        let zone = match region {
+            EditorRegion::Frame => self
+                .views
+                .chrome
+                .as_ref()
+                .map(|chrome| chrome.document().zone()),
+            EditorRegion::Preview => self
+                .views
+                .preview_document
+                .as_ref()
+                .map(beui::Document::zone),
+            _ => None,
+        };
+        zone.is_some_and(beui::reactive::zone_pending)
     }
 }
 
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn connect(&mut self, block_id: Uuid) {
-        let scaled = |host: EditorHost| OwnedEditor::scaled(host, block_id, Rc::clone(&self.scale));
         let fresh = |editor: &Option<OwnedEditor>| {
             editor
                 .as_ref()
                 .is_none_or(|editor| editor.block_id() != block_id)
+        };
+        let contents = [&self.views.editor, &self.views.preview]
+            .into_iter()
+            .flatten()
+            .find(|editor| editor.block_id() == block_id)
+            .map(OwnedEditor::contents)
+            .unwrap_or_default();
+        let scaled = |host: EditorHost| {
+            OwnedEditor::scaled(host, block_id, Rc::clone(&self.scale), Rc::clone(&contents))
         };
         if fresh(&self.views.editor) {
             self.views.chrome = None;
@@ -484,10 +500,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: to_region(rect),
             })
             .collect();
-        if self.zones_pending() {
+        if self.zone_pending(region.region) {
             frame.repaint_after = Some(Duration::ZERO);
         }
         frame
+    }
+
+    fn painting(&mut self, region: EditorRegion) -> Option<beui::painting::Painting> {
+        self.surfaces.get(&region)?.painting()
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -509,11 +529,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn node_action(
         &mut self,
         region: &Region,
-        node: usize,
-        action: &str,
-        value: Option<block_editor_plugin::NodeValue>,
+        request: block_editor_plugin::accesskit::ActionRequest,
     ) {
-        self.surface(region.region).node_action(node, action, value);
+        self.surface(region.region).node_action(request);
     }
 }
 

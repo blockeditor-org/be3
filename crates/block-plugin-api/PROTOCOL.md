@@ -77,6 +77,15 @@ picks the editor to run: the block's own type, the type of the editor whose
 template is being made, or the type of the block an artifact was generated
 from.
 
+A manifest may declare an editor for every block type (block type "any"),
+which the plugin runs for any type no other editor of its own names. One block
+type may have editors in several plugins; the host's catalog lists each editor
+by its id (`editor_id` of its plugin's id) with the block type it edits, or the
+nil type for every type. A child placement, a request to open a block and a
+request to show one may name an editor; the host opens the block in it when it
+edits the block's type, and otherwise in the type's built-in editor, the first
+plugin found that names the type.
+
 Every block is made from a template the plugin's manifest declares, and an
 instance opened to make one is opened as a creation instance instead of on a
 block, naming the template it makes: it has a client of its own but no block,

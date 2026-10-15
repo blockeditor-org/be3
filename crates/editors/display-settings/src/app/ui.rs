@@ -2,13 +2,8 @@ use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component,
-    create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Caption, Heading, IconButton, Scroll, Select, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Displays, Editor, HostDisplay, HostDisplayMode};
 
@@ -42,19 +37,22 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
         })
     });
     let none = create_memo(move || displays.with(Vec::is_empty));
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <Scroll>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>
                         <List spacing=ROW_SPACING>
-                            <Heading content="Displays" />
-                            <Caption
-                                content="Each display keeps its own mode. A display without one uses its preferred resolution at its fastest refresh rate."
+                            <Text style=TextStyle::HEADING string="Displays" />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="Each display keeps its own mode. A display without one uses its preferred resolution at its fastest refresh rate."
                             />
                             <Show condition={none}>
-                                <Caption content="No display is connected to this session." />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string="No display is connected to this session."
+                                />
                             </Show>
                         </List>
                         <ScreenOffSection
@@ -169,8 +167,8 @@ fn DisplaySection(
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
                 <List @sizing=ItemSize::Percent(100.0) spacing=LABEL_SPACING>
-                    <Body content={name} />
-                    <Caption content={showing} />
+                    <Text string={name} />
+                    <Text style=TextStyle::CAPTION string={showing} />
                 </List>
                 <ResetButton
                     unset={unset}
@@ -179,7 +177,7 @@ fn DisplaySection(
                     on_reset={move |_: ()| set.call(None)}
                 />
             </List>
-            <Caption content="Resolution" />
+            <Text style=TextStyle::CAPTION string="Resolution" />
             <Select
                 options={view! {
                     <ForEach keys={size_list}>
@@ -202,7 +200,7 @@ fn DisplaySection(
                     }
                 }}
             />
-            <Caption content="Refresh rate" />
+            <Text style=TextStyle::CAPTION string="Refresh rate" />
             <Select
                 options={view! {
                     <ForEach keys={rate_list}>
@@ -243,7 +241,7 @@ fn ScreenOffSection(
     let lock_off = read_only;
     view! {
         <List spacing=ROW_SPACING>
-            <Caption content="Turn off screens after" />
+            <Text style=TextStyle::CAPTION string="Turn off screens after" />
             <Select
                 options={view! {
                     <ForEach keys={SCREEN_OFF.to_vec()}>
@@ -262,7 +260,7 @@ fn ScreenOffSection(
                     }
                 }}
             />
-            <Caption content="Lock the screen after" />
+            <Text style=TextStyle::CAPTION string="Lock the screen after" />
             <Select
                 options={view! {
                     <ForEach keys={LOCK_AFTER.to_vec()}>

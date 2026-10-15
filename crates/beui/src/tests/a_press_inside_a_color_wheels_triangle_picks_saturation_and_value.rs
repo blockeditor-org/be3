@@ -1,7 +1,7 @@
 use super::*;
 use crate::color::Hsva;
-use crate::reactive::view;
-use crate::styled::{ColorWheel, WHEEL_SIZE};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {

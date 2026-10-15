@@ -9,15 +9,8 @@ use block_editor_beui::beui::icons::{
     ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_SEARCH, ICON_SEARCH_OFF,
     ICON_SHARE,
 };
-use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef,
-    ReadSignal, Show, Spacer, Text, WriteSignal, component, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS};
-use block_editor_beui::beui::styled::{
-    ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, IconMenuButton,
-    IconSized, ListRow, Scroll, TextInput, Title, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{BackSlide, Edge, Floating, MenuItem};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label};
@@ -25,12 +18,12 @@ use uuid::Uuid;
 
 use super::export::{Exporter, exportable};
 use super::rows::{Inspection, Placement, Row, RowKey, Tree as FileTree, describe};
-use super::ui::{Picker, menu_action};
+use super::ui::{OpenWith, Picker, menu_action};
+use block_editor_beui::beui::TextAlign;
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 2.0;
 const TILE_SIDE: f32 = 40.0;
-const TILE_GLYPH: f32 = 22.0;
 const ROW_INNER_SPACING: f32 = 14.0;
 const RECENT_WIDTH: f32 = 132.0;
 const RECENT_HEIGHT: f32 = 96.0;
@@ -156,7 +149,7 @@ pub(crate) fn PhoneFiles(
         let at_top = create_memo(move || above.get() == Level::Root);
         let (color, folder, set_level, on_menu) = (page_color, shelf, shelf.set_level, menu);
         view! {
-            <Frame color radius=0>
+            <Frame fill={ColorRole::custom(color)}>
                 <List spacing=0.0>
                     <Header
                         level={above}
@@ -177,7 +170,7 @@ pub(crate) fn PhoneFiles(
     };
     view! {
         <BackSlide enabled={nested} on_back={rising} behind={parent}>
-            <Frame color={page_color} radius=0>
+            <Frame fill={ColorRole::custom(page_color)}>
                 <List spacing=0.0>
                     <Header
                         level={header_level}
@@ -199,7 +192,7 @@ pub(crate) fn PhoneFiles(
                         </List>
                     </Frame>
                     <Floating anchor={page} edge=Edge::BottomEnd open={can_create}>
-                        <Frame padding_horizontal=NEW_MARGIN padding_vertical=NEW_MARGIN>
+                        <Frame padding=NEW_MARGIN>
                             <Button
                                 @test_id={"file-tree.new"}
                                 label="New"
@@ -228,7 +221,7 @@ fn Folder(shelf: Shelf, level: ReadSignal<Level>, at_root: Memo<bool>) -> NodeId
     let recents_editor = shelf.editor;
     view! {
         <Scroll>
-            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+            <Frame padding=PADDING>
                 <List spacing=ROW_SPACING>
                     <Show condition={at_root}>
                         <Recents editor={recents_editor} />
@@ -266,7 +259,6 @@ fn Header(
     set_query: WriteSignal<String>,
     on_menu: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let top = create_memo(move || level.get() == Level::Root);
     let inside = create_memo(move || !top.get());
     let titled = top;
@@ -293,7 +285,7 @@ fn Header(
     let up = move || set_level.set(level.get_untracked().up());
     let typed = query;
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                     <Show condition={inside}>
@@ -307,17 +299,16 @@ fn Header(
                     <Show condition={titled}>
                         <Frame
                             @sizing=ItemSize::Percent(100.0)
-                            padding_horizontal=PADDING
-                            padding_vertical=4.0
+                            padding={Sides::symmetric(PADDING, 4.0)}
                         >
-                            <Title content="Files" />
+                            <Text style=TextStyle::TITLE string="Files" />
                         </Frame>
                     </Show>
                     <Show condition={named}>
                         {move || view! {
                             <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                                <Caption content={path} ellipsis=true />
-                                <Heading content={name} />
+                                <Text style=TextStyle::CAPTION string={path} ellipsis=true />
+                                <Text style=TextStyle::HEADING string={name} />
                             </List>
                         }}
                     </Show>
@@ -348,18 +339,16 @@ fn Header(
 
 #[component]
 fn SearchSoon() -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame padding_horizontal=32.0 padding_vertical=48.0 @test_id={"file-tree.search.todo"}>
+        <Frame padding={Sides::symmetric(32.0, 48.0)} @test_id={"file-tree.search.todo"}>
             <List spacing=10.0 align=Align::Center>
-                <IconSized
-                    glyph={ICON_SEARCH_OFF.to_owned()}
-                    font_size=40.0
-                    color={theme.text_muted}
-                />
-                <Heading content="Search is coming soon" />
-                <Caption
-                    content="It isn't built yet. Open folders to find a file for now."
+                <Text size=TextSize::Xl3 color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph={ICON_SEARCH_OFF.to_owned()} />
+                </Text>
+                <Text style=TextStyle::HEADING string="Search is coming soon" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="It isn't built yet. Open folders to find a file for now."
                     wrap=true
                 />
             </List>
@@ -401,8 +390,8 @@ fn Recents(editor: Editor) -> NodeId {
             <Show condition={any}>
                 {move || view! {
                     <List spacing=6.0>
-                        <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                            <Caption content="Recent" />
+                        <Frame padding={Sides::symmetric(PADDING, 4.0)}>
+                            <Text style=TextStyle::CAPTION string="Recent" />
                         </Frame>
                         <Scroll direction=Direction::Horizontal>
                             <ForEach keys={keys}>
@@ -419,8 +408,8 @@ fn Recents(editor: Editor) -> NodeId {
                                 }}
                             </ForEach>
                         </Scroll>
-                        <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                            <Caption content="All files" />
+                        <Frame padding={Sides::symmetric(PADDING, 4.0)}>
+                            <Text style=TextStyle::CAPTION string="All files" />
                         </Frame>
                     </List>
                 }}
@@ -431,7 +420,6 @@ fn Recents(editor: Editor) -> NodeId {
 
 #[component]
 fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
-    let theme = use_theme();
     let target = create_memo(move || Some(ChildTarget::new(id, block_type)));
     let shown = watch_block_label(editor, target);
     let resolved = create_memo(move || shown.with(|shown| shown.resolved));
@@ -440,33 +428,28 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
     let kind = create_memo(move || shown.with(|shown| shown.type_name.clone()));
     let host = editor.host();
     view! {
-        <Frame visible={resolved} padding_horizontal=4.0>
+        <Frame visible={resolved} padding={Sides::horizontal(4.0)}>
             <Frame
                 width=RECENT_WIDTH
                 height=RECENT_HEIGHT
-                radius=CARD_RADIUS
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=1.0
-                outline_visible=true
+                radius=Radius::Lg
+                fill=ColorRole::SurfaceRaised
+                border={Border::new(ColorRole::Border).width(1.0)}
             >
                 <ListRow
                     @test_id={format!("file-tree.recent.{id}")}
                     on_click={move || host.open_block(id, block_type)}
                 >
-                    <Frame height={RECENT_HEIGHT - 8.0} padding_vertical=6.0>
+                    <Frame height={RECENT_HEIGHT - 8.0} padding={Sides::vertical(6.0)}>
                         <List spacing=6.0>
                             <List direction=Direction::Horizontal spacing=0.0>
-                                <Icon glyph color={theme.accent} />
+                                <Text color=TextColor::Accent align=TextAlign::Center>
+                                    <Icon glyph={glyph} />
+                                </Text>
                             </List>
                             <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <Text
-                                string={name}
-                                font_size=FONT_BODY
-                                color={theme.text}
-                                ellipsis=true
-                            />
-                            <Caption content={kind} ellipsis=true />
+                            <Text string={name} ellipsis=true />
+                            <Text style=TextStyle::CAPTION string={kind} ellipsis=true />
                         </List>
                     </Frame>
                 </ListRow>
@@ -541,17 +524,13 @@ fn LevelRows(
     view! {
         <List spacing=ROW_SPACING>
             <Show condition={loading}>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                    <Caption content="Loading…" />
+                <Frame padding=PADDING>
+                    <Text style=TextStyle::CAPTION string="Loading…" />
                 </Frame>
             </Show>
             <Show condition={empty}>
-                <Frame
-                    padding_horizontal=PADDING
-                    padding_vertical=24.0
-                    @test_id={"file-tree.empty"}
-                >
-                    <Caption content={empty_text} wrap=true />
+                <Frame padding={Sides::symmetric(PADDING, 24.0)} @test_id={"file-tree.empty"}>
+                    <Text style=TextStyle::CAPTION string={empty_text} wrap=true />
                 </Frame>
             </Show>
             <ForEach keys={keys}>
@@ -591,7 +570,6 @@ fn PhoneRow(
     set_level: WriteSignal<Level>,
     tools: RowTools,
 ) -> NodeId {
-    let theme = use_theme();
     let id = row
         .get_untracked()
         .and_then(|row| row.id)
@@ -625,8 +603,8 @@ fn PhoneRow(
     });
     let muted = create_memo(move || row.get().is_none_or(|row| row.automatic));
     let color = create_memo(move || match muted.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     let folder = create_memo(move || row.get().is_some_and(|row| drills_in(&row)));
     let holds = create_memo(move || {
@@ -659,11 +637,11 @@ fn PhoneRow(
             }
         }
     };
-    let muted_icon = theme.text_muted;
+    let muted_icon = TextColor::Muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
             <ListRow @sizing=ItemSize::Percent(100.0) @test_id={open_id} on_click={tapped}>
-                <Frame padding_vertical=6.0>
+                <Frame padding={Sides::vertical(6.0)}>
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
@@ -672,19 +650,22 @@ fn PhoneRow(
                         <Frame
                             width=TILE_SIDE
                             height=TILE_SIDE
-                            radius=RADIUS
-                            color={theme.surface_raised}
-                            align_horizontal=Align::Center
-                            align_vertical=Align::Center
+                            radius=Radius::Md
+                            fill=ColorRole::SurfaceRaised
+                            align=Align::Center
                         >
-                            <IconSized glyph font_size=TILE_GLYPH color={theme.accent} />
+                            <Text size=TextSize::Lg color=TextColor::Accent align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
                         </Frame>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Text string={name} font_size=FONT_BODY color={color} ellipsis=true />
-                            <Caption content={detail} ellipsis=true />
+                            <Text string={name} color={color} ellipsis=true />
+                            <Text style=TextStyle::CAPTION string={detail} ellipsis=true />
                         </List>
                         <Show condition={folder}>
-                            <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={muted_icon} />
+                            <Text color={muted_icon} align=TextAlign::Center>
+                                <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
+                            </Text>
                         </Show>
                     </List>
                 </Frame>
@@ -783,6 +764,7 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                     glyph={ICON_OPEN_IN_NEW.to_owned()}
                     disabled={unviewable}
                 />
+                <OpenWith editor={editor} row={row} />
                 <MenuItem
                     row_test_id={"file-tree.actions.add".to_owned()}
                     label="New file inside"
@@ -836,14 +818,14 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
             }}
             on_select={move |path: Vec<usize>| match path.as_slice() {
                 [0] => opening(),
-                [1] => add_inside(),
-                [2] => chosen(vec![2]),
+                [2] => add_inside(),
                 [3] => chosen(vec![3]),
-                [4] => chosen(vec![1, 0]),
-                [5] => chosen(vec![4]),
-                [6] => chosen(vec![6]),
+                [4] => chosen(vec![4]),
+                [5] => chosen(vec![2, 0]),
+                [6] => chosen(vec![5]),
                 [7] => chosen(vec![7]),
-                [8] => chosen(vec![5]),
+                [8] => chosen(vec![8]),
+                [9] => chosen(vec![6]),
                 _ => {}
             }}
         />

@@ -1,5 +1,5 @@
-use beui::reactive::{Frame, List, NodeRef, build, create_signal, view};
-use beui::styled::{Dialog, Paragraph, Toast, ToastAction, Toasts, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Edge;
 
 use super::*;
@@ -11,7 +11,6 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
     let (heard, set_heard) = create_signal(Vec::<String>::new());
     let (dismissed, set_dismissed) = create_signal(0);
     let document = build(move || {
-        let theme = use_theme();
         let area = NodeRef::new();
         let toasts = vec![Toast {
             id: 1,
@@ -25,7 +24,7 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
             ..Toast::default()
         }];
         view! {
-            <Frame @node_ref=&area color={theme.background}>
+            <Frame @node_ref=&area fill=ColorRole::Background>
                 <List spacing=0.0>
                     <Dialog
                         open=true
@@ -33,8 +32,10 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
                         width=720.0
                         on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
-                        <Paragraph
-                            content="The toast stays bright over the scrim of this dialog."
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string="The toast stays bright over the scrim of this dialog."
+                            wrap=true
                         />
                     </Dialog>
                     <Toasts

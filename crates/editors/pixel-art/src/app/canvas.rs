@@ -1,11 +1,7 @@
 use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    PlacementBuilder, ReadSignal, WriteSignal, component, create_effect, create_memo,
-    held_modifiers, untrack, view,
-};
-use block_editor_beui::beui::styled::{Code, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     Color32, CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
@@ -227,13 +223,11 @@ pub(crate) fn ArtworkCanvas(
 
 fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt || !press.pressed {
-        return !matches!(shortcut_kind(press.key), Shortcut::None);
+        return !matches!(shortcut_kind(press.key), Shortcut::None | Shortcut::Cancel);
     }
     match shortcut_kind(press.key) {
         Shortcut::Tool(tool) => tools.select_tool(tool),
-        Shortcut::Cancel => {
-            tools.draw(|drawing| drawing.take());
-        }
+        Shortcut::Cancel => return tools.draw(|drawing| drawing.take()).is_some(),
         Shortcut::Larger => {
             let size = tools.brush_size.get_untracked();
             tools.set_brush_size.set((size + 1).min(MAX_BRUSH_SIZE));
@@ -390,9 +384,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    outline={Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA)}
-                    outline_width={border}
-                    outline_visible=true
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(border.get())))}
                 />
             </CanvasItem>
             <CanvasItem x={preview_x} y={preview_y} width={preview_width} height={preview_height}>
@@ -426,7 +418,9 @@ fn Artwork(
                     };
                     view! {
                         <CanvasItem x={x} y={y} width={line_width} height={line_height}>
-                            <Frame color={Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA)} />
+                            <Frame
+                                fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA))}
+                            />
                         </CanvasItem>
                     }
                 }}
@@ -434,9 +428,7 @@ fn Artwork(
             <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
                 <Frame
                     visible={over}
-                    outline=Color32::WHITE
-                    outline_width=1.0
-                    outline_visible=true
+                    border={Border::new(ColorRole::Custom(Color32::WHITE)).width(1.0)}
                 />
             </CanvasItem>
         </Canvas>
@@ -474,12 +466,8 @@ pub(crate) fn HoverLabel(tools: Tools, hovered: ReadSignal<Option<(u16, u16)>>) 
         }
     });
     view! {
-        <Frame
-            height=HOVER_LABEL_HEIGHT
-            padding_horizontal=HOVER_LABEL_PADDING
-            padding_vertical=HOVER_LABEL_PADDING
-        >
-            <Code @test_id={"pixel-art.hover"} content={label} />
+        <Frame height=HOVER_LABEL_HEIGHT padding=HOVER_LABEL_PADDING>
+            <Text style=TextStyle::CODE @test_id={"pixel-art.hover"} string={label} />
         </Frame>
     }
 }

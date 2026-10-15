@@ -14,7 +14,7 @@ fn a_removed_nodes_slot_is_reused_under_a_new_id() {
     harness.frame(Vec::new());
     let document = harness.document_mut();
     let replacement = document.create_frame();
-    document.set_frame_height(replacement, Some(100.0));
+    document.set_frame_height(replacement, Extent::px(100.0));
     document.append_child(list, replacement.id(), ItemSize::Intrinsic);
     harness.frame(Vec::new());
 

@@ -1,6 +1,7 @@
 use super::*;
 use crate::base::overlay::{OverlayAnchor, Placement};
-use crate::reactive::{Frame, Overlay, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::{Dismiss, LayerPolicy};
 
 #[test]

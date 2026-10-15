@@ -1,10 +1,7 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::reactive::{
-    Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, LayoutBuilder,
-    List, Memo, ReadSignal, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, PointerPress, Vec2};
 use block_ui::datetime::civil_from_days;
 
@@ -44,7 +41,6 @@ pub(crate) fn Timeline(
             .map(|offset| first_day.get() + offset)
             .collect::<Vec<i64>>()
     });
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -57,7 +53,7 @@ pub(crate) fn Timeline(
                     }}
                 </ForEach>
             </List>
-            <Frame height=RULE color={theme.border} radius=0 />
+            <Frame height=RULE fill=ColorRole::Border />
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Grid
                     first_day={first_day}
@@ -75,14 +71,13 @@ pub(crate) fn Timeline(
 fn DayHeader(day: i64) -> NodeId {
     let (_, _, number) = civil_from_days(day);
     let label = format!("{} {number}", WEEKDAY_ABBR[weekday_from_days(day) as usize]);
-    let theme = use_theme();
     let color = match day == today_days_since_epoch() {
-        true => theme.accent,
-        false => theme.text,
+        true => TextColor::Accent,
+        false => TextColor::Default,
     };
     view! {
         <Frame height=HEADER_HEIGHT>
-            <Body content={label} align=TextAlign::Center color={color} />
+            <Text string={label} align=TextAlign::Center color={color} />
         </Frame>
     }
 }
@@ -131,7 +126,7 @@ fn Grid(
                                         let color = hour_border;
                                         view! {
                                             <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                                <Frame color={color} radius=0 />
+                                                <Frame fill={ColorRole::custom(color)} />
                                             </CanvasItem>
                                         }
                                     }}
@@ -145,7 +140,7 @@ fn Grid(
                                         };
                                         view! {
                                             <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
-                                                <Caption content={label} />
+                                                <Text style=TextStyle::CAPTION string={label} />
                                             </CanvasItem>
                                         }
                                     }}
@@ -162,7 +157,7 @@ fn Grid(
                                                 width=RULE
                                                 height=CONTENT_HEIGHT
                                             >
-                                                <Frame color={color} radius=0 />
+                                                <Frame fill={ColorRole::custom(color)} />
                                             </CanvasItem>
                                         }
                                     }}
@@ -206,12 +201,11 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
             on_pick.call(item.event);
         }
     };
-    let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame color={theme.accent} radius=3>
+            <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
                 <ListRow @test_id={test_id} on_click={open} on_activate={open}>
-                    <Caption content={title} color={theme.on_accent} />
+                    <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
                 </ListRow>
             </Frame>
         </CanvasItem>

@@ -1,0 +1,53 @@
+use super::*;
+use crate::format_hex;
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
+
+#[test]
+fn a_style_provider_sizes_and_colours_the_text_inside_it() {
+    let _root = crate::reactive::RootScope::new();
+    let (inherited, overridden, outside) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
+    let document = build(move || {
+        view! {
+            <List spacing=4.0>
+                <TextStyleProvider
+                    style={TextStyle::new().size(TextSize::Sm).color(TextColor::Muted)}
+                >
+                    <List spacing=4.0>
+                        <Text @node_ref=&inherited string="Inherited" />
+                        <Text @node_ref=&overridden string="Danger" color=TextColor::Danger />
+                    </List>
+                </TextStyleProvider>
+                <Text @node_ref=&outside string="Outside" />
+            </List>
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    let property = |node: NodeRef, name: &str| {
+        harness
+            .document()
+            .node_properties(node.get())
+            .into_iter()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| value)
+            .expect("a text reports the property")
+    };
+
+    assert_eq!(property(inherited, "font size"), "12");
+    assert_eq!(
+        property(inherited, "color"),
+        format_hex(Theme::DARK.text_muted, true)
+    );
+    assert_eq!(property(overridden, "font size"), "12");
+    assert_eq!(
+        property(overridden, "color"),
+        format_hex(Theme::DARK.danger, true)
+    );
+    assert_eq!(property(outside, "font size"), "14");
+    assert_eq!(
+        property(outside, "color"),
+        format_hex(Theme::DARK.text, true)
+    );
+}

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, create_signal, view};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_driver_pastes_the_headless_clipboard_with_ctrl_v() {

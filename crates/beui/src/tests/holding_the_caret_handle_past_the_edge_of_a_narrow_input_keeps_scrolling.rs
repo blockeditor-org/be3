@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, view};
-use crate::styled::TextInput;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling() {

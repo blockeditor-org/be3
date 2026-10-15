@@ -1,7 +1,7 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
 # An APK, made on a worker without Gradle by buck-tools apk. It is unsigned
-# unless ci_signed, which signs it on a worker with CI's keystore; `buck2 run`
+# unless it names a keystore, which signs it on a worker; `buck2 run`
 # on an unsigned one signs it here with this machine's key (sign.sh) and
 # --install installs it and starts `activity`. An APK is only ever Android's,
 # so the rule moves itself there: asked for under any target platform, it is the
@@ -22,21 +22,22 @@ android_transition = transition(
 
 _sign = """
 set -eu
-jdk="$1" build_tools="$2" unsigned="$3" out="$4" keystore_dir="$5"
-if [ ! -f "$keystore_dir/ci-keystore.base64" ]; then
-    echo 'There is no buck/android/ci-keystore.base64 to sign with: guides/build_server.md says where it comes from.' >&2
+jdk="$1" build_tools="$2" unsigned="$3" out="$4" keystore_dir="$5" name="$6"
+if [ ! -f "$keystore_dir/$name" ]; then
+    echo "There is no buck/android/$name to sign with: guides/build_server.md says where CI's comes from, and ./scripts/deploy writes the release one." >&2
     exit 1
 fi
 keystore="$(mktemp)"
-base64 -d < "$keystore_dir/ci-keystore.base64" > "$keystore"
+base64 -d < "$keystore_dir/$name" > "$keystore"
 JAVA_HOME="$jdk" "$jdk/bin/java" -jar "$build_tools/lib/apksigner.jar" sign \
     --ks "$keystore" --ks-pass pass:android --in "$unsigned" --out "$out"
 rm -f "$keystore"
 """
 
-# The APK signed on a worker with CI's keystore, buck/android:ci-keystore. The
+# The APK signed on a worker with the keystore named, buck/android:ci-keystore
+# or :release-keystore, a base64 keystore whose password is `android`. The
 # keystore is an input like any other, so a new one signs afresh.
-def _ci_sign(ctx: AnalysisContext, unsigned: Artifact) -> Artifact:
+def _sign_with(ctx: AnalysisContext, unsigned: Artifact) -> Artifact:
     out = ctx.actions.declare_output(ctx.label.name + ".apk")
     ctx.actions.run(
         cmd_args(
@@ -48,14 +49,15 @@ def _ci_sign(ctx: AnalysisContext, unsigned: Artifact) -> Artifact:
             ctx.attrs._build_tools,
             unsigned,
             out.as_output(),
-            ctx.attrs._keystore[DefaultInfo].default_outputs[0],
+            ctx.attrs.keystore[DefaultInfo].default_outputs[0],
+            ctx.attrs.keystore.label.name + ".base64",
         ),
         category = "apk_sign",
     )
     return out
 
 def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
-    out = ctx.actions.declare_output(ctx.label.name + ("-unsigned.apk" if ctx.attrs.ci_signed else ".apk"))
+    out = ctx.actions.declare_output(ctx.label.name + ("-unsigned.apk" if ctx.attrs.keystore else ".apk"))
     library = ctx.attrs.library[DefaultInfo].sub_targets["cdylib"][DefaultInfo].default_outputs[0]
     command = cmd_args(
         ctx.attrs._apk[RunInfo],
@@ -93,8 +95,8 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.assets:
         command.add(cmd_args(ctx.attrs.assets[DefaultInfo].default_outputs[0], format = "--assets={}"))
     ctx.actions.run(command, category = "apk")
-    if ctx.attrs.ci_signed:
-        return [DefaultInfo(default_output = _ci_sign(ctx, out))]
+    if ctx.attrs.keystore:
+        return [DefaultInfo(default_output = _sign_with(ctx, out))]
     run = cmd_args(
         "sh",
         ctx.attrs._sign,
@@ -113,8 +115,8 @@ android_apk = rule(
         "activity": attrs.string(),
         "application_id": attrs.string(),
         "assets": attrs.option(attrs.dep(), default = None),
-        "ci_signed": attrs.bool(default = False),
         "java": attrs.list(attrs.source(allow_directory = True), default = []),
+        "keystore": attrs.option(attrs.dep(), default = None),
         "label": attrs.string(),
         "library": attrs.transition_dep(cfg = android_transition),
         "manifest": attrs.source(),
@@ -127,7 +129,6 @@ android_apk = rule(
         "_apk": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:bin", providers = [RunInfo])),
         "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
         "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
-        "_keystore": attrs.default_only(attrs.dep(default = "root//buck/android:ci-keystore")),
         "_ndk": attrs.default_only(attrs.source(default = "root//buck/tools:android-ndk")),
         "_platform": attrs.default_only(attrs.source(default = "root//buck/android:platform")),
         "_platform_tools": attrs.default_only(attrs.source(default = "root//buck/android:platform-tools")),

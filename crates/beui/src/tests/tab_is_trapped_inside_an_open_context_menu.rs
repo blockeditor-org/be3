@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn tab_is_trapped_inside_an_open_context_menu() {

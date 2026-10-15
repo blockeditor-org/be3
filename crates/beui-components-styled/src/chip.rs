@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_SMALL, use_theme};
+use crate::text::{Text, TextSize};
 use beui_core::base::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Frame, Prop, Text, create_memo};
+use beui_view::reactive::*;
 
 const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 3.0;
@@ -11,23 +12,14 @@ const PADDING_VERTICAL: f32 = 3.0;
 #[component]
 pub fn Chip(label: Prop<String>) -> NodeId {
     let label_text = create_memo(move || label.get());
-    let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            radius=CHIP_RADIUS
-            outline_visible=true
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Sm
+            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
-            <Text
-                string={label_text}
-                font_size=FONT_SMALL
-                color={theme.text}
-                align=TextAlign::Center
-            />
+            <Text string={label_text} size=TextSize::Sm align=TextAlign::Center />
         </Frame>
     }
 }

@@ -1,19 +1,17 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::{Node, Role};
 use beui_core::layer::Dismiss;
 use beui_macros::{component, view};
 
-use crate::text::Title;
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
+use crate::text::{Text, TextStyle};
 use beui_components_unstyled::BackSlide;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Child, ClickCallback, Frame, List, Prop, Render, Show, component_accessibility, create_memo,
-    create_signal,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PADDING_HORIZONTAL: f32 = 20.0;
 const PADDING_VERTICAL: f32 = 18.0;
@@ -64,22 +62,18 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
         }
         node
     }));
-    let theme = use_theme();
     view! {
-        <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+        <Frame padding=MARGIN>
             <Frame
-                max_width={width.map(Some)}
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
-                radius=CARD_RADIUS
-                padding_horizontal=PADDING_HORIZONTAL
-                padding_vertical=PADDING_VERTICAL
+                width={width.map(Extent::at_most)}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Lg
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List spacing=SPACING>
                     <Show condition={titled}>
-                        <Title content={label} />
+                        <Text style=TextStyle::TITLE string={label} />
                     </Show>
                     {children}
                 </List>

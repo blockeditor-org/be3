@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{NumberDrag, NumberInput, number_input_field, number_input_text};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn dragging_a_number_input_sideways_changes_its_value() {

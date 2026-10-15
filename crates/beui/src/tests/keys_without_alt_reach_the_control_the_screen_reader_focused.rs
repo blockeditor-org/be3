@@ -1,13 +1,14 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Heading, TextInput};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn keys_without_alt_reach_the_control_the_screen_reader_focused() {
     let (document, [_heading, input]) = toolbar_of(|| {
         [
             view! {
-                <Heading content="Name" />
+                <Text style=TextStyle::HEADING string="Name" />
             },
             view! {
                 <TextInput value=String::new() />

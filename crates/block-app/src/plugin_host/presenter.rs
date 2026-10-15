@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use beui::painting::{Painting, Paints, Placement};
 use beui::{DrawAt, Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
 
@@ -71,7 +72,6 @@ pub(super) trait SurfacePresenter {
     fn release(&mut self, slot: u32);
 }
 
-pub(super) const MAX_SURFACES: u32 = 8;
 const MAX_PENDING_FRAMES: usize = 8;
 pub(super) const REGION_BYTES: u64 = 64;
 
@@ -201,6 +201,7 @@ impl Region {
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
+    pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
     damage: Option<Vec<ScreenDamage>>,
 }
 
@@ -412,10 +413,13 @@ impl RegionDrawing {
 
     fn blits(&self, at: &DrawAt) -> Vec<Blit> {
         let scale = at.pixels_per_point.max(f32::EPSILON);
-        let laid = Rect::from_min_max(
+        self.blits_in(Rect::from_min_max(
             pos2(at.rect[0] / scale, at.rect[1] / scale),
             pos2(at.rect[2] / scale, at.rect[3] / scale),
-        );
+        ))
+    }
+
+    fn blits_in(&self, laid: Rect) -> Vec<Blit> {
         let rect = self.held.unwrap_or(laid);
         let center = rect.center();
         let (sin, cos) = self.rotation.sin_cos();
@@ -532,6 +536,57 @@ impl beui::Draw for RegionDrawing {
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
         self.drawing.paint(pass, at);
+    }
+}
+
+impl Paints for RegionDrawing {
+    fn painting(&self, rect: Rect) -> Option<Painting> {
+        let mut primitives = Vec::new();
+        let mut textures = std::collections::BTreeMap::new();
+        let mut found = false;
+        for blit in self.blits_in(rect) {
+            let shared = blit.shared.borrow();
+            let Some(placement) = shared.layout.placement(blit.screen) else {
+                continue;
+            };
+            let size = (placement.width, placement.height);
+            if blit.drawn.is_some_and(|drawn| drawn != size) {
+                continue;
+            }
+            let placed = match (blit.drawn, blit.requested) {
+                (None, Some(requested)) if requested != size => {
+                    unstretched(blit.quad, blit.source, requested, size)
+                }
+                _ => Some((blit.quad, blit.source)),
+            };
+            let (Some((quad, source)), Some(screen)) = (placed, shared.paintings.get(&blit.screen))
+            else {
+                continue;
+            };
+            found = true;
+            primitives.extend(screen.placed(Placement {
+                source: [source.min.x, source.min.y, source.max.x, source.max.y],
+                corners: quad.corners.map(|corner| [corner.x, corner.y]),
+                clip: [
+                    quad.rect.min.x,
+                    quad.rect.min.y,
+                    quad.rect.max.x,
+                    quad.rect.max.y,
+                ],
+            }));
+            for (key, pixels) in &screen.textures {
+                textures.entry(*key).or_insert_with(|| pixels.clone());
+            }
+        }
+        found.then_some(Painting {
+            frame: beui::painting::Frame {
+                size: [1, 1],
+                pixels_per_point: 1.0,
+                background: [0; 4],
+                primitives,
+            },
+            textures,
+        })
     }
 }
 

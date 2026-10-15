@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, ItemSize, List};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const ITEM_HEIGHT: f32 = 20.0;
 
@@ -17,7 +18,7 @@ fn percent_children_of_an_unbounded_list_use_their_intrinsic_length() {
                             direction=Direction::Horizontal
                             spacing=0.0
                         >
-                            <Frame padding_horizontal=0.0 padding_vertical={ITEM_HEIGHT / 2.0}>
+                            <Frame padding={Sides::symmetric(0.0, ITEM_HEIGHT / 2.0)}>
                                 <Spacer />
                             </Frame>
                         </List>

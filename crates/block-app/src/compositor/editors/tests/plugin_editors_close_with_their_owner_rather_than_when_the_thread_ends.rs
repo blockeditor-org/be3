@@ -32,7 +32,7 @@ fn plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
         let registry = Rc::new(EditorRegistry::from_manifests(vec![plugin]));
         let editors = OwnedEditors::install(registry, Uuid::new_v4());
         let id = Uuid::new_v4();
-        editors.ensure(id, block_type, None, Uuid::new_v4());
+        editors.ensure(id, block_type, None, None, Uuid::new_v4());
         editors.with(|open| open.get_mut(&id).expect("the editor is open").shown(true));
 
         drop(editors);

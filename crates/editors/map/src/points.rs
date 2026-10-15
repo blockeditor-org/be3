@@ -1,14 +1,12 @@
 use block_editor_beui::be_block::map::{MapColor, MapPoint};
 use block_editor_beui::beui::icons::ICON_LOCATION_ON;
-use block_editor_beui::beui::reactive::{
-    Align, CanvasItem, Frame, List, Prop, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Caption, IconSized};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Pos2, Rect, TextAlign};
 use uuid::Uuid;
 
-const MARKER_SIZE: f32 = 26.0;
-const RING_SIZE: f32 = MARKER_SIZE + 6.0;
+const MARKER_SIZE: TextSize = TextSize::Xl;
+const RING_SIZE: f32 = MARKER_SIZE.icon_px() + 6.0;
 const LABEL_HEIGHT: f32 = 18.0;
 const LABEL_WIDTH: f32 = 168.0;
 const HIT_RADIUS: f32 = 14.0;
@@ -49,25 +47,30 @@ pub(crate) fn Marker(
                 <Frame
                     width=RING_SIZE
                     height=RING_SIZE
-                    radius={(RING_SIZE / 2.0) as u8}
-                    outline=SELECTION_COLOR
-                    outline_width=2.0
-                    outline_visible={selected}
+                    radius={Radius::custom((RING_SIZE / 2.0).floor())}
+                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR)).width(2.0)))}
                 >
-                    <IconSized
-                        glyph={ICON_LOCATION_ON.to_owned()}
-                        font_size=MARKER_SIZE
-                        color={color}
-                    />
+                    <Text
+                        size=MARKER_SIZE
+                        color={color.map(TextColor::Custom)}
+                        align=TextAlign::Center
+                    >
+                        <Icon glyph={ICON_LOCATION_ON.to_owned()} />
+                    </Text>
                 </Frame>
                 <Frame
                     visible={named}
-                    color=LABEL_BACKGROUND
-                    radius=3
-                    padding_horizontal=3.0
+                    fill={ColorRole::Custom(LABEL_BACKGROUND)}
+                    radius={Radius::custom(3.0)}
+                    padding={Sides::horizontal(3.0)}
                     height=LABEL_HEIGHT
                 >
-                    <Caption content={label} align=TextAlign::Center color=LABEL_COLOR />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={label}
+                        align=TextAlign::Center
+                        color={TextColor::Custom(LABEL_COLOR)}
+                    />
                 </Frame>
             </List>
         </CanvasItem>
@@ -92,7 +95,10 @@ pub(crate) fn point_at(
 
 fn marker_rect(tip: Pos2) -> Rect {
     Rect::from_min_max(
-        Pos2::new(tip.x - MARKER_SIZE / 2.0, tip.y - MARKER_SIZE),
-        Pos2::new(tip.x + MARKER_SIZE / 2.0, tip.y),
+        Pos2::new(
+            tip.x - MARKER_SIZE.icon_px() / 2.0,
+            tip.y - MARKER_SIZE.icon_px(),
+        ),
+        Pos2::new(tip.x + MARKER_SIZE.icon_px() / 2.0, tip.y),
     )
 }

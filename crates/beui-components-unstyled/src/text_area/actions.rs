@@ -3,7 +3,7 @@ use beui_core::icons::{
     ICON_SELECT_ALL, ICON_UNFOLD_LESS,
 };
 use beui_core::input::Key;
-use beui_view::reactive::{Action, Chord, Memo, create_memo};
+use beui_view::reactive::*;
 use text_editor_core::{EditorCommand, FindDirection, LRDirection, UDDirection};
 
 use super::TextAreaState;

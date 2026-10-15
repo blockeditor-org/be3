@@ -3,17 +3,13 @@ use block_editor_beui::be_block::database::{DatabaseValue, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, ButtonVariant, Caption, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::database::ChoiceMark;
 use uuid::Uuid;
 
-use crate::database_view::app::controls::MARK_SIZE;
+use crate::database_view::app::controls::MARK;
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{Parts, group_test_key, row_parts, row_title};
 use crate::database_view::groups::{Group, GroupKey};
@@ -24,6 +20,7 @@ const COLUMN_SPACING: f32 = 12.0;
 const CARD_SPACING: f32 = 8.0;
 const PADDING: f32 = 12.0;
 const DRAG_THRESHOLD: f32 = 6.0;
+const CARD_HEIGHT: f32 = 104.0;
 
 #[component]
 pub fn Kanban(data: Data) -> NodeId {
@@ -38,14 +35,14 @@ pub fn Kanban(data: Data) -> NodeId {
                 .collect::<Vec<GroupKey>>()
         })
     });
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={missing}>
-                    <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                        <Caption
-                            content="Choose the choice field whose options make the columns, under Display."
+                    <Frame padding=PADDING>
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Choose the choice field whose options make the columns, under Display."
                             wrap=true
                         />
                     </Frame>
@@ -53,7 +50,7 @@ pub fn Kanban(data: Data) -> NodeId {
                 <Show condition={ready}>
                     {move || view! {
                         <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
-                            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                            <Frame padding=PADDING>
                                 <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
                                     <ForEach keys={columns}>
                                         {move |key: GroupKey| {
@@ -119,12 +116,16 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
         })
     });
     let unfold = move || data.toggle_group(key);
-    let theme = use_theme();
     view! {
-        <Frame width=FOLDED_WIDTH color={theme.surface} radius=10 padding_vertical=10.0>
+        <Frame
+            width=FOLDED_WIDTH
+            fill=ColorRole::Surface
+            radius=Radius::Lg
+            padding={Sides::vertical(10.0)}
+        >
             <List align=Align::Center spacing=8.0>
-                <ChoiceMark option={option} size=MARK_SIZE />
-                <Caption content={count} />
+                <ChoiceMark option={option} size=MARK />
+                <Text style=TextStyle::CAPTION string={count} />
                 <IconButton
                     glyph={ICON_UNFOLD_MORE.to_owned()}
                     label={name}
@@ -189,7 +190,6 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         };
         data.set_cell(row, field_id, value.get_untracked());
     };
-    let theme = use_theme();
     view! {
         <DropTarget on_drop={dropped}>
             {move |handle: DropHandle| {
@@ -197,24 +197,21 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                 view! {
                     <Frame
                         width=COLUMN_WIDTH
-                        color={theme.surface}
-                        outline={theme.accent}
-                        outline_width=2.0
-                        radius=10
-                        outline_visible={over}
-                        padding_horizontal=8.0
-                        padding_bottom={Some(8.0)}
+                        fill=ColorRole::Surface
+                        border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                        radius=Radius::Lg
+                        padding={Sides::horizontal(8.0).bottom(8.0)}
                     >
                         <List spacing=CARD_SPACING>
-                            <Frame padding_left={Some(4.0)} padding_vertical=4.0>
+                            <Frame padding={Sides::vertical(4.0).left(4.0)}>
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
                                     spacing=8.0
                                 >
-                                    <ChoiceMark option={option} size=MARK_SIZE />
-                                    <Body content={label} />
-                                    <Caption content={count} />
+                                    <ChoiceMark option={option} size=MARK />
+                                    <Text string={label} />
+                                    <Text style=TextStyle::CAPTION string={count} />
                                     <Frame @sizing=ItemSize::Percent(100.0) />
                                     <IconButton
                                         glyph={ICON_ADD.to_owned()}
@@ -227,13 +224,19 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                     />
                                 </List>
                             </Frame>
-                            <ForEach keys={keys}>
-                                {move |row: usize| {
-                                    view! {
-                                        <KanbanCard data={data} row={row} />
-                                    }
-                                }}
-                            </ForEach>
+                            <Scroll @sizing=ItemSize::Percent(100.0)>
+                                <VirtualList keys={keys} item_size=CARD_HEIGHT overscan=CARD_HEIGHT>
+                                    {move |row: ReadSignal<usize>| {
+                                        view! {
+                                            <Frame
+                                                padding={Sides::new(0.0, 0.0, 0.0, CARD_SPACING)}
+                                            >
+                                                <KanbanCard data={data} row={row} />
+                                            </Frame>
+                                        }
+                                    }}
+                                </VirtualList>
+                            </Scroll>
                         </List>
                     </Frame>
                 }
@@ -243,15 +246,16 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
 }
 
 #[component]
-fn KanbanCard(data: Data, row: usize) -> NodeId {
+fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
     let selected = create_memo(move || {
         data.selected
             .get()
-            .is_some_and(|selection| selection.row == row)
+            .is_some_and(|selection| selection.row == row.get())
     });
-    let pick = move || data.select(row, None);
+    let pick = move || data.select(row.get_untracked(), None);
     let read_only = data.read_only;
-    let payload = create_memo(move || (!read_only.get()).then_some(row));
+    let payload = create_memo(move || (!read_only.get()).then(|| row.get()));
+    let test_id = create_memo(move || format!("database-view.card.{}", row.get()));
     let ghost = move |row: usize| {
         view! {
             <Frame width={COLUMN_WIDTH - 16.0} @test_id="database-view.card-ghost">
@@ -262,12 +266,7 @@ fn KanbanCard(data: Data, row: usize) -> NodeId {
     view! {
         <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>
             {move |_: DragHandle| view! {
-                <ListRow
-                    selected={selected}
-                    @test_id={format!("database-view.card.{row}")}
-                    on_click={pick}
-                    on_activate={pick}
-                >
+                <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
                     <CardLines data={data} row={row} />
                 </ListRow>
             }}
@@ -277,16 +276,12 @@ fn KanbanCard(data: Data, row: usize) -> NodeId {
 
 #[component]
 fn CardFace(data: Data, row: usize) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=8
-            padding_horizontal=10.0
-            padding_vertical=8.0
+            fill=ColorRole::SurfaceRaised
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::custom(8.0)}
+            padding={Sides::symmetric(10.0, 8.0)}
         >
             <CardLines data={data} row={row} />
         </Frame>
@@ -294,11 +289,11 @@ fn CardFace(data: Data, row: usize) -> NodeId {
 }
 
 #[component]
-fn CardLines(data: Data, row: usize) -> NodeId {
-    let entry = create_memo(move || data.rows.with(|rows| rows.get(row).cloned()));
+fn CardLines(data: Data, row: Prop<usize>) -> NodeId {
+    let entry = create_memo(move || data.rows.with(|rows| rows.get(row.get()).cloned()));
     let code = create_memo(move || {
         data.row_ids
-            .with(|ids| ids.get(row).copied())
+            .with(|ids| ids.get(row.get()).copied())
             .map_or_else(String::new, |id: ObjectId| {
                 short_id(&data.prefix.get(), id.as_uuid())
             })
@@ -329,11 +324,9 @@ fn CardLines(data: Data, row: usize) -> NodeId {
     });
     view! {
         <List spacing=6.0>
-            <Caption content={code} />
-            <Body content={title} wrap=true />
-            <List direction=Direction::Horizontal spacing=0.0 wrap=true>
-                <Parts parts={parts} keys={keys} />
-            </List>
+            <Text style=TextStyle::CAPTION string={code} />
+            <Text string={title} wrap=true />
+            <Parts parts={parts} keys={keys} wrap=true />
         </List>
     }
 }

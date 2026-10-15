@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::ForEach;
+use crate::reactive::*;
 use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 
 #[test]

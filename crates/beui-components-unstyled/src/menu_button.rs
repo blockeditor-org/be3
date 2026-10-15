@@ -6,10 +6,8 @@ use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_core::input::{PointerPress, ScrollGesture};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Children, ClickCallback, Interactive, List, NodeRef, Prop, ReadSignal, Render,
-    create_effect, create_memo, create_signal, untrack,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 #[derive(Clone, Copy)]
 pub struct MenuButtonHandle {

@@ -1,8 +1,9 @@
 use std::cell::Cell;
 
-use beui::accessibility::{Described, Fragment, embedded, role_named};
-use beui::{ActionGroup, ActionInfo, Rect, pos2, vec2};
-use block_plugin_api::{ChildRect, EditorRegion, NodeValue, ScreenId, Toggled};
+use beui::accessibility::Fragment;
+use beui::accesskit::Action;
+use beui::{ActionGroup, ActionInfo};
+use block_plugin_api::{EditorRegion, ScreenId};
 
 use super::runtime;
 
@@ -23,7 +24,8 @@ struct Region {
 }
 
 pub(crate) fn describe(context: &beui::Context) {
-    let on = context.automated();
+    let on = context.accessibility_active()
+        && (context.automated() || context.accessibility_requested());
     let was = DESCRIBING.with(|describing| describing.replace(on));
     if !on {
         return;
@@ -33,91 +35,71 @@ pub(crate) fn describe(context: &beui::Context) {
     }
     let mut regions = Vec::new();
     runtime::each(|runtime| {
-        for ((instance, region), placed) in &runtime.placements {
-            if *region != EditorRegion::Frame {
-                continue;
-            }
-            let Some(report) = runtime.instances.frame_report(*instance, *region) else {
+        let plugin = runtime.id().to_owned();
+        let name = runtime.name().to_owned();
+        let placements: Vec<_> = runtime
+            .placements
+            .iter()
+            .filter(|((_, region), _)| *region == EditorRegion::Frame)
+            .map(|((instance, _), placed)| (*instance, placed.rect, placed.clip, placed.zoom))
+            .collect();
+        for (instance, rect, clip, zoom) in placements {
+            let Some(described) = runtime.instances.described(instance, EditorRegion::Frame) else {
                 continue;
             };
-            let Some(description) = &report.description else {
-                continue;
-            };
-            let origin = placed.rect.min;
-            let area = placed.rect.intersect(placed.clip);
-            let place = |rect: &ChildRect| {
-                Rect::from_min_size(
-                    pos2(origin.x + rect.x, origin.y + rect.y),
-                    vec2(rect.width, rect.height),
-                )
-            };
-            let nodes: Vec<Described> = description
-                .nodes
-                .iter()
-                .map(|node| Described {
-                    depth: usize::from(node.depth),
-                    role: role_named(&node.role),
-                    label: node.label.clone(),
-                    value: node.value.clone(),
-                    toggled: node.toggled.map(|toggled| match toggled {
-                        Toggled::Off => beui::accesskit::Toggled::False,
-                        Toggled::On => beui::accesskit::Toggled::True,
-                        Toggled::Mixed => beui::accesskit::Toggled::Mixed,
-                    }),
-                    disabled: node.disabled,
-                    focused: node.focused,
-                    rect: node.rect.as_ref().map(place),
-                    actions: node
-                        .actions
-                        .iter()
-                        .filter_map(|action| beui::accessibility_dump::action_named(action))
-                        .collect(),
-                    test_ids: node.test_ids.clone(),
+            let document = described.tree.document();
+            let screen = described.screen;
+            let requests: Vec<_> = context
+                .take_accessibility_actions(document)
+                .into_iter()
+                .filter_map(|mut request| {
+                    request.target_node = described.tree.plugin_node(request.target_node)?;
+                    Some(request)
                 })
                 .collect();
+            let fragment = described.tree.fragment(
+                &name,
+                rect.intersect(clip),
+                rect.min.to_vec2(),
+                zoom,
+                described.focused,
+                !context.accessibility_known(document),
+            );
+            let actions = ActionGroup {
+                name: name.clone(),
+                actions: described
+                    .actions
+                    .iter()
+                    .map(|action| ActionInfo {
+                        id: action.id.clone(),
+                        label: action.label.clone(),
+                        shortcut: action.shortcut.clone(),
+                        enabled: action.enabled,
+                        checked: action.checked,
+                        live: action.live,
+                    })
+                    .collect(),
+            };
             regions.push(Region {
-                plugin: runtime.id().to_owned(),
-                screen: report.screen,
-                document: placed.document,
-                fragment: embedded(placed.document, runtime.name(), area, &nodes),
-                actions: ActionGroup {
-                    name: runtime.name().to_owned(),
-                    actions: description
-                        .actions
-                        .iter()
-                        .map(|action| ActionInfo {
-                            id: action.id.clone(),
-                            label: action.label.clone(),
-                            shortcut: action.shortcut.clone(),
-                            enabled: action.enabled,
-                            checked: action.checked,
-                            live: action.live,
-                        })
-                        .collect(),
-                },
+                plugin: plugin.clone(),
+                screen,
+                document,
+                fragment,
+                actions,
             });
+            for request in requests {
+                if matches!(
+                    request.action,
+                    Action::Focus | Action::Click | Action::SetValue | Action::ReplaceSelectedText
+                ) {
+                    runtime.instances.request_focus(screen);
+                    runtime::mark(&plugin);
+                }
+                runtime.node_action(screen, request);
+            }
         }
     });
     regions.sort_by_key(|region| region.document);
-    for region in &regions {
-        for request in context.take_accessibility_actions(region.document) {
-            let Some(node) = (request.target_node.0 & 0xFF_FFFF_FFFF).checked_sub(1) else {
-                continue;
-            };
-            let value = request.data.and_then(|data| match data {
-                beui::accesskit::ActionData::Value(text) => Some(NodeValue::Text(text.into())),
-                beui::accesskit::ActionData::NumericValue(number) => {
-                    Some(NodeValue::Number(number))
-                }
-                _ => None,
-            });
-            let action = format!("{:?}", request.action);
-            let screen = region.screen;
-            runtime::with(&region.plugin, |runtime| {
-                runtime.node_action(screen, node as u32, action, value);
-            });
-        }
-    }
     for requested in context.action_requests() {
         let (pane, id) = match requested.split_once(beui::automation::PANE) {
             Some((pane, id)) => (Some(pane), id),

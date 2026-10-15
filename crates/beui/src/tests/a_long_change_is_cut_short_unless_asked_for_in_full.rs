@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{ForEach, List, ShowKeepAlive, Text, build, create_signal, view};
-use crate::styled::{Button, ButtonVariant};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_long_change_is_cut_short_unless_asked_for_in_full() {

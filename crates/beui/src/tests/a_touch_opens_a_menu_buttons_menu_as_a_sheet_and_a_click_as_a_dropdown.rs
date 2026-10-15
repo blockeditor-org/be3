@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::MenuButton;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::MenuItem;
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {

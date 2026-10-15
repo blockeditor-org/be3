@@ -1,6 +1,7 @@
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::CalendarContent;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -15,8 +16,11 @@ pub struct CalendarApp;
 
 impl block_editor_beui::BeuiApp for CalendarApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::CalendarContent>(&[]);
         view! {
-            <CalendarEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <CalendarEditor editor={editor} />
+            </Loaded>
         }
     }
 

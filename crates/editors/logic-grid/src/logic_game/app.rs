@@ -1,6 +1,7 @@
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::LogicGameContent;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -25,8 +26,11 @@ pub struct LogicGameApp;
 
 impl block_editor_beui::BeuiApp for LogicGameApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::LogicGameContent>(&[]);
         view! {
-            <LogicGameEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <LogicGameEditor editor={editor} />
+            </Loaded>
         }
     }
 

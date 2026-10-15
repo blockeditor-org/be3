@@ -1,12 +1,8 @@
 use std::cell::{OnceCell, RefCell};
 
 use beui::NodeId;
-use beui::reactive::{
-    Align, Direction, FileFilter, FilePicker, Frame, Func, ItemSize, List, PickedFile, ReadSignal,
-    Show, Spacer, Stored, WriteSignal, component, create_file_picker, create_memo, create_signal,
-    store, view,
-};
-use beui::styled::{Button, ButtonVariant, Caption, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 
 use crate::Creation;
 
@@ -158,9 +154,8 @@ where
     let choose = move || chooser.open();
     let choose_id = format!("{id_prefix}.choose");
     let error_id = format!("{id_prefix}.error");
-    let theme = use_theme();
     view! {
-        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame padding=PADDING>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button
@@ -170,13 +165,14 @@ where
                         @test_id={choose_id}
                         on_click={choose}
                     />
-                    <Caption content={name} />
+                    <Text style=TextStyle::CAPTION string={name} />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
                 <Show condition={failed}>
-                    <Caption
-                        content={reason}
-                        color={theme.danger}
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={reason}
+                        color=TextColor::Danger
                         wrap=true
                         @test_id={error_id.clone()}
                     />

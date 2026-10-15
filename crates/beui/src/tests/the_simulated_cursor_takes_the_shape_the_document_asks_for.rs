@@ -1,8 +1,8 @@
 use super::*;
 use crate::input::CursorIcon;
 use crate::painter::Shape;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_simulated_cursor_takes_the_shape_the_document_asks_for() {

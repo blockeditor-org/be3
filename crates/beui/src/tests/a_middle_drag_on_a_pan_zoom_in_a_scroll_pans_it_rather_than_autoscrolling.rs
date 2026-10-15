@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{ForEach, ItemSize, List, view};
+use crate::FontId;
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{PanZoomView, Scroll, pan_zoom_view};
 
 #[test]
@@ -15,8 +17,8 @@ fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
                         {|index: usize| view! {
                             <Text
                                 string={format!("Row {index}")}
-                                font_size=20.0
                                 color=Color32::WHITE
+                                font={FontId::proportional(20.0)}
                             />
                         }}
                     </ForEach>

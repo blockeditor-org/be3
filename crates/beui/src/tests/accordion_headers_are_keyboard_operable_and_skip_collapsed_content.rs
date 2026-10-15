@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::Accordion;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn accordion_headers_are_keyboard_operable_and_skip_collapsed_content() {

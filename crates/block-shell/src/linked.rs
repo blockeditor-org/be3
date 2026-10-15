@@ -1,16 +1,14 @@
 use block_editor_beui::BlockParent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_LINK_OFF};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::theme::FONT_SMALL;
-use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, IconSized, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 use super::menu::unlink_permission;
 use super::panel::Info;
 use super::status::ReferenceMenu;
 use super::workspace::Workspace;
+use block_editor_beui::beui::TextAlign;
 
 const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 5.0;
@@ -73,26 +71,22 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
     let nowhere = create_memo(|| None);
     let original_info = info;
     let unlinking_info = info;
-    let theme = use_theme();
-    let heading_color = theme.text;
+    let heading_color = TextColor::Default;
     view! {
         <Frame
             visible={shown}
-            color={theme.surface}
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+            fill=ColorRole::Surface
+            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <IconSized
-                    glyph={ICON_LINK.to_owned()}
-                    font_size=FONT_SMALL
-                    color={heading_color}
-                />
-                <Body content="Linked block" />
+                <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
+                    <Icon glyph={ICON_LINK.to_owned()} />
+                </Text>
+                <Text string="Linked block" />
                 <Show condition={via_reference}>
                     {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Caption content={elsewhere} />
+                            <Text style=TextStyle::CAPTION string={elsewhere} />
                             <Button
                                 @test_id={"workspace.linked.original"}
                                 label="Go to original"
@@ -127,7 +121,7 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 <Show condition={original}>
                     {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Caption content={everywhere} />
+                            <Text style=TextStyle::CAPTION string={everywhere} />
                             <ReferenceMenu
                                 workspace={workspace}
                                 name="Show references"

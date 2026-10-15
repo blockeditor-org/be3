@@ -1,12 +1,8 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use block_editor_beui::beui::reactive::{
-    Align, Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List,
-    Memo, PlacementBuilder, ReadSignal, component, create_effect, create_memo, create_selector,
-    create_signal, untrack, view,
-};
-use block_editor_beui::beui::styled::{Body, Caption, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2};
 use block_editor_beui::{ChildBlock, ChildMode, Drag};
@@ -20,7 +16,7 @@ use crate::timeline::{
 use super::state::{ClipDrag, VideoState};
 
 const THUMBNAIL_MARGIN: f32 = 3.0;
-const CLIP_RADIUS: u8 = 4;
+const CLIP_RADIUS: f32 = 4.0;
 
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
@@ -177,7 +173,6 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                     playhead.get() as f32 * pixels_per_frame.get()
                 });
                 let playhead_height = create_memo(move || content.get().height());
-                let theme = use_theme();
 
                 view! {
                     <DropTarget on_over={on_over} on_drop={on_drop}>
@@ -219,7 +214,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                                         width=1.5
                                         height={playhead_height}
                                     >
-                                        <Frame color={theme.accent} />
+                                        <Frame fill=ColorRole::Accent />
                                     </CanvasItem>
                                 </Canvas>
                             </Interactive>
@@ -266,18 +261,17 @@ fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
     let width = create_memo(move || content.get().width());
     view! {
         <CanvasItem x=0.0 y={y} width={width} height=LANE_HEIGHT>
-            <Frame color={color} radius=3 />
+            <Frame fill={ColorRole::custom(color)} radius={Radius::custom(3.0)} />
         </CanvasItem>
     }
 }
 
 #[component]
 fn RulerTick(tick: Tick) -> CanvasItem {
-    let theme = use_theme();
     let label = format!("{}:{:02}", tick.seconds / 60, tick.seconds % 60);
     view! {
         <CanvasItem x={tick.x + 3.0} y=2.0 width=60.0 height={RULER_HEIGHT - 4.0}>
-            <Caption content={label} color={theme.text_muted} />
+            <Text style=TextStyle::CAPTION string={label} />
         </CanvasItem>
     }
 }
@@ -344,13 +338,10 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                         on_press={move |press: PointerPress| grabbing.set(Some(press.local))}
                     >
                         <Frame
-                            color={fill}
-                            radius=CLIP_RADIUS
-                            outline={theme.accent}
-                            outline_width=2.0
-                            outline_visible={selected}
-                            padding_horizontal=THUMBNAIL_MARGIN
-                            padding_vertical=THUMBNAIL_MARGIN
+                            fill={ColorRole::custom(fill)}
+                            radius={Radius::custom(CLIP_RADIUS)}
+                            border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                            padding=THUMBNAIL_MARGIN
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
                                 <Frame
@@ -364,7 +355,7 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                                         on_state={move |_| {}}
                                     />
                                 </Frame>
-                                <Body @sizing=ItemSize::Percent(100.0) content={name} />
+                                <Text @sizing=ItemSize::Percent(100.0) string={name} />
                                 <TrimHandle state={state} row={row} scale={trim_edge_scale} />
                             </List>
                         </Frame>
@@ -413,16 +404,13 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
     let y = create_memo(move || rect.get().top());
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
-    let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame
                 visible={shown}
-                color={theme.accent_soft}
-                radius=CLIP_RADIUS
-                outline={theme.accent}
-                outline_width=2.0
-                outline_visible={shown}
+                fill=ColorRole::AccentSoft
+                radius={Radius::custom(CLIP_RADIUS)}
+                border={create_memo(move || shown.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
             />
         </CanvasItem>
     }

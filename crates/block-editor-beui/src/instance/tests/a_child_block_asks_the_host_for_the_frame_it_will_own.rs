@@ -1,6 +1,7 @@
 use super::*;
 use crate::{ChildBlock, ChildState, ChildTarget};
-use beui::reactive::{Frame, view};
+use beui::reactive::*;
+use beui::styled::*;
 use block_plugin_api::ChildMode;
 
 const SLIDE: Uuid = Uuid::from_u128(1);

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() {

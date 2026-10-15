@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, create_signal, view};
-use crate::styled::Slider;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {

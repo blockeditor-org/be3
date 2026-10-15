@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, Text, view};
-use crate::styled::Accordion;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn clicking_an_accordion_header_hides_its_content() {
@@ -13,7 +14,6 @@ fn clicking_an_accordion_header_hides_its_content() {
                     <Text
                         @node_ref=&body
                         string="beui keeps a retained tree of nodes."
-                        font_size=14.0
                         color=Color32::WHITE
                     />
                 </Accordion>

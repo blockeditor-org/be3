@@ -20,14 +20,15 @@ const ARTBOARD_LABEL_SIZE: f32 = 12.0;
 pub(crate) struct Artboard {
     pub(crate) bounds: WorldRect,
     pub(crate) name: String,
+    pub(crate) fill: Color32,
 }
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Backdrop {
     pub(crate) camera: Camera,
     pub(crate) stage: Rect,
-    pub(crate) background: Color32,
     pub(crate) label: Color32,
+    pub(crate) chrome: bool,
     pub(crate) artboards: Vec<Artboard>,
 }
 
@@ -36,9 +37,14 @@ impl Backdrop {
         if self.artboards.is_empty() {
             return;
         }
-        painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+        if self.chrome {
+            painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+        }
         for artboard in &self.artboards {
-            painter.rect_filled(self.camera.rect(artboard.bounds), 0.0, self.background);
+            painter.rect_filled(self.camera.rect(artboard.bounds), 0.0, artboard.fill);
+        }
+        if !self.chrome {
+            return;
         }
         for artboard in &self.artboards {
             let rect = self.camera.rect(artboard.bounds);
@@ -68,6 +74,7 @@ pub(crate) struct Overlay {
     pub(crate) empty: bool,
     pub(crate) gesture: Option<Gesture>,
     pub(crate) frame: Option<SelectionFrame>,
+    pub(crate) line: Option<[CanvasPoint; 2]>,
     pub(crate) resize: ResizeMode,
     pub(crate) rotatable: bool,
     pub(crate) presence: Presence,
@@ -97,8 +104,15 @@ impl Overlay {
             );
         }
         self.draw_gesture(painter);
-        if let Some(frame) = self.frame {
-            self.draw_selection(painter, frame);
+        match (self.line, self.frame) {
+            (Some(ends), _) => {
+                let [start, end] = ends.map(|at| self.camera.at(at));
+                painter.line(start, end, 1.0, SELECTION);
+                handle(painter, start, SELECTION);
+                handle(painter, end, SELECTION);
+            }
+            (None, Some(frame)) => self.draw_selection(painter, frame),
+            (None, None) => {}
         }
         self.draw_presence(painter);
         self.draw_badge(painter);
@@ -147,6 +161,7 @@ impl Overlay {
             Some(Gesture::Move { .. })
             | Some(Gesture::Resize { .. })
             | Some(Gesture::Rotate { .. })
+            | Some(Gesture::Endpoint { .. })
             | None => {}
         }
     }

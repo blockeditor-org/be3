@@ -1,6 +1,5 @@
 use super::*;
 
-use beui::reactive::{create_signal, on_shortcut};
 use beui::{Key, KeyPress, Modifiers};
 
 struct ShortcutApp;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::NodeRef;
+use crate::reactive::*;
 
 #[test]
 fn a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go() {

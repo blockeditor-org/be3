@@ -1,7 +1,5 @@
 use super::*;
 use beui::Pos2;
-use beui::reactive::IntoProp;
-use beui::reactive::NodeRef;
 use beui::unstyled::{
     ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
     DropHandle, MenuButtonHandle, MenuRowHandle, PopoverTriggerHandle, ScrollHandle,
@@ -18,7 +16,7 @@ use beui::unstyled::{
 
 const FACE_PADDING_HORIZONTAL: f32 = 16.0;
 const FACE_PADDING_VERTICAL: f32 = 10.0;
-const PILL_RADIUS: u8 = 18;
+const PILL_RADIUS: f32 = 18.0;
 const BOX_SIZE: f32 = 20.0;
 const MARK_SIZE: f32 = 10.0;
 const METER_HEIGHT: f32 = 28.0;
@@ -87,12 +85,11 @@ fn PressCounter() -> NodeId {
                 on_active_change={move |on| set_active.set(on)}
             >
                 <Frame
-                    color={fill}
-                    radius=RADIUS
-                    padding_horizontal=FACE_PADDING_HORIZONTAL
-                    padding_vertical=FACE_PADDING_VERTICAL
+                    fill={ColorRole::custom(fill)}
+                    radius=Radius::Md
+                    padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
-                    <Text string={label} color={theme.text} />
+                    <Text string={label} />
                 </Frame>
             </unstyled::Pressable>
         </List>
@@ -103,7 +100,6 @@ fn PressCounter() -> NodeId {
 #[component]
 fn PillButton() -> NodeId {
     let (launched, set_launched) = create_signal("Not launched".to_owned());
-    let theme = use_theme();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -114,7 +110,7 @@ fn PillButton() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={launched} color={theme.text_muted} />
+            <Text string={launched} color=TextColor::Muted />
         </List>
     }
 }
@@ -139,16 +135,12 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
     });
     view! {
         <Frame
-            color={fill}
-            radius=PILL_RADIUS
-            outline={theme.text}
-            outline_width=2.0
-            outline_offset=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=FACE_PADDING_HORIZONTAL
-            padding_vertical=FACE_PADDING_VERTICAL
+            fill={ColorRole::custom(fill)}
+            radius={Radius::custom(PILL_RADIUS)}
+            border={focus_border(focused, Border::new(ColorRole::Text).width(2.0).offset(2.0))}
+            padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
-            <Text string={label.to_owned()} color={theme.on_accent} bold=true />
+            <Text string={label.to_owned()} color=TextColor::OnAccent weight=Weight::Bold />
         </Frame>
     }
 }
@@ -183,30 +175,24 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
     });
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=2.0
-            outline_offset=2.0
-            radius=RADIUS
-            outline_visible={focus_ring(focused)}
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0).offset(2.0))}
+            radius=Radius::Md
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    outline={border}
-                    outline_width=2.0
-                    outline_visible=true
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get())).width(2.0)))}
+                    align=Align::Center
                 >
                     <Frame
                         width=MARK_SIZE
                         height=MARK_SIZE
-                        color={theme.accent}
+                        fill=ColorRole::Accent
                         visible={checked}
                     />
                 </Frame>
-                <Text string={label.to_owned()} color={theme.text} />
+                <Text string={label.to_owned()} />
             </List>
         </Frame>
     }
@@ -256,7 +242,6 @@ pub(crate) fn ValuesPage() -> NodeId {
 #[component]
 fn VolumeMeter() -> NodeId {
     let (volume, set_volume) = create_signal(0.3f32);
-    let theme = use_theme();
     let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
@@ -265,7 +250,7 @@ fn VolumeMeter() -> NodeId {
                     <MeterFace handle />
                 }}
             </unstyled::Slider>
-            <Text string={volume_text} color={theme.text_muted} />
+            <Text string={volume_text} color=TextColor::Muted />
         </List>
     }
 }
@@ -276,21 +261,22 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
     let SliderHandle {
         fraction, focused, ..
     } = handle;
-    let theme = use_theme();
     let filled = create_memo(move || ItemSize::Percent(fraction.get() * 100.0));
     let rest = create_memo(move || ItemSize::Percent((1.0 - fraction.get()) * 100.0));
     view! {
         <Frame
             height=METER_HEIGHT
-            color={theme.track}
-            radius=RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_offset=2.0
-            outline_visible={focus_ring(focused)}
+            fill=ColorRole::Track
+            radius=Radius::Md
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0).offset(2.0))}
         >
             <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing={filled} height=METER_HEIGHT color={theme.accent} radius=RADIUS />
+                <Frame
+                    @sizing={filled}
+                    height=METER_HEIGHT
+                    fill=ColorRole::Accent
+                    radius=Radius::Md
+                />
                 <Spacer @sizing={rest} />
             </List>
         </Frame>
@@ -321,7 +307,7 @@ fn UnderlinedInput() -> NodeId {
                     <UnderlinedField handle />
                 }}
             </unstyled::TextInput>
-            <Text string={submitted} color={theme.text_muted} />
+            <Text string={submitted} color=TextColor::Muted />
         </List>
     }
 }
@@ -343,7 +329,7 @@ fn UnderlinedField(handle: TextInputHandle) -> NodeId {
     view! {
         <List spacing=6.0>
             {field}
-            <Frame height=UNDERLINE color={line} />
+            <Frame height=UNDERLINE fill={ColorRole::custom(line)} />
         </List>
     }
 }
@@ -391,15 +377,9 @@ pub(crate) fn SelectingPage() -> NodeId {
 #[sample]
 #[component]
 fn SegmentedControl() -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame
-                color={theme.surface_raised}
-                radius=PILL_RADIUS
-                padding_horizontal=4.0
-                padding_vertical=4.0
-            >
+            <Frame fill=ColorRole::SurfaceRaised radius={Radius::custom(PILL_RADIUS)} padding=4.0>
                 <unstyled::Choice
                     options={view! {
                         <ChoiceOption label="List" />
@@ -439,18 +419,15 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         }
     });
     let ink = create_memo(move || match selected.get() {
-        true => theme.on_accent.get(),
-        false => theme.text.get(),
+        true => TextColor::OnAccent,
+        false => TextColor::Default,
     });
     view! {
         <Frame
-            color={fill}
-            radius=PILL_RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=14.0
-            padding_vertical=6.0
+            fill={ColorRole::custom(fill)}
+            radius={Radius::custom(PILL_RADIUS)}
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            padding={Sides::symmetric(14.0, 6.0)}
         >
             <Text string={label} color={ink} />
         </Frame>
@@ -461,7 +438,6 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn SizeRadios() -> NodeId {
     let sizes = ["Small", "Medium", "Large"];
-    let theme = use_theme();
     let (chosen, set_chosen) = create_signal("Medium".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
@@ -483,7 +459,7 @@ fn SizeRadios() -> NodeId {
                     <RadioFace handle />
                 }}
             </unstyled::Choice>
-            <Text string={chosen} color={theme.text_muted} />
+            <Text string={chosen} color=TextColor::Muted />
         </List>
     }
 }
@@ -497,36 +473,29 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let theme = use_theme();
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=2.0
-            radius=RADIUS
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=4.0
-            padding_vertical=4.0
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            radius=Radius::Md
+            padding=4.0
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    radius=10
-                    outline={theme.text_muted}
-                    outline_width=2.0
-                    outline_visible=true
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    radius=Radius::Lg
+                    border={Border::new(ColorRole::TextMuted).width(2.0)}
+                    align=Align::Center
                 >
                     <Frame
                         width=MARK_SIZE
                         height=MARK_SIZE
-                        radius=5
-                        color={theme.accent}
+                        radius={Radius::custom(5.0)}
+                        fill=ColorRole::Accent
                         visible={selected}
                     />
                 </Frame>
-                <Text string={label} color={theme.text} />
+                <Text string={label} />
             </List>
         </Frame>
     }
@@ -536,7 +505,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn DetailsDisclosure() -> NodeId {
     let theme = use_theme();
-    let body = theme.text_muted;
+    let body = TextColor::Muted;
     view! {
         <unstyled::Disclosure
             spacing=8.0
@@ -548,8 +517,8 @@ fn DetailsDisclosure() -> NodeId {
                     false => "Show the details".to_owned(),
                 });
                 let ink = create_memo(move || match hovered.get() {
-                    true => theme.accent_hover.get(),
-                    false => theme.accent.get(),
+                    true => TextColor::Custom(theme.accent_hover.get()),
+                    false => TextColor::Accent,
                 });
                 view! {
                     <Text string={title} color={ink} underline=true />
@@ -620,17 +589,13 @@ pub(crate) fn PopupsPage() -> NodeId {
 #[sample]
 #[component]
 fn PopupPanel(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
             width=PANEL_WIDTH
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=CARD_RADIUS
-            padding_horizontal=12.0
-            padding_vertical=12.0
+            fill=ColorRole::SurfaceRaised
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius=Radius::Lg
+            padding=12.0
         >
             {children}
         </Frame>
@@ -640,7 +605,6 @@ fn PopupPanel(children: Child) -> NodeId {
 #[sample]
 #[component]
 fn InfoPopover() -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Popover
@@ -656,7 +620,6 @@ fn InfoPopover() -> NodeId {
                             <List spacing=SECTION_SPACING>
                                 <Text
                                     string="A popover places its content below the trigger and closes on Escape or a click outside."
-                                    color={theme.text}
                                     wrap=true
                                 />
                                 <unstyled::Button
@@ -677,14 +640,13 @@ fn InfoPopover() -> NodeId {
 #[sample]
 #[component]
 fn HintTooltip() -> NodeId {
-    let theme = use_theme();
-    let ink = theme.text;
+    let ink = TextColor::Default;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Tooltip
                 label="Saved two minutes ago"
                 content={move |handle: TooltipHandle| view! {
-                    <Frame padding_vertical=4.0>
+                    <Frame padding={Sides::vertical(4.0)}>
                         <PopupPanel>
                             <Text string={handle.label} color={ink} />
                         </PopupPanel>
@@ -692,12 +654,11 @@ fn HintTooltip() -> NodeId {
                 }}
             >
                 <Frame
-                    color={theme.surface_raised}
-                    radius=RADIUS
-                    padding_horizontal=FACE_PADDING_HORIZONTAL
-                    padding_vertical=FACE_PADDING_VERTICAL
+                    fill=ColorRole::SurfaceRaised
+                    radius=Radius::Md
+                    padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
-                    <Text string="Hover me" color={theme.text} />
+                    <Text string="Hover me" />
                 </Frame>
             </unstyled::Tooltip>
         </List>
@@ -707,7 +668,6 @@ fn HintTooltip() -> NodeId {
 #[sample]
 #[component]
 fn ExportMenu() -> NodeId {
-    let theme = use_theme();
     let (exported, set_exported) = create_signal("Nothing exported".to_owned());
     let formats = ["PDF", "PNG", "Markdown"];
     view! {
@@ -737,7 +697,7 @@ fn ExportMenu() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={exported} color={theme.text_muted} />
+            <Text string={exported} color=TextColor::Muted />
         </List>
     }
 }
@@ -745,7 +705,6 @@ fn ExportMenu() -> NodeId {
 #[sample]
 #[component]
 fn RunSplit() -> NodeId {
-    let theme = use_theme();
     let (ran, set_ran) = create_signal("Nothing run".to_owned());
     let picked = set_ran;
     view! {
@@ -778,7 +737,7 @@ fn RunSplit() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={ran} color={theme.text_muted} />
+            <Text string={ran} color=TextColor::Muted />
         </List>
     }
 }
@@ -798,8 +757,12 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     view! {
-        <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
-            <Text string={label} color={theme.text} />
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            padding={Sides::symmetric(10.0, 6.0)}
+        >
+            <Text string={label} />
         </Frame>
     }
 }
@@ -853,15 +816,12 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
                 view! {
                     <Frame
                         height=BIN_HEIGHT
-                        outline={edge}
-                        outline_width=2.0
-                        outline_visible=true
-                        radius=CARD_RADIUS
-                        padding_horizontal=12.0
-                        padding_vertical=12.0
+                        border={create_memo(move || Some(Border::new(ColorRole::Custom(edge.get())).width(2.0)))}
+                        radius=Radius::Lg
+                        padding=12.0
                     >
                         <List spacing=8.0>
-                            <Text string={BINS[bin].to_owned()} color={theme.text_muted} />
+                            <Text string={BINS[bin].to_owned()} color=TextColor::Muted />
                             <ForEach keys={fruits}>
                                 {move |fruit: usize| view! {
                                     <unstyled::Draggable
@@ -893,8 +853,12 @@ fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
         false => theme.surface_raised.get(),
     });
     view! {
-        <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
-            <Text string={PRODUCE[fruit].to_owned()} color={theme.text} />
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            padding={Sides::symmetric(10.0, 6.0)}
+        >
+            <Text string={PRODUCE[fruit].to_owned()} />
         </Frame>
     }
 }
@@ -916,19 +880,18 @@ pub(crate) fn ScrollingPage() -> NodeId {
 #[sample]
 #[component]
 fn ThinScroll() -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame outline={theme.border} outline_width=1.0 outline_visible=true radius=CARD_RADIUS>
+        <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Lg>
             <List spacing=0.0>
                 <unstyled::Scroll
                     @sizing=ItemSize::Fixed(SCROLL_HEIGHT)
                     scrollbar={thin_scrollbar()}
                 >
-                    <Frame padding_horizontal=12.0 padding_vertical=12.0>
+                    <Frame padding=12.0>
                         <List spacing=6.0>
                             <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>
                                 {move |line: usize| view! {
-                                    <Text string={format!("Line {line}")} color={theme.text} />
+                                    <Text string={format!("Line {line}")} />
                                 }}
                             </ForEach>
                         </List>
@@ -984,7 +947,6 @@ fn ThinThumb(bar: ScrollbarHandle) -> NodeId {
 #[sample]
 #[component]
 fn OpenableFiles() -> NodeId {
-    let theme = use_theme();
     let (chosen, set_chosen) = create_signal(0usize);
     let (opened, set_opened) =
         create_signal("Double-click a file, or press Enter on it".to_owned());
@@ -1012,7 +974,7 @@ fn OpenableFiles() -> NodeId {
                     {row(2, "photo.png")}
                 </List>
             </Frame>
-            <Text string={opened} color={theme.text_muted} />
+            <Text string={opened} color=TextColor::Muted />
         </List>
     }
 }
@@ -1034,15 +996,12 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
     });
     view! {
         <Frame
-            color={fill}
-            radius=RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=10.0
-            padding_vertical=6.0
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={name.to_owned()} color={theme.text} />
+            <Text string={name.to_owned()} />
         </Frame>
     }
 }
@@ -1050,7 +1009,6 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
 #[sample]
 #[component]
 fn ScrubbedNumber() -> NodeId {
-    let theme = use_theme();
     let (gap, set_gap) = create_signal(12.0f64);
     let shown = create_memo(move || format!("Gap {} px", gap.get()));
     view! {
@@ -1070,7 +1028,7 @@ fn ScrubbedNumber() -> NodeId {
                     on_change={move |value: f64| set_gap.set(value)}
                 />
             </Frame>
-            <Text string={shown} color={theme.text_muted} />
+            <Text string={shown} color=TextColor::Muted />
         </List>
     }
 }
@@ -1096,15 +1054,12 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
     });
     view! {
         <Frame
-            color={fill}
-            radius=RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=FACE_PADDING_HORIZONTAL
-            padding_vertical=FACE_PADDING_VERTICAL
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
-            <Text string={text} color={theme.text} align=TextAlign::Center />
+            <Text string={text} align=TextAlign::Center />
         </Frame>
     }
 }
@@ -1183,7 +1138,12 @@ fn HueAndHex() -> NodeId {
                 }}
             </Swatches>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Frame width=SWATCH_SIZE height=SWATCH_SIZE radius=RADIUS color={shown} />
+                <Frame
+                    width=SWATCH_SIZE
+                    height=SWATCH_SIZE
+                    radius=Radius::Md
+                    fill={ColorRole::custom(shown)}
+                />
                 <unstyled::TextInput
                     @sizing=ItemSize::Percent(100.0)
                     value={hex.text()}
@@ -1214,14 +1174,8 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
         )
     });
     view! {
-        <Frame
-            height=PAD_HEIGHT
-            color={fill}
-            radius=RADIUS
-            padding_horizontal=8.0
-            padding_vertical=8.0
-        >
-            <Text string={place} color={Color32::WHITE} />
+        <Frame height=PAD_HEIGHT fill={ColorRole::custom(fill)} radius=Radius::Md padding=8.0>
+            <Text string={place} color={TextColor::Custom(Color32::WHITE)} />
         </Frame>
     }
 }
@@ -1235,18 +1189,14 @@ fn SwatchDot(handle: SwatchHandle) -> NodeId {
             selected, focused, ..
         },
     } = handle;
-    let theme = use_theme();
     let ring = create_memo(move || selected.get() || focused.get());
     view! {
         <Frame
             width=DOT_SIZE
             height=DOT_SIZE
-            color
-            radius=PILL_RADIUS
-            outline={theme.text}
-            outline_width=2.0
-            outline_offset=2.0
-            outline_visible={ring}
+            fill={ColorRole::custom(color)}
+            radius={Radius::custom(PILL_RADIUS)}
+            border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Text).width(2.0).offset(2.0)))}
         />
     }
 }
@@ -1364,7 +1314,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                                 false => "+".to_owned(),
                             });
                             view! {
-                                <Text string={marker} color={theme.text_muted} />
+                                <Text string={marker} color=TextColor::Muted />
                             }
                         }}
                     </unstyled::TreeToggle>
@@ -1372,16 +1322,13 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
             </Frame>
             <Frame
                 @sizing=ItemSize::Percent(100.0)
-                color={fill}
-                radius=RADIUS
-                outline={theme.accent}
-                outline_width=2.0
-                outline_visible={focus_ring(focused)}
-                padding_horizontal=6.0
-                padding_vertical=3.0
+                fill={ColorRole::custom(fill)}
+                radius=Radius::Md
+                border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+                padding={Sides::symmetric(6.0, 3.0)}
             >
                 <unstyled::TreeRowArea target>
-                    <Text string={label} color={theme.text} />
+                    <Text string={label} />
                 </unstyled::TreeRowArea>
             </Frame>
         </List>
@@ -1395,14 +1342,11 @@ fn PlainNote() -> NodeId {
         b"Right-click for Copy and Paste, or type :tada",
     )) as Arc<dyn text_editor_core::Document>;
     let state = TextAreaState::new(document);
-    let theme = use_theme();
     view! {
         <Frame
             height=NOTE_HEIGHT
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=RADIUS
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius=Radius::Md
         >
             <unstyled::TextContextMenu
                 state
@@ -1456,8 +1400,12 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     view! {
-        <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=4.0>
-            <Text string={label} color={theme.text} />
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            padding={Sides::symmetric(10.0, 4.0)}
+        >
+            <Text string={label} />
         </Frame>
     }
 }
@@ -1465,11 +1413,10 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
 #[sample]
 #[component]
 fn PullUpSheet() -> NodeId {
-    let theme = use_theme();
     let (open, set_open) = create_signal(false);
     let closing = set_open;
     let done = set_open;
-    let ink = theme.text;
+    let ink = TextColor::Default;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Button
@@ -1486,11 +1433,11 @@ fn PullUpSheet() -> NodeId {
                     <SheetGrip />
                 }}
                 panel={move |content: Child| view! {
-                    <Frame color={theme.surface} radius=CARD_RADIUS>{content}</Frame>
+                    <Frame fill=ColorRole::Surface radius=Radius::Lg>{content}</Frame>
                 }}
                 on_close={move || closing.set(false)}
             >
-                <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+                <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
                         <Text
                             string="Swipe the sheet down, tap above, or press Escape to close."
@@ -1526,12 +1473,12 @@ fn FolderPages() -> NodeId {
     let nested = create_memo(move || depth.get() > 0);
     let rising = set_depth;
     let page = theme.background;
-    let ink = theme.text;
+    let ink = TextColor::Default;
     let above = move || {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
         let (page, ink) = (page, ink);
         view! {
-            <Frame color={page} radius=0>
+            <Frame fill={ColorRole::custom(page)}>
                 <Text string={label} color={ink} wrap=true />
             </Frame>
         }
@@ -1543,7 +1490,7 @@ fn FolderPages() -> NodeId {
             on_back={move || rising.set(depth.get_untracked().saturating_sub(1))}
             behind={above}
         >
-            <Frame color={page} radius=0>
+            <Frame fill={ColorRole::custom(page)}>
                 <List spacing=SECTION_SPACING>
                     <Text string={label} color={ink} wrap=true />
                     <List direction=Direction::Horizontal spacing=0.0>
@@ -1563,10 +1510,9 @@ fn FolderPages() -> NodeId {
 #[sample]
 #[component]
 fn SheetGrip() -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame height=24.0 align_horizontal=Align::Center align_vertical=Align::Center>
-            <Frame width=36.0 height=4.0 radius=2 color={theme.text_muted} />
+        <Frame height=24.0 align=Align::Center>
+            <Frame width=36.0 height=4.0 radius=Radius::Xs fill=ColorRole::TextMuted />
         </Frame>
     }
 }
@@ -1574,7 +1520,6 @@ fn SheetGrip() -> NodeId {
 #[sample]
 #[component]
 fn DeadlinePicker() -> NodeId {
-    let theme = use_theme();
     let (deadline, set_deadline) = create_signal(None::<DateTime>);
     let shown = create_memo(move || match deadline.get() {
         Some(deadline) => format!("Due {}", deadline.date.label()),
@@ -1591,10 +1536,10 @@ fn DeadlinePicker() -> NodeId {
                         <DateSegmentFace handle />
                     }}
                     literal={move |text: String| view! {
-                        <Text string={text} color={use_theme().text_muted} />
+                        <Text string={text} color=TextColor::Muted />
                     }}
                     segments={move |segments: Child| view! {
-                        <Frame padding_horizontal=10.0 padding_vertical=6.0>{segments}</Frame>
+                        <Frame padding={Sides::symmetric(10.0, 6.0)}>{segments}</Frame>
                     }}
                     field={move |handle: DateTimeBoxHandle| view! {
                         <DateBox handle />
@@ -1608,7 +1553,7 @@ fn DeadlinePicker() -> NodeId {
                     on_change={move |next: Option<DateTime>| set_deadline.set(next)}
                 />
             </List>
-            <Text string={shown} color={theme.text_muted} />
+            <Text string={shown} color=TextColor::Muted />
         </List>
     }
 }
@@ -1628,11 +1573,15 @@ fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     let ink = create_memo(move || match placeholder.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     view! {
-        <Frame color={fill} radius=3 padding_horizontal=2.0>
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius={Radius::custom(3.0)}
+            padding={Sides::horizontal(2.0)}
+        >
             <Text string={text} color={ink} />
         </Frame>
     }
@@ -1654,12 +1603,9 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
     });
     view! {
         <Frame
-            outline={line}
-            outline_width=1.0
-            outline_visible=true
-            radius=RADIUS
-            padding_right=4.0
-            padding_vertical=4.0
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(line.get())).width(1.0)))}
+            radius=Radius::Md
+            padding={Sides::vertical(4.0).right(4.0)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 {field}

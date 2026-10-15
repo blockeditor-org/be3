@@ -2,10 +2,9 @@ use block_editor_beui::be_block::CanvasContent;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
-use block_editor_beui::beui::reactive::{
-    Direction, ItemSize, List, NodeRef, action_scope, component, create_effect, provide_context,
-    view,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
+use block_editor_beui::{BlockQuery, Loaded};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -34,14 +33,26 @@ pub struct CanvasApp;
 
 impl block_editor_beui::BeuiApp for CanvasApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded =
+            editor.loaded::<block_editor_beui::be_block::CanvasContent>(&[BlockQuery::References(
+                editor.block_id(),
+            )]);
         view! {
-            <CanvasEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <CanvasEditor editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded =
+            editor.loaded::<block_editor_beui::be_block::CanvasContent>(&[BlockQuery::References(
+                editor.block_id(),
+            )]);
         view! {
-            <CanvasPreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <CanvasPreview editor={editor} />
+            </Loaded>
         }
     }
 

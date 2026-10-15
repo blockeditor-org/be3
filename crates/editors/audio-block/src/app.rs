@@ -1,7 +1,8 @@
 use std::time::Duration;
 
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::AudioContent;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
 
@@ -15,8 +16,11 @@ pub struct AudioApp;
 
 impl block_editor_beui::BeuiApp for AudioApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::AudioContent>(&[]);
         view! {
-            <AudioView editor={editor} />
+            <Loaded loaded={loaded}>
+                <AudioView editor={editor} />
+            </Loaded>
         }
     }
 

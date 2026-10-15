@@ -1,6 +1,7 @@
 use super::*;
 
-use block_editor_beui::beui::reactive::{Frame, build, with_reactive_scope};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 use block_editor_beui::HostContent;
 

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn dragging_the_inspector_edge_resizes_the_panel() {
@@ -8,7 +9,7 @@ fn dragging_the_inspector_edge_resizes_the_panel() {
     let document = build({
         move || {
             view! {
-                <Text @node_ref=&text string="Hello" font_size=14.0 color=Color32::WHITE />
+                <Text @node_ref=&text string="Hello" color=Color32::WHITE />
             }
         }
     });

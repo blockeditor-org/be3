@@ -1,6 +1,8 @@
 use super::*;
+use crate::FontId;
 use crate::geometry::vec2;
-use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, ListChild, component, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]
@@ -41,7 +43,11 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>
             {|index: usize| view! {
-                <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
+                <Text
+                    string={format!("Row {index}")}
+                    color=Color32::WHITE
+                    font={FontId::proportional(20.0)}
+                />
             }}
         </ForEach>
     }

@@ -2,11 +2,8 @@ use beui::KeyAt;
 use std::rc::Rc;
 
 use block_editor_beui::beui::icons::ICON_APPS;
-use block_editor_beui::beui::reactive::{
-    Action, Chord, ReadSignal, WriteSignal, component, create_memo, create_signal,
-    pixels_per_point, view,
-};
-use block_editor_beui::beui::styled::{Launcher, LauncherItem};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, Key, NodeId};
 use block_editor_beui::{Editor, HostProgram, ProgramAction, Programs};
 
@@ -18,6 +15,7 @@ pub(crate) struct ProgramLauncher {
     open: ReadSignal<bool>,
     set_open: WriteSignal<bool>,
     scale: ReadSignal<f32>,
+    pub(crate) offered: Memo<bool>,
 }
 
 impl ProgramLauncher {
@@ -28,6 +26,7 @@ impl ProgramLauncher {
             open,
             set_open,
             scale: pixels_per_point(),
+            offered: editor.host_offers::<Programs>(),
         }
     }
 
@@ -45,7 +44,10 @@ impl ProgramLauncher {
 
     fn launch(&self, id: String) {
         self.show(false);
-        self.editor.act(ProgramAction::Launch(id));
+        self.editor.act(ProgramAction::Launch {
+            program: id,
+            launch: None,
+        });
     }
 
     fn run(&self, line: String) {

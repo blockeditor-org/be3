@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, List, NodeRef, build, view};
-use crate::styled::Select;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {

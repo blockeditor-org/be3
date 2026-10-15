@@ -13,7 +13,7 @@ use std::{
 use crate::editors::plugin::discovery;
 
 use block_plugin_api::PluginManifest;
-use block_wasm_host::{Host, Plugin};
+use block_wasm_host::{Host, Interrupter, Plugin};
 
 use super::{
     backend::StepTime,
@@ -68,11 +68,13 @@ impl worker::Presented for PresentedTexture {
 pub(super) struct Channel {
     steps: Sender<Vec<Vec<u8>>>,
     events: Receiver<Event<PresentedTexture>>,
+    interrupter: Interrupter,
     thread: Option<Thread>,
 }
 
 impl Drop for Channel {
     fn drop(&mut self) {
+        self.interrupter.interrupt();
         let Some(thread) = self.thread.take() else {
             return;
         };
@@ -127,6 +129,7 @@ pub(super) fn spawn(
 ) -> Result<Channel, String> {
     let (device, queue) = gpu().ok_or(NO_GPU)?;
     let host = Host::new(device, queue, cache().as_deref())?;
+    let interrupter = host.interrupter();
     let (steps, orders) = mpsc::channel();
     let (reports, events) = mpsc::channel();
     let (ending, ended) = mpsc::channel();
@@ -147,6 +150,7 @@ pub(super) fn spawn(
     Ok(Channel {
         steps,
         events,
+        interrupter,
         thread: Some(Thread { handle, ended }),
     })
 }

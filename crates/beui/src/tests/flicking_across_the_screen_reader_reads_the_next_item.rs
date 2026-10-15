@@ -1,16 +1,17 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Body, Heading};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn flicking_across_the_screen_reader_reads_the_next_item() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
-                <Heading content="Settings" />
+                <Text style=TextStyle::HEADING string="Settings" />
             },
             view! {
-                <Body content="Pick a theme" />
+                <Text string="Pick a theme" />
             },
         ]
     });

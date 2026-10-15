@@ -5,11 +5,8 @@ use beui::icons::{
     ICON_FORMAT_LIST_BULLETED, ICON_FORMAT_LIST_NUMBERED, ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE,
     ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
 };
-use beui::reactive::{
-    Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component,
-    create_memo, create_signal, view, with_document,
-};
-use beui::styled::{Body, Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{ChoiceOption, Scroll};
 use block_editor_beui::BlockParent;
 use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
@@ -172,7 +169,6 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
 
 #[component]
 pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
-    let theme = use_theme();
     let typing = state.typing;
     let hex = state.hex_view;
     let shown = create_memo(move || typing.get() && !hex.get());
@@ -194,36 +190,37 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         let keyboard = keyboard;
         let markdown = markdown;
         view! {
-            <Frame color={theme.surface}>
-                <List spacing=0.0>
-                    <Separator />
-                    <Frame padding_vertical=FORMAT_PADDING>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Scroll
-                                @sizing=ItemSize::Percent(100.0)
-                                direction=Direction::Horizontal
-                            >
-                                <Frame padding_horizontal=FORMAT_PADDING>
-                                    <List spacing=0.0>
-                                        <Show condition={markdown} then={controls} />
-                                    </List>
-                                </Frame>
-                            </Scroll>
-                            <Show condition={keyboard}>
-                                <Frame padding_horizontal=FORMAT_PADDING>
-                                    <IconButton
-                                        glyph=ICON_KEYBOARD_HIDE
-                                        label="Done"
-                                        press_focus=false
-                                        @test_id={"text.format.done"}
-                                        on_click={|| with_document(|document| document.update_focus(None))}
-                                    />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </Frame>
-                </List>
-            </Frame>
+            <Interactive press_focus=false @test_id={"text.format"}>
+                <Frame fill=ColorRole::Surface>
+                    <List spacing=0.0>
+                        <Separator />
+                        <Frame padding={Sides::vertical(FORMAT_PADDING)}>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                <Scroll
+                                    @sizing=ItemSize::Percent(100.0)
+                                    direction=Direction::Horizontal
+                                >
+                                    <Frame padding={Sides::horizontal(FORMAT_PADDING)}>
+                                        <List spacing=0.0>
+                                            <Show condition={markdown} then={controls} />
+                                        </List>
+                                    </Frame>
+                                </Scroll>
+                                <Show condition={keyboard}>
+                                    <Frame padding={Sides::horizontal(FORMAT_PADDING)}>
+                                        <IconButton
+                                            glyph=ICON_KEYBOARD_HIDE
+                                            label="Done"
+                                            @test_id={"text.format.done"}
+                                            on_click={|| with_document(|document| document.update_focus(None))}
+                                        />
+                                    </Frame>
+                                </Show>
+                            </List>
+                        </Frame>
+                    </List>
+                </Frame>
+            </Interactive>
         }
     };
     view! {
@@ -243,7 +240,7 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
                     let action = formats[index].clone();
                     let id = action.id().to_owned();
                     view! {
-                        <IconButton @test_id={id} action press_focus=false />
+                        <IconButton @test_id={id} action />
                     }
                 }}
             </ForEach>
@@ -256,7 +253,7 @@ fn HexSettings(state: State) -> NodeId {
     let insert = state.hex_insert_mode;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-            <Body @sizing=ItemSize::Percent(100.0) content="Insert instead of overwriting" />
+            <Text @sizing=ItemSize::Percent(100.0) string="Insert instead of overwriting" />
             <Switch
                 label="Insert instead of overwriting"
                 on={insert}
@@ -300,7 +297,7 @@ fn TextSettings(state: State) -> NodeId {
     view! {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Body @sizing=ItemSize::Percent(100.0) content="Language" />
+                <Text @sizing=ItemSize::Percent(100.0) string="Language" />
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Language"
@@ -325,7 +322,7 @@ fn TextSettings(state: State) -> NodeId {
                 </Frame>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Body @sizing=ItemSize::Percent(100.0) content="Indentation" />
+                <Text @sizing=ItemSize::Percent(100.0) string="Indentation" />
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Indentation"
@@ -352,7 +349,7 @@ fn TextSettings(state: State) -> NodeId {
                         align=Align::Center
                         spacing=SETTINGS_SPACING
                     >
-                        <Body @sizing=ItemSize::Percent(100.0) content="Indentation width" />
+                        <Text @sizing=ItemSize::Percent(100.0) string="Indentation width" />
                         <Frame width=NUMBER_WIDTH>
                             <NumberInput
                                 label="Indentation width"

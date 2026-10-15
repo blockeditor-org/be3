@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use be_block::database::{
-    DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses,
+    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
 };
 use be_block::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
@@ -9,14 +9,8 @@ use be_block::database_schema::{
 };
 use beui::datetime::DateTime;
 use beui::icons::ICON_CLEAR;
-use beui::reactive::{
-    Align, Callback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal,
-    Show, Spacer, component, create_effect, create_memo, create_signal, view,
-};
-use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, DateTimeField, IconButton,
-    NumberDrag, NumberInput, Select, TextInput,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
 pub use block_ui::database::ValueLabels;
@@ -115,7 +109,7 @@ fn DatabaseValueRow(
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={headings}>
-                    <Caption content={heading} />
+                    <Text style=TextStyle::CAPTION string={heading} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
@@ -595,7 +589,11 @@ fn RelationValue(
     view! {
         <List spacing=SPACING>
             <Show condition={unlinked}>
-                <Caption content="Choose the database this column links to." wrap=true />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Choose the database this column links to."
+                    wrap=true
+                />
             </Show>
             <Select
                 options={view! {
@@ -705,7 +703,7 @@ fn LinksValue(
                     };
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                            <Text @sizing=ItemSize::Percent(100.0) string={label} />
                             <IconButton
                                 glyph={ICON_CLEAR.to_owned()}
                                 label="Remove link"
@@ -744,13 +742,15 @@ fn LinksValue(
     }
 }
 
-pub fn watch_inverses(editor: crate::Editor, database: Memo<Option<Uuid>>) -> Memo<Vec<Inverse>> {
-    let (found, set_found) = create_signal(Vec::<Inverse>::new());
+pub fn watch_inverses(
+    editor: crate::Editor,
+    database: Memo<Option<Uuid>>,
+) -> Memo<Option<Vec<Inverse>>> {
+    let (found, set_found) = create_signal(None::<Vec<Inverse>>);
     let watched: std::cell::RefCell<Option<(Uuid, crate::BlockList)>> =
         std::cell::RefCell::new(None);
     create_effect(move || {
         let Some(target) = database.get() else {
-            set_found.set(Vec::new());
             return;
         };
         let mut held = watched.borrow_mut();
@@ -760,13 +760,15 @@ pub fn watch_inverses(editor: crate::Editor, database: Memo<Option<Uuid>>) -> Me
                 editor.blocks().watch(crate::BlockQuery::Backrefs(target)),
             ));
         }
-        let mut sources: Vec<Uuid> = held
-            .as_ref()
-            .map(|(_, list)| list.read())
-            .unwrap_or_default()
+        let Some((_, backrefs)) = held.as_ref().filter(|(_, list)| list.is_loaded()) else {
+            return;
+        };
+        let mut sources: Vec<Uuid> = backrefs
+            .read()
             .into_iter()
             .filter(|info| {
                 info.block_type == <DatabaseSchemaContent as be_block::BlockContent>::CONTENT_TYPE
+                    && info.access.can_view()
             })
             .filter_map(|info| match info.parent {
                 crate::BlockParent::Block(parent) => Some(parent),
@@ -776,37 +778,59 @@ pub fn watch_inverses(editor: crate::Editor, database: Memo<Option<Uuid>>) -> Me
         drop(held);
         sources.sort();
         sources.dedup();
-        let watched_sources: Vec<ReadSignal<Vec<Inverse>>> = sources
+        let watched_sources: Vec<ReadSignal<Option<Vec<Inverse>>>> = sources
             .into_iter()
             .map(|source| source_inverses(editor, target, source))
             .collect();
         create_effect(move || {
-            set_found.set(
-                watched_sources
-                    .iter()
-                    .flat_map(|inverses| inverses.get())
-                    .collect(),
-            );
+            let mut all = Vec::new();
+            for inverses in &watched_sources {
+                let Some(inverses) = inverses.get() else {
+                    return;
+                };
+                all.extend(inverses);
+            }
+            set_found.set(Some(all));
         });
     });
     create_memo(move || found.get())
 }
 
-fn source_inverses(editor: crate::Editor, target: Uuid, source: Uuid) -> ReadSignal<Vec<Inverse>> {
+fn source_inverses(
+    editor: crate::Editor,
+    target: Uuid,
+    source: Uuid,
+) -> ReadSignal<Option<Vec<Inverse>>> {
     let content = editor.content_of::<DatabaseContent>(source);
-    let schema_id = content.project(|content| content.root().schema);
-    let (found, set_found) = create_signal(Vec::new());
+    let content_settled = crate::content_settled(editor, source, content.loaded());
+    let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
+    let (found, set_found) = create_signal(None);
     create_effect(move || {
+        if !content_settled.get() {
+            return;
+        }
         let Some(schema) = schema_id.get() else {
-            set_found.set(Vec::new());
+            set_found.set(Some(Vec::new()));
             return;
         };
-        let schema = editor
-            .content_of::<DatabaseSchemaContent>(schema)
-            .project(|schema| schema.root());
-        let database = content.project(|content| content.root());
+        let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
+        let schema_settled = crate::content_settled(editor, schema, schema_content.loaded());
+        let schema = schema_content.project(|schema| schema.root());
+        let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
         create_effect(move || {
-            set_found.set(inverses(target, source, &database.get(), &schema.get()));
+            if schema_settled.get() {
+                let found = rows.with(|rows| {
+                    schema.with(|schema| {
+                        inverses_of(
+                            target,
+                            source,
+                            rows.iter().map(|(id, row)| (*id, row.as_ref())),
+                            schema,
+                        )
+                    })
+                });
+                set_found.set(Some(found));
+            }
         });
     });
     found
@@ -823,55 +847,103 @@ pub fn relation_targets(fields: &[DatabaseField]) -> Vec<Uuid> {
     targets
 }
 
-pub fn watch_row_labels(
-    editor: crate::Editor,
-    databases: Memo<Vec<Uuid>>,
-) -> Memo<BTreeMap<RowRef, String>> {
-    let (labels, set_labels) = create_signal(BTreeMap::new());
-    create_effect(move || {
-        let watched: Vec<ReadSignal<Vec<(RowRef, String)>>> = databases
-            .get()
-            .into_iter()
-            .map(|database| row_titles(editor, database))
-            .collect();
-        create_effect(move || {
-            set_labels.set(
-                watched
-                    .iter()
-                    .flat_map(|titles| titles.get())
-                    .collect::<BTreeMap<RowRef, String>>(),
-            );
-        });
-    });
-    create_memo(move || labels.get())
+type RowTitles = Vec<(RowRef, String)>;
+
+#[derive(Clone, Copy)]
+pub struct RowLabels {
+    pub labels: Memo<BTreeMap<RowRef, String>>,
+    pub loaded: Memo<bool>,
 }
 
-fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef, String)>> {
-    let content = editor.content_of::<DatabaseContent>(database);
-    let schema_id = content.project(|content| content.root().schema);
-    let (titles, set_titles) = create_signal(Vec::new());
+pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> RowLabels {
+    let (found, set_found) = create_signal(None::<(Vec<Uuid>, BTreeMap<RowRef, String>)>);
     create_effect(move || {
+        let wanted = databases.get();
+        let watched: Vec<ReadSignal<Option<RowTitles>>> = wanted
+            .iter()
+            .map(|database| row_titles(editor, *database))
+            .collect();
+        create_effect(move || {
+            let mut all = BTreeMap::new();
+            for titles in &watched {
+                let Some(titles) = titles.get() else {
+                    return;
+                };
+                all.extend(titles);
+            }
+            set_found.set(Some((wanted.clone(), all)));
+        });
+    });
+    RowLabels {
+        labels: create_memo(move || {
+            found.with(|found| {
+                found
+                    .as_ref()
+                    .map(|(_, labels)| labels.clone())
+                    .unwrap_or_default()
+            })
+        }),
+        loaded: create_memo(move || {
+            let wanted = databases.get();
+            found.with(|found| {
+                found
+                    .as_ref()
+                    .is_some_and(|(covered, _)| *covered == wanted)
+            })
+        }),
+    }
+}
+
+fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
+    let content = editor.content_of::<DatabaseContent>(database);
+    let content_settled = crate::content_settled(editor, database, content.loaded());
+    let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
+    let (titles, set_titles) = create_signal(None);
+    create_effect(move || {
+        if !content_settled.get() {
+            return;
+        }
         let title_field = schema_id.get().map(|schema| {
-            editor
-                .content_of::<DatabaseSchemaContent>(schema)
-                .project(|schema| schema.root().title_field())
+            let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
+            let settled = crate::content_settled(editor, schema, schema_content.loaded());
+            let title = schema_content.project(|schema| schema.root().title_field());
+            (settled, title)
         });
         create_effect(move || {
-            let title = title_field.as_ref().and_then(ReadSignal::get);
-            let projected = content.project(move |content| {
-                let root = content.root();
-                root.rows
-                    .iter()
-                    .map(|row| {
-                        let link = RowRef {
-                            database,
-                            row: row.id.as_uuid(),
-                        };
-                        (link, root.title(row.id, title))
-                    })
-                    .collect::<Vec<_>>()
+            let title = match &title_field {
+                Some((settled, _)) if !settled.get() => return,
+                Some((_, title)) => title.get(),
+                None => None,
+            };
+            let prefix = content.field(be_block::ObjectId::ROOT, Database::PREFIX);
+            let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
+            create_effect(move || {
+                let prefix = prefix.get();
+                let projected = rows.with(|rows| {
+                    rows.iter()
+                        .map(|(id, row)| {
+                            let link = RowRef {
+                                database,
+                                row: id.as_uuid(),
+                            };
+                            let named =
+                                title.and_then(|field| row.value(field)).and_then(|value| {
+                                    match value {
+                                        DatabaseValue::String(text) if !text.trim().is_empty() => {
+                                            Some(text.clone())
+                                        }
+                                        _ => None,
+                                    }
+                                });
+                            (
+                                link,
+                                named.unwrap_or_else(|| short_id(&prefix, id.as_uuid())),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                });
+                set_titles.set(Some(projected));
             });
-            create_effect(move || set_titles.set(projected.get()));
         });
     });
     titles
@@ -885,8 +957,8 @@ pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
         false => beui::TextAlign::Start,
     });
     view! {
-        <Frame padding_horizontal=SPACING>
-            <Body content={text} align={align} />
+        <Frame padding={Sides::horizontal(SPACING)}>
+            <Text string={text} align={align} />
         </Frame>
     }
 }

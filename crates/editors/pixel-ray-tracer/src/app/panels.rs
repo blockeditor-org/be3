@@ -4,12 +4,8 @@ use block_editor_beui::be_block::pixel_ray_tracer::{
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, List, Prop, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, Slider, ToggleButton, Tooltip, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Pressable, SliderScale};
 
 use crate::overlay::palette_color;
@@ -20,10 +16,9 @@ const SWATCH: f32 = 18.0;
 
 #[component]
 pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
-    let theme = use_theme();
     view! {
         <List spacing=8.0>
-            <Heading content="Tools" />
+            <Text style=TextStyle::HEADING string="Tools" />
             <ForEach keys={Tool::ALL.to_vec()}>
                 {move |tool: Tool| {
                     view! {
@@ -31,10 +26,10 @@ pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
                     }
                 }}
             </ForEach>
-            <Caption
-                content="Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
+            <Text
+                style=TextStyle::CAPTION
+                string="Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
                 wrap=true
-                color={theme.text_muted}
             />
         </List>
     }
@@ -61,7 +56,7 @@ pub(crate) fn PropertiesPanel(state: RayState) -> NodeId {
     let unchosen = create_memo(move || !chosen.get());
     view! {
         <List spacing=10.0>
-            <Heading content="Palette" />
+            <Text style=TextStyle::HEADING string="Palette" />
             <Palette state={state} />
             <Show condition={chosen}>
                 <SelectedEntity state={state} selected={selected} />
@@ -112,11 +107,9 @@ fn Swatch(state: RayState, index: usize) -> NodeId {
                 <Frame
                     width=SWATCH
                     height=SWATCH
-                    color={color}
-                    radius=3
-                    outline={outline}
-                    outline_width=2.0
-                    outline_visible={picked}
+                    fill={ColorRole::custom(color)}
+                    radius={Radius::custom(3.0)}
+                    border={create_memo(move || picked.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(2.0)))}
                 />
             </Pressable>
         </Tooltip>
@@ -211,8 +204,8 @@ fn SelectedEntity(
     });
     view! {
         <List spacing=8.0>
-            <Heading content="Selected entity" />
-            <Body content={kind} />
+            <Text style=TextStyle::HEADING string="Selected entity" />
+            <Text string={kind} />
             <Show condition={surface}>
                 {move || view! {
                     <List spacing=6.0>
@@ -275,7 +268,7 @@ fn NewEntity(state: RayState) -> NodeId {
             <Show condition={light}>
                 {move || view! {
                     <List spacing=6.0>
-                        <Heading content="New light" />
+                        <Text style=TextStyle::HEADING string="New light" />
                         <Slider
                             value={intensity}
                             min=0.1
@@ -289,7 +282,7 @@ fn NewEntity(state: RayState) -> NodeId {
             <Show condition={surface}>
                 {move || view! {
                     <List spacing=6.0>
-                        <Heading content="New surface" />
+                        <Text style=TextStyle::HEADING string="New surface" />
                         <Slider value={roughness} label="Roughness" on_change={set_roughness} />
                         <Slider value={metalness} label="Metalness" on_change={set_metalness} />
                         <Slider
@@ -314,13 +307,13 @@ fn RaySettingsPanels(state: RayState) -> NodeId {
             <Show condition={tracing}>
                 {move || view! {
                     <List spacing=6.0>
-                        <Heading content="View rays" />
+                        <Text style=TextStyle::HEADING string="View rays" />
                         <RayControls state={state} view=true />
                     </List>
                 }}
             </Show>
             <List spacing=6.0>
-                <Heading content="Lighting rays" />
+                <Text style=TextStyle::HEADING string="Lighting rays" />
                 <RayControls state={state} view=false />
             </List>
         </List>

@@ -1,8 +1,7 @@
 use super::*;
-use crate::reactive::{
-    ForEach, Frame, NodeRef, Span, Text, WriteSignal, build, create_memo, create_signal, enter,
-    view,
-};
+use crate::primitives::Span;
+use crate::primitives::*;
+use crate::reactive::*;
 
 const WORDS: usize = 60;
 

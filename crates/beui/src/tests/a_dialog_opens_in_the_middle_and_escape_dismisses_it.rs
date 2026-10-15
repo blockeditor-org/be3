@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, Text, build, create_signal, view, with_reactive_scope};
-use crate::styled::Dialog;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
@@ -18,12 +19,7 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
                         width=300.0
                         on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
-                        <Text
-                            string="Body"
-                            font_size=14.0
-                            color=Color32::WHITE
-                            @node_ref={&surface}
-                        />
+                        <Text string="Body" color=Color32::WHITE @node_ref={&surface} />
                     </Dialog>
                 </List>
             }

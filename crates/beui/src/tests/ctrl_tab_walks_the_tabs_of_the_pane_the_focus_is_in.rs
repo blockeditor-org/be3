@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::ForEach;
-use crate::styled::text_input_value;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 
 #[test]

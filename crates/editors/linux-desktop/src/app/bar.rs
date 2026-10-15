@@ -3,18 +3,16 @@ use std::time::Duration;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Show, Spacer, component,
-    create_memo, create_signal, create_timer, now, view,
-};
-use block_editor_beui::beui::styled::{IconButton, MenuButton, Separator, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Media, utc_offset};
+use block_editor_beui::{Media, Power, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
 use super::launcher::ProgramLauncher;
 use super::notifications::{DesktopNotifications, NotificationsButton};
+use super::placeholders::{OpenAllButton, Placeholders};
 use super::popup::BarPopup;
 use super::power::PowerMenu;
 use super::sessions::Sessions;
@@ -55,13 +53,19 @@ pub(crate) fn DesktopBar(
     workspace: Workspace,
     notifications: DesktopNotifications,
     launcher: ProgramLauncher,
+    placeholders: Placeholders,
 ) -> NodeId {
-    let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
+    let kept = placeholders.keys;
+    let launches = placeholders.launchable;
+    let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
+    let launchable = launcher.offered;
     let launcher = move || launcher.show(true);
+    let notified = notifications.offered;
+    let powered = editor.host_offers::<Power>();
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
@@ -88,12 +92,7 @@ pub(crate) fn DesktopBar(
     view! {
         <List spacing=0.0>
             <Separator />
-            <Frame
-                color={theme.surface}
-                padding_horizontal=BAR_PADDING
-                padding_vertical=BAR_PADDING
-                @test_id={"desktop.bar"}
-            >
+            <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <IconButton
                         glyph={ICON_MENU.to_owned()}
@@ -101,12 +100,14 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.menu"}
                         on_click={menu}
                     />
-                    <IconButton
-                        glyph={ICON_APPS.to_owned()}
-                        label="Programs"
-                        @test_id={"desktop.launcher"}
-                        on_click={launcher}
-                    />
+                    <Show condition={launchable}>
+                        <IconButton
+                            glyph={ICON_APPS.to_owned()}
+                            label="Programs"
+                            @test_id={"desktop.launcher"}
+                            on_click={launcher}
+                        />
+                    </Show>
                     <MenuButton
                         label="Sessions"
                         glyph={ICON_WORKSPACES.to_owned()}
@@ -141,17 +142,24 @@ pub(crate) fn DesktopBar(
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Show condition={waiting}>
+                        <OpenAllButton placeholders />
+                    </Show>
                     <TrayItems editor={editor} />
                     <Show condition={audible}>
                         <VolumeButton editor={editor} levels={levels} />
                     </Show>
-                    <NotificationsButton notifications />
+                    <Show condition={notified}>
+                        <NotificationsButton notifications />
+                    </Show>
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
                             <DesktopCalendar editor={editor} />
                         }}
                     </BarPopup>
-                    <PowerMenu editor={editor} />
+                    <Show condition={powered}>
+                        <PowerMenu editor={editor} />
+                    </Show>
                 </List>
             </Frame>
         </List>

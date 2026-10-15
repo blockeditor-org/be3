@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, build, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{PointerLock, PointerLockHandle};
 
 #[test]

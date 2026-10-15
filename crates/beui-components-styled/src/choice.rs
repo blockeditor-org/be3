@@ -1,23 +1,23 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use crate::theme::{FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
-use beui_view::reactive::Memo;
-use beui_view::reactive::{
-    Align, Direction, Frame, ItemSize, List, Prop, Show, Text, create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
+use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
 
 const MARK_SPACING: f32 = 10.0;
 const MARK_BOX: f32 = 18.0;
 const MARK_DOT: f32 = 8.0;
-const MARK_RADIUS: u8 = 9;
+const MARK_RADIUS: f32 = 9.0;
 
 #[component]
 pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
@@ -29,26 +29,18 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let label_color = create_memo(move || {
-        let theme = theme.get();
-        if selected.get() {
-            theme.text
-        } else {
-            theme.text_muted
-        }
+    let label_color = create_memo(move || match selected.get() {
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let checked = selected;
     let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
     view! {
         <Frame
-            color={fill_color}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=1.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=14.0
-            padding_vertical=6.0
+            fill={ColorRole::custom(fill_color)}
+            border={focus_border(focused, Border::FOCUS.offset(1.0))}
+            radius=Radius::Md
+            padding={Sides::symmetric(14.0, 6.0)}
         >
             <ChoiceLabel kind label color={label_color} checked />
         </Frame>
@@ -59,7 +51,7 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
 fn ChoiceLabel(
     kind: Kind,
     label: Prop<String>,
-    color: Prop<Color32>,
+    color: Prop<TextColor>,
     checked: Memo<bool>,
 ) -> NodeId {
     let align = if kind == Kind::Tabs {
@@ -72,7 +64,7 @@ fn ChoiceLabel(
             <Show condition={kind == Kind::Radio}>
                 <RadioMark checked={checked} />
             </Show>
-            <Text @sizing=ItemSize::Percent(100.0) string={label} font_size=FONT_BODY color align />
+            <Text @sizing=ItemSize::Percent(100.0) string={label} color align />
         </List>
     }
 }
@@ -85,19 +77,16 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
         <Frame
             width=MARK_BOX
             height=MARK_BOX
-            outline={ring_color}
-            outline_width=2.0
-            radius=MARK_RADIUS
-            outline_visible=true
-            align_horizontal=Align::Center
-            align_vertical=Align::Center
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(ring_color.get())).width(2.0)))}
+            radius={Radius::custom(MARK_RADIUS)}
+            align=Align::Center
         >
             <Frame
                 visible={checked}
                 width=MARK_DOT
                 height=MARK_DOT
-                color={theme.accent}
-                radius=MARK_RADIUS
+                fill=ColorRole::Accent
+                radius={Radius::custom(MARK_RADIUS)}
             />
         </Frame>
     }

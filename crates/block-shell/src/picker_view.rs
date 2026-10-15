@@ -1,11 +1,5 @@
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Child, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo,
-    Portal, Show, Spacer, Text, component, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, Dialog, Heading, Icon, ModalSheet, SHEET_STOPS, Scroll,
-    Separator, Spinner, Tabs, TextInput, Title, ToggleButton, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, ChoiceOption};
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::TemplateEntry;
@@ -107,9 +101,9 @@ fn ChooseDialog(
                 rest={SHEET_STOPS[2]}
                 on_close={move || act.call(PickAction::Close)}
             >
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=4.0>
+                <Frame padding={Sides::symmetric(SHEET_PADDING, 4.0)}>
                     <List spacing=10.0>
-                        <Title content={sheet_title} />
+                        <Text style=TextStyle::TITLE string={sheet_title} />
                         <ChooseBody
                             @sizing=ItemSize::Percent(100.0)
                             workspace={workspace}
@@ -216,14 +210,14 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     <ChoiceOption label="Link existing" />
                 }}
             />
-            <Frame height={height}>
+            <Frame height=height>
                 <List spacing=8.0>
                     <Show condition={tiling}>
                         {move || view! {
                             <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                                 <List spacing=16.0>
                                     <Show condition={no_sections}>
-                                        <Caption content={tab_empty} />
+                                        <Text style=TextStyle::CAPTION string={tab_empty} />
                                     </Show>
                                     <ForEach keys={section_keys}>
                                         {move |key: String| {
@@ -255,7 +249,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                             <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                                 <List spacing=0.0>
                                     <Show condition={no_links}>
-                                        <Caption content={empty} />
+                                        <Text style=TextStyle::CAPTION string={empty} />
                                     </Show>
                                     <ForEach keys={link_keys}>
                                         {move |block: Uuid| {
@@ -330,7 +324,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
             <Show condition={shown}>
                 {move || view! {
                     <List spacing=8.0>
-                        <Caption content="Name" />
+                        <Text style=TextStyle::CAPTION string="Name" />
                         <TextInput
                             @test_id={"picker.name"}
                             value={name}
@@ -338,7 +332,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
                             label="Name"
                             on_change={move |value: String| act.call(PickAction::Name(value))}
                         />
-                        <Caption content="Location" />
+                        <Text style=TextStyle::CAPTION string="Location" />
                         <Scroll direction=Direction::Horizontal>
                             <ForEach keys={keys}>
                                 {move |parent: BlockParent| {
@@ -351,7 +345,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
                                 }}
                             </ForEach>
                         </Scroll>
-                        <Caption content="Choose a type to create it" />
+                        <Text style=TextStyle::CAPTION string="Choose a type to create it" />
                     </List>
                 }}
             </Show>
@@ -374,7 +368,7 @@ fn PlaceButton(
         BlockParent::Root | BlockParent::Detached => "picker.place.root".to_owned(),
     };
     view! {
-        <Frame padding_horizontal=3.0>
+        <Frame padding={Sides::horizontal(3.0)}>
             <ToggleButton
                 @test_id={named}
                 label
@@ -412,9 +406,11 @@ fn TileSectionView(act: Act, section: Memo<Option<TileSection>>) -> NodeId {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph} text_size=18.0 />
+                    <Text align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                 </Show>
-                <Heading content={title} />
+                <Text style=TextStyle::HEADING string={title} />
             </List>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
                 <ForEach keys={keys}>
@@ -471,22 +467,20 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
         <Frame
             width=TILE_WIDTH
             height=TILE_HEIGHT
-            color={fill}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=5
-            padding_horizontal=6.0
-            padding_vertical=10.0
+            fill={ColorRole::custom(fill)}
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::custom(5.0)}
+            padding={Sides::symmetric(6.0, 10.0)}
         >
             <List spacing=6.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
-                <Icon glyph={glyph} text_size=40.0 />
+                <Text size=TextSize::Xl3 align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
                 <Text
                     string={label}
-                    font_size=13.0
-                    color={theme.text}
+                    size=TextSize::Sm
                     align=TextAlign::Center
                     wrap=true
                     underline={focused}
@@ -613,9 +607,9 @@ fn CreateFrames(
                 fit=true
                 on_close={move || cancel.call(PickAction::CancelCreation)}
             >
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                <Frame padding=SHEET_PADDING>
                     <List spacing=10.0>
-                        <Title content={title} />
+                        <Text style=TextStyle::TITLE string={title} />
                         <Portal node={in_sheet} />
                     </List>
                 </Frame>
@@ -669,7 +663,7 @@ fn CreateBody(
     let editor = workspace.editor();
     view! {
         <List spacing=10.0>
-            <Frame height={height}>
+            <Frame height=height>
                 <Subregion
                     editor={editor}
                     placed={placed}
@@ -698,7 +692,7 @@ fn CreateBody(
                     {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
-                            <Caption content={waiting_label} />
+                            <Text style=TextStyle::CAPTION string={waiting_label} />
                         </List>
                     }}
                 </Show>
@@ -714,7 +708,6 @@ fn CreateBody(
 
 #[component]
 fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
-    let theme = use_theme();
     let open = create_memo(move || error.get().is_some());
     let text = create_memo(move || error.get().unwrap_or_default());
     view! {
@@ -725,7 +718,7 @@ fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
             on_dismiss={move || act.call(PickAction::DismissError)}
         >
             <List spacing=10.0>
-                <Caption content={text} color={theme.danger} />
+                <Text style=TextStyle::CAPTION string={text} color=TextColor::Danger />
                 <Button
                     label="Dismiss"
                     variant=ButtonVariant::Secondary

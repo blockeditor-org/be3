@@ -4,7 +4,7 @@ use crate::DemoShell;
 fn a_sample_carries_the_source_it_was_written_with() {
     let file = include_str!("../lib.rs");
     assert!(
-        DemoShell::SOURCE.starts_with("#[component]\nfn DemoShell() -> NodeId {\n    let theme"),
+        DemoShell::SOURCE.starts_with("#[component]\nfn DemoShell() -> NodeId {\n    let dialogs"),
         "the source starts at the attributes after #[sample]: {}",
         DemoShell::SOURCE
     );

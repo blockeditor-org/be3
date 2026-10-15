@@ -1,4 +1,4 @@
-use beui::reactive::{NodeRef, view};
+use beui::reactive::*;
 use beui::unstyled::MenuItem;
 
 fn case(node: NodeRef) -> MenuItem {

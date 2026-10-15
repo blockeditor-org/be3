@@ -7,11 +7,8 @@ use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    ClickCallback, Frame, Interactive, Memo, NodeRef, ReadSignal, RenderFn, create_effect,
-    create_memo, create_signal, create_timer, on_cleanup, provide_context, store, untrack,
-    with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use super::{DockState, DockTabControl, State, TabId};
 
@@ -188,7 +185,7 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
         untrack(|| settling.settle_dialog_focus());
     });
     view! {
-        <beui_view::reactive::List spacing=0.0>
+        <beui_view::primitives::List spacing=0.0>
             <beui_view::reactive::ForEach keys>
                 {move |(tab, parent): (TabId, TabId)| {
                     view! {
@@ -196,7 +193,7 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
                     }
                 }}
             </beui_view::reactive::ForEach>
-        </beui_view::reactive::List>
+        </beui_view::primitives::List>
     }
 }
 
@@ -279,7 +276,12 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let width = create_memo(move || size.get().x);
     let height = create_memo(move || size.get().y);
     let body = view! {
-        <Frame @node_ref=&inside @test_id={format!("dock.dialog.{}", tab.value())} width height>
+        <Frame
+            @node_ref=&inside
+            @test_id={format!("dock.dialog.{}", tab.value())}
+            width=width
+            height=height
+        >
             {body}
         </Frame>
     };

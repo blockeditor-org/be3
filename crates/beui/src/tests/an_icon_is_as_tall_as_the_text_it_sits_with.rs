@@ -1,7 +1,10 @@
 use super::*;
+use crate::TextAlign;
 use crate::icons::ICON_FOLDER;
-use crate::reactive::{Align, Direction, Frame, List, NodeRef, view};
-use crate::styled::{Body, Icon};
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 const LABEL: &str = "Folder";
 
@@ -10,19 +13,23 @@ fn an_icon_is_as_tall_as_the_text_it_sits_with() {
     let _root = crate::reactive::RootScope::new();
     let text = height(|| {
         view! {
-            <Body content=LABEL />
+            <Text string=LABEL />
         }
     });
     let icon = height(|| {
         view! {
-            <Icon glyph=ICON_FOLDER />
+            <Text align=TextAlign::Center>
+                <Icon glyph=ICON_FOLDER />
+            </Text>
         }
     });
     let row = height(|| {
         view! {
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <Icon glyph=ICON_FOLDER />
-                <Body content=LABEL />
+                <Text align=TextAlign::Center>
+                    <Icon glyph=ICON_FOLDER />
+                </Text>
+                <Text string=LABEL />
             </List>
         }
     });

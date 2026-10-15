@@ -8,10 +8,8 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, component_accessibility, create_effect,
-    create_memo, create_signal, set_component_state, untrack,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const STEP: f32 = 0.05;
 const PAGE_STEPS: f32 = 4.0;

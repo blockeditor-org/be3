@@ -1,19 +1,19 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::theme::use_theme;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Frame, Prop, component_accessibility, create_memo};
+use beui_view::reactive::*;
 
 const HEIGHT: f32 = 6.0;
-const RADIUS: u8 = 3;
+const RADIUS: f32 = 3.0;
 
 #[component]
 pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<String>) -> NodeId {
     let value = value.map(|value| value.clamp(0.0, 1.0));
     let value_read = create_memo(move || value.get());
 
-    let filled = create_memo(move || Some(value_read.get()));
+    let filled = create_memo(move || Extent::fraction(value_read.get()));
     component_accessibility(create_memo(move || {
         let value = value_read.get();
         let mut node = Node::new(Role::ProgressIndicator);
@@ -26,17 +26,16 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
         node.set_max_numeric_value(1.0);
         node
     }));
-    let theme = use_theme();
 
     view! {
         <Frame
             height=HEIGHT
-            width_fraction=1.0
-            color={theme.track}
-            radius=RADIUS
-            align_horizontal=Align::Start
+            width={Extent::fraction(1.0)}
+            fill=ColorRole::Track
+            radius={Radius::custom(RADIUS)}
+            align={Align2::horizontal(Align::Start)}
         >
-            <Frame width_fraction={filled} color={theme.accent} radius=RADIUS />
+            <Frame width=filled fill=ColorRole::Accent radius={Radius::custom(RADIUS)} />
         </Frame>
     }
 }

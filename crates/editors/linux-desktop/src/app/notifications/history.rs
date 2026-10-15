@@ -3,14 +3,8 @@ use std::time::Duration;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, Text, component, create_memo,
-    view,
-};
-use block_editor_beui::beui::styled::theme::{FONT_BODY, FONT_SMALL};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, Heading, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::PopoverHandle;
 
 use super::{DesktopNotifications, Listed};
@@ -74,7 +68,7 @@ fn NotificationList(
     view! {
         <List spacing=SPACING @test_id={"desktop.notifications.list"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Heading content="Notifications" />
+                <Text style=TextStyle::HEADING string="Notifications" />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
                     label="Clear all"
@@ -85,7 +79,7 @@ fn NotificationList(
                 />
             </List>
             <Show condition={empty}>
-                <Caption content="Nothing new." />
+                <Text style=TextStyle::CAPTION string="Nothing new." />
             </Show>
             <Show condition={some}>
                 <NotificationRows notifications={notifications} listed={listed} popover={popover} />
@@ -117,7 +111,6 @@ fn NotificationRow(
     shown: Listed,
     popover: PopoverHandle,
 ) -> NodeId {
-    let theme = use_theme();
     let id = shown.id;
     let activates = shown.activates;
     let activate = move || match activates {
@@ -134,10 +127,10 @@ fn NotificationRow(
     let said = !shown.body.is_empty();
     let body = shown.body.clone();
     let summary = shown.summary.clone();
-    let body_color = theme.text_muted;
+    let body_color = TextColor::Muted;
     let summary_color = match shown.critical {
-        true => theme.danger,
-        false => theme.text,
+        true => TextColor::Danger,
+        false => TextColor::Default,
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Start spacing=ROW_SPACING>
@@ -147,18 +140,12 @@ fn NotificationRow(
                 on_click={activate}
             >
                 <List spacing=ROW_SPACING>
-                    <Caption content={source} />
-                    <Text
-                        string={summary}
-                        font_size=FONT_BODY
-                        color={summary_color}
-                        bold=true
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION string={source} />
+                    <Text string={summary} color={summary_color} weight=Weight::Bold wrap=true />
                     <Show condition={said}>
                         <Text
                             string={body.clone()}
-                            font_size=FONT_SMALL
+                            size=TextSize::Sm
                             color={body_color}
                             wrap=true
                         />

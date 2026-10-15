@@ -3,11 +3,8 @@ use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Show, Spacer, component, create_memo, create_signal,
-    view,
-};
-use block_editor_beui::beui::styled::{Accordion, Button, ButtonVariant, Caption, Separator};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::{DatabaseValueEditor, RowValues, ValueLabels};
@@ -157,11 +154,11 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     let remove_id = format!("{prefix}.remove");
     view! {
         <List spacing=6.0>
-            <Caption content={named} />
+            <Text style=TextStyle::CAPTION string={named} />
             <Show condition={partial}>
                 {move || { let add_id = add_id.clone(); view! {
                     <List spacing=6.0>
-                        <Caption content={coverage} />
+                        <Text style=TextStyle::CAPTION string={coverage} />
                         <List direction=Direction::Horizontal spacing=4.0>
                             <Button
                                 label="Add to all"

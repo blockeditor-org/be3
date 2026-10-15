@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::NodeRef;
+use crate::reactive::*;
 
 #[test]
 fn a_released_sheet_springs_to_its_stop_or_closed() {

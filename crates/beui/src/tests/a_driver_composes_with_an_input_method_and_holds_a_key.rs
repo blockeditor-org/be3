@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, create_signal, view};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_driver_composes_with_an_input_method_and_holds_a_key() {

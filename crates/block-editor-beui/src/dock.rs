@@ -1,18 +1,14 @@
 use beui::NodeId;
-use beui::reactive::{
-    Align, Child, Children, Direction, Frame, List, ListChild, NodeRef, Prop, component,
-    create_memo, view,
-};
-use beui::styled::theme::BORDER_WIDTH;
-use beui::styled::use_theme;
-use beui::unstyled::{Edge, Floating};
+use beui::reactive::*;
+use beui::styled::*;
+use beui::unstyled::{Edge, Floating, Scroll};
 
 use crate::chrome::sheet_open;
 
 const DOCK_MARGIN: f32 = 12.0;
 const DOCK_PADDING: f32 = 6.0;
 const DOCK_SPACING: f32 = 4.0;
-const DOCK_RADIUS: u8 = 16;
+const DOCK_RADIUS: f32 = 16.0;
 
 #[component]
 pub fn BottomDock(
@@ -24,28 +20,32 @@ pub fn BottomDock(
 ) -> NodeId {
     let sheet = sheet_open();
     let open = create_memo(move || open.get() && !sheet.get());
-    let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::Bottom open={open}>
-            <Frame padding_vertical=DOCK_MARGIN padding_horizontal=DOCK_MARGIN>
+            <Frame padding=DOCK_MARGIN>
                 <List align=Align::Center spacing=0.0>
                     <Frame children={above} />
                     <Frame
-                        color={theme.surface_raised}
-                        outline={theme.border}
-                        outline_width=BORDER_WIDTH
-                        outline_visible=true
-                        radius=DOCK_RADIUS
-                        padding_horizontal=DOCK_PADDING
-                        padding_vertical=DOCK_PADDING
+                        fill=ColorRole::SurfaceRaised
+                        border={Border::DEFAULT}
+                        radius={Radius::custom(DOCK_RADIUS)}
+                        padding=DOCK_PADDING
                         @test_id={name}
                     >
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=DOCK_SPACING
-                            children={children}
-                        />
+                        <List direction=Direction::Horizontal spacing=0.0>
+                            <Scroll
+                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                direction=Direction::Horizontal
+                                fit=true
+                            >
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=DOCK_SPACING
+                                    children={children}
+                                />
+                            </Scroll>
+                        </List>
                     </Frame>
                 </List>
             </Frame>

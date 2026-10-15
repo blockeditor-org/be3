@@ -56,13 +56,15 @@ pub trait Instance: std::any::Any {
     fn node_action(
         &mut self,
         _region: &Region,
-        _node: usize,
-        _action: &str,
-        _value: Option<block_plugin_api::NodeValue>,
+        _request: block_plugin_api::accesskit::ActionRequest,
     ) {
     }
 
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
+
+    fn painting(&mut self, _region: EditorRegion) -> Option<paint_format::Painting> {
+        None
+    }
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
@@ -77,7 +79,8 @@ pub struct Region {
     pub age: u32,
     pub spec: FrameSpec,
     pub monitors: Vec<RegionMonitor>,
-    pub describe: bool,
+    pub describe: Option<u64>,
+    pub seen: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -102,7 +105,7 @@ pub struct Frame {
     pub floating: Vec<Rect>,
     pub claims: Vec<Claim>,
     pub window: WindowRequests,
-    pub description: Option<Description>,
+    pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
 }
 
@@ -115,26 +118,6 @@ pub struct WindowRequests {
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub pastes: Vec<block_plugin_api::PasteKind>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Description {
-    pub nodes: Vec<DescribedNode>,
-    pub actions: Vec<block_plugin_api::DescribedAction>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct DescribedNode {
-    pub depth: u16,
-    pub role: String,
-    pub label: String,
-    pub value: String,
-    pub toggled: Option<block_plugin_api::Toggled>,
-    pub disabled: bool,
-    pub focused: bool,
-    pub rect: Option<Rect>,
-    pub actions: Vec<String>,
-    pub test_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

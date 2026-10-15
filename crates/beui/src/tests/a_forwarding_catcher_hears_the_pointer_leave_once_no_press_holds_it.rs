@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::{Forwarded, ForwardedInput};
 
 fn lefts(heard: ReadSignal<Vec<Forwarded>>) -> usize {

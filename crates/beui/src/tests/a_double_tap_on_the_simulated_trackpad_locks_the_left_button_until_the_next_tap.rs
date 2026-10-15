@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Slider;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap() {

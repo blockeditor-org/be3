@@ -1,9 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_VOLUME_OFF;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Body, Caption, Select, Slider, Switch};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{ChoiceOption, PopoverHandle};
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
@@ -56,10 +54,10 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                     @test_id={"desktop.volume.level"}
                     on_change={move |level: f32| setting.act(MediaRequest::SetVolume(level))}
                 />
-                <Body @sizing=ItemSize::Fixed(PERCENT_WIDTH) content={shown} />
+                <Text @sizing=ItemSize::Fixed(PERCENT_WIDTH) string={shown} />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Body @sizing=ItemSize::Percent(100.0) content="Mute" />
+                <Text @sizing=ItemSize::Percent(100.0) string="Mute" />
                 <Switch
                     on={muted}
                     label="Mute"
@@ -100,7 +98,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
     };
     view! {
         <List spacing=LABEL_SPACING>
-            <Caption content="Output" />
+            <Text style=TextStyle::CAPTION string="Output" />
             <Select
                 options={view! {
                     <ForEach keys={keys}>

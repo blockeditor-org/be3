@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::create_memo;
-use crate::styled::Stack;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::{Container, narrower_than};
 
 const BREAKPOINT: f32 = 500.0;
@@ -33,12 +34,14 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                         keys={indices(VIRTUAL_ITEM_COUNT)}
                                         item_size=VIRTUAL_ITEM_HEIGHT
                                     >
-                                        {move |index: usize| {
-                                            set_built.update(|built| built.push(index));
+                                        {move |index: ReadSignal<usize>| {
+                                            create_binding(move || {
+                                                let index = index.get();
+                                                set_built.update(|built| built.push(index));
+                                            });
                                             view! {
                                                 <Frame
-                                                    padding_horizontal=0.0
-                                                    padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
+                                                    padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
                                                 >
                                                     <Spacer />
                                                 </Frame>

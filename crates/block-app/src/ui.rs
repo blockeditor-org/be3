@@ -8,10 +8,8 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{
-    Dynamic, Frame, List, NodeRef, Store, component, copy_text, create_memo, view,
-};
-use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
@@ -22,7 +20,7 @@ use crate::wayland::WindowActions;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
-    RunView, RuntimeView, VersionRuns, VersionView,
+    RuntimeView,
 };
 
 thread_local! {
@@ -332,7 +330,6 @@ pub(crate) enum UiCommand {
 
 #[component]
 pub(crate) fn Root(view: AppViewStore) -> NodeId {
-    let theme = use_theme();
     let screen = view.screen;
     let toasts = view.toasts;
     let keep_display = view.keep_display;
@@ -343,7 +340,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let locking = view;
     let area = NodeRef::new();
     view! {
-        <Frame @node_ref=&area color={theme.background}>
+        <Frame @node_ref=&area fill=ColorRole::Background>
             <List spacing=0.0>
                 <Dynamic value={screen}>
                     {move |screen: Screen| {

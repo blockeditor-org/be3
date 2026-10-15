@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{List, NodeRef, Text, build, view};
-use crate::styled::SelectableText;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 use beui_core::rich::{CaretHandle, handle_center};
 
 #[test]

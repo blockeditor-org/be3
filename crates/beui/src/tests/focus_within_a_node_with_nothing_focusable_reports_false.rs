@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn focus_within_a_node_with_nothing_focusable_reports_false() {

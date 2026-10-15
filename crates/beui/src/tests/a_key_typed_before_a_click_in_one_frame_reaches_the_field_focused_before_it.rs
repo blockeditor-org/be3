@@ -1,5 +1,5 @@
 use super::*;
-use crate::styled::TextInput;
+use crate::styled::*;
 
 #[test]
 fn a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it() {

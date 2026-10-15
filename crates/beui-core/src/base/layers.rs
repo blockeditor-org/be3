@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
+use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
@@ -49,6 +49,12 @@ impl Element for LayersNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        for child in self.items.iter().filter_map(ChildItem::node) {
+            visit(child);
+        }
     }
 
     fn remove_child(&mut self, child: NodeId) {

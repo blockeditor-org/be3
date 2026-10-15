@@ -1,6 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {

@@ -1,11 +1,8 @@
 use std::cell::RefCell;
 
 use beui::NodeId;
-use beui::reactive::{
-    Memo, Prop, ReadSignal, component, create_effect, create_memo, create_signal, view,
-};
-use beui::styled::Link;
-use beui::styled::theme::FONT_BODY;
+use beui::reactive::*;
+use beui::styled::*;
 use block_ui::{BlockLabel, BlockTypes};
 
 use crate::{BlockInfo, BlockList, BlockQuery, ChildTarget, Editor};
@@ -71,7 +68,7 @@ pub fn BlockLink(
     editor: Editor,
     block: Prop<Option<ChildTarget>>,
     #[prop(default = String::from("Loading…"))] fallback: Prop<String>,
-    #[prop(default = FONT_BODY)] font_size: Prop<f32>,
+    #[prop(default = TextSize::Base)] size: Prop<TextSize>,
 ) -> NodeId {
     let target = create_memo(move || block.get());
     let shown = watch_block_label(editor, target);
@@ -91,12 +88,6 @@ pub fn BlockLink(
         }
     };
     view! {
-        <Link
-            label={label}
-            glyph={glyph}
-            disabled={missing}
-            font_size={font_size}
-            on_click={open}
-        />
+        <Link label={label} glyph={glyph} disabled={missing} size on_click={open} />
     }
 }

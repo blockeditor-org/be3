@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use beui::reactive::{Layers, component};
+use beui::styled::*;
 use beui::{ForwardedInput, PointerPhase};
 
 use super::*;
@@ -35,13 +35,13 @@ fn Covered(windows: Windows) -> NodeId {
                     HEARD.with(|heard| heard.borrow_mut().extend(buttons));
                 }}
             >
-                <Frame width={Some(SCREEN.x)} height={Some(SCREEN.y)} />
+                <Frame width={SCREEN.x} height={SCREEN.y} />
             </Interactive>
             <List spacing=0.0>
                 <ForEach keys={ids}>
                     {move |id: WindowId| {
                         view! {
-                            <Frame width={Some(SHOWN.x)} height={Some(SHOWN.y)}>
+                            <Frame width={SHOWN.x} height={SHOWN.y}>
                                 <WindowView windows id occluders={vec![tab()]} />
                             </Frame>
                         }

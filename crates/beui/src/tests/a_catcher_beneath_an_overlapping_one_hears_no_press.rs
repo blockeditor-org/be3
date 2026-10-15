@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Align, Frame, Interactive, Layers, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_catcher_beneath_an_overlapping_one_hears_no_press() {
@@ -13,7 +14,7 @@ fn a_catcher_beneath_an_overlapping_one_hears_no_press() {
                     <Interactive on_click={move || set_below.update(|below| *below += 1)}>
                         <Frame width=100.0 height=100.0 />
                     </Interactive>
-                    <Frame align_horizontal=Align::End align_vertical=Align::Start>
+                    <Frame align={Align2::new(Align::End, Align::Start)}>
                         <Interactive on_click={move || set_above.update(|above| *above += 1)}>
                             <Frame width=50.0 height=50.0 />
                         </Interactive>

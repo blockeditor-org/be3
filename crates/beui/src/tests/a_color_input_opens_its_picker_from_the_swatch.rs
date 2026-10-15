@@ -1,8 +1,8 @@
 use accesskit::Role;
 
 use super::*;
-use crate::reactive::view;
-use crate::styled::ColorInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_color_input_opens_its_picker_from_the_swatch() {

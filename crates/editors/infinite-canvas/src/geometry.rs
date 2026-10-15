@@ -257,6 +257,45 @@ pub(crate) fn world_to_local(transform: CanvasTransform, world: CanvasPoint) -> 
     )
 }
 
+pub(crate) fn line_ends(entity: &CanvasEntity) -> [CanvasPoint; 2] {
+    [
+        local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.0)),
+        local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0)),
+    ]
+}
+
+pub(crate) fn line_through(
+    mut entity: CanvasEntity,
+    start: CanvasPoint,
+    end: CanvasPoint,
+) -> CanvasEntity {
+    let delta = CanvasPoint::new(end.x - start.x, end.y - start.y);
+    let rotation = match delta.x == 0.0 && delta.y == 0.0 {
+        true => entity.transform.rotation,
+        false => delta.y.atan2(delta.x),
+    };
+    entity.transform = CanvasTransform::new(
+        midpoint(start, end),
+        CanvasPoint::new(distance(start, end), entity.transform.size.y),
+        rotation,
+    );
+    entity
+}
+
+pub(crate) fn line_end_at(
+    ends: [CanvasPoint; 2],
+    world: CanvasPoint,
+    scale: f32,
+    reach: f32,
+) -> Option<usize> {
+    let reach = reach / scale.max(f32::EPSILON);
+    (0..2)
+        .map(|end| (end, distance(ends[end], world)))
+        .filter(|(_, away)| *away <= reach)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(end, _)| end)
+}
+
 pub(crate) fn entity_corners(entity: &CanvasEntity) -> [CanvasPoint; 4] {
     [
         local_to_world(entity.transform, CanvasPoint::new(-0.5, -0.5)),

@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, build, view};
-use crate::styled::{Scroll, TextInput};
+use crate::reactive::*;
+use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {

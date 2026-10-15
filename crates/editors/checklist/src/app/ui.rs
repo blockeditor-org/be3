@@ -1,14 +1,8 @@
 use block_editor_beui::be_block::{
     Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component, create_memo,
-    create_selector, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,
-    ToggleButton, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor};
 
@@ -84,17 +78,12 @@ pub fn Checklist(editor: Editor) -> NodeId {
         }
     };
 
-    let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background}
-            padding_horizontal=PAGE_PADDING
-            padding_vertical=PAGE_PADDING
-        >
+        <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
-                    <Heading content="Checklist" />
-                    <Caption content={summary} />
+                    <Text style=TextStyle::HEADING string="Checklist" />
+                    <Text style=TextStyle::CAPTION string={summary} />
                     <Progress value={progress} label="Checklist completion" />
                 </List>
                 <Card>
@@ -163,7 +152,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <Card @sizing=ItemSize::Percent(100.0)>
                     <List spacing=10.0>
                         <Show condition={empty}>
-                            <Body content="No tasks match this view." align=TextAlign::Center />
+                            <Text string="No tasks match this view." align=TextAlign::Center />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <List spacing=8.0>
@@ -197,9 +186,12 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
         })
     });
     let done = create_memo(move || item.with(|item| item.as_ref().is_some_and(|item| item.done)));
-    let theme = use_theme();
     view! {
-        <Frame color={theme.surface_raised} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
+        <Frame
+            fill=ColorRole::SurfaceRaised
+            radius=Radius::Md
+            padding={Sides::symmetric(12.0, 10.0)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)

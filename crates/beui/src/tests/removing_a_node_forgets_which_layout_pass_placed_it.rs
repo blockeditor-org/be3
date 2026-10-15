@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Text, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn removing_a_node_forgets_which_layout_pass_placed_it() {

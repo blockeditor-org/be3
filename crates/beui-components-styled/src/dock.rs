@@ -1,30 +1,33 @@
 mod stack;
 mod switch;
 
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
-use crate::button::ButtonVariant;
+use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
-use crate::text::{Body, IconSized};
-use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle, DockKey,
-    DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
+    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle,
+    DockKey, DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
+    DockSwitchHandle, DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
+use beui_core::font::TextAlign;
+use beui_core::icons::{
+    ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_FULLSCREEN, ICON_FULLSCREEN_EXIT, ICON_MORE_VERT,
+    ICON_TAB_GROUP,
+};
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
-    ReadSignal, Show, Text, create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
@@ -36,7 +39,6 @@ const BAR_SPACING: f32 = 4.0;
 const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
-const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
@@ -47,6 +49,8 @@ pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::
     TAB_HEIGHT + 2.0 * BAR_PADDING + 3.0 * CHROME_BORDER,
 );
 const DROP_ALPHA: u8 = 64;
+const AWAY_SPACING: f32 = 12.0;
+const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
 
 #[component]
@@ -84,10 +88,13 @@ where
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
-                <Frame color={fill}>{body}</Frame>
+                <Frame fill={ColorRole::custom(fill)}>{body}</Frame>
             }}
             fullscreen={move |body: NodeId| view! {
-                <Frame color={backdrop}>{body}</Frame>
+                <Frame fill={ColorRole::custom(backdrop)}>{body}</Frame>
+            }}
+            away={move |handle: DockAwayHandle| view! {
+                <DockAwayFace handle />
             }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
@@ -127,6 +134,34 @@ where
                 }
             }}
         />
+    }
+}
+
+#[component]
+fn DockAwayFace(handle: DockAwayHandle) -> NodeId {
+    let DockAwayHandle { title, leave, .. } = handle;
+    let message = create_memo(move || format!("{} is full screen", title.get()));
+    view! {
+        <Frame
+            fill=ColorRole::Background
+            align=Align::Center
+            padding=AWAY_PADDING
+            @test_id="dock.away"
+        >
+            <List align=Align::Center spacing=AWAY_SPACING>
+                <Text size=TextSize::Xl3 color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph=ICON_FULLSCREEN />
+                </Text>
+                <Text string={message} align=TextAlign::Center />
+                <Button
+                    label="Leave full screen"
+                    glyph=ICON_FULLSCREEN_EXIT
+                    variant=ButtonVariant::Secondary
+                    @test_id="dock.away.leave"
+                    on_click={move || leave.call()}
+                />
+            </List>
+        </Frame>
     }
 }
 
@@ -193,8 +228,8 @@ fn DockTabChrome(
             },
         );
     let label = create_memo(move || match selected.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let glyph = label;
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
@@ -206,32 +241,27 @@ fn DockTabChrome(
     };
     view! {
         <Frame
-            color={fill}
-            radius=RADIUS
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
             height=TAB_HEIGHT
-            padding_horizontal=TAB_PADDING_HORIZONTAL
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_offset=1.0
-            outline_visible={focus_ring(focused)}
+            padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
+            border={focus_border(focused, Border::FOCUS.offset(1.0))}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
+                    <Text size=TextSize::Sm color={glyph} align=TextAlign::Center>
+                        <Icon glyph=ICON_TAB_GROUP />
+                    </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={icon_color} />
+                    <Text size=TextSize::Sm color={icon_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
                 </Show>
                 <Show condition={shows_picture}>
                     <TabPicture picture={picture} />
                 </Show>
-                <Text
-                    string={title}
-                    font_size=FONT_BODY
-                    color={label}
-                    clip=true
-                    @sizing={title_size}
-                />
+                <Text string={title} color={label} clip=true @sizing={title_size} />
                 <Show condition={closable}>
                     {move || view! {
                         <IconButton
@@ -267,10 +297,14 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         content,
         ..
     } = handle;
-    let theme = use_theme();
-    let outline = create_memo(move || match focused.get() {
-        true => theme.accent.get(),
-        false => theme.border.get(),
+    let outline = create_memo(move || {
+        barred.then(|| {
+            let color = match focused.get() {
+                true => ColorRole::Accent,
+                false => ColorRole::Border,
+            };
+            Border::new(color).width(CHROME_BORDER)
+        })
     });
     let border = match barred {
         true => CHROME_BORDER,
@@ -278,13 +312,10 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     };
     view! {
         <Frame
-            color={theme.background}
-            outline={outline}
-            outline_width=CHROME_BORDER
-            outline_visible=barred
-            radius={if barred { CARD_RADIUS } else { 0 }}
-            padding_horizontal=border
-            padding_vertical=border
+            fill=ColorRole::Background
+            border=outline
+            radius={if barred { Radius::Lg } else { Radius::None }}
+            padding=border
         >
             {content}
         </Frame>
@@ -315,36 +346,25 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
     let width = create_memo(move || size.get().x + 2.0 * CHROME_BORDER);
     view! {
         <Frame
-            width
-            color={theme.background}
-            outline={outline}
-            outline_width=CHROME_BORDER
-            outline_visible=true
-            radius=CARD_RADIUS
-            padding_horizontal=CHROME_BORDER
-            padding_vertical=CHROME_BORDER
+            width=width
+            fill=ColorRole::Background
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(CHROME_BORDER)))}
+            radius=Radius::Lg
+            padding=CHROME_BORDER
         >
             <List spacing=0.0>
                 <Frame
-                    color={theme.surface}
+                    fill=ColorRole::Surface
                     height=TAB_HEIGHT
-                    padding_horizontal=TAB_PADDING_HORIZONTAL
+                    padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                         <Show condition={pictured}>
-                            <IconSized
-                                glyph={icon}
-                                font_size=GROUP_GLYPH
-                                color={theme.text_muted}
-                            />
+                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
+                                <Icon glyph={icon} />
+                            </Text>
                         </Show>
-                        <Text
-                            string={title}
-                            font_size=FONT_BODY
-                            color={theme.text}
-                            clip=true
-                            @sizing=ItemSize::Percent(100.0)
-                        />
+                        <Text string={title} clip=true @sizing=ItemSize::Percent(100.0) />
                         <Show condition={closable}>
                             {move || view! {
                                 <IconButton
@@ -405,20 +425,20 @@ fn DockTitleBar(
     let rule = bar_rule(vacant);
     view! {
         <List spacing=0.0>
-            <Frame color={fill} padding_vertical=BAR_PADDING padding_horizontal=BAR_PADDING>
-                <Frame min_height=TAB_HEIGHT>
+            <Frame fill={ColorRole::custom(fill)} padding=BAR_PADDING>
+                <Frame height={Extent::at_least(TAB_HEIGHT)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         {grip}
                         {tabs} @sizing=ItemSize::Percent(100.0)
                         <Show condition={titled}>
-                            <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
+                            <Text string={title.clone()} @sizing=ItemSize::Percent(100.0) />
                         </Show>
                         <DockMenu menu />
                         <DockClose closable close={close} />
                     </List>
                 </Frame>
             </Frame>
-            <Frame color={rule} height=CHROME_BORDER />
+            <Frame fill={ColorRole::custom(rule)} height=CHROME_BORDER />
         </List>
     }
 }
@@ -439,9 +459,8 @@ fn DockSideBar(
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
         <Frame
-            color={fill}
-            padding_vertical=BAR_PADDING
-            padding_horizontal=BAR_PADDING
+            fill={ColorRole::custom(fill)}
+            padding=BAR_PADDING
             @sizing=ItemSize::Percent(100.0)
         >
             <List spacing=BAR_SPACING>
@@ -459,11 +478,11 @@ fn DockSideBar(
                 </List>
                 {tabs} @sizing=ItemSize::Percent(100.0)
                 <Show condition={titled}>
-                    <Body content={title.clone()} />
+                    <Text string={title.clone()} />
                 </Show>
             </List>
         </Frame>
-        <Frame color={rule} width=CHROME_BORDER />
+        <Frame fill={ColorRole::custom(rule)} width=CHROME_BORDER />
         </List>
     }
 }
@@ -510,7 +529,7 @@ pub(crate) fn DockMenu(
 #[component]
 fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
     view! {
-        <Frame padding_horizontal=CONTROL_PADDING visible={closable}>
+        <Frame padding={Sides::horizontal(CONTROL_PADDING)} visible={closable}>
             <IconButton
                 glyph=ICON_CLOSE
                 label="Close pane"
@@ -526,14 +545,15 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
 #[component]
 fn DockGrip(handle: DockGripHandle) -> NodeId {
     let DockGripHandle { focused, .. } = handle;
-    let theme = use_theme();
     let color = create_memo(move || match focused.get() {
-        true => theme.text_muted.get(),
-        false => theme.border.get(),
+        true => TextColor::Muted,
+        false => TextColor::Faint,
     });
     view! {
-        <Frame width=GRIP_WIDTH padding_vertical=CONTROL_PADDING padding_horizontal=GRIP_PADDING>
-            <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
+        <Frame width=GRIP_WIDTH padding={Sides::symmetric(GRIP_PADDING, CONTROL_PADDING)}>
+            <Text size=TextSize::Sm color={color} align=TextAlign::Center>
+                <Icon glyph=ICON_DRAG_INDICATOR />
+            </Text>
         </Frame>
     }
 }
@@ -553,12 +573,7 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
         (false, false) => theme.background.get(),
     });
     view! {
-        <Frame
-            color={fill}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_visible={focus_ring(focused)}
-        />
+        <Frame fill={ColorRole::custom(fill)} border={focus_border(focused, Border::FOCUS)} />
     }
 }
 
@@ -569,11 +584,9 @@ fn DockDropHighlight() -> NodeId {
     view! {
         <Frame
             @test_id={"dock.drop"}
-            color={fill}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_visible=true
-            radius=RADIUS
+            fill={ColorRole::custom(fill)}
+            border={Border::FOCUS}
+            radius=Radius::Md
         />
     }
 }
@@ -583,25 +596,27 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
     let theme = use_theme();
     let fill = create_memo(move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA));
     let pictured = create_memo(move || !grouped && !icon.get().is_empty());
-    let pictured_color = theme.text;
+    let pictured_color = TextColor::Default;
     view! {
         <Frame
-            color={fill}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_visible=true
-            radius=RADIUS
+            fill={ColorRole::custom(fill)}
+            border={Border::FOCUS}
+            radius=Radius::Md
             height=TAB_HEIGHT
-            padding_horizontal=PREVIEW_PADDING
+            padding={Sides::horizontal(PREVIEW_PADDING)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={theme.text} />
+                    <Text size=TextSize::Sm align=TextAlign::Center>
+                        <Icon glyph=ICON_TAB_GROUP />
+                    </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={pictured_color} />
+                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
                 </Show>
-                <Body content={title} />
+                <Text string={title} />
             </List>
         </Frame>
     }

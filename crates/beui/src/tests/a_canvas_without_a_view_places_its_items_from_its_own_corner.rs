@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Canvas, CanvasItem, build, view, with_document};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_canvas_without_a_view_places_its_items_from_its_own_corner() {

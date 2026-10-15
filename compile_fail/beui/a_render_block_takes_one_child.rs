@@ -1,5 +1,6 @@
 use beui::NodeId;
-use beui::reactive::{List, Prop, Show, component, view};
+use beui::reactive::*;
+use beui::styled::*;
 
 #[component]
 fn Case(outer: Prop<bool>, inner: Prop<bool>) -> NodeId {

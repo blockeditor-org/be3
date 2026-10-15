@@ -1,20 +1,21 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
+use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
 use beui_core::icons::ICON_CLOSE;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use crate::icon_button::{IconButton, IconButtonSize};
-use crate::text::Icon;
+use crate::text::{Icon, Text, TextColor, TextSize};
+use beui_core::font::TextAlign;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
@@ -89,32 +90,29 @@ fn TextInputFrame(
     });
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            border={create_memo(move || focused.get().then_some(Border::FOCUS.offset(FOCUS_RING_OFFSET)))}
+            radius=Radius::Md
         >
             <Frame
                 height=HEIGHT
-                color={fill}
-                outline={border}
-                outline_width=BORDER_WIDTH
-                radius=RADIUS
-                outline_visible={raised}
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || raised.get().then(|| Border::new(ColorRole::Custom(border.get()))))}
+                radius=Radius::Md
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
                         {move || view! {
-                            <Frame padding_left=PADDING_HORIZONTAL>
-                                <Icon glyph={glyph} color={theme.text_muted} />
+                            <Frame padding={Sides::new(PADDING_HORIZONTAL, 0.0, 0.0, 0.0)}>
+                                <Text color=TextColor::Muted align=TextAlign::Center>
+                                    <Icon glyph={glyph} />
+                                </Text>
                             </Frame>
                         }}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
                         {move || view! {
-                            <Frame padding_horizontal=CLEAR_PADDING>
+                            <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
                                 <IconButton
                                     glyph={ICON_CLOSE.to_owned()}
                                     label="Clear"
@@ -134,7 +132,7 @@ fn TextInputFrame(
 pub fn text_input_style() -> TextInputStyle {
     let theme = use_theme();
     TextInputStyle {
-        font_size: Prop::Static(FONT_BODY),
+        font_size: Prop::Static(TextSize::Base.px()),
         color: theme.text.into_prop(),
         placeholder_color: theme.text_muted.into_prop(),
         selection_color: theme.accent_soft.into_prop(),

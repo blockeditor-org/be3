@@ -1,18 +1,16 @@
+use crate::frame::Frame;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
-use crate::text::{Heading, Icon};
-use crate::theme::{FONT_SMALL, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_DELETE, ICON_HISTORY, ICON_RESTART_ALT};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;
-const GLYPH_SIZE: f32 = 28.0;
 
 #[component]
 pub fn StaleNotice(
@@ -24,25 +22,22 @@ pub fn StaleNotice(
     on_delete: ClickCallback,
     on_try: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let (reset_id, delete_id, try_id) = (
         format!("{id}.reset"),
         format!("{id}.delete"),
         format!("{id}.try"),
     );
     view! {
-        <Frame @test_id={id} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
-                <Icon
-                    glyph={ICON_HISTORY.to_owned()}
-                    text_size=GLYPH_SIZE
-                    color={theme.text_muted}
-                />
-                <Heading content={title} align=TextAlign::Center />
+                <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph={ICON_HISTORY.to_owned()} />
+                </Text>
+                <Text style=TextStyle::HEADING string={title} align=TextAlign::Center />
                 <Text
                     string={create_memo(move || detail.get())}
-                    font_size=FONT_SMALL
-                    color={theme.text_muted}
+                    size=TextSize::Sm
+                    color=TextColor::Muted
                     align=TextAlign::Center
                     wrap=true
                 />

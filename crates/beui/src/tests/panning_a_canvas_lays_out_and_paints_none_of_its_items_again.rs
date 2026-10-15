@@ -1,8 +1,7 @@
 use super::*;
 use crate::painter::Shape;
-use crate::reactive::{
-    Canvas, CanvasItem, CanvasView, Text, build, create_signal, view, with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
@@ -15,7 +14,7 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
                     <Text string="first" />
                 </CanvasItem>
                 <CanvasItem x=10.0 y=40.0 width=80.0 height=20.0>
-                    <Frame color=Color32::WHITE radius=0>
+                    <Frame fill=Color32::WHITE radius=0.0>
                         <Text string="second" />
                     </Frame>
                 </CanvasItem>

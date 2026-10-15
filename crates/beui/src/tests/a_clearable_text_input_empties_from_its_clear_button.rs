@@ -1,7 +1,7 @@
 use super::*;
 use crate::icons::ICON_SEARCH;
-use crate::reactive::{create_signal, view};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_clearable_text_input_empties_from_its_clear_button() {

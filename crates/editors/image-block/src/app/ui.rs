@@ -1,9 +1,6 @@
 use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::beui::reactive::{
-    Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, PlacementBuilder,
-    ReadSignal, Show, Spacer, component, create_effect, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, fit_content};
@@ -42,8 +39,6 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
-    let danger = theme.danger;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
@@ -55,12 +50,12 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                         thumbhash={placeholder}
                     />
                     <Show condition={failed}>
-                        <Caption content={reason} color={danger} />
+                        <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
                     </Show>
                 </List>
             </Frame>
             <Sidebar shown={chrome}>
-                <Heading content="Image" />
+                <Text style=TextStyle::HEADING string="Image" />
                 <Button
                     label="Replace image…"
                     variant=ButtonVariant::Secondary
@@ -69,7 +64,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                     on_click={choose}
                 />
                 <Show condition={refused}>
-                    <Caption content={refusal} color={theme.danger} />
+                    <Text style=TextStyle::CAPTION string={refusal} color=TextColor::Danger />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Sidebar>

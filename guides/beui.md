@@ -166,9 +166,9 @@ component reads one in as many places as it needs. A `Prop<String>` or other
 non-`Copy` prop is cloned into each closure that keeps it:
 
 ```rust
-let color = create_memo(move || paint(value.get()));
+let fill = create_memo(move || paint(value.get()));
 view! {
-    <Frame color>
+    <Frame fill>
         <Text string={value} />
     </Frame>
 }
@@ -235,9 +235,9 @@ direction:
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
-| `beui-view` | `beui::reactive`: `beui-tree` re-exported, with the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
+| `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, and layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
-| `beui-components-styled` | `beui::styled`: themes and styled controls |
+| `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
@@ -353,7 +353,12 @@ hooks the higher crates fill in:
 - `Platform::pick_file` gets a `FilePickAnswer`, which can be sent from any
   thread and wakes the runner; the pick reaches the app at the next frame.
   Accessibility trees are published only between
-  `Runner::accessibility_requested` and `accessibility_deactivated`.
+  `Runner::accessibility_requested` and `accessibility_deactivated`, and
+  `Context::accessibility_requested` says whether they are, so a host asks what it
+  embeds to describe itself only while something is listening. A document
+  describes again only the nodes a change or a move reached, and passes over a
+  subtree nothing in it changed (`FrameWork::walked_nodes` counts what it
+  visited).
   `Frame::wait` is how long the adapter may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.
@@ -452,14 +457,31 @@ whatever places it - a `Frame` with a width and a height, or a `CanvasItem` -
 unless it is given a `size`, which it measures to, scaled down to the width it
 is offered and keeping its shape, as an image does.
 
-Text is never one of those. A `Text`'s content is its children: string
-literals and `Prop<String>`s in its own style, `Span`s - value children with no
-node, each overriding the `font`, `color`, `underline` or `strikethrough` of
-its `text`, and marking a wrap opportunity with `break_after` - and `TextItem`s,
-whose child is laid inline as if it were one character (U+FFFC in the text),
-and `Gap`s, room of a given width that holds no bytes, so the indices on either
-side of one are the same.
-`string` is a leading span in the Text's own style. Computed runs are a
+Text is never one of those. A base `Text` takes concrete values and knows
+nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
+given), a `color` and `underline`, and the props that shape the paragraph -
+alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`
+and `carets`. Its content is its children: string literals and
+`Prop<String>`s in its own style, `Span`s - value children with no node, each
+overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
+`italic`, and its `color`, `underline` or `strikethrough`, and marking a wrap
+opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
+inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
+given width that holds no bytes, so the indices on either side of one are the
+same. An unset span prop takes its Text's.
+`string` is a leading span in the Text's own style.
+
+An `Icon` is a span that paints one glyph from the icon font and, like a
+`Gap`, holds no bytes, so the caret steps over it, a selection never covers it
+and a copy never carries it, and `<Text><Icon glyph=ICON_SAVE />"Save"</Text>`
+reads and copies as "Save". `Document::text_icons` lists a text's icons. An
+icon is its Text's font size times `scale` unless given a `size`, is centred
+in its line rather than set on the baseline, and makes its line no taller than
+text of the size it scales from would. It keeps `spacing_em` (a fraction of
+its own size) from whatever sits beside it on its line, so the gap between an
+icon and its label is layout rather than a space a selection could take, and
+an icon alone keeps none; an icon whose glyph is empty takes no room at all.
+Underline and strikethrough never cross one. Computed runs are a
 `ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
 and wraps them itself, breaking after whitespace, `-`, `/` or `\`, or after a
 `break_after` span, and between letters when no such break fits,
@@ -485,7 +507,7 @@ the document has been shown once. It is how a component measures text outside
 is - and the galleys it returns are cached, so asking for the same word twice
 costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
 and family; both are synthesised by FreeType rather than loaded as separate
-faces, and `Text` takes them as props.
+faces.
 
 `unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
@@ -527,18 +549,24 @@ button), `.align(..)` overrides the list's `align` for that child, and
 `@sizing={ItemSize::Percent(100.0).max(320.0)}`.
 
 `Frame` combines optional sizing, an aspect ratio it centres
-its box within, padding, fill, outline, and visibility on one retained node.
-Its `width`, `min_width`, `max_width`, `height`, `min_height`, `max_height`
-and `aspect_ratio` each take an optional measurement, so a signal behind one
-can hand it back to nothing and leave that axis measuring intrinsically again;
-`width_fraction` and `height_fraction` take that share of the space the frame
-is offered, when that space is bounded. `padding_horizontal` and
-`padding_vertical` pad both sides of an axis and `padding_left`,
-`padding_top`, `padding_right` and `padding_bottom` override one side.
-`align_horizontal` and `align_vertical` place a child smaller than the frame
-inside it rather than stretching it over the frame, which is how a badge sits
-in a corner. `radius` rounds every corner and `radius_top_left` and its
-siblings override one.
+its box within, padding, fill, outline, and visibility on one retained node,
+each concern one prop. `width` and `height` take an `Extent`: an exact length
+(`Extent::px`, or a plain `f32`), a share of the space offered when it is
+bounded (`Extent::fraction`), and `.min(..)` and `.max(..)` bounds, so
+`Extent::at_most(320.0)` fills its room up to 320; a memo of `Option<f32>`
+hands an axis back to intrinsic measuring when it is `None`. `padding` takes
+`Sides` (`Sides::all`, `symmetric`, `horizontal`, `vertical`, then `.left(..)`
+and its siblings to override one side). `align` takes an `Align2` (a plain
+`Align` sets both axes) and places a child smaller than the frame inside it
+rather than stretching it over the frame, which is how a badge sits in a
+corner. The primitive takes concrete values: `fill` a `Color32`, `radius`
+`Corners`, and `outline` an `Option<Outline>`. The styled `Frame` apps use takes
+tokens instead: `fill` a `ColorRole` (a theme colour, or `ColorRole::Custom`
+for one that is not), `radius` a `Radius` (`Xs` to `Lg`, `Full`, or
+`Radius::Custom`), and `border` an `Option<Border>` (`Border::DEFAULT`,
+`Border::FOCUS`, `Border::new(role)` with `.width(..)` and `.offset(..)`;
+`focus_border` shows one only while the focus ring is visible). A
+`ColorRole::custom(..)` wraps a colour or a signal of one.
 `Layers` lays every child over the same box, sized to the largest, later
 children on top: content over a background, a badge over an icon. A child that
 should not fill the box goes in a `Frame` that aligns it. Pointer input is the
@@ -725,7 +753,7 @@ view! {
     <Scroll @sizing=ItemSize::Percent(100.0)>
         <Header />
         <VirtualList keys={row_ids} item_size=ROW_HEIGHT>
-            {move |id: RowId| view! { <Row id /> }}
+            {move |id: ReadSignal<RowId>| view! { <Row id /> }}
         </VirtualList>
         <Footer />
     </Scroll>
@@ -734,8 +762,9 @@ view! {
 
 `item_size` is an estimate, and a row that measures differently is laid out at
 the size it measured. The list remembers what each row it has built actually
-measured and reports the sum, so its length grows towards the truth as rows come
-into view and the last row can always be scrolled to. A row that is measured
+measured and reports the sum, counting each row it has not built at the average
+of those it has, so its length is close to the truth from the first layout and
+the last row can always be scrolled to. A row that is measured
 above the viewport would move everything below it, so the list keeps drawing
 from the row it drew from last frame and asks the scroll around it to move its
 offset by the difference instead; the scroll applies that before it places
@@ -743,11 +772,37 @@ anything, so nothing on screen shifts. Outside a scroll a `VirtualList` builds
 what fits in the box it is given, which is how one sized by a `Stack` builds a
 screenful in one layout and a hundred pixels' worth in the next.
 
+`overscan` builds that many pixels of rows beyond each edge of the window, so the
+row a key press moves to already exists to be revealed. A list scrolled to its
+very top shows a row inserted above the rest rather than holding the rows below
+in place.
+
 Rows belong to their keys, not to their positions. Scrolling reuses the rows
-that stay in view and disposes the effects of the ones that leave, and the item
-builder runs once per key for as long as that row stays in view. Changing `keys`
-keeps every row whose key is still there: inserting a key anywhere builds only
-its row, and only if it lands in view; removing one disposes only its row; and
+that stay in view, and keeps the ones that just left, as many as are in view
+and only while they are within a window's length of it, so scrolling back
+shows them without building them again; anything further away is disposed
+with its effects, so a long jump or a list scrolled out of view keeps nothing
+but the row holding the focus. That row stays a child of the list, laid out at
+its own place off screen, until the focus leaves it, so the focus stays where it
+was. Tab order runs over every key, built or not: Tab and Shift+Tab reaching a
+run of rows the list has not built build them one at a time, from the end they
+come in at, until one has a Tab stop (rows with none are released again, and
+the search gives up past 4096 of them), and the focus then reveals that row as
+it would any other. Elements opt into this through `Element::focus_children`,
+`build_for_focus` and `release_for_focus`.
+A row the list disposes is not dropped but recycled: the item builder is
+handed a `ReadSignal` of its key rather than the key, and when a key comes into
+view the list sets that signal on a row that left instead of building a new one.
+So the builder must derive everything it shows from the key signal (a memo of
+the label, a test id, the selection), read it untracked in event handlers, and
+expect any state it keeps of its own to carry over to the next key. A row that
+must start fresh for each key wraps its content in `<Dynamic value={key}>`,
+which rebuilds on a key change and so costs what building used to. A row
+holding focus is never handed another key, and the list keeps at most as many
+spare rows as it has ever shown at once. The item builder runs once per row it
+builds, and the key signal changes once per key it then shows. Changing `keys`
+keeps every row whose key is still there: inserting a key anywhere shows only
+its row, and only if it lands in view; removing one releases only its row; and
 the sizes the list measured move with their keys. A key inserted or removed
 above the view changes the length above what is shown, so the list moves the
 scroll's offset by that much and the rows on screen stay where they are. A
@@ -1379,8 +1434,10 @@ and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
 
 How the windows stack is the document's layer order alone (`Document::layers()`),
-not anything in `DockState`: a press on a window and the focus moving into one
-raise its layer, a fullscreen tab is raised again over it each time, and a drop
+not anything in `DockState`: a press on a window, the focus moving into one and
+showing a tab of the window that has the focus (`DockState::show`, so a host can bring
+back a window something else covered) raise its layer (over a fullscreen tab too, unless
+the focus is in that tab), and a drop
 target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
@@ -1401,11 +1458,12 @@ that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
 at its top. Windows resize from any of
-their eight grips and are raised by whatever takes the focus inside them. The grips, and
-the bar between two panes, reach `HANDLE_REACH` points past what they draw: a window's
-overlay is that much larger than the window on every side, and a splitter's item that much
-wider than its face on both sides, so they can be grabbed without changing how they look,
-and they capture the press over whatever lies beneath. A
+their eight grips and are raised by whatever takes the focus inside them. The grips lie
+wholly outside the window, in a ring `HANDLE_REACH` points wide (a window's overlay is that
+much larger than the window on every side), with each corner's grip running `GRIP_CORNER`
+points along both edges, and the bar between two panes takes presses only in the gap it
+draws: neither ever reaches over a pane's or a window's content, which gets every press
+right up to its edge (a program's window included). A
 split keeps each side at least `MIN_PANE_LENGTH` where the area has room for
 both, and a window is drawn no larger than the dock, so a layout made on a wide
 screen stays usable on a phone. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
@@ -1459,6 +1517,18 @@ the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
 
+Pressing a pane's or a window's own chrome - its bar, a tab, a grip - gives the
+keyboard to the tab it shows rather than taking it: the bar is an `Interactive`
+with `press_focus=false` (guides/beui_keyboard.md), and the dock (`dock/keyboard.rs`) puts the focus in the
+panel, where it was when that tab last had it or else on the panel's first
+focusable (`Document::focus_into`, which waits a layout for a panel still being
+built). Picking a tab with the pointer does the same for the tab it shows, while
+the arrow keys leave the focus in the tab bar. When a pane stops showing a tab
+whose panel has the focus, the dock remembers where it was and gives the
+keyboard to the tab shown in its place. Each time the dock gives a tab the
+keyboard, `DockTabControl::keyboard` changes, so content whose keyboard lives
+in another document, such as a program's window, can take it there.
+
 `drag_modifier` (none unless asked for) makes the dock a window manager while
 those modifiers are held. A primary drag anywhere in a floating window - its
 content, its bar or its tabs - moves the whole window, as dragging its bar does;
@@ -1510,6 +1580,13 @@ background), so it covers the tab bars, the other panes, the dock's windows
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
+Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
+its content) raises the fullscreen overlay above the floating windows, its own pane's window
+included, so a window brought in front of it and then left goes behind it again. The pane
+it left draws Docking's `away` render prop (styled: a note that it is full screen and a Leave
+full screen button), seen where the fullscreen area does not cover it, such as another screen.
+A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
+to the tab's right-click menu; only content that has its own way out should.
 
 ### Spinners
 
@@ -1723,6 +1800,15 @@ rectangle with magenta instead; a crate that draws with the gpu does so behind
 a feature that beui's `render` feature turns on, as beui-components-styled's
 `gpu` does.
 
+## Imports
+
+App code imports `beui::reactive::*` for the framework and `beui::styled::*`
+for components, and names anything else (`beui::unstyled::X`,
+`beui::styled::theme::X`) on its own line. `beui::primitives` is for beui's own
+crates, its tests and beui-demo's base pages; the source lint rejects it
+anywhere else, since a primitive takes raw colours and pixels where a styled
+component takes tokens.
+
 ## Use beui in a standalone app
 
 The default `beui` feature is `window`, which includes the winit runner and the
@@ -1730,10 +1816,8 @@ wgpu renderer. A standalone app builds its document once and implements
 `beui::App`:
 
 ```rust
-use beui::reactive::{
-    Frame, List, build, component, create_memo, create_signal, view,
-};
-use beui::styled::{Button, ButtonVariant, Display, DocumentTheme, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{App, Color32, Context, Document, NodeId, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -1744,12 +1828,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn Counter() -> NodeId {
     let (count, set_count) = create_signal(0i64);
     let label = create_memo(move || count.get().to_string());
-    let theme = use_theme();
 
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=8.0>
-                <Display content={label} />
+                <Text style=TextStyle::DISPLAY string={label} />
                 <Button
                     label="Decrease"
                     variant=ButtonVariant::Secondary
@@ -1865,6 +1948,9 @@ focused field into what is left, through every scroll it sits in.
   their worker threads, and the screens this way).
 - `busy` says whether work the app is waiting on, such as a server request or a
   plugin's frame, will still change what it shows. Only a driver reads it.
+- `environment` is the variables a program needs to open its windows inside an app
+  that hosts programs (block-app's Wayland compositor). Only a driver reads it,
+  for `drive env` and `drive exec`.
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
@@ -1882,8 +1968,7 @@ from a driver (guides/running/drive.md); the native run functions fill it
 from `BEUI_AUTOMATION` and switch to `beui::Headless` for `BEUI_HEADLESS`, and
 block-app's web build fills it from its `automate` export. The runner keeps the
 accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
-headless plugin do by default and other runners only for a driver or a plugin
-description) and the action registry's actions, takes
+headless plugin do by default and other runners only for a driver) and the action registry's actions, takes
 the next command at the start of a frame, turns input commands into `Event`s
 already in points, which skip the adapters' intake (`automation/keys.rs` names
 the keys), and answers once a frame
@@ -1899,6 +1984,23 @@ other: it keeps a clipboard, grows to its screen for fullscreen, and reports
 its size, scale and fullscreen through its `WindowReports`. beui's own tests
 drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
 frame back for a screenshot.
+
+A window nobody can see is `Runner::set_occluded`: its frames still run (layout,
+paint, accessibility, the driver), but the runner hands each one's output to
+`Renderer::note` instead of `prepare` and presents nothing. `note` keeps only
+what the frame damaged, so the wgpu `Target` draws the union of every unseen
+frame's damage into its retained frame the next time it does draw; a renderer
+without `note` prepares as usual. The headless adapter is always occluded, so it
+draws only for a driver's `shot`.
+
+`Context::seen` tells the app whether the frame it is running will be drawn. A
+`shot` makes an occluded window seen until it is taken, and it is taken in the
+first frame whose app says through `App::drawing` that it has nothing still to
+draw. block-app answers with its plugins: each `DrawFrame` carries `seen`, an
+unseen plugin runs its frames (layout, its description, children) without
+encoding or presenting them, and keeps what they damaged; when the host is seen
+again it asks each plugin that drew unseen for a frame, which paints all of it,
+and `drawing` holds the shot until those frames have arrived.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,
@@ -2123,7 +2225,7 @@ way; `children: Children<NodeId>` takes any
 number of plain nodes, as `Scroll` does; `children: Children<CanvasItem>` takes
 only the items a `Canvas` can place; `children: Child` and
 `children: Option<Child>` take one node. A plain node converts into whatever a
-slot asks for that takes one, so `<List><Text content="hi" /></List>` needs no
+slot asks for that takes one, so `<List><Text string="hi" /></List>` needs no
 ceremony. Writing
 `@sizing` on the child of a slot that does not size its children is a compile
 error rather than an attribute that quietly does nothing.
@@ -2135,7 +2237,7 @@ stay in one place:
 
 ```rust
 <List spacing=4.0>
-    <Heading content="Cards" />
+    <Text style=TextStyle::HEADING string="Cards" />
     <ForEach keys={card_ids()}>
         {move |id: Uuid| view! { <CardRow id /> }}
     </ForEach>
@@ -2148,8 +2250,8 @@ a fragment written among siblings takes the places between them, and how
 `Show`, `Dynamic`, `Keyed` and `ForEach` fill a parent they do not own. `List`,
 `Stack`, `Scroll` and `Canvas` all keep their children that way.
 
-Use `Frame`'s `width` and `height` props (and their `min_`/`max_` forms) to constrain a component's own size,
-`max_width` for a box that fills the room it is given but stops at a limit, and
+Use `Frame`'s `width` and `height` props to constrain a component's own size,
+`Extent::at_most(..)` for a box that fills the room it is given but stops at a limit, and
 `@sizing` to describe how it participates among siblings in a `List`. Say a
 width once: a `Frame` nested inside one that carries the width
 is laid out within it, so the outer box is the only place the number belongs.
@@ -2178,8 +2280,11 @@ and the scopes under it; a write the build makes to a signal outside its
 subtree wakes that signal's effects once the walk has finished, which is what
 keeps a build confined to its node.
 
-Layout is a function of the tree and the constraints it is offered. Two nodes
-build during it:
+Layout is a function of the tree and the constraints it is offered, so a new
+window size or set of screens lays the tree out again from its root and every
+node offered the space it had keeps its measurements, placement and paint; only
+a new scale, new fonts or a new context lay out everything. Two nodes build
+during it:
 
 - `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the size it is
   laid out at, on each axis its parent bounds (an axis the parent measured it
@@ -2193,7 +2298,8 @@ build during it:
   space it was given, such as one that wraps text or switches between a row
   and a column, and give it that space from its parent (a stretch, a fixed or
   percent size) on the axis it reads.
-- `VirtualList` builds each row its window reaches that it does not have yet,
+- `VirtualList` shows each row its window reaches that it does not have yet,
+  recycling a released row or building one,
   as the walk reaches it, measures it and carries on, so one walk fills the
   window. A list laid out at the length it measured follows that length as
   its rows measure, rather than stopping at the estimate it was given, and
@@ -2257,7 +2363,7 @@ clicks and key events need no special handling. A host-driven update happens
 outside that context and must enter the document's reactive scope:
 
 ```rust
-use beui::reactive::{WriteSignal, with_reactive_scope};
+use beui::reactive::*;
 use beui::Document;
 
 fn set_value(document: &mut Document, value: &WriteSignal<String>, next: String) {
@@ -2468,16 +2574,63 @@ Read colors from the nearest theme with `styled::use_theme()`, which returns a
 `ThemeStore` — one `ReadSignal` per token. Bind a token straight to a prop with
 `theme.accent`, or read tokens inside a memo that also reads interaction
 state, so the control repaints when either changes. Because each token is its
-own signal, a component wakes only for the colors it actually uses. Sizes,
-radii, and font sizes are constants in `styled::theme`. Add a field to `Theme`,
+own signal, a component wakes only for the colors it actually uses. Radii and
+spacing are constants in `styled::theme`. Add a field to `Theme`,
 with a value in every built-in theme, when a color is part of the theme rather
 than unique to one component.
 
 Styled controls must visibly expose keyboard focus, and must keep labels and
 accessible roles stable when visual state changes. Use glyphs from `beui::icons`
-with `styled::Icon` or `styled::IconSized`; do not use Unicode characters as
+in a `styled::Icon` inside a `styled::Text`; do not use Unicode characters as
 ad-hoc icons. The [keyboard guide](beui_keyboard.md) records the expected
 behavior for each control family.
+
+### Text
+
+Styled text is written in tokens, never pixels or colors. `styled::Text`,
+`styled::Span` and `styled::Icon` take the same children as the base ones and
+resolve their tokens into a base `Text`'s `font` and `color`:
+
+- `size`, a `TextSize` on a scale from `Xs` to `Xl5`; `TextSize::px` is the
+  point size, for the rare layout that must measure against it.
+- `weight` (`Weight::Normal`, `Weight::Bold`), `family` (`Family::Sans`,
+  `Family::Mono`) and `italic`.
+- `color`, a `TextColor` role (`Default`, `Muted`, `Faint`, `Accent`,
+  `OnAccent`, `Danger`, `Warning`, `Success`) resolved through the nearest
+  theme, so the text follows a theme change. `TextColor::Custom(color)` is for
+  colors that are data rather than design - a user's label color, a map
+  marker, a terminal's ANSI palette - and a memo that picks a color by state
+  returns a `TextColor`.
+- `style`, a `TextStyle` preset: `BODY`, `CAPTION` (small and muted),
+  `HEADING`, `TITLE`, `DISPLAY`, `CODE` (small and monospace) and `PARAGRAPH`
+  (muted); give a paragraph `wrap=true` as well. A prop given beside a preset
+  wins over it.
+
+A styled `Icon` is sized from the text it sits in, `ICON_SCALE` times its font
+size, unless given a `size` token, and keeps `ICON_SPACING_EM` from its
+neighbours, so an icon beside a label is one `Text`, not a row of two:
+
+```rust
+view! {
+    <Text style=TextStyle::CAPTION>
+        <Icon glyph=ICON_SCHEDULE />
+        "Edited five minutes ago"
+    </Text>
+}
+```
+
+A lone icon is a `Text` holding only an `Icon`; give it `align=TextAlign::Center`
+when it is placed in a box bigger than itself.
+
+`TextStyleProvider` gives every styled text created within it a style its own
+props override, the way a disabled section mutes everything in it. It is
+context, so it reaches what is created inside it, which is not always what is
+laid out inside it: text a render callback builds for an overlay takes the
+provider around where the callback was written. A `Span` or `Icon` written
+inside a `Text` takes what it does not set from that `Text` instead.
+
+Raw pixel sizes and `Color32`s belong to base `Text`, for text that is drawn
+rather than designed: labels on a zoomable canvas, a terminal, a game board.
 
 ### Themes
 

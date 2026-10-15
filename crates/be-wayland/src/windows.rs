@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui::reactive::{ReadSignal, Stored, WriteSignal, create_signal, store};
+use beui::reactive::*;
 use beui::{CursorIcon, Drawing, ForwardedInput, Image, NodeId, Rect, Vec2};
 
 use crate::state::WindowId;
@@ -19,6 +19,8 @@ pub struct WindowInfo {
     pub responding: bool,
     pub icon: Option<Image>,
     pub inhibits_shortcuts: bool,
+    pub launch: Option<u64>,
+    pub command: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,6 +35,7 @@ pub(crate) enum Command {
 pub struct Launch {
     pub arguments: Vec<String>,
     pub working_dir: Option<String>,
+    pub tag: Option<u64>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -50,6 +53,9 @@ pub struct WindowSignals {
     set_popups: WriteSignal<Option<Popups>>,
     pub focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
+    pub(crate) asks: ReadSignal<u64>,
+    set_asks: WriteSignal<u64>,
+    pub(crate) answered: Rc<Cell<u64>>,
     pub(crate) painted: Rc<Cell<bool>>,
 }
 
@@ -164,7 +170,16 @@ impl Windows {
         let Some(signals) = self.signals(id) else {
             return;
         };
-        signals.set_focused.set(true);
+        signals.set_asks.update(|asks| *asks += 1);
+        *inner.raised.borrow_mut().entry(id).or_default() += 1;
+        inner.revision.set(inner.revision.get() + 1);
+    }
+
+    pub(crate) fn pressed(&self, id: WindowId) {
+        if self.signals(id).is_none() {
+            return;
+        }
+        let inner = self.0.get();
         *inner.raised.borrow_mut().entry(id).or_default() += 1;
         inner.revision.set(inner.revision.get() + 1);
     }
@@ -195,6 +210,7 @@ impl Windows {
         self.run(Launch {
             arguments: vec!["sh".to_owned(), "-c".to_owned(), line],
             working_dir: None,
+            tag: None,
         });
     }
 
@@ -213,7 +229,8 @@ impl Windows {
         let inner = self.0.get();
         let (drawing, set_drawing) = create_signal(None);
         let (popups, set_popups) = create_signal(None);
-        let (focused, set_focused) = create_signal(true);
+        let (focused, set_focused) = create_signal(false);
+        let (asks, set_asks) = create_signal(1);
         inner.windows.borrow_mut().insert(
             id,
             WindowSignals {
@@ -223,6 +240,9 @@ impl Windows {
                 set_popups,
                 focused,
                 set_focused,
+                asks,
+                set_asks,
+                answered: Rc::new(Cell::new(0)),
                 painted: Rc::new(Cell::new(false)),
             },
         );

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, create_signal, view};
-use crate::styled::{Launcher, LauncherItem};
+use crate::reactive::*;
+use crate::styled::*;
 
 fn item(key: &str, title: &str, terms: &[&str]) -> LauncherItem {
     LauncherItem {

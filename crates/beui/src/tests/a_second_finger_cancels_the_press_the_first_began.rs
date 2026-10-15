@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_second_finger_cancels_the_press_the_first_began() {

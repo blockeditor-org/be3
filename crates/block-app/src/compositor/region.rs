@@ -4,13 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use beui::reactive::{
-    BackHandler, Callback, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach,
-    Frame, Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack, use_context, use_screens,
-    view,
-};
-use beui::styled::CrashNotice;
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
 use beui::{
     Align, CursorIcon, ForwardedInput, ImeCursor, Modifiers, NodeId, Pos2, Rect, Region, Vec2, pos2,
@@ -74,6 +69,7 @@ pub(crate) fn PluginRegion(
     region: EditorRegion,
     #[prop(default = None)] frame: Prop<Option<FrameSpec>>,
     #[prop(default = None)] view: Prop<Option<EditorView>>,
+    #[prop(default = 1.0)] zoom: Prop<f32>,
     #[prop(default = false)] passive: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
@@ -105,6 +101,7 @@ pub(crate) fn PluginRegion(
             RegionPlacement {
                 rect: placement.rect,
                 clip: placement.clip,
+                zoom: zoom.peek(),
                 screens: screens.get_untracked(),
             },
             frame.peek(),
@@ -120,6 +117,7 @@ pub(crate) fn PluginRegion(
     create_effect(move || {
         let _ = frame.get();
         let _ = view.get();
+        let _ = zoom.get();
         screens.with(|_| ());
         place.call(placed.with(Cell::get));
     });
@@ -252,6 +250,7 @@ pub(crate) fn PluginRegion(
     });
     let catcher = NodeRef::new();
     take_keyboard(state, &catcher);
+    focus_when_asked(revision, plugin_id, instance, region, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(move || state.with(|view| view.ime.is_some()));
     let ime_cursor = create_memo(move || {
@@ -310,8 +309,27 @@ pub(crate) fn PluginRegion(
         plugin_host::back_region(&plugin_id.get(), instance, region, gesture);
     };
     let occluded = occlusion();
+    let beyond = move |local: Pos2| {
+        let Some(placed) = frame.peek().and_then(|frame| frame.content) else {
+            return false;
+        };
+        let placed = Rect::from_min_size(
+            pos2(placed.x, placed.y),
+            Vec2::new(placed.width, placed.height),
+        );
+        region == EditorRegion::Frame
+            && !placed.contains(local)
+            && plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+                frame.content.contains(local)
+                    && !frame
+                        .floating
+                        .iter()
+                        .any(|floating| floating.contains(local))
+            })
+    };
     let takes = move |local: Pos2| {
         !passive.peek()
+            && !beyond(local)
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
                 view.takes(local)
@@ -396,6 +414,27 @@ fn carry(drag: BlockDrag) {
     board.begin(Rc::new(drag), point, Rc::new(|_| {}));
 }
 
+fn focus_when_asked(
+    revision: beui::reactive::ReadSignal<u64>,
+    plugin_id: Stored<String>,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    catcher: &NodeRef,
+) {
+    let catcher = *catcher;
+    create_effect(move || {
+        revision.get();
+        untrack(|| {
+            if !plugin_host::take_focus_request(&plugin_id.get(), instance, region) {
+                return;
+            }
+            if let Some(node) = catcher.try_get() {
+                try_with_document(|document| document.focus_focusable(node));
+            }
+        });
+    });
+}
+
 fn take_keyboard(state: Memo<RegionView>, catcher: &NodeRef) {
     let wants = create_memo(move || state.with(|view| view.wants_keyboard));
     let catcher = *catcher;
@@ -445,7 +484,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
         spinner: true,
     });
     view! {
-        <Frame align_horizontal=Align::Center align_vertical=Align::Center>
+        <Frame align=Align::Center>
             <List spacing=0.0>
                 <Show condition={failed}>
                     <CrashNotice

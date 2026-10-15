@@ -1,21 +1,20 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::use_theme;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
+use beui_core::font::TextAlign;
 use beui_core::geometry::{Rect, pos2};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, List, Memo, Prop, ReadSignal, StoredCell,
-    component_accessibility, create_effect, create_memo, create_signal, create_timer, now, untrack,
-    use_screens,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub const OSD_DURATION: Duration = Duration::from_millis(1500);
 
@@ -27,10 +26,9 @@ const BOTTOM_MARGIN: f32 = 96.0;
 const PADDING_HORIZONTAL: f32 = 20.0;
 const PADDING_VERTICAL: f32 = 16.0;
 const SPACING: f32 = 16.0;
-const GLYPH_SIZE: f32 = 26.0;
 const BAR_WIDTH: f32 = 200.0;
 const BAR_HEIGHT: f32 = 6.0;
-const BAR_RADIUS: u8 = 3;
+const BAR_RADIUS: f32 = 3.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OsdLevel {
@@ -134,6 +132,7 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
         true => text_muted.get(),
         false => text.get(),
     }));
+    let glyph_ink = create_memo(move || TextColor::Custom(glyph_color.get()));
     let fill = faded(create_memo(move || match muted.get() {
         true => text_muted.get(),
         false => accent.get(),
@@ -147,7 +146,10 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
         })
     });
     let filled = create_memo(move || {
-        level.with(|level| level.as_ref().map(|level| level.level.clamp(0.0, 1.0)))
+        level.with(|level| Extent {
+            fraction: level.as_ref().map(|level| level.level.clamp(0.0, 1.0)),
+            ..Extent::INTRINSIC
+        })
     });
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::ProgressIndicator);
@@ -160,27 +162,30 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
         node
     }));
     view! {
-        <Frame padding_horizontal=MARGIN padding_vertical=MARGIN padding_bottom=Some(BOTTOM_MARGIN)>
+        <Frame padding={Sides::all(MARGIN).bottom(BOTTOM_MARGIN)}>
             <Frame
-                color={card}
-                outline={outline}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
-                radius=CARD_RADIUS
-                padding_horizontal=PADDING_HORIZONTAL
-                padding_vertical=PADDING_VERTICAL
+                fill={ColorRole::custom(card)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get()))))}
+                radius=Radius::Lg
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={id}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <IconSized glyph={glyph} font_size=GLYPH_SIZE color={glyph_color} />
+                    <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                     <Frame
-                        width=Some(BAR_WIDTH)
+                        width=BAR_WIDTH
                         height=BAR_HEIGHT
-                        color={rail}
-                        radius=BAR_RADIUS
-                        align_horizontal=Align::Start
+                        fill={ColorRole::custom(rail)}
+                        radius={Radius::custom(BAR_RADIUS)}
+                        align={Align2::horizontal(Align::Start)}
                     >
-                        <Frame width_fraction={filled} color={fill} radius=BAR_RADIUS />
+                        <Frame
+                            width=filled
+                            fill={ColorRole::custom(fill)}
+                            radius={Radius::custom(BAR_RADIUS)}
+                        />
                     </Frame>
                 </List>
             </Frame>

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, Show, create_signal, view, with_reactive_scope};
-use crate::styled::{Tabs, tabs_selected};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {

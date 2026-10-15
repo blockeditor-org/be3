@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste() {

@@ -1,5 +1,5 @@
-use block_editor_beui::beui::icons::{ICON_EXTENSION, ICON_HISTORY, ICON_LAYERS, ICON_SPEED};
-use block_editor_beui::beui::reactive::{component, view};
+use block_editor_beui::beui::icons::{ICON_EXTENSION, ICON_LAYERS, ICON_SPEED};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
 use block_editor_beui::{ChildMode, Editor, HostPanel, Subregion, SubregionContent};
@@ -24,7 +24,6 @@ pub(crate) fn panel_icon(panel: HostPanel) -> &'static str {
         HostPanel::BlockStack => ICON_LAYERS,
         HostPanel::Performance => ICON_SPEED,
         HostPanel::Plugins => ICON_EXTENSION,
-        HostPanel::Version => ICON_HISTORY,
     }
 }
 
@@ -33,7 +32,6 @@ pub(crate) fn panel_window(panel: HostPanel) -> Rect {
         HostPanel::BlockStack => (pos2(60.0, 60.0), vec2(760.0, 600.0)),
         HostPanel::Performance => (pos2(120.0, 100.0), vec2(520.0, 420.0)),
         HostPanel::Plugins => (pos2(150.0, 90.0), vec2(560.0, 440.0)),
-        HostPanel::Version => (pos2(180.0, 110.0), vec2(640.0, 480.0)),
     };
     Rect::from_min_size(position, size)
 }

@@ -35,12 +35,8 @@ use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPres
 use beui_core::layer::Dismiss;
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
-use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, LayoutBuilder, List,
-    Memo, NodeRef, PlacementBuilder, Prop, ReadSignal, Render, RenderFn, Show, Stored, WriteSignal,
-    action_scope, component_accessibility, create_effect, create_memo, create_signal, create_timer,
-    pixels_per_point, set_component_state, store, try_with_document, untrack, with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
@@ -69,10 +65,10 @@ const GUTTER_PADDING_RIGHT: f32 = 10.0;
 const GUTTER_ARROW_SIZE: f32 = 14.0;
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
-const CHECKBOX_RADIUS: u8 = 3;
+const CHECKBOX_RADIUS: f32 = 3.0;
 const CHECKBOX_OUTLINE: f32 = 1.5;
-const INLINE_WIDGET_RADIUS: u8 = 5;
-const RUN_CHIP_RADIUS: u8 = 3;
+const INLINE_WIDGET_RADIUS: f32 = 5.0;
+const RUN_CHIP_RADIUS: f32 = 3.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
 const CODE_RADIUS: f32 = 3.0;
@@ -827,6 +823,7 @@ fn blur(cx: &Context) {
         .execute(EditorCommand::Ime(ImeCommand::FinishComposing));
     cx.state.end_grab();
     cx.state.set_selecting(false);
+    cx.state.set_caret_handle(false);
     cx.set_autoscroll.set(false);
     cx.state.external_edit();
 }
@@ -1349,7 +1346,7 @@ pub fn TextArea(
                         }
 
                         view! {
-                            <Frame @node_ref=&outer color={outer_color}>
+                            <Frame @node_ref=&outer fill=outer_color>
                                 <List spacing=0.0>
                                     <Show condition={single_line}>
                                         {move || view! {
@@ -1379,7 +1376,7 @@ pub fn TextArea(
                                                     width={strip_width}
                                                     height={strip_height}
                                                 >
-                                                    <Frame color={gutter_color} />
+                                                    <Frame fill=gutter_color />
                                                 </CanvasItem>
                                                 <CanvasItem
                                                     x={border_x}
@@ -1387,7 +1384,7 @@ pub fn TextArea(
                                                     width=1.0
                                                     height={border_height}
                                                 >
-                                                    <Frame color={border_color} />
+                                                    <Frame fill=border_color />
                                                 </CanvasItem>
                                                 <CanvasItem
                                                     x=0.0
@@ -1595,7 +1592,7 @@ fn FieldFrame(
             {move |placed: ReadSignal<Rect>| {
                 report.set_unconditionally(Some(placed));
                 view! {
-                    <Frame color>{children}</Frame>
+                    <Frame fill=color>{children}</Frame>
                 }
             }}
         </PlacementBuilder>

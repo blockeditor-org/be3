@@ -5,6 +5,7 @@ use block_editor_beui::beui::unstyled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::kept::KeptWindow;
 use super::tab::TabItem;
 
 pub(crate) const LAYOUT: &str = "layout";
@@ -15,6 +16,7 @@ struct SavedLayout {
     next_tab: u64,
     files: usize,
     tabs: Vec<SavedTab>,
+    windows: Vec<KeptWindow>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -23,6 +25,7 @@ struct SavedTab {
     view: usize,
     block: Uuid,
     block_type: Uuid,
+    editor: Option<Uuid>,
 }
 
 pub(crate) struct Restored {
@@ -30,6 +33,7 @@ pub(crate) struct Restored {
     pub(crate) next_tab: u64,
     pub(crate) files: Option<Uuid>,
     pub(crate) tabs: HashMap<TabId, (TabItem, Uuid)>,
+    pub(crate) windows: Vec<KeptWindow>,
 }
 
 pub(crate) fn save(
@@ -38,6 +42,7 @@ pub(crate) fn save(
     files: Option<Uuid>,
     tabs: &HashMap<TabId, TabItem>,
     views: &HashMap<TabId, Uuid>,
+    windows: Vec<KeptWindow>,
 ) -> ViewState {
     let mut refs = vec![files.unwrap_or_else(Uuid::nil)];
     let mut open: Vec<(&TabId, &TabItem)> = tabs.iter().collect();
@@ -51,6 +56,7 @@ pub(crate) fn save(
                 view: refs.len() - 1,
                 block: item.id,
                 block_type: item.block_type,
+                editor: item.editor,
             })
         })
         .collect();
@@ -59,8 +65,16 @@ pub(crate) fn save(
         next_tab,
         files: 0,
         tabs,
+        windows,
     };
     ViewState::new(&saved, refs)
+}
+
+pub fn saved_windows(state: &ViewState) -> Vec<KeptWindow> {
+    state
+        .value::<SavedLayout>()
+        .map(|saved| saved.windows)
+        .unwrap_or_default()
 }
 
 pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
@@ -70,10 +84,7 @@ pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
         .tabs
         .iter()
         .filter_map(|tab| {
-            let item = TabItem {
-                id: tab.block,
-                block_type: tab.block_type,
-            };
+            let item = TabItem::new(tab.block, tab.block_type).edited_with(tab.editor);
             Some((TabId::new(tab.tab), (item, referenced(tab.view)?)))
         })
         .collect();
@@ -82,5 +93,6 @@ pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
         next_tab: saved.next_tab,
         files: referenced(saved.files),
         tabs,
+        windows: saved.windows,
     })
 }

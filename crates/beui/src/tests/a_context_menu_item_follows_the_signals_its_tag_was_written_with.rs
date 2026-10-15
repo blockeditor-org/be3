@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, create_signal, view, with_reactive_scope};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {

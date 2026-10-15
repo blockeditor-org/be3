@@ -49,6 +49,10 @@ pub trait Renderer {
 
     fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool;
 
+    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+        self.prepare(output, scale, background);
+    }
+
     fn present(&mut self, background: Color32) -> bool;
 
     fn capture(&mut self) -> Option<Capture> {
@@ -176,6 +180,10 @@ impl Renderers {
 
     pub fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
         self.active_mut().prepare(output, scale, background)
+    }
+
+    pub fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+        self.active_mut().note(output, scale, background);
     }
 
     pub fn present(&mut self, background: Color32) -> bool {

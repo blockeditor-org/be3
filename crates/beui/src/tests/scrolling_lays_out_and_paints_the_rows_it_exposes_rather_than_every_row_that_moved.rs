@@ -1,6 +1,7 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{Direction, ForEach, List, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 const ROWS: usize = 30;
@@ -15,7 +16,7 @@ fn scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_
                     <Scroll @test_id="scroll">
                         <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>
                             {|row: usize| view! {
-                                <Frame height=40.0 color=Color32::WHITE radius=0>
+                                <Frame height=40.0 fill=Color32::WHITE radius=0.0>
                                     <List direction=Direction::Horizontal spacing=4.0>
                                         <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>
                                             {move |label: usize| view! {

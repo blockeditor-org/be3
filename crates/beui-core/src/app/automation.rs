@@ -32,6 +32,7 @@ pub enum Reply {
         height: u32,
         rgba: Vec<u8>,
     },
+    Painting(Vec<u8>),
     Error(String),
 }
 

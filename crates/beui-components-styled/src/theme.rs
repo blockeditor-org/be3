@@ -3,10 +3,9 @@ use beui_macros::component;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Memo, Prop, Render, Store, create_effect, create_memo, provide_context, untrack, use_context,
-    with_document, with_reactive_scope,
-};
+use beui_view::reactive::*;
+
+use crate::frame::{Border, ColorRole};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ThemeKind {
@@ -176,24 +175,22 @@ pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> N
     content.call(())
 }
 
-pub fn control_outline(theme: &ThemeStore) -> Memo<Color32> {
+pub fn control_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     let outline = theme.control_outline;
-    create_memo(move || outline.get().unwrap_or(Color32::TRANSPARENT))
+    create_memo(move || {
+        outline
+            .get()
+            .map(|color| Border::new(ColorRole::Custom(color)))
+    })
 }
 
-pub fn control_outline_visible(theme: &ThemeStore) -> Memo<bool> {
-    let outline = theme.control_outline;
-    create_memo(move || outline.get().is_some())
-}
-
-pub fn knob_outline(theme: &ThemeStore) -> Memo<Color32> {
+pub fn knob_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     let outline = theme.knob_outline;
-    create_memo(move || outline.get().unwrap_or(Color32::TRANSPARENT))
-}
-
-pub fn knob_outline_visible(theme: &ThemeStore) -> Memo<bool> {
-    let outline = theme.knob_outline;
-    create_memo(move || outline.get().is_some())
+    create_memo(move || {
+        outline
+            .get()
+            .map(|color| Border::new(ColorRole::Custom(color)))
+    })
 }
 
 pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
@@ -232,25 +229,6 @@ impl DocumentTheme for Document {
         with_reactive_scope(self, move || store.set(theme));
     }
 }
-
-pub const FONT_SMALL: f32 = 12.0;
-pub const FONT_BODY: f32 = 14.0;
-pub const FONT_HEADING: f32 = 16.0;
-pub const FONT_TITLE: f32 = 21.0;
-pub const FONT_DISPLAY: f32 = 46.0;
-pub const ICON_SIZE: f32 = 18.0;
-
-pub fn icon_glyph_size(text_size: f32) -> f32 {
-    text_size * ICON_SIZE / FONT_BODY
-}
-
-pub fn icon_text_size(glyph_size: f32) -> f32 {
-    glyph_size * FONT_BODY / ICON_SIZE
-}
-
-pub const RADIUS: u8 = 6;
-pub const CARD_RADIUS: u8 = 10;
-pub const CHIP_RADIUS: u8 = 4;
 
 pub const NARROW_WIDTH: f32 = 700.0;
 

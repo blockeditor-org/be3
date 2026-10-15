@@ -1,7 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::KeyAt;
-use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 fn key(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
     Event::key(beui::KeyPress {

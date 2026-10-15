@@ -9,6 +9,7 @@ use crate::app::ChecklistApp;
 mod adding_an_item_puts_it_on_the_list;
 mod an_edit_from_elsewhere_leaves_the_other_rows_alone;
 mod filtering_to_open_hides_the_items_that_are_done;
+mod the_checklist_waits_for_its_content;
 
 struct Harness {
     editor: BeuiTest<ChecklistApp>,

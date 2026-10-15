@@ -4,13 +4,11 @@ use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort,
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Callback, ClickCallback, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Prop, Show, Spacer, component, create_effect, create_memo, view, with_document,
-};
-use block_editor_beui::beui::styled::{Body, Caption, Icon, Scroll, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
@@ -33,13 +31,12 @@ pub fn Spreadsheet(data: Data) -> NodeId {
     let empty = create_memo(move || fields.with(Vec::is_empty));
     let filled = create_memo(move || !empty.get());
     let keyboard = Callback::new(keyboard(data, display));
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={empty}>
-                    <Frame padding_horizontal=12.0 padding_vertical=12.0>
-                        <Caption content="This database has no columns yet." />
+                    <Frame padding=12.0>
+                        <Text style=TextStyle::CAPTION string="This database has no columns yet." />
                     </Frame>
                 </Show>
                 <Show condition={filled}>
@@ -65,6 +62,15 @@ fn Grid(
     keys: Memo<Vec<usize>>,
     on_key: Callback<KeyPress, bool>,
 ) -> NodeId {
+    let positions = create_memo(move || {
+        display.with(|display| {
+            display
+                .iter()
+                .enumerate()
+                .map(|(position, row)| (row.index, position))
+                .collect::<HashMap<usize, usize>>()
+        })
+    });
     view! {
         <List spacing=0.0>
             <Scroll @sizing=ItemSize::Percent(100.0)>
@@ -72,14 +78,23 @@ fn Grid(
                     <Interactive focusable=true on_key={on_key}>
                         <List spacing=0.0>
                             <HeaderRow data={header} />
-                            <ForEach keys={keys}>
-                                {move |index: usize| {
-                                    let display = display;
+                            <VirtualList
+                                keys={keys}
+                                item_size=ROW_HEIGHT
+                                overscan={ROW_HEIGHT * 2.0}
+                            >
+                                {move |index: ReadSignal<usize>| {
+                                    let (display, positions) = (display, positions);
                                     view! {
-                                        <Row data={data} display={display} index={index} />
+                                        <Row
+                                            data={data}
+                                            display={display}
+                                            positions={positions}
+                                            index={index}
+                                        />
                                     }
                                 }}
-                            </ForEach>
+                            </VirtualList>
                         </List>
                     </Interactive>
                 </Scroll>
@@ -94,16 +109,13 @@ fn HeaderRow(data: Data) -> NodeId {
     let keys = create_memo(move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
                 width=ROW_HEADER_WIDTH
                 height=ROW_HEIGHT
-                color={theme.surface}
-                outline={theme.border}
-                outline_width=BORDER
-                outline_visible=true
+                fill=ColorRole::Surface
+                border={Border::new(ColorRole::Border).width(BORDER)}
             />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
@@ -162,23 +174,22 @@ fn HeaderCell(
         None => String::new(),
     });
     let marked = create_memo(move || sorted.get().is_some());
-    let theme = use_theme();
     view! {
         <Frame
-            width={width}
+            width=width
             height=ROW_HEIGHT
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=BORDER
-            outline_visible=true
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(BORDER)}
         >
             <Interactive on_click={on_click}>
-                <Frame padding_horizontal=CELL_PADDING>
+                <Frame padding={Sides::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <Body content={label} color={theme.text} />
+                        <Text string={label} />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Show condition={marked}>
-                            <Icon glyph={glyph} color={theme.text_muted} />
+                            <Text color=TextColor::Muted align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
                         </Show>
                     </List>
                 </Frame>
@@ -188,12 +199,17 @@ fn HeaderCell(
 }
 
 #[component]
-fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
+fn Row(
+    data: Data,
+    display: Memo<Vec<DisplayRow>>,
+    positions: Memo<HashMap<usize, usize>>,
+    index: ReadSignal<usize>,
+) -> NodeId {
+    let position =
+        create_memo(move || positions.with(|positions| positions.get(&index.get()).copied()));
     let entry = create_memo(move || {
-        display.with(|display| display.iter().find(|row| row.index == index).cloned())
-    });
-    let position = create_memo(move || {
-        display.with(|display| display.iter().position(|row| row.index == index))
+        let position = position.get()?;
+        display.with(|display| display.get(position).cloned())
     });
     let number = create_memo(move || {
         position
@@ -203,7 +219,7 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
     let selected = create_memo(move || {
         data.selected
             .get()
-            .is_some_and(|selection| selection.row == index)
+            .is_some_and(|selection| selection.row == index.get())
     });
     let fields = data.fields;
     let keys = create_memo(move || {
@@ -219,12 +235,10 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
             <Frame
                 @sizing=ItemSize::Fixed(ROW_HEADER_WIDTH)
                 height=ROW_HEIGHT
-                color={header_fill}
-                outline={theme.border}
-                outline_width=BORDER
-                outline_visible=true
+                fill={ColorRole::custom(header_fill)}
+                border={Border::new(ColorRole::Border).width(BORDER)}
             >
-                <Caption content={number} align=TextAlign::Center />
+                <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
             <ForEach keys={keys}>
                 {move |id: Uuid| {
@@ -247,7 +261,7 @@ fn Cell(
     data: Data,
     entry: Memo<Option<DisplayRow>>,
     field: Memo<Option<DatabaseField>>,
-    row: usize,
+    row: ReadSignal<usize>,
 ) -> NodeId {
     let id = field
         .get_untracked()
@@ -275,7 +289,7 @@ fn Cell(
     let selected = create_memo(move || {
         data.selected
             .get()
-            .is_some_and(|selection| selection.row == row && selection.field == Some(id))
+            .is_some_and(|selection| selection.row == row.get() && selection.field == Some(id))
     });
     let boolean = create_memo(move || {
         field.with(|field| {
@@ -305,7 +319,9 @@ fn Cell(
             false => TextAlign::Start,
         }
     });
+    let test_id = create_memo(move || format!("database-view.cell.{}.{id}", row.get()));
     let click = move || {
+        let row = row.get_untracked();
         data.select(row, Some(id));
         if boolean.get_untracked() {
             let value = !checked.get_untracked();
@@ -321,7 +337,7 @@ fn Cell(
         }
     });
     let theme = use_theme();
-    let glyph_color = theme.text;
+    let glyph_color = TextColor::Default;
     let fill = create_memo(move || match selected.get() {
         true => theme.accent_soft.get(),
         false => theme.background.get(),
@@ -333,35 +349,32 @@ fn Cell(
     view! {
         <Frame
             @node_ref=&shown
-            width={width}
+            width=width
             height=ROW_HEIGHT
-            color={fill}
-            outline={outline}
-            outline_width=BORDER
-            outline_visible=true
+            fill={ColorRole::custom(fill)}
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(BORDER)))}
         >
-            <Interactive @test_id={format!("database-view.cell.{row}.{id}")} on_click={click}>
-                <Frame padding_horizontal=CELL_PADDING>
+            <Interactive @test_id={test_id} on_click={click}>
+                <Frame padding={Sides::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>
-                            <Icon glyph={check_glyph} color={glyph_color} />
+                            <Text color={glyph_color} align=TextAlign::Center>
+                                <Icon glyph={check_glyph} />
+                            </Text>
                         </Show>
                         <Show condition={colored}>
                             <Frame
                                 @sizing=ItemSize::Fixed(SWATCH_WIDTH)
                                 height=SWATCH_HEIGHT
-                                color={swatch}
-                                outline={theme.border}
-                                outline_width=BORDER
-                                outline_visible=true
-                                radius=2
+                                fill={ColorRole::custom(swatch)}
+                                border={Border::new(ColorRole::Border).width(BORDER)}
+                                radius=Radius::Xs
                             />
                         </Show>
-                        <Body
+                        <Text
                             @sizing=ItemSize::Percent(100.0)
-                            content={text}
+                            string={text}
                             align={align}
-                            color={theme.text}
                             ellipsis=true
                         />
                     </List>

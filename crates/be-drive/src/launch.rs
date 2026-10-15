@@ -14,6 +14,7 @@ Starts a beui program headless with an automation socket, waits until it settles
 an env file that puts `drive` on PATH pointed at it. Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 const SIZE: &str = "1100x720";
+const SOCKET_PATH: usize = 107;
 const SCREEN: &str = "1440x900";
 
 #[derive(Default)]
@@ -92,6 +93,14 @@ impl Launch {
                 .map_err(|error| format!("could not delete {}: {error}", data.display()))?;
         }
         let socket = dir.join("automation.sock");
+        let length = socket.as_os_str().len();
+        if length > SOCKET_PATH {
+            return Err(format!(
+                "{} is {length} bytes, longer than the {SOCKET_PATH} a Unix socket's path may be; \
+                 set BE_DRIVE_DIR to a shorter directory",
+                socket.display()
+            ));
+        }
         let _ = fs::remove_file(&socket);
         let mut command = Command::new(program);
         command
@@ -187,6 +196,50 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         log_path.display()
     );
     Ok(())
+}
+
+pub(crate) fn start(
+    program: &str,
+    arguments: Vec<String>,
+    size: &str,
+    libraries: Option<String>,
+    dir: &Path,
+    log: &Path,
+) -> Result<Child, String> {
+    Launch {
+        program: Some(program.to_owned()),
+        data: true,
+        fresh: true,
+        libraries,
+        size: Some(size.to_owned()),
+        arguments,
+        ..Launch::default()
+    }
+    .start(dir, Some(log))
+}
+
+pub(crate) fn wait_for_exit(mut child: Child, timeout: Duration) -> Result<(), String> {
+    let pid = child.id();
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(child.wait());
+    });
+    match receiver.recv_timeout(timeout) {
+        Ok(Ok(status)) if status.success() => Ok(()),
+        Ok(Ok(status)) => Err(format!("the app exited with {status}")),
+        Ok(Err(error)) => Err(format!("could not wait for the app: {error}")),
+        Err(_) => {
+            kill_group(pid);
+            Err(format!(
+                "the app did not exit within {} seconds of closing",
+                timeout.as_secs()
+            ))
+        }
+    }
+}
+
+pub(crate) fn kill(pid: u32) {
+    kill_group(pid);
 }
 
 pub fn run_script(arguments: &[String]) -> Result<(), String> {

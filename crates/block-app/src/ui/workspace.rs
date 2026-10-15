@@ -3,10 +3,8 @@ use beui::icons::{
     ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
     ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY, ICON_SWAP_HORIZ, ICON_SYNC, ICON_VIEW_QUILT,
 };
-use beui::reactive::{
-    ForEach, Frame, ItemSize, List, Memo, Prop, Show, component, create_memo, provide_context, view,
-};
-use beui::styled::ContextMenu;
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{Container, MenuItem};
 use block_plugin_api::HostPanel;
 
@@ -166,6 +164,5 @@ fn panel_icon(panel: HostPanel) -> &'static str {
         HostPanel::BlockStack => beui::icons::ICON_LAYERS,
         HostPanel::Performance => beui::icons::ICON_SPEED,
         HostPanel::Plugins => beui::icons::ICON_EXTENSION,
-        HostPanel::Version => beui::icons::ICON_HISTORY,
     }
 }

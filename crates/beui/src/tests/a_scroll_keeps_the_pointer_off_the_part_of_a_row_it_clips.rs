@@ -1,6 +1,7 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ForEach, Frame, Interactive, ItemSize, List, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]

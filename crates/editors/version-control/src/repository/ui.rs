@@ -1,12 +1,8 @@
 use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{Repository, RepositoryContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, Heading, Scroll, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
     BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, short_id,
 };
@@ -76,25 +72,30 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
         }
     };
 
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
-                            <Heading content="Repository" />
+                            <Text style=TextStyle::HEADING string="Repository" />
                             <Show condition={has_note}>
-                                <Caption content={note} wrap=true @test_id={"repository.note"} />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={note}
+                                    wrap=true
+                                    @test_id={"repository.note"}
+                                />
                             </Show>
                         </List>
                         <Show condition={unversioned}>
                             {move || view! {
                                 <Card>
                                     <List spacing=10.0>
-                                        <Body content="Nothing is versioned here yet." />
-                                        <Caption
-                                            content="Choose a block and everything below it becomes this repository's first commit, with a checkout around it to edit it in."
+                                        <Text string="Nothing is versioned here yet." />
+                                        <Text
+                                            style=TextStyle::CAPTION
+                                            string="Choose a block and everything below it becomes this repository's first commit, with a checkout around it to edit it in."
                                             wrap=true
                                         />
                                         <Button
@@ -112,7 +113,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             {move || view! {
                                 <Card>
                                     <List spacing=10.0>
-                                        <Heading content="Branches" />
+                                        <Text style=TextStyle::HEADING string="Branches" />
                                         <ForEach keys={branches} view={rows} />
                                     </List>
                                 </Card>
@@ -120,7 +121,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         </Show>
                         <Card>
                             <List spacing=10.0>
-                                <Heading content="Upstream" />
+                                <Text style=TextStyle::HEADING string="Upstream" />
                                 <Show condition={has_upstream}>
                                     <BlockLink
                                         editor={editor}
@@ -129,8 +130,9 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     />
                                 </Show>
                                 <Show condition={no_upstream}>
-                                    <Caption
-                                        content="A fork follows the repository it was made from, which it can pull from and push to."
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string="A fork follows the repository it was made from, which it can pull from and push to."
                                         wrap=true
                                     />
                                 </Show>
@@ -165,7 +167,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         </Card>
                         <Card>
                             <List spacing=10.0>
-                                <Heading content="History" />
+                                <Text style=TextStyle::HEADING string="History" />
                                 <VersionHistory log={log} />
                             </List>
                         </Card>
@@ -186,8 +188,8 @@ fn BranchRow(editor: Editor, blocked: Memo<bool>, name: String, head: String) ->
             spacing=10.0
             @test_id={format!("repository.branch.{name}")}
         >
-            <Body @sizing=ItemSize::Percent(100.0) content={name.clone()} />
-            <Caption content={head} />
+            <Text @sizing=ItemSize::Percent(100.0) string={name.clone()} />
+            <Text style=TextStyle::CAPTION string={head} />
             <Button
                 label="Check out"
                 variant=ButtonVariant::Secondary

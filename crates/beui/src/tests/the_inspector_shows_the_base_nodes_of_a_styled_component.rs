@@ -1,13 +1,14 @@
 use super::*;
-use crate::reactive::{Text, view};
-use crate::styled::ListRow;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_inspector_shows_the_base_nodes_of_a_styled_component() {
     let (document, [_row]) = toolbar_of(|| {
         [view! {
             <ListRow>
-                <Text string="Hello" font_size=14.0 color=Color32::WHITE />
+                <Text string="Hello" color=Color32::WHITE />
             </ListRow>
         }]
     });

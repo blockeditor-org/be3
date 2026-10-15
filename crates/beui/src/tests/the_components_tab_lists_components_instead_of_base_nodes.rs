@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn the_components_tab_lists_components_instead_of_base_nodes() {

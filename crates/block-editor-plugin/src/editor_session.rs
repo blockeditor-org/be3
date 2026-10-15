@@ -1,4 +1,5 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
+use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
@@ -11,6 +12,7 @@ use geometry::{Rect, Vec2, pos2, vec2};
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
+    sync::atomic::{AtomicU64, Ordering},
 };
 use uuid::Uuid;
 
@@ -23,6 +25,8 @@ use crate::{
 };
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
+
+static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorSession {
     app: Box<dyn Instance>,
@@ -76,6 +80,8 @@ struct RegionState {
     reported: Option<Vec2>,
     report: Option<FrameReport>,
     reported_frame: Option<FrameReport>,
+    tree: Option<TreeUpdate>,
+    epoch: u64,
     window: block_plugin_api::WindowRequests,
     reported_window: Option<block_plugin_api::WindowRequests>,
     stopped: Option<block_plugin_api::Stopped>,
@@ -195,8 +201,8 @@ impl EditorSession {
         self.host.receive_host_value(key, value);
     }
 
-    pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.host.show_block(block_id, block_type, via);
+    pub(crate) fn show_block(&self, request: crate::ShowRequest) {
+        self.host.show_block(request);
     }
 
     pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
@@ -317,6 +323,10 @@ impl EditorSession {
                 continue;
             };
             let state = self.regions.entry(placement.region).or_default();
+            if state.placement.map(|placed| placed.screen) != Some(placement.screen) {
+                state.epoch = NEXT_EPOCH.fetch_add(1, Ordering::Relaxed);
+                state.tree = None;
+            }
             state.placement = Some(*placement);
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
@@ -618,12 +628,13 @@ impl EditorSession {
                 change,
             }));
         }
-        for (block_id, block_type, via) in self.host.take_opens() {
+        for open in self.host.take_opens() {
             messages.push(Message::Editor(EditorMessage::OpenBlock {
                 instance,
-                block_id: block_id.into_bytes(),
-                block_type: block_type.into_bytes(),
-                via: via.map(Uuid::into_bytes),
+                block_id: open.block_id.into_bytes(),
+                block_type: open.block_type.into_bytes(),
+                via: open.via.map(Uuid::into_bytes),
+                editor: open.editor.map(Uuid::into_bytes),
             }));
         }
         for (block_id, block_type) in self.host.take_block_drags() {
@@ -707,11 +718,15 @@ impl EditorSession {
             let Some(report) = &state.report else {
                 continue;
             };
-            if state.reported_frame.as_ref() == Some(report) {
+            if state.reported_frame.as_ref() == Some(report) && state.tree.is_none() {
                 continue;
             }
             state.reported_frame = Some(report.clone());
-            reports.push(report.clone());
+            let mut report = report.clone();
+            if let Some(description) = &mut report.description {
+                description.tree = state.tree.take();
+            }
+            reports.push(report);
         }
         reports
     }
@@ -860,7 +875,10 @@ impl EditorSession {
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
             monitors: self.monitors(region),
-            describe: crate::screens::describing(),
+            describe: state
+                .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
+                .map(|state| state.epoch),
+            seen: crate::screens::seen(),
         }
     }
 
@@ -880,6 +898,13 @@ impl EditorSession {
         self.host.begin_region(region, origin);
         self.host
             .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
+        self.host
+            .set_placed_content(context.spec.content.map(|content| {
+                Rect::from_min_size(
+                    pos2(content.x, content.y),
+                    vec2(content.width, content.height),
+                )
+            }));
         let drag = self.drag.and_then(|(dragged, drag)| {
             (dragged == region).then(|| BlockDrag {
                 position: drag.position + origin,
@@ -953,6 +978,14 @@ impl EditorSession {
                 pastes: window.pastes.clone(),
             };
             let reports = matches!(region, EditorRegion::Frame);
+            match frame.description.as_mut() {
+                Some(description) => {
+                    if let Some(tree) = description.tree.take() {
+                        merge_tree(&mut state.tree, tree);
+                    }
+                }
+                None => state.tree = None,
+            }
             state.report = reports.then(|| FrameReport {
                 screen,
                 content: reported(reported_content),
@@ -968,28 +1001,17 @@ impl EditorSession {
                     .collect(),
                 description: frame.description.as_ref().map(|description| {
                     block_plugin_api::Description {
-                        nodes: description
-                            .nodes
-                            .iter()
-                            .map(|node| block_plugin_api::DescribedNode {
-                                depth: node.depth,
-                                role: node.role.clone(),
-                                label: node.label.clone(),
-                                value: node.value.clone(),
-                                toggled: node.toggled,
-                                disabled: node.disabled,
-                                focused: node.focused,
-                                rect: node.rect.map(reported),
-                                actions: node.actions.clone(),
-                                test_ids: node.test_ids.clone(),
-                            })
-                            .collect(),
+                        tree: None,
                         actions: description.actions.clone(),
                     }
                 }),
             });
         }
         frame
+    }
+
+    pub(crate) fn painting(&mut self, region: EditorRegion) -> Option<paint_format::Painting> {
+        self.app.painting(region)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -1002,15 +1024,9 @@ impl EditorSession {
         self.app.input(&context, event);
     }
 
-    pub(crate) fn node_action(
-        &mut self,
-        region: EditorRegion,
-        node: usize,
-        action: &str,
-        value: Option<block_plugin_api::NodeValue>,
-    ) {
+    pub(crate) fn node_action(&mut self, region: EditorRegion, request: ActionRequest) {
         let context = self.context(region);
-        self.app.node_action(&context, node, action, value);
+        self.app.node_action(&context, request);
     }
 
     pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {
@@ -1071,3 +1087,17 @@ fn bounded(
 
 #[cfg(test)]
 mod tests;
+
+fn merge_tree(held: &mut Option<TreeUpdate>, update: TreeUpdate) {
+    let Some(held) = held else {
+        *held = Some(update);
+        return;
+    };
+    let replaced: HashSet<NodeId> = update.nodes.iter().map(|(id, _)| *id).collect();
+    held.nodes.retain(|(id, _)| !replaced.contains(id));
+    held.nodes.extend(update.nodes);
+    if update.tree.is_some() {
+        held.tree = update.tree;
+    }
+    held.focus = update.focus;
+}

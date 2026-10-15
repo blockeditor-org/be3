@@ -1,11 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
-use block_editor_beui::beui::reactive::{
-    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, IconButton, TextInput, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
 
 use super::session::{PAGE, Session};
@@ -47,9 +43,8 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton
@@ -94,9 +89,10 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                         <Subregion editor={editor} placed={page} punch=false />
                         <List align=Align::Center justify=Justify::Center spacing=0.0>
                             <Show condition={failed}>
-                                <Caption
-                                    content={reason}
-                                    color={theme.danger}
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={reason}
+                                    color=TextColor::Danger
                                     @test_id={"browser.error"}
                                 />
                             </Show>

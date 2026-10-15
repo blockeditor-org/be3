@@ -8,9 +8,17 @@ use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, NodeId, NodeOf};
+use crate::node::{Element, FocusChild, NodeId, NodeOf};
+use std::ops::Range;
 
 pub type KeyCallback = Callback<KeyPress, bool>;
+
+const TAB_BUILD_LIMIT: usize = 4096;
+
+enum TabStop {
+    Node(NodeId),
+    Unbuilt(NodeId, Range<usize>),
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ImeCursor {
@@ -20,7 +28,6 @@ pub struct ImeCursor {
 
 pub struct Focus {
     pub tab_stop: bool,
-    pub press_focus: bool,
     pub ime: bool,
     pub keyboard_on_focus: bool,
     pub keyboard_asks: Option<u32>,
@@ -49,7 +56,6 @@ impl Focus {
     pub fn new() -> Self {
         Self {
             tab_stop: true,
-            press_focus: true,
             ime: false,
             keyboard_on_focus: true,
             keyboard_asks: None,
@@ -85,20 +91,6 @@ impl Document {
         }
         if focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.tab_stop != tab_stop) {
             self.focus_mut(focusable).tab_stop = tab_stop;
-        }
-    }
-
-    pub fn set_focusable_press_focus(
-        &mut self,
-        focusable: NodeOf<InteractiveNode>,
-        press_focus: bool,
-    ) {
-        if !self.contains(focusable) {
-            return;
-        }
-        if focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.press_focus != press_focus)
-        {
-            self.focus_mut(focusable).press_focus = press_focus;
         }
     }
 
@@ -194,6 +186,7 @@ impl Document {
     }
 
     pub fn blur(&mut self) {
+        self.focus_into = None;
         if self.focused.is_none() {
             return;
         }
@@ -372,6 +365,33 @@ impl Document {
         self.update_focus(Some(focusable));
     }
 
+    pub fn focus_into(&mut self, root: NodeId) {
+        self.focus_into = None;
+        match self.focusables_within(root).first().copied() {
+            Some(first) => self.update_focus(Some(first)),
+            None => self.focus_into = Some((root, self.layout_pass())),
+        }
+    }
+
+    fn settle_focus_into(&mut self) {
+        let Some((root, pass)) = self.focus_into else {
+            return;
+        };
+        if !self.contains(root) {
+            self.focus_into = None;
+            return;
+        }
+        if let Some(first) = self.focusables_within(root).first().copied() {
+            self.focus_into = None;
+            self.update_focus(Some(first));
+        } else if self.layout_pass() != pass {
+            self.focus_into = None;
+            if !self.focus_is_within(root) {
+                self.update_focus(None);
+            }
+        }
+    }
+
     pub fn focusables_within(&self, root: NodeId) -> Vec<NodeId> {
         let mut out = Vec::new();
         let blocked = self.blocked_roots(&self.layers());
@@ -393,27 +413,75 @@ impl Document {
     }
 
     fn move_focus(&mut self, step: isize) {
-        let order = self.focusables();
+        let layers = self.layers();
+        let blocked = self.blocked_roots(&layers);
+        let mut order = Vec::new();
+        if let Some(start) = layers[layers.keyboard()].content {
+            self.collect_tab_stops(start, &mut order, &blocked);
+        }
         if order.is_empty() {
             self.update_focus(None);
             return;
         }
-        let index = self
-            .focused
-            .and_then(|focused| order.iter().position(|id| *id == focused));
+        let index = self.focused.and_then(|focused| {
+            order
+                .iter()
+                .position(|stop| matches!(stop, TabStop::Node(id) if *id == focused))
+        });
         let start = index.map_or_else(
             || if step >= 0 { 0 } else { order.len() - 1 },
             |index| (index as isize + step).rem_euclid(order.len() as isize) as usize,
         );
         for offset in 0..order.len() {
-            let id = order[(start as isize + offset as isize * step)
+            let stop = &order[(start as isize + offset as isize * step)
                 .rem_euclid(order.len() as isize) as usize];
-            if focus_of(self.arena.get(id)).is_none_or(|focus| focus.tab_stop) {
-                self.update_focus(Some(id));
+            if let Some(found) = self.tab_stop_at(stop, step, &blocked) {
+                self.update_focus(Some(found));
                 return;
             }
         }
         self.update_focus(None);
+    }
+
+    fn tab_stop_at(&mut self, stop: &TabStop, step: isize, blocked: &[NodeId]) -> Option<NodeId> {
+        match stop {
+            TabStop::Node(id) => focus_of(self.arena.get(*id))
+                .is_none_or(|focus| focus.tab_stop)
+                .then_some(*id),
+            TabStop::Unbuilt(list, rows) => self.build_tab_stop(*list, rows.clone(), step, blocked),
+        }
+    }
+
+    fn build_tab_stop(
+        &mut self,
+        list: NodeId,
+        rows: Range<usize>,
+        step: isize,
+        blocked: &[NodeId],
+    ) -> Option<NodeId> {
+        for at in 0..rows.len().min(TAB_BUILD_LIMIT) {
+            let index = match step >= 0 {
+                true => rows.start + at,
+                false => rows.end - 1 - at,
+            };
+            let mut element = self.arena.take(list);
+            let row = element.build_for_focus(self, list, index);
+            self.arena.put_back(list, element);
+            let row = row?;
+            self.arena.invalidate_node(list);
+            let mut stops = Vec::new();
+            self.collect_tab_stops(row, &mut stops, blocked);
+            if step < 0 {
+                stops.reverse();
+            }
+            for stop in &stops {
+                if let Some(found) = self.tab_stop_at(stop, step, blocked) {
+                    return Some(found);
+                }
+            }
+            self.arena.get_mut(list).release_for_focus(row);
+        }
+        None
     }
 
     pub(crate) fn focusables(&self) -> Vec<NodeId> {
@@ -427,6 +495,15 @@ impl Document {
     }
 
     fn collect_focusables(&self, id: NodeId, out: &mut Vec<NodeId>, blocked: &[NodeId]) {
+        let mut stops = Vec::new();
+        self.collect_tab_stops(id, &mut stops, blocked);
+        out.extend(stops.into_iter().filter_map(|stop| match stop {
+            TabStop::Node(id) => Some(id),
+            TabStop::Unbuilt(..) => None,
+        }));
+    }
+
+    fn collect_tab_stops(&self, id: NodeId, out: &mut Vec<TabStop>, blocked: &[NodeId]) {
         if blocked.contains(&id) {
             return;
         }
@@ -448,15 +525,27 @@ impl Document {
             return;
         }
         if focus_of(element).is_some() {
-            out.push(id);
+            out.push(TabStop::Node(id));
         }
-        for child in element.children() {
-            self.collect_focusables(child, out, blocked);
+        match element.focus_children() {
+            Some(children) => {
+                for child in children {
+                    match child {
+                        FocusChild::Node(child) => self.collect_tab_stops(child, out, blocked),
+                        FocusChild::Unbuilt(rows) => out.push(TabStop::Unbuilt(id, rows)),
+                    }
+                }
+            }
+            None => {
+                element.for_each_child(&mut |child| self.collect_tab_stops(child, out, blocked))
+            }
         }
     }
 
     pub fn validate_focus(&mut self) {
-        let dirty = std::mem::take(&mut self.focus_dirty) | self.arena.take_reparented();
+        let dirty = std::mem::take(&mut self.focus_dirty)
+            | self.arena.take_reparented()
+            | self.focus_into.is_some();
         if !dirty {
             return;
         }
@@ -470,6 +559,23 @@ impl Document {
         {
             self.update_focus(None);
         }
+        self.settle_focus_into();
+        self.watch_focus();
+    }
+
+    fn watch_focus(&mut self) {
+        let mut path = Vec::new();
+        let mut current = self.focused;
+        while let Some(node) = current
+            && path.len() < crate::node::ANCESTOR_LIMIT
+        {
+            path.push(node);
+            if Some(node) == self.root {
+                break;
+            }
+            current = self.arena.parent(node);
+        }
+        self.arena.watch(path);
     }
 
     pub(crate) fn focus_valid(&self, node: NodeId) -> bool {
@@ -545,6 +651,9 @@ impl Document {
                 }
             }
         }
+        if new_focus.is_some() {
+            self.focus_into = None;
+        }
         let old = self.focused;
         self.composed.clear();
         self.cancel_focus_activation();
@@ -553,6 +662,7 @@ impl Document {
         if let Some(new) = new_focus {
             self.note_focus_outside_scopes(new);
         }
+        self.watch_focus();
         self.keyboard_held = new_focus.is_some_and(|focused| {
             self.contains(focused)
                 && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)
@@ -576,8 +686,8 @@ impl Document {
         if let Some(target) = target
             && self.focused == Some(target)
             && self.contains(target)
+            && crate::interact::hit::interactive(self, target).is_some_and(|node| node.press_focus)
             && let Some(keyboard) = focus_of(self.arena.get(target))
-                .filter(|node| node.press_focus)
                 .map(|node| node.ime && node.ime_keyboard && node.keyboard_asks.is_none())
         {
             if keyboard {

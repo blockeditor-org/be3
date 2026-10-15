@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::PointerPress;
-use crate::reactive::{Frame, Interactive, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
@@ -12,7 +13,7 @@ fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
             view! {
                 <List spacing=0.0>
                     <Frame height=70.0 />
-                    <Frame padding_horizontal=30.0>
+                    <Frame padding={Sides::horizontal(30.0)}>
                         <Interactive
                             @node_ref={&target}
                             on_click_at={move |press: PointerPress| set_heard.update(|heard| heard.push(press))}

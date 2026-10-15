@@ -1,18 +1,19 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
-use crate::text::Icon;
-use crate::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, Text, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 #[component]
 pub fn ToggleButton(
@@ -59,9 +60,13 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     let theme = use_theme();
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let named = create_memo(move || !icon_only.get());
+    let padding = create_memo(move || match icon_only.get() {
+        true => Sides::symmetric(8.0, 8.0),
+        false => Sides::symmetric(14.0, 8.0),
+    });
     let text_color = create_memo(move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     let icon_color = text_color;
     let fill_color = create_memo(move || fill_for(&theme, checked.get(), hovered.get()));
@@ -77,20 +82,19 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     view! {
         <FocusRing focused offset=3.0>
             <Frame
-                color={fill_color}
-                outline={border_color}
-                outline_width=1.0
-                radius=RADIUS
-                outline_visible=true
-                padding_horizontal=14.0
-                padding_vertical=8.0
+                fill={ColorRole::custom(fill_color)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}
+                radius=Radius::Md
+                padding={padding}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph} color={icon_color} />
+                        <Text color={icon_color} align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
                     </Show>
                     <Show condition={named}>
-                        <Text string={label} font_size=FONT_BODY color={text_color} />
+                        <Text string={label} color={text_color} />
                     </Show>
                 </List>
             </Frame>

@@ -1,10 +1,7 @@
 use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Show, Spacer, component, create_effect, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
@@ -83,12 +80,10 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
-    let danger = theme.danger;
     view! {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
-                <Body content="PDF" />
+                <Text string="PDF" />
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_BACK.to_owned()}
                     label="Previous page"
@@ -96,7 +91,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                     @test_id={"pdf.previous"}
                     on_click={back}
                 />
-                <Caption content={page_label} />
+                <Text style=TextStyle::CAPTION string={page_label} />
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_FORWARD.to_owned()}
                     label="Next page"
@@ -119,8 +114,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                     </Interactive>
                 </Frame>
                 <Sidebar shown={chrome}>
-                    <Heading content="PDF" />
-                    <Caption content={name} />
+                    <Text style=TextStyle::HEADING string="PDF" />
+                    <Text style=TextStyle::CAPTION string={name} />
                     <Button
                         label="Replace PDF…"
                         variant=ButtonVariant::Secondary
@@ -129,7 +124,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                         on_click={choose}
                     />
                     <Show condition={refused}>
-                        <Caption content={refusal} color={danger} />
+                        <Text style=TextStyle::CAPTION string={refusal} color=TextColor::Danger />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Sidebar>
@@ -150,12 +145,11 @@ fn PageCanvas(
         create_memo(move || (0..shown.with(|shown| shown.tiles.len())).collect::<Vec<usize>>());
     let failed = create_memo(move || shown.get().error.is_some());
     let reason = create_memo(move || shown.get().error.unwrap_or_default());
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
             <Canvas @sizing=ItemSize::Percent(100.0) view={view}>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Frame color=PAGE_FILL />
+                    <Frame fill={ColorRole::Custom(PAGE_FILL)} />
                 </CanvasItem>
                 <ForEach keys={keys}>
                     {move |index: usize| {
@@ -187,7 +181,12 @@ fn PageCanvas(
                 </ForEach>
             </Canvas>
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger} @test_id={"pdf.error"} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string={reason}
+                    color=TextColor::Danger
+                    @test_id={"pdf.error"}
+                />
             </Show>
         </List>
     }

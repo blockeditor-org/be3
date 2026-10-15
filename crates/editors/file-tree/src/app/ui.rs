@@ -5,18 +5,10 @@ use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_INFO, ICON_LINK_OFF, ICON_MOVE_UP,
-    ICON_NOTE_ADD, ICON_SHARE,
+    ICON_NOTE_ADD, ICON_OPEN_WITH, ICON_SHARE,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal, Show,
-    Spacer, Stored, WriteSignal, component, create_effect, create_memo, create_signal, focus_ring,
-    store, view, with_document,
-};
-use block_editor_beui::beui::styled::theme::FONT_SMALL;
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Paragraph,
-    Tooltip, Tree, TreeRowFace, tree_row_node, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout};
@@ -25,6 +17,7 @@ use uuid::Uuid;
 use super::export::{Export, Exporter, exportable};
 use super::phone::PhoneFiles;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
+use block_editor_beui::beui::TextAlign;
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 6.0;
@@ -139,7 +132,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         set_landing.set(landed);
     });
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={toolbar}>
                     <IconButton
@@ -171,8 +164,12 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         </Show>
                         <Show condition={failed}>
                             {move || view! {
-                                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                                    <Caption content={reason} color={theme.danger} />
+                                <Frame padding=PADDING>
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string={reason}
+                                        color=TextColor::Danger
+                                    />
                                 </Frame>
                             }}
                         </Show>
@@ -275,14 +272,15 @@ fn Inspector(
 
 #[component]
 fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
-    let theme = use_theme();
     view! {
         <List spacing=FIELD_SPACING>
-            <Caption content={label} />
-            <Paragraph
-                content={value}
-                color={theme.text}
+            <Text style=TextStyle::CAPTION string={label} />
+            <Text
+                style=TextStyle::PARAGRAPH
+                string={value}
+                color=TextColor::Default
                 @test_id={format!("file-tree.inspect.{named}")}
+                wrap=true
             />
         </List>
     }
@@ -388,18 +386,18 @@ fn TreeRow(
             .is_some_and(|row| row.access.can_view() && exportable(row.block_type))
     });
     let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
-    let theme = use_theme();
-    let glyph_color = theme.text_muted;
-    let generated_color = theme.text_muted;
-    let access_color = theme.text_muted;
+    let glyph_color = TextColor::Muted;
+    let generated_color = TextColor::Muted;
+    let access_color = TextColor::Muted;
     let color = create_memo(move || match muted.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
     view! {
         <ContextMenu
             child_size=ItemSize::Percent(100.0)
             items={view! {
+                <OpenWith editor={editor} row={row} />
                 <MenuItem label="Add" glyph={ICON_NOTE_ADD.to_owned()} disabled={add} />
                 <MenuItem label="Set parent" glyph={ICON_MOVE_UP.to_owned()} disabled={edit}>
                     <MenuItem label="Root" disabled={rooted} />
@@ -429,24 +427,26 @@ fn TreeRow(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Show condition={has_glyph}>
-                    <IconSized glyph={glyph} font_size=FONT_SMALL color={glyph_color} />
+                    <Text size=TextSize::Xs color={glyph_color} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                 </Show>
-                <Body @sizing=ItemSize::Percent(100.0) content={label} color={color} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} color={color} />
                 <Show condition={generated}>
                     {move || view! {
                         <Tooltip label="Generated from another block">
-                            <IconSized
-                                glyph={ICON_AUTO_AWESOME.to_owned()}
-                                font_size=FONT_SMALL
-                                color={generated_color}
-                            />
+                            <Text size=TextSize::Xs color={generated_color} align=TextAlign::Center>
+                                <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
+                            </Text>
                         </Tooltip>
                     }}
                 </Show>
                 <Show condition={restricted}>
                     {move || view! {
                         <Tooltip label={access_label}>
-                            <IconSized glyph={access} font_size=FONT_SMALL color={access_color} />
+                            <Text size=TextSize::Xs color={access_color} align=TextAlign::Center>
+                                <Icon glyph={access} />
+                            </Text>
                         </Tooltip>
                     }}
                 </Show>
@@ -455,6 +455,62 @@ fn TreeRow(
                 </Show>
             </List>
         </ContextMenu>
+    }
+}
+
+#[component]
+pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
+    let block = create_memo(move || {
+        row.get()
+            .filter(|row| row.access.can_view())
+            .and_then(|row| Some((row.id?, row.block_type)))
+    });
+    let editors = create_memo(move || {
+        let types = editor.block_types();
+        block.get().map_or_else(Vec::new, |(_, block_type)| {
+            types
+                .editors_for(block_type)
+                .into_iter()
+                .map(|entry| (entry.editor, entry.name.clone()))
+                .collect::<Vec<_>>()
+        })
+    });
+    let keys = create_memo(move || {
+        editors.with(|editors| editors.iter().map(|(id, _)| *id).collect::<Vec<_>>())
+    });
+    let none = create_memo(move || keys.with(Vec::is_empty));
+    view! {
+        <MenuItem
+            label="Open with"
+            glyph={ICON_OPEN_WITH.to_owned()}
+            disabled={none}
+            row_test_id={"file-tree.open-with".to_owned()}
+        >
+            <ForEach keys={keys}>
+                {move |chosen: Uuid| {
+                    let label = create_memo(move || {
+                        editors.with(|editors| {
+                            editors
+                                .iter()
+                                .find(|(id, _)| *id == chosen)
+                                .map(|(_, name)| name.clone())
+                                .unwrap_or_default()
+                        })
+                    });
+                    view! {
+                        <MenuItem
+                            label={label}
+                            row_test_id={format!("file-tree.open-with.{chosen}")}
+                            on_click={move || {
+                                if let Some((id, block_type)) = block.get_untracked() {
+                                    editor.host().open_block_with(id, block_type, chosen);
+                                }
+                            }}
+                        />
+                    }
+                }}
+            </ForEach>
+        </MenuItem>
     }
 }
 
@@ -502,8 +558,8 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let color = create_memo(move || match hovered.get() || active.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let fill = create_memo(move || match active.get() {
         true => theme.pressed.get(),
@@ -514,13 +570,13 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
             <Frame
                 width=ADD_WIDTH
                 height=ADD_WIDTH
-                color={fill}
-                outline={theme.accent}
-                outline_width=1.0
-                outline_visible={focus_ring(focused)}
-                radius=3
+                fill={ColorRole::custom(fill)}
+                border={focus_border(focused, Border::new(ColorRole::Accent).width(1.0))}
+                radius={Radius::custom(3.0)}
             >
-                <IconSized glyph={ICON_ADD.to_owned()} font_size=FONT_SMALL color={color} />
+                <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+                    <Icon glyph={ICON_ADD.to_owned()} />
+                </Text>
             </Frame>
         </Tooltip>
     }
@@ -598,27 +654,27 @@ pub(crate) fn menu_action(
             return;
         };
         match path.as_slice() {
-            [0] => picker.open(
+            [1] => picker.open(
                 editor,
                 Some(id),
                 [id].into_iter().collect::<HashSet<Uuid>>(),
             ),
-            [1, 0] => tree.blocks().set_parent(id, BlockParent::Root),
-            [1, 1] => tree.blocks().set_parent(id, BlockParent::Detached),
-            [2] => editor.host().rename_block(id),
-            [3] => editor.host().share_block(id),
-            [4] => {
+            [2, 0] => tree.blocks().set_parent(id, BlockParent::Root),
+            [2, 1] => tree.blocks().set_parent(id, BlockParent::Detached),
+            [3] => editor.host().rename_block(id),
+            [4] => editor.host().share_block(id),
+            [5] => {
                 if let Some(container) = shown.container {
                     editor.host().unlink_block(id, container);
                 }
             }
-            [5] => {
+            [6] => {
                 editor
                     .host()
                     .delete_block(id, shown.block_type, shown.source, shown.is_reference)
             }
-            [6] => inspect.set(shown.inspection),
-            [7] => exporter.export(Export {
+            [7] => inspect.set(shown.inspection),
+            [8] => exporter.export(Export {
                 id,
                 block_type: shown.block_type,
                 name: shown.label.clone(),

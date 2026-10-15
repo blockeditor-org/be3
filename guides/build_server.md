@@ -158,7 +158,7 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 
 ## CI's Android keystore
 
-`:android-dist` (`android_apk` with `ci_signed` in `buck/android/defs.bzl`) signs CI's APKs on a
+`:android-dist` (`android_apk` with `keystore` in `buck/android/defs.bzl`) signs CI's APKs on a
 worker with `buck/android/ci-keystore.base64`, a base64 keystore that git
 ignores. ci.yml writes it from the repository secret
 `ANDROID_CI_KEYSTORE_BASE64` before it builds. Every CI build is signed with
