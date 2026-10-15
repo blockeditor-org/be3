@@ -5,8 +5,7 @@ use std::{
 
 use be_block::{BlockContent, BlockMetadata, Entries, Streamed, derived_metadata, payload_start};
 use be_commit::{
-    Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds,
-    plan_retention,
+    Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds, plan_retention,
 };
 use be_graph::{Access, BlockParent};
 use be_protocol::{

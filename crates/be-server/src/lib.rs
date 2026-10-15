@@ -657,16 +657,8 @@ impl Connection {
                 let outcome = self
                     .store
                     .publish(
-                        identity,
-                        block,
-                        commit,
-                        expected,
-                        parents,
-                        chunks,
-                        time,
-                        pinned,
-                        references,
-                        metadata,
+                        identity, block, commit, expected, parents, chunks, time, pinned,
+                        references, metadata,
                     )
                     .await?;
                 if let PublishOutcome::Published(_, redescribed) = outcome

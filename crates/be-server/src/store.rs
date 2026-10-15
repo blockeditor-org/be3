@@ -1057,11 +1057,10 @@ pub(crate) fn load_graph(
         graph.set_parent(parse_uuid(id)?, parent)?;
     }
     {
-        let mut statement = connection
-            .prepare(
-                "SELECT block_id, reference_id FROM block_edges WHERE workspace_id = ?1
+        let mut statement = connection.prepare(
+            "SELECT block_id, reference_id FROM block_edges WHERE workspace_id = ?1
                  ORDER BY block_id, position, rowid",
-            )?;
+        )?;
         let rows = statement.query_map([workspace.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
