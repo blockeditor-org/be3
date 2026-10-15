@@ -79,10 +79,15 @@ impl InputAdapter {
         &mut self,
         input: &beui::ForwardedInput,
         screen: ScreenId,
+        zoom: f32,
     ) -> Vec<Message> {
+        let zoom = match zoom.is_finite() && zoom > 0.0 {
+            true => zoom,
+            false => 1.0,
+        };
         let mut output = Vec::new();
         for event in &input.events {
-            self.forward_event(event, input.rect, &mut output);
+            self.forward_event(event, input.rect, zoom, &mut output);
         }
         match output.is_empty() {
             true => Vec::new(),
@@ -93,9 +98,15 @@ impl InputAdapter {
         }
     }
 
-    fn forward_event(&mut self, event: &Forwarded, rect: Rect, output: &mut Vec<InputEvent>) {
+    fn forward_event(
+        &mut self,
+        event: &Forwarded,
+        rect: Rect,
+        zoom: f32,
+        output: &mut Vec<InputEvent>,
+    ) {
         match event {
-            Forwarded::Pointer { event, .. } => self.pointer(event, rect, output),
+            Forwarded::Pointer { event, .. } => self.pointer(event, rect, zoom, output),
             Forwarded::Left => output.push(InputEvent::PointerLeft),
             Forwarded::Focus(focused) | Forwarded::Input(Event::Focus(focused)) => {
                 if self.focused != *focused {
@@ -107,8 +118,14 @@ impl InputAdapter {
         }
     }
 
-    fn pointer(&mut self, event: &PointerEvent, rect: Rect, output: &mut Vec<InputEvent>) {
-        let position = event.pos - rect.min;
+    fn pointer(
+        &mut self,
+        event: &PointerEvent,
+        rect: Rect,
+        zoom: f32,
+        output: &mut Vec<InputEvent>,
+    ) {
+        let position = (event.pos - rect.min) / zoom;
         let (x, y) = (position.x, position.y);
         if let PointerId::Touch(id) = event.pointer {
             let phase = match event.phase {
@@ -142,8 +159,8 @@ impl InputAdapter {
             PointerPhase::Scroll(delta) => {
                 push_modifiers(&mut self.modifiers, event.modifiers, output);
                 output.push(InputEvent::Wheel {
-                    x: delta.x,
-                    y: delta.y,
+                    x: delta.x / zoom,
+                    y: delta.y / zoom,
                     unit: WheelUnit::Pixels,
                 });
             }

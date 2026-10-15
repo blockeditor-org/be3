@@ -104,12 +104,13 @@ pub fn ButtonFace(
     let label_color = create_memo(move || variant.label(disabled.get()));
     let icon_color = label_color;
     let has_glyph = create_memo(move || !glyph.get().is_empty());
-    let shown_label = create_memo(move || match icon_only.get() {
-        true => String::new(),
-        false => label.get(),
-    });
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || !trailing.get().is_empty());
+    let labelled = create_memo(move || !icon_only.get());
+    let padding = create_memo(move || match icon_only.get() {
+        true => Sides::symmetric(PADDING_VERTICAL, PADDING_VERTICAL),
+        false => Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL),
+    });
     let trailing_color = label_color;
     view! {
         <FocusRing focused radius={Radius::custom(Radius::Md.px() + 4.0)} offset=FOCUS_RING_OFFSET>
@@ -117,7 +118,7 @@ pub fn ButtonFace(
                 fill={ColorRole::custom(fill_color)}
                 border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
                 radius=Radius::Md
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={padding}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
@@ -125,13 +126,15 @@ pub fn ButtonFace(
                             <Icon glyph={glyph} />
                         </Text>
                     </Show>
-                    <Text
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        string={shown_label}
-                        color={label_color}
-                        align=TextAlign::Center
-                        ellipsis=true
-                    />
+                    <Show condition={labelled}>
+                        <Text
+                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                            string={label}
+                            color={label_color}
+                            align=TextAlign::Center
+                            ellipsis=true
+                        />
+                    </Show>
                     <Show condition={has_trailing}>
                         <Text color={trailing_color} align=TextAlign::Center>
                             <Icon glyph={trailing} />

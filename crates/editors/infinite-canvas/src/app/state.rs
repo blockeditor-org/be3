@@ -137,12 +137,20 @@ pub(crate) enum Gesture {
         handle: ResizeHandle,
         frame: SelectionFrame,
         current: CanvasPoint,
+        grab: CanvasPoint,
         originals: Vec<CanvasEntity>,
         default_preserve_aspect_ratio: bool,
         force_preserve_aspect_ratio: bool,
         preserve_aspect_ratio: bool,
         scale_text: bool,
         scale_editors: bool,
+    },
+    Endpoint {
+        original: CanvasEntity,
+        end: usize,
+        current: CanvasPoint,
+        grab: CanvasPoint,
+        snap: bool,
     },
     Rotate {
         frame: SelectionFrame,
@@ -197,6 +205,20 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             originals,
             snap_angle,
         } => rotate_entities(*frame, *start_angle, *current, originals, *snap_angle),
+        Gesture::Endpoint {
+            original,
+            end,
+            current,
+            snap,
+            ..
+        } => {
+            let mut ends = line_ends(original);
+            ends[*end] = match snap {
+                true => constrain_point_angle(ends[1 - end], *current, std::f32::consts::FRAC_PI_4),
+                false => *current,
+            };
+            vec![line_through(original.clone(), ends[0], ends[1])]
+        }
         Gesture::Create { .. } | Gesture::Pen { .. } | Gesture::SelectBox { .. } => Vec::new(),
     }
 }
@@ -453,6 +475,16 @@ impl CanvasState {
     }
 
     pub(crate) fn report_child(&self, entity: Uuid, state: ChildState) {
+        let released = self
+            .cells
+            .get()
+            .children
+            .borrow()
+            .get(&entity)
+            .is_some_and(|held| held.active && !state.active);
+        if released && self.focused_editor.get_untracked() == Some(entity) {
+            self.focus_editor(None);
+        }
         self.cells.get().children.borrow_mut().insert(entity, state);
         let held = self.cells.get().children.borrow().clone();
         self.set_child_states.set(held);
@@ -477,6 +509,16 @@ impl CanvasState {
             CanvasEntityKind::DirectEditor { .. } => self.peek_child(entity.id).resize,
             _ => ResizeMode::Both,
         }
+    }
+
+    pub(crate) fn takes_frame(&self, entity: Uuid) -> bool {
+        let child = self.peek_child(entity);
+        child.interaction.is_some() && child.capabilities.pan_and_zoom
+    }
+
+    pub(crate) fn works_in_place(&self, entity: Uuid) -> bool {
+        let child = self.child_state(entity);
+        child.interaction == Some(InteractionMode::Live) && !child.capabilities.pan_and_zoom
     }
 
     pub(crate) fn shows_preview(&self, entity: Uuid) -> bool {
@@ -513,6 +555,8 @@ pub(crate) fn camera_view(
     )
 }
 
+const FITTED_ROOM: Vec2 = Vec2::new(640.0, 480.0);
+
 fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> {
     let CanvasEntityKind::DirectEditor { block_id, .. } = entity.kind else {
         return None;
@@ -521,9 +565,10 @@ fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> 
         return None;
     }
     let room = direct_editor_layout(entity)?.content.size();
+    let room = Vec2::new(room.x.max(FITTED_ROOM.x), room.y.max(FITTED_ROOM.y));
     let scale = (room.x / intrinsic.x)
         .min(room.y / intrinsic.y)
-        .max(f32::EPSILON);
+        .clamp(f32::EPSILON, 1.0);
     let bounds = entity_bounds(entity);
     let size = direct_editor_entity_size(intrinsic, scale);
     let mut fitted = entity.clone();
@@ -756,6 +801,15 @@ impl CanvasState {
             .into_iter()
             .filter(|entity| !entity.locked)
             .collect()
+    }
+
+    pub(crate) fn selected_line(&self) -> Option<CanvasEntity> {
+        match self.selected_entities().as_slice() {
+            [entity] if !entity.locked && matches!(entity.kind, CanvasEntityKind::Line) => {
+                Some(entity.clone())
+            }
+            _ => None,
+        }
     }
 
     pub(crate) fn selection_has_unlocked(&self) -> bool {
@@ -1694,6 +1748,10 @@ impl CanvasState {
                 if !updates.is_empty() {
                     self.record_update(originals.clone(), updates, false);
                 }
+            }
+            Gesture::Endpoint { ref original, .. } => {
+                let updates = preview_entities(&gesture);
+                self.record_update(vec![original.clone()], updates, false);
             }
         }
     }

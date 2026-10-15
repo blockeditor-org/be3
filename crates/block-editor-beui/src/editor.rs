@@ -366,6 +366,7 @@ impl OwnedEditor {
         let (world, set_world) = create_signal(None::<Vec2>);
         let (scale, set_scale) = create_signal(1.0_f32);
         let (chrome, set_chrome) = create_signal(true);
+        let (placed_content, set_placed_content) = create_signal(None::<Rect>);
         let (editable, set_editable) = create_signal(host.editable());
         let (presenting, set_presenting) = create_signal(false);
         let (drag, set_drag) = create_signal(None::<Drag>);
@@ -386,11 +387,13 @@ impl OwnedEditor {
             world,
             scale,
             chrome,
+            placed_content,
             editable,
             set_canvas,
             set_world,
             set_scale,
             set_chrome,
+            set_placed_content,
             set_editable,
             presenting,
             set_presenting,
@@ -459,11 +462,13 @@ struct EditorState {
     world: ReadSignal<Option<Vec2>>,
     scale: ReadSignal<f32>,
     chrome: ReadSignal<bool>,
+    placed_content: ReadSignal<Option<Rect>>,
     editable: ReadSignal<bool>,
     set_canvas: WriteSignal<Option<CanvasView>>,
     set_world: WriteSignal<Option<Vec2>>,
     set_scale: WriteSignal<f32>,
     set_chrome: WriteSignal<bool>,
+    set_placed_content: WriteSignal<Option<Rect>>,
     set_editable: WriteSignal<bool>,
     presenting: ReadSignal<bool>,
     set_presenting: WriteSignal<bool>,
@@ -835,6 +840,10 @@ impl Editor {
         self.state().chrome
     }
 
+    pub fn placed_content(&self) -> ReadSignal<Option<Rect>> {
+        self.state().placed_content
+    }
+
     pub fn presenting(&self) -> ReadSignal<bool> {
         self.state().presenting
     }
@@ -1131,6 +1140,9 @@ impl Editor {
                     ..files
                 }));
             state.set_chrome.set(state.host.chrome_shown());
+            state
+                .set_placed_content
+                .set(state.host.placed_content().map(|rect| rect.scaled(ratio)));
             state.set_editable.set(state.host.editable());
             state.set_presenting.set(state.host.presenting());
             state.set_drag.set(state.host.drag().map(|drag| Drag {

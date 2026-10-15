@@ -152,6 +152,7 @@ pub(super) struct Runtime {
 pub(super) struct Placed {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
+    pub(super) zoom: f32,
 }
 
 #[derive(Default)]
@@ -786,6 +787,7 @@ pub(crate) fn replace_gpu(setup: &beui::Setup) {
 
 pub(crate) struct HostFrame {
     pub(crate) content: Rect,
+    pub(crate) floating: Vec<Rect>,
 }
 
 pub(crate) fn report_child_views(
@@ -832,6 +834,10 @@ pub(crate) fn report_children(
         let messages = runtime
             .instances
             .set_child_statuses(instance, region, statuses);
+        if !messages.is_empty() {
+            runtime.pacing.needed = true;
+            host::request_repaint();
+        }
         runtime.send(messages);
     });
 }
@@ -1372,6 +1378,7 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
                 };
                 HostFrame {
                     content: rect(&report.content),
+                    floating: report.floating.iter().map(rect).collect(),
                 }
             })
     })
@@ -1439,6 +1446,13 @@ pub(crate) fn take_bar_actions(
 pub(crate) fn aspect_ratio(plugin_id: &str, instance: EditorInstanceId) -> Option<f32> {
     with(plugin_id, |runtime| {
         runtime.instances.aspect_ratio(instance)
+    })
+    .flatten()
+}
+
+pub(crate) fn assigned_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
+    with(plugin_id, |runtime| {
+        runtime.instances.assigned_size(instance)
     })
     .flatten()
 }
@@ -1570,6 +1584,7 @@ pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region
 pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
+    pub(crate) zoom: f32,
     pub(crate) screens: Vec<beui::Screen>,
 }
 
@@ -1589,15 +1604,22 @@ pub(crate) fn place_region(
         let RegionPlacement {
             rect,
             clip,
+            zoom,
             screens,
         } = placement;
+        let zoom = match zoom.is_finite() && zoom > 0.0 && region != EditorRegion::Preview {
+            true => zoom,
+            false => 1.0,
+        };
         runtime
             .placements
-            .insert((instance, region), Placed { rect, clip });
-        let scale_factor = host::pixels_per_point();
-        let size = match region {
-            EditorRegion::Preview => preview_size(rect.size(), scale_factor),
-            _ => rect.size(),
+            .insert((instance, region), Placed { rect, clip, zoom });
+        let (size, scale_factor) = match region {
+            EditorRegion::Preview => (
+                preview_size(rect.size(), host::pixels_per_point()),
+                host::pixels_per_point(),
+            ),
+            _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
         };
         let cropped = Quad::upright(rect).crop_to(clip);
         let visible = cropped

@@ -254,6 +254,7 @@ pub enum ChildMode {
     Passive,
     Active,
     Live,
+    InPlace,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]

@@ -898,6 +898,13 @@ impl EditorSession {
         self.host.begin_region(region, origin);
         self.host
             .set_chrome_shown(context.spec.chrome == FrameChrome::Drawn);
+        self.host
+            .set_placed_content(context.spec.content.map(|content| {
+                Rect::from_min_size(
+                    pos2(content.x, content.y),
+                    vec2(content.width, content.height),
+                )
+            }));
         let drag = self.drag.and_then(|(dragged, drag)| {
             (dragged == region).then(|| BlockDrag {
                 position: drag.position + origin,
