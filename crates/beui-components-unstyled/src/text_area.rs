@@ -823,6 +823,7 @@ fn blur(cx: &Context) {
         .execute(EditorCommand::Ime(ImeCommand::FinishComposing));
     cx.state.end_grab();
     cx.state.set_selecting(false);
+    cx.state.set_caret_handle(false);
     cx.set_autoscroll.set(false);
     cx.state.external_edit();
 }
