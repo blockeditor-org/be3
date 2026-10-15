@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Action, Chord, List, Text, build, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_driver_lists_and_runs_an_action() {

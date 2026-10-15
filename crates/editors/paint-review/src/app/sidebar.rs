@@ -1,15 +1,12 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_DIFFERENCE, ICON_DONE_ALL, ICON_FIBER_NEW};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, List, Show, component, create_memo, create_selector, view,
-};
-use block_editor_beui::beui::styled::ListRow;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 use crate::download::BRANCH;
 
 use super::state::{Review, Status};
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 #[component]
 pub(crate) fn PaintingList(review: Review) -> NodeId {

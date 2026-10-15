@@ -1,6 +1,7 @@
 mod dialog;
 mod docking;
 mod fullscreen;
+mod keyboard;
 mod modifier_drag;
 pub mod state;
 mod switch;
@@ -39,14 +40,8 @@ use beui_core::image::Image;
 use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
-    Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
-    ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, StoredCell, WriteSignal,
-    component_accessibility, create_effect, create_memo, create_signal, create_timer, on_cleanup,
-    on_shortcut, owner_scope, provide_context, set_component_state, store, try_with_document,
-    untrack, use_context, with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
@@ -431,6 +426,9 @@ struct State {
     set_dialog_focus: WriteSignal<Option<TabId>>,
     attention: ReadSignal<(u64, Option<TabId>)>,
     set_attention: WriteSignal<(u64, Option<TabId>)>,
+    given: ReadSignal<(u64, Option<TabId>)>,
+    set_given: WriteSignal<(u64, Option<TabId>)>,
+    remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
 }
 
 impl State {
@@ -554,6 +552,7 @@ impl State {
     }
 
     fn forget_panel(&self, tab: TabId) {
+        self.remembered.get().borrow_mut().remove(&tab);
         let panel = self.panels.get().borrow_mut().remove(&tab);
         drop(panel);
     }
@@ -1233,6 +1232,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 let mode = create_memo(move || mode.get());
                 let (dialog_focus, set_dialog_focus) = create_signal(None);
                 let (attention, set_attention) = create_signal((0, None));
+                let (given, set_given) = create_signal((0, None));
                 let (current, set_current) = create_signal(state.peek());
                 let (actions, set_actions) = create_signal(HashMap::new());
                 let (menus, set_menu) = create_signal(DockMenus::new());
@@ -1278,6 +1278,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     set_dialog_focus,
                     attention,
                     set_attention,
+                    given,
+                    set_given,
+                    remembered: store(RefCell::default()),
                     thickness: splitter_thickness,
                     group_inset,
                     rect: dock_rect,
@@ -1352,11 +1355,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 on_cleanup(move || dock.keep_panels(&[]));
                 view! {
                     <List spacing=0.0>
-                        <Frame
-                            @sizing=ItemSize::Percent(100.0)
-                            padding_horizontal={inset}
-                            padding_vertical={inset}
-                        >
+                        <Frame @sizing=ItemSize::Percent(100.0) padding=inset>
                             <List spacing=0.0>
                                 <Dynamic value={mode}>
                                     {move |mode: DockMode| {
@@ -1430,7 +1429,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
                     }
                 }}
             >
-                <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
+                <Frame @test_id="dock.fullscreen" width=width height=height>{body}</Frame>
             </Interactive>
         </Overlay>
     }
@@ -1444,9 +1443,15 @@ fn DockStack(dock: State) -> NodeId {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let (panel, set_panel) = create_signal(None);
+    let previous = Cell::new(None);
     create_effect(move || {
         let tab = shown.get().filter(|tab| away.get() != Some(*tab));
+        let left = previous.replace(tab).filter(|left| Some(*left) != tab);
+        let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
         set_panel.set(tab.map(|tab| dock.panel(tab)));
+        if let Some(tab) = tab.filter(|_| held) {
+            untrack(|| dock.give_keyboard(tab));
+        }
     });
     let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
@@ -1702,6 +1707,7 @@ struct ChromeParts {
     sidebar_width: Memo<f32>,
     sidebar_splitter: Option<NodeId>,
     bar: Option<DockBarHandle>,
+    leaf: Option<LeafId>,
     body: NodeId,
 }
 
@@ -1714,10 +1720,25 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
         sidebar_width,
         sidebar_splitter,
         bar,
+        leaf,
         body,
     } = parts;
     let barred = bar.is_some();
-    let bar = bar.map(|handle| dock.bar.call(handle));
+    let bar = bar.map(|handle| {
+        let face = dock.bar.call(handle);
+        view! {
+            <Interactive
+                press_focus=false
+                claims_touch=false
+                on_press={move |press: PointerPress| {
+                    if let Some(leaf) = leaf {
+                        dock.chrome_pressed(leaf, Some(press.pos));
+                    }
+                }}
+                children={face}
+            />
+        }
+    });
     let direction = match vertical {
         true => Direction::Horizontal,
         false => Direction::Vertical,
@@ -1950,6 +1971,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                                 <DockSidebarSplitter dock={dock} leaf />
                             }),
                             bar,
+                            leaf: Some(leaf),
                             body: view! {
                                 <DockPanelBody dock={dock} leaf />
                             },
@@ -2015,11 +2037,7 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
                     let inset = dock.group_inset;
                     match group {
                         Some(group) => view! {
-                            <Frame
-                                padding_horizontal={inset}
-                                padding_vertical={inset}
-                                @sizing=ItemSize::Percent(100.0)
-                            >
+                            <Frame padding=inset @sizing=ItemSize::Percent(100.0)>
                                 <DockTreeView dock tree={Tree::Group(group)} />
                             </Frame>
                         },
@@ -2041,9 +2059,15 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let (panel, set_panel) = create_signal(None);
+    let previous = Cell::new(None);
     create_effect(move || {
         let tab = shown.get().filter(|tab| away.get() != Some(*tab));
+        let left = previous.replace(tab).filter(|left| Some(*left) != tab);
+        let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
         set_panel.set(tab.map(|tab| dock.panel(tab)));
+        if let Some(tab) = tab.filter(|_| held) {
+            untrack(|| dock.give_keyboard(tab));
+        }
     });
     let vacant = create_memo(move || shown.get().is_none());
     let gone = dock.away_from(shown);
@@ -2118,6 +2142,13 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         state.focus(leaf);
                     });
                     changed.release_dialog_focus();
+                    let picked = tab_list
+                        .try_get()
+                        .is_some_and(|tabs| with_document(|document| document.focus_is_within(tabs)));
+                    let shown = changed.state.with_untracked(|state| state.active_tab(leaf));
+                    if let Some(tab) = shown.filter(|_| !picked) {
+                        changed.give_keyboard(tab);
+                    }
                 }}
             >
                 {move |handle: ChoiceOptionHandle| {
@@ -2689,10 +2720,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             traps_focus=false
             open=true
         >
-            <Frame width={outer_width} height={outer_height}>
+            <Frame width=outer_width height=outer_height>
                 <Canvas>
                     <CanvasItem x=HANDLE_REACH y=HANDLE_REACH width={width} height={height}>
-                        <Frame @node_ref=&frame width={width} height={height}>
+                        <Frame @node_ref=&frame width=width height=height>
                             <Canvas>
                                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                     <Interactive
@@ -2820,6 +2851,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                             menu,
                                                             close,
                                                         }),
+                                                        leaf: hoisted,
                                                         body: pane,
                                                     };
                                                     view! {
@@ -2856,6 +2888,20 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         capture_presses=true
                                         on_press={move |press: PointerPress| {
                                             pressed.set((rect.get_untracked(), press.pos));
+                                            let leaf = dock.state.with_untracked(|state| {
+                                                state
+                                                    .focused_leaf()
+                                                    .filter(|leaf| state.surface_of(*leaf) == Some(surface))
+                                                    .or_else(|| state.leaves(surface).first().copied())
+                                            });
+                                            if let Some(leaf) = leaf {
+                                                dock.edit(|state| state.focus(leaf));
+                                            }
+                                            dock.raise_window(lifted);
+                                            dock.release_dialog_focus();
+                                            if let Some(leaf) = leaf {
+                                                dock.chrome_pressed(leaf, None);
+                                            }
                                         }}
                                         on_drag={move |press: PointerPress| {
                                             let (start, from) = held.get();
@@ -2915,7 +2961,7 @@ fn DockDragLayer(dock: State) -> NodeId {
                 traps_focus=false
                 open={marking}
             >
-                <Frame width={marker_width} height={marker_height}>{face}</Frame>
+                <Frame width=marker_width height=marker_height>{face}</Frame>
             </Overlay>
         </List>
     }

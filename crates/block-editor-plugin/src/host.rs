@@ -416,8 +416,9 @@ pub struct EditorHost {
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
-    version_status: Rc<RefCell<block_plugin_api::VersionStatus>>,
+    version_status: Rc<RefCell<Option<block_plugin_api::VersionStatus>>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
+    block_types_known: Rc<Cell<bool>>,
     drag: Rc<Cell<Option<BlockDrag>>>,
     files: Rc<RefCell<Option<FileDrop>>>,
     drag_accepted: Rc<Cell<Option<bool>>>,
@@ -588,16 +589,26 @@ impl EditorHost {
     }
 
     pub fn host_value<T: HostValue>(&self) -> T::Value {
-        let mut values = self.host_values.borrow_mut();
-        if !values.watched.contains(T::KEY) {
-            values.watched.insert(T::KEY.to_owned());
-            values.unreported.push(T::KEY.to_owned());
-        }
-        values
+        self.watch_host_value(T::KEY);
+        self.host_values
+            .borrow()
             .values
             .get(T::KEY)
             .and_then(|bytes| decode_host(bytes))
             .unwrap_or_default()
+    }
+
+    pub fn host_offers<T: HostValue>(&self) -> bool {
+        self.watch_host_value(T::KEY);
+        self.host_values.borrow().values.contains_key(T::KEY)
+    }
+
+    fn watch_host_value(&self, key: &str) {
+        let mut values = self.host_values.borrow_mut();
+        if !values.watched.contains(key) {
+            values.watched.insert(key.to_owned());
+            values.unreported.push(key.to_owned());
+        }
     }
 
     pub fn set_host_value<T: HostValue>(&self, value: &T::Value) {
@@ -690,10 +701,10 @@ impl EditorHost {
     }
 
     pub fn watch_history(&self, blocks: impl IntoIterator<Item = Uuid>) {
-        let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
-        blocks.sort();
-        blocks.dedup();
-        *self.watched_history.borrow_mut() = blocks;
+        let mut watched = self.watched_history.borrow_mut();
+        watched.extend(blocks);
+        watched.sort();
+        watched.dedup();
     }
 
     pub fn history(&self, block_id: Uuid) -> BlockHistory {
@@ -861,16 +872,24 @@ impl EditorHost {
     }
 
     pub fn set_version_status(&self, status: block_plugin_api::VersionStatus) {
-        *self.version_status.borrow_mut() = status;
+        *self.version_status.borrow_mut() = Some(status);
         self.push(Pushed::Version);
     }
 
     pub fn version_status(&self) -> block_plugin_api::VersionStatus {
-        self.version_status.borrow().clone()
+        self.version_status.borrow().clone().unwrap_or_default()
+    }
+
+    pub fn version_known(&self) -> bool {
+        self.version_status.borrow().is_some()
     }
 
     pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
         std::mem::take(&mut self.block_commands.borrow_mut())
+    }
+
+    pub fn block_types_known(&self) -> bool {
+        self.block_types_known.get()
     }
 
     pub fn block_types(&self) -> Rc<BlockCatalog> {
@@ -1072,11 +1091,18 @@ impl EditorHost {
 
     pub fn view(&self) -> Option<Rect> {
         let origin = self.region.get().origin;
-        self.view.get().map(|view| view.rect.translate(origin))
+        self.framed_view().map(|view| view.rect.translate(origin))
     }
 
     pub fn view_scale(&self) -> Option<f32> {
-        self.view.get().map(|view| view.scale)
+        self.framed_view().map(|view| view.scale)
+    }
+
+    fn framed_view(&self) -> Option<View> {
+        let region = self.region.get().region;
+        matches!(region, None | Some(EditorRegion::Frame))
+            .then(|| self.view.get())
+            .flatten()
     }
 
     pub fn pan_view(&self, delta: Vec2) {
@@ -1471,6 +1497,7 @@ impl EditorHost {
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         *self.block_types.borrow_mut() = catalog;
+        self.block_types_known.set(true);
         self.push(Pushed::Catalog);
     }
 

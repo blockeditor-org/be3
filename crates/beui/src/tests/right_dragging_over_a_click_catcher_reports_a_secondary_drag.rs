@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::SecondaryDrag;
-use crate::reactive::{Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {

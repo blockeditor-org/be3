@@ -1,15 +1,12 @@
 use std::collections::HashSet;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Frame, Func, ItemSize, List, component, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{Tree, TreeRowFace, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::TreeItem;
 use block_editor_beui::{BlockQuery, Editor};
 
 use super::entries::{self, Row};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 2.0;
@@ -45,9 +42,8 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                 })
         })
     });
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Tree
                     @sizing=ItemSize::Percent(100.0)

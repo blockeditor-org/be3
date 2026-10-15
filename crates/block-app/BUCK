@@ -1,7 +1,7 @@
 load("@root//buck/android:defs.bzl", "android_apk")
-load("@root//buck/app:defs.bzl", "app", "smoke_test")
+load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/app:drive.bzl", "headless")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages", "test_run")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
@@ -53,7 +53,7 @@ app(
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
     sdk = "//crates/block-plugin-sdk:module",
-    visibility = ["//crates/local-tools:"],
+    visibility = ["//crates/app-tests:", "//crates/local-tools:"],
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -222,38 +222,6 @@ export_file(
     src = "android/res",
     visibility = ["//crates/be-launcher:"],
 )
-
-# The native smoke test, which ./scripts/verify runs through :smoke-run: the
-# app headless on a worker with the dev workspace open, closed once its shell's
-# plugins have drawn; it fails unless the app exits cleanly. :smoke-desktop is
-# the same with the desktop shell. It draws through lavapipe from the test
-# runtime, and the Wayland compositor's keyboard takes the test runtime's keymaps.
-[
-    (
-        smoke_test(
-            name = name,
-            app = ":native",
-            args = args,
-            drive = "//crates/be-drive:bin",
-            env = {
-                "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
-                "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
-            },
-            executable = "block-app",
-            library_path = "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
-            target_compatible_with = ["prelude//os:linux", "prelude//cpu:x86_64"],
-            wait = wait,
-        ),
-        test_run(
-            name = name + "-run",
-            test = ":" + name,
-        ),
-    )
-    for name, args, wait in [
-        ("smoke", [], 'Pane "Files"'),
-        ("smoke-desktop", ["--desktop"], 'Pane "Linux desktop"'),
-    ]
-]
 
 # The app with its plugins installed under /usr/local (or the prefix given after
 # `--`), with a wayland-sessions entry that runs it with --session, for a

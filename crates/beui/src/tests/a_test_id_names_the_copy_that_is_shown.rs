@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, List, Show, build, create_signal, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_test_id_names_the_copy_that_is_shown() {

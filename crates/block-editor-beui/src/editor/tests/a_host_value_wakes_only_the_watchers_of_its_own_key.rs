@@ -1,6 +1,6 @@
 use super::*;
 
-use beui::reactive::{Frame, build, with_reactive_scope};
+use beui::styled::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 thread_local! {

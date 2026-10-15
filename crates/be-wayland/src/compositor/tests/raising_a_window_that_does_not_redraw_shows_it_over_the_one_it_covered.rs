@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use super::*;
-use beui::reactive::Layers;
+use beui::styled::*;
 
 use crate::test_client::read;
 
@@ -22,7 +22,7 @@ fn Stacked(windows: Windows) -> NodeId {
             <ForEach keys={order}>
                 {move |id: WindowId| {
                     view! {
-                        <Frame width=Some(SHOWN.x) height=Some(SHOWN.y)>
+                        <Frame width={SHOWN.x} height={SHOWN.y}>
                             <WindowView windows id />
                         </Frame>
                     }

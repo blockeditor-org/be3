@@ -33,7 +33,11 @@ pub const USAGE: &str = "Reading:
                             the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
   actions [all]             the actions the command palette would list (all: every one)
+  env                       NAME=VALUE lines a program needs to show its windows inside the app,
+                            such as WAYLAND_DISPLAY; empty when the app hosts no programs
   shot [TARGET]             a screenshot, of TARGET only when given
+  paint [TARGET]            what the window paints, plugins included, as a paint snapshot,
+                            of TARGET only when given
 Pointer:
   click TARGET [right|middle|double]
   move TARGET               move the pointer onto TARGET (hover)
@@ -52,7 +56,8 @@ Touch:
   back                      the system back gesture, whole
   back [left|right] / back PROGRESS / back commit|cancel   step by step, PROGRESS from 0 to 1
 Keyboard:
-  type TEXT                 type TEXT (a newline presses Enter)
+  type TEXT                 type TEXT key by key, as a US keyboard would (a newline presses Enter);
+                            a character no key makes arrives as text alone
   key CHORD...              press and let go of each chord, such as ctrl+z or Enter
   keydown KEY... / keyup KEY...   hold keys down and let go; keydown on a held key repeats it
   ime compose TEXT / ime commit [TEXT] / ime cancel   an input method's composition
@@ -94,6 +99,7 @@ pub struct View<'a> {
     pub window: &'a WindowState,
     pub fullscreen: bool,
     pub actions: &'a [ActionGroup],
+    pub environment: &'a dyn Fn() -> Vec<(String, String)>,
 }
 
 pub struct World<'a> {
@@ -137,6 +143,11 @@ enum Phase {
     Capturing {
         crop: Option<Rect>,
         drawn: bool,
+    },
+    Painting {
+        asked: bool,
+        ready: bool,
+        crop: Option<[f32; 4]>,
     },
     Reading {
         pasted: std::sync::mpsc::Receiver<Pasted>,
@@ -327,6 +338,12 @@ impl Automation {
         if let Phase::Capturing { drawn, .. } = &mut active.phase {
             *drawn = !settled.drawing;
         }
+        if let Phase::Painting {
+            asked: true, ready, ..
+        } = &mut active.phase
+        {
+            *ready = quiet;
+        }
         let mut failed = None;
         match &mut active.phase {
             Phase::Input {
@@ -431,6 +448,47 @@ impl Automation {
         )
     }
 
+    pub fn take_painting_request(&mut self) -> bool {
+        match &mut self.active {
+            Some(Active {
+                phase: Phase::Painting { asked, .. },
+                ..
+            }) if !*asked => {
+                *asked = true;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn wants_painting(&self) -> bool {
+        matches!(
+            self.active,
+            Some(Active {
+                phase: Phase::Painting { ready: true, .. },
+                ..
+            })
+        )
+    }
+
+    pub fn painted(&mut self, painting: Result<crate::painting::Painting, String>) {
+        let Some(Active {
+            phase: Phase::Painting { crop, .. },
+            ..
+        }) = &self.active
+        else {
+            return;
+        };
+        let crop = *crop;
+        self.finish(match painting {
+            Ok(painting) => match crop {
+                Some(crop) => Reply::Painting(painting.cropped(crop).encode()),
+                None => Reply::Painting(painting.encode()),
+            },
+            Err(error) => Reply::Error(error),
+        });
+    }
+
     pub fn captured(&mut self, capture: Option<Capture>) {
         let Some(Active {
             phase: Phase::Capturing { crop, .. },
@@ -504,6 +562,12 @@ impl Automation {
                 Ok(Started::Phase(Phase::Hitting))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(view)))),
+            "env" => Ok(Started::Done(Reply::Text(
+                (view.environment)()
+                    .into_iter()
+                    .map(|(name, value)| format!("{name}={value}\n"))
+                    .collect(),
+            ))),
             "actions" => Ok(Started::Done(Reply::Text(actions(
                 view.actions,
                 arguments.first().map(String::as_str) == Some("all"),
@@ -796,16 +860,8 @@ impl Automation {
                 input(vec![events])
             }
             "type" => {
-                let text = arguments.join(" ");
                 let mut events = Vec::new();
-                for (index, part) in text.split('\n').enumerate() {
-                    if index > 0 {
-                        keys::press(Key::Enter, self.held, &mut events);
-                    }
-                    if !part.is_empty() {
-                        events.push(Event::Text(part.to_owned()));
-                    }
-                }
+                keys::typed(&arguments.join(" "), self.held, &mut events);
                 input(vec![events])
             }
             "key" => {
@@ -1070,6 +1126,26 @@ impl Automation {
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing { crop, drawn: false }))
+            }
+            "paint" => {
+                let scale = view.pixels_per_point;
+                let crop = match arguments.first() {
+                    Some(target) => {
+                        let rect = locate(target, view.lines)?;
+                        Some([
+                            rect.min.x / scale,
+                            rect.min.y / scale,
+                            rect.max.x / scale,
+                            rect.max.y / scale,
+                        ])
+                    }
+                    None => None,
+                };
+                Ok(Started::Phase(Phase::Painting {
+                    asked: false,
+                    ready: false,
+                    crop,
+                }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }

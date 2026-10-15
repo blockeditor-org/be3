@@ -15,10 +15,7 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
-use block_editor_beui::beui::reactive::{
-    CanvasView, FilePick, Memo, Pasted, ReadSignal, Stored, WriteSignal, create_effect,
-    create_signal, pick_file, store, untrack,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::{
@@ -222,6 +219,12 @@ pub(crate) struct Presence {
     pub(crate) selections: Vec<RemoteSelection>,
 }
 
+#[derive(Clone)]
+struct Placeholder {
+    entity: CanvasEntity,
+    fitted: bool,
+}
+
 struct CanvasCells {
     content: ContentProjection<CanvasContent>,
     dependencies: BlockList,
@@ -235,6 +238,7 @@ struct CanvasCells {
     last_foreground: Cell<CanvasColor>,
     last_fill: Cell<Option<CanvasColor>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
+    placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
     color: Cell<Option<PresenceColor>>,
@@ -310,6 +314,7 @@ impl CanvasState {
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
             last_fill: Cell::new(CanvasEntityStyle::default().fill),
             children: RefCell::new(HashMap::new()),
+            placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
             color: Cell::new(None),
@@ -381,15 +386,12 @@ impl CanvasState {
             self.editor.canvas().get_untracked(),
             self.editor.world().get_untracked(),
             self.cells.get().stage.get(),
-            self.centre(),
+            self.framed(),
         )
     }
 
-    pub(crate) fn centre(&self) -> CanvasPoint {
-        match self.preview {
-            true => embedded_region(&self.entities.get()).center(),
-            false => CanvasPoint::default(),
-        }
+    pub(crate) fn framed(&self) -> Option<WorldRect> {
+        self.preview.then(|| embedded_region(&self.entities.get()))
     }
 
     pub(crate) fn scale(&self) -> f32 {
@@ -487,10 +489,11 @@ pub(crate) fn camera_view(
     view: Option<CanvasView>,
     world: Option<Vec2>,
     stage: Rect,
-    centre: CanvasPoint,
+    framed: Option<WorldRect>,
 ) -> CanvasView {
+    let centre = framed.map_or_else(CanvasPoint::default, WorldRect::center);
     let Some(view) = view else {
-        let scale = 1.0;
+        let scale = framed.map_or(1.0, |framed| fit_scale(stage, framed));
         return CanvasView::new(
             Pos2::new(
                 stage.center().x - centre.x * scale,
@@ -508,6 +511,33 @@ pub(crate) fn camera_view(
         ),
         scale,
     )
+}
+
+fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> {
+    let CanvasEntityKind::DirectEditor { block_id, .. } = entity.kind else {
+        return None;
+    };
+    if intrinsic.x <= 0.0 || intrinsic.y <= 0.0 {
+        return None;
+    }
+    let room = direct_editor_layout(entity)?.content.size();
+    let scale = (room.x / intrinsic.x)
+        .min(room.y / intrinsic.y)
+        .max(f32::EPSILON);
+    let bounds = entity_bounds(entity);
+    let size = direct_editor_entity_size(intrinsic, scale);
+    let mut fitted = entity.clone();
+    fitted.kind = CanvasEntityKind::DirectEditor { block_id, scale };
+    fitted.transform.size = size;
+    fitted.transform.center = CanvasPoint::new(bounds.center().x, bounds.min.y + size.y * 0.5);
+    Some(fitted)
+}
+
+fn fit_scale(stage: Rect, framed: WorldRect) -> f32 {
+    let size = framed.size();
+    (stage.width() / size.x.max(f32::EPSILON))
+        .min(stage.height() / size.y.max(f32::EPSILON))
+        .max(f32::EPSILON)
 }
 
 pub(crate) fn displayed_entities(
@@ -1511,33 +1541,30 @@ impl CanvasState {
     }
 
     pub(crate) fn add_direct_editor(&self, block_id: Uuid, center: CanvasPoint) {
-        self.add_direct_editor_sized(block_id, center, CanvasPoint::new(180.0, 100.0));
-    }
-
-    pub(crate) fn add_direct_editor_sized(
-        &self,
-        block_id: Uuid,
-        center: CanvasPoint,
-        content_size: CanvasPoint,
-    ) {
-        let size = direct_editor_entity_size(Vec2::new(content_size.x, content_size.y), 1.0);
+        let size = direct_editor_entity_size(Vec2::new(180.0, 100.0), 1.0);
         let entity_id = Uuid::new_v4();
         let transform = CanvasTransform::new(center, size, 0.0);
-        self.set_selection.set(HashSet::from([entity_id]));
-        self.record(InfiniteCanvasOperation::Add {
-            entity: CanvasEntity {
-                id: entity_id,
-                transform,
-                kind: CanvasEntityKind::DirectEditor {
-                    block_id,
-                    scale: 1.0,
-                },
-                style: CanvasEntityStyle::default(),
-                group_id: None,
-                locked: false,
-                components: Vec::new(),
+        let entity = CanvasEntity {
+            id: entity_id,
+            transform,
+            kind: CanvasEntityKind::DirectEditor {
+                block_id,
+                scale: 1.0,
             },
-        });
+            style: CanvasEntityStyle::default(),
+            group_id: None,
+            locked: false,
+            components: Vec::new(),
+        };
+        self.cells.get().placeholders.borrow_mut().insert(
+            entity_id,
+            Placeholder {
+                entity: entity.clone(),
+                fitted: false,
+            },
+        );
+        self.set_selection.set(HashSet::from([entity_id]));
+        self.record(InfiniteCanvasOperation::Add { entity });
     }
 
     pub(crate) fn add_imported_image(&self, image: ImageContent, center: CanvasPoint) {
@@ -2085,6 +2112,41 @@ impl CanvasState {
             if !child.placed {
                 continue;
             }
+            let placeholder = self
+                .cells
+                .get()
+                .placeholders
+                .borrow()
+                .get(&entity.id)
+                .cloned();
+            if let Some(placeholder) = placeholder {
+                if child.resize != ResizeMode::Both {
+                    self.cells
+                        .get()
+                        .placeholders
+                        .borrow_mut()
+                        .remove(&entity.id);
+                } else if placeholder.entity == entity {
+                    if !placeholder.fitted
+                        && let Some(fitted) = child
+                            .intrinsic_size
+                            .and_then(|intrinsic| fit_to_child(&entity, intrinsic))
+                    {
+                        if let Some(held) = self
+                            .cells
+                            .get()
+                            .placeholders
+                            .borrow_mut()
+                            .get_mut(&entity.id)
+                        {
+                            held.fitted = true;
+                        }
+                        before.push(entity);
+                        after.push(fitted);
+                    }
+                    continue;
+                }
+            }
             let intrinsic = match child.resize {
                 ResizeMode::Horizontal => {
                     let width = direct_editor_layout(&entity)
@@ -2130,11 +2192,20 @@ impl CanvasState {
         self.record_update(before, after, true);
     }
 
+    fn is_placeholder(&self, entity: &CanvasEntity) -> bool {
+        self.cells
+            .get()
+            .placeholders
+            .borrow()
+            .get(&entity.id)
+            .is_some_and(|placeholder| placeholder.entity == *entity)
+    }
+
     pub(crate) fn assigned_intrinsic(&self, entity: &CanvasEntity) -> Option<Vec2> {
         let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
             return None;
         };
-        if self.peek_child(entity.id).resize != ResizeMode::Both {
+        if self.peek_child(entity.id).resize != ResizeMode::Both || self.is_placeholder(entity) {
             return None;
         }
         let content = direct_editor_layout(entity)?.content.size();

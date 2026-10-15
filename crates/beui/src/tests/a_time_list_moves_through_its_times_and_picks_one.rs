@@ -1,6 +1,7 @@
 use super::*;
 use crate::datetime::Time;
-use crate::reactive::{Text, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{TimeList, TimeOptionHandle};
 
 #[test]

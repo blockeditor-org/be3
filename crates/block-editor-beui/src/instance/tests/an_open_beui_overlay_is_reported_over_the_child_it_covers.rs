@@ -1,7 +1,8 @@
 use super::*;
 use crate::{ChildBlock, ChildState, ChildTarget};
 use beui::ItemSize;
-use beui::reactive::{Frame, List, NodeRef, view};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Floating;
 use block_plugin_api::ChildMode;
 

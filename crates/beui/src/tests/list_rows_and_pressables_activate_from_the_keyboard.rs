@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Text, view};
-use crate::styled::ListRow;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn list_rows_and_pressables_activate_from_the_keyboard() {

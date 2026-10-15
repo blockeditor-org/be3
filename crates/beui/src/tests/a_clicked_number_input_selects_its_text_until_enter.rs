@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{NumberInput, number_input_field, number_input_text};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_clicked_number_input_selects_its_text_until_enter() {

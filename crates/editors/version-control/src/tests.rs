@@ -13,6 +13,7 @@ use crate::checkout::CheckoutApp;
 use crate::repository::RepositoryApp;
 
 mod a_change_is_committed_with_its_message;
+mod a_checkout_waits_for_its_version_status;
 mod a_conflict_is_resolved_by_taking_a_side;
 mod an_empty_repository_offers_to_version_a_block;
 mod checking_a_branch_out_asks_the_host;

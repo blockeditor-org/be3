@@ -4,138 +4,16 @@ use std::io::{Read as _, Write as _};
 use flate2::Compression;
 use flate2::read::DeflateDecoder;
 use flate2::write::DeflateEncoder;
+use paint_format::{Frame, Painting, TextureKey};
 use serde::{Deserialize, Serialize};
 
 const MAGIC: &[u8; 8] = b"BE3PAINT";
 const VERSION: u32 = 4;
 
-pub type TextureKey = u64;
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub frames: Vec<Frame>,
     pub textures: BTreeMap<TextureKey, Texture>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Frame {
-    pub size: [u32; 2],
-    pub pixels_per_point: f32,
-    pub background: [u8; 4],
-    pub primitives: Vec<Primitive>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Primitive {
-    pub clip: [f32; 4],
-    pub content: Content,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Content {
-    Mesh(Vec<Triangle>),
-    Callback([f32; 4]),
-    RoundedRect(RoundedRect),
-    Glyph(Glyph),
-    CorneredRect(RoundedRect, [f32; 4]),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RoundedRect {
-    pub rect: [f32; 4],
-    pub corner_radius: f32,
-    pub stroke_width: f32,
-    pub color: [u8; 4],
-    pub turn: Turn,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Glyph {
-    pub rect: [f32; 4],
-    pub texture: TextureKey,
-    pub color: [u8; 4],
-    pub turn: Turn,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Turn {
-    pub pivot: [f32; 2],
-    pub angle: f32,
-}
-
-impl Turn {
-    pub const NONE: Self = Self {
-        pivot: [0.0, 0.0],
-        angle: 0.0,
-    };
-
-    pub fn turns(self) -> bool {
-        self.angle != 0.0
-    }
-
-    pub fn scaled(self, scale: f32) -> Self {
-        Self {
-            pivot: [self.pivot[0] * scale, self.pivot[1] * scale],
-            angle: self.angle,
-        }
-    }
-
-    pub fn undo(self, point: [f32; 2]) -> [f32; 2] {
-        if !self.turns() {
-            return point;
-        }
-        let (sin, cos) = (-self.angle).sin_cos();
-        let (x, y) = (point[0] - self.pivot[0], point[1] - self.pivot[1]);
-        [
-            self.pivot[0] + x * cos - y * sin,
-            self.pivot[1] + x * sin + y * cos,
-        ]
-    }
-
-    pub fn swept(self, rect: [f32; 4]) -> [f32; 4] {
-        if !self.turns() {
-            return rect;
-        }
-        let (sin, cos) = self.angle.sin_cos();
-        let turned = |x: f32, y: f32| {
-            let (x, y) = (x - self.pivot[0], y - self.pivot[1]);
-            [
-                self.pivot[0] + x * cos - y * sin,
-                self.pivot[1] + x * sin + y * cos,
-            ]
-        };
-        [
-            turned(rect[0], rect[1]),
-            turned(rect[2], rect[1]),
-            turned(rect[2], rect[3]),
-            turned(rect[0], rect[3]),
-        ]
-        .into_iter()
-        .fold(
-            [f32::MAX, f32::MAX, f32::MIN, f32::MIN],
-            |bounds, [x, y]| {
-                [
-                    bounds[0].min(x),
-                    bounds[1].min(y),
-                    bounds[2].max(x),
-                    bounds[3].max(y),
-                ]
-            },
-        )
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Triangle {
-    pub texture: TextureKey,
-    pub corners: [Vertex; 3],
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Vertex {
-    pub pos: [f32; 2],
-    pub uv: [f32; 2],
-    pub color: [u8; 4],
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -197,6 +75,32 @@ impl Snapshot {
                 index + 1
             )
         })
+    }
+
+    pub fn of_painting(painting: Painting) -> Result<Self, String> {
+        let mut keys = BTreeMap::new();
+        let mut textures = BTreeMap::new();
+        for (key, pixels) in painting.textures {
+            let fingerprint = crate::fingerprint(pixels.size, &pixels.rgba);
+            keys.insert(key, fingerprint);
+            if let std::collections::btree_map::Entry::Vacant(entry) = textures.entry(fingerprint) {
+                entry.insert(Texture::encode(pixels.size, &pixels.rgba)?);
+            }
+        }
+        let rekey = |key: TextureKey| keys.get(&key).copied().unwrap_or(key);
+        let mut frame = painting.frame;
+        for primitive in &mut frame.primitives {
+            match &mut primitive.content {
+                paint_format::Content::Mesh(triangles) => {
+                    for triangle in triangles {
+                        triangle.texture = rekey(triangle.texture);
+                    }
+                }
+                paint_format::Content::Glyph(glyph) => glyph.texture = rekey(glyph.texture),
+                _ => {}
+            }
+        }
+        Ok(Self::of(frame, textures))
     }
 
     pub fn append(&mut self, other: Self) {

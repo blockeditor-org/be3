@@ -94,11 +94,13 @@ mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
 mod a_driver_lists_and_runs_an_action;
 mod a_driver_pastes_the_headless_clipboard_with_ctrl_v;
 mod a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad;
+mod a_driver_reads_the_environment_an_app_gives_its_programs;
 mod a_driver_resizes_a_headless_window_and_reads_its_state;
 mod a_driver_shows_what_a_press_would_reach;
 mod a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with;
 mod a_driver_turns_the_wheel_and_answers_without_settling_when_asked;
 mod a_driver_types_into_a_field_found_by_its_test_id;
+mod a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
@@ -117,8 +119,10 @@ mod a_floating_window_the_dock_puts_on_top_is_drawn_on_top;
 mod a_floating_windows_grips_lie_outside_it;
 mod a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept;
 mod a_focused_forwarding_catcher_takes_the_keys_from_the_document;
+mod a_focused_node_hidden_or_removed_is_told_it_lost_the_focus;
 mod a_focused_node_scrolled_far_away_stays_laid_out;
 mod a_focused_text_input_asks_for_the_keyboard;
+mod a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
@@ -187,6 +191,7 @@ mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
 mod a_node_ref_lets_go_of_a_removed_node;
 mod a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it;
 mod a_number_input_reports_what_was_typed_within_its_range;
+mod a_number_input_shows_its_value_to_the_decimals_asked;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_panel_between_two_damaged_ones_is_left_alone;
 mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
@@ -278,9 +283,12 @@ mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
+mod a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
+mod a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
+mod a_taller_window_keeps_the_layout_and_paint_of_what_it_did_not_resize;
 mod a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on;
 mod a_tap_during_a_fling_stops_it_without_clicking_a_row;
 mod a_tap_intercepted_for_a_document_runs_its_tap_action;
@@ -319,6 +327,7 @@ mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk;
+mod a_virtual_list_shows_new_keys_in_the_rows_that_left;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
@@ -371,6 +380,7 @@ mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout;
 mod an_overlay_reports_a_dismiss_only_when_the_user_closes_it;
 mod an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side;
+mod an_unchanged_container_is_not_walked_again_for_accessibility_but_a_moved_one_is;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
 mod appending_to_a_virtual_list_keeps_the_rows_it_built;
 mod arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year;
@@ -564,6 +574,7 @@ mod platform_scrolls_arrive_in_points;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod pointer_motion_only_reaches_what_lies_under_the_pointer;
 mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
+mod pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows;
 mod pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
 mod pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_area;
@@ -620,10 +631,12 @@ mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod switching_a_show_damages_both_panels;
 mod switching_dock_tabs_keeps_the_panel_it_hides;
 mod switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one;
+mod tab_builds_the_virtual_rows_beyond_the_ones_in_view;
 mod tab_focus_stays_in_the_active_document_when_the_inspector_is_open;
 mod tab_is_trapped_inside_an_open_context_menu;
 mod tab_moves_focus_from_one_text_input_to_the_next;
 mod tab_moves_focus_to_the_next_button;
+mod tab_skips_virtual_rows_without_a_control;
 mod tabbing_to_an_offscreen_control_reveals_it;
 mod tabs_collapse_into_a_select_when_their_container_is_narrow;
 mod tabs_have_one_tab_stop_and_wrap_with_arrow_keys;
@@ -735,12 +748,10 @@ use crate::base::list::{Direction, ItemSize, ListNode};
 use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
-use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, ReadSignal, Spacer,
-    Text, VirtualList, WriteSignal, build, create_signal, with_document,
-};
+use crate::primitives::{Frame, Text};
+use crate::reactive::*;
 use crate::styled;
-use crate::styled::DocumentTheme;
+use crate::styled::*;
 use crate::unstyled;
 use beui_macros::{component, view};
 
@@ -1420,14 +1431,14 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
     view! {
-        <Frame width=120.0 height=60.0 color=Color32::from_gray(80) radius=4 />
+        <Frame width=120.0 height=60.0 fill={Color32::from_gray(80)} radius=4.0 />
     }
 }
 
 #[component]
 pub(crate) fn ButtonFace(label: String) -> NodeId {
     view! {
-        <Frame color=Color32::from_gray(60) radius=4 padding_horizontal=20.0 padding_vertical=12.0>
+        <Frame fill={Color32::from_gray(60)} radius=4.0 padding={Sides::symmetric(20.0, 12.0)}>
             <Text string={label} color=Color32::WHITE />
         </Frame>
     }
@@ -1479,12 +1490,14 @@ pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
-                            {move |index: usize| {
-                                built.update(|built| built.push(index));
+                            {move |index: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let index = index.get();
+                                    built.update(|built| built.push(index));
+                                });
                                 view! {
                                     <Frame
-                                        padding_horizontal=0.0
-                                        padding_vertical={VIRTUAL_ITEM_HEIGHT / 2.0}
+                                        padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
                                     >
                                         <Spacer />
                                     </Frame>
@@ -1521,8 +1534,11 @@ pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtual
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
-                            {move |key: usize| {
-                                built.update(|built| built.push(key));
+                            {move |key: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let key = key.get();
+                                    built.update(|built| built.push(key));
+                                });
                                 view! {
                                     <Frame height=VIRTUAL_ITEM_HEIGHT>
                                         <Spacer />
@@ -1556,7 +1572,7 @@ pub(crate) fn hello_column() -> HelloColumn {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Frame @node_ref=&padding padding_horizontal=4.0 padding_vertical=4.0>
+                    <Frame @node_ref=&padding padding=4.0>
                         <Text @node_ref=&text string="Hello" color=Color32::WHITE />
                     </Frame>
                 </List>
@@ -1591,9 +1607,19 @@ pub(crate) fn three_panels() -> ThreePanels {
         move || {
             view! {
                 <List @node_ref=&list spacing=0.0>
-                    <Frame @node_ref=&top height=100.0 color=Color32::WHITE radius=0 />
-                    <Frame @node_ref=&middle height=100.0 color={Color32::from_gray(40)} radius=0 />
-                    <Frame @node_ref=&bottom height=100.0 color={Color32::from_gray(80)} radius=0 />
+                    <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
+                    <Frame
+                        @node_ref=&middle
+                        height=100.0
+                        fill={Color32::from_gray(40)}
+                        radius=0.0
+                    />
+                    <Frame
+                        @node_ref=&bottom
+                        height=100.0
+                        fill={Color32::from_gray(80)}
+                        radius=0.0
+                    />
                 </List>
             }
         }
@@ -1613,8 +1639,8 @@ pub(crate) fn stacked_panels() -> StackedPanels {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Frame @node_ref=&upper height=100.0 color=Color32::WHITE radius=0 />
-                    <Frame @node_ref=&lower height=100.0 color={Color32::from_gray(40)} radius=0 />
+                    <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
+                    <Frame @node_ref=&lower height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
                 </List>
             }
         }
@@ -1768,8 +1794,6 @@ fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
         </unstyled::DockTab>
     }
 }
-
-use crate::reactive::Interactive;
 
 #[component]
 fn CountingPanel(id: u64, presses: WriteSignal<u32>) -> NodeId {
@@ -2007,7 +2031,6 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
-use crate::reactive::{DynamicSegment, ListChild};
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {
@@ -2042,8 +2065,6 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
         </ForEach>
     }
 }
-
-use crate::styled::{Button, ButtonVariant, Launcher, LauncherItem};
 
 fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
@@ -2227,6 +2248,7 @@ impl Driven {
                     Reply::Text(text) => Ok(text),
                     Reply::Error(error) => Err(error),
                     Reply::Image { .. } => Err("an image".to_owned()),
+                    Reply::Painting(_) => Err("a painting".to_owned()),
                 };
             }
         }
@@ -2364,7 +2386,7 @@ fn FocusPanel(
                 true
             }}
         >
-            <Frame width height />
+            <Frame width=width height=height />
         </Interactive>
     }
 }

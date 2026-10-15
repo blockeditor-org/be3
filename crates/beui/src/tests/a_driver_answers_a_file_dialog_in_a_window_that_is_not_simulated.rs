@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{List, Text, build, create_file_picker, create_signal, view};
-use crate::styled::{Button, ButtonVariant};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated() {

@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, build, view};
+use crate::reactive::*;
 use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {

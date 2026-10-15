@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Checkbox;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_screen_reader_buttons_walk_the_document_and_activate_what_they_reach() {

@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, Span, Text, build, view};
+use crate::primitives::Span;
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::{FontId, TextAlign};
 
 const WIDTH: f32 = 300.0;

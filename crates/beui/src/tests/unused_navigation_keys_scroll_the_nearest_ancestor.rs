@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{ForEach, NodeRef, Text, build, view};
-use crate::styled::{Slider, Tabs};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::Scroll;
 
 #[test]

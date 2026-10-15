@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::{Draw, Drawing, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::Draw;
+use crate::reactive::*;
 
 #[test]
 fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {

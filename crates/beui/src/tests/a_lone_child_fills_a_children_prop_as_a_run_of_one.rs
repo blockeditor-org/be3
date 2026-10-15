@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{List, NodeRef, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_lone_child_fills_a_children_prop_as_a_run_of_one() {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::Scope;
+use crate::reactive::*;
 
 #[test]
 fn a_scope_disposed_with_no_document_installed_still_removes_its_nodes() {

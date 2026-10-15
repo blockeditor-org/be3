@@ -1,7 +1,7 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
-use crate::styled::{Text, TextStyle};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn keys_without_alt_reach_the_control_the_screen_reader_focused() {

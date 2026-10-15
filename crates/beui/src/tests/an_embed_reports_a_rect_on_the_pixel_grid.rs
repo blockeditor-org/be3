@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Embed, EmbedSlot, ItemSize, List, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_embed_reports_a_rect_on_the_pixel_grid() {

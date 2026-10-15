@@ -6,7 +6,8 @@ use beui_core::image::{Image, ImageFit, Thumbhash};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_macros::{component, view};
-use beui_view::reactive::{Draw, Drawing, Prop, create_memo};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 #[derive(Clone, PartialEq)]
 struct Shown {

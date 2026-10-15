@@ -1,7 +1,7 @@
 use super::*;
 use crate::base::overlay::OverlayNode;
-use crate::reactive::{NodeRef, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn right_click_opens_a_context_menu_at_the_cursor_position() {

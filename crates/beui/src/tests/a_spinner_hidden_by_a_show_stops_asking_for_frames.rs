@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Show, with_reactive_scope};
-use crate::styled::Spinner;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_spinner_hidden_by_a_show_stops_asking_for_frames() {

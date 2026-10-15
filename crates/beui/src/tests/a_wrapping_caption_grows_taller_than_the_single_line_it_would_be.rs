@@ -1,6 +1,8 @@
 use super::*;
-use crate::reactive::{Frame, List, NodeRef, view};
-use crate::styled::{Text, TextStyle};
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 const FRAME_WIDTH: f32 = 90.0;
 const LONG_CAPTION: &str = "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom.";

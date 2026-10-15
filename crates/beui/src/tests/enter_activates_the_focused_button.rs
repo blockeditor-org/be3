@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn enter_activates_the_focused_button() {

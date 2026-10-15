@@ -1,11 +1,8 @@
 use block_editor_beui::be_block::CompiledLogicContent;
 use block_editor_beui::be_block::compiled_logic::CompiledLogic as Program;
 use block_editor_beui::be_block::{BlockContent, LogicGridContent};
-use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, Memo, Show, component, create_effect, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Family, Scroll, Separator, use_theme};
-use block_editor_beui::beui::styled::{Text, TextSize, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockLink, ChildTarget, Editor};
 use logicgame::grid::{ComponentPort, ConnectionDirection};
@@ -63,9 +60,8 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
         editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>

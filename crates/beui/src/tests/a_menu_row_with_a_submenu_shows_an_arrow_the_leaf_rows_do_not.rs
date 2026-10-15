@@ -1,7 +1,7 @@
 use super::*;
 use crate::icons::ICON_CHEVRON_RIGHT;
-use crate::reactive::{NodeRef, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not() {

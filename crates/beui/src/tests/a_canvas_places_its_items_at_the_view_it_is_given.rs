@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Canvas, CanvasItem, CanvasView, build, view, with_document};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_canvas_places_its_items_at_the_view_it_is_given() {

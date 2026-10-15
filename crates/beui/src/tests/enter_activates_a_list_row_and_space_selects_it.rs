@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Text, view};
-use crate::styled::ListRow;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn enter_activates_a_list_row_and_space_selects_it() {

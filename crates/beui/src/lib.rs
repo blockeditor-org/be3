@@ -50,6 +50,7 @@ pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
+pub use beui_core::painting;
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
 pub use beui_core::screens::Screen;
 pub use beui_core::touch_cursor;
@@ -63,8 +64,10 @@ pub use beui_inspector::install as install_inspector;
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::{
-    Draw, DrawAt, Renderer, Repaint, Repainting, clear_color, drawing, renderer_info,
+    Draw, DrawAt, Renderer, Repaint, Repainting, clear_color, drawing, painted_drawing,
+    renderer_info,
 };
+pub use beui_view::primitives;
 pub use beui_view::{child_type, value_child_type};
 
 #[cfg(all(feature = "window", target_os = "android"))]
@@ -94,7 +97,6 @@ mod window;
 pub use beui_adapter_headless::Headless;
 
 pub mod reactive {
-    pub use beui_components_unstyled::Button;
     pub use beui_view::reactive::*;
 
     use beui_core::document::Document;

@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::{SecondaryDrag, ZoomGesture};
-use crate::reactive::{Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {

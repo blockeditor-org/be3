@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 const CARET_WIDTH: f32 = 2.0;
 

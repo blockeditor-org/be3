@@ -1,9 +1,11 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, build, view};
+use crate::primitives::Frame;
+use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::theme::{
     SCROLLBAR_INSET, SCROLLBAR_SPACING, SCROLLBAR_TRACK_WIDTH, SCROLLBAR_WIDTH,
 };
+use crate::styled::*;
 
 const CONTENT_HEIGHT: f32 = 2000.0;
 

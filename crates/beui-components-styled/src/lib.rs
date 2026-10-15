@@ -18,6 +18,7 @@ pub mod date_time_field;
 pub mod dialog;
 pub mod dock;
 pub mod focus_ring;
+pub mod frame;
 pub mod fullscreen;
 pub mod icon_button;
 pub mod keep_changes;
@@ -57,6 +58,11 @@ pub use action_row::ActionRow;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::SHEET_STOPS;
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
+pub use beui_view::primitives::{
+    BackHandler, Canvas, CanvasItem, Drawing, Embed, Fade, Gap, Grid, GridCell, Interactive, Layer,
+    Layers, LayoutBuilder, List, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer,
+    TextItem, VirtualList,
+};
 pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
 pub use calendar::Calendar;
@@ -74,6 +80,7 @@ pub use dialog::Dialog;
 pub use dock::Docking;
 pub use dock::{CHROME_BORDER, DOCK_INSET, WINDOW_CHROME};
 pub use focus_ring::FocusRing;
+pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;
 pub use icon_button::{IconButton, IconButtonSize};
 pub use keep_changes::{KEEP_CHANGES_TIMEOUT, KeepChanges};

@@ -1,7 +1,8 @@
 use block_editor_beui::Editor;
+use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 
 mod editors;
 mod ui;
@@ -17,8 +18,11 @@ pub struct UiSettingsApp;
 
 impl block_editor_beui::BeuiApp for UiSettingsApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::UiSettingsContent>(&[]);
         view! {
-            <UiSettingsView editor={editor} />
+            <Loaded loaded={loaded}>
+                <UiSettingsView editor={editor} />
+            </Loaded>
         }
     }
 
@@ -31,8 +35,13 @@ pub struct DefaultEditorsApp;
 
 impl block_editor_beui::BeuiApp for DefaultEditorsApp {
     fn view(editor: Editor) -> NodeId {
+        let content = editor.loaded::<block_editor_beui::be_block::EditorSettingsContent>(&[]);
+        let catalog = editor.block_types_known();
+        let loaded = create_memo(move || content.get() && catalog.get());
         view! {
-            <DefaultEditorsView editor={editor} />
+            <Loaded loaded={loaded}>
+                <DefaultEditorsView editor={editor} />
+            </Loaded>
         }
     }
 

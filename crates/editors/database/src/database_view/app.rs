@@ -1,7 +1,7 @@
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::database::create_database;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;

@@ -1,0 +1,19 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# block-app with every plugin, headless as `:dev` runs it, driven by the same
+# commands as `drive` and painted with every plugin's own paint
+# (guides/testing_a_gui.md, Testing editors together). The app is built for a
+# worker, so the tests run on Linux x86_64 only.
+
+cargo_library()
+
+cargo_test(
+    paints = True,
+    run_env = {
+        "APP_LIBRARIES": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        "BLOCK_APP": "$(location //crates/block-app:native)/block-app",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+    },
+    target_compatible_with = ["prelude//os:linux", "prelude//cpu:x86_64"],
+)

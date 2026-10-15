@@ -100,6 +100,11 @@ impl NodeId {
 pub type Handler<V, R = ()> = Box<dyn FnMut(V) -> R>;
 pub type ClickHandler = Box<dyn FnMut()>;
 
+pub enum FocusChild {
+    Node(NodeId),
+    Unbuilt(std::ops::Range<usize>),
+}
+
 pub trait Element: Any {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2;
 
@@ -133,7 +138,28 @@ pub trait Element: Any {
 
     fn children(&self) -> Vec<NodeId>;
 
+    fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        for child in self.children() {
+            visit(child);
+        }
+    }
+
     fn remove_child(&mut self, child: NodeId);
+
+    fn focus_children(&self) -> Option<Vec<FocusChild>> {
+        None
+    }
+
+    fn build_for_focus(
+        &mut self,
+        _doc: &mut Document,
+        _id: NodeId,
+        _index: usize,
+    ) -> Option<NodeId> {
+        None
+    }
+
+    fn release_for_focus(&mut self, _child: NodeId) {}
 
     fn live_children(&self) -> Vec<NodeId> {
         self.children()
@@ -531,6 +557,8 @@ pub struct Arena {
     repaints: Vec<NodeId>,
     everything: bool,
     reparented: Cell<bool>,
+    watched: Vec<NodeId>,
+    watched_slots: Vec<bool>,
 }
 
 impl Arena {
@@ -902,6 +930,9 @@ impl Arena {
                 continue;
             }
             adoption[slot] = Adoption::Settled;
+            if self.watched_slots.get(slot).copied().unwrap_or(false) {
+                self.reparented.set(true);
+            }
             if self.removed[slot] {
                 continue;
             }
@@ -909,15 +940,15 @@ impl Arena {
                 adoption[slot] = Adoption::Taken;
                 continue;
             };
-            for child in element.children() {
+            element.for_each_child(&mut |child| {
                 let Some(held) = self.slot(child).map(|slot| &mut parents[slot]) else {
-                    continue;
+                    return;
                 };
                 if *held != Some(parent) {
                     *held = Some(parent);
                     moved = true;
                 }
-            }
+            });
         }
         drop(parents);
         let mut adopting = self.adopting.borrow_mut();
@@ -932,6 +963,21 @@ impl Arena {
 
     pub fn adopt_children(&mut self, id: NodeId) {
         self.queue_adoption(id);
+    }
+
+    pub fn watch(&mut self, path: Vec<NodeId>) {
+        for id in std::mem::take(&mut self.watched) {
+            if let Some(watched) = self.watched_slots.get_mut(id.index as usize) {
+                *watched = false;
+            }
+        }
+        self.watched_slots.resize(self.nodes.len(), false);
+        for id in &path {
+            if let Some(slot) = self.slot(*id) {
+                self.watched_slots[slot] = true;
+            }
+        }
+        self.watched = path;
     }
 
     pub fn take_reparented(&mut self) -> bool {

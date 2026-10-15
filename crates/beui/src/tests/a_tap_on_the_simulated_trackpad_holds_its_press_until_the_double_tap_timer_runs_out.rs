@@ -1,7 +1,7 @@
 use super::*;
 use crate::mouse_simulation::DOUBLE_TAP_TIME;
-use crate::reactive::view;
-use crate::styled::Checkbox;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out() {

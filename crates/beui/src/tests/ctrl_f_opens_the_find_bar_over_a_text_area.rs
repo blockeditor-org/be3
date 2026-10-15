@@ -1,8 +1,8 @@
 use accesskit::Role;
 
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextArea;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::TextAreaState;
 use std::sync::Arc;
 use text_editor_core::TextBuffer;

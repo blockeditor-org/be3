@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    List, Show, WriteSignal, create_memo, create_signal, view, with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const FIRST: f32 = 60.0;
 const SECOND: f32 = 90.0;
@@ -18,10 +17,10 @@ fn switching_a_show_damages_both_panels() {
         view! {
             <List spacing=0.0>
                 <Show condition={first}>
-                    <Frame height={FIRST} color=Color32::WHITE radius=0 />
+                    <Frame height=FIRST fill=Color32::WHITE radius=0.0 />
                 </Show>
                 <Show condition={second}>
-                    <Frame height={SECOND} color={Color32::from_gray(40)} radius=0 />
+                    <Frame height=SECOND fill={Color32::from_gray(40)} radius=0.0 />
                 </Show>
             </List>
         }

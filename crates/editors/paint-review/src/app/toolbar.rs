@@ -5,13 +5,10 @@ use block_editor_beui::beui::icons::{
     ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW, ICON_REFRESH, ICON_VERTICAL_SPLIT, ICON_ZOOM_IN,
     ICON_ZOOM_OUT,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, List, Memo, Prop, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, Slider, ToggleButton};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 use super::state::{Review, Showing, Status};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const ZOOM_STEP: f32 = 1.25;
 
@@ -189,7 +186,7 @@ pub(crate) fn ReviewCaption(review: Review) -> NodeId {
         parts.join(" · ")
     });
     view! {
-        <Frame visible={chosen} padding_horizontal=12.0 padding_vertical=6.0>
+        <Frame visible={chosen} padding={Sides::symmetric(12.0, 6.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Text string={path} @test_id={"paint_review.path"} />
                 <Text style=TextStyle::CAPTION string={summary} @test_id={"paint_review.summary"} />
@@ -227,7 +224,7 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
     let jump_frame = changed_frame;
 
     view! {
-        <Frame visible={many} padding_horizontal=12.0 padding_vertical=6.0>
+        <Frame visible={many} padding={Sides::symmetric(12.0, 6.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
                     glyph={ICON_CHEVRON_LEFT.to_owned()}

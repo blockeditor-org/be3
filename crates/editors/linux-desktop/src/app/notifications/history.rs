@@ -3,18 +3,13 @@ use std::time::Duration;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, TextColor,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::PopoverHandle;
 
 use super::{DesktopNotifications, Listed};
 use crate::app::bar::local_minutes;
 use crate::app::popup::BarPopup;
-use block_editor_beui::beui::styled::{Text, TextSize, TextStyle, Weight};
 
 pub(crate) const NOTIFICATIONS_WIDTH: f32 = 360.0;
 const LIST_HEIGHT: f32 = 420.0;

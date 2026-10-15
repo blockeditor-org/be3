@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{NumberInput, number_input_field, number_input_text};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn escape_discards_what_was_typed_into_a_number_input() {

@@ -1,11 +1,7 @@
 use beui::KeyAt;
-use beui::reactive::LayerPolicy;
+use beui::reactive::*;
 
-use beui::reactive::{
-    Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Overlay, OverlayAnchor, Placement,
-    PlacementBuilder, Prop, ReadSignal, component, create_effect, create_memo, draw_gpu,
-    on_cleanup, view,
-};
+use beui::styled::*;
 use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
 
 use crate::state::WindowId;
@@ -90,13 +86,12 @@ pub fn WindowView(
                     })
                 };
                 on_cleanup(move || windows.unplaced(id));
-                view! {
+                let built = view! {
                     <Layers>
                         <Interactive
                             @node_ref={&catcher}
                             focusable=true
                             @test_id={format!("wayland.window.{}", id.0)}
-                            focused={signals.focused}
                             on_focus_change={move |focused: bool| windows.focus(id, focused)}
                             cursor
                             on_forward={move |input: ForwardedInput| windows.forward(id, input)}
@@ -107,7 +102,7 @@ pub fn WindowView(
                                 <Drawing
                                     draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
                                 />
-                                <Frame color={dim} />
+                                <Frame fill={ColorRole::custom(dim)} />
                             </Layers>
                         </Interactive>
                         <Overlay
@@ -117,7 +112,7 @@ pub fn WindowView(
                             traps_focus=false
                             open={open}
                         >
-                            <Frame width height>
+                            <Frame width=width height=height>
                                 <Interactive
                                     @node_ref={&popup_catcher}
                                     focusable=true
@@ -139,7 +134,21 @@ pub fn WindowView(
                             </Frame>
                         </Overlay>
                     </Layers>
-                }
+                };
+                let asks = signals.asks;
+                let answered = signals.answered.clone();
+                create_effect(move || {
+                    let asked = asks.get();
+                    if answered.get() >= asked {
+                        return;
+                    }
+                    let Some(node) = catcher.try_get() else {
+                        return;
+                    };
+                    answered.set(asked);
+                    untrack(|| with_document(|document| document.focus_focusable(node)));
+                });
+                built
             }}
         </PlacementBuilder>
     }

@@ -1,14 +1,10 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
-use beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo, Prop,
-    ReadSignal, Show, component, create_memo, create_signal, view,
-};
-use beui::styled::{Fullscreen, IconButton, Scroll, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Picture;
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
-use beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 16.0;
 const HINT_HEIGHT: f32 = 18.0;
@@ -49,7 +45,6 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
                 .is_none_or(|viewer| viewer.index + 1 >= viewer.images.len())
         })
     });
-    let theme = use_theme();
     let close = move || model.close_image();
     let previous = move || model.step_image(-1);
     let next = move || model.step_image(1);
@@ -73,7 +68,7 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
     };
     view! {
         <Fullscreen open={open} on_dismiss={close}>
-            <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+            <Frame fill=ColorRole::Background padding=PADDING>
                 <List spacing=PADDING>
                     <ViewerBar
                         position
@@ -200,7 +195,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                                             cursor=CursorIcon::PointingHand
                                             on_click={zoom_out}
                                         >
-                                            <Frame width={width} height={height}>
+                                            <Frame width=width height=height>
                                                 <Picture
                                                     image={picture}
                                                     fit=ImageFit::Fill

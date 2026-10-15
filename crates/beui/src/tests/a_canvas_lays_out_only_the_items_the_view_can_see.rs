@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Canvas, CanvasItem, CanvasView, build, view, with_document};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_canvas_lays_out_only_the_items_the_view_can_see() {

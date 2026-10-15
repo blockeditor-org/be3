@@ -3,18 +3,14 @@ use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Show, Spacer, component, create_memo, create_signal,
-    view,
-};
-use block_editor_beui::beui::styled::{Accordion, Button, ButtonVariant, Separator};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::{DatabaseValueEditor, RowValues, ValueLabels};
 use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SPACING: f32 = 10.0;
 

@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Direction, List, NodeRef, Text, build, view};
-use crate::styled::SelectableText;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 const TITLE: &str = "Fix the launcher";
 

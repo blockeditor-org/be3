@@ -53,6 +53,8 @@ pub struct PluginSurface {
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
     described: Option<u64>,
+    pressed: u8,
+    blurred: bool,
 }
 
 impl PluginSurface {
@@ -86,6 +88,8 @@ impl PluginSurface {
             platform: HostPlatform::new(host),
             surface,
             described: None,
+            pressed: 0,
+            blurred: false,
         }
     }
 
@@ -108,8 +112,28 @@ impl PluginSurface {
     }
 
     pub fn input(&mut self, region: &Region, event: &InputEvent) {
+        match event {
+            InputEvent::Focus(false) if self.pressed > 0 => {
+                self.blurred = true;
+                return;
+            }
+            InputEvent::Focus(true) => self.blurred = false,
+            InputEvent::PointerButton { pressed: true, .. } => {
+                self.pressed = self.pressed.saturating_add(1);
+            }
+            InputEvent::PointerButton { pressed: false, .. } => {
+                self.pressed = self.pressed.saturating_sub(1);
+            }
+            InputEvent::PointerLeft => self.pressed = 0,
+            _ => {}
+        }
         if let Some(input) = input::translate(region, event) {
             self.runner.push(input);
+        }
+        if self.pressed == 0 && std::mem::take(&mut self.blurred) {
+            self.runner.push(beui_core::runner::Input::from(
+                beui_core::input::Event::Focus(false),
+            ));
         }
     }
 
@@ -221,6 +245,23 @@ impl PluginSurface {
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {
         let context = self.runner.context();
         rect.scaled(context.pixels_per_point() / region.scale_factor)
+    }
+
+    pub fn painting(&self) -> Option<beui_core::painting::Painting> {
+        let output = self.runner.output()?;
+        let (width, height) = self.surface.borrow().size?;
+        let pixels_per_point = output.pixels_per_point();
+        beui_core::painting::painting(
+            output,
+            beui_core::geometry::vec2(
+                width as f32 / pixels_per_point,
+                height as f32 / pixels_per_point,
+            ),
+            pixels_per_point,
+            beui_core::color::Color32::TRANSPARENT,
+            beui_core::painting::Punches::Erase,
+        )
+        .ok()
     }
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {

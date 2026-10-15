@@ -1,7 +1,8 @@
 use super::*;
 use crate::Dismiss;
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
-use crate::reactive::{Frame, NodeRef, Overlay, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn touch_dragging_across_a_text_input_does_not_select_its_text() {

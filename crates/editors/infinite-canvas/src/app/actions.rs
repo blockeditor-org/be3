@@ -8,7 +8,7 @@ use block_editor_beui::beui::icons::{
     ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_RECTANGLE, ICON_SELECT, ICON_SELECT_ALL,
     ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_beui::beui::reactive::{Action, Chord, create_memo};
+use block_editor_beui::beui::reactive::*;
 use uuid::Uuid;
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};

@@ -1,5 +1,6 @@
-use foldhash::HashMap;
+use foldhash::{HashMap, HashSet};
 use std::any::Any;
+use std::collections::VecDeque;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -7,13 +8,14 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
 
+#[derive(Clone)]
 struct Row<K> {
     index: usize,
     key: K,
@@ -129,6 +131,8 @@ pub struct VirtualListNode<K> {
     rows: Rc<KeyedItems<K, NodeId>>,
     owner: Option<ScopeContext>,
     placed: Vec<Row<K>>,
+    held: Vec<Row<K>>,
+    retained: VecDeque<K>,
     origin: Option<(K, f32)>,
     overscan: f32,
 }
@@ -144,6 +148,8 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             rows: Rc::new(KeyedItems::new(build)),
             owner: owner_scope(),
             placed: Vec::new(),
+            held: Vec::new(),
+            retained: VecDeque::new(),
             origin: None,
             overscan: 0.0,
         }
@@ -174,13 +180,62 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 .map(|row| (row.key.clone(), position + row.position - head))
         });
         self.placed.retain(|row| indices.contains_key(&row.key));
-        for row in &mut self.placed {
+        self.held.retain(|row| indices.contains_key(&row.key));
+        for row in self.placed.iter_mut().chain(&mut self.held) {
             row.index = indices[&row.key];
         }
+        self.held.sort_unstable_by_key(|row| row.index);
+        self.retained.retain(|key| indices.contains_key(key));
         self.keys = keys;
         self.indices = indices;
-        let kept: Vec<K> = self.placed.iter().map(|row| row.key.clone()).collect();
+        self.release_unkept();
+    }
+
+    fn release_unkept(&self) {
+        let kept: Vec<K> = self
+            .placed
+            .iter()
+            .chain(&self.held)
+            .map(|row| row.key.clone())
+            .chain(self.retained.iter().cloned())
+            .collect();
         self.rows.retain(&kept);
+    }
+
+    fn shown(&self) -> impl Iterator<Item = &Row<K>> {
+        let split = self.placed.first().map_or(self.held.len(), |head| {
+            self.held.partition_point(|row| row.index < head.index)
+        });
+        self.held[..split]
+            .iter()
+            .chain(&self.placed)
+            .chain(&self.held[split..])
+    }
+
+    fn holding(&self, doc: &Document, rows: &[Row<K>]) -> Vec<Row<K>> {
+        let shown: HashSet<&K> = rows.iter().map(|row| &row.key).collect();
+        let mut held: Vec<Row<K>> = self
+            .placed
+            .iter()
+            .chain(&self.held)
+            .filter(|row| !shown.contains(&row.key) && doc.focus_is_within(row.node))
+            .cloned()
+            .collect();
+        held.sort_unstable_by_key(|row| row.index);
+        held
+    }
+
+    fn measure_held(
+        &mut self,
+        doc: &mut Document,
+        list: NodeId,
+        painter: &Painter,
+        held: &mut [Row<K>],
+        cross: f32,
+    ) {
+        for row in held {
+            row.length = self.measured_row(doc, list, painter, row.index, cross).2;
+        }
     }
 
     fn window(&self, doc: &Document, painter: &Painter, start: f32, main: f32) -> (f32, f32) {
@@ -253,7 +308,12 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     ) -> f32 {
         if self.metrics.count == 0 || window.1 <= window.0 {
             self.origin = None;
-            self.keep(Vec::new());
+            let mut held = self.holding(doc, &[]);
+            self.measure_held(doc, list, painter, &mut held, cross);
+            for row in &mut held {
+                row.position = self.metrics.position(row.index);
+            }
+            self.keep(Vec::new(), held);
             return 0.0;
         }
         let at_start = window.0 <= 0.0;
@@ -328,6 +388,8 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 row.position += shifted;
             }
         }
+        let mut held = self.holding(doc, &rows);
+        self.measure_held(doc, list, painter, &mut held, cross);
         let shift = match rows.first() {
             Some(row) => {
                 let wanted = self.metrics.position(row.index);
@@ -340,7 +402,10 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 0.0
             }
         };
-        self.keep(rows);
+        for row in &mut held {
+            row.position = self.metrics.position(row.index) - shift;
+        }
+        self.keep(rows, held);
         shift
     }
 
@@ -365,10 +430,32 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         0.0
     }
 
-    fn keep(&mut self, rows: Vec<Row<K>>) {
-        let kept: Vec<K> = rows.iter().map(|row| row.key.clone()).collect();
+    fn keep(&mut self, rows: Vec<Row<K>>, held: Vec<Row<K>>) {
+        let placed: HashSet<K> = rows
+            .iter()
+            .chain(&held)
+            .map(|row| row.key.clone())
+            .collect();
+        for row in self.placed.iter().chain(&self.held).rev() {
+            if !placed.contains(&row.key) {
+                self.retained.push_front(row.key.clone());
+            }
+        }
+        let reach = rows.len();
+        let near = match (rows.first(), rows.last()) {
+            (Some(first), Some(last)) => {
+                first.index.saturating_sub(reach)..last.index.saturating_add(reach + 1)
+            }
+            _ => 0..0,
+        };
+        let indices = &self.indices;
+        self.retained.retain(|key| {
+            !placed.contains(key) && indices.get(key).is_some_and(|index| near.contains(index))
+        });
+        self.retained.truncate(reach);
         self.placed = rows;
-        self.rows.retain(&kept);
+        self.held = held;
+        self.release_unkept();
     }
 }
 
@@ -377,8 +464,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let (_, cross) = self.direction.main_and_cross(available);
         let offer = self.direction.axes(f32::INFINITY, cross);
         let content = self
-            .placed
-            .iter()
+            .shown()
             .map(|row| {
                 let size = crate::layout::measure(doc, painter, row.node, offer);
                 self.direction.main_and_cross(size).1
@@ -398,7 +484,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let window = self.window(doc, painter, start, main.unwrap_or(f32::INFINITY));
         let shift = self.realize(doc, node, painter, window, main, cross);
         let grid = doc.pixel_grid();
-        for row in &self.placed {
+        for row in self.shown() {
             let placed = item_rect(
                 self.direction,
                 rect,
@@ -414,13 +500,14 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         doc.report_anchor_shift(shift);
     }
 
-    fn unplaced(&mut self, _doc: &mut Document) {
+    fn unplaced(&mut self, doc: &mut Document) {
         self.origin = None;
-        self.keep(Vec::new());
+        let held = self.holding(doc, &[]);
+        self.keep(Vec::new(), held);
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        for row in &self.placed {
+        for row in self.shown() {
             if rects.contains_key(&row.node) {
                 crate::paint::paint(doc, painter, rects, row.node);
             }
@@ -428,11 +515,59 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
     }
 
     fn children(&self) -> Vec<NodeId> {
-        self.placed.iter().map(|row| row.node).collect()
+        self.shown().map(|row| row.node).collect()
     }
 
     fn remove_child(&mut self, child: NodeId) {
         self.placed.retain(|row| row.node != child);
+        self.held.retain(|row| row.node != child);
+    }
+
+    fn focus_children(&self) -> Option<Vec<FocusChild>> {
+        let mut rows: Vec<&Row<K>> = self.shown().collect();
+        rows.sort_unstable_by_key(|row| row.index);
+        let mut children = Vec::with_capacity(rows.len() * 2 + 1);
+        let mut next = 0;
+        for row in rows {
+            if row.index > next {
+                children.push(FocusChild::Unbuilt(next..row.index));
+            }
+            children.push(FocusChild::Node(row.node));
+            next = row.index + 1;
+        }
+        if next < self.metrics.count {
+            children.push(FocusChild::Unbuilt(next..self.metrics.count));
+        }
+        Some(children)
+    }
+
+    fn build_for_focus(&mut self, doc: &mut Document, id: NodeId, index: usize) -> Option<NodeId> {
+        if let Some(row) = self.shown().find(|row| row.index == index) {
+            return Some(row.node);
+        }
+        let key = self.keys.get(index)?.clone();
+        let node = self.build(doc, id, key.clone());
+        let drift = self.placed.first().map_or(0.0, |head| {
+            head.position - self.metrics.position(head.index)
+        });
+        let row = Row {
+            index,
+            key,
+            node,
+            position: self.metrics.position(index) + drift,
+            length: self.metrics.height(index),
+        };
+        let at = self.held.partition_point(|held| held.index < index);
+        self.held.insert(at, row);
+        Some(node)
+    }
+
+    fn release_for_focus(&mut self, child: NodeId) {
+        let before = self.held.len();
+        self.held.retain(|row| row.node != child);
+        if self.held.len() != before {
+            self.release_unkept();
+        }
     }
 
     fn kind(&self) -> &'static str {
@@ -462,6 +597,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
             ("direction", format!("{:?}", self.direction)),
             ("rows", self.metrics.count.to_string()),
             ("realized", self.placed.len().to_string()),
+            ("held for focus", self.held.len().to_string()),
             ("estimated row length", self.metrics.estimated.to_string()),
         ]
     }

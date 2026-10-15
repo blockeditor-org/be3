@@ -3,12 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo, PasteKind,
-    Pasted, PlacementBuilder, ReadSignal, Show, component, create_effect, create_memo,
-    create_signal, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
 use uuid::Uuid;
@@ -17,7 +13,7 @@ use crate::geometry::*;
 
 use super::menu::CanvasMenu;
 use super::overlay::{Artboard, Backdrop, Overlay};
-use super::paint::{Camera, EntityPaint, Palette};
+use super::paint::{Camera, EntityPaint, Palette, resolve_color};
 use super::state::CanvasState;
 
 const ITEM_MARGIN: f32 = 2.0;
@@ -32,7 +28,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 let view = state.editor().canvas();
                 let world = state.editor().world();
                 let camera = create_memo(move || {
-                    super::state::camera_view(view.get(), world.get(), placed.get(), state.centre())
+                    super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
                 });
                 let ids = create_memo(move || {
                     state
@@ -56,13 +52,11 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 view={create_memo(move || Some(placement.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
-                                <Show condition={!previewing}>
-                                    <CanvasBackdrop
-                                        state={state}
-                                        camera={backdrop_camera}
-                                        stage={backdrop_stage}
-                                    />
-                                </Show>
+                                <CanvasBackdrop
+                                    state={state}
+                                    camera={backdrop_camera}
+                                    stage={backdrop_stage}
+                                />
                                 <ForEach keys={ids}>
                                     {move |id: Uuid| {
                                         let camera = shape_camera;
@@ -192,6 +186,10 @@ fn CanvasBackdrop(
                 CanvasEntityKind::Artboard { name } => Some(Artboard {
                     bounds: entity_bounds(&entity),
                     name: name.clone(),
+                    fill: resolve_color(
+                        entity.style.fill.unwrap_or_default(),
+                        theme.background.get(),
+                    ),
                 }),
                 _ => None,
             })
@@ -199,8 +197,8 @@ fn CanvasBackdrop(
         let backdrop = Backdrop {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             stage: stage.get(),
-            background: theme.background.get(),
             label: theme.text_muted.get(),
+            chrome: !state.previewing(),
             artboards,
         };
         if shown.borrow().as_ref() == Some(&backdrop) {

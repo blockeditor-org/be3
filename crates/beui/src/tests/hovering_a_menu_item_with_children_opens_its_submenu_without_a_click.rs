@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {

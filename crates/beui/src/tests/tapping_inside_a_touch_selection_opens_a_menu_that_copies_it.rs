@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn tapping_inside_a_touch_selection_opens_a_menu_that_copies_it() {

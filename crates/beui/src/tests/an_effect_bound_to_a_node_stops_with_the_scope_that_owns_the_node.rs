@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Scope, bind, create_signal, view};
-use crate::styled::{Text, TextStyle};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {

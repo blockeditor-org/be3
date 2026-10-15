@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, with_reactive_scope};
+use crate::reactive::*;
 use crate::unstyled::{DockPane, DockTab, DockingLayout, use_dock_tab};
 
 #[component]

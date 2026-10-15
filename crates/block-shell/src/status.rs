@@ -1,10 +1,7 @@
 use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, ReadSignal, Show, Spacer, component,
-    create_memo, view,
-};
-use block_editor_beui::beui::styled::MenuButton;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
@@ -12,7 +9,6 @@ use super::access::AccessMode;
 use super::menu::{ReferenceMenuItem, action_for, apply};
 use super::panel::{Info, Refs};
 use super::workspace::Workspace;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SPACING: f32 = 10.0;
 

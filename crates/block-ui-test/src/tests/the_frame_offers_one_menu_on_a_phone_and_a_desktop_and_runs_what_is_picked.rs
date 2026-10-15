@@ -1,6 +1,5 @@
 use beui::Vec2;
 use beui::icons::ICON_AUTO_FIX_HIGH;
-use beui::reactive::{Action, create_signal};
 use block_editor_beui::{BarAction, BlockCommand};
 
 use super::*;

@@ -1,8 +1,7 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{
-    ForEach, List, PlacementBuilder, ReadSignal, build, component, create_effect, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]
@@ -65,7 +64,7 @@ fn Row(watched: bool, seen: WriteSignal<Rect>) -> NodeId {
                     }
                 });
                 view! {
-                    <Frame height=40.0 color=Color32::WHITE radius=0 />
+                    <Frame height=40.0 fill=Color32::WHITE radius=0.0 />
                 }
             }}
         </PlacementBuilder>

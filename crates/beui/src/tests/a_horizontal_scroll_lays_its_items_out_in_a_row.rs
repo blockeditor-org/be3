@@ -1,6 +1,7 @@
 use super::*;
 use crate::base::Direction;
-use crate::reactive::{ForEach, ItemSize, List, NodeRef, Offset, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_horizontal_scroll_lays_its_items_out_in_a_row() {

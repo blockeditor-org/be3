@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, build, on_finger_tap, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_quick_tap_with_several_fingers_is_a_finger_tap() {

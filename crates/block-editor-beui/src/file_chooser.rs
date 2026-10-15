@@ -1,15 +1,10 @@
 use std::cell::{OnceCell, RefCell};
 
 use beui::NodeId;
-use beui::reactive::{
-    Align, Direction, FileFilter, FilePicker, Frame, Func, ItemSize, List, PickedFile, ReadSignal,
-    Show, Spacer, Stored, WriteSignal, component, create_file_picker, create_memo, create_signal,
-    store, view,
-};
-use beui::styled::{Button, ButtonVariant};
+use beui::reactive::*;
+use beui::styled::*;
 
 use crate::Creation;
-use beui::styled::{Text, TextColor, TextStyle};
 
 const PADDING: f32 = 14.0;
 const SPACING: f32 = 10.0;
@@ -160,7 +155,7 @@ where
     let choose_id = format!("{id_prefix}.choose");
     let error_id = format!("{id_prefix}.error");
     view! {
-        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame padding=PADDING>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button

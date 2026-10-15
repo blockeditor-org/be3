@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn ctrl_a_selects_everything_so_typing_replaces_the_value() {

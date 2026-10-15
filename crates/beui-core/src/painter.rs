@@ -22,13 +22,35 @@ pub struct Corners {
 }
 
 impl Corners {
-    pub fn all(radius: f32) -> Self {
+    pub const ZERO: Corners = Corners::all(0.0);
+
+    pub const fn new(top_left: f32, top_right: f32, bottom_right: f32, bottom_left: f32) -> Self {
         Self {
-            top_left: radius,
-            top_right: radius,
-            bottom_right: radius,
-            bottom_left: radius,
+            top_left,
+            top_right,
+            bottom_right,
+            bottom_left,
         }
+    }
+
+    pub const fn all(radius: f32) -> Self {
+        Self::new(radius, radius, radius, radius)
+    }
+
+    pub const fn top(radius: f32) -> Self {
+        Self::new(radius, radius, 0.0, 0.0)
+    }
+
+    pub const fn bottom(radius: f32) -> Self {
+        Self::new(0.0, 0.0, radius, radius)
+    }
+
+    pub const fn left(radius: f32) -> Self {
+        Self::new(radius, 0.0, 0.0, radius)
+    }
+
+    pub const fn right(radius: f32) -> Self {
+        Self::new(0.0, radius, radius, 0.0)
     }
 
     pub fn to_array(self) -> [f32; 4] {

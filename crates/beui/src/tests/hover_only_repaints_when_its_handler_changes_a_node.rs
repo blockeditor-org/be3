@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Frame, Interactive, NodeRef, build, create_effect, create_signal, view, with_document,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn hover_only_repaints_when_its_handler_changes_a_node() {
@@ -15,7 +14,7 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
                     cursor=crate::CursorIcon::PointingHand
                     on_hover_change={move |hovered| set_hover_paints.set(hovered)}
                 >
-                    <Frame @node_ref=&fill color=Color32::WHITE radius=0 />
+                    <Frame @node_ref=&fill fill=Color32::WHITE radius=0.0 />
                 </Interactive>
             }
         }

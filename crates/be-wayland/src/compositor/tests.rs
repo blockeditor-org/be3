@@ -1,6 +1,5 @@
 use super::*;
 use beui::KeyAt;
-use beui::reactive::LayerLevel;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
@@ -38,21 +37,25 @@ mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
 mod a_window_asking_for_fullscreen_covers_the_screen;
 mod a_window_brought_forward_while_it_is_not_shown_is_reported_raised;
 mod a_window_dragged_from_drops_onto_the_window_under_the_pointer;
+mod a_window_no_shell_owns_gets_no_input_and_is_still_pinged;
 mod a_window_on_no_screen_has_its_presentation_discarded;
 mod a_window_that_copies_keeps_its_own_selection;
 mod a_window_that_moves_without_resizing_is_not_configured_again;
 mod a_window_that_picks_its_own_size_is_shown_at_it_and_never_told_another;
 mod a_window_that_stops_answering_pings_is_not_responding_until_it_answers;
+mod a_window_whose_first_focus_was_refused_gets_the_keyboard_when_raised;
 mod a_windows_surfaces_are_drawn_back_to_front;
 mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
 mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
+mod hiding_the_tab_of_the_window_with_the_keyboard_takes_the_keyboard_from_it;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
 mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
 mod only_an_input_idle_notification_ignores_inhibitors;
 mod presentation_feedback_carries_the_flip_time;
+mod pressing_a_windows_bar_gives_it_the_keyboard;
 mod raising_a_window_that_does_not_redraw_shows_it_over_the_one_it_covered;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 mod text_a_program_copies_reaches_the_host;
@@ -65,11 +68,7 @@ mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
-use beui::reactive::{
-    ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
-    component, create_memo, create_signal, view, with_reactive_scope,
-};
-use beui::styled::TextInput;
+use beui::styled::*;
 use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
@@ -150,7 +149,7 @@ fn Shown(windows: Windows) -> NodeId {
                             let width = create_memo(move || Some(size.get().x));
                             let height = create_memo(move || Some(size.get().y));
                             view! {
-                                <Frame width height>
+                                <Frame width=width height=height>
                                     <WindowView windows id />
                                 </Frame>
                             }
@@ -317,6 +316,10 @@ impl Harness {
 
     fn click(&mut self, test_id: &str) {
         let center = self.rect(test_id).center();
+        self.click_at(center);
+    }
+
+    fn click_at(&mut self, center: Pos2) {
         self.frame(vec![
             Event::PointerMoved(center),
             Event::PointerButton {

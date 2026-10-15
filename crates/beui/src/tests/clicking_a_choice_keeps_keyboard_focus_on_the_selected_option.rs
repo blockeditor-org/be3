@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::RadioGroup;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn clicking_a_choice_keeps_keyboard_focus_on_the_selected_option() {

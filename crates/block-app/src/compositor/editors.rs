@@ -5,12 +5,8 @@ use std::{
 };
 
 use be_graph::Access;
-use beui::reactive::{
-    Callback, Canvas, CanvasItem, ClickCallback, Dynamic, ForEach, Frame, Interactive, Layers,
-    Memo, NodeRef, Overlay, OverlayAnchor, OwnedStored, Placement, PlacementBuilder, Portal, Prop,
-    ReadSignal, Show, Stored, WriteSignal, component, create_effect, create_memo, create_signal,
-    on_cleanup, on_global_key, provide_context, store, use_context, view, with_document,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
@@ -821,32 +817,30 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
-    if !presented {
-        let counted = store(Cell::new(false));
-        create_effect(move || {
-            any.get();
-            if counted.with(Cell::get) {
-                return;
+    let counted = store(Cell::new(false));
+    create_effect(move || {
+        any.get();
+        if counted.with(Cell::get) {
+            return;
+        }
+        let shown = editors().with(|open| match open.get_mut(&block) {
+            Some(editor) => {
+                editor.shown(true);
+                true
             }
-            let shown = editors().with(|open| match open.get_mut(&block) {
-                Some(editor) => {
-                    editor.shown(true);
-                    true
+            None => false,
+        });
+        counted.with(|counted| counted.set(shown));
+    });
+    on_cleanup(move || {
+        if counted.with(Cell::get) {
+            editors().with(|open| {
+                if let Some(editor) = open.get_mut(&block) {
+                    editor.shown(false);
                 }
-                None => false,
             });
-            counted.with(|counted| counted.set(shown));
-        });
-        on_cleanup(move || {
-            if counted.with(Cell::get) {
-                editors().with(|open| {
-                    if let Some(editor) = open.get_mut(&block) {
-                        editor.shown(false);
-                    }
-                });
-            }
-        });
-    }
+        }
+    });
     let shown = create_memo(move || {
         any.get();
         presented
@@ -906,7 +900,7 @@ enum Resolution {
 fn Notice(item: HostItem) -> NodeId {
     let content = create_memo(move || item.clone());
     view! {
-        <Frame align_horizontal=beui::Align::Center align_vertical=beui::Align::Center>
+        <Frame align=beui::Align::Center>
             <HostItemFace content />
         </Frame>
     }

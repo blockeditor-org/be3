@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, ItemSize, List, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const MAX_WIDTH: f32 = 220.0;
 const HEIGHT: f32 = 34.0;
@@ -15,9 +16,9 @@ fn painted_width(container: f32) -> f32 {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) width={container}>
+                <Frame @sizing=ItemSize::Percent(100.0) width=container>
                     <List spacing=0.0>
-                        <Frame max_width=MAX_WIDTH height=HEIGHT color=FILL />
+                        <Frame width={Extent::at_most(MAX_WIDTH)} height=HEIGHT fill=FILL />
                     </List>
                 </Frame>
             </List>

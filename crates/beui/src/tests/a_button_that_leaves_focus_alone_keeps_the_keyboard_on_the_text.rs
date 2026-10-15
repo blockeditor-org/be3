@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::Text;
-use crate::styled::TextInput;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::Button;
 
 #[test]

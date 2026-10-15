@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Slider;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn slider_home_end_and_page_keys_clamp_at_the_bounds() {

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {

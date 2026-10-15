@@ -262,6 +262,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "app-tests"
+version = "0.1.0"
+dependencies = [
+ "be-drive",
+ "beui-core",
+ "paint-snapshot",
+]
+
+[[package]]
 name = "appendlist"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -712,6 +721,7 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "image",
+ "paint-snapshot",
 ]
 
 [[package]]
@@ -1037,6 +1047,7 @@ dependencies = [
  "beui-tree",
  "foldhash 0.2.0",
  "geometry",
+ "paint-format",
  "raw-window-handle",
  "reactive",
  "thumbhash",
@@ -1352,6 +1363,7 @@ dependencies = [
  "block-plugin-api",
  "block-ui",
  "geometry",
+ "paint-format",
  "reactive",
  "serde_bytes",
  "serde_json",
@@ -5200,12 +5212,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "paint-format"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
 name = "paint-snapshot"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "flate2",
  "image",
+ "paint-format",
  "serde",
  "sha2",
 ]

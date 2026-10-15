@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured() {
@@ -16,7 +17,7 @@ fn a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured() {
                                 keys={indices(VIRTUAL_ITEM_COUNT)}
                                 item_size={VIRTUAL_ITEM_HEIGHT * 3.0}
                             >
-                                {move |_: usize| {
+                                {move |_: ReadSignal<usize>| {
                                     view! {
                                         <Frame height=VIRTUAL_ITEM_HEIGHT>
                                             <Spacer />

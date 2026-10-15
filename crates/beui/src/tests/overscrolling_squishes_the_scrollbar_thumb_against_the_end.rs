@@ -1,6 +1,8 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, build, view};
+use crate::primitives::Frame;
+use crate::reactive::*;
 use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {

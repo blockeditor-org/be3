@@ -1,7 +1,9 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+pub use beui_core::base::frame::{Align2, Extent, Outline, Sides};
 pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
+pub use beui_core::painter::Corners;
 pub use beui_core::tree::{
     BareChild, BuildsNode, FromPlaced, ListChild, ParentKind, Placed, WithSizing,
     component_accessibility, component_placed, set_component_state, with_sizing,
@@ -97,6 +99,20 @@ pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     let focused = focused.into_prop();
     let visible = with_document(|document| document.watch_focus_visible());
     create_memo(move || focused.get() && visible.get())
+}
+
+pub fn focus_outline(
+    focused: impl IntoProp<bool>,
+    color: impl IntoProp<beui_core::color::Color32>,
+    width: f32,
+    offset: f32,
+) -> Memo<Option<Outline>> {
+    let ring = focus_ring(focused);
+    let color = color.into_prop();
+    create_memo(move || {
+        ring.get()
+            .then(|| Outline::new(color.get(), width).offset(offset))
+    })
 }
 
 pub fn on_key(
@@ -203,22 +219,6 @@ pub use crate::actions::{
     action_pressed, action_scope, action_tooltip, active_actions, active_actions_from,
     menu_actions,
 };
-pub use crate::components::back::BackHandler;
-pub use crate::components::canvas::{Canvas, CanvasItem};
-pub use crate::components::drawing::Drawing;
-pub use crate::components::embed::Embed;
-pub use crate::components::fade::Fade;
-pub use crate::components::frame::Frame;
-pub use crate::components::grid::{Grid, GridCell};
-pub use crate::components::interactive::Interactive;
-pub use crate::components::layers::{Layer, Layers};
-pub use crate::components::layout_builder::{LayoutBuilder, PlacementBuilder};
-pub use crate::components::offset::Offset;
-pub use crate::components::overlay::Overlay;
-pub use crate::components::portal::Portal;
-pub use crate::components::shift::Shift;
-pub use crate::components::text::{Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
-pub use crate::components::virtual_list::VirtualList;
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
 };
@@ -230,33 +230,3 @@ pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::rich::{
     CaretHandle, Piece, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark,
 };
-
-#[component]
-pub fn List(
-    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(default = Align::Stretch)] align: Prop<Align>,
-    #[prop(default = Justify::Start)] justify: Prop<Justify>,
-    #[prop(default = false)] wrap: Prop<bool>,
-    spacing: Prop<f32>,
-    children: Children<ListChild>,
-) -> NodeId {
-    let list = with_document(|document| document.create_list(direction.peek(), 0.0));
-    create_binding(move || {
-        with_document(|document| document.set_list_direction(list, direction.get()))
-    });
-    create_binding(move || with_document(|document| document.set_list_align(list, align.get())));
-    create_binding(move || {
-        with_document(|document| document.set_list_justify(list, justify.get()))
-    });
-    create_binding(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
-    create_binding(move || {
-        with_document(|document| document.set_list_spacing(list, spacing.get()))
-    });
-    children.mount(list);
-    list.id()
-}
-
-#[component]
-pub fn Spacer() -> NodeId {
-    with_document(Document::create_frame).id()
-}

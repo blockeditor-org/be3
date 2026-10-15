@@ -1,5 +1,7 @@
 mod accounts;
 mod app_state;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+mod arguments;
 mod be;
 mod block_label;
 mod compositor;
@@ -33,7 +35,7 @@ mod tray;
 mod ui;
 mod wayland;
 
-use beui::styled::DocumentTheme;
+use beui::styled::*;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
@@ -92,30 +94,25 @@ fn storage_dir() -> Option<PathBuf> {
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 pub fn run() -> Result<(), Box<dyn Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let arguments = arguments::parse(&arguments, arguments::LINUX)?;
     #[cfg(target_os = "linux")]
-    if arguments.first().map(String::as_str) == Some("--install-session") {
-        return session::install(arguments.get(1).map(String::as_str));
+    if let Some(prefix) = &arguments.install_session {
+        return session::install(prefix.as_deref());
     }
-    let session =
-        cfg!(target_os = "linux") && arguments.iter().any(|argument| argument == "--session");
     #[cfg(target_os = "linux")]
-    if session {
+    if arguments.session {
         session::start_log();
     }
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let options = run_options();
-    for argument in arguments {
-        if argument == "--dev-workspace" {
-            app.open_dev_workspace(None);
-        } else if cfg!(target_os = "linux") && (argument == "--session" || argument == "--desktop")
-        {
-            app.run_as_desktop();
-        } else {
-            return Err(format!("unknown argument {argument}").into());
-        }
+    if arguments.dev_workspace {
+        app.open_dev_workspace(None);
     }
-    run_shell(options, Shell::new(app), session)
+    if arguments.desktop {
+        app.run_as_desktop();
+    }
+    run_shell(options, Shell::new(app), arguments.session)
 }
 
 #[cfg(target_os = "linux")]
@@ -209,6 +206,9 @@ pub async fn automate(
         beui::automation::Reply::Image { .. } => {
             Err("the browser takes screenshots itself: use drive shot".into())
         }
+        beui::automation::Reply::Painting(_) => {
+            Err("the web build does not answer paint; run the app natively".into())
+        }
     }
 }
 
@@ -257,7 +257,7 @@ impl Shell {
         document.on_interacted(plugin_host::start_frames);
         document.on_laid_out(|| {
             plugin_host::settle();
-            compositor::notify_plugins();
+            compositor::notify_after_layout();
         });
         Self {
             document,
@@ -303,6 +303,9 @@ impl beui::App for Shell {
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context, &self.document);
+        if context.automated() {
+            be::seal_owed();
+        }
         wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
         if let Some(theme) = self.app.theme.take() {
@@ -317,6 +320,7 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
+        wayland::set_owned(view.screen == ui::Screen::Workspace && self.app.shell.is_some());
         let store = self.view;
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
@@ -352,11 +356,20 @@ impl beui::App for Shell {
     }
 
     fn busy(&self) -> bool {
-        self.app.busy() || plugin_host::busy()
+        self.app.error.is_none()
+            && (self.app.busy() || plugin_host::busy() || compositor::owes_frame())
+    }
+
+    fn environment(&self) -> Vec<(String, String)> {
+        wayland::environment()
     }
 
     fn drawing(&self) -> bool {
         plugin_host::drawing()
+    }
+
+    fn request_painting(&mut self) {
+        plugin_host::request_painting();
     }
 
     fn close_requested(&mut self) -> bool {
@@ -814,6 +827,9 @@ impl BlockApp {
             && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
         {
             self.media = Some(media::Media::start());
+            plugin_host::publish::<block_plugin_api::Media>(
+                &block_plugin_api::MediaLevels::default(),
+            );
         }
         let Some(media) = &mut self.media else {
             return;
@@ -827,6 +843,10 @@ impl BlockApp {
     }
 
     fn busy(&self) -> bool {
+        self.error.is_none() && self.loading()
+    }
+
+    fn loading(&self) -> bool {
         self.pending_account_request.is_some()
             || self.pending_workspace_request.is_some()
             || !self.pending_transfers.is_empty()
@@ -1624,13 +1644,8 @@ impl BlockApp {
     fn ensure_shell(&mut self) -> Option<Uuid> {
         self.root_settings.ensure_profile(self.client_id)?;
         let id = self.root_settings.ensure_session(self.client_id)?;
-        if let Some(previous) = self.shell.filter(|previous| *previous != id) {
-            self.shell = None;
-            let open: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
-            for editor in open {
-                self.close_editor(editor);
-            }
-            self.block_types.remove(&previous);
+        if self.shell.is_some_and(|previous| previous != id) {
+            self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
         self.block_types.insert(id, shell_editor);
@@ -1646,6 +1661,37 @@ impl BlockApp {
         }
         self.shell = Some(id);
         Some(id)
+    }
+
+    fn stop_shell(&mut self) {
+        let Some(previous) = self.shell.take() else {
+            return;
+        };
+        let open: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
+        for editor in open {
+            self.close_editor(editor);
+        }
+        self.block_types.remove(&previous);
+        compositor::set_shell(None);
+        plugin_host::set_shell(None);
+    }
+
+    fn watch_shell(&mut self) {
+        let crashed = plugin_host::take_crashed();
+        let Some(shell) = self.shell else {
+            return;
+        };
+        let plugin = self
+            .with_editor(shell, |editor| {
+                editor.plugin().map(|plugin| plugin.identity.id.clone())
+            })
+            .flatten();
+        let Some(plugin) = plugin.filter(|plugin| crashed.contains(plugin)) else {
+            return;
+        };
+        self.stop_shell();
+        plugin_host::kill(&plugin);
+        self.choosing_session = true;
     }
 
     fn handler_for(&self, from: Option<Uuid>, request: ShellRequest) -> Option<Uuid> {
@@ -2210,6 +2256,7 @@ impl BlockApp {
     fn run_frame(&mut self) {
         performance::begin_frame();
         plugin_host::poll();
+        self.watch_shell();
         #[cfg(target_os = "linux")]
         self.run_notifications();
         if !self.signed_in {
@@ -2841,3 +2888,6 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
 }
+
+#[cfg(test)]
+mod tests;

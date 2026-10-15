@@ -1,7 +1,7 @@
 use super::*;
 use crate::color::Hsva;
-use crate::reactive::view;
-use crate::styled::{ColorPicker, PICKER_WIDTH};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {

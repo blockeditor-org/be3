@@ -5,9 +5,12 @@ use std::time::Duration;
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
-use beui::reactive::{Frame, component, create_memo, view};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{ChildRect, HostImage, HostProgram, HostWindow, HostWindowId, Size};
+use block_plugin_api::{
+    ChildRect, HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin,
+};
 
 struct Running {
     compositor: Compositor,
@@ -19,9 +22,36 @@ struct Running {
     lock_noticed: bool,
 }
 
+#[derive(Clone, Default)]
+struct Launched {
+    program: Option<String>,
+    launch: Option<u64>,
+}
+
 thread_local! {
     static WINDOWS: Cell<Option<Windows>> = const { Cell::new(None) };
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
+    static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
+}
+
+fn tag(program: Option<String>, launch: Option<u64>) -> Option<u64> {
+    if program.is_none() && launch.is_none() {
+        return None;
+    }
+    LAUNCHES.with(|launches| {
+        let mut launches = launches.borrow_mut();
+        launches.push(Launched { program, launch });
+        u64::try_from(launches.len() - 1).ok()
+    })
+}
+
+fn launched(tag: Option<u64>) -> Launched {
+    let index = tag.and_then(|tag| usize::try_from(tag).ok());
+    LAUNCHES.with(|launches| {
+        index
+            .and_then(|index| launches.borrow().get(index).cloned())
+            .unwrap_or_default()
+    })
 }
 
 pub(crate) fn create() {
@@ -189,6 +219,10 @@ pub(crate) fn set_locked(locked: bool) {
     with(|running| running.compositor.set_locked(locked));
 }
 
+pub(crate) fn set_owned(owned: bool) {
+    with(|running| running.compositor.set_owned(owned));
+}
+
 pub(crate) fn set_primary_selection(on: bool) {
     with(|running| running.compositor.set_primary_selection(on));
 }
@@ -227,30 +261,38 @@ pub(crate) fn listed() -> Vec<HostWindow> {
         .list()
         .get_untracked()
         .into_iter()
-        .map(|info| HostWindow {
-            id: HostWindowId(info.id.0),
-            title: info.title,
-            app_id: info.app_id,
-            parent: info.parent.map(|parent| HostWindowId(parent.0)),
-            modal: info.modal,
-            size: Size {
-                width: info.size.x,
-                height: info.size.y,
-            },
-            fullscreen: info.fullscreen.map(|area| ChildRect {
-                x: area.min.x,
-                y: area.min.y,
-                width: area.width(),
-                height: area.height(),
-            }),
-            responding: info.responding,
-            focused: windows.focused() == Some(info.id),
-            icon: info.icon.map(|icon| HostImage {
-                width: icon.width(),
-                height: icon.height(),
-                rgba: icon.pixels().to_vec(),
-            }),
-            raised: windows.raised(info.id),
+        .map(|info| {
+            let launched = launched(info.launch);
+            HostWindow {
+                id: HostWindowId(info.id.0),
+                title: info.title,
+                app_id: info.app_id,
+                parent: info.parent.map(|parent| HostWindowId(parent.0)),
+                modal: info.modal,
+                size: Size {
+                    width: info.size.x,
+                    height: info.size.y,
+                },
+                fullscreen: info.fullscreen.map(|area| ChildRect {
+                    x: area.min.x,
+                    y: area.min.y,
+                    width: area.width(),
+                    height: area.height(),
+                }),
+                responding: info.responding,
+                focused: windows.focused() == Some(info.id),
+                icon: info.icon.map(|icon| HostImage {
+                    width: icon.width(),
+                    height: icon.height(),
+                    rgba: icon.pixels().to_vec(),
+                }),
+                raised: windows.raised(info.id),
+                origin: WindowOrigin {
+                    command: relaunch_command(&launched.program, info.command),
+                    program: launched.program,
+                    launch: launched.launch,
+                },
+            }
         })
         .collect()
 }
@@ -284,6 +326,30 @@ pub(crate) fn launch(command: String) -> bool {
     true
 }
 
+pub(crate) fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
+    let Some(windows) = windows().filter(|_| running()) else {
+        return false;
+    };
+    if arguments.is_empty() {
+        return false;
+    }
+    windows.run(Launch {
+        arguments,
+        working_dir: None,
+        tag: tag(None, launch),
+    });
+    crate::host::wake();
+    true
+}
+
+fn relaunch_command(program: &Option<String>, command: Vec<String>) -> Vec<String> {
+    match program {
+        Some(_) => Vec::new(),
+        None => command.into_iter().take(1).collect(),
+    }
+}
+
+const WAITING_ICON_SIZE: u32 = 64;
 const ICON_BUDGET: usize = block_plugin_api::MAX_BLOB_BYTES / 2;
 
 enum Scanned {
@@ -297,6 +363,8 @@ pub(crate) struct Programs {
     entries: Vec<DesktopEntry>,
     icons: HashMap<String, HostImage>,
     scanning: Option<Receiver<Scanned>>,
+    waiting: Vec<(String, Option<u64>)>,
+    scanned: bool,
 }
 
 impl Programs {
@@ -353,6 +421,7 @@ impl Programs {
                 Ok(Scanned::Entries(environment, entries)) => {
                     self.environment = environment;
                     self.entries = entries;
+                    self.scanned = true;
                     changed = true;
                 }
                 Ok(Scanned::Icons(icons)) => {
@@ -364,6 +433,11 @@ impl Programs {
                     self.scanning = None;
                     break;
                 }
+            }
+        }
+        if self.scanned {
+            for (key, launch) in std::mem::take(&mut self.waiting) {
+                self.launch(&key, launch);
             }
         }
         changed
@@ -379,6 +453,7 @@ impl Programs {
                 generic_name: entry.generic_name.clone(),
                 comment: entry.comment.clone(),
                 keywords: entry.keywords.clone(),
+                wm_class: entry.startup_wm_class.clone(),
                 icon: self
                     .icons
                     .get(&entry.id)
@@ -394,8 +469,15 @@ impl Programs {
             .collect()
     }
 
-    pub(crate) fn launch(&self, key: &str) -> bool {
+    pub(crate) fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
+        if !self.scanned {
+            self.waiting.push((key.to_owned(), launch));
+            self.scan(WAITING_ICON_SIZE);
+            return false;
+        }
         let Some(entry) = self.entries.iter().find(|entry| entry.id == key) else {
+            eprintln!("block-app: no program {key} is installed");
+            crate::notices::report(format!("{key} could not be opened: it is not installed"));
             return false;
         };
         let arguments = match self.environment.command(entry) {
@@ -412,6 +494,7 @@ impl Programs {
         windows.run(Launch {
             arguments,
             working_dir: entry.working_dir.clone(),
+            tag: tag(Some(entry.id.clone()), launch),
         });
         crate::host::wake();
         true

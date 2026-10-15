@@ -20,6 +20,7 @@ pub struct InteractiveNode {
     pub cursor: Option<CursorIcon>,
     pub scroll_axis: Option<Direction>,
     pub capture_presses: bool,
+    pub press_focus: bool,
     pub repeat_drag: bool,
     pub touch_drags: bool,
     pub touch_drag_axis: Option<Direction>,
@@ -70,6 +71,7 @@ impl InteractiveNode {
             cursor: None,
             scroll_axis: None,
             capture_presses: false,
+            press_focus: true,
             repeat_drag: false,
             touch_drags: false,
             touch_drag_axis: None,
@@ -276,6 +278,12 @@ impl Element for InteractiveNode {
         self.child.into_iter().collect()
     }
 
+    fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        if let Some(child) = self.child {
+            visit(child);
+        }
+    }
+
     fn remove_child(&mut self, child: NodeId) {
         if self.child == Some(child) {
             self.child = None;
@@ -328,7 +336,7 @@ impl Element for InteractiveNode {
             |focus| {
                 let flags: Vec<&str> = [
                     (focus.tab_stop, "tab stop"),
-                    (focus.press_focus, "press"),
+                    (self.press_focus, "press"),
                     (focus.ime, "ime"),
                     (focus.keyboard_on_focus, "keyboard"),
                 ]
@@ -404,6 +412,12 @@ impl Document {
             self.arena
                 .touch_mut_as::<InteractiveNode>(id)
                 .capture_presses = capture_presses;
+        }
+    }
+
+    pub fn set_interactive_press_focus(&mut self, id: NodeOf<InteractiveNode>, press_focus: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).press_focus != press_focus {
+            self.arena.touch_mut_as::<InteractiveNode>(id).press_focus = press_focus;
         }
     }
 

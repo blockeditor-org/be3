@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::ColorInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity() {

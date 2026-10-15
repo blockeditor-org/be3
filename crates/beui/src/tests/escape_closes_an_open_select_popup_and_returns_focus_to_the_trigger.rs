@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Select;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger() {

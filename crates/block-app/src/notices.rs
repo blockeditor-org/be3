@@ -1,6 +1,6 @@
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use beui::styled::{Toast, ToastAction};
+use beui::styled::*;
 
 pub(crate) const COPY_REPORT: &str = "copy-report";
 

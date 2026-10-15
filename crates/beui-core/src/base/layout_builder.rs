@@ -113,6 +113,12 @@ impl Element for LayoutBuilderNode {
         self.child.into_iter().collect()
     }
 
+    fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        if let Some(child) = self.child {
+            visit(child);
+        }
+    }
+
     fn remove_child(&mut self, child: NodeId) {
         if self.child == Some(child) {
             self.child = None;

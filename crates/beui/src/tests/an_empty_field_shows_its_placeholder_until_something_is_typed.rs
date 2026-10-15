@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn an_empty_field_shows_its_placeholder_until_something_is_typed() {

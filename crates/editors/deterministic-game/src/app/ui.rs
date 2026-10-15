@@ -1,17 +1,11 @@
 use std::rc::Rc;
 
-use block_editor_beui::Editor;
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
-    Stored, component, create_effect, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Card, IconButton, IconButtonSize, Scroll, Select, Separator, TextSize,
-    use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption};
-use block_editor_beui::beui::{NodeId, TextAlign};
+use block_editor_beui::{Editor, Loading};
 use game_api::{Board, Control, GameActionOption, GameScreen, Gesture};
 
 mod annotations;
@@ -23,7 +17,6 @@ pub(crate) mod moves;
 mod play;
 mod skin;
 
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle, Weight};
 use board::Stage;
 use layout::Layout;
 use moves::MoveTable;
@@ -219,17 +212,10 @@ fn GameShape(
     let failed = shape == Shape::Error;
     let playing = shape == Shape::Screen;
     let failure = snapshot;
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
             <Show condition=loading>
-                <Frame
-                    color={theme.surface}
-                    padding_horizontal=PANEL_PADDING
-                    padding_vertical=PANEL_PADDING
-                >
-                    <Text string="Loading game..." align=TextAlign::Center />
-                </Frame>
+                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the game" />
             </Show>
             <Show condition=failed>
                 <GameError snapshot={failure} />
@@ -383,7 +369,6 @@ fn GamePlay(
 
 #[component]
 fn Sidebar(panel: Panel) -> NodeId {
-    let theme = use_theme();
     let Panel {
         game,
         play,
@@ -404,9 +389,9 @@ fn Sidebar(panel: Panel) -> NodeId {
     };
     let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     view! {
-        <Frame color={theme.surface}>
+        <Frame fill=ColorRole::Surface>
             <Scroll>
-                <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+                <Frame padding=PANEL_PADDING>
                     <List spacing=SECTION_SPACING>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Text style=TextStyle::CAPTION string="Playing as" />
@@ -538,19 +523,15 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let theme = use_theme();
     let color = TextColor::Default;
     view! {
         <unstyled::Floating anchor open={open}>
-            <Frame padding_horizontal=BANNER_MARGIN padding_vertical=BANNER_MARGIN>
+            <Frame padding=BANNER_MARGIN>
                 <Frame
-                    color={theme.surface_raised}
-                    radius=8
-                    padding_horizontal=14.0
-                    padding_vertical=8.0
-                    outline={theme.border}
-                    outline_width=1.0
-                    outline_visible=true
+                    fill=ColorRole::SurfaceRaised
+                    radius={Radius::custom(8.0)}
+                    padding={Sides::symmetric(14.0, 8.0)}
+                    border={Border::new(ColorRole::Border).width(1.0)}
                     @test_id={"game.banner"}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
@@ -669,7 +650,7 @@ pub(crate) fn GameCreation(
         false => TextColor::Muted,
     });
     view! {
-        <Frame padding_horizontal=14.0 padding_vertical=14.0>
+        <Frame padding=14.0>
             <List spacing=10.0 align=Align::Start>
                 <ForEach keys={games}>
                     {move |game: StagedChoice| {

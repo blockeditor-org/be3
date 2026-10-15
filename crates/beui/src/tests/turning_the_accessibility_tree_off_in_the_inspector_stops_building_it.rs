@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, view};
+use crate::reactive::*;
 
 #[test]
 fn turning_the_accessibility_tree_off_in_the_inspector_stops_building_it() {

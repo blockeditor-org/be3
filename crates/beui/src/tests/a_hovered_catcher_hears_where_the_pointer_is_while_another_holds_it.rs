@@ -1,6 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {

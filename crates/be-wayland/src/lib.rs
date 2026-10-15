@@ -11,6 +11,7 @@ mod idle;
 mod presentation;
 pub mod programs;
 mod render;
+mod runtime_dir;
 mod selection;
 mod server;
 mod shortcuts_inhibit;

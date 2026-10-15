@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::action_row::ActionRow;
@@ -8,7 +9,7 @@ use crate::icon_button::{IconButton, IconButtonSize};
 use crate::list_row::ListRow;
 use crate::sheet::ModalSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
-use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, SHEET_STOPS, TabId,
@@ -17,9 +18,8 @@ use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Track, create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 2.0;
@@ -28,8 +28,8 @@ const TITLE_SPACING: f32 = 10.0;
 const SHEET_PADDING: f32 = 12.0;
 const COUNT_SIDE: f32 = 22.0;
 const COUNT_TARGET: f32 = 40.0;
-const COUNT_RADIUS: u8 = 6;
-const COUNT_TARGET_RADIUS: u8 = 8;
+const COUNT_RADIUS: f32 = 6.0;
+const COUNT_TARGET_RADIUS: f32 = 8.0;
 const COUNT_OUTLINE: f32 = 2.0;
 const CARD_SPACING: f32 = 10.0;
 const CARD_HEIGHT: f32 = 96.0;
@@ -50,16 +50,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         switch_label,
         open_switcher,
     } = handle;
-    let theme = use_theme();
     let counted = create_memo(move || others.get() > 0);
     let pictured = create_memo(move || !icon.get().is_empty());
     view! {
         <List spacing=0.0>
-            <Frame
-                color={theme.surface}
-                padding_horizontal=BAR_PADDING
-                padding_vertical=BAR_PADDING
-            >
+            <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={away}>
                         {move || view! {
@@ -72,7 +67,10 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             />
                         }}
                     </Show>
-                    <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=TITLE_PADDING>
+                    <Frame
+                        @sizing=ItemSize::Percent(100.0)
+                        padding={Sides::horizontal(TITLE_PADDING)}
+                    >
                         <List
                             direction=Direction::Horizontal
                             align=Align::Center
@@ -130,21 +128,16 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                     <Frame
                         width=COUNT_TARGET
                         height=COUNT_TARGET
-                        color={fill}
-                        radius=COUNT_TARGET_RADIUS
-                        outline={theme.accent}
-                        outline_width=FOCUS_RING_WIDTH
-                        outline_visible={focus_ring(focused)}
-                        align_horizontal=Align::Center
-                        align_vertical=Align::Center
+                        fill={ColorRole::custom(fill)}
+                        radius={Radius::custom(COUNT_TARGET_RADIUS)}
+                        border={focus_border(focused, Border::FOCUS)}
+                        align=Align::Center
                     >
                         <Frame
                             width=COUNT_SIDE
                             height=COUNT_SIDE
-                            radius=COUNT_RADIUS
-                            outline={theme.text}
-                            outline_width=COUNT_OUTLINE
-                            outline_visible=true
+                            radius={Radius::custom(COUNT_RADIUS)}
+                            border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
                         >
                             <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
                         </Frame>
@@ -175,10 +168,10 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
     view! {
         <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
-                <Frame padding_horizontal=SHEET_PADDING>
+                <Frame padding={Sides::horizontal(SHEET_PADDING)}>
                     <Text style=TextStyle::HEADING string="Open tabs" />
                 </Frame>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                <Frame padding=SHEET_PADDING>
                     <List spacing=CARD_SPACING>
                         <Show condition={none}>
                             <Text style=TextStyle::CAPTION string="Nothing else is open." />
@@ -198,7 +191,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                 </Frame>
                 <Show condition={homed}>
                     {move || view! {
-                        <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                        <Frame padding=SHEET_PADDING>
                             <ActionRow
                                 @test_id={"dock.switcher.home"}
                                 label={home_title}
@@ -233,13 +226,10 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
     view! {
         <Frame
             height=CARD_HEIGHT
-            radius=CARD_RADIUS
-            color={theme.surface_raised}
-            outline={outline}
-            outline_width=CARD_OUTLINE
-            outline_visible=true
-            padding_horizontal=CARD_PADDING
-            padding_vertical=CARD_PADDING
+            radius=Radius::Lg
+            fill=ColorRole::SurfaceRaised
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(CARD_OUTLINE)))}
+            padding=CARD_PADDING
         >
             <List direction=Direction::Horizontal spacing=0.0>
                 <ListRow
@@ -247,7 +237,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     @test_id={format!("dock.switcher.tab.{id}")}
                     on_click={pick}
                 >
-                    <Frame padding_vertical=CARD_PADDING>
+                    <Frame padding={Sides::vertical(CARD_PADDING)}>
                         <List spacing=CARD_LINES>
                             <List direction=Direction::Horizontal spacing=0.0>
                                 <Text color=TextColor::Accent align=TextAlign::Center>

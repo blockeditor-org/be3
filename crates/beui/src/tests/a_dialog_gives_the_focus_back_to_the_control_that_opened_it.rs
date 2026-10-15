@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, build, create_signal, view};
-use crate::styled::{Button, ButtonVariant, Dialog, TextInput};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {

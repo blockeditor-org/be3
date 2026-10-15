@@ -4,14 +4,8 @@ use block_editor_beui::be_block::database_schema::{
     ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList,
-    component, create_memo, view,
-};
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
-use block_editor_beui::beui::styled::{
-    ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, Separator, TextColor, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
 use block_editor_beui::database::{ChoiceMark, choice_color};
@@ -22,7 +16,6 @@ use crate::database_view::app::data::Data;
 use crate::database_view::app::row::RowPanel;
 use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::sort::BlockLabels;
-use block_editor_beui::beui::styled::{Icon, Text, TextSize, TextStyle};
 
 const PANEL_WIDTH: f32 = 460.0;
 const LINE_HEIGHT: f32 = 38.0;
@@ -81,30 +74,21 @@ pub fn ListView(data: Data) -> NodeId {
             false => "No rows match the search.".to_owned(),
         },
     );
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <Scroll>
-                <Frame padding_bottom={Some(GUTTER * 2.0)}>
+                <Frame padding={Sides::new(0.0, 0.0, 0.0, GUTTER * 2.0)}>
                     <List spacing=0.0>
                         <Show condition={empty}>
                             {move || view! {
-                                <Frame padding_horizontal={GUTTER * 1.5} padding_vertical=GUTTER>
+                                <Frame padding={Sides::symmetric(GUTTER * 1.5, GUTTER)}>
                                     <Text style=TextStyle::CAPTION string={blank} />
                                 </Frame>
                             }}
                         </Show>
                         <VirtualList keys={lines} item_size=LINE_HEIGHT>
-                            {move |line: Line| {
-                                let groups = groups;
-                                match line {
-                                    Line::Header(key) => view! {
-                                        <GroupHeader data={data} groups={groups} key={key} />
-                                    },
-                                    Line::Row(row) => view! {
-                                        <RowLine data={data} row={row} />
-                                    },
-                                }
+                            {move |line: ReadSignal<Line>| view! {
+                                <AnyLine data={data} groups={groups} line={line} />
                             }}
                         </VirtualList>
                     </List>
@@ -236,13 +220,10 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
     };
     let read_only = data.read_only;
     let test_key = group_test_key(key);
-    let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface}
-            padding_left={Some(GUTTER * 0.5)}
-            padding_right={Some(GUTTER * 0.5)}
-            padding_vertical=2.0
+            fill=ColorRole::Surface
+            padding={Sides::vertical(2.0).left(GUTTER * 0.5).right(GUTTER * 0.5)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
@@ -282,9 +263,59 @@ pub fn group_test_key(key: GroupKey) -> String {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LineKind {
+    Header,
+    Row,
+}
+
 #[component]
-fn RowLine(data: Data, row: ObjectId) -> NodeId {
-    let index = create_memo(move || data.row_index.with(|indices| indices.get(&row).copied()));
+fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> NodeId {
+    let kind = create_memo(move || match line.get() {
+        Line::Header(_) => LineKind::Header,
+        Line::Row(_) => LineKind::Row,
+    });
+    let header = create_memo(move || match line.get() {
+        Line::Header(key) => Some(key),
+        Line::Row(_) => None,
+    });
+    let row = create_memo(move || match line.get() {
+        Line::Row(row) => Some(row),
+        Line::Header(_) => None,
+    });
+    view! {
+        <List spacing=0.0>
+            <Dynamic value={kind}>
+                {move |kind: LineKind| match kind {
+                    LineKind::Header => view! {
+                        <List spacing=0.0>
+                            <Dynamic value={header}>
+                                {move |key: Option<GroupKey>| match key {
+                                    Some(key) => view! {
+                                        <GroupHeader data={data} groups={groups} key={key} />
+                                    },
+                                    None => view! {
+                                        <Frame />
+                                    },
+                                }}
+                            </Dynamic>
+                        </List>
+                    },
+                    LineKind::Row => view! {
+                        <RowLine data={data} row={row} />
+                    },
+                }}
+            </Dynamic>
+        </List>
+    }
+}
+
+#[component]
+fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
+    let index = create_memo(move || {
+        let row = row.get()?;
+        data.row_index.with(|indices| indices.get(&row).copied())
+    });
     let entry = create_memo(move || {
         let index = index.get()?;
         data.rows.with(|rows| rows.get(index).cloned())
@@ -295,7 +326,16 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
             .get()
             .is_some_and(|selection| Some(selection.row) == index)
     });
-    let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
+    let code = create_memo(move || {
+        row.get()
+            .map(|row| short_id(&data.prefix.get(), row.as_uuid()))
+            .unwrap_or_default()
+    });
+    let test_id = create_memo(move || {
+        row.get()
+            .map(|row| format!("database-view.list.row.{}", row.as_uuid()))
+            .unwrap_or_default()
+    });
     let title = create_memo(move || {
         let field = data.title_field.get();
         entry.with(|entry| row_title(entry.as_ref(), field))
@@ -328,19 +368,18 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
     let part_keys = create_memo(move || {
         parts.with(|parts| parts.iter().map(|(key, _)| *key).collect::<Vec<Uuid>>())
     });
-    let pick = move || data.select_row(row);
+    let pick = move || {
+        if let Some(row) = row.get_untracked() {
+            data.select_row(row);
+        }
+    };
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
     let (wide_marks, wide_parts, wide_keys) = (marks, parts, part_keys);
     let (wide_entry, narrow_entry) = (entry, entry);
     let (wide_code, wide_title) = (code, title);
     view! {
-        <ListRow
-            selected={selected}
-            @test_id={format!("database-view.list.row.{}", row.as_uuid())}
-            on_click={pick}
-            on_activate={pick}
-        >
+        <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
             <List spacing=0.0>
                 <Show condition={wide}>
                     {move || view! {
@@ -501,18 +540,16 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
     });
     let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));
     view! {
-        <Frame
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
-            radius=10
-            padding_horizontal=8.0
-            padding_vertical=1.0
-        >
+        <Frame border={Border::DEFAULT} radius=Radius::Lg padding={Sides::symmetric(8.0, 1.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
                 <Show condition={dotted}>
                     {move || view! {
-                        <Frame width=8.0 height=8.0 radius=2 color={dot} />
+                        <Frame
+                            width=8.0
+                            height=8.0
+                            radius=Radius::Xs
+                            fill={ColorRole::custom(dot)}
+                        />
                     }}
                 </Show>
                 <Show condition={linked}>

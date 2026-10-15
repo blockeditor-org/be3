@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::ColorPicker;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {

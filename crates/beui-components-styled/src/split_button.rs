@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
 use crate::text::{Icon, Text};
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuButtonHandle, MenuItem};
@@ -11,10 +12,8 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Children, ClickCallback, Direction, Frame, List, Memo, Prop, ReadSignal, Show,
-    create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const INSET: f32 = 2.0;
 const GLYPH_SPACING: f32 = 6.0;
@@ -41,13 +40,10 @@ pub fn SplitButton(
     let fill = create_memo(move || variant.fill(&theme, disabled.get(), false, false));
     view! {
         <Frame
-            color={fill}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible={variant == ButtonVariant::Secondary}
-            radius=RADIUS
-            padding_horizontal=INSET
-            padding_vertical=INSET
+            fill={ColorRole::custom(fill)}
+            border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
+            radius=Radius::Md
+            padding=INSET
         >
             <unstyled::SplitButton
                 label
@@ -129,8 +125,8 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
     let divider = create_memo(move || divider_color(&theme, variant, disabled.get()));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame padding_vertical=DIVIDER_INSET>
-                <Frame width=DIVIDER_WIDTH color={divider} />
+            <Frame padding={Sides::vertical(DIVIDER_INSET)}>
+                <Frame width=DIVIDER_WIDTH fill={ColorRole::custom(divider)} />
             </Frame>
             <Tooltip label disabled={open}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
@@ -152,10 +148,10 @@ enum Side {
 }
 
 impl Side {
-    fn corners(self, radius: u8) -> (u8, u8) {
+    fn corners(self, radius: f32) -> (f32, f32) {
         match self {
-            Side::Leading => (radius, 0),
-            Side::Trailing => (0, radius),
+            Side::Leading => (radius, 0.0),
+            Side::Trailing => (0.0, radius),
         }
     }
 }
@@ -168,28 +164,17 @@ fn HalfFace(
     padding: f32,
     children: beui_view::reactive::Child,
 ) -> NodeId {
-    let theme = use_theme();
-    let (ring_left, ring_right) = side.corners(RADIUS);
-    let (fill_left, fill_right) = side.corners(RADIUS - INSET as u8);
+    let (ring_left, ring_right) = side.corners(Radius::Md.px());
+    let (fill_left, fill_right) = side.corners(Radius::Md.px() - INSET);
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius_top_left=ring_left
-            radius_bottom_left=ring_left
-            radius_top_right=ring_right
-            radius_bottom_right=ring_right
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
+            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            radius={Radius::Custom(Corners::new(ring_left, ring_right, ring_right, ring_left))}
         >
             <Frame
-                color={fill}
-                radius_top_left=fill_left
-                radius_bottom_left=fill_left
-                radius_top_right=fill_right
-                radius_bottom_right=fill_right
-                padding_horizontal=padding
-                padding_vertical=PADDING_VERTICAL
+                fill={ColorRole::custom(fill)}
+                radius={Radius::Custom(Corners::new(fill_left, fill_right, fill_right, fill_left))}
+                padding={Sides::symmetric(padding, PADDING_VERTICAL)}
             >
                 {children}
             </Frame>

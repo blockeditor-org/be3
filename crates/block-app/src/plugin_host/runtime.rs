@@ -154,6 +154,7 @@ pub(super) struct Runtime {
     utc_offset: Option<i32>,
     fonts_sent: bool,
     described: bool,
+    painting: bool,
     pub(super) placements: HashMap<(EditorInstanceId, EditorRegion), Placed>,
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
@@ -268,6 +269,7 @@ impl Runtime {
             utc_offset: None,
             fonts_sent: false,
             described: false,
+            painting: false,
             placements: HashMap::new(),
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
@@ -296,6 +298,7 @@ impl Runtime {
         self.utc_offset = None;
         self.fonts_sent = false;
         self.described = false;
+        self.painting = false;
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
@@ -429,7 +432,37 @@ impl Runtime {
             self.session.state(),
             SessionState::Idle | SessionState::Starting
         );
-        starting || self.drawing() || !self.backend.settled()
+        starting
+            || self.painting
+            || self.drawing()
+            || !self.backend.settled()
+            || self.instances.awaiting_content()
+    }
+
+    fn request_painting(&mut self) {
+        if self.error.is_some()
+            || !self.instances.has_mounted()
+            || *self.session.state() != SessionState::Running
+        {
+            return;
+        }
+        self.painting = true;
+        self.send(vec![Message::Extension {
+            key: beui::painting::PAINTING_EXTENSION,
+            payload: Vec::new(),
+        }]);
+    }
+
+    fn painted(&mut self, payload: &[u8]) {
+        self.painting = false;
+        let mut shared = self.shared.borrow_mut();
+        shared.paintings.clear();
+        let Ok(paintings) = beui::painting::ScreenPaintings::decode(payload) else {
+            return;
+        };
+        for (screen, painting) in paintings.screens {
+            shared.paintings.insert(ScreenId(screen), painting);
+        }
     }
 
     fn drawing(&mut self) -> bool {
@@ -486,6 +519,7 @@ impl Runtime {
         crate::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
         self.error = Some(error);
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
+        CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
         mark(&self.plugin.identity.id);
         host::request_repaint();
     }
@@ -535,6 +569,11 @@ impl Runtime {
         }
         match self.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
+            SessionState::Failed(failure) => {
+                let error = format!("The plugin session stopped: {failure:?}");
+                self.crashed(error);
+                return;
+            }
             state => {
                 self.error = Some(format!("The plugin session stopped: {state:?}"));
                 return;
@@ -604,6 +643,12 @@ impl Runtime {
                     let (answered, changed) = self.instances.set_children(placements);
                     answers.extend(answered);
                     changed
+                }
+                Message::Extension { key, payload }
+                    if key == beui::painting::PAINTING_EXTENSION =>
+                {
+                    self.painted(&payload);
+                    true
                 }
                 _ => false,
             };
@@ -1011,6 +1056,16 @@ pub(crate) fn busy() -> bool {
             .values_mut()
             .any(|runtime| runtime.contain(Runtime::busy))
     })
+}
+
+pub(crate) fn request_painting() {
+    each(|runtime| {
+        runtime.contain(|runtime| {
+            runtime.request_painting();
+            Some(())
+        });
+    });
+    host::request_repaint();
 }
 
 pub(crate) fn drawing() -> bool {
@@ -1448,6 +1503,15 @@ fn theme() -> Theme {
 thread_local! {
     static CHANGED: RefCell<std::collections::HashSet<String>> =
         RefCell::new(std::collections::HashSet::new());
+    static CRASHED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+pub(crate) fn take_crashed() -> Vec<String> {
+    CRASHED.with(|crashed| std::mem::take(&mut *crashed.borrow_mut()))
+}
+
+pub(crate) fn crash(plugin_id: &str, error: String) {
+    with(plugin_id, |runtime| runtime.crashed(error));
 }
 
 pub(super) fn mark(plugin_id: &str) {
@@ -2005,7 +2069,7 @@ pub(crate) fn region_drawing(
         let screen = runtime.instances.screen_id(instance, region)?;
         let mut template = runtime.template(screen, view.drawn);
         template.quad.opacity = opacity;
-        Some(beui::drawing(RegionDrawing::new(
+        Some(beui::painted_drawing(RegionDrawing::new(
             template,
             pieces.to_vec(),
             view.held,

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ForEach, Frame, ItemSize, List, NodeRef, Spacer, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]
@@ -12,7 +13,7 @@ fn a_touch_fling_that_ends_without_moving_keeps_its_momentum() {
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(40)}>
                         {|_: usize| view! {
-                            <Frame padding_horizontal=0.0 padding_vertical=20.0>
+                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Spacer />
                             </Frame>
                         }}

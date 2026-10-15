@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, with_reactive_scope};
-use crate::styled::ModalSheet;
+use crate::primitives::Frame;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Tabs;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {

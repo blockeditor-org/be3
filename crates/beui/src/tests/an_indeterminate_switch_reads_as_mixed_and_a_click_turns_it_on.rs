@@ -1,8 +1,8 @@
 use accesskit::{Role, Toggled};
 
 use super::*;
-use crate::reactive::view;
-use crate::styled::Switch;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on() {

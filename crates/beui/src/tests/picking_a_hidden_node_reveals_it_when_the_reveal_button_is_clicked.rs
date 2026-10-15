@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, List, NodeRef, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
@@ -9,10 +10,10 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Frame padding_horizontal=4.0 padding_vertical=4.0>
-                        <Frame padding_horizontal=4.0 padding_vertical=4.0>
-                            <Frame padding_horizontal=4.0 padding_vertical=4.0>
-                                <Frame padding_horizontal=4.0 padding_vertical=4.0>
+                    <Frame padding=4.0>
+                        <Frame padding=4.0>
+                            <Frame padding=4.0>
+                                <Frame padding=4.0>
                                     <Text @node_ref=&text string="Hello" color=Color32::WHITE />
                                 </Frame>
                             </Frame>

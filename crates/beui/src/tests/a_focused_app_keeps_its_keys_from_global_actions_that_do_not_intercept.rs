@@ -1,7 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::KeyAt;
-use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {

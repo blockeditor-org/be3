@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Align, Direction, Frame, List, NodeRef, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_frame_keeps_its_size_between_its_min_and_max() {
@@ -9,10 +10,10 @@ fn a_frame_keeps_its_size_between_its_min_and_max() {
         move || {
             view! {
                 <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
-                    <Frame @node_ref=&widened min_width=80.0>
+                    <Frame @node_ref=&widened width={Extent::at_least(80.0)}>
                         <Frame width=20.0 height=10.0 />
                     </Frame>
-                    <Frame @node_ref=&capped width=30.0 max_height=25.0 />
+                    <Frame @node_ref=&capped width=30.0 height={Extent::at_most(25.0)} />
                 </List>
             }
         }

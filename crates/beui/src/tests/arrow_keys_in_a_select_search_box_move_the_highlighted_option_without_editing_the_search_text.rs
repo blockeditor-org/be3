@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Select;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing_the_search_text() {

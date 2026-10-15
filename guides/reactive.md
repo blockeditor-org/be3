@@ -185,7 +185,7 @@ pub struct Theme {
 }
 
 let theme = ThemeStore::new(Theme::DARK);
-view! { <Frame color={theme.background} /> }
+let accent: Prop<Color32> = theme.accent.into_prop();
 theme.set_accent(Color32::WHITE);
 ```
 
@@ -300,14 +300,26 @@ queues it for the host. It is already held behind whether the host says the
 block may be edited, and dropped until the host has sent the content once, since
 an edit made against content that has not arrived would land in the wrong place.
 `read` answers the content outside a projection (`None` until the host has sent
-it once), and `loaded()` is a signal that turns true when it has. Until then an
-editor shows `block_editor_beui::Loading` rather than an empty or editable
-view, and it keeps showing it until everything it draws from has arrived, so
-nothing is shown and then corrected a moment later: the database view waits for
-its database, schema, relations and row labels. `RelatedContent::settled()` and
-`content_settled` turn true once a block's content has arrived or the account
-cannot read it, so a block that will never arrive does not leave an editor
-loading forever.
+it once), and `loaded()` is a signal that turns true when it has.
+
+An editor shows nothing it would have to correct a moment later: not an empty
+or editable view before its content arrives, and not a placeholder ("no rows")
+that the next answer replaces. Every `BeuiApp::view` and `preview_view` wraps
+its component in `<Loaded loaded={...}>`, which shows `Loading` (a spinner)
+until the signal first turns true and only then builds what it wraps, and keeps
+it from then on, so a later change updates the view in place instead of
+bringing the spinner back. `editor.loaded::<C>(&[queries])` is the usual
+signal: the editor's own content and the answer to each graph query it draws
+names from, such as `BlockQuery::References(own)`. An editor that needs more
+waits for that too - the version control editors for `editor.version_known()`,
+the workspace shells for their view block, the database view for its database,
+schema, relations and row labels - and one with a placeholder that is already
+right while loading shows that instead (an image shows its thumbhash).
+`RelatedContent::settled()` and `content_settled` turn true once a block's
+content has arrived or the account cannot read it, so a block that will never
+arrive does not leave an editor loading forever. Something that loads later,
+inside a view that is already shown (a folder in the file tree being expanded),
+says "Loading…" in its own place.
 
 The graph around a block - its children, what it references, what references
 it - is a query rather than content. `editor.watch_blocks(BlockQuery::Children(id))`
@@ -427,10 +439,8 @@ with `view!` inside a `#[component]`, and build the document with `build`, which
 supplies the document ambiently and returns the finished `Document`.
 
 ```rust
-use beui::reactive::{
-    build, component, create_memo, create_signal, view, Button, Direction, List,
-    Text,
-};
+use beui::reactive::*;
+use beui::styled::*;
 
 #[component]
 fn App() -> beui::NodeId {
@@ -439,13 +449,9 @@ fn App() -> beui::NodeId {
     view! {
         <List spacing=0.0>
             <List direction=Direction::Horizontal spacing=8.0>
-                <Button on_click={move || set_count.update(|count| *count -= 1)}>
-                    <Text string="-" />
-                </Button>
+                <Button label="-" on_click={move || set_count.update(|count| *count -= 1)} />
                 <Text string={count_text} /> // updates itself when `count` changes
-                <Button on_click={move || set_count.update(|count| *count += 1)}>
-                    <Text string="+" />
-                </Button>
+                <Button label="+" on_click={move || set_count.update(|count| *count += 1)} />
             </List>
         </List>
     }
@@ -472,11 +478,11 @@ enough to read on their own may drop the braces: literals, paths, a call on a
 path, a unary expression, and a reference to a path.
 
 ```rust
-<Frame color=SURFACE>
+<Frame fill=ColorRole::Surface>
 <Text style=TextStyle::CAPTION string=count_text align=TextAlign::End />
 <List direction=Direction::Horizontal />
 <Frame @node_ref=&panel width=TRIGGER_WIDTH height=HEIGHT>
-<Frame color=Color32::from_gray(40) radius=4>
+<Frame fill=ColorRole::Accent radius=Radius::Sm>
 ```
 
 An attribute written as a bare name takes the value of the binding with that
@@ -540,8 +546,8 @@ memo straight to the prop; a memo only wakes the property when its value
 actually changes.
 
 ```rust
-let fill = create_memo(move || if hovered.get() { HOVER } else { REST });
-view! { <Frame color={fill} radius=RADIUS>{child}</Frame> }
+let fill = create_memo(move || if hovered.get() { ColorRole::Hover } else { ColorRole::Surface });
+view! { <Frame fill radius=Radius::Md>{child}</Frame> }
 ```
 
 `Prop<T>` reads with `get()`, which subscribes the computation around it, and
@@ -711,7 +717,9 @@ that state on its own — a click moves focus, a scrim click dismisses an overla
 pair the prop with the matching callback and write the signal back:
 `on_focus_change` for `focused` and `on_dismiss` for `open`. Without the write
 back the signal goes stale and the next write of the value it already holds
-changes nothing. `on_dismiss` reports only the document closing the overlay,
+changes nothing. The document reports every way a node loses the focus,
+including being hidden or removed, and a `focused` that starts `false` does not
+touch the focus. `on_dismiss` reports only the document closing the overlay,
 never the owner writing `open` false, so it can mean "cancel" without guarding
 against the owner's own close.
 
@@ -885,7 +893,8 @@ the document.
 
 `Show`, `Dynamic`, `Keyed`, `ForEach` and `VirtualList` build each child in a
 scope of its own and drop that scope to drop the child: `Show` disposes its
-child's scope when it hides it, where `ShowKeepAlive` pauses it. Anything else
+child's scope when it hides it, where `ShowKeepAlive` pauses it, and
+`VirtualList` keeps a released row's scope to hand the row its next key. Anything else
 that drops part of a view on its own keeps a `Scope` for it and drops that,
 as the dock does for each tab's panel; nothing removes nodes by hand. A
 component that returns a value rather than a node lives as long as the scope

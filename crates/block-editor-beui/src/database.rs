@@ -9,14 +9,8 @@ use be_block::database_schema::{
 };
 use beui::datetime::DateTime;
 use beui::icons::ICON_CLEAR;
-use beui::reactive::{
-    Align, Callback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal,
-    Show, Spacer, component, create_effect, create_memo, create_signal, view,
-};
-use beui::styled::{
-    Button, ButtonVariant, Checkbox, ColorInput, DateTimeField, IconButton, NumberDrag,
-    NumberInput, Select, Text, TextInput, TextStyle,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
 pub use block_ui::database::ValueLabels;
@@ -963,7 +957,7 @@ pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
         false => beui::TextAlign::Start,
     });
     view! {
-        <Frame padding_horizontal=SPACING>
+        <Frame padding={Sides::horizontal(SPACING)}>
             <Text string={text} align={align} />
         </Frame>
     }

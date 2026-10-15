@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn tab_focus_stays_in_the_active_document_when_the_inspector_is_open() {

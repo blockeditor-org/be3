@@ -6,8 +6,8 @@ use block_editor_beui::be_block::database_schema::{
     DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseRelationOptions,
     DatabaseSchema, DatabaseSchemaContent,
 };
-use block_editor_beui::beui::styled::ToggleButton;
 use block_editor_beui::beui::styled::context_menu::menu_style;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{
     ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
@@ -19,14 +19,7 @@ use block_editor_beui::beui::icons::{
     ICON_CALENDAR_TODAY, ICON_CHECK_BOX, ICON_DELETE, ICON_LINK, ICON_NUMBERS, ICON_PALETTE,
     ICON_SHORT_TEXT, ICON_WIDGETS,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, component,
-    create_effect, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Checkbox, IconButton, NumberInput, Scroll, Select, Separator, TextInput,
-    use_theme,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, watch_block_label};
@@ -34,7 +27,6 @@ use uuid::Uuid;
 
 use super::field_line_count;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 #[derive(Clone, Copy)]
 struct Schema(ContentProjection<DatabaseSchemaContent>);
@@ -112,9 +104,8 @@ pub fn SchemaView(editor: Editor) -> NodeId {
     };
 
     let add_disabled = read_only;
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=SECTION_SPACING>
                 <Text style=TextStyle::HEADING string="Fields" />
                 <Scroll @sizing=ItemSize::Percent(100.0)>
@@ -354,7 +345,7 @@ fn NumberOptions(
     let (minimum_options, maximum_options, step_options) = (options, options, options);
     view! {
         <List spacing=ROW_SPACING>
-            <Frame padding_left={INDENT + ROW_SPACING}>
+            <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
                 <List spacing=ROW_SPACING>
                     <OptionalNumber
                         schema={schema}
@@ -521,7 +512,7 @@ fn EnumOptions(
         schema.operate(DatabaseSchema::add_enum_option(id, format!("Option {}", count + 1)).1);
     };
     view! {
-        <Frame padding_left={INDENT + ROW_SPACING}>
+        <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
             <List spacing=ROW_SPACING>
                 <ForEach keys={keys}>
                     {move |option_id: Uuid| {
@@ -802,7 +793,7 @@ fn BlockOptions(
         ));
     };
     view! {
-        <Frame padding_left={INDENT + ROW_SPACING}>
+        <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text string="Block type" />
                 <Select
@@ -913,7 +904,7 @@ fn RelationOptions(
     };
     let (multiple_off, inverse_off) = (read_only, read_only);
     view! {
-        <Frame padding_left={INDENT + ROW_SPACING}>
+        <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text string="Links to" />

@@ -1,15 +1,11 @@
 use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
 use block_editor_beui::be_block::database_schema::DatabaseField;
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo,
-    ReadSignal, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Pos2, TextAlign, Vec2};
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const AXIS_LEFT: f32 = 48.0;
 const AXIS_BOTTOM: f32 = 32.0;
@@ -33,12 +29,11 @@ pub fn Scatter(data: Data) -> NodeId {
     let axes = axis_fields(data);
     let missing = create_memo(move || axes.get().is_none());
     let ready = create_memo(move || axes.get().is_some());
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={missing}>
-                    <Frame padding_horizontal=12.0 padding_vertical=12.0>
+                    <Frame padding=12.0>
                         <Text
                             style=TextStyle::CAPTION
                             string="Choose X and Y fields to use the scatter view."
@@ -117,10 +112,10 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                     >
                         <Canvas>
                             <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
-                                <Frame color={axis_color} />
+                                <Frame fill={ColorRole::custom(axis_color)} />
                             </CanvasItem>
                             <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
-                                <Frame color={rule_color} />
+                                <Frame fill={ColorRole::custom(rule_color)} />
                             </CanvasItem>
                             <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
                                 <Text style=TextStyle::CAPTION string={x_low} />
@@ -212,10 +207,14 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
         true => theme.accent.get(),
         false => theme.text.get(),
     });
-    let radius = create_memo(move || (side.get() * 0.5) as u8);
+    let radius = create_memo(move || Radius::custom((side.get() * 0.5).floor()));
     view! {
         <CanvasItem x={x} y={y} width={width} height={side}>
-            <Frame @test_id={format!("database-view.point.{row}")} color={color} radius={radius} />
+            <Frame
+                @test_id={format!("database-view.point.{row}")}
+                fill={ColorRole::custom(color)}
+                radius=radius
+            />
         </CanvasItem>
     }
 }

@@ -1,16 +1,17 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::focus_ring::FocusRing;
 use crate::text::{Text, TextColor};
 use crate::text_input::TextInput;
-use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Frame, NodeRef, Prop, create_memo, set_component_state};
+use beui_view::reactive::*;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
@@ -27,6 +28,7 @@ pub fn NumberInput(
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
+    #[prop(default = None)] decimals: Prop<Option<u32>>,
     on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
@@ -42,6 +44,7 @@ pub fn NumberInput(
             label
             disabled
             drag
+            decimals
             face={move |handle: NumberFaceHandle| view! {
                 <NumberFace handle shown placeholder={face_placeholder} />
             }}
@@ -102,12 +105,10 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         <FocusRing focused offset=FOCUS_RING_OFFSET>
             <Frame
                 height=HEIGHT
-                color={fill}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                radius=RADIUS
-                outline_visible=true
-                padding_horizontal=PADDING_HORIZONTAL
+                fill={ColorRole::custom(fill)}
+                border={Border::DEFAULT}
+                radius=Radius::Md
+                padding={Sides::horizontal(PADDING_HORIZONTAL)}
             >
                 <Text
                     @node_ref=&shown

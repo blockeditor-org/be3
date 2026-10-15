@@ -1,6 +1,6 @@
 use sha2::{Digest as _, Sha256};
 
-use crate::format::TextureKey;
+use crate::TextureKey;
 
 pub fn fingerprint(size: [u32; 2], pixels: &[[u8; 4]]) -> TextureKey {
     let mut hash = Sha256::new();

@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{BackHandler, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {

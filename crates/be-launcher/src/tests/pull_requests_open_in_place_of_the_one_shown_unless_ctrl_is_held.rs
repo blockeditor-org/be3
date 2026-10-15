@@ -1,6 +1,6 @@
 use std::sync::mpsc::channel;
 
-use beui::reactive::with_reactive_scope;
+use beui::reactive::*;
 use beui::{Event, Modifiers, Vec2};
 use block_ui_test::DocumentTest;
 

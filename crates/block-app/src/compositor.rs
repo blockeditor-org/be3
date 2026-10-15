@@ -7,7 +7,7 @@ use std::{
     collections::HashMap,
 };
 
-use beui::reactive::{ReadSignal, WriteSignal, create_signal, on_cleanup};
+use beui::reactive::*;
 
 use crate::editors::EditorAction;
 
@@ -27,6 +27,7 @@ thread_local! {
     static ANY: RefCell<Option<(ReadSignal<u64>, WriteSignal<u64>)>> = const { RefCell::new(None) };
     static CHANGED: Cell<bool> = const { Cell::new(false) };
     static STALE: Cell<u64> = const { Cell::new(0) };
+    static OWED: Cell<bool> = const { Cell::new(false) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
     static SHELL: RefCell<Option<ShellSignal>> = const { RefCell::new(None) };
 }
@@ -103,20 +104,31 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
 }
 
 pub(crate) fn notify() {
+    OWED.with(|owed| owed.set(false));
     apply_shell();
     crate::surfaces::apply();
     notify_plugins();
 }
 
-pub(crate) fn notify_plugins() {
+pub(crate) fn notify_after_layout() {
+    if notify_plugins() {
+        OWED.with(|owed| owed.set(true));
+        crate::host::request_repaint();
+    }
+}
+
+pub(crate) fn owes_frame() -> bool {
+    OWED.with(Cell::get)
+}
+
+fn notify_plugins() -> bool {
     let stale = crate::be::stale_revision();
     if STALE.with(|seen| seen.replace(stale)) != stale {
         changed();
     }
     let changed = crate::plugin_host::take_changed();
-    if (!changed.is_empty() || CHANGED.with(|flag| flag.replace(false)))
-        && let Some((_, write)) = ANY.with(|any| *any.borrow())
-    {
+    let notified = !changed.is_empty() || CHANGED.with(|flag| flag.replace(false));
+    if notified && let Some((_, write)) = ANY.with(|any| *any.borrow()) {
         write.update(|revision| *revision += 1);
     }
     for plugin_id in changed {
@@ -131,6 +143,7 @@ pub(crate) fn notify_plugins() {
             write.update(|revision| *revision += 1);
         }
     }
+    notified
 }
 
 pub(crate) fn act(from: Option<uuid::Uuid>, action: EditorAction) {

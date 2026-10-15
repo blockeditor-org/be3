@@ -1,7 +1,8 @@
 use super::*;
 use crate::FontId;
 use crate::font::TextAlign;
-use crate::reactive::{Direction, List, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const LABEL: &str = "Unbraced";
 const LABEL_SIZE: f32 = 20.0;
@@ -21,8 +22,8 @@ fn view_attributes_can_be_written_without_braces() {
                             @node_ref=&box_ref
                             width=BOX_WIDTH
                             height=40.0
-                            color=Color32::from_gray(40)
-                            radius=4
+                            fill={Color32::from_gray(40)}
+                            radius=4.0
                         >
                             <Text
                                 @node_ref=&label

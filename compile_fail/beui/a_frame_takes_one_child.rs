@@ -1,5 +1,6 @@
 use beui::NodeId;
-use beui::reactive::{Frame, Spacer, component, view};
+use beui::reactive::*;
+use beui::styled::*;
 
 #[component]
 fn Case() -> NodeId {

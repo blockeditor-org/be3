@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Checkbox;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_screen_reader_keeps_clicks_away_from_the_document() {

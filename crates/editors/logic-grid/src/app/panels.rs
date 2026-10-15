@@ -1,17 +1,11 @@
 use std::cell::Cell;
 
-use beui::reactive::{
-    Align, Direction, Draw, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo, Prop, Show,
-    Spacer, component, create_memo, create_signal, store, view,
-};
-use beui::styled::{
-    Accordion, Button, ButtonVariant, Dialog, ListRow, Scroll, Separator, use_theme,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{FontId, NodeId, Painter, PointerPress};
 
 use super::session::Session;
 use super::*;
-use beui::styled::{Text, TextColor, TextStyle};
 
 const SPACING: f32 = 8.0;
 const LABEL_WIDTH: f32 = 110.0;
@@ -518,7 +512,11 @@ fn InstructionRow(
     let unresolved = create_memo(move || row.get().is_none_or(|row| row.2 != Some(true)));
     let target = move || session.update(|model| model.select_instruction_target(index));
     view! {
-        <Frame color={fill} radius=3 padding_horizontal=4.0>
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius={Radius::custom(3.0)}
+            padding={Sides::horizontal(4.0)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={text} />
                 <Show condition={calls}>
@@ -717,7 +715,7 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
                         cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
                     });
                     view! {
-                        <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding_horizontal=2.0>
+                        <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding={Sides::horizontal(2.0)}>
                             <Text string={text} />
                         </Frame>
                     }
@@ -759,7 +757,7 @@ fn TickCell(cell: Memo<Option<(String, Option<bool>)>>) -> NodeId {
         None => TextColor::Muted,
     });
     view! {
-        <Frame width=CELL_WIDTH padding_horizontal=2.0>
+        <Frame width=CELL_WIDTH padding={Sides::horizontal(2.0)}>
             <Text style=TextStyle::CODE string={text} color={color} />
         </Frame>
     }
@@ -1071,7 +1069,7 @@ fn GraphCanvas(
     };
     view! {
         <Interactive on_hover_move={over} on_hover_change={left}>
-            <Frame width={width} height={height}>
+            <Frame width=width height=height>
                 <Drawing draw={draw} />
             </Frame>
         </Interactive>

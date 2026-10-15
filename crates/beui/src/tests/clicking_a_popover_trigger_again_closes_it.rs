@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, Text, build, view};
-use crate::styled::Popover;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::PopoverHandle;
 
 #[test]

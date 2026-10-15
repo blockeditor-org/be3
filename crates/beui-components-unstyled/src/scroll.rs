@@ -23,12 +23,8 @@ use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Callback, Children, Fade, Frame, Interactive, List, ListChild, Memo, NodeRef, Offset, Prop,
-    ReadSignal, Render, RenderFn, ShowKeepAlive, Stored, Timer, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, focus_ring, on_scroll_key,
-    set_component_state, store, untrack, with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_INSET: f32 = -1.0;
@@ -475,10 +471,7 @@ fn Scrolling(
                     }}
             >
                 <Frame
-                    outline={focus_color}
-                    outline_width=FOCUS_RING_WIDTH
-                    outline_offset=FOCUS_RING_INSET
-                    outline_visible={focus_ring(focused)}
+                    outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}
                 >
                     <List direction={content_axis} spacing=0.0>
                         {node} @sizing={content_sizing(fit)}

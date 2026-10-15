@@ -1,3 +1,4 @@
+use crate::frame::{ColorRole, Frame};
 use beui_macros::{component, view};
 
 use text_editor_core::FindDirection;
@@ -9,14 +10,14 @@ use crate::IconButton;
 use crate::TextInput;
 use crate::ToggleButton;
 use crate::text::{Text, TextColor, TextStyle};
-use crate::use_theme;
 use beui_components_unstyled::TextAreaState;
 use beui_core::font::TextAlign;
 use beui_core::icons::{
     ICON_CLOSE, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_UP, ICON_MATCH_CASE, ICON_SEARCH,
 };
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, BackHandler, Direction, Frame, List, Memo, Show, create_memo};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const BAR_PADDING_HORIZONTAL: f32 = 12.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
@@ -41,7 +42,6 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
 
 #[component]
 fn FindBarRows(state: TextAreaState) -> NodeId {
-    let theme = use_theme();
     let summary = create_memo(move || state.find_summary());
     let no_matches = create_memo(move || !state.find_has_matches());
     let no_current = create_memo(move || !state.find_has_current());
@@ -53,12 +53,9 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let previous_disabled = no_matches;
     let replace_no_matches = no_matches;
     view! {
-        <Frame color={theme.surface}>
+        <Frame fill=ColorRole::Surface>
             <List spacing=0.0>
-                <Frame
-                    padding_horizontal=BAR_PADDING_HORIZONTAL
-                    padding_vertical=BAR_PADDING_VERTICAL
-                >
+                <Frame padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         <Text color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph=ICON_SEARCH />
@@ -123,7 +120,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
 fn ReplaceRow(state: TextAreaState, no_current: Memo<bool>, no_matches: Memo<bool>) -> NodeId {
     let replacement = state.find().replacement;
     view! {
-        <Frame padding_horizontal=BAR_PADDING_HORIZONTAL padding_vertical=BAR_PADDING_VERTICAL>
+        <Frame padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 <Frame width=QUERY_WIDTH>
                     <TextInput

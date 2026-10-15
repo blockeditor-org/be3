@@ -1,7 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::input::PointerPress;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 fn presses(forwarded: ReadSignal<Vec<ForwardedInput>>) -> usize {
     forwarded.with_untracked(|forwarded| {

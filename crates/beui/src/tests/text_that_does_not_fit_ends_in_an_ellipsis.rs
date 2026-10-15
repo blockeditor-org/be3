@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Direction, ItemSize, List, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const LONG: &str = "Checked out a commit whose summary is far too long for the toolbar";
 const SHORT: &str = "Checked out";

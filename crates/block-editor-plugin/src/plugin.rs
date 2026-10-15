@@ -62,6 +62,10 @@ pub trait Instance: std::any::Any {
 
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
 
+    fn painting(&mut self, _region: EditorRegion) -> Option<paint_format::Painting> {
+        None
+    }
+
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
 }

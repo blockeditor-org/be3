@@ -1,11 +1,8 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::{EditorSettings, EditorSettingsContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Scroll, Select, use_theme};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;
@@ -40,12 +37,11 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
             .collect::<Vec<_>>()
     });
     let empty = create_memo(move || types.with(Vec::is_empty));
-    let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                    <Frame padding=PADDING>
                         <List spacing=SPACING>
                             <Text style=TextStyle::HEADING string="Default editors" />
                             <Text

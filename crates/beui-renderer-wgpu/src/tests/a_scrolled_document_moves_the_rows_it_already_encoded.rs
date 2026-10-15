@@ -1,6 +1,7 @@
 use super::*;
 use beui_components_unstyled::Scroll;
-use beui_view::reactive::{ForEach, Frame, build, view};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const RED: Color32 = Color32::from_rgb(200, 0, 0);
 const BLUE: Color32 = Color32::from_rgb(0, 0, 200);
@@ -15,8 +16,8 @@ fn a_scrolled_document_moves_the_rows_it_already_encoded() {
                     {|row: usize| view! {
                         <Frame
                             height=16.0
-                            radius=0
-                            color={match row % 2 {
+                            radius=0.0
+                            fill={match row % 2 {
                                 0 => RED,
                                 _ => BLUE,
                             }}

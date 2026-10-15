@@ -1,11 +1,7 @@
 use std::cell::Cell;
 
-use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, component, create_effect,
-    create_memo, create_signal, untrack, view,
-};
-use block_editor_beui::beui::styled::Text;
-use block_editor_beui::beui::styled::{Button, ButtonVariant, WINDOW_CHROME, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
 use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{
@@ -19,11 +15,11 @@ const WINDOW_CASCADE: f32 = 32.0;
 const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: f32 = 12.0;
 const BANNER_SPACING: f32 = 12.0;
-const BANNER_RADIUS: u8 = 8;
+const BANNER_RADIUS: f32 = 8.0;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
-pub(crate) fn window_tab(window: HostWindowId) -> TabId {
+pub fn window_tab(window: HostWindowId) -> TabId {
     TabId::new(WINDOW_TABS + window.0)
 }
 
@@ -40,6 +36,14 @@ pub(crate) fn floating_window(window: &HostWindow) -> Rect {
     )
 }
 
+pub(crate) fn kept_window(key: HostWindowId) -> Rect {
+    let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+    Rect::from_min_size(
+        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
+        PLACEHOLDER_SIZE + WINDOW_CHROME,
+    )
+}
+
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {
     own_size(size).unwrap_or(PLACEHOLDER_SIZE)
 }
@@ -53,7 +57,7 @@ pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
         .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
-pub(crate) fn window_title(window: &HostWindow) -> String {
+pub fn window_title(window: &HostWindow) -> String {
     match (window.title.is_empty(), window.app_id.is_empty()) {
         (false, _) => window.title.clone(),
         (true, false) => window.app_id.clone(),
@@ -98,6 +102,13 @@ pub(crate) fn WindowPanel(
         create_effect(move || match fullscreen.get() {
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
+        });
+        let given = create_memo(move || tab.keyboard());
+        let host = editor.host();
+        create_effect(move || {
+            if given.get().is_some() {
+                host.act(WindowAction::Focus(window));
+            }
         });
         let called = create_memo(move || tab.attention());
         let host = editor.host();
@@ -153,19 +164,13 @@ fn NotResponding(
     on_wait: ClickCallback,
     on_force_close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let message = create_memo(move || format!("{} is not responding", name.get()));
     view! {
         <Frame
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=BANNER_RADIUS
-            radius_top_left={Some(0)}
-            radius_top_right={Some(0)}
-            padding_horizontal=BANNER_PADDING
-            padding_vertical=BANNER_PADDING
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::Custom(Corners::bottom(BANNER_RADIUS))}
+            padding=BANNER_PADDING
             @test_id={"workspace.window.not_responding"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BANNER_SPACING>

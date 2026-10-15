@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -7,7 +8,7 @@ use crate::popover::{PANEL_PADDING, PopoverPanel};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::{Icon, Text, TextColor};
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, field_border, use_theme};
+use crate::theme::{field_border, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Weekday};
@@ -21,15 +22,13 @@ use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, create_memo,
-    focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
 const SEGMENT_PADDING: f32 = 2.0;
-const SEGMENT_RADIUS: u8 = 3;
+const SEGMENT_RADIUS: f32 = 3.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const TRIGGER_PADDING: f32 = 4.0;
 const TRIGGER_GAP: f32 = 4.0;
@@ -79,7 +78,7 @@ pub fn DateTimeField(
                 <LiteralFace text />
             }}
             segments={|field: Child| view! {
-                <Frame height=HEIGHT padding_horizontal=PADDING_HORIZONTAL>{field}</Frame>
+                <Frame height=HEIGHT padding={Sides::horizontal(PADDING_HORIZONTAL)}>{field}</Frame>
             }}
             field={|handle: DateTimeBoxHandle| view! {
                 <FieldBox handle />
@@ -118,20 +117,15 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
     let ring = create_memo(move || outer && keyboard.get());
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius={RADIUS + 3}
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={ring}
+            border={create_memo(move || ring.get().then_some(Border::FOCUS.offset(FOCUS_RING_OFFSET)))}
+            radius={Radius::custom(Radius::Md.px() + 3.0)}
         >
             <Frame
                 height=HEIGHT
-                color={fill}
-                outline={border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
-                radius=RADIUS
-                padding_right=TRIGGER_GAP
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+                radius=Radius::Md
+                padding={Sides::new(0.0, 0.0, TRIGGER_GAP, 0.0)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     {field} @sizing=ItemSize::Percent(100.0)
@@ -163,8 +157,12 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
         },
     );
     view! {
-        <Frame height_fraction=1.0 align_vertical=Align::Center>
-            <Frame color={fill} radius=SEGMENT_RADIUS padding_horizontal=SEGMENT_PADDING>
+        <Frame height={Extent::fraction(1.0)} align={Align2::vertical(Align::Center)}>
+            <Frame
+                fill={ColorRole::custom(fill)}
+                radius={Radius::custom(SEGMENT_RADIUS)}
+                padding={Sides::horizontal(SEGMENT_PADDING)}
+            >
                 <Text string={text} color={ink} align=TextAlign::Center />
             </Frame>
         </Frame>
@@ -217,10 +215,9 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
         <Tooltip label disabled={open}>
             <FocusRing focused offset=1.0>
                 <Frame
-                    color={fill}
-                    radius=SEGMENT_RADIUS
-                    padding_horizontal=TRIGGER_PADDING
-                    padding_vertical=TRIGGER_PADDING
+                    fill={ColorRole::custom(fill)}
+                    radius={Radius::custom(SEGMENT_RADIUS)}
+                    padding=TRIGGER_PADDING
                 >
                     <Text color={ink} align=TextAlign::Center>
                         <Icon glyph={glyph.to_owned()} />
@@ -260,10 +257,10 @@ fn PickerPanel(
     });
     let width = panel_width;
     view! {
-        <Frame width={panel_width}>
+        <Frame width=panel_width>
             <List spacing=PANEL_SPACING>
                 <List direction=Direction::Horizontal spacing=0.0>
-                    <Frame width={field_width}>{field}</Frame>
+                    <Frame width=field_width>{field}</Frame>
                 </List>
                 <Dynamic value={layout}>
                     {move |shape: DateTimePanelLayout| {
@@ -389,7 +386,9 @@ fn PanelBody(
 #[component]
 fn Centred(children: Child) -> NodeId {
     view! {
-        <Frame width_fraction=1.0 align_horizontal=Align::Center>{children}</Frame>
+        <Frame width={Extent::fraction(1.0)} align={Align2::horizontal(Align::Center)}>
+            {children}
+        </Frame>
     }
 }
 
@@ -438,7 +437,7 @@ fn TimePane(
     } = handle;
     let centred = grid_columns(step_minutes, max_columns) > 1;
     view! {
-        <Frame height>
+        <Frame height=height>
             <unstyled::TimeList
                 value={time}
                 step_minutes
@@ -484,13 +483,10 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
     view! {
         <Frame
             height=TIME_ROW_HEIGHT
-            color={fill}
-            radius=RADIUS
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_offset=-1.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=10.0
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            border={focus_border(focused, Border::FOCUS.offset(-1.0))}
+            padding={Sides::horizontal(10.0)}
         >
             <Text
                 string={label}

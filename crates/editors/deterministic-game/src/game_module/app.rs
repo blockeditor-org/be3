@@ -1,5 +1,6 @@
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::GameModuleContent;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
 use game_host::Game;
@@ -14,8 +15,11 @@ pub struct GameModuleApp;
 
 impl block_editor_beui::BeuiApp for GameModuleApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::GameModuleContent>(&[]);
         view! {
-            <ModuleView editor={editor} />
+            <Loaded loaded={loaded}>
+                <ModuleView editor={editor} />
+            </Loaded>
         }
     }
 

@@ -1,16 +1,19 @@
+mod accepted;
 mod compare;
 mod fingerprint;
 mod format;
 mod highlight;
 mod raster;
 
+pub use accepted::assert_accepted;
 pub use compare::{Difference, difference};
 pub use fingerprint::fingerprint;
-pub use format::{
-    Content, Frame, Glyph, Primitive, RoundedRect, Snapshot, Texture, TextureKey, Triangle, Turn,
+pub use format::{Snapshot, Texture};
+pub use highlight::{Highlight, highlight};
+pub use paint_format::{
+    Content, Frame, Glyph, Painting, Pixels, Primitive, RoundedRect, TextureKey, Triangle, Turn,
     Vertex,
 };
-pub use highlight::{Highlight, highlight};
 pub use raster::render;
 
 #[cfg(test)]

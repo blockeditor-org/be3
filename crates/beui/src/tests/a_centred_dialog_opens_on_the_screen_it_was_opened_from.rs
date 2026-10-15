@@ -1,8 +1,9 @@
 use super::*;
 use crate::Screen;
 use crate::base::Justify;
-use crate::reactive::{NodeRef, Text, build, create_signal, view, with_reactive_scope};
-use crate::styled::{Button, ButtonVariant, Dialog};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {

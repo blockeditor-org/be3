@@ -1,11 +1,7 @@
 use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    PlacementBuilder, ReadSignal, WriteSignal, component, create_effect, create_memo,
-    held_modifiers, untrack, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     Color32, CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
@@ -18,7 +14,6 @@ use crate::drawing::{ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing
 
 use super::pane::{Pane, Shown};
 use super::state::Tools;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const GRID_MIN_CELL: f32 = 6.0;
 const GRID_ALPHA: u8 = 60;
@@ -391,9 +386,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    outline={Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA)}
-                    outline_width={border}
-                    outline_visible=true
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(border.get())))}
                 />
             </CanvasItem>
             <CanvasItem x={preview_x} y={preview_y} width={preview_width} height={preview_height}>
@@ -427,7 +420,9 @@ fn Artwork(
                     };
                     view! {
                         <CanvasItem x={x} y={y} width={line_width} height={line_height}>
-                            <Frame color={Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA)} />
+                            <Frame
+                                fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA))}
+                            />
                         </CanvasItem>
                     }
                 }}
@@ -435,9 +430,7 @@ fn Artwork(
             <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
                 <Frame
                     visible={over}
-                    outline=Color32::WHITE
-                    outline_width=1.0
-                    outline_visible=true
+                    border={Border::new(ColorRole::Custom(Color32::WHITE)).width(1.0)}
                 />
             </CanvasItem>
         </Canvas>
@@ -475,11 +468,7 @@ pub(crate) fn HoverLabel(tools: Tools, hovered: ReadSignal<Option<(u16, u16)>>) 
         }
     });
     view! {
-        <Frame
-            height=HOVER_LABEL_HEIGHT
-            padding_horizontal=HOVER_LABEL_PADDING
-            padding_vertical=HOVER_LABEL_PADDING
-        >
+        <Frame height=HOVER_LABEL_HEIGHT padding=HOVER_LABEL_PADDING>
             <Text style=TextStyle::CODE @test_id={"pixel-art.hover"} string={label} />
         </Frame>
     }

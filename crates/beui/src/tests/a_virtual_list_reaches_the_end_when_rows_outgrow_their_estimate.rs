@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const ROWS: usize = 100;
 const ESTIMATE: f32 = 20.0;
@@ -17,8 +18,11 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
-                            {move |index: usize| {
-                                set_built.update(|built| built.push(index));
+                            {move |index: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let index = index.get();
+                                    set_built.update(|built| built.push(index));
+                                });
                                 view! {
                                     <Frame height=ACTUAL>
                                         <Spacer />

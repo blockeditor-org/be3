@@ -73,6 +73,7 @@ pub struct Document {
     pub(crate) focus_scopes: crate::base::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
     pub(crate) focus_wanted: Option<NodeId>,
+    pub(crate) focus_into: Option<(NodeId, u64)>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: RefCell<crate::timer::Timers>,
@@ -203,6 +204,7 @@ pub struct WorkCounters {
     painted_nodes: Cell<usize>,
     replayed_nodes: Cell<usize>,
     described_nodes: Cell<usize>,
+    walked_nodes: Cell<usize>,
 }
 
 impl WorkCounters {
@@ -214,10 +216,12 @@ impl WorkCounters {
         self.painted_nodes.set(0);
         self.replayed_nodes.set(0);
         self.described_nodes.set(0);
+        self.walked_nodes.set(0);
     }
 
-    pub fn note_described(&self, nodes: usize) {
+    pub fn note_described(&self, nodes: usize, walked: usize) {
         self.described_nodes.set(self.described_nodes.get() + nodes);
+        self.walked_nodes.set(self.walked_nodes.get() + walked);
     }
 
     fn gathered(&self) -> FrameWork {
@@ -229,6 +233,7 @@ impl WorkCounters {
             painted_nodes: self.painted_nodes.get(),
             replayed_nodes: self.replayed_nodes.get(),
             described_nodes: self.described_nodes.get(),
+            walked_nodes: self.walked_nodes.get(),
         }
     }
 }
@@ -273,6 +278,7 @@ impl Document {
             focus_scopes: Default::default(),
             focus_dirty: false,
             focus_wanted: None,
+            focus_into: None,
             back_handlers: Vec::new(),
             back_gesture: None,
             timers: RefCell::new(Vec::new()),
@@ -362,6 +368,16 @@ impl Document {
 
     pub fn root(&self) -> Option<NodeId> {
         self.root
+    }
+
+    fn relay_for_viewport(&mut self) {
+        let Some(root) = self.root else {
+            return;
+        };
+        self.arena.invalidate_node(root);
+        for overlay in self.open_overlays() {
+            self.arena.invalidate_node(overlay);
+        }
     }
 
     pub fn reactive_scope(&self) -> &::reactive::Scope {
@@ -1081,7 +1097,7 @@ impl Document {
             .read()
             .with_untracked(|shown| *shown != screens);
         if rescreened {
-            self.arena.invalidate();
+            self.relay_for_viewport();
             *self.rescreened.borrow_mut() = Some(screens);
         }
         if refonted
@@ -1098,7 +1114,15 @@ impl Document {
                     .as_ref()
                     .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
             self.reattached.set(self.reattached.get() || reattached);
-            self.arena.invalidate();
+            let only_moved = !reattached
+                && self
+                    .viewport
+                    .as_ref()
+                    .is_some_and(|(_, _, old_scale)| *old_scale == scale);
+            match only_moved {
+                true => self.relay_for_viewport(),
+                false => self.arena.invalidate(),
+            }
             self.viewport = Some((ctx.clone(), rect, scale));
         }
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
@@ -1780,7 +1804,10 @@ impl Document {
             .insert(id, held)
             .map(|held| (held.given.clip, held.culled));
         if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
-            self.accessibility_tree.get_mut().mark(id, &self.arena);
+            let parent = self.layout_parent;
+            self.accessibility_tree
+                .get_mut()
+                .mark_placed(id, parent, &self.arena);
         }
         if previous.map(|previous| previous.rect.min) != Some(rect.min)
             || previous_held.map(|(_, was)| was) != Some(culled)

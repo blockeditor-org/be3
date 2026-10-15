@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn picking_a_node_leaves_the_document_alone() {

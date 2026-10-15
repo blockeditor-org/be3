@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::beui::reactive::{
-    CanvasItem, Frame, Memo, Text, component, create_memo, layout_text, view,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, FontId, Pos2, Rect, TextAlign, TextLayout, Vec2};
 
 use crate::geo::MapView;
@@ -193,13 +192,14 @@ pub(crate) fn MapLabel(
         })
     });
     let text = create_memo(move || label.get().map(|label| label.key.text).unwrap_or_default());
-    let font = create_memo(move || {
-        FontId::proportional(label.get().map_or(10.0, |label| label.font_size))
-    });
+    let size =
+        create_memo(move || TextSize::Custom(label.get().map_or(10.0, |label| label.font_size)));
     let color = create_memo(move || {
-        label
-            .get()
-            .map_or(Color32::TRANSPARENT, |label| label.color)
+        TextColor::Custom(
+            label
+                .get()
+                .map_or(Color32::TRANSPARENT, |label| label.color),
+        )
     });
     let x = create_memo(move || rect.get().left());
     let y = create_memo(move || rect.get().top());
@@ -207,8 +207,13 @@ pub(crate) fn MapLabel(
     let height = create_memo(move || rect.get().height());
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame color=HALO radius=2 padding_horizontal=HALO_PADDING @test_id={test_id}>
-                <Text string={text} font={font} align=TextAlign::Center color={color} wrap=false />
+            <Frame
+                fill={ColorRole::Custom(HALO)}
+                radius=Radius::Xs
+                padding={Sides::horizontal(HALO_PADDING)}
+                @test_id={test_id}
+            >
+                <Text string={text} size align=TextAlign::Center color={color} wrap=false />
             </Frame>
         </CanvasItem>
     }

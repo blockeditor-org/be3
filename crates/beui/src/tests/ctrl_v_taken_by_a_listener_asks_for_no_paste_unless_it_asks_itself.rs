@@ -1,6 +1,6 @@
 use super::*;
 use crate::PasteRequest;
-use crate::reactive::{Action, Chord, NodeRef, build, request_paste, view};
+use crate::reactive::*;
 
 #[test]
 fn ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself() {

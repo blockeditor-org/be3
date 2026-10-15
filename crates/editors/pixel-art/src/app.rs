@@ -1,3 +1,4 @@
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::{BlockContent, ImageContent};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -5,9 +6,8 @@ use std::rc::Rc;
 use block_editor_beui::be_block::pixel_art::PixelColor;
 use block_editor_beui::be_block::pixel_art::{default_palette, size_of};
 use block_editor_beui::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
-use block_editor_beui::beui::reactive::{
-    Direction, ItemSize, List, component, create_effect, create_memo, create_signal, view,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{
@@ -34,14 +34,20 @@ pub struct PixelArtApp;
 
 impl block_editor_beui::BeuiApp for PixelArtApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelArtContent>(&[]);
         view! {
-            <PixelArtEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelArtEditor editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelArtContent>(&[]);
         view! {
-            <PixelArtPreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelArtPreview editor={editor} />
+            </Loaded>
         }
     }
 

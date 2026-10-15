@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    DynamicSegment, List, ListChild, Prop, Show, build, component, create_signal, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_component_can_return_a_show_for_its_parent_to_lay_out() {
@@ -10,9 +9,9 @@ fn a_component_can_return_a_show_for_its_parent_to_lay_out() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame height=40.0 color=Color32::WHITE />
+                <Frame height=40.0 fill=Color32::WHITE />
                 <Extra shown />
-                <Frame @test_id="after" height=40.0 color=Color32::WHITE />
+                <Frame @test_id="after" height=40.0 fill=Color32::WHITE />
             </List>
         }
     });
@@ -31,7 +30,7 @@ fn a_component_can_return_a_show_for_its_parent_to_lay_out() {
 fn Extra(shown: Prop<bool>) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={shown}>
-            <Frame height=20.0 color=Color32::BLACK />
+            <Frame height=20.0 fill=Color32::BLACK />
         </Show>
     }
 }

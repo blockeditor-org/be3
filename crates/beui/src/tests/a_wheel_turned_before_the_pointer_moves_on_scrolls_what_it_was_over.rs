@@ -1,6 +1,8 @@
 use super::*;
-use crate::reactive::NodeRef;
+use crate::primitives::Frame;
+use crate::reactive::*;
 use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {

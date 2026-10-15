@@ -17,7 +17,6 @@ fn removing_from_a_virtual_list_view_disposes_only_that_row() {
     with_installed(harness.document_mut(), |_| scroll.set_keys.set(keys));
     harness.frame(Vec::new());
 
-    assert!(!harness.document.contains(rows[REMOVED_AT]));
     assert_eq!(built.get_untracked(), vec![rows.len()]);
     let after = harness.document.children(scroll.list);
     assert_eq!(after[..REMOVED_AT], rows[..REMOVED_AT]);

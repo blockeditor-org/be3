@@ -38,7 +38,14 @@ impl HeadlessPlugin {
         }
         let before = self.screens.layout().clone();
         self.screens.receive(&message);
-        let replies = self.session.receive(message);
+        let painting = matches!(
+            &message,
+            Message::Extension { key, .. } if *key == paint_format::PAINTING_EXTENSION
+        );
+        let mut replies = self.session.receive(message);
+        if painting {
+            replies.push(self.screens.paintings());
+        }
         let layout = self.screens.layout();
         if !layout.is_empty() && !layout.same_placements(&before) {
             self.generation += 1;

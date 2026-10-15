@@ -1,7 +1,7 @@
 use super::*;
 use crate::datetime::Date;
-use crate::reactive::view;
-use crate::styled::Calendar;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_calendar_jumps_to_a_month_from_its_months_view() {

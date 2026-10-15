@@ -4,11 +4,13 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::damage::Region;
+use crate::painting::Paints;
 
 const REMEMBERED_REDRAWS: usize = 16;
 
 struct Shared {
     draw: Box<dyn Any>,
+    paints: Option<Rc<dyn Paints>>,
     latest: Cell<u64>,
     redraws: RefCell<VecDeque<(u64, Region)>>,
 }
@@ -21,14 +23,27 @@ pub struct Drawing {
 
 impl Drawing {
     pub fn erased(draw: impl Any) -> Self {
+        Self::shared(Box::new(draw), None)
+    }
+
+    pub fn painted(draw: impl Any, paints: Rc<dyn Paints>) -> Self {
+        Self::shared(Box::new(draw), Some(paints))
+    }
+
+    fn shared(draw: Box<dyn Any>, paints: Option<Rc<dyn Paints>>) -> Self {
         Self {
             shared: Rc::new(Shared {
-                draw: Box::new(draw),
+                draw,
+                paints,
                 latest: Cell::new(0),
                 redraws: RefCell::new(VecDeque::new()),
             }),
             revision: 0,
         }
+    }
+
+    pub fn paints(&self) -> Option<&dyn Paints> {
+        self.shared.paints.as_deref()
     }
 
     pub fn draw<T: 'static>(&self) -> Option<&T> {

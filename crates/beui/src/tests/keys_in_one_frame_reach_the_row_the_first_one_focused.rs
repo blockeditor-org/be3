@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::MenuButton;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn keys_in_one_frame_reach_the_row_the_first_one_focused() {

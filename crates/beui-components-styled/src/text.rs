@@ -3,14 +3,13 @@ use beui_core::font::{FontFamily, FontId, TextAlign};
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_macros::{component, view};
-use beui_view::reactive::{
-    self, Children, Memo, Prop, Render, SpanText, TextChild, create_memo, provide_context,
-    use_context,
-};
+use beui_view::primitives;
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use crate::theme::{ThemeStore, use_theme};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TextSize {
     Xs,
     Sm,
@@ -21,6 +20,7 @@ pub enum TextSize {
     Xl3,
     Xl4,
     Xl5,
+    Custom(f32),
 }
 
 impl TextSize {
@@ -47,6 +47,7 @@ impl TextSize {
             TextSize::Xl3 => 30.0,
             TextSize::Xl4 => 36.0,
             TextSize::Xl5 => 48.0,
+            TextSize::Custom(px) => px,
         }
     }
 
@@ -65,7 +66,16 @@ impl TextSize {
             TextSize::Xl3 => "3xl",
             TextSize::Xl4 => "4xl",
             TextSize::Xl5 => "5xl",
+            TextSize::Custom(_) => "custom",
         }
+    }
+}
+
+impl Eq for TextSize {}
+
+impl std::hash::Hash for TextSize {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.px().to_bits().hash(state);
     }
 }
 
@@ -312,7 +322,7 @@ pub fn Text(
             .resolve(&theme)
     });
     view! {
-        <reactive::Text
+        <primitives::Text
             string
             font
             color
@@ -326,7 +336,7 @@ pub fn Text(
             carets
         >
             {children}
-        </reactive::Text>
+        </primitives::Text>
     }
 }
 
@@ -359,7 +369,7 @@ pub fn Span(
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
     #[prop(default = false)] break_after: Prop<bool>,
     children: Children<SpanText>,
-) -> reactive::Span {
+) -> primitives::Span {
     let theme = use_theme();
     let size = part(size, TextSize::px);
     let bold = part(weight, |weight| weight == Weight::Bold);
@@ -368,7 +378,7 @@ pub fn Span(
     let color = color_part(color, theme);
     match text {
         Some(text) => view! {
-            <reactive::Span
+            <primitives::Span
                 text
                 size
                 family
@@ -381,9 +391,9 @@ pub fn Span(
             />
         },
         None => view! {
-            <reactive::Span size family bold italic color underline strikethrough break_after>
+            <primitives::Span size family bold italic color underline strikethrough break_after>
                 {children}
-            </reactive::Span>
+            </primitives::Span>
         },
     }
 }
@@ -393,11 +403,11 @@ pub fn Icon(
     glyph: Prop<String>,
     size: Option<Prop<TextSize>>,
     color: Option<Prop<TextColor>>,
-) -> reactive::Span {
+) -> primitives::Span {
     let theme = use_theme();
     let size = part(size, TextSize::icon_px);
     let color = color_part(color, theme);
     view! {
-        <reactive::Icon glyph size color scale=ICON_SCALE spacing_em=ICON_SPACING_EM />
+        <primitives::Icon glyph size color scale=ICON_SCALE spacing_em=ICON_SPACING_EM />
     }
 }

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Checkbox, Switch, ToggleButton};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn space_toggles_checkboxes_switches_and_toggle_buttons() {
