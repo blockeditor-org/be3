@@ -577,18 +577,15 @@ fn justified(
         Justify::SpaceEvenly => (leftover / (count + 1.0), leftover / (count + 1.0)),
     };
     let mut exact = lead;
-    items
-        .iter()
-        .enumerate()
-        .map(move |(index, item)| {
-            if index > 0 {
-                exact += between;
-            }
-            exact += item.gap;
-            let start = grid.snap(exact);
-            exact += item.main;
-            start
-        })
+    items.iter().enumerate().map(move |(index, item)| {
+        if index > 0 {
+            exact += between;
+        }
+        exact += item.gap;
+        let start = grid.snap(exact);
+        exact += item.main;
+        start
+    })
 }
 
 pub fn distribute_main_axis<S: Copy + Into<Sizing>>(
@@ -658,9 +655,7 @@ fn distribute(grid: PixelGrid, available_main: f32, slots: &mut [Slot]) {
         let parts: Vec<Part> = slots
             .iter()
             .filter_map(|slot| match slot.size.size {
-                ItemSize::Percent(weight) => {
-                    Some(Part::new(weight, slot.size.min, slot.size.max))
-                }
+                ItemSize::Percent(weight) => Some(Part::new(weight, slot.size.min, slot.size.max)),
                 _ => None,
             })
             .collect();

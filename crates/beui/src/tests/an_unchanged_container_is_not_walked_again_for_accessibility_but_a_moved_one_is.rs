@@ -56,5 +56,6 @@ fn top_of(harness: &Harness, value: &str) -> f64 {
 }
 
 fn top(node: &accesskit::Node) -> f64 {
-    node.transform().map_or(0.0, |transform| transform.as_coeffs()[5])
+    node.transform()
+        .map_or(0.0, |transform| transform.as_coeffs()[5])
 }

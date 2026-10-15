@@ -1,6 +1,6 @@
 use foldhash::{HashMap, HashSet};
-use std::collections::VecDeque;
 use std::any::Any;
+use std::collections::VecDeque;
 use std::hash::Hash;
 use std::rc::Rc;
 
