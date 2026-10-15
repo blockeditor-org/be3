@@ -298,14 +298,21 @@ impl DemoApp {
             document: build(move || {
                 provide_context(Today(today));
                 view! {
-                    <Container>
-                        {move |_| view! {
-                            <DemoShell />
-                        }}
-                    </Container>
+                    <Demo />
                 }
             }),
         }
+    }
+}
+
+#[component]
+pub fn Demo() -> NodeId {
+    view! {
+        <Container>
+            {move |_| view! {
+                <DemoShell />
+            }}
+        </Container>
     }
 }
 

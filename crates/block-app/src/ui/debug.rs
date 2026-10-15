@@ -99,6 +99,9 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                                     <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
                                 }
                             }
+                            HostPanel::BeuiDemo => view! {
+                                <beui_demo::Demo @sizing=ItemSize::Percent(100.0) />
+                            },
                         }
                     }}
                 </Dynamic>
