@@ -2,6 +2,7 @@ mod launch;
 
 use std::io::{BufReader, Write};
 use std::os::unix::net::UnixStream;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
@@ -54,6 +55,8 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
              \x20      drive [--timeout=SECONDS] [--socket=PATH] - < COMMANDS\n\
              `shot` takes the file to write the PNG to first: shot FILE [TARGET].\n\
              `-` reads one command a line from standard input, quoted as a shell would, and stops at the first that fails.\n\
+             `env` prints the app's environment for programs as export lines, for `eval \"$(drive env)\"`.\n\
+             `exec PROGRAM [ARGUMENTS]` runs PROGRAM in that environment, so its windows open inside the app.\n\
              {USAGE}"
         ));
     }
@@ -62,6 +65,9 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     )?;
     if arguments == ["-"] {
         return script(&socket, &options, timeout);
+    }
+    if arguments[0] == "exec" {
+        return exec(&socket, &arguments[1..], timeout);
     }
     command(
         &socket,
@@ -117,6 +123,12 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
         }
         file = Some(PathBuf::from(arguments.remove(first + 1)));
     }
+    if arguments.get(first).map(String::as_str) == Some("env") {
+        for (name, value) in environment(socket, timeout)? {
+            println!("export {name}={}", quoted(&value));
+        }
+        return Ok(());
+    }
     let closing = arguments.get(first).map(String::as_str) == Some("close");
     let reply = match request(socket, &arguments, timeout) {
         Err(Unanswered::Closed) if closing => Reply::Text("The window closed.\n".to_owned()),
@@ -144,6 +156,48 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
             Ok(())
         }
     }
+}
+
+fn environment(socket: &Path, timeout: Duration) -> Result<Vec<(String, String)>, String> {
+    match request(socket, &["env".to_owned()], timeout).map_err(|error| error.to_string())? {
+        Reply::Text(text) => Ok(text
+            .lines()
+            .filter_map(|line| line.split_once('='))
+            .map(|(name, value)| (name.to_owned(), value.to_owned()))
+            .collect()),
+        _ => Err("the app answered env with something other than text".to_owned()),
+    }
+}
+
+fn exec(socket: &Path, arguments: &[String], timeout: Duration) -> Result<(), String> {
+    let arguments = match arguments.first().map(String::as_str) {
+        Some("--") => &arguments[1..],
+        _ => arguments,
+    };
+    let (program, arguments) = arguments
+        .split_first()
+        .ok_or("exec needs a program to run: exec PROGRAM [ARGUMENTS]")?;
+    let environment = environment(socket, timeout)?;
+    if environment.is_empty() {
+        return Err(
+            "the app hosts no programs; block-app does with --desktop (guides/linux_desktop.md)"
+                .to_owned(),
+        );
+    }
+    let error = std::process::Command::new(program)
+        .args(arguments)
+        .env_remove("WAYLAND_DISPLAY")
+        .env_remove("DISPLAY")
+        .env_remove("BEUI_AUTOMATION")
+        .env_remove("BEUI_HEADLESS")
+        .env_remove("BEUI_HEADLESS_SCREEN")
+        .envs(environment)
+        .exec();
+    Err(format!("could not run {program}: {error}"))
+}
+
+fn quoted(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn words(line: &str) -> Result<Vec<String>, String> {

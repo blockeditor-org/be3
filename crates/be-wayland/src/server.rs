@@ -2,6 +2,7 @@ use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::net::UnixStream;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -9,32 +10,35 @@ use rustix::event::{EventfdFlags, PollFd, PollFlags, eventfd, poll};
 use smithay::reexports::calloop::EventLoop;
 use smithay::reexports::wayland_server::{Client, Display, ListeningSocket};
 
+use crate::runtime_dir::RuntimeDir;
 use crate::state::{ClientState, State};
 
 pub struct Server {
     display: Display<State>,
     event_loop: EventLoop<'static, State>,
     socket: Option<ListeningSocket>,
+    runtime: Option<RuntimeDir>,
     name: Option<OsString>,
     pub state: State,
 }
 
 impl Server {
     pub fn new() -> Result<Self, Box<dyn Error>> {
+        Self::listening(RuntimeDir::from_env()?)
+    }
+
+    pub(crate) fn listening(runtime: RuntimeDir) -> Result<Self, Box<dyn Error>> {
         let mut server = Self::headless()?;
-        let socket = match std::env::var_os("XDG_RUNTIME_DIR") {
-            Some(_) => ListeningSocket::bind_auto("wayland", 1..33)?,
-            None => {
-                let path = std::env::temp_dir().join(format!("be-wayland-{}", std::process::id()));
-                let socket = ListeningSocket::bind_absolute(path.clone())?;
-                server.name = Some(path.into_os_string());
-                socket
-            }
+        let socket = match runtime.private() {
+            true => ListeningSocket::bind_absolute(runtime.path().join("wayland-0"))?,
+            false => ListeningSocket::bind_auto("wayland", 1..33)?,
         };
-        if server.name.is_none() {
-            server.name = socket.socket_name().map(OsStr::to_owned);
-        }
+        server.name = match runtime.private() {
+            true => Some("wayland-0".into()),
+            false => socket.socket_name().map(OsStr::to_owned),
+        };
         server.socket = Some(socket);
+        server.runtime = Some(runtime);
         Ok(server)
     }
 
@@ -46,6 +50,7 @@ impl Server {
             display,
             event_loop,
             socket: None,
+            runtime: None,
             name: None,
             state,
         })
@@ -53,6 +58,10 @@ impl Server {
 
     pub fn socket_name(&self) -> Option<&OsStr> {
         self.name.as_deref()
+    }
+
+    pub fn runtime_dir(&self) -> Option<&Path> {
+        self.runtime.as_ref().map(RuntimeDir::path)
     }
 
     pub fn start_xwayland(&mut self) -> std::io::Result<u32> {
