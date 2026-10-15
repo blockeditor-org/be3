@@ -1421,6 +1421,7 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
         version: summary.version,
+        created: summary.created,
     }
 }
 

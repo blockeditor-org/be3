@@ -77,6 +77,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         references: node.references.clone(),
         metadata: node.metadata.clone(),
         version: node.version,
+        created: node.created,
     })
 }
 
@@ -95,12 +96,14 @@ impl ServerStore {
             }
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
+            node.created = graph.next_created();
+            let created = i64::try_from(node.created).map_err(|_| ServerError::Corrupt)?;
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
             database.execute(
                 "INSERT INTO blocks
-                    (workspace_id, id, content_type, author, parent_kind, parent_id, head, metadata)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)",
+                    (workspace_id, id, content_type, author, parent_kind, parent_id, head, metadata, created)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8)",
                 params![
                     identity.workspace.to_string(),
                     block.to_string(),
@@ -109,6 +112,7 @@ impl ServerStore {
                     kind,
                     parent_id,
                     metadata,
+                    created,
                 ],
             )?;
             summary(graph, identity, block).ok_or(ServerError::Corrupt)

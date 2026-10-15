@@ -579,6 +579,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             metadata: metadata.clone(),
             head: None,
             version: 0,
+            created: u64::MAX,
         });
     });
     send(Command::Duplicate {
@@ -800,6 +801,7 @@ pub(crate) fn create(
             metadata: metadata.clone(),
             head: None,
             version: 0,
+            created: u64::MAX,
         });
     });
     send(Command::Create {

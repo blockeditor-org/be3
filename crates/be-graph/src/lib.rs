@@ -40,6 +40,7 @@ pub struct BlockNode {
     pub grants: BTreeMap<Uuid, Access>,
     pub metadata: Vec<u8>,
     pub version: u64,
+    pub created: u64,
 }
 
 impl BlockNode {
@@ -53,6 +54,7 @@ impl BlockNode {
             grants: BTreeMap::new(),
             metadata: Vec::new(),
             version: 0,
+            created: 0,
         }
     }
 }
@@ -101,6 +103,15 @@ impl BlockGraph {
 
     pub fn contains(&self, id: Uuid) -> bool {
         self.blocks.contains_key(&id)
+    }
+
+    pub fn next_created(&self) -> u64 {
+        self.blocks
+            .values()
+            .map(|node| node.created)
+            .max()
+            .unwrap_or(0)
+            + 1
     }
 
     pub fn ids(&self) -> Vec<Uuid> {

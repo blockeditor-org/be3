@@ -20,6 +20,7 @@ pub(crate) struct Node {
     pub(crate) metadata: BlockMetadata,
     pub(crate) head: Option<CommitId>,
     pub(crate) version: u64,
+    pub(crate) created: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -171,7 +172,7 @@ impl Graph {
             Query::Parents(block) => return self.ancestors(block),
             Query::Block(block) => return self.nodes.get(&block).cloned().into_iter().collect(),
         };
-        found.sort_by_key(|node| node.id);
+        found.sort_by_key(|node| (node.created, node.id));
         found
     }
 

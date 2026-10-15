@@ -30,6 +30,7 @@ mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_invited_account_joins_the_workspace_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
+mod blocks_keep_the_order_they_were_created_in_across_a_restart;
 mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
@@ -108,7 +109,7 @@ impl Harness {
         client
     }
 
-    async fn stop(mut self) {
+    async fn halt(&mut self) {
         if let Some(shutdown) = self.shutdown.take() {
             let _ = shutdown.send(());
         }
@@ -116,6 +117,15 @@ impl Harness {
             handle.abort();
             let _ = handle.await;
         }
+    }
+
+    async fn restart(mut self) -> Self {
+        self.halt().await;
+        Self::at(self.directory.clone()).await
+    }
+
+    async fn stop(mut self) {
+        self.halt().await;
         let _ = std::fs::remove_dir_all(&self.directory);
     }
 }

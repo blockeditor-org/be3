@@ -298,7 +298,6 @@ the whole window, every plugin included; and fails unless the app exits cleanly 
     app.click("#infinite-canvas.dock.block");
     app.click("Label value=\"Checklist\"");
     app.wait("Pane \"Checklist\"");
-    app.crop("#workspace.block");
     app.record();
     app.double_click("Pane \"Checklist\"");
     app.wait("#checklist.add");
@@ -310,9 +309,9 @@ the whole window, every plugin included; and fails unless the app exits cleanly 
   click() first waits for its target, and record() and snapshot() wait for every editor's
   loading state (`#editor.loading`) to go.
 - Target nodes by test id or by a line of the tree, never by coordinates. Block ids are random,
-  so a test id or a painting that holds one, or the order of blocks the file tree sorts by id,
-  differs every run: crop(target) paints only that target's area, such as `#workspace.block`,
-  the block a tab shows.
+  so a test id or a painting that holds one differs every run: crop(target) paints only that
+  target's area, such as `#workspace.block`, the block a tab shows. Blocks list in a stable
+  order: top-level blocks by when they were created, a block's own by its references.
 - record() and snapshot() are a painting as in an editor test (4), named
   snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface.

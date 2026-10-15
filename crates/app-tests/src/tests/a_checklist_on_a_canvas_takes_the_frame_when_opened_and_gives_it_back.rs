@@ -7,7 +7,6 @@ fn a_checklist_on_a_canvas_takes_the_frame_when_opened_and_gives_it_back() {
     app.click("#infinite-canvas.dock.block");
     app.click("Label value=\"Checklist\"");
     app.wait("Pane \"Checklist\"");
-    app.crop("#workspace.block");
     app.record();
 
     app.double_click("Pane \"Checklist\"");

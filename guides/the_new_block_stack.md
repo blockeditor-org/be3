@@ -176,6 +176,10 @@ time, so notifications wait for the next post.
 - A publish writes one head update, the handful of edge rows the commit
   declares, and refcounts for chunks it actually introduced. It does not rewrite
   the workspace.
+- Each block row carries `created`, one more than the workspace's highest when
+  the block was made (0 for blocks older than the column), so lists with no
+  references to order them, such as the top-level blocks, sort by
+  `(created, id)` and a new block lands last.
 - Access is computed per member (`Visibility` in `blocks.rs`, over
   `BlockGraph::access_map`). A workspace administrator edits everything. Anyone
   else gets `Edit` on what they authored and whatever they were granted, and
