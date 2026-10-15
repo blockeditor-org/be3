@@ -1,6 +1,9 @@
-use std::sync::{
-    Arc, Mutex, OnceLock,
-    atomic::{AtomicBool, AtomicI32, Ordering},
+use std::{
+    sync::{
+        Arc, Condvar, Mutex, OnceLock,
+        atomic::{AtomicBool, AtomicI32, Ordering},
+    },
+    time::Duration,
 };
 
 use block_gpu_abi as abi;
@@ -8,6 +11,7 @@ use wasmtime::{Caller, Engine, Error, Instance, Linker, SharedMemory, Store, Typ
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use crate::dylink::{self, Layout, Program};
+use crate::interrupt::{self, Interrupt};
 use crate::state::Threaded;
 use crate::wake::Wake;
 
@@ -15,6 +19,8 @@ const MODULE: &str = "wasi";
 const SPAWN: &str = "thread-spawn";
 const START: &str = "wasi_thread_start";
 const REFUSED: i32 = -1;
+const REAPING_PASSES: u32 = 8;
+const REAPING_WAIT: Duration = Duration::from_millis(50);
 
 pub(crate) trait Spawns {
     fn spawner(&self) -> &Arc<Spawner>;
@@ -26,8 +32,13 @@ pub(crate) struct Spawner {
     layout: OnceLock<Layout>,
     memory: SharedMemory,
     wake: Arc<Wake>,
+    interrupt: Arc<Interrupt>,
     next: AtomicI32,
     stopped: AtomicBool,
+    halted: AtomicBool,
+    reaping: AtomicBool,
+    alive: Mutex<usize>,
+    ended: Condvar,
     failures: Mutex<Vec<String>>,
 }
 
@@ -37,17 +48,25 @@ impl Spawner {
         program: Program,
         memory: SharedMemory,
         wake: Arc<Wake>,
+        interrupt: Arc<Interrupt>,
     ) -> Arc<Self> {
-        Arc::new(Self {
+        let spawner = Arc::new(Self {
             engine,
             program,
             layout: OnceLock::new(),
             memory,
             wake,
+            interrupt,
             next: AtomicI32::new(1),
             stopped: AtomicBool::new(false),
+            halted: AtomicBool::new(false),
+            reaping: AtomicBool::new(false),
+            alive: Mutex::new(1),
+            ended: Condvar::new(),
             failures: Mutex::new(Vec::new()),
-        })
+        });
+        spawner.interrupt.watch(&spawner);
+        spawner
     }
 
     pub(crate) fn linked(&self, layout: Layout) {
@@ -56,6 +75,74 @@ impl Spawner {
 
     pub(crate) fn stop(&self) {
         self.stopped.store(true, Ordering::Release);
+    }
+
+    pub(crate) fn halts(&self, main: bool) -> bool {
+        self.interrupt.interrupted() || (!main && self.halted.load(Ordering::SeqCst))
+    }
+
+    pub(crate) fn release(self: &Arc<Self>) {
+        self.stop();
+        self.halted.store(true, Ordering::SeqCst);
+        self.interrupt.tick();
+        self.end();
+        self.reap();
+    }
+
+    pub(crate) fn reap(self: &Arc<Self>) {
+        if self.living() == 0 || self.reaping.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let spawner = Arc::clone(self);
+        let reaper = std::thread::Builder::new()
+            .name("plugin reaper".to_owned())
+            .spawn(move || {
+                for _ in 0..REAPING_PASSES {
+                    if spawner.await_ended(REAPING_WAIT) {
+                        break;
+                    }
+                    spawner.notify_every_waiter();
+                }
+                spawner.reaping.store(false, Ordering::SeqCst);
+            });
+        if reaper.is_err() {
+            self.reaping.store(false, Ordering::SeqCst);
+        }
+    }
+
+    fn notify_every_waiter(&self) {
+        let size = self.memory.data_size() as u64;
+        for address in (0..size).step_by(4) {
+            let _ = self.memory.atomic_notify(address, u32::MAX);
+        }
+    }
+
+    fn living(&self) -> usize {
+        self.alive.lock().map_or(0, |alive| *alive)
+    }
+
+    pub(crate) fn await_ended(&self, within: Duration) -> bool {
+        let Ok(alive) = self.alive.lock() else {
+            return false;
+        };
+        self.ended
+            .wait_timeout_while(alive, within, |alive| *alive > 0)
+            .is_ok_and(|(alive, _)| *alive == 0)
+    }
+
+    fn begin(&self) {
+        if let Ok(mut alive) = self.alive.lock() {
+            *alive += 1;
+        }
+    }
+
+    fn end(&self) {
+        if let Ok(mut alive) = self.alive.lock() {
+            *alive = alive.saturating_sub(1);
+            if *alive == 0 {
+                self.ended.notify_all();
+            }
+        }
     }
 
     pub(crate) fn take_failure(&self) -> Option<String> {
@@ -67,7 +154,7 @@ impl Spawner {
     }
 
     fn spawn(self: &Arc<Self>, argument: i32) -> i32 {
-        if self.stopped.load(Ordering::Acquire) {
+        if self.stopped.load(Ordering::Acquire) || self.halts(false) {
             return REFUSED;
         }
         let thread_locals = match &self.program {
@@ -82,16 +169,22 @@ impl Spawner {
         };
         let thread = self.next.fetch_add(1, Ordering::Relaxed);
         let spawner = Arc::clone(self);
+        self.begin();
         let spawned = std::thread::Builder::new()
             .name(format!("plugin thread {thread}"))
             .spawn(move || {
-                if let Err(failure) = spawner.enter(thread, argument, thread_locals) {
+                let entered = spawner.enter(thread, argument, thread_locals);
+                if let Err(failure) = entered
+                    && !spawner.halts(false)
+                {
                     spawner.fail(failure);
                 }
+                spawner.end();
             });
         match spawned {
             Ok(_) => thread,
             Err(error) => {
+                self.end();
                 self.fail(format!("a plugin thread could not start: {error}"));
                 REFUSED
             }
@@ -111,6 +204,7 @@ impl Spawner {
             wake: Arc::clone(&self.wake),
         };
         let mut store = Store::new(&self.engine, state);
+        interrupt::watch(&mut store, false);
         let mut linker: Linker<Threaded> = Linker::new(&self.engine);
         p1::add_to_linker_sync(&mut linker, |state: &mut Threaded| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked for a plugin thread: {error}"))?;
