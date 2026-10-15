@@ -17,7 +17,7 @@ use crate::geometry::*;
 
 use super::menu::CanvasMenu;
 use super::overlay::{Artboard, Backdrop, Overlay};
-use super::paint::{Camera, EntityPaint, Palette};
+use super::paint::{Camera, EntityPaint, Palette, resolve_color};
 use super::state::CanvasState;
 
 const ITEM_MARGIN: f32 = 2.0;
@@ -190,6 +190,10 @@ fn CanvasBackdrop(
                 CanvasEntityKind::Artboard { name } => Some(Artboard {
                     bounds: entity_bounds(&entity),
                     name: name.clone(),
+                    fill: resolve_color(
+                        entity.style.fill.unwrap_or_default(),
+                        theme.background.get(),
+                    ),
                 }),
                 _ => None,
             })
@@ -197,7 +201,6 @@ fn CanvasBackdrop(
         let backdrop = Backdrop {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             stage: stage.get(),
-            background: theme.background.get(),
             label: theme.text_muted.get(),
             chrome: !state.previewing(),
             artboards,

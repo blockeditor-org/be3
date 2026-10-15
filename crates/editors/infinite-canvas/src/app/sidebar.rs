@@ -195,10 +195,108 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
                                     wrap=true
                                 />
                             </Show>
+                            <ArtboardBackground artboard={artboard} locked={locked} state={state} />
                         </List>
                     </Accordion>
                 }}
             </Show>
+        </List>
+    }
+}
+
+const BACKGROUNDS: [(&str, CanvasColor); 2] = [
+    (
+        "White",
+        CanvasColor::Rgba {
+            red: 255,
+            green: 255,
+            blue: 255,
+            alpha: 255,
+        },
+    ),
+    (
+        "Black",
+        CanvasColor::Rgba {
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 255,
+        },
+    ),
+];
+
+#[component]
+fn ArtboardBackground(
+    state: CanvasState,
+    artboard: Memo<Option<CanvasEntity>>,
+    locked: Memo<bool>,
+) -> NodeId {
+    let fill = create_memo(move || artboard.get().and_then(|entity| entity.style.fill));
+    let theme = use_theme();
+    let custom =
+        create_memo(move || resolve_color(fill.get().unwrap_or_default(), theme.background.get()));
+    let following = create_memo(move || fill.get().is_none());
+    let value = create_memo(move || match fill.get() {
+        Some(color) => CommonValue::Uniform(color),
+        None => CommonValue::None,
+    });
+    let set = move |fill: Option<CanvasColor>| {
+        let Some(held) = artboard.get_untracked().filter(|entity| !entity.locked) else {
+            return;
+        };
+        let mut updated = held.clone();
+        updated.style.fill = fill;
+        state.record_update(vec![held], vec![updated], true);
+    };
+    let typed = move |color: Color32| {
+        let [red, green, blue, alpha] = color.to_array();
+        set(Some(CanvasColor::Rgba {
+            red,
+            green,
+            blue,
+            alpha,
+        }));
+    };
+    let swatches = BACKGROUNDS
+        .iter()
+        .chain(&PRESETS[1..])
+        .copied()
+        .collect::<Vec<_>>();
+    let count = swatches.len();
+    view! {
+        <List spacing=6.0>
+            <Text style=TextStyle::CAPTION string="Background" />
+            <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                <ToggleButton
+                    label="Theme background"
+                    glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
+                    pressed={following}
+                    disabled={locked}
+                    @test_id={"infinite-canvas.background.theme"}
+                    on_change={move |_: bool| set(None)}
+                />
+                <ForEach keys={(0..count).collect::<Vec<usize>>()}>
+                    {move |index: usize| {
+                        let (name, color) = swatches[index];
+                        view! {
+                            <Swatch
+                                kind="background"
+                                name
+                                color
+                                value
+                                on_pick={move |color| set(Some(color))}
+                            />
+                        }
+                    }}
+                </ForEach>
+            </List>
+            <ColorInput
+                label="Background color"
+                value={custom}
+                disabled={locked}
+                @test_id={"infinite-canvas.background"}
+                on_change={typed}
+            />
         </List>
     }
 }
