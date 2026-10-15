@@ -39,6 +39,7 @@ fn add_to_canvas(app: &mut AppTest, target: &str) {
     app.gone("Dialog \"Add block\"");
     app.wait("GenericContainer #infinite-canvas.entity.");
     app.gone("#editor.loading");
+    app.run(&["settle"]);
 }
 
 const CANVAS_TILE: &str = "#picker.tile.696e6669-6e69-7465-2d63-616e76617301/main";
