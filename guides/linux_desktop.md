@@ -1,7 +1,7 @@
 # The Linux desktop
 
 block-app is also a Linux desktop: a Wayland compositor whose shell is the linux-desktop
-plugin instead of workspace-ui. Two flags start it that way:
+plugin instead of workspace-ui. These flags start it that way:
 
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
@@ -9,13 +9,26 @@ plugin instead of workspace-ui. Two flags start it that way:
   session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
   once and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
-- `--desktop` (Linux): the desktop shell, linux-desktop on its own session as under
-  `--session`, in a normal window, with programs opening as windows inside it as they do in
-  any windowed run. What needs the displays and input devices themselves, such as display
-  modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
-  running: the power actions start only when the DRM seat provides its `DisplayControl`.
+- `--desktop` (every native platform): the desktop shell, linux-desktop on its own session as
+  under `--session`, in a normal window, with programs opening as windows inside it as they
+  do in any windowed run. What needs the displays and input devices themselves, such as
+  display modes, pointer settings and the power menu's actions other than Lock, is absent,
+  since `beui-adapter-drm` is not running: the power actions start only when the DRM seat
+  provides its `DisplayControl`. On Windows and macOS (`src/arguments.rs` parses the flags)
+  it is the shell alone: there are no program windows, notification server, tray, media,
+  power, lock screen or launcher.
   `./scripts/buck test //crates/block-app:smoke-desktop` starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
+
+Everything the desktop gets from the host is a host value, and linux-desktop shows a control
+only while the host offers what backs it (`editor.host_offers::<T>()`, true once the host has
+published `T`): the Programs button, the Super tap and placeholders' Open need `Programs`, the
+bell `Notifications`, the power menu `Power`, the media keys `Media` (the volume item, its
+`output`), and the tray its items. block-app publishes each as soon as the service behind it
+runs, even empty, and off Linux its `host_values.rs` tables list none of them, so a plugin
+watching one gets nothing and its actions are refused. The web and Android apps have no
+`--desktop`: a desktop with none of these is only a dock of block windows, which their own
+shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).
@@ -69,7 +82,7 @@ A panic must not take every program's window with it, so block-app's `panic_guar
 panics by where they happen. Every panic is logged with its backtrace. One inside
 `panic_guard::contain` is contained: a plugin, or the host's work for one, stops only that
 plugin (guides/adding_a_plugin_editor.md), the shell included, while the compositor and its
-clients keep running; a D-Bus task (`dbus::spawn`) ends alone with a toast; a
+clients keep running (see A shell that stops, below); a D-Bus task (`dbus::spawn`) ends alone with a toast; a
 password check that panics fails. Any other panic, on the UI thread or on a thread nothing
 contains (the block stack's, say), is the app's own: in a window the app shows its error
 screen, and under `--session` it ends the session instead, through beui's runner and
@@ -114,6 +127,22 @@ puts back what the console showed) and, last, the seat. Every D-Bus conversation
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
 thread waits on the bus. `dbus::session()` is the shared session bus connection.
+
+## A shell that stops
+
+When the shell's plugin stops (a panic, a trap, a hang or its session failing; any stop
+`Runtime::crashed` reports), block-app's `watch_shell` closes it and every editor under it,
+drops its runtime and shows the host's own session and profile picker (`Screen::Sessions`)
+with the error toast and its Copy report. Choosing a session or profile, or keeping the current
+one, opens a fresh shell. The windows stay: the compositor keeps every client connected,
+and `Compositor::set_owned(false)`, which block-app sets whenever no shell is on screen, takes
+the keyboard, the pointer, held buttons and popups from them, drops any input meant for them
+and pings every client each `PING_TIMEOUT`, so one that froze meanwhile is listed as not
+responding. The lock screen is the host's and works throughout. The new shell sees the
+windows in `HostWindows` and shows them as it shows any window; linux-desktop's saved layout
+names window tabs by `HostWindowId`, which the compositor keeps, so a restored layout puts
+each window back where it was, fullscreen and dialogs included. To try it, open the Plugins
+panel from the bar's menu and press Crash beside `be3.linux-desktop`.
 
 ## Notifications
 
@@ -184,7 +213,7 @@ The tests run a private bus with the test runtime's `dbus-daemon` (`BE3_DBUS_DAE
 in the dev app, start a bus as for notifications and run a tray program against it with the
 compositor's socket, for example a Python script using `gir1.2-ayatanaappindicator3-0.1`:
 
-    DBUS_SESSION_BUS_ADDRESS=ADDRESS WAYLAND_DISPLAY=/tmp/be-wayland-PID python3 indicator.py
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS drive exec python3 indicator.py
 
 ## Media and hardware keys
 
@@ -255,20 +284,26 @@ none can be read or acted on behind the lock; they show again once it is unlocke
 
 ## Wayland programs
 
-On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
-or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. In the desktop shell
+On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`.
+When that is unset, as it is under `:dev`, be-wayland (`src/runtime_dir.rs`) makes a private
+one, `/tmp/be-wayland-<pid>`, with the socket `wayland-0` in it, gives it to the programs it
+starts as their `XDG_RUNTIME_DIR` and removes it when the server goes; at start it removes
+those that processes now ended left behind (by name and owner). In the desktop shell
 the program launcher, which tapping Super alone or the bar's programs button opens, lists the
 `.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
-command, with `WAYLAND_DISPLAY` pointing at it. linux-desktop draws it; block-app only reads the
+command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`,
+`DISPLAY` for Xwayland and `DCONF_PROFILE`). linux-desktop draws it; block-app only reads the
 `.desktop` files and their icons and starts the programs (the `Programs` host value and
 `ProgramAction`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
-program can also be started against the socket directly:
-
-    WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
+program can also be started against a driven app directly: the app hands the same variables to
+`drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
+`eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
 A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
-window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). Under `--session` and `--desktop`, Super+drag anywhere on a floating window, its bar
+window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
+tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
+`WindowTab` does not, since nothing there would take it back out). Under `--session` and `--desktop`, Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
 or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
@@ -294,7 +329,7 @@ the dock's, so maximizing would change nothing (a request to maximize is still a
 with the maximized state, for programs that ask anyway). GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
-(`src/gtk_settings.rs`) writes a dconf profile into `$XDG_RUNTIME_DIR/be-wayland`: the
+(`src/gtk_settings.rs`) writes a dconf profile into `be-wayland` in its runtime directory: the
 profile dconf would otherwise use, plus a database of its own that sets and locks that key to
 `appmenu:` (no window buttons); the lock makes it win over the user's own value. Programs
 it launches get it as `DCONF_PROFILE` (`Compositor::environment`), so they read and write
@@ -331,7 +366,12 @@ Until the client commits a buffer of that size, its last one is drawn at its own
 view's top-left corner, clipped to the view, never stretched to fit; the size a surface is
 drawn at is its buffer's size over its buffer scale, or the destination it set through
 viewporter. `render.rs` draws it, `a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size`
-checks the pixels.
+checks the pixels. A surface that commits on its own (a toplevel, or a desynchronized
+sub-surface such as Firefox's content) and changes its viewport without attaching a buffer keeps
+the view it had with its last buffer until the next one arrives (`held_view.rs`): Firefox sets
+its content's destination to the new window size as soon as it is configured and commits it
+before it has drawn at that size, which would otherwise stretch the old buffer. A synchronized
+sub-surface's viewport applies with its parent's commit, and a single-pixel buffer's at once.
 A program brings one of its windows forward, or another program's (a link opened in a browser
 that is already running), with `xdg_activation_v1` (be-wayland's `activation.rs`). A client is
 given a token only while it has the keyboard and only for the serial of an input event since it
@@ -342,6 +382,33 @@ compositor's own as `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`, honoured wh
 keyboard. An honoured request goes through `Windows::activate`, as `WindowAction::Focus` does,
 which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;
 the dock has no way yet to mark a tab as wanting attention.
+
+### Windows kept across restarts
+
+A desktop session keeps its program windows: the next time it is opened with none of them
+running, as after the computer restarts, each one's tab is where the window was and shows a
+placeholder instead, with the program's icon and name, the window's old title, Open and
+Dismiss, and the bar offers to open them all. block-shell's `Workspace` (with `keeps_windows`,
+which only linux-desktop sets) saves a `KeptWindow` per top-level window beside the dock layout
+in its `layout` view state. Each window tab is keyed by a kept key that outlives the window
+(`window_tab(key)`), and `kept.rs` binds live windows to keys: a window a record names is bound
+to its key (a shell started again over the same compositor keeps every window), a window that
+appears after the restore takes the placeholder it was launched from, else the oldest unbound
+one with its app id, and any other window is its own key. The dock never sees a binding change:
+`WindowTab` shows the bound window's `WindowPanel`, or the placeholder linux-desktop hands it
+when none is bound. While the host's `PowerAvailability` says the session is `ending`, nothing
+is saved, so the programs closing as it ends stay kept.
+
+Window ids start from the compositor's start time in microseconds, so an id never names two
+windows across runs: a saved record's window id is only ever adopted by that window, and a new
+window's own id never collides with a kept key. The host fills `HostWindow::origin`: when the
+compositor launched the program or an ancestor of it, the `.desktop` entry it was launched from
+and the `launch` number the shell put on its `ProgramAction::Launch` or `Exec`; otherwise the
+program's executable, the first word of the client's `/proc` command line (an X11 window's
+`_NET_WM_PID`). The arguments are never kept, since saved layouts outlive the process and an
+argument can be a secret. linux-desktop opens a placeholder with that entry, else one from
+`Programs` whose `StartupWMClass` or id matches the app id, else the executable. The host runs
+a `Launch` that arrives before it has listed the programs once the list is in.
 
 ### X11 programs
 
@@ -399,7 +466,7 @@ their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can s
 middle-click paste among themselves.
 
 To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
-`WAYLAND_DISPLAY` set to the app's socket, and copy or paste in the app with `drive key ctrl+c`
+`drive exec`, and copy or paste in the app with `drive key ctrl+c`
 and `ctrl+v`.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press

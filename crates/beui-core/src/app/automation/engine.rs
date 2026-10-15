@@ -33,6 +33,8 @@ pub const USAGE: &str = "Reading:
                             the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
   actions [all]             the actions the command palette would list (all: every one)
+  env                       NAME=VALUE lines a program needs to show its windows inside the app,
+                            such as WAYLAND_DISPLAY; empty when the app hosts no programs
   shot [TARGET]             a screenshot, of TARGET only when given
 Pointer:
   click TARGET [right|middle|double]
@@ -52,7 +54,8 @@ Touch:
   back                      the system back gesture, whole
   back [left|right] / back PROGRESS / back commit|cancel   step by step, PROGRESS from 0 to 1
 Keyboard:
-  type TEXT                 type TEXT (a newline presses Enter)
+  type TEXT                 type TEXT key by key, as a US keyboard would (a newline presses Enter);
+                            a character no key makes arrives as text alone
   key CHORD...              press and let go of each chord, such as ctrl+z or Enter
   keydown KEY... / keyup KEY...   hold keys down and let go; keydown on a held key repeats it
   ime compose TEXT / ime commit [TEXT] / ime cancel   an input method's composition
@@ -94,6 +97,7 @@ pub struct View<'a> {
     pub window: &'a WindowState,
     pub fullscreen: bool,
     pub actions: &'a [ActionGroup],
+    pub environment: &'a dyn Fn() -> Vec<(String, String)>,
 }
 
 pub struct World<'a> {
@@ -106,6 +110,7 @@ pub struct World<'a> {
 pub struct Settled {
     pub busy: bool,
     pub again: bool,
+    pub drawing: bool,
 }
 
 enum Phase {
@@ -135,6 +140,7 @@ enum Phase {
     },
     Capturing {
         crop: Option<Rect>,
+        drawn: bool,
     },
     Reading {
         pasted: std::sync::mpsc::Receiver<Pasted>,
@@ -322,6 +328,9 @@ impl Automation {
         let settling = |before: &mut String| Phase::Settling {
             before: Some(std::mem::take(before)),
         };
+        if let Phase::Capturing { drawn, .. } = &mut active.phase {
+            *drawn = !settled.drawing;
+        }
         let mut failed = None;
         match &mut active.phase {
             Phase::Input {
@@ -406,7 +415,7 @@ impl Automation {
         }
     }
 
-    pub fn wants_capture(&self) -> bool {
+    pub fn wants_sight(&self) -> bool {
         matches!(
             self.active,
             Some(Active {
@@ -416,9 +425,19 @@ impl Automation {
         )
     }
 
+    pub fn wants_capture(&self) -> bool {
+        matches!(
+            self.active,
+            Some(Active {
+                phase: Phase::Capturing { drawn: true, .. },
+                ..
+            })
+        )
+    }
+
     pub fn captured(&mut self, capture: Option<Capture>) {
         let Some(Active {
-            phase: Phase::Capturing { crop },
+            phase: Phase::Capturing { crop, .. },
             ..
         }) = &self.active
         else {
@@ -489,6 +508,12 @@ impl Automation {
                 Ok(Started::Phase(Phase::Hitting))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(view)))),
+            "env" => Ok(Started::Done(Reply::Text(
+                (view.environment)()
+                    .into_iter()
+                    .map(|(name, value)| format!("{name}={value}\n"))
+                    .collect(),
+            ))),
             "actions" => Ok(Started::Done(Reply::Text(actions(
                 view.actions,
                 arguments.first().map(String::as_str) == Some("all"),
@@ -781,16 +806,8 @@ impl Automation {
                 input(vec![events])
             }
             "type" => {
-                let text = arguments.join(" ");
                 let mut events = Vec::new();
-                for (index, part) in text.split('\n').enumerate() {
-                    if index > 0 {
-                        keys::press(Key::Enter, self.held, &mut events);
-                    }
-                    if !part.is_empty() {
-                        events.push(Event::Text(part.to_owned()));
-                    }
-                }
+                keys::typed(&arguments.join(" "), self.held, &mut events);
                 input(vec![events])
             }
             "key" => {
@@ -1054,7 +1071,7 @@ impl Automation {
                     Some(target) => Some(locate(target, view.lines)?),
                     None => None,
                 };
-                Ok(Started::Phase(Phase::Capturing { crop }))
+                Ok(Started::Phase(Phase::Capturing { crop, drawn: false }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }

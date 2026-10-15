@@ -15,8 +15,8 @@ use block_editor_beui::beui::reactive::{
     Spacer, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, Dialog as Modal, Heading, IconButton,
-    NumberInput, TextInput, ToggleButton, use_theme,
+    Button, ButtonVariant, Checkbox, Dialog as Modal, IconButton, NumberInput, TextInput,
+    ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::Pressable;
 
@@ -25,6 +25,7 @@ use crate::color::{parse_hex_color, swatch_color};
 use crate::drawing::{BrushShape, MAX_BRUSH_SIZE, PixelTool};
 
 use crate::app::state::{Dialog, Tools};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const SPACING: f32 = 8.0;
 const SWATCH: f32 = 20.0;
@@ -90,11 +91,10 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
     let failure = tools.export_error;
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
-    let theme = use_theme();
     view! {
         <Toolbar shown={shown}>
-            <Body content={label} />
-            <Caption content={dimensions} />
+            <Text string={label} />
+            <Text style=TextStyle::CAPTION string={dimensions} />
             <IconButton
                 glyph={ICON_ZOOM_OUT.to_owned()}
                 label="Zoom out"
@@ -121,7 +121,7 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
             />
             <Checkbox label="Grid" checked={grid} on_change={toggle_grid} />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger} />
+                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
@@ -171,7 +171,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
     let square_shape = set_shape;
     view! {
         <List spacing=SPACING>
-            <Heading content="Tools" />
+            <Text style=TextStyle::HEADING string="Tools" />
             <ForEach keys={rows}>
                 {move |row: usize| {
                     let (left, right) = (TOOLS[row * 2], TOOLS[row * 2 + 1]);
@@ -191,7 +191,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                     }
                 }}
             </ForEach>
-            <Body content="Tool options" />
+            <Text string="Tool options" />
             <NumberInput
                 value={size_value}
                 min=1.0
@@ -224,7 +224,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 disabled={shapes}
                 on_change={move |on| set_filled.set(on)}
             />
-            <Body content="Symmetry" />
+            <Text string="Symmetry" />
             <Checkbox
                 label="Mirror horizontally"
                 checked={horizontal}
@@ -300,7 +300,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
     let palette_color = color;
     view! {
         <List spacing=SPACING>
-            <Heading content="Color" />
+            <Text style=TextStyle::HEADING string="Color" />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Swatch color={active} selected=false on_click={move || {}} />
                 <TextInput
@@ -319,7 +319,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                     }
                 }}
             </ForEach>
-            <Body content="Palette" />
+            <Text string="Palette" />
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={palette}>
                     {move |swatch: PixelColor| {
@@ -349,7 +349,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
-            <Body content="Recent" />
+            <Text string="Recent" />
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={recent_colors}>
                     {move |swatch: PixelColor| {
@@ -441,7 +441,6 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
     let dismiss_resize = move || tools.close_dialog();
     let cancel_clear = move || tools.close_dialog();
     let dismiss_clear = move || tools.close_dialog();
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
             <Modal
@@ -471,7 +470,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                             on_change={move |value: f64| set_height.set(value as u16)}
                         />
                     </List>
-                    <Caption content="Anchor" />
+                    <Text style=TextStyle::CAPTION string="Anchor" />
                     <ForEach keys={anchors}>
                         {move |row: usize| {
                             view! {
@@ -480,9 +479,10 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                         }}
                     </ForEach>
                     <Show condition={cropping}>
-                        <Caption
-                            content="Shrinking crops pixels outside the anchored region."
-                            color={theme.warning}
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Shrinking crops pixels outside the anchored region."
+                            color=TextColor::Warning
                             wrap=true
                         />
                     </Show>
@@ -510,7 +510,11 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                 on_dismiss={dismiss_clear}
             >
                 <List spacing=SPACING>
-                    <Caption content="This makes every pixel transparent." wrap=true />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="This makes every pixel transparent."
+                        wrap=true
+                    />
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
                             label="Clear"

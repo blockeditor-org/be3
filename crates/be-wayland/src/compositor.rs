@@ -40,7 +40,8 @@ pub struct Compositor {
     textures: Rc<RefCell<Textures>>,
     watch: Option<Watch>,
     waker: Option<Waker>,
-    children: Vec<rustix::process::Pid>,
+    children: Vec<(rustix::process::Pid, Option<u64>)>,
+    origins: RefCell<std::collections::HashMap<WindowId, Origin>>,
     exited: (Sender<Exit>, Receiver<Exit>),
     on_failure: Option<Box<dyn Fn(String)>>,
     configured: std::collections::HashMap<WindowId, Configured>,
@@ -51,11 +52,13 @@ pub struct Compositor {
     relist: bool,
     input_frames: u64,
     forced: bool,
+    listed: u64,
     locked: bool,
     clipboard: clipboard::Clipboard,
     gtk_profile: Option<std::path::PathBuf>,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
     cursor_revision: u64,
+    unowned: unowned::Unowned,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -69,7 +72,8 @@ impl Compositor {
     pub fn new(server: Server, windows: Windows) -> Self {
         let gtk_profile = server
             .socket_name()
-            .and_then(|_| crate::gtk_settings::profile());
+            .and(server.runtime_dir())
+            .and_then(crate::gtk_settings::profile);
         Self {
             server,
             windows,
@@ -77,6 +81,7 @@ impl Compositor {
             watch: None,
             waker: None,
             children: Vec::new(),
+            origins: RefCell::new(std::collections::HashMap::new()),
             exited: channel(),
             on_failure: None,
             configured: std::collections::HashMap::new(),
@@ -87,11 +92,13 @@ impl Compositor {
             relist: false,
             input_frames: 0,
             forced: false,
+            listed: 0,
             locked: false,
             clipboard: clipboard::Clipboard::default(),
             gtk_profile,
             cursor_surface: None,
             cursor_revision: 0,
+            unowned: unowned::Unowned::default(),
         }
     }
 
@@ -226,13 +233,22 @@ impl Compositor {
     }
 
     pub fn environment(&self) -> Vec<(&'static str, String)> {
+        let runtime = self
+            .server
+            .runtime_dir()
+            .map(|dir| ("XDG_RUNTIME_DIR", dir.to_string_lossy().into_owned()));
         let wayland = self.socket().map(|socket| ("WAYLAND_DISPLAY", socket));
         let x11 = self.x11_display().map(|display| ("DISPLAY", display));
         let gtk = self
             .gtk_profile
             .as_ref()
             .map(|profile| ("DCONF_PROFILE", profile.to_string_lossy().into_owned()));
-        wayland.into_iter().chain(x11).chain(gtk).collect()
+        runtime
+            .into_iter()
+            .chain(wayland)
+            .chain(x11)
+            .chain(gtk)
+            .collect()
     }
 
     fn launch(&mut self, launch: &Launch, now: Instant) {
@@ -268,7 +284,7 @@ impl Compositor {
             }
         };
         let pid = rustix::process::Pid::from_child(&child);
-        self.children.push(pid);
+        self.children.push((pid, launch.tag));
         let exited = self.exited.0.clone();
         let waker = self.waker.clone();
         let line = launch_name(launch);
@@ -294,7 +310,7 @@ impl Compositor {
 
     fn reap(&mut self) {
         while let Ok(exit) = self.exited.1.try_recv() {
-            self.children.retain(|pid| *pid != exit.pid);
+            self.children.retain(|(pid, _)| *pid != exit.pid);
             if let Some(problem) = exit.problem() {
                 self.fail(problem);
             }
@@ -356,6 +372,7 @@ impl Compositor {
         }
         let open = self.server.state.windows();
         self.configured.retain(|id, _| open.contains(id));
+        self.origins.borrow_mut().retain(|id, _| open.contains(id));
         if changed {
             let list = self.list();
             let windows = self.windows;
@@ -396,17 +413,35 @@ impl Compositor {
     }
 
     fn launched(&self, pid: rustix::process::Pid) -> bool {
+        self.launch_of(pid).is_some()
+    }
+
+    fn launch_of(&self, pid: rustix::process::Pid) -> Option<Option<u64>> {
         let mut pid = pid;
         for _ in 0..MAX_ANCESTORS {
-            if self.children.contains(&pid) {
-                return true;
+            if let Some((_, tag)) = self.children.iter().find(|(child, _)| *child == pid) {
+                return Some(*tag);
             }
-            match parent(pid) {
-                Some(parent) => pid = parent,
-                None => return false,
-            }
+            pid = parent(pid)?;
         }
-        false
+        None
+    }
+
+    fn origin(&self, id: WindowId) -> Origin {
+        if let Some(origin) = self.origins.borrow().get(&id) {
+            return origin.clone();
+        }
+        let pid = self
+            .server
+            .state
+            .client_pid(id)
+            .and_then(rustix::process::Pid::from_raw);
+        let origin = Origin {
+            launch: pid.and_then(|pid| self.launch_of(pid)).flatten(),
+            command: pid.map(command_line).unwrap_or_default(),
+        };
+        self.origins.borrow_mut().insert(id, origin.clone());
+        origin
     }
 
     fn list(&self) -> Vec<WindowInfo> {
@@ -415,9 +450,11 @@ impl Compositor {
             .windows()
             .into_iter()
             .filter_map(|id| {
+                let size = state.mapped_size(id)?;
+                let origin = self.origin(id);
                 Some(WindowInfo {
                     id,
-                    size: state.mapped_size(id)?,
+                    size,
                     title: state.title(id).unwrap_or_default(),
                     app_id: state.app_id(id).unwrap_or_default(),
                     parent: state.parent(id),
@@ -426,6 +463,8 @@ impl Compositor {
                     responding: state.responding(id),
                     icon: state.icon(id),
                     inhibits_shortcuts: state.inhibits_shortcuts(id),
+                    launch: origin.launch,
+                    command: origin.command,
                 })
             })
             .collect()
@@ -535,6 +574,9 @@ impl Compositor {
 
     fn input(&mut self, now: Instant) {
         let inputs = self.windows.take_input();
+        if !self.owned() {
+            return;
+        }
         for (id, input) in &inputs {
             let id = *id;
             if !self.server.state.windows().contains(&id) {
@@ -610,9 +652,13 @@ impl Compositor {
                         PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
                         PointerPhase::Down(button) | PointerPhase::Up(button) => {
                             let pressed = matches!(event.phase, PointerPhase::Down(_));
-                            state.pointer_motion(at(*over, event.pos));
+                            let target = at(*over, event.pos);
+                            state.pointer_motion(target);
                             if pressed {
                                 state.ping(id, now);
+                                if let Some((target, _)) = target {
+                                    windows.pressed(target);
+                                }
                             }
                             state.pointer_button(button_code(button), pressed);
                         }
@@ -637,8 +683,7 @@ impl Compositor {
 
     fn focus(&mut self, now: Instant) {
         let focused = self
-            .windows
-            .focused()
+            .keyboard_for(self.windows.focused())
             .map(|id| self.windows.blocked_by(id).unwrap_or(id));
         if self.server.state.keyboard_window() == focused {
             return;
@@ -845,6 +890,7 @@ impl Compositor {
             .collect();
         self.server.state.set_screens(screens);
         self.publish(document);
+        self.listed = self.windows.revision();
     }
 
     fn watch_idle(&mut self, context: &Context, document: &mut Document) {
@@ -882,8 +928,9 @@ impl Compositor {
         self.input(now);
         self.apply(now, document);
         self.server.flush();
+        self.ping_unowned(context);
         self.watch_pings(context);
-        if std::mem::take(&mut self.forced) {
+        if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
             context.request_repaint();
         }
         if let Some(watch) = &self.watch {
@@ -893,10 +940,26 @@ impl Compositor {
 
     pub fn exiting(&mut self) {
         self.reap();
-        for pid in &self.children {
+        for (pid, _) in &self.children {
             let _ = rustix::process::kill_process(*pid, rustix::process::Signal::KILL);
         }
     }
+}
+
+#[derive(Clone)]
+struct Origin {
+    launch: Option<u64>,
+    command: Vec<String>,
+}
+
+fn command_line(pid: rustix::process::Pid) -> Vec<String> {
+    let Ok(line) = std::fs::read(format!("/proc/{}/cmdline", pid.as_raw_nonzero())) else {
+        return Vec::new();
+    };
+    line.split(|byte| *byte == 0)
+        .filter(|argument| !argument.is_empty())
+        .map(|argument| String::from_utf8_lossy(argument).into_owned())
+        .collect()
 }
 
 struct Exit {
@@ -950,6 +1013,7 @@ fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
 }
 
 mod clipboard;
+mod unowned;
 
 #[cfg(test)]
 mod tests;

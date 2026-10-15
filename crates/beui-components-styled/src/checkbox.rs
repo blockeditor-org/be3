@@ -4,13 +4,14 @@ use crate::focus_ring::FocusRing;
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 
-use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, ThemeStore, use_theme};
+use crate::text::{Text, TextColor};
+use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, Text, create_memo,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, create_memo,
 };
 
 const BOX_SIZE: f32 = 18.0;
@@ -58,8 +59,8 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     let mark_color = theme.on_accent;
     let labeled = create_memo(move || !label.get().is_empty());
     let label_color = create_memo(move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
 
     view! {
@@ -89,7 +90,6 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                         <Text
                             @sizing=ItemSize::Percent(100.0)
                             string={label}
-                            font_size=FONT_BODY
                             color={label_color}
                             align=TextAlign::Start
                         />

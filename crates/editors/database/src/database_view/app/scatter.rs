@@ -4,11 +4,12 @@ use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo,
     ReadSignal, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Caption, use_theme};
+use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{NodeId, Pos2, TextAlign, Vec2};
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const AXIS_LEFT: f32 = 48.0;
 const AXIS_BOTTOM: f32 = 32.0;
@@ -38,7 +39,10 @@ pub fn Scatter(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding_horizontal=12.0 padding_vertical=12.0>
-                        <Caption content="Choose X and Y fields to use the scatter view." />
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Choose X and Y fields to use the scatter view."
+                        />
                     </Frame>
                 </Show>
                 <Show condition={ready}>
@@ -119,13 +123,21 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                                 <Frame color={rule_color} />
                             </CanvasItem>
                             <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
-                                <Caption content={x_low} />
+                                <Text style=TextStyle::CAPTION string={x_low} />
                             </CanvasItem>
                             <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
-                                <Caption content={x_high} align=TextAlign::End />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={x_high}
+                                    align=TextAlign::End
+                                />
                             </CanvasItem>
                             <CanvasItem x={x_label_x} y={x_label_y} width=120.0 height=LABEL_HEIGHT>
-                                <Caption content={x_name} align=TextAlign::Center />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={x_name}
+                                    align=TextAlign::Center
+                                />
                             </CanvasItem>
                             <CanvasItem
                                 x=0.0
@@ -133,7 +145,11 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                                 width={AXIS_LEFT - 4.0}
                                 height=LABEL_HEIGHT
                             >
-                                <Caption content={y_low} align=TextAlign::End />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={y_low}
+                                    align=TextAlign::End
+                                />
                             </CanvasItem>
                             <CanvasItem
                                 x=0.0
@@ -141,10 +157,14 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                                 width={AXIS_LEFT - 4.0}
                                 height=LABEL_HEIGHT
                             >
-                                <Caption content={y_high} align=TextAlign::End />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={y_high}
+                                    align=TextAlign::End
+                                />
                             </CanvasItem>
                             <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
-                                <Caption content={y_name} />
+                                <Text style=TextStyle::CAPTION string={y_name} />
                             </CanvasItem>
                             <ForEach keys={keys}>
                                 {move |row: usize| {
@@ -156,7 +176,10 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                             </ForEach>
                             <Show condition={empty}>
                                 <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
-                                    <Caption content="No rows have both fields set" />
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string="No rows have both fields set"
+                                    />
                                 </CanvasItem>
                             </Show>
                         </Canvas>

@@ -7,7 +7,6 @@ use block_editor_beui::beui::reactive::{
     Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, component, create_effect,
     create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::{Caption, Heading};
 use block_editor_beui::beui::unstyled::{TabId, dock_menu};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -22,6 +21,7 @@ use super::phone::DetailsSheet;
 use super::status::StatusBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
@@ -250,9 +250,9 @@ fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Heading content={heading} />
-                <Caption content={first} />
-                <Caption content={second} />
+                <Text style=TextStyle::HEADING string={heading} />
+                <Text style=TextStyle::CAPTION string={first} />
+                <Text style=TextStyle::CAPTION string={second} />
             </List>
         </Frame>
     }

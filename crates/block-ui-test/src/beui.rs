@@ -766,6 +766,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.clock += FRAME_INTERVAL;
         inbox.push(Message::DrawFrame {
             now_micros: self.clock.as_micros() as u64,
+            seen: true,
         });
         for message in inbox {
             self.deliver(message);
@@ -1355,6 +1356,7 @@ fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<Str
     if document.node_kind(node) == "text" {
         let detail = document.node_detail(node).unwrap_or_default();
         let text = detail.trim_matches('"');
+        collected.extend(document.text_icons(node));
         if !text.is_empty() {
             collected.push(text.to_owned());
         }

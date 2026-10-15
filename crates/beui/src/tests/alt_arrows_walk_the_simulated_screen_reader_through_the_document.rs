@@ -1,16 +1,16 @@
 use super::*;
 use crate::reactive::view;
-use crate::styled::{Body, Heading};
+use crate::styled::{Text, TextStyle};
 
 #[test]
 fn alt_arrows_walk_the_simulated_screen_reader_through_the_document() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
-                <Heading content="Settings" />
+                <Text style=TextStyle::HEADING string="Settings" />
             },
             view! {
-                <Body content="Pick a theme" />
+                <Text string="Pick a theme" />
             },
         ]
     });

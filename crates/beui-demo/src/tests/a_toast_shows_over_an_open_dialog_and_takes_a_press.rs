@@ -1,8 +1,9 @@
 use beui::reactive::{Frame, List, NodeRef, build, create_signal, view};
-use beui::styled::{Dialog, Paragraph, Toast, ToastAction, Toasts, use_theme};
+use beui::styled::{Dialog, Toast, ToastAction, Toasts, use_theme};
 use beui::unstyled::Edge;
 
 use super::*;
+use beui::styled::{Text, TextStyle};
 
 #[test]
 fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
@@ -33,8 +34,10 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
                         width=720.0
                         on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
                     >
-                        <Paragraph
-                            content="The toast stays bright over the scrim of this dialog."
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string="The toast stays bright over the scrim of this dialog."
+                            wrap=true
                         />
                     </Dialog>
                     <Toasts

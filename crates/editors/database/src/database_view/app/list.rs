@@ -8,10 +8,9 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList,
     component, create_memo, view,
 };
-use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
+use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
-    Body, ButtonVariant, Caption, IconButton, IconButtonSize, IconSized, ListRow, Scroll,
-    Separator, use_theme,
+    ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, Separator, TextColor, use_theme,
 };
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
@@ -23,11 +22,13 @@ use crate::database_view::app::data::Data;
 use crate::database_view::app::row::RowPanel;
 use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::sort::BlockLabels;
+use block_editor_beui::beui::styled::{Icon, Text, TextSize, TextStyle};
 
 const PANEL_WIDTH: f32 = 460.0;
 const LINE_HEIGHT: f32 = 38.0;
 const CODE_WIDTH: f32 = 76.0;
-const MARK_SIZE: f32 = 16.0;
+const MARK: TextSize = TextSize::Sm;
+const MARK_SIZE: f32 = MARK.icon_px();
 const SPACING: f32 = 10.0;
 const GUTTER: f32 = 12.0;
 const PAGE_PART: Uuid = Uuid::nil();
@@ -89,7 +90,7 @@ pub fn ListView(data: Data) -> NodeId {
                         <Show condition={empty}>
                             {move || view! {
                                 <Frame padding_horizontal={GUTTER * 1.5} padding_vertical=GUTTER>
-                                    <Caption content={blank} />
+                                    <Text style=TextStyle::CAPTION string={blank} />
                                 </Frame>
                             }}
                         </Show>
@@ -253,10 +254,10 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                     on_click={toggle}
                 />
                 <Frame visible={marked}>
-                    <ChoiceMark option={option} size=MARK_SIZE />
+                    <ChoiceMark option={option} size=MARK />
                 </Frame>
-                <Body content={label} />
-                <Caption content={count} />
+                <Text string={label} />
+                <Text style=TextStyle::CAPTION string={count} />
                 <Frame @sizing=ItemSize::Percent(100.0) />
                 <IconButton
                     glyph={ICON_ADD.to_owned()}
@@ -283,10 +284,7 @@ pub fn group_test_key(key: GroupKey) -> String {
 
 #[component]
 fn RowLine(data: Data, row: ObjectId) -> NodeId {
-    let index = create_memo(move || {
-        data.row_ids
-            .with(|ids| ids.iter().position(|id| *id == row))
-    });
+    let index = create_memo(move || data.row_index.with(|indices| indices.get(&row).copied()));
     let entry = create_memo(move || {
         let index = index.get()?;
         data.rows.with(|rows| rows.get(index).cloned())
@@ -348,12 +346,12 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                     {move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
-                                <Caption content={wide_code} ellipsis=true />
+                                <Text style=TextStyle::CAPTION string={wide_code} ellipsis=true />
                             </Frame>
                             <Marks data={data} entry={wide_entry} marks={wide_marks} />
-                            <Body
+                            <Text
                                 @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                                content={wide_title}
+                                string={wide_title}
                                 ellipsis=true
                             />
                             <Parts parts={wide_parts} keys={wide_keys} />
@@ -369,7 +367,7 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                                 spacing=SPACING
                             >
                                 <Marks data={data} entry={narrow_entry} marks={marks} />
-                                <Body @sizing=ItemSize::Percent(100.0) content={title} wrap=true />
+                                <Text @sizing=ItemSize::Percent(100.0) string={title} wrap=true />
                             </List>
                             <List
                                 direction=Direction::Horizontal
@@ -377,7 +375,7 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                                 spacing=8.0
                                 wrap=true
                             >
-                                <Caption content={code} />
+                                <Text style=TextStyle::CAPTION string={code} />
                                 <Parts parts={parts} keys={part_keys} />
                             </List>
                         </List>
@@ -410,7 +408,7 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
                     view! {
                         <Frame width=MARK_SIZE height=MARK_SIZE>
                             <Frame visible={set}>
-                                <ChoiceMark option={option} size=MARK_SIZE />
+                                <ChoiceMark option={option} size=MARK />
                             </Frame>
                         </Frame>
                     }
@@ -421,9 +419,13 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
 }
 
 #[component]
-pub fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
+pub fn Parts(
+    parts: Memo<Vec<(Uuid, Part)>>,
+    keys: Memo<Vec<Uuid>>,
+    #[prop(default = false)] wrap: bool,
+) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap={wrap}>
             <ForEach keys={keys}>
                 {move |key: Uuid| {
                     let part = create_memo(move || {
@@ -440,67 +442,89 @@ pub fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PartKind {
+    Page,
+    Plain,
+    Chip,
+}
+
 #[component]
 fn RowPart(part: Memo<Option<Part>>) -> NodeId {
-    let theme = use_theme();
-    let text = create_memo(move || match part.get() {
-        Some(Part::Choice(option)) => option.name,
-        Some(Part::Link(label)) | Some(Part::Text(label)) => label,
-        Some(Part::Links(name, count)) => format!("{name} {count}"),
-        Some(Part::Page) | None => String::new(),
+    let kind = create_memo(move || {
+        part.with(|part| match part {
+            Some(Part::Page) | None => PartKind::Page,
+            Some(Part::Text(_)) => PartKind::Plain,
+            Some(Part::Choice(_) | Part::Link(_) | Part::Links(..)) => PartKind::Chip,
+        })
     });
-    let page = create_memo(move || matches!(part.get(), Some(Part::Page)));
-    let chip = create_memo(move || {
-        matches!(
-            part.get(),
-            Some(Part::Choice(_) | Part::Link(_) | Part::Links(..))
-        )
+    let text = create_memo(move || {
+        part.with(|part| match part {
+            Some(Part::Choice(option)) => option.name.clone(),
+            Some(Part::Link(label)) | Some(Part::Text(label)) => label.clone(),
+            Some(Part::Links(name, count)) => format!("{name} {count}"),
+            Some(Part::Page) | None => String::new(),
+        })
     });
-    let plain = create_memo(move || matches!(part.get(), Some(Part::Text(_))));
-    let dot = create_memo(move || match part.get() {
-        Some(Part::Choice(option)) => choice_color(option.color, theme.kind.get()),
-        _ => theme.text_muted.get(),
-    });
-    let dotted = create_memo(move || matches!(part.get(), Some(Part::Choice(_))));
-    let linked = create_memo(move || matches!(part.get(), Some(Part::Links(..))));
-    let plain_text = text;
-    let (page_color, link_color) = (theme.text_muted, theme.text_muted);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame visible={page}>
-                <IconSized
-                    glyph={ICON_DESCRIPTION.to_owned()}
-                    font_size=MARK_SIZE
-                    color={page_color}
-                />
-            </Frame>
-            <Frame visible={plain}>
-                <Caption content={plain_text} ellipsis=true />
-            </Frame>
-            <Frame
-                visible={chip}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
-                radius=10
-                padding_horizontal=8.0
-                padding_vertical=1.0
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
-                    <Frame visible={dotted}>
-                        <Frame width=8.0 height=8.0 radius=2 color={dot} />
-                    </Frame>
-                    <Frame visible={linked}>
-                        <IconSized
-                            glyph={ICON_LINK.to_owned()}
-                            font_size=FONT_SMALL
-                            color={link_color}
-                        />
-                    </Frame>
-                    <Caption content={text} align=TextAlign::Start />
-                </List>
-            </Frame>
+            <Dynamic value={kind}>
+                {move |kind: PartKind| match kind {
+                    PartKind::Page => view! {
+                        <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph={ICON_DESCRIPTION.to_owned()} />
+                        </Text>
+                    },
+                    PartKind::Plain => view! {
+                        <Text style=TextStyle::CAPTION string={text} ellipsis=true />
+                    },
+                    PartKind::Chip => view! {
+                        <Chip part={part} text={text} />
+                    },
+                }}
+            </Dynamic>
         </List>
+    }
+}
+
+#[component]
+fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
+    let theme = use_theme();
+    let choice = create_memo(move || match part.get() {
+        Some(Part::Choice(option)) => Some(option),
+        _ => None,
+    });
+    let dotted = create_memo(move || choice.with(Option::is_some));
+    let dot = create_memo(move || match choice.get() {
+        Some(option) => choice_color(option.color, theme.kind.get()),
+        None => theme.text_muted.get(),
+    });
+    let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));
+    view! {
+        <Frame
+            outline={theme.border}
+            outline_width=BORDER_WIDTH
+            outline_visible=true
+            radius=10
+            padding_horizontal=8.0
+            padding_vertical=1.0
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+                <Show condition={dotted}>
+                    {move || view! {
+                        <Frame width=8.0 height=8.0 radius=2 color={dot} />
+                    }}
+                </Show>
+                <Show condition={linked}>
+                    {move || view! {
+                        <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph={ICON_LINK.to_owned()} />
+                        </Text>
+                    }}
+                </Show>
+                <Text style=TextStyle::CAPTION string={text} align=TextAlign::Start />
+            </List>
+        </Frame>
     }
 }
 

@@ -149,8 +149,9 @@ impl Screens {
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
-            Message::DrawFrame { now_micros } => {
+            Message::DrawFrame { now_micros, seen } => {
                 crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
+                SEEN.store(*seen, std::sync::atomic::Ordering::Relaxed);
                 return false;
             }
             Message::Editor(EditorMessage::Open {
@@ -495,19 +496,14 @@ impl Screens {
                 self.requests = set.screens.clone();
                 self.relayout();
             }
-            Message::NodeAction {
-                screen,
-                node,
-                action,
-                value,
-            } => {
+            Message::NodeAction { screen, request } => {
                 let Some((instance, region)) = self.screen(*screen) else {
                     return false;
                 };
                 let Some(session) = self.sessions.get_mut(&instance) else {
                     return false;
                 };
-                session.node_action(region, *node as usize, action, value.clone());
+                session.node_action(region, request.clone());
             }
             Message::RunAction { screen, id } => {
                 let Some((instance, region)) = self.screen(*screen) else {
@@ -763,4 +759,10 @@ static DESCRIBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::
 
 pub(crate) fn describing() -> bool {
     DESCRIBE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+static SEEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+pub(crate) fn seen() -> bool {
+    SEEN.load(std::sync::atomic::Ordering::Relaxed)
 }

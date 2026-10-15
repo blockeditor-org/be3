@@ -18,9 +18,9 @@ use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ForEach, Frame, Gap, IntoChild, List, Memo, NodeRef, Portal,
-    RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList, component_placed, create_effect,
-    create_memo, on_cleanup, untrack, with_document,
+    Callback, Canvas, CanvasItem, ForEach, Frame, Gap, Icon, IntoChild, List, Memo, NodeRef,
+    Portal, RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList, component_placed,
+    create_effect, create_memo, on_cleanup, untrack, with_document,
 };
 
 use super::colors::TextAreaColors;
@@ -472,7 +472,7 @@ fn RowText(
     });
     let anchored = create_memo(move || layer != Layer::Handles && anchor_at.get().is_some());
     let color = create_memo(move || cx.colors.get().syntax.markdown_plain_text);
-    let font_size = create_memo(move || cx.font_size.get());
+    let font = create_memo(move || FontId::proportional(cx.font_size.get()));
     let item_model = model;
     let anchor = cx.anchor;
     let anchor_position = create_memo(move || anchor_at.get());
@@ -482,7 +482,7 @@ fn RowText(
             @node_ref=&node
             wrap
             line_padding={padding}
-            font_size={font_size}
+            font={font}
             color={color}
             marks={marks}
             carets={carets}
@@ -663,9 +663,8 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         <Frame width={width} height=RUN_CHIP_HEIGHT color={fill} radius=RUN_CHIP_RADIUS>
             <Text
                 string={label}
-                font_size=RUN_CHIP_SIZE
+                font={FontId::monospace(RUN_CHIP_SIZE)}
                 color={color}
-                monospace=true
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
             />
@@ -741,12 +740,11 @@ fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
                     {move || view! {
                         <Text
                             @sizing=ItemSize::Percent(100.0)
-                            string={ICON_CHECK.to_owned()}
-                            icon=true
-                            font_size=14.0
                             color={Color32::WHITE}
                             align=TextAlign::Center
-                        />
+                        >
+                            <Icon glyph={ICON_CHECK.to_owned()} />
+                        </Text>
                     }}
                 </Show>
             </List>
@@ -782,12 +780,9 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let has_icon = create_memo(move || !icon.get().is_empty());
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
-    let font_size = create_memo(move || item.get().map_or(BODY_SIZE, |item| item.style.font.size));
-    let bold = create_memo(move || item.get().is_some_and(|item| item.style.font.bold));
-    let italic = create_memo(move || item.get().is_some_and(|item| item.style.font.italic));
-    let monospace = create_memo(move || {
+    let font = create_memo(move || {
         item.get()
-            .is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)
+            .map_or(FontId::proportional(BODY_SIZE), |item| item.style.font)
     });
     let selected = create_memo(move || {
         cx.state.cursors().get();
@@ -821,25 +816,17 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                         view! {
                             <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
                                 <Text
-                                    string={icon}
-                                    icon=true
-                                    font_size=16.0
+                                    font={FontId::proportional(16.0)}
                                     color={Color32::WHITE}
                                     align=TextAlign::Center
-                                />
+                                >
+                                    <Icon glyph={icon} />
+                                </Text>
                             </Frame>
                         }
                     }}
                 </Show>
-                <Text
-                    string={label}
-                    font_size={font_size}
-                    color={color}
-                    bold={bold}
-                    italic={italic}
-                    monospace={monospace}
-                    vertical_align=TextAlign::Center
-                />
+                <Text string={label} font={font} color={color} vertical_align=TextAlign::Center />
                 <Show condition={selected}>
                     {move || {
                         let anchor = overlay_anchor;
@@ -906,18 +893,17 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width=GUTTER_ARROW_SIZE height={height}>
                     <Text
-                        string={arrow}
-                        icon=true
-                        font_size=GUTTER_ARROW_SIZE
+                        font={FontId::proportional(GUTTER_ARROW_SIZE)}
                         color={arrow_color}
                         align=TextAlign::Center
-                    />
+                    >
+                        <Icon glyph={arrow} />
+                    </Text>
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) height={height}>
                     <Text
                         string={number}
-                        monospace=true
-                        font_size=BODY_SIZE
+                        font={FontId::monospace(BODY_SIZE)}
                         color={number_color}
                         align=TextAlign::End
                     />

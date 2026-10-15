@@ -14,6 +14,7 @@ pub(crate) struct Notifications {
     requests: Receiver<NotificationRequest>,
     signals: UnboundedSender<NotificationSignal>,
     inbox: Inbox,
+    offered: bool,
 }
 
 impl Notifications {
@@ -26,6 +27,7 @@ impl Notifications {
             requests,
             signals,
             inbox: Inbox::new(ids),
+            offered: false,
         }
     }
 
@@ -35,7 +37,7 @@ impl Notifications {
         for signal in signals {
             let _ = self.signals.send(signal);
         }
-        if changed {
+        if changed || !std::mem::replace(&mut self.offered, true) {
             crate::plugin_host::publish::<block_plugin_api::Notifications>(&self.inbox.published());
         }
     }

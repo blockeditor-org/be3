@@ -1,8 +1,7 @@
 use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Show, Text, component, create_memo, create_signal,
-    view,
+    Align, Direction, Frame, ItemSize, List, Show, component, create_memo, create_signal, view,
 };
-use beui::styled::{Button, ButtonVariant, Icon, use_theme};
+use beui::styled::{Button, ButtonVariant, TextSize, use_theme};
 use beui::{NodeId, TextAlign};
 use block_editor_beui::{
     ChildBlock, ChildMode, ChildState, ChildTarget, InteractionMode,
@@ -11,13 +10,12 @@ use block_editor_beui::{
 
 use super::embeds::ResolvedEmbed;
 use super::state::{FocusedEmbed, State};
+use beui::styled::{Icon, Text, TextColor};
 
 const TITLE_SPACING: f32 = 6.0;
 const TITLE_PADDING: f32 = 6.0;
 const FRAME_RADIUS: u8 = 6;
 const TITLE_RADIUS: u8 = 4;
-const TITLE_FONT_SIZE: f32 = 16.0;
-const UNAVAILABLE_FONT_SIZE: f32 = 13.0;
 
 #[component]
 pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
@@ -45,22 +43,20 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     let label = embed.label.clone();
     let automatic = embed.automatic;
 
-    let icon_theme = theme;
     let icon_row = move || {
-        let color = icon_theme.text;
         let glyph = icon.clone();
         view! {
-            <Icon glyph={glyph} color={color} />
+            <Text align=TextAlign::Center>
+                <Icon glyph={glyph} />
+            </Text>
         }
     };
-    let unavailable_theme = theme;
     let unavailable_row = move || {
-        let color = unavailable_theme.text_muted;
         view! {
             <Text
                 string="Block unavailable"
-                font_size=UNAVAILABLE_FONT_SIZE
-                color={color}
+                size=TextSize::Sm
+                color=TextColor::Muted
                 align=TextAlign::Center
             />
         }
@@ -87,9 +83,8 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                         <Text
                             @sizing=ItemSize::Percent(100.0)
                             string={label}
-                            font_size=TITLE_FONT_SIZE
+                            size=TextSize::Lg
                             italic={automatic}
-                            color={theme.text}
                             clip=true
                         />
                         <Show condition={editable}>

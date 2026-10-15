@@ -7,7 +7,8 @@ use block_editor_beui::beui::reactive::{
     Align, ForEach, Frame, ItemSize, List, NodeRef, component, create_effect, create_memo, untrack,
     view,
 };
-use block_editor_beui::beui::styled::{Caption, Docking, Heading, use_theme};
+use block_editor_beui::beui::styled::{Docking, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
 };
@@ -36,7 +37,7 @@ impl block_editor_beui::BeuiApp for WorkspaceUiApp {
 
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
-    let workspace = Workspace::new(editor, true);
+    let workspace = Workspace::new(editor, true, false);
     let layout = editor.view_content().map(|view| view.loaded());
     let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
@@ -102,7 +103,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             </ForEach>
                             <ForEach keys={top_windows}>
                                 {move |window: HostWindowId| view! {
-                                    <WindowTab workspace window />
+                                    <WindowTab workspace key={window} />
                                 }}
                             </ForEach>
                         </DockPane>
@@ -163,8 +164,11 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Heading content="No file open" />
-                <Caption content="Open or create a file from Files to get started." />
+                <Text style=TextStyle::HEADING string="No file open" />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Open or create a file from Files to get started."
+                />
             </List>
         </Frame>
     }

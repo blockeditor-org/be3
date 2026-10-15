@@ -8,9 +8,7 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, component,
     create_effect, create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::{
-    ActionRow, Caption, Heading, Icon, ModalSheet, SHEET_STOPS, use_theme,
-};
+use block_editor_beui::beui::styled::{ActionRow, ModalSheet, SHEET_STOPS};
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
@@ -19,6 +17,8 @@ use super::menu::{Action, apply, permissions};
 use super::panel::{Info, Refs, Watched, read_info};
 use super::tab::TabItem;
 use super::workspace::{PhoneSheet, Workspace};
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const SHEET_PADDING: f32 = 12.0;
 const SECTION_PADDING: f32 = 8.0;
@@ -62,7 +62,6 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
 
 #[component]
 fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
-    let theme = use_theme();
     let (info, set_info) = create_signal(None::<Info>);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
@@ -148,10 +147,12 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
             <List spacing=0.0>
                 <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                        <Icon glyph color={theme.accent} />
+                        <Text color=TextColor::Accent align=TextAlign::Center>
+                            <Icon glyph={glyph} />
+                        </Text>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Heading content={name} />
-                            <Caption content={kind} />
+                            <Text style=TextStyle::HEADING string={name} />
+                            <Text style=TextStyle::CAPTION string={kind} />
                         </List>
                     </List>
                 </Frame>
@@ -221,7 +222,7 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
             <Show condition={some}>
                 {move || { let title = title.clone(); view! {
                     <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
-                        <Caption content={title} />
+                        <Text style=TextStyle::CAPTION string={title} />
                     </Frame>
                 } }}
             </Show>

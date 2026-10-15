@@ -49,17 +49,24 @@ pub(crate) struct Content {
     pub(crate) content_type: Uuid,
     pub(crate) bytes: Vec<u8>,
     pub(crate) session: Vec<u8>,
+    pub(crate) derived: Option<be_block::Entries>,
     pub(crate) revision: u64,
     log: std::collections::VecDeque<(Vec<u8>, Option<u64>)>,
     taken: std::collections::HashMap<u64, u64>,
 }
 
 impl Content {
-    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>, session: Vec<u8>) -> Self {
+    pub(crate) fn new(
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        session: Vec<u8>,
+        derived: Option<be_block::Entries>,
+    ) -> Self {
         Self {
             content_type,
             bytes,
             session,
+            derived,
             revision: 1,
             log: std::collections::VecDeque::new(),
             taken: std::collections::HashMap::new(),
@@ -278,7 +285,10 @@ fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
 }
 
 pub(crate) fn describe_of(content: &Content) -> Option<be_block::Entries> {
-    (kind_of(content.content_type)?.describe)(&content.bytes)
+    match &content.derived {
+        Some(derived) => Some(derived.clone()),
+        None => (kind_of(content.content_type)?.describe)(&content.bytes),
+    }
 }
 
 pub(crate) fn derived_for(content_type: Uuid, bytes: &[u8]) -> Option<be_block::Entries> {
@@ -716,6 +726,16 @@ pub(crate) fn with_graph<T>(read: impl FnOnce(&Graph) -> T) -> Option<T> {
 
 pub(crate) fn query(query: Query) -> Vec<Node> {
     with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
+}
+
+pub(crate) fn has_head(block: Uuid) -> bool {
+    with_shared(|shared| {
+        shared
+            .graph
+            .get(block)
+            .is_some_and(|node| node.head.is_some())
+    })
+    .unwrap_or(false)
 }
 
 pub(crate) fn node(block: Uuid) -> Option<Node> {

@@ -2,8 +2,8 @@ use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
-use crate::text::Icon;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::text::{Icon, Text};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuButtonHandle, MenuItem};
@@ -13,7 +13,7 @@ use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Callback, Children, ClickCallback, Direction, Frame, List, Memo, Prop, ReadSignal, Show,
-    Text, create_memo, focus_ring,
+    create_memo, focus_ring,
 };
 
 const INSET: f32 = 2.0;
@@ -84,16 +84,18 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
     let fill = create_memo(move || {
         half_fill(&theme, variant, disabled.get(), hovered.get(), active.get())
     });
-    let ink = create_memo(move || variant.label(&theme, disabled.get()));
+    let ink = create_memo(move || variant.label(disabled.get()));
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let icon_ink = ink;
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph} color={icon_ink} />
+                    <Text color={icon_ink} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                 </Show>
-                <Text string={label} font_size=FONT_BODY color={ink} align=TextAlign::Center />
+                <Text string={label} color={ink} align=TextAlign::Center />
             </List>
         </HalfFace>
     }
@@ -123,7 +125,7 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
             active.get() || open.get(),
         )
     });
-    let ink = create_memo(move || variant.label(&theme, disabled.get()));
+    let ink = create_memo(move || variant.label(disabled.get()));
     let divider = create_memo(move || divider_color(&theme, variant, disabled.get()));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -133,7 +135,9 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
             <Tooltip label disabled={open}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
                     <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                        <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} color={ink} />
+                        <Text color={ink} align=TextAlign::Center>
+                            <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} />
+                        </Text>
                     </List>
                 </HalfFace>
             </Tooltip>

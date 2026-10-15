@@ -17,15 +17,10 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
                     enabled={nested}
                     on_back={move || set_depth.set(depth.get_untracked() - 1)}
                     behind={move || view! {
-                        <Text
-                            string="Previous"
-                            font_size=14.0
-                            color=Color32::WHITE
-                            @node_ref={&previous}
-                        />
+                        <Text string="Previous" color=Color32::WHITE @node_ref={&previous} />
                     }}
                 >
-                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
+                    <Text string="Page" color=Color32::WHITE @node_ref={&page} />
                 </BackSlide>
             }
         }

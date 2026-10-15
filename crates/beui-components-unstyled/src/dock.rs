@@ -1,5 +1,7 @@
 mod dialog;
 mod docking;
+mod fullscreen;
+mod keyboard;
 mod modifier_drag;
 pub mod state;
 mod switch;
@@ -53,6 +55,8 @@ pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
     Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
 };
+use fullscreen::DockAway;
+pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
     DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
@@ -66,9 +70,8 @@ pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
 pub const SPLITTER_THICKNESS: f32 = 6.0;
 const EDGE_ZONE: f32 = 0.22;
-const GRIP: f32 = 7.0;
-const HANDLE_REACH: f32 = 5.0;
-const GRIP_SPAN: f32 = GRIP + HANDLE_REACH;
+const HANDLE_REACH: f32 = 8.0;
+const GRIP_CORNER: f32 = 24.0;
 const MARKER_WIDTH: f32 = 3.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
@@ -216,14 +219,31 @@ impl DockTabControl {
     }
 
     pub fn leave_fullscreen(&self) {
-        let tab = self.tab;
         if let Some(dock) = self.dock() {
-            dock.edit(|state| {
-                if state.fullscreen().is_some_and(|shown| shown.tab == tab) {
-                    state.set_fullscreen(None);
+            dock.leave_fullscreen(self.tab);
+        }
+    }
+
+    pub fn offer_fullscreen(&self) {
+        let Some(dock) = self.dock() else {
+            return;
+        };
+        if dock.is_dialog(self.tab) {
+            return;
+        }
+        let tab = self.tab;
+        let key = NEXT_MENU.with(|next| next.replace(next.get() + 1));
+        let set_offers = dock.set_offers;
+        set_offers.update(|offers| {
+            offers.insert(tab, key);
+        });
+        on_cleanup(move || {
+            set_offers.update(|offers| {
+                if offers.get(&tab) == Some(&key) {
+                    offers.remove(&tab);
                 }
             });
-        }
+        });
     }
 
     pub fn focused(&self) -> bool {
@@ -377,6 +397,8 @@ struct State {
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
     menus: ReadSignal<DockMenus>,
     set_menu: WriteSignal<DockMenus>,
+    offers: ReadSignal<HashMap<TabId, u64>>,
+    set_offers: WriteSignal<HashMap<TabId, u64>>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -390,6 +412,7 @@ struct State {
     content: RenderFn<TabId>,
     empty: RenderFn<LeafId>,
     fullscreen: RenderFn<NodeId>,
+    away: RenderFn<DockAwayHandle>,
     chrome: RenderFn<DockChromeHandle>,
     bar: RenderFn<DockBarHandle>,
     splitter: RenderFn<DockSplitterHandle>,
@@ -409,6 +432,9 @@ struct State {
     set_dialog_focus: WriteSignal<Option<TabId>>,
     attention: ReadSignal<(u64, Option<TabId>)>,
     set_attention: WriteSignal<(u64, Option<TabId>)>,
+    given: ReadSignal<(u64, Option<TabId>)>,
+    set_given: WriteSignal<(u64, Option<TabId>)>,
+    remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
 }
 
 impl State {
@@ -532,6 +558,7 @@ impl State {
     }
 
     fn forget_panel(&self, tab: TabId) {
+        self.remembered.get().borrow_mut().remove(&tab);
         let panel = self.panels.get().borrow_mut().remove(&tab);
         drop(panel);
     }
@@ -545,7 +572,10 @@ impl State {
         let Some(window) = window.try_get() else {
             return;
         };
-        let fullscreen = self.fullscreen_layer.try_get();
+        let fullscreen = self
+            .fullscreen_layer
+            .try_get()
+            .filter(|_| self.fullscreen_in_front());
         with_document(|document| {
             document.raise_overlay(window);
             if let Some(fullscreen) = fullscreen {
@@ -657,6 +687,24 @@ impl State {
 
     fn close_tab(&self, tab: TabId) {
         self.on_close.call(tab);
+    }
+
+    fn leave_fullscreen(&self, tab: TabId) {
+        self.edit(|state| {
+            if state.fullscreen().is_some_and(|shown| shown.tab == tab) {
+                state.set_fullscreen(None);
+            }
+        });
+    }
+
+    fn toggle_fullscreen(&self, tab: TabId) {
+        self.edit(|state| {
+            let fullscreen = match state.fullscreen() {
+                Some(shown) if shown.tab == tab => None,
+                _ => Some(DockFullscreen { tab, area: None }),
+            };
+            state.set_fullscreen(fullscreen);
+        });
     }
 
     fn show(&self, tab: TabId) {
@@ -1040,15 +1088,19 @@ enum Grip {
     BottomRight,
 }
 
-const GRIPS: [Grip; 8] = [
-    Grip::Left,
-    Grip::Right,
-    Grip::Top,
-    Grip::Bottom,
-    Grip::TopLeft,
-    Grip::TopRight,
-    Grip::BottomLeft,
-    Grip::BottomRight,
+const GRIPS: [(Grip, bool); 12] = [
+    (Grip::Left, false),
+    (Grip::Right, false),
+    (Grip::Top, false),
+    (Grip::Bottom, false),
+    (Grip::TopLeft, false),
+    (Grip::TopLeft, true),
+    (Grip::TopRight, false),
+    (Grip::TopRight, true),
+    (Grip::BottomLeft, false),
+    (Grip::BottomLeft, true),
+    (Grip::BottomRight, false),
+    (Grip::BottomRight, true),
 ];
 
 impl Grip {
@@ -1061,20 +1113,26 @@ impl Grip {
         }
     }
 
-    fn rect(self, size: Vec2) -> Rect {
-        let far = pos2(size.x - GRIP_SPAN, size.y - GRIP_SPAN);
-        let corner = vec2(GRIP_SPAN, GRIP_SPAN);
-        let across = vec2(size.x - GRIP_SPAN * 2.0, GRIP_SPAN);
-        let down = vec2(GRIP_SPAN, size.y - GRIP_SPAN * 2.0);
+    fn rect(self, upright: bool, size: Vec2) -> Rect {
+        let (reach, corner) = (HANDLE_REACH, GRIP_CORNER);
+        let far = pos2(size.x - reach, size.y - reach);
+        let along = vec2(size.x - corner * 2.0, reach);
+        let down = vec2(reach, size.y - corner * 2.0);
+        let arm = match upright {
+            true => vec2(reach, corner),
+            false => vec2(corner, reach),
+        };
+        let right = size.x - arm.x;
+        let bottom = size.y - arm.y;
         match self {
-            Grip::Left => Rect::from_min_size(pos2(0.0, GRIP_SPAN), down),
-            Grip::Right => Rect::from_min_size(pos2(far.x, GRIP_SPAN), down),
-            Grip::Top => Rect::from_min_size(pos2(GRIP_SPAN, 0.0), across),
-            Grip::Bottom => Rect::from_min_size(pos2(GRIP_SPAN, far.y), across),
-            Grip::TopLeft => Rect::from_min_size(Pos2::ZERO, corner),
-            Grip::TopRight => Rect::from_min_size(pos2(far.x, 0.0), corner),
-            Grip::BottomLeft => Rect::from_min_size(pos2(0.0, far.y), corner),
-            Grip::BottomRight => Rect::from_min_size(far, corner),
+            Grip::Left => Rect::from_min_size(pos2(0.0, corner), down),
+            Grip::Right => Rect::from_min_size(pos2(far.x, corner), down),
+            Grip::Top => Rect::from_min_size(pos2(corner, 0.0), along),
+            Grip::Bottom => Rect::from_min_size(pos2(corner, far.y), along),
+            Grip::TopLeft => Rect::from_min_size(Pos2::ZERO, arm),
+            Grip::TopRight => Rect::from_min_size(pos2(right, 0.0), arm),
+            Grip::BottomLeft => Rect::from_min_size(pos2(0.0, bottom), arm),
+            Grip::BottomRight => Rect::from_min_size(pos2(right, bottom), arm),
         }
     }
 
@@ -1123,6 +1181,7 @@ pub(crate) struct DockConfig {
     pub(crate) content: RenderFn<TabId>,
     pub(crate) empty: RenderFn<LeafId>,
     pub(crate) fullscreen: Option<RenderFn<NodeId>>,
+    pub(crate) away: Option<RenderFn<DockAwayHandle>>,
     pub(crate) chrome: Option<RenderFn<DockChromeHandle>>,
     pub(crate) bar: Option<RenderFn<DockBarHandle>>,
     pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
@@ -1159,6 +1218,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         content,
         empty,
         fullscreen,
+        away,
         chrome,
         bar,
         splitter,
@@ -1178,9 +1238,11 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 let mode = create_memo(move || mode.get());
                 let (dialog_focus, set_dialog_focus) = create_signal(None);
                 let (attention, set_attention) = create_signal((0, None));
+                let (given, set_given) = create_signal((0, None));
                 let (current, set_current) = create_signal(state.peek());
                 let (actions, set_actions) = create_signal(HashMap::new());
                 let (menus, set_menu) = create_signal(DockMenus::new());
+                let (offers, set_offers) = create_signal(HashMap::new());
                 create_effect(move || set_current.set(state.get()));
                 let (drag, set_drag) = create_signal(None);
                 let dock = State {
@@ -1206,6 +1268,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     set_actions,
                     menus,
                     set_menu,
+                    offers,
+                    set_offers,
                     stack,
                     switcher,
                     switch,
@@ -1220,6 +1284,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     set_dialog_focus,
                     attention,
                     set_attention,
+                    given,
+                    set_given,
+                    remembered: store(RefCell::default()),
                     thickness: splitter_thickness,
                     group_inset,
                     rect: dock_rect,
@@ -1232,6 +1299,13 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                         RenderFn::new(|body: NodeId| {
                             view! {
                                 <Frame>{body}</Frame>
+                            }
+                        })
+                    }),
+                    away: away.unwrap_or_else(|| {
+                        RenderFn::new(|_| {
+                            view! {
+                                <Frame />
                             }
                         })
                     }),
@@ -1335,6 +1409,16 @@ fn DockFullscreenView(dock: State) -> NodeId {
         create_memo(move || OverlayAnchor::Point(area.get().map_or(Pos2::ZERO, |area| area.min)));
     let width = create_memo(move || area.get().map(|area| area.width()));
     let height = create_memo(move || area.get().map(|area| area.height()));
+    let front = create_memo(move || dock.fullscreen_in_front());
+    let layer = dock.fullscreen_layer;
+    create_effect(move || {
+        if !front.get() {
+            return;
+        }
+        if let Some(layer) = layer.try_get() {
+            untrack(|| with_document(|document| document.raise_overlay(layer)));
+        }
+    });
     let body = dock.fullscreen.call(view! {
         <Portal node={panel} />
     });
@@ -1347,7 +1431,16 @@ fn DockFullscreenView(dock: State) -> NodeId {
             traps_focus=false
             open
         >
-            <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
+            <Interactive
+                on_press={move |_: PointerPress| {
+                    if let Some(tab) = dock.fullscreen_tab() {
+                        dock.show(tab);
+                        dock.release_dialog_focus();
+                    }
+                }}
+            >
+                <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
+            </Interactive>
         </Overlay>
     }
 }
@@ -1360,9 +1453,15 @@ fn DockStack(dock: State) -> NodeId {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let (panel, set_panel) = create_signal(None);
+    let previous = Cell::new(None);
     create_effect(move || {
         let tab = shown.get().filter(|tab| away.get() != Some(*tab));
+        let left = previous.replace(tab).filter(|left| Some(*left) != tab);
+        let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
         set_panel.set(tab.map(|tab| dock.panel(tab)));
+        if let Some(tab) = tab.filter(|_| held) {
+            untrack(|| dock.give_keyboard(tab));
+        }
     });
     let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
@@ -1390,6 +1489,9 @@ fn DockStack(dock: State) -> NodeId {
         switcher.call(switcher_handle(dock, shown, tabs, switching, set_switching))
     });
     let barred = create_memo(move || bar.is_some() && occupied.get());
+    let gone = dock.away_from(shown);
+    let left = create_memo(move || gone.get().is_some());
+    let here = create_memo(move || occupied.get() && gone.get().is_none());
     let empty = dock.empty;
     let homeward = dock;
     view! {
@@ -1415,8 +1517,11 @@ fn DockStack(dock: State) -> NodeId {
                 <Show condition={vacant}>
                     {empty.call(state.with_untracked(vacant_leaf))} @sizing=ItemSize::Percent(100.0)
                 </Show>
-                <Show condition={occupied}>
+                <Show condition={here}>
                     <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+                </Show>
+                <Show condition={left}>
+                    <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
                 </Show>
                 {switcher}
             </List>
@@ -1612,6 +1717,7 @@ struct ChromeParts {
     sidebar_width: Memo<f32>,
     sidebar_splitter: Option<NodeId>,
     bar: Option<DockBarHandle>,
+    leaf: Option<LeafId>,
     body: NodeId,
 }
 
@@ -1624,10 +1730,25 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
         sidebar_width,
         sidebar_splitter,
         bar,
+        leaf,
         body,
     } = parts;
     let barred = bar.is_some();
-    let bar = bar.map(|handle| dock.bar.call(handle));
+    let bar = bar.map(|handle| {
+        let face = dock.bar.call(handle);
+        view! {
+            <Interactive
+                press_focus=false
+                claims_touch=false
+                on_press={move |press: PointerPress| {
+                    if let Some(leaf) = leaf {
+                        dock.chrome_pressed(leaf, Some(press.pos));
+                    }
+                }}
+                children={face}
+            />
+        }
+    });
     let direction = match vertical {
         true => Direction::Horizontal,
         false => Direction::Vertical,
@@ -1724,7 +1845,7 @@ fn DockTreeView(
                                         let layout = splitter_layout;
                                         let rect = create_memo(move || {
                                             layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
-                                                splitter.handle.expand2(splitter.direction.axes(HANDLE_REACH, 0.0))
+                                                splitter.handle
                                             })
                                         });
                                         let x = create_memo(move || rect.get().min.x);
@@ -1860,6 +1981,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                                 <DockSidebarSplitter dock={dock} leaf />
                             }),
                             bar,
+                            leaf: Some(leaf),
                             body: view! {
                                 <DockPanelBody dock={dock} leaf />
                             },
@@ -1951,12 +2073,20 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let (panel, set_panel) = create_signal(None);
+    let previous = Cell::new(None);
     create_effect(move || {
         let tab = shown.get().filter(|tab| away.get() != Some(*tab));
+        let left = previous.replace(tab).filter(|left| Some(*left) != tab);
+        let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
         set_panel.set(tab.map(|tab| dock.panel(tab)));
+        if let Some(tab) = tab.filter(|_| held) {
+            untrack(|| dock.give_keyboard(tab));
+        }
     });
     let vacant = create_memo(move || shown.get().is_none());
-    let occupied = create_memo(move || shown.get().is_some());
+    let gone = dock.away_from(shown);
+    let left = create_memo(move || gone.get().is_some());
+    let occupied = create_memo(move || shown.get().is_some() && gone.get().is_none());
     let empty = dock.empty;
     view! {
         <List spacing=0.0>
@@ -1965,6 +2095,9 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
             </Show>
             <Show condition={occupied}>
                 <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+            </Show>
+            <Show condition={left}>
+                <DockAway dock gone @sizing=ItemSize::Percent(100.0) />
             </Show>
         </List>
     }
@@ -2023,6 +2156,13 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         state.focus(leaf);
                     });
                     changed.release_dialog_focus();
+                    let picked = tab_list
+                        .try_get()
+                        .is_some_and(|tabs| with_document(|document| document.focus_is_within(tabs)));
+                    let shown = changed.state.with_untracked(|state| state.active_tab(leaf));
+                    if let Some(tab) = shown.filter(|_| !picked) {
+                        changed.give_keyboard(tab);
+                    }
                 }}
             >
                 {move |handle: ChoiceOptionHandle| {
@@ -2150,6 +2290,17 @@ fn DockTabView(
     });
     let menu = dock.menu;
     let grouped = matches!(entry, Entry::Group(_));
+    let fullscreen = create_memo(move || match entry {
+        Entry::Tab(tab) => dock
+            .offers_fullscreen(tab)
+            .then(|| dock.fullscreen_tab() == Some(tab)),
+        Entry::Group(_) => None,
+    });
+    let toggle_fullscreen = ClickCallback::new(move || {
+        if let Entry::Tab(tab) = entry {
+            dock.toggle_fullscreen(tab);
+        }
+    });
     let carried = dock;
     let preview = dock.preview;
     let across = match vertical {
@@ -2179,12 +2330,14 @@ fn DockTabView(
                     has_next
                     held
                     closable
+                    fullscreen
                     close={close}
                     float={float}
                     group={group}
                     split={split}
                     ungroup={ungroup}
                     toggle_held={toggle_held}
+                    toggle_fullscreen={toggle_fullscreen}
                 >
                     {face}
                 </TabMenu>
@@ -2202,14 +2355,21 @@ fn TabMenu(
     has_next: Memo<bool>,
     held: Memo<Option<bool>>,
     closable: Memo<bool>,
+    fullscreen: Memo<Option<bool>>,
     close: ClickCallback,
     float: ClickCallback,
     group: ClickCallback,
     split: ClickCallback,
     ungroup: ClickCallback,
     toggle_held: ClickCallback,
+    toggle_fullscreen: ClickCallback,
     children: Child,
 ) -> NodeId {
+    let offered = create_memo(move || fullscreen.get().is_some());
+    let fullscreen_label = create_memo(move || match fullscreen.get() {
+        Some(true) => "Leave full screen".to_owned(),
+        Some(false) | None => "Full screen".to_owned(),
+    });
     let stuck = create_memo(move || floating || held.get() == Some(true));
     let homeless = create_memo(move || held.get().is_none());
     let pin_label = create_memo(move || match held.get() {
@@ -2241,6 +2401,9 @@ fn TabMenu(
                 <Show condition={grouped}>
                     <MenuItem label="Ungroup" disabled={pinned} />
                 </Show>
+                <Show condition={offered}>
+                    <MenuItem label={fullscreen_label} />
+                </Show>
             }}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => float.call(),
@@ -2249,6 +2412,7 @@ fn TabMenu(
                 Some(3) => closing.call(),
                 Some(4) if grouped => ungroup.call(),
                 Some(4) => toggle_held.call(),
+                Some(5) => toggle_fullscreen.call(),
                 _ => {}
             }}
         >
@@ -2316,7 +2480,6 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
     let start = shown.clone();
     let dragged = dock;
     let stepped = dock;
-    let reach = direction.axes(HANDLE_REACH, 0.0);
     view! {
         <Interactive
             capture_presses=true
@@ -2368,7 +2531,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 dragged.edit(|state| state.set_split_fraction(split, fraction));
             }}
         >
-            <Frame padding_horizontal={reach.x} padding_vertical={reach.y}>{face}</Frame>
+            <Frame>{face}</Frame>
         </Interactive>
     }
 }
@@ -2546,7 +2709,9 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let grip_rect = placed;
     let overlay = NodeRef::new();
     let raising = dock;
+    let shows = dock.state;
     create_effect(move || {
+        shows.with(DockState::shows);
         if focused.get() {
             untrack(|| raising.raise_window(overlay));
         }
@@ -2700,6 +2865,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                             menu,
                                                             close,
                                                         }),
+                                                        leaf: hoisted,
                                                         body: pane,
                                                     };
                                                     view! {
@@ -2719,10 +2885,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                         </Frame>
                     </CanvasItem>
                     <ForEach keys={GRIPS.to_vec()}>
-                        {move |grip: Grip| {
+                        {move |(grip, upright): (Grip, bool)| {
                             let dock = grips;
                             let rect = grip_rect;
-                            let handle = create_memo(move || grip.rect(size.get()));
+                            let handle = create_memo(move || grip.rect(upright, size.get()));
                             let x = create_memo(move || handle.get().min.x);
                             let y = create_memo(move || handle.get().min.y);
                             let width = create_memo(move || handle.get().width());
@@ -2736,6 +2902,20 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         capture_presses=true
                                         on_press={move |press: PointerPress| {
                                             pressed.set((rect.get_untracked(), press.pos));
+                                            let leaf = dock.state.with_untracked(|state| {
+                                                state
+                                                    .focused_leaf()
+                                                    .filter(|leaf| state.surface_of(*leaf) == Some(surface))
+                                                    .or_else(|| state.leaves(surface).first().copied())
+                                            });
+                                            if let Some(leaf) = leaf {
+                                                dock.edit(|state| state.focus(leaf));
+                                            }
+                                            dock.raise_window(lifted);
+                                            dock.release_dialog_focus();
+                                            if let Some(leaf) = leaf {
+                                                dock.chrome_pressed(leaf, None);
+                                            }
                                         }}
                                         on_drag={move |press: PointerPress| {
                                             let (start, from) = held.get();

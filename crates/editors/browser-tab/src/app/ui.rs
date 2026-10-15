@@ -3,12 +3,11 @@ use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_R
 use block_editor_beui::beui::reactive::{
     Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, IconButton, TextInput, use_theme,
-};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, TextInput, use_theme};
 use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
 
 use super::session::{PAGE, Session};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {
@@ -94,9 +93,10 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                         <Subregion editor={editor} placed={page} punch=false />
                         <List align=Align::Center justify=Justify::Center spacing=0.0>
                             <Show condition={failed}>
-                                <Caption
-                                    content={reason}
-                                    color={theme.danger}
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={reason}
+                                    color=TextColor::Danger
                                     @test_id={"browser.error"}
                                 />
                             </Show>

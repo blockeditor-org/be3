@@ -5,7 +5,7 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
-use crate::text::{Paragraph, Title};
+use crate::text::{Text, TextStyle};
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
@@ -193,8 +193,13 @@ fn KeepChangesCard(
                         @test_id={id.clone()}
                     >
                         <List spacing=SPACING>
-                            <Title content={title} />
-                            <Paragraph content={message} @test_id={format!("{id}.countdown")} />
+                            <Text style=TextStyle::TITLE string={title} />
+                            <Text
+                                style=TextStyle::PARAGRAPH
+                                string={message}
+                                @test_id={format!("{id}.countdown")}
+                                wrap=true
+                            />
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center

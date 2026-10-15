@@ -3,12 +3,14 @@ use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
 use block_editor_beui::be_block::Item;
 use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FOLDER};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, component, create_memo,
     view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, Icon, IconButton, Scroll, use_theme};
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
+use block_editor_beui::beui::styled::{IconButton, Scroll, use_theme};
 use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
@@ -54,8 +56,9 @@ pub fn HotbarView(editor: Editor) -> NodeId {
         <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={empty}>
-                    <Caption
-                        content="Nothing is pinned yet. Compiling a grid pins the component it builds."
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Nothing is pinned yet. Compiling a grid pins the component it builds."
                     />
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
@@ -156,15 +159,16 @@ fn SlotRow(
             hotbar.operate(edit);
         }
     };
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Spacer @sizing={indent} />
             <Show condition={is_folder}>
-                <Icon glyph={ICON_FOLDER.to_owned()} color={theme.text_muted} />
+                <Text color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph={ICON_FOLDER.to_owned()} />
+                </Text>
             </Show>
             <Show condition={is_folder}>
-                <Body content={folder} />
+                <Text string={folder} />
             </Show>
             <Show condition={is_component}>
                 <BlockLink
@@ -174,7 +178,7 @@ fn SlotRow(
                     @test_id={format!("hotbar.slot.{index}")}
                 />
             </Show>
-            <Caption content={note} />
+            <Text style=TextStyle::CAPTION string={note} />
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={is_component}>
                 <IconButton

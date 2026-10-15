@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
@@ -14,7 +14,8 @@ use beui_view::reactive::{
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};
-use crate::text::Icon;
+use crate::text::{Icon, Text, TextColor, TextSize};
+use beui_core::font::TextAlign;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
@@ -107,7 +108,9 @@ fn TextInputFrame(
                     <Show condition={marked}>
                         {move || view! {
                             <Frame padding_left=PADDING_HORIZONTAL>
-                                <Icon glyph={glyph} color={theme.text_muted} />
+                                <Text color=TextColor::Muted align=TextAlign::Center>
+                                    <Icon glyph={glyph} />
+                                </Text>
                             </Frame>
                         }}
                     </Show>
@@ -134,7 +137,7 @@ fn TextInputFrame(
 pub fn text_input_style() -> TextInputStyle {
     let theme = use_theme();
     TextInputStyle {
-        font_size: Prop::Static(FONT_BODY),
+        font_size: Prop::Static(TextSize::Base.px()),
         color: theme.text.into_prop(),
         placeholder_color: theme.text_muted.into_prop(),
         selection_color: theme.accent_soft.into_prop(),

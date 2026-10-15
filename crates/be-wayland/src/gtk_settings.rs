@@ -8,21 +8,15 @@ use gvdb::write::{FileWriter, HashTableBuilder};
 const BUTTON_LAYOUT: &str = "/org/gnome/desktop/wm/preferences/button-layout";
 const LAYOUT: &str = "appmenu:";
 
-pub(crate) fn profile() -> Option<PathBuf> {
-    match write(&directory(), std::env::var_os("DCONF_PROFILE").as_deref()) {
+pub(crate) fn profile(runtime: &Path) -> Option<PathBuf> {
+    match write(
+        &runtime.join("be-wayland"),
+        std::env::var_os("DCONF_PROFILE").as_deref(),
+    ) {
         Ok(profile) => Some(profile),
         Err(error) => {
             eprintln!("be-wayland: GTK programs keep their own window buttons: {error}");
             None
-        }
-    }
-}
-
-fn directory() -> PathBuf {
-    match std::env::var_os("XDG_RUNTIME_DIR") {
-        Some(runtime) => Path::new(&runtime).join("be-wayland"),
-        None => {
-            std::env::temp_dir().join(format!("be-wayland-{}", rustix::process::getuid().as_raw()))
         }
     }
 }

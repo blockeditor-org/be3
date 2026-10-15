@@ -2,15 +2,12 @@ use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
-use crate::text::Icon;
-use crate::theme::{FONT_BODY, ThemeStore, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_core::base::TextAlign;
-use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, ClickCallback, Direction, List, Prop, Show, Text, create_memo};
+use beui_view::reactive::{ClickCallback, Prop, create_memo};
 
-const ICON_SPACING: f32 = 6.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const FOCUS_RING_RADIUS: u8 = 4;
 
@@ -19,7 +16,7 @@ pub fn Link(
     label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = FONT_BODY)] font_size: Prop<f32>,
+    #[prop(default = TextSize::Base)] size: Prop<TextSize>,
     on_click: ClickCallback,
 ) -> NodeId {
     view! {
@@ -30,14 +27,14 @@ pub fn Link(
             disabled
             on_click={on_click}
             content={move |handle| view! {
-                <LinkFace handle font_size />
+                <LinkFace handle size />
             }}
         />
     }
 }
 
 #[component]
-fn LinkFace(handle: unstyled::ButtonHandle, font_size: Prop<f32>) -> NodeId {
+fn LinkFace(handle: unstyled::ButtonHandle, size: Prop<TextSize>) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
         active,
@@ -51,36 +48,23 @@ fn LinkFace(handle: unstyled::ButtonHandle, font_size: Prop<f32>) -> NodeId {
     let color =
         create_memo(move || text_color(&theme, disabled.get(), hovered.get(), active.get()));
     let underlined = create_memo(move || hovered.get() || focused.get());
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
-    let icon_color = color;
-    let label_color = color;
-    let size = create_memo(move || font_size.get());
-    let icon_size = size;
     view! {
         <FocusRing focused radius=FOCUS_RING_RADIUS offset=FOCUS_RING_OFFSET>
-            <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
-                <Show condition={has_glyph}>
-                    <Icon glyph={glyph} text_size={icon_size} color={icon_color} />
-                </Show>
-                <Text
-                    string={label}
-                    font_size={size}
-                    color={label_color}
-                    align=TextAlign::Start
-                    underline={underlined}
-                />
-            </List>
+            <Text size color underline={underlined}>
+                <Icon glyph={glyph} />
+                {label}
+            </Text>
         </FocusRing>
     }
 }
 
-fn text_color(theme: &ThemeStore, disabled: bool, hovered: bool, active: bool) -> Color32 {
+fn text_color(theme: &ThemeStore, disabled: bool, hovered: bool, active: bool) -> TextColor {
     if disabled {
-        return theme.text_muted.get();
+        return TextColor::Muted;
     }
     match (hovered, active) {
-        (_, true) => theme.accent_active.get(),
-        (true, false) => theme.accent_hover.get(),
-        (false, false) => theme.accent.get(),
+        (_, true) => TextColor::Custom(theme.accent_active.get()),
+        (true, false) => TextColor::Custom(theme.accent_hover.get()),
+        (false, false) => TextColor::Accent,
     }
 }

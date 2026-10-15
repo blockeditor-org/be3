@@ -3,27 +3,31 @@ mod switch;
 
 use beui_macros::{component, view};
 
-use crate::button::ButtonVariant;
+use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
-use crate::text::{Body, IconSized};
-use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle, DockKey,
-    DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
+    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle,
+    DockKey, DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
+    DockSwitchHandle, DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
+use beui_core::font::TextAlign;
+use beui_core::icons::{
+    ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_FULLSCREEN, ICON_FULLSCREEN_EXIT, ICON_MORE_VERT,
+    ICON_TAB_GROUP,
+};
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
-    ReadSignal, Show, Text, create_memo, focus_ring,
+    ReadSignal, Show, create_memo, focus_ring,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -36,7 +40,6 @@ const BAR_SPACING: f32 = 4.0;
 const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
-const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
@@ -47,6 +50,8 @@ pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::
     TAB_HEIGHT + 2.0 * BAR_PADDING + 3.0 * CHROME_BORDER,
 );
 const DROP_ALPHA: u8 = 64;
+const AWAY_SPACING: f32 = 12.0;
+const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
 
 #[component]
@@ -89,6 +94,9 @@ where
             fullscreen={move |body: NodeId| view! {
                 <Frame color={backdrop}>{body}</Frame>
             }}
+            away={move |handle: DockAwayHandle| view! {
+                <DockAwayFace handle />
+            }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
             }}
@@ -127,6 +135,37 @@ where
                 }
             }}
         />
+    }
+}
+
+#[component]
+fn DockAwayFace(handle: DockAwayHandle) -> NodeId {
+    let DockAwayHandle { title, leave, .. } = handle;
+    let theme = use_theme();
+    let message = create_memo(move || format!("{} is full screen", title.get()));
+    view! {
+        <Frame
+            color={theme.background}
+            align_horizontal=Align::Center
+            align_vertical=Align::Center
+            padding_horizontal=AWAY_PADDING
+            padding_vertical=AWAY_PADDING
+            @test_id="dock.away"
+        >
+            <List align=Align::Center spacing=AWAY_SPACING>
+                <Text size=TextSize::Xl3 color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph=ICON_FULLSCREEN />
+                </Text>
+                <Text string={message} align=TextAlign::Center />
+                <Button
+                    label="Leave full screen"
+                    glyph=ICON_FULLSCREEN_EXIT
+                    variant=ButtonVariant::Secondary
+                    @test_id="dock.away.leave"
+                    on_click={move || leave.call()}
+                />
+            </List>
+        </Frame>
     }
 }
 
@@ -193,8 +232,8 @@ fn DockTabChrome(
             },
         );
     let label = create_memo(move || match selected.get() {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
+        true => TextColor::Default,
+        false => TextColor::Muted,
     });
     let glyph = label;
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
@@ -217,21 +256,19 @@ fn DockTabChrome(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
+                    <Text size=TextSize::Sm color={glyph} align=TextAlign::Center>
+                        <Icon glyph=ICON_TAB_GROUP />
+                    </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={icon_color} />
+                    <Text size=TextSize::Sm color={icon_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
                 </Show>
                 <Show condition={shows_picture}>
                     <TabPicture picture={picture} />
                 </Show>
-                <Text
-                    string={title}
-                    font_size=FONT_BODY
-                    color={label}
-                    clip=true
-                    @sizing={title_size}
-                />
+                <Text string={title} color={label} clip=true @sizing={title_size} />
                 <Show condition={closable}>
                     {move || view! {
                         <IconButton
@@ -332,19 +369,11 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                         <Show condition={pictured}>
-                            <IconSized
-                                glyph={icon}
-                                font_size=GROUP_GLYPH
-                                color={theme.text_muted}
-                            />
+                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
+                                <Icon glyph={icon} />
+                            </Text>
                         </Show>
-                        <Text
-                            string={title}
-                            font_size=FONT_BODY
-                            color={theme.text}
-                            clip=true
-                            @sizing=ItemSize::Percent(100.0)
-                        />
+                        <Text string={title} clip=true @sizing=ItemSize::Percent(100.0) />
                         <Show condition={closable}>
                             {move || view! {
                                 <IconButton
@@ -411,7 +440,7 @@ fn DockTitleBar(
                         {grip}
                         {tabs} @sizing=ItemSize::Percent(100.0)
                         <Show condition={titled}>
-                            <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
+                            <Text string={title.clone()} @sizing=ItemSize::Percent(100.0) />
                         </Show>
                         <DockMenu menu />
                         <DockClose closable close={close} />
@@ -459,7 +488,7 @@ fn DockSideBar(
                 </List>
                 {tabs} @sizing=ItemSize::Percent(100.0)
                 <Show condition={titled}>
-                    <Body content={title.clone()} />
+                    <Text string={title.clone()} />
                 </Show>
             </List>
         </Frame>
@@ -526,14 +555,15 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
 #[component]
 fn DockGrip(handle: DockGripHandle) -> NodeId {
     let DockGripHandle { focused, .. } = handle;
-    let theme = use_theme();
     let color = create_memo(move || match focused.get() {
-        true => theme.text_muted.get(),
-        false => theme.border.get(),
+        true => TextColor::Muted,
+        false => TextColor::Faint,
     });
     view! {
         <Frame width=GRIP_WIDTH padding_vertical=CONTROL_PADDING padding_horizontal=GRIP_PADDING>
-            <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
+            <Text size=TextSize::Sm color={color} align=TextAlign::Center>
+                <Icon glyph=ICON_DRAG_INDICATOR />
+            </Text>
         </Frame>
     }
 }
@@ -583,7 +613,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
     let theme = use_theme();
     let fill = create_memo(move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA));
     let pictured = create_memo(move || !grouped && !icon.get().is_empty());
-    let pictured_color = theme.text;
+    let pictured_color = TextColor::Default;
     view! {
         <Frame
             color={fill}
@@ -596,12 +626,16 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={theme.text} />
+                    <Text size=TextSize::Sm align=TextAlign::Center>
+                        <Icon glyph=ICON_TAB_GROUP />
+                    </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={pictured_color} />
+                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
                 </Show>
-                <Body content={title} />
+                <Text string={title} />
             </List>
         </Frame>
     }

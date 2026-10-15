@@ -50,6 +50,10 @@ pub(crate) fn poll() {
 pub(crate) fn command(command: DebugCommand) {
     match command {
         DebugCommand::KillPlugin(plugin_id) => crate::plugin_host::kill(&plugin_id),
+        DebugCommand::CrashPlugin(plugin_id) => crate::plugin_host::crash(
+            &plugin_id,
+            "It was crashed from the Plugins panel.".to_owned(),
+        ),
         DebugCommand::RefreshVersions => version::refresh(),
         DebugCommand::Install(run) => version::install(run),
         DebugCommand::OpenUrl(url) => crate::platform::open_url(&url),

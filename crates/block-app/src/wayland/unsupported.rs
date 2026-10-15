@@ -6,6 +6,10 @@ pub(crate) fn create() {}
 
 pub(crate) fn start(_setup: &Setup) {}
 
+pub(crate) fn environment() -> Vec<(String, String)> {
+    Vec::new()
+}
+
 pub(crate) fn running() -> bool {
     false
 }
@@ -17,6 +21,8 @@ pub(crate) fn after(_context: &Context, _document: &mut Document) {}
 pub(crate) fn replace_gpu(_setup: &Setup) {}
 
 pub(crate) fn exiting() {}
+
+pub(crate) fn set_owned(_owned: bool) {}
 
 pub(crate) fn revision() -> u64 {
     0
@@ -33,6 +39,10 @@ pub(crate) fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
 pub(crate) fn focus(_window: HostWindowId) {}
 
 pub(crate) fn launch(_command: String) -> bool {
+    false
+}
+
+pub(crate) fn exec(_arguments: Vec<String>, _launch: Option<u64>) -> bool {
     false
 }
 
@@ -65,7 +75,7 @@ impl Programs {
         Vec::new()
     }
 
-    pub(crate) fn launch(&self, _key: &str) -> bool {
+    pub(crate) fn launch(&mut self, _key: &str, _launch: Option<u64>) -> bool {
         false
     }
 }

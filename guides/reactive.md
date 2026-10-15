@@ -286,9 +286,12 @@ operation reports what it touched, and `project` watches everything,
 `project_on(key, ...)` one key, and `project_keyed` fills a `KeyedStore`. On a
 `be-model` document the projection can be narrower still: `field(object, FIELD)`
 runs for one field of one object, `ids(owner, LIST)` for the order of one list,
-and `object::<T>(id)` for one object and everything inside it. The checklist's
-rows each watch their own item and its list watches only its order, so ticking
-one item runs one row. A watcher is dropped with the reactive scope that made it.
+`object::<T>(id)` for one object and everything inside it, and
+`objects(owner, LIST)` for every object of one list, each behind an `Rc` that an
+edit replaces only for the objects it touched, so a list of hundreds re-reads one
+when one changes. The checklist's rows each watch their own item and its list
+watches only its order, so ticking one item runs one row. Read a single field
+with `field` rather than through `root()`, which decodes the whole document. A watcher is dropped with the reactive scope that made it.
 
 Keep a projection cheap and pure; it must not operate. Write through
 `ContentProjection::operate`, which applies the operation to what the view
@@ -482,7 +485,7 @@ path, a unary expression, and a reference to a path.
 
 ```rust
 <Frame color=SURFACE>
-<Caption content=count_text align=TextAlign::End />
+<Text style=TextStyle::CAPTION string=count_text align=TextAlign::End />
 <List direction=Direction::Horizontal />
 <Frame @node_ref=&panel width=TRIGGER_WIDTH height=HEIGHT>
 <Frame color=Color32::from_gray(40) radius=4>
@@ -720,7 +723,9 @@ that state on its own — a click moves focus, a scrim click dismisses an overla
 pair the prop with the matching callback and write the signal back:
 `on_focus_change` for `focused` and `on_dismiss` for `open`. Without the write
 back the signal goes stale and the next write of the value it already holds
-changes nothing. `on_dismiss` reports only the document closing the overlay,
+changes nothing. The document reports every way a node loses the focus,
+including being hidden or removed, and a `focused` that starts `false` does not
+touch the focus. `on_dismiss` reports only the document closing the overlay,
 never the owner writing `open` false, so it can mean "cancel" without guarding
 against the owner's own close.
 
@@ -801,7 +806,7 @@ returned `ItemSize::Percent` in a row, for instance.
 
 ```rust
 <Toolbar @sizing=ItemSize::Fixed(TOOLBAR_HEIGHT) />
-<Caption @sizing=ItemSize::Percent(100.0) content=count_text align=TextAlign::End />
+<Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION string=count_text align=TextAlign::End />
 <Card @sizing={rows_size}>
 ```
 

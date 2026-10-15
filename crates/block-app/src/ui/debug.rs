@@ -1,19 +1,19 @@
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text, VirtualList,
-    component, create_memo, on_cleanup, use_context, view,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, VirtualList, component,
+    create_memo, on_cleanup, use_context, view,
 };
-use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Heading, Link, Scroll, Spinner, use_theme,
-};
+use beui::styled::{Button, ButtonVariant, Link, Scroll, Spinner, Weight, use_theme};
 use block_plugin_api::HostPanel;
 
 use super::onboarding::ErrorText;
 use super::{UiCommand, send};
+use beui::styled::{Family, Text, TextColor, TextSize, TextStyle};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
     KillPlugin(String),
+    CrashPlugin(String),
     RefreshVersions,
     Install(u64),
     OpenUrl(String),
@@ -181,7 +181,6 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
 
 #[component]
 fn LineView(line: Memo<Option<Line>>) -> NodeId {
-    let theme = use_theme();
     let indent = create_memo(move || {
         Some(
             line.get()
@@ -191,19 +190,25 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
     let text = create_memo(move || line.get().map(|line| line.text).unwrap_or_default());
     let style = create_memo(move || line.get().map_or(LineStyle::Body, |line| line.style));
     let color = create_memo(move || match style.get() {
-        LineStyle::Heading | LineStyle::Body | LineStyle::Code => theme.text.get(),
-        LineStyle::Muted => theme.text_muted.get(),
-        LineStyle::Error => theme.danger.get(),
+        LineStyle::Heading | LineStyle::Body | LineStyle::Code => TextColor::Default,
+        LineStyle::Muted => TextColor::Muted,
+        LineStyle::Error => TextColor::Danger,
     });
-    let bold = create_memo(move || style.get() == LineStyle::Heading);
-    let monospace = create_memo(move || style.get() == LineStyle::Code);
+    let weight = create_memo(move || match style.get() {
+        LineStyle::Heading => Weight::Bold,
+        _ => Weight::Normal,
+    });
+    let family = create_memo(move || match style.get() {
+        LineStyle::Code => Family::Mono,
+        _ => Family::Sans,
+    });
     let size = create_memo(move || match style.get() {
-        LineStyle::Heading => 14.0,
-        _ => 12.0,
+        LineStyle::Heading => TextSize::Base,
+        _ => TextSize::Sm,
     });
     view! {
         <Frame padding_left={indent}>
-            <Text string={text} font_size={size} color={color} bold monospace wrap=true />
+            <Text string={text} size color weight family wrap=true />
         </Frame>
     }
 }
@@ -250,7 +255,6 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
 
 #[component]
 fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
-    let theme = use_theme();
     let cell = |read: fn(&PerformanceRow) -> String| {
         create_memo(move || row.get().map(|row| read(&row)).unwrap_or_default())
     };
@@ -258,39 +262,38 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
     let current = cell(|row| row.current.clone());
     let average = cell(|row| row.average.clone());
     let peak = cell(|row| row.peak.clone());
-    let bold = create_memo(move || row.get().is_some_and(|row| row.heading));
+    let weight = create_memo(move || match row.get().is_some_and(|row| row.heading) {
+        true => Weight::Bold,
+        false => Weight::Normal,
+    });
     view! {
         <List direction=Direction::Horizontal spacing=8.0>
             <Text
                 @sizing=ItemSize::Percent(100.0)
                 string={name}
-                font_size=12.0
-                color={theme.text}
-                bold={bold}
+                size=TextSize::Sm
+                weight={weight}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={current}
-                font_size=12.0
-                color={theme.text}
-                monospace=true
-                bold={bold}
+                size=TextSize::Sm
+                family=Family::Mono
+                weight={weight}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={average}
-                font_size=12.0
-                color={theme.text}
-                monospace=true
-                bold={bold}
+                size=TextSize::Sm
+                family=Family::Mono
+                weight={weight}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={peak}
-                font_size=12.0
-                color={theme.text}
-                monospace=true
-                bold
+                size=TextSize::Sm
+                family=Family::Mono
+                weight={weight}
             />
         </List>
     }
@@ -332,9 +335,9 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
                         }
                     }}
                 </ForEach>
-                <Heading content={running} />
+                <Text style=TextStyle::HEADING string={running} />
                 <Show condition={idle}>
-                    <Caption content="no editor plugins are running" />
+                    <Text style=TextStyle::CAPTION string="no editor plugins are running" />
                 </Show>
                 <ForEach keys={runtime_keys}>
                     {move |id: String| {
@@ -369,16 +372,28 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
     });
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let kill = id.clone();
+    let crash = id.clone();
+    let crash_id = format!("debug.plugins.crash.{id}");
     view! {
         <Frame padding_vertical=6.0>
             <List spacing=2.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Heading content={id} />
-                    <Caption @sizing=ItemSize::Percent(100.0) content={state} />
+                    <Text style=TextStyle::HEADING string={id} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                        string={state}
+                    />
                     <Button
                         label="Kill"
                         variant=ButtonVariant::Secondary
                         on_click={move || debug(DebugCommand::KillPlugin(kill.clone()))}
+                    />
+                    <Button
+                        label="Crash"
+                        variant=ButtonVariant::Secondary
+                        @test_id={crash_id}
+                        on_click={move || debug(DebugCommand::CrashPlugin(crash.clone()))}
                     />
                 </List>
                 <ForEach keys={keys}>
@@ -428,8 +443,8 @@ fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Caption content="Running build:" />
-                    <Code @sizing=ItemSize::Percent(100.0) content={build} />
+                    <Text style=TextStyle::CAPTION string="Running build:" />
+                    <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={build} />
                     <Button
                         label="Refresh"
                         variant=ButtonVariant::Secondary
@@ -441,7 +456,7 @@ fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
                 </Show>
                 <ErrorText text={error} />
                 <Show condition={none}>
-                    <Caption content="No workflow runs found." />
+                    <Text style=TextStyle::CAPTION string="No workflow runs found." />
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={keys}>
@@ -494,12 +509,16 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
             >
                 <List spacing=4.0>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Heading content={title} />
+                        <Text style=TextStyle::HEADING string={title} />
                         <Show condition={current}>
-                            <Caption content="running" color={theme.accent} />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="running"
+                                color=TextColor::Accent
+                            />
                         </Show>
                     </List>
-                    <Caption content={details} />
+                    <Text style=TextStyle::CAPTION string={details} />
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Link
                             label="View on GitHub"

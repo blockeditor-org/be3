@@ -4,11 +4,11 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
-    Stored, Text, component, create_effect, create_memo, create_signal, view,
+    Stored, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, Heading, IconButton, IconButtonSize, Paragraph,
-    Scroll, Select, Separator, use_theme,
+    Button, ButtonVariant, Card, IconButton, IconButtonSize, Scroll, Select, Separator, TextSize,
+    use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ChoiceOption};
 use block_editor_beui::{Editor, Loading};
@@ -23,6 +23,7 @@ pub(crate) mod moves;
 mod play;
 mod skin;
 
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle, Weight};
 use board::Stage;
 use layout::Layout;
 use moves::MoveTable;
@@ -31,7 +32,6 @@ use play::Play;
 const SIDEBAR_WIDTH: f32 = 280.0;
 const PANEL_PADDING: f32 = 14.0;
 const SECTION_SPACING: f32 = 12.0;
-const BANNER_SIZE: f32 = 17.0;
 const BANNER_MARGIN: f32 = 12.0;
 
 pub(crate) trait GameModel {
@@ -245,8 +245,8 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
     view! {
         <Card>
             <List spacing=8.0>
-                <Heading content="Game unavailable" />
-                <Paragraph content={error} @test_id={"game.error"} />
+                <Text style=TextStyle::HEADING string="Game unavailable" />
+                <Text style=TextStyle::PARAGRAPH string={error} @test_id={"game.error"} wrap=true />
             </List>
         </Card>
     }
@@ -402,7 +402,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                 <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
                     <List spacing=SECTION_SPACING>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Caption content="Playing as" />
+                            <Text style=TextStyle::CAPTION string="Playing as" />
                             <Select
                                 options={view! {
                                     <ForEach keys={seat_keys}>
@@ -489,7 +489,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
             <Show condition={confirming}>
                 {move || { let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <Caption content={question} />
+                        <Text style=TextStyle::CAPTION string={question} />
                         <IconButton
                             glyph={ICON_CHECK.to_owned()}
                             label={confirm}
@@ -532,7 +532,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
         })
     });
     let theme = use_theme();
-    let color = create_memo(move || theme.get().text);
+    let color = TextColor::Default;
     view! {
         <unstyled::Floating anchor open={open}>
             <Frame padding_horizontal=BANNER_MARGIN padding_vertical=BANNER_MARGIN>
@@ -547,7 +547,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                     @test_id={"game.banner"}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <Text string={text} font_size=BANNER_SIZE bold=true color={color} />
+                        <Text string={text} size=TextSize::Lg weight=Weight::Bold color={color} />
                         <IconButton
                             glyph={ICON_CLOSE.to_owned()}
                             label="Close"
@@ -568,7 +568,7 @@ fn Choices(play: Play) -> NodeId {
     view! {
         <Card>
             <List spacing=8.0>
-                <Body content="Which move?" />
+                <Text string="Which move?" />
                 <ChoiceButtons play />
             </List>
         </Card>
@@ -657,14 +657,9 @@ pub(crate) fn GameCreation(
         String::new()
     });
     let has_status = create_memo(move || !status.get().is_empty());
-    let theme = use_theme();
-    let status_color = create_memo(move || {
-        let theme = theme.get();
-        if snapshot.get().error.is_some() {
-            theme.danger
-        } else {
-            theme.text_muted
-        }
+    let status_color = create_memo(move || match snapshot.get().error.is_some() {
+        true => TextColor::Danger,
+        false => TextColor::Muted,
     });
     view! {
         <Frame padding_horizontal=14.0 padding_vertical=14.0>
@@ -683,7 +678,6 @@ pub(crate) fn GameCreation(
                             StagedState::Failed(error) => (ButtonVariant::Secondary, true, error.clone()),
                         };
                         let failed = !caption.is_empty();
-                        let theme = use_theme();
                         view! {
                             <List spacing=2.0 align=Align::Start>
                                 <Button
@@ -694,9 +688,10 @@ pub(crate) fn GameCreation(
                                     on_click={move || creation.get().choose_staged(index)}
                                 />
                                 <Show condition={failed}>
-                                    <Caption
-                                        content={caption.clone()}
-                                        color={theme.danger}
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string={caption.clone()}
+                                        color=TextColor::Danger
                                         wrap=true
                                     />
                                 </Show>
@@ -712,7 +707,12 @@ pub(crate) fn GameCreation(
                     on_click={move || creation.get().choose_module()}
                 />
                 <Show condition={has_status}>
-                    <Caption content={status} color={status_color} @test_id={"game.selection"} />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={status}
+                        color={status_color}
+                        @test_id={"game.selection"}
+                    />
                 </Show>
             </List>
         </Frame>

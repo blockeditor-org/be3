@@ -1,12 +1,13 @@
 use beui_macros::{component, view};
 
 use crate::list_row::ListRow;
-use crate::text::Icon;
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, FONT_BODY, use_theme};
+use crate::text::{Icon, Text, TextColor};
+use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_components_unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
 use beui_core::base::{Align, Direction};
+use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{ForEach, Frame, List, Text};
+use beui_view::reactive::{ForEach, Frame, List};
 
 const PANEL_WIDTH: f32 = 360.0;
 const PANEL_PADDING: f32 = 6.0;
@@ -49,7 +50,6 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
         chosen,
         pick,
     } = handle;
-    let theme = use_theme();
     view! {
         <ListRow
             @test_id={format!("dock.switch.{}", tab.value())}
@@ -58,8 +58,10 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
         >
             <Frame padding_vertical=ROW_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
-                    <Icon glyph={icon} color={theme.accent} />
-                    <Text string={title} font_size=FONT_BODY color={theme.text} ellipsis=true />
+                    <Text color=TextColor::Accent align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
+                    <Text string={title} ellipsis=true />
                 </List>
             </Frame>
         </ListRow>

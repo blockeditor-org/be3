@@ -3,7 +3,7 @@ use block_editor_beui::be_block::PixelRayTracerContent;
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
 use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
-use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, use_theme};
+use block_editor_beui::beui::styled::{Button, ButtonVariant};
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Side, Sidebar, Toolbar};
@@ -13,6 +13,7 @@ pub(crate) mod canvas;
 pub(crate) mod panels;
 pub(crate) mod state;
 
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use canvas::Artwork;
 use panels::{PropertiesPanel, ToolsPanel};
 use state::RayState;
@@ -88,12 +89,11 @@ fn PixelRayTracerPreview(editor: Editor) -> NodeId {
 #[component]
 fn RayToolbar(state: RayState, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
     let fit = state.editor();
-    let theme = use_theme();
     let size = format!("{PIXEL_RAY_TRACER_SIZE} × {PIXEL_RAY_TRACER_SIZE}");
     view! {
         <Toolbar shown={shown}>
-            <Body content="Pixel Ray Tracer" />
-            <Caption content={size} color={theme.text_muted} />
+            <Text string="Pixel Ray Tracer" />
+            <Text style=TextStyle::CAPTION string={size} />
             <Button
                 label="Fit view"
                 variant=ButtonVariant::Secondary

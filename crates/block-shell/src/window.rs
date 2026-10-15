@@ -4,7 +4,8 @@ use block_editor_beui::beui::reactive::{
     Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, component, create_effect,
     create_memo, create_signal, untrack, view,
 };
-use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
+use block_editor_beui::beui::styled::Text;
+use block_editor_beui::beui::styled::{Button, ButtonVariant, WINDOW_CHROME, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
 use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{
@@ -22,7 +23,7 @@ const BANNER_RADIUS: u8 = 8;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
-pub(crate) fn window_tab(window: HostWindowId) -> TabId {
+pub fn window_tab(window: HostWindowId) -> TabId {
     TabId::new(WINDOW_TABS + window.0)
 }
 
@@ -39,6 +40,14 @@ pub(crate) fn floating_window(window: &HostWindow) -> Rect {
     )
 }
 
+pub(crate) fn kept_window(key: HostWindowId) -> Rect {
+    let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+    Rect::from_min_size(
+        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
+        PLACEHOLDER_SIZE + WINDOW_CHROME,
+    )
+}
+
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {
     own_size(size).unwrap_or(PLACEHOLDER_SIZE)
 }
@@ -52,7 +61,7 @@ pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
         .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
-pub(crate) fn window_title(window: &HostWindow) -> String {
+pub fn window_title(window: &HostWindow) -> String {
     match (window.title.is_empty(), window.app_id.is_empty()) {
         (false, _) => window.title.clone(),
         (true, false) => window.app_id.clone(),
@@ -64,6 +73,7 @@ pub(crate) fn window_title(window: &HostWindow) -> String {
 pub(crate) fn WindowPanel(
     editor: Editor,
     window: HostWindowId,
+    offers_fullscreen: bool,
     fullscreen: Memo<Option<Rect>>,
     name: Memo<String>,
     responding: Memo<bool>,
@@ -71,6 +81,9 @@ pub(crate) fn WindowPanel(
     size: Memo<Option<Vec2>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
+        if offers_fullscreen {
+            tab.offer_fullscreen();
+        }
         create_effect(move || {
             if let Some(size) = size.get().and_then(own_size) {
                 untrack(|| tab.resize_window(size + WINDOW_CHROME));
@@ -93,6 +106,13 @@ pub(crate) fn WindowPanel(
         create_effect(move || match fullscreen.get() {
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
+        });
+        let given = create_memo(move || tab.keyboard());
+        let host = editor.host();
+        create_effect(move || {
+            if given.get().is_some() {
+                host.act(WindowAction::Focus(window));
+            }
         });
         let called = create_memo(move || tab.attention());
         let host = editor.host();
@@ -164,7 +184,7 @@ fn NotResponding(
             @test_id={"workspace.window.not_responding"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BANNER_SPACING>
-                <Body content={message} />
+                <Text string={message} />
                 <Button
                     label="Wait"
                     variant=ButtonVariant::Secondary

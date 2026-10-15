@@ -32,6 +32,7 @@ impl Adapter for Headless {
 
 fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
     let mut runner = Runner::new(launch);
+    runner.set_occluded(true);
     let mut window = Simulation::new(headless.window, headless.screen, runner.reports().clone());
     let (width, height) = window.physical();
     let renderer = pollster::block_on(OffscreenSurface::new(width, height, headless.open_device))?;

@@ -60,6 +60,7 @@ Design principles:
   - Keep a full layout from scratch O(n) in the number of nodes. Incremental relayout may do less, but don't add anything that makes a full layout worse than linear.
   - Derive damage from the retained tree by identity, never by comparing paint output.
   - Add new beui components to beui-demo too.
+  - Give styled components design tokens (a text size, a weight, a color role), never raw pixels or colors. Base components take concrete values and know nothing about the theme.
 - Plugins:
   - Keep the plugin protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.
   - Pass textures through the plugin protocol without them leaving the GPU.

@@ -1,6 +1,6 @@
 use beui::NodeId;
 use beui::reactive::{Direction, ForEach, List, Memo, component, create_memo, view};
-use beui::styled::{Body, Caption};
+use beui::styled::{Text, TextStyle};
 use block_editor_plugin::VersionCommit;
 
 pub fn short_id(id: &[u8; 32]) -> String {
@@ -23,7 +23,7 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
     view! {
         <List spacing=6.0>
             <beui::reactive::Show condition={empty}>
-                <Caption content="Nothing has been committed yet." />
+                <Text style=TextStyle::CAPTION string="Nothing has been committed yet." />
             </beui::reactive::Show>
             <ForEach keys={rows}>
                 {move |(id, message): ([u8; 32], String)| {
@@ -38,8 +38,8 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                             spacing=8.0
                             @test_id={format!("version.commit.{short}")}
                         >
-                            <Caption content={short} />
-                            <Body content={message} />
+                            <Text style=TextStyle::CAPTION string={short} />
+                            <Text string={message} />
                         </List>
                     }
                 }}

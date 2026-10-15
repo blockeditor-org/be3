@@ -47,6 +47,14 @@ pub trait App {
     fn busy(&self) -> bool {
         false
     }
+
+    fn environment(&self) -> Vec<(String, String)> {
+        Vec::new()
+    }
+
+    fn drawing(&self) -> bool {
+        false
+    }
 }
 
 pub struct Setup {

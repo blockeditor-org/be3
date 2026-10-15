@@ -31,7 +31,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
                         />
                     </List>
                     <Dialog open={open} title="About" width=300.0 on_dismiss={|| {}}>
-                        <Text string="Body" font_size=14.0 color=Color32::WHITE @node_ref={&body} />
+                        <Text string="Body" color=Color32::WHITE @node_ref={&body} />
                     </Dialog>
                 </List>
             }

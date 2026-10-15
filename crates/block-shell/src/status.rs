@@ -4,7 +4,7 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Memo, ReadSignal, Show, Spacer, component,
     create_memo, view,
 };
-use block_editor_beui::beui::styled::{Caption, MenuButton};
+use block_editor_beui::beui::styled::MenuButton;
 use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
@@ -12,6 +12,7 @@ use super::access::AccessMode;
 use super::menu::{ReferenceMenuItem, action_for, apply};
 use super::panel::{Info, Refs};
 use super::workspace::Workspace;
+use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const SPACING: f32 = 10.0;
 
@@ -43,9 +44,9 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
     let nothing_contains = create_memo(|| None);
     view! {
         <Toolbar spacing=SPACING>
-            <Caption content={type_label} />
+            <Text style=TextStyle::CAPTION string={type_label} />
             <Show condition={loading}>
-                <Caption content="Relationships loading…" />
+                <Text style=TextStyle::CAPTION string="Relationships loading…" />
             </Show>
             <Show condition={loaded}>
                 {move || view! {

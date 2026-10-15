@@ -14,10 +14,8 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
 use beui_core::window::WindowState;
-use block_editor_plugin::{
-    DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, NodeValue, Region,
-    Toggled,
-};
+use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
+use block_editor_plugin::{DescribedAction, Description, EditorHost, Frame, InputEvent, Region};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
@@ -54,6 +52,9 @@ pub struct PluginSurface {
     runner: Runner,
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
+    described: Option<u64>,
+    pressed: u8,
+    blurred: bool,
 }
 
 impl PluginSurface {
@@ -86,6 +87,9 @@ impl PluginSurface {
             runner,
             platform: HostPlatform::new(host),
             surface,
+            described: None,
+            pressed: 0,
+            blurred: false,
         }
     }
 
@@ -99,31 +103,8 @@ impl PluginSurface {
         region.scale_factor / context.pixels_per_point()
     }
 
-    pub fn node_action(&mut self, node: usize, action: &str, value: Option<NodeValue>) {
-        let Some(action) = beui_core::app::accessibility_dump::action_named(action) else {
-            return;
-        };
-        let Some(target) = self.runner.accessibility().and_then(|dump| {
-            dump.lines()
-                .iter()
-                .filter(|line| line.role != beui_core::accesskit::Role::Window)
-                .nth(node)
-                .map(|line| line.id)
-        }) else {
-            return;
-        };
-        let data = value.map(|value| match value {
-            NodeValue::Text(text) => beui_core::accesskit::ActionData::Value(text.into()),
-            NodeValue::Number(number) => beui_core::accesskit::ActionData::NumericValue(number),
-        });
-        self.runner
-            .context()
-            .accessibility_action(beui_core::accesskit::ActionRequest {
-                action,
-                target_tree: beui_core::accesskit::TreeId::ROOT,
-                target_node: target,
-                data,
-            });
+    pub fn node_action(&mut self, request: ActionRequest) {
+        self.runner.accessibility_action(request);
     }
 
     pub fn run_action(&mut self, id: &str) {
@@ -131,8 +112,28 @@ impl PluginSurface {
     }
 
     pub fn input(&mut self, region: &Region, event: &InputEvent) {
+        match event {
+            InputEvent::Focus(false) if self.pressed > 0 => {
+                self.blurred = true;
+                return;
+            }
+            InputEvent::Focus(true) => self.blurred = false,
+            InputEvent::PointerButton { pressed: true, .. } => {
+                self.pressed = self.pressed.saturating_add(1);
+            }
+            InputEvent::PointerButton { pressed: false, .. } => {
+                self.pressed = self.pressed.saturating_sub(1);
+            }
+            InputEvent::PointerLeft => self.pressed = 0,
+            _ => {}
+        }
         if let Some(input) = input::translate(region, event) {
             self.runner.push(input);
+        }
+        if self.pressed == 0 && std::mem::take(&mut self.blurred) {
+            self.runner.push(beui_core::runner::Input::from(
+                beui_core::input::Event::Focus(false),
+            ));
         }
     }
 
@@ -158,6 +159,7 @@ impl PluginSurface {
             self.runner.reports().resized(width, height);
         }
         self.runner.reports().scaled(region.scale_factor);
+        self.runner.set_occluded(!region.seen);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
             beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
@@ -171,9 +173,15 @@ impl PluginSurface {
             right: width as f32 - rect.max.x * scale,
             bottom: height as f32 - rect.max.y * scale,
         };
-        if region.describe {
-            self.runner.keep_accessibility();
-            self.runner.context().set_automated(true);
+        if self.described != region.describe {
+            self.described = region.describe;
+            match region.describe {
+                Some(_) => self.runner.accessibility_requested(),
+                None => self.runner.accessibility_deactivated(),
+            }
+            self.runner
+                .context()
+                .set_automated(region.describe.is_some());
         }
         let Some(frame) = self.runner.frame(&mut self.platform, area) else {
             return Frame {
@@ -184,42 +192,17 @@ impl PluginSurface {
                 ..Frame::default()
             };
         };
-        let description = region.describe.then(|| self.describe(region));
-        frame_for(self.runner.window(), &frame, description)
+        let description = region.describe.map(|_| self.describe(region));
+        let mut frame = frame_for(self.runner.window(), &frame, description);
+        frame.changed |= self.surface.borrow().unpainted();
+        frame
     }
 
-    fn describe(&self, region: &Region) -> Description {
-        let points = region.scale_factor.recip();
-        let nodes = self
-            .runner
-            .accessibility()
-            .map(|dump| {
-                dump.lines()
-                    .iter()
-                    .filter(|line| line.role != beui_core::accesskit::Role::Window)
-                    .map(|line| DescribedNode {
-                        depth: line.depth.saturating_sub(1).min(usize::from(u16::MAX)) as u16,
-                        role: format!("{:?}", line.role),
-                        label: line.label.clone(),
-                        value: line.value.clone(),
-                        toggled: line.toggled.map(|toggled| match toggled {
-                            beui_core::accesskit::Toggled::False => Toggled::Off,
-                            beui_core::accesskit::Toggled::True => Toggled::On,
-                            beui_core::accesskit::Toggled::Mixed => Toggled::Mixed,
-                        }),
-                        disabled: line.disabled,
-                        focused: line.focused,
-                        rect: line.bounds.map(|bounds| bounds.scaled(points)),
-                        actions: line
-                            .actions
-                            .iter()
-                            .map(|action| format!("{action:?}"))
-                            .collect(),
-                        test_ids: line.test_ids.clone(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+    fn describe(&mut self, region: &Region) -> Description {
+        let tree = self
+            .platform
+            .take_tree()
+            .map(|tree| self.placed(region, tree));
         let actions = self
             .runner
             .output()
@@ -239,7 +222,24 @@ impl PluginSurface {
                     .collect()
             })
             .unwrap_or_default();
-        Description { nodes, actions }
+        Description { tree, actions }
+    }
+
+    fn placed(&self, region: &Region, mut tree: TreeUpdate) -> TreeUpdate {
+        let scale = self.runner.context().pixels_per_point() / region.scale_factor;
+        let origin = region.rect.min;
+        let placed = Affine::translate((-f64::from(origin.x), -f64::from(origin.y)))
+            * Affine::scale(scale.into());
+        let root = tree
+            .tree
+            .as_ref()
+            .map_or(beui_core::accessibility::WINDOW_NODE, |tree| tree.root);
+        for (id, node) in &mut tree.nodes {
+            if *id == root {
+                node.set_transform(placed);
+            }
+        }
+        tree
     }
 
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {

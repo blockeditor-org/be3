@@ -8,7 +8,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Prop, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Caption, IconButton, Scroll, Select, Separator, use_theme};
+use block_editor_beui::beui::styled::{IconButton, Scroll, Select, Separator};
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockQuery, Loaded};
@@ -20,6 +20,7 @@ pub(crate) mod player;
 pub(crate) mod state;
 pub(crate) mod timeline;
 
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use effects::EffectsPanel;
 use player::Player;
 use state::{VideoState, ZOOM_STEP};
@@ -177,7 +178,6 @@ fn PlaybackBar(state: VideoState) -> NodeId {
             crate::timeline::timecode(rate.get(), duration.get())
         )
     });
-    let theme = use_theme();
     view! {
         <Frame padding_horizontal=10.0 padding_vertical=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -198,7 +198,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
                     label="Go to the end"
                     on_click={move || state.seek(state.duration.get_untracked())}
                 />
-                <Caption content={position} color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string={position} />
             </List>
         </Frame>
     }

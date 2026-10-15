@@ -18,6 +18,7 @@ pub(crate) struct Runtime {
     surfaces: Option<Surfaces>,
     generation: u64,
     asked: bool,
+    told: bool,
 }
 
 impl Runtime {
@@ -34,6 +35,7 @@ impl Runtime {
             surfaces: None,
             generation: 0,
             asked: false,
+            told: false,
         }
     }
 
@@ -58,12 +60,13 @@ impl Runtime {
                 });
             }
         }
+        self.told |= draw;
         let replaced = self.place_surfaces(&mut outbound)?;
         if let Some(surfaces) = &mut self.surfaces {
-            if draw || replaced {
+            if draw || (replaced && self.told) {
                 self.asked = false;
                 outbound.extend(surfaces.render(&mut self.screens)?);
-            } else if changed && !self.asked {
+            } else if (changed || replaced) && !self.asked {
                 self.asked = true;
                 outbound.push(Message::FrameNeeded);
             }

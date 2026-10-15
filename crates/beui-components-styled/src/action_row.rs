@@ -1,12 +1,13 @@
 use beui_macros::{component, view};
 
-use crate::text::Icon;
-use crate::theme::{FOCUS_RING_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
+use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::theme::{FOCUS_RING_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
+use beui_core::font::TextAlign;
 use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, ReadSignal, Show, Text,
+    Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, ReadSignal, Show,
     create_memo, focus_ring,
 };
 
@@ -71,18 +72,18 @@ pub(crate) fn ActionRowFace(
         (false, false, false) => beui_core::color::Color32::TRANSPARENT,
     });
     let text_color = create_memo(move || match (off.get(), danger.get()) {
-        (true, _) => theme.text_muted.get(),
-        (false, true) => theme.danger.get(),
-        (false, false) => theme.text.get(),
+        (true, _) => TextColor::Muted,
+        (false, true) => TextColor::Danger,
+        (false, false) => TextColor::Default,
     });
     let icon_color = create_memo(move || match (off.get(), danger.get()) {
-        (false, true) => theme.danger.get(),
-        _ => theme.text_muted.get(),
+        (false, true) => TextColor::Danger,
+        _ => TextColor::Muted,
     });
     let glyph = create_memo(move || glyph.get());
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let detail = create_memo(move || detail.get());
-    let chevron_color = theme.text_muted;
+    let chevron_color = TextColor::Muted;
     let has_detail = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame
@@ -96,21 +97,25 @@ pub(crate) fn ActionRowFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph} color={icon_color} />
+                    <Text color={icon_color} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                 </Show>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Text string={label} font_size=FONT_BODY color={text_color} ellipsis=true />
+                    <Text string={label} color={text_color} ellipsis=true />
                     <Show condition={has_detail}>
                         <Text
                             string={detail}
-                            font_size=FONT_SMALL
-                            color={theme.text_muted}
+                            size=TextSize::Sm
+                            color=TextColor::Muted
                             ellipsis=true
                         />
                     </Show>
                 </List>
                 <Show condition={submenu}>
-                    <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={chevron_color} />
+                    <Text color={chevron_color} align=TextAlign::Center>
+                        <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
+                    </Text>
                 </Show>
             </List>
         </Frame>

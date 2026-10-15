@@ -2,7 +2,8 @@ use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{Frame, List, Show, component, create_memo, view};
-use block_editor_beui::beui::styled::{Caption, NumberInput, use_theme};
+use block_editor_beui::beui::styled::{NumberInput, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
 use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
@@ -162,7 +163,11 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
                         on_change={set_scale.clone()}
                     />
                 </Show>
-                <Caption content={caption} @test_id={"pixel-art.export-summary"} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string={caption}
+                    @test_id={"pixel-art.export-summary"}
+                />
             </List>
         </Frame>
     }

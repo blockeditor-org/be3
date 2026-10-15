@@ -1,5 +1,5 @@
 use beui_components_styled::{
-    ButtonVariant, Caption, IconButton, NumberInput, Select, Separator, Theme, select_open,
+    ButtonVariant, IconButton, NumberInput, Select, Separator, Theme, select_open,
 };
 use beui_components_unstyled::ChoiceOption;
 use beui_core::document::Document;
@@ -13,6 +13,7 @@ use beui_view::reactive::{
 };
 
 use super::State;
+use beui_components_styled::{Text, TextStyle};
 
 pub const HEIGHT: f32 = 51.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -155,7 +156,7 @@ fn ResponsiveToolbar(
                             }}
                         />
                     </Frame>
-                    <Caption content="x" />
+                    <Text style=TextStyle::CAPTION string="x" />
                     <Frame width=DIMENSION_WIDTH>
                         <NumberInput
                             @test_id={"inspector.responsive.height"}

@@ -68,6 +68,7 @@ struct Host {
     started: Option<Instant>,
     now: Duration,
     pass: u64,
+    seen: bool,
     pixels_per_point: f32,
     screen_scale: f32,
     theme: block_plugin_api::Theme,
@@ -82,6 +83,7 @@ impl Default for Host {
             started: None,
             now: Duration::ZERO,
             pass: 0,
+            seen: true,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             theme: block_plugin_api::Theme::Dark,
@@ -98,6 +100,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 
 struct Frame {
     now: Option<Instant>,
+    seen: bool,
     theme: block_plugin_api::Theme,
     pixels_per_point: f32,
     screen_scale: f32,
@@ -107,6 +110,7 @@ impl Default for Frame {
     fn default() -> Self {
         Self {
             now: None,
+            seen: true,
             theme: block_plugin_api::Theme::Dark,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -131,6 +135,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     }
     let mut frame = Frame {
         now: Some(context.now()),
+        seen: context.seen(),
         ..Frame::default()
     };
     frame.theme = plugin_theme(document.theme());
@@ -143,6 +148,7 @@ fn start(frame: Frame) {
     with(|host| {
         host.theme = frame.theme;
         host.pass += 1;
+        host.seen = frame.seen;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
             host.now = now.saturating_duration_since(started);
@@ -185,6 +191,10 @@ pub(crate) fn end(context: &beui::Context) {
 
 pub(crate) fn pass() -> u64 {
     with(|host| host.pass)
+}
+
+pub(crate) fn seen() -> bool {
+    with(|host| host.seen)
 }
 
 pub(crate) fn now() -> Duration {

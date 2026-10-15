@@ -2,14 +2,13 @@ use block_editor_beui::be_block::GameModuleContent;
 use block_editor_beui::beui::reactive::{
     Direction, Frame, ItemSize, List, NodeRef, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, Paragraph, use_theme,
-};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, use_theme};
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{Editor, FileChooser, Sidebar};
 use game_host::Game;
 
 use super::{filter, imported};
+use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -65,25 +64,32 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                 >
                     <List spacing=SPACING>
                         <Show condition={named}>
-                            <Heading
-                                content={name}
+                            <Text
+                                style=TextStyle::HEADING
+                                string={name}
                                 align=TextAlign::Center
                                 @test_id={"game-module.name"}
                             />
                         </Show>
                         <Show condition={failed}>
-                            <Paragraph
-                                content={reason}
+                            <Text
+                                style=TextStyle::PARAGRAPH
+                                string={reason}
                                 align=TextAlign::Center
-                                color={theme.danger}
+                                color=TextColor::Danger
                                 @test_id={"game-module.error"}
+                                wrap=true
                             />
                         </Show>
                         <Show condition={waiting}>
-                            <Caption content="Loading…" align=TextAlign::Center />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="Loading…"
+                                align=TextAlign::Center
+                            />
                         </Show>
-                        <Body content={source} align=TextAlign::Center />
-                        <Caption content={bytes} align=TextAlign::Center />
+                        <Text string={source} align=TextAlign::Center />
+                        <Text style=TextStyle::CAPTION string={bytes} align=TextAlign::Center />
                     </List>
                 </Frame>
                 <Sidebar shown={chrome}>
@@ -110,10 +116,9 @@ fn ModulePanel(editor: Editor) -> NodeId {
     let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
-    let theme = use_theme();
     view! {
         <List spacing=SPACING>
-            <Heading content="Game module" />
+            <Text style=TextStyle::HEADING string="Game module" />
             <Button
                 label="Replace module..."
                 variant=ButtonVariant::Secondary
@@ -122,7 +127,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger} />
+                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
             </Show>
         </List>
     }

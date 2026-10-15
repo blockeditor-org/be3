@@ -9,8 +9,8 @@ use block_editor_beui::beui::reactive::{
     view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, IconButton, IconSized,
-    ListRow, NumberInput, Separator, Tooltip, use_theme,
+    Button, ButtonVariant, Checkbox, ColorInput, IconButton, ListRow, NumberInput, Separator,
+    Tooltip,
 };
 use block_editor_beui::beui::unstyled::Pressable;
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget};
@@ -19,6 +19,8 @@ use uuid::Uuid;
 use crate::points::marker_color;
 
 use super::state::MapState;
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PREVIEW_HEIGHT: f32 = 130.0;
 
@@ -66,11 +68,10 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
     let error = state.import_error;
     let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
-    let theme = use_theme();
 
     view! {
         <List spacing=10.0>
-            <Heading content="Map" />
+            <Text style=TextStyle::HEADING string="Map" />
             <Separator />
             <RegionInspector state={state} />
             <Separator />
@@ -83,7 +84,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
             <Show condition={failed}>
                 {move || view! {
                     <List spacing=4.0>
-                        <Caption content={reason} color={theme.danger} />
+                        <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
                         <Button
                             label="Dismiss"
                             variant=ButtonVariant::Secondary
@@ -101,11 +102,10 @@ fn RegionInspector(state: MapState) -> NodeId {
     let region = state.preview_region;
     let fixed = create_memo(move || region.get().is_some());
     let loose = create_memo(move || !fixed.get());
-    let theme = use_theme();
-    let loose_color = theme.text_muted;
+    let loose_color = TextColor::Muted;
     view! {
         <List spacing=6.0>
-            <Body content="Preview region" />
+            <Text string="Preview region" />
             <Checkbox
                 label="Show a fixed region"
                 checked={fixed}
@@ -116,7 +116,11 @@ fn RegionInspector(state: MapState) -> NodeId {
                 }}
             />
             <Show condition={loose}>
-                <Caption content="Previews show the whole world." color={loose_color} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Previews show the whole world."
+                    color={loose_color}
+                />
             </Show>
             <Show condition={fixed}>
                 {move || view! {
@@ -277,20 +281,20 @@ fn PointList(state: MapState) -> NodeId {
     });
     let empty = create_memo(move || ids.get().is_empty());
     let any = create_memo(move || !empty.get());
-    let theme = use_theme();
-    let hint = theme.text_muted;
+    let hint = TextColor::Muted;
     view! {
         <List spacing=6.0>
-            <Body content="Points of interest" />
+            <Text string="Points of interest" />
             <Show condition={empty}>
-                <Caption
-                    content="Add blocks with the + button, by dragging them in from Files, or by pasting an image."
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Add blocks with the + button, by dragging them in from Files, or by pasting an image."
                     wrap=true
                     color={hint}
                 />
             </Show>
             <Show condition={any}>
-                <Caption content="Select a marker to edit it." color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string="Select a marker to edit it." />
             </Show>
             <ForEach keys={ids}>
                 {move |id: Uuid| {
@@ -325,7 +329,7 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             on_activate={move || {}}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} />
                 <Swatch color={swatch} />
             </List>
         </ListRow>
@@ -334,8 +338,11 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
 
 #[component]
 fn Swatch(color: Memo<Color32>) -> NodeId {
+    let color = create_memo(move || TextColor::Custom(color.get()));
     view! {
-        <IconSized glyph={ICON_CIRCLE.to_owned()} font_size=12.0 color={color} />
+        <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+            <Icon glyph={ICON_CIRCLE.to_owned()} />
+        </Text>
     }
 }
 
@@ -376,7 +383,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     @test_id={"map.point.back"}
                     on_click={move || state.select(None)}
                 />
-                <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} />
             </List>
             <Frame height=PREVIEW_HEIGHT radius=4>
                 <ChildBlock
@@ -417,7 +424,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     }}
                 />
             </List>
-            <Body content="Position" />
+            <Text string="Position" />
             <NumberInput
                 value={latitude}
                 min={-MAX_LATITUDE}
@@ -444,7 +451,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     state.record(Map::update(&[point]));
                 }}
             />
-            <Body content="Colour" />
+            <Text string="Colour" />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ForEach keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}>
                     {move |name: String| {
@@ -490,7 +497,9 @@ fn ColorPreset(state: MapState, point: Memo<Option<MapPoint>>, name: String) -> 
                     state.record(Map::update(&[chosen]));
                 }}
             >
-                <IconSized glyph={ICON_CIRCLE.to_owned()} font_size=16.0 color={swatch} />
+                <Text size=TextSize::Sm color={TextColor::Custom(swatch)} align=TextAlign::Center>
+                    <Icon glyph={ICON_CIRCLE.to_owned()} />
+                </Text>
             </Pressable>
         </Tooltip>
     }

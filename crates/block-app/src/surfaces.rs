@@ -1,16 +1,17 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use beui::reactive::{
-    ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, component,
-    create_memo, create_signal, store, view,
+    ForEach, Frame, Layers, List, Memo, ReadSignal, Show, WriteSignal, component, create_memo,
+    create_signal, store, view,
 };
-use beui::styled::{Caption, Heading, Icon, Spinner, StaleNotice, use_theme};
+use beui::styled::{Spinner, StaleNotice, TextColor};
 use beui::{Align, Color32, NodeId, TextAlign};
 use block_plugin_api::{BlockCommand, BlockLocation, EditorInstanceId, EditorRegion, FrameSpec};
 use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::HostItem;
+use beui::styled::{Icon, Text, TextSize, TextStyle};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
@@ -184,18 +185,13 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         }
     });
     let has_glyph = create_memo(move || !glyph.get().is_empty());
-    let theme = use_theme();
     let (surface, outline, color) = match kind {
         HostItem::Fallback { .. } => (
             Color32::from_gray(28),
             Color32::from_gray(75),
-            Color32::from_gray(211),
+            TextColor::Custom(Color32::from_gray(211)),
         ),
-        _ => (
-            Color32::TRANSPARENT,
-            Color32::TRANSPARENT,
-            theme.text_muted.get_untracked(),
-        ),
+        _ => (Color32::TRANSPARENT, Color32::TRANSPARENT, TextColor::Muted),
     };
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
@@ -210,14 +206,20 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         >
             <List spacing=8.0 align=Align::Center>
                 <Show condition={unsupported}>
-                    <Heading content="Unsupported block type" align=TextAlign::Center />
+                    <Text
+                        style=TextStyle::HEADING
+                        string="Unsupported block type"
+                        align=TextAlign::Center
+                    />
                 </Show>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph} text_size=28.0 color=color />
+                    <Text size=TextSize::Xl color=color align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
                 </Show>
-                <Text string={text} font_size=14.0 align=TextAlign::Center color=color italic />
+                <Text string={text} align=TextAlign::Center color=color italic />
                 <Show condition={unsupported}>
-                    <Caption content={detail} align=TextAlign::Center />
+                    <Text style=TextStyle::CAPTION string={detail} align=TextAlign::Center />
                 </Show>
                 <Show condition={spinning}>
                     <Spinner />

@@ -4,7 +4,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, Heading, Scroll, Select, use_theme};
+use block_editor_beui::beui::styled::{Scroll, Select, use_theme};
+use block_editor_beui::beui::styled::{Text, TextStyle};
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;
@@ -46,12 +47,16 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                         <List spacing=SPACING>
-                            <Heading content="Default editors" />
-                            <Caption
-                                content="The editor a block of each type opens in. Open with, in Files, opens one in another."
+                            <Text style=TextStyle::HEADING string="Default editors" />
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="The editor a block of each type opens in. Open with, in Files, opens one in another."
                             />
                             <Show condition={empty}>
-                                <Caption content="Every block type has one editor." />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string="Every block type has one editor."
+                                />
                             </Show>
                             <ForEach keys={types}>
                                 {move |block_type: Uuid| view! {
@@ -113,7 +118,7 @@ fn DefaultEditor(editor: Editor, block_type: Uuid) -> NodeId {
     let read_only = editor.read_only();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Body @sizing=ItemSize::Percent(100.0) content={name} />
+            <Text @sizing=ItemSize::Percent(100.0) string={name} />
             <Select
                 options={view! {
                     <ChoiceOption label={inherited_label} />

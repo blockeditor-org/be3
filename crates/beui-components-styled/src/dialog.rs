@@ -2,7 +2,7 @@ use accesskit::{Node, Role};
 use beui_core::layer::Dismiss;
 use beui_macros::{component, view};
 
-use crate::text::Title;
+use crate::text::{Text, TextStyle};
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_components_unstyled::BackSlide;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -79,7 +79,7 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
             >
                 <List spacing=SPACING>
                     <Show condition={titled}>
-                        <Title content={label} />
+                        <Text style=TextStyle::TITLE string={label} />
                     </Show>
                     {children}
                 </List>

@@ -17,10 +17,10 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
                     enabled={nested}
                     on_back={move || set_depth.set(depth.get_untracked() - 1)}
                     behind={|| view! {
-                        <Text string="Previous" font_size=14.0 color=Color32::WHITE />
+                        <Text string="Previous" color=Color32::WHITE />
                     }}
                 >
-                    <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
+                    <Text string="Page" color=Color32::WHITE @node_ref={&page} />
                 </BackSlide>
             }
         }

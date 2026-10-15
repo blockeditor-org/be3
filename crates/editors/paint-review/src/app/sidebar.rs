@@ -3,11 +3,13 @@ use block_editor_beui::beui::icons::{ICON_DELETE, ICON_DIFFERENCE, ICON_DONE_ALL
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, List, Show, component, create_memo, create_selector, view,
 };
-use block_editor_beui::beui::styled::{Body, Caption, Icon, ListRow, use_theme};
+use block_editor_beui::beui::styled::ListRow;
 
 use crate::download::BRANCH;
 
 use super::state::{Review, Status};
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 #[component]
 pub(crate) fn PaintingList(review: Review) -> NodeId {
@@ -18,15 +20,14 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
     let downloading = review.downloading;
     let searching = create_memo(move || empty.get() && downloading.get());
     let barren = create_memo(move || empty.get() && !downloading.get());
-    let theme = use_theme();
-    let opening = theme.text_muted;
-    let looking = theme.text_muted;
+    let opening = TextColor::Muted;
+    let looking = TextColor::Muted;
     let nothing = format!("No paintings on the {BRANCH} branch");
 
     view! {
         <List spacing=8.0>
             <Show condition={waiting}>
-                <Caption content="Opening the review" color={opening} />
+                <Text style=TextStyle::CAPTION string="Opening the review" color={opening} />
             </Show>
             <ForEach keys={Status::ALL.to_vec()}>
                 {move |status: Status| {
@@ -37,10 +38,14 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
                 }}
             </ForEach>
             <Show condition={searching}>
-                <Caption content={format!("Looking at the {BRANCH} branch")} color={looking} />
+                <Text
+                    style=TextStyle::CAPTION
+                    string={format!("Looking at the {BRANCH} branch")}
+                    color={looking}
+                />
             </Show>
             <Show condition={barren}>
-                <Caption content={nothing.clone()} color={theme.text_muted} />
+                <Text style=TextStyle::CAPTION string={nothing.clone()} />
             </Show>
         </List>
     }
@@ -65,14 +70,15 @@ fn StatusGroup(
     let heading = create_memo(move || format!("{} ({})", status.label(), paths.get().len()));
     let selected = review.selected;
     let here = create_selector(move || selected.get());
-    let theme = use_theme();
 
     view! {
         <Frame visible={any}>
             <List spacing=4.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                    <Icon glyph={glyph(status).to_owned()} color={theme.text_muted} />
-                    <Body content={heading} />
+                    <Text color=TextColor::Muted align=TextAlign::Center>
+                        <Icon glyph={glyph(status).to_owned()} />
+                    </Text>
+                    <Text string={heading} />
                 </List>
                 <ForEach keys={paths}>
                     {move |path: String| {
@@ -103,7 +109,7 @@ fn PaintingRow(
             on_click={move || review.select(&chosen)}
             on_activate={move || {}}
         >
-            <Body content={label} />
+            <Text string={label} />
         </ListRow>
     }
 }

@@ -163,12 +163,12 @@ pub(super) struct Runtime {
 pub(super) struct Placed {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
-    pub(super) document: u32,
 }
 
 #[derive(Default)]
 struct Pacing {
     needed: bool,
+    unseen: bool,
     paint_at: Option<Duration>,
     requested_at: Option<Duration>,
     animated: u64,
@@ -177,6 +177,7 @@ struct Pacing {
 impl Pacing {
     fn reset(&mut self) {
         self.needed = false;
+        self.unseen = false;
         self.paint_at = None;
         self.requested_at = None;
     }
@@ -407,17 +408,10 @@ impl Runtime {
     pub(super) fn node_action(
         &mut self,
         screen: ScreenId,
-        node: u32,
-        action: String,
-        value: Option<block_plugin_api::NodeValue>,
+        request: beui::accesskit::ActionRequest,
     ) {
         self.pacing.needed = true;
-        self.send(vec![Message::NodeAction {
-            screen,
-            node,
-            action,
-            value,
-        }]);
+        self.send(vec![Message::NodeAction { screen, request }]);
         host::request_repaint();
     }
 
@@ -435,9 +429,15 @@ impl Runtime {
             self.session.state(),
             SessionState::Idle | SessionState::Starting
         );
+        starting || self.drawing() || !self.backend.settled()
+    }
+
+    fn drawing(&mut self) -> bool {
+        if self.error.is_some() || !self.instances.has_mounted() {
+            return false;
+        }
         let drawing = self.session.granted_surface().is_some();
-        let awaited = drawing && (self.pacing.needed || self.pacing.requested_at.is_some());
-        starting || awaited || !self.backend.settled()
+        drawing && (self.pacing.needed || self.pacing.requested_at.is_some())
     }
 
     fn request_frame(&mut self) {
@@ -445,10 +445,14 @@ impl Runtime {
             return;
         }
         let drawing = self.session.granted_surface().is_some();
+        let seen = host::seen();
+        self.pacing.needed |= seen && self.pacing.unseen;
         if drawing && self.pacing.due(self.now(), host::pass()) {
             self.pacing.request(self.now(), host::pass());
+            self.pacing.unseen = !seen;
             self.send(vec![Message::DrawFrame {
                 now_micros: self.now().as_micros() as u64,
+                seen,
             }]);
         }
         if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
@@ -482,6 +486,7 @@ impl Runtime {
         crate::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
         self.error = Some(error);
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
+        CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
         mark(&self.plugin.identity.id);
         host::request_repaint();
     }
@@ -531,6 +536,11 @@ impl Runtime {
         }
         match self.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
+            SessionState::Failed(failure) => {
+                let error = format!("The plugin session stopped: {failure:?}");
+                self.crashed(error);
+                return;
+            }
             state => {
                 self.error = Some(format!("The plugin session stopped: {state:?}"));
                 return;
@@ -1009,6 +1019,15 @@ pub(crate) fn busy() -> bool {
     })
 }
 
+pub(crate) fn drawing() -> bool {
+    HOST.with(|host| {
+        host.borrow_mut()
+            .runtimes
+            .values_mut()
+            .any(|runtime| runtime.contain(Runtime::drawing))
+    })
+}
+
 pub(crate) fn start_frames() {
     let pass = host::pass();
     HOST.with(|host| {
@@ -1435,9 +1454,18 @@ fn theme() -> Theme {
 thread_local! {
     static CHANGED: RefCell<std::collections::HashSet<String>> =
         RefCell::new(std::collections::HashSet::new());
+    static CRASHED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
-fn mark(plugin_id: &str) {
+pub(crate) fn take_crashed() -> Vec<String> {
+    CRASHED.with(|crashed| std::mem::take(&mut *crashed.borrow_mut()))
+}
+
+pub(crate) fn crash(plugin_id: &str, error: String) {
+    with(plugin_id, |runtime| runtime.crashed(error));
+}
+
+pub(super) fn mark(plugin_id: &str) {
     CHANGED.with(|changed| {
         if !changed.borrow().contains(plugin_id) {
             changed.borrow_mut().insert(plugin_id.to_owned());
@@ -1528,16 +1556,7 @@ pub(crate) fn place_region(
         } = placement;
         runtime
             .placements
-            .entry((instance, region))
-            .and_modify(|placed| {
-                placed.rect = rect;
-                placed.clip = clip;
-            })
-            .or_insert_with(|| Placed {
-                rect,
-                clip,
-                document: beui::accessibility::next_document_id(),
-            });
+            .insert((instance, region), Placed { rect, clip });
         let scale_factor = host::pixels_per_point();
         let size = match region {
             EditorRegion::Preview => preview_size(rect.size(), scale_factor),
@@ -1922,6 +1941,17 @@ pub(crate) fn frames(plugin_id: &str) -> u64 {
     with(plugin_id, |runtime| runtime.frames).unwrap_or_default()
 }
 
+pub(crate) fn take_focus_request(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> bool {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_focus_request(instance, region)
+    })
+    .unwrap_or(false)
+}
+
 pub(crate) fn take_region_actions(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -2033,8 +2063,8 @@ pub(crate) fn region_damage(
     .flatten()
 }
 
-pub(super) fn each(mut act: impl FnMut(&Runtime)) {
-    HOST.with(|host| host.borrow().runtimes.values().for_each(&mut act));
+pub(super) fn each(mut act: impl FnMut(&mut Runtime)) {
+    HOST.with(|host| host.borrow_mut().runtimes.values_mut().for_each(&mut act));
 }
 
 pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {

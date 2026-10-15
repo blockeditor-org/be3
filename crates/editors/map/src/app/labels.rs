@@ -193,7 +193,9 @@ pub(crate) fn MapLabel(
         })
     });
     let text = create_memo(move || label.get().map(|label| label.key.text).unwrap_or_default());
-    let font_size = create_memo(move || label.get().map_or(10.0, |label| label.font_size));
+    let font = create_memo(move || {
+        FontId::proportional(label.get().map_or(10.0, |label| label.font_size))
+    });
     let color = create_memo(move || {
         label
             .get()
@@ -206,13 +208,7 @@ pub(crate) fn MapLabel(
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame color=HALO radius=2 padding_horizontal=HALO_PADDING @test_id={test_id}>
-                <Text
-                    string={text}
-                    font_size={font_size}
-                    align=TextAlign::Center
-                    color={color}
-                    wrap=false
-                />
+                <Text string={text} font={font} align=TextAlign::Center color={color} wrap=false />
             </Frame>
         </CanvasItem>
     }

@@ -15,12 +15,12 @@ use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
 use crate::node::{Arena, NodeId, NodeMap};
 
-mod roles;
+mod embedded;
 
-pub use roles::role_named;
+pub use embedded::Embedded;
 
 pub const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
-const DOCUMENT_SHIFT: u32 = 40;
+pub(crate) const DOCUMENT_SHIFT: u32 = 40;
 const GENERATION_SHIFT: u32 = 32;
 const FALLBACK_NUMERIC_STEP: f64 = 0.05;
 static NEXT_DOCUMENT_ID: AtomicU32 = AtomicU32::new(1);
@@ -41,88 +41,6 @@ impl Fragment {
                 node.set_transform(Affine::scale(scale.into()) * local);
             }
         }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Described {
-    pub depth: usize,
-    pub role: Role,
-    pub label: String,
-    pub value: String,
-    pub toggled: Option<accesskit::Toggled>,
-    pub disabled: bool,
-    pub focused: bool,
-    pub rect: Option<Rect>,
-    pub actions: Vec<Action>,
-    pub test_ids: Vec<String>,
-}
-
-pub fn embedded(document: u32, title: &str, area: Rect, described: &[Described]) -> Fragment {
-    let id = |index: usize| AccessNodeId((u64::from(document) << DOCUMENT_SHIFT) | index as u64);
-    let bounds = |rect: Rect| {
-        AccessRect::new(
-            rect.min.x.into(),
-            rect.min.y.into(),
-            rect.max.x.into(),
-            rect.max.y.into(),
-        )
-    };
-    let mut root = Node::new(Role::Pane);
-    root.set_label(title);
-    root.set_bounds(bounds(area));
-    let mut nodes: Vec<(AccessNodeId, Node)> = Vec::with_capacity(described.len() + 1);
-    let mut children: Vec<Vec<AccessNodeId>> = vec![Vec::new(); described.len() + 1];
-    let mut parents: Vec<(usize, usize)> = vec![(0, 0)];
-    let mut focus = None;
-    for (index, entry) in described.iter().enumerate() {
-        let slot = index + 1;
-        while parents.len() > 1
-            && parents
-                .last()
-                .is_some_and(|(depth, _)| *depth > entry.depth)
-        {
-            parents.pop();
-        }
-        let parent = parents.last().map_or(0, |(_, slot)| *slot);
-        children[parent].push(id(slot));
-        parents.push((entry.depth + 1, slot));
-        let mut node = Node::new(entry.role);
-        if !entry.label.is_empty() {
-            node.set_label(entry.label.as_str());
-        }
-        if !entry.value.is_empty() {
-            node.set_value(entry.value.as_str());
-        }
-        if let Some(toggled) = entry.toggled {
-            node.set_toggled(toggled);
-        }
-        if entry.disabled {
-            node.set_disabled();
-        }
-        if let Some(rect) = entry.rect {
-            node.set_bounds(bounds(rect));
-        }
-        for action in &entry.actions {
-            node.add_action(*action);
-        }
-        if !entry.test_ids.is_empty() {
-            node.set_author_id(entry.test_ids.join(" "));
-        }
-        if entry.focused {
-            focus = Some(id(slot));
-        }
-        nodes.push((id(slot), node));
-    }
-    for (slot, (_, node)) in nodes.iter_mut().enumerate() {
-        node.set_children(std::mem::take(&mut children[slot + 1]));
-    }
-    root.set_children(std::mem::take(&mut children[0]));
-    nodes.insert(0, (id(0), root));
-    Fragment {
-        nodes,
-        root: id(0),
-        focus,
     }
 }
 
@@ -180,6 +98,7 @@ pub struct AccessibilityTree {
     parents: NodeMap<NodeId>,
     marks: NodeMap<u64>,
     reached: NodeMap<u64>,
+    gathered: NodeMap<Gathering>,
     pass: u64,
     focus: Option<AccessNodeId>,
     changed: Vec<NodeId>,
@@ -198,6 +117,13 @@ struct Entry {
 struct Gathered {
     children: Vec<AccessNodeId>,
     focus: Option<AccessNodeId>,
+}
+
+struct Gathering {
+    children: Vec<AccessNodeId>,
+    focus: Option<AccessNodeId>,
+    origin: Pos2,
+    at: Pos2,
 }
 
 impl AccessibilityTree {
@@ -219,12 +145,22 @@ impl AccessibilityTree {
         }
     }
 
+    pub fn mark_placed(&mut self, id: NodeId, parent: Option<NodeId>, arena: &Arena) {
+        if let Some(parent) = parent
+            && !self.parents.contains_key(&id)
+        {
+            self.parents.insert(id, parent);
+        }
+        self.mark(id, arena);
+    }
+
     pub fn forget(&mut self, id: NodeId, arena: &Arena) {
         self.mark(id, arena);
         self.entries.remove(&id);
         self.parents.remove(&id);
         self.marks.remove(&id);
         self.reached.remove(&id);
+        self.gathered.remove(&id);
     }
 
     pub fn reset(&mut self) {
@@ -306,6 +242,7 @@ struct Pass<'a> {
     tree: &'a mut AccessibilityTree,
     dropped: Vec<NodeId>,
     described: usize,
+    walked: usize,
 }
 
 impl Pass<'_> {
@@ -321,6 +258,7 @@ impl Pass<'_> {
         if !document.arena.contains(id) {
             return;
         }
+        self.walked += 1;
         if let Some(parent) = parent {
             self.tree.parents.insert(id, parent);
         }
@@ -347,9 +285,34 @@ impl Pass<'_> {
             .and_then(TextNode::accessible_text);
         let named = !document.node_test_ids(id).is_empty();
         if explicit.is_none() && text.is_none() && !named && !force {
-            for child in element.children() {
-                self.visit(child, Some(id), origin, false, out);
+            if !self.tree.stale(id)
+                && let Some(held) = self.tree.gathered.get(&id)
+                && held.origin == origin
+                && held.at == rect.min
+            {
+                out.children.extend_from_slice(&held.children);
+                if held.focus.is_some() {
+                    out.focus = held.focus;
+                }
+                return;
             }
+            let mut inner = Gathered::default();
+            element.for_each_child(&mut |child| {
+                self.visit(child, Some(id), origin, false, &mut inner);
+            });
+            out.children.extend_from_slice(&inner.children);
+            if inner.focus.is_some() {
+                out.focus = inner.focus;
+            }
+            self.tree.gathered.insert(
+                id,
+                Gathering {
+                    children: inner.children,
+                    focus: inner.focus,
+                    origin,
+                    at: rect.min,
+                },
+            );
             return;
         }
 
@@ -368,9 +331,9 @@ impl Pass<'_> {
         }
 
         let mut inner = Gathered::default();
-        for child in element.children() {
+        element.for_each_child(&mut |child| {
             self.visit(child, Some(id), rect.min, false, &mut inner);
-        }
+        });
         self.described += 1;
         let (node, focus) = document.describe(id, rect, origin, explicit, text, inner);
         if focus.is_some() {
@@ -425,11 +388,12 @@ impl Document {
             tree: &mut tree,
             dropped: Vec::new(),
             described: 0,
+            walked: 0,
         };
         let mut top = Gathered::default();
         pass.visit(root, None, Pos2::ZERO, true, &mut top);
-        let (dropped, described) = (pass.dropped, pass.described);
-        self.work.note_described(described);
+        let (dropped, described, walked) = (pass.dropped, pass.described, pass.walked);
+        self.work.note_described(described, walked);
         tree.purge(self, dropped);
         tree.pass = tree.pass.wrapping_add(1);
         tree.focus = top.focus;
