@@ -28,9 +28,6 @@ pub fn window_tab(window: HostWindowId) -> TabId {
 }
 
 pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
-    if !super::kept::below_placeholders(tab) {
-        return None;
-    }
     tab.value().checked_sub(WINDOW_TABS).map(HostWindowId)
 }
 
@@ -40,6 +37,14 @@ pub(crate) fn floating_window(window: &HostWindow) -> Rect {
     Rect::from_min_size(
         pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
         shown_size(size) + WINDOW_CHROME,
+    )
+}
+
+pub(crate) fn kept_window(key: HostWindowId) -> Rect {
+    let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+    Rect::from_min_size(
+        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
+        PLACEHOLDER_SIZE + WINDOW_CHROME,
     )
 }
 

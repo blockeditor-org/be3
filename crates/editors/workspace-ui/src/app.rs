@@ -99,7 +99,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             </ForEach>
                             <ForEach keys={top_windows}>
                                 {move |window: HostWindowId| view! {
-                                    <WindowTab workspace window />
+                                    <WindowTab workspace key={window} />
                                 }}
                             </ForEach>
                         </DockPane>

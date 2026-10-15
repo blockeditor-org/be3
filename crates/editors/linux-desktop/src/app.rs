@@ -15,7 +15,7 @@ mod volume;
 use block_editor_beui::Editor;
 use block_editor_beui::Power;
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, NodeRef, component, create_effect, create_memo, untrack, view,
+    ForEach, Frame, ItemSize, List, NodeRef, RenderFn, component, create_effect, create_memo, untrack, view,
 };
 use block_editor_beui::beui::styled::{Docking, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -24,7 +24,7 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
-    AttachedWindow, BlockTab, DeskEntry, Failure, FloatingWindow, PanelWindow, PickerDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs,
     Workspace, WorkspaceDialogs,
 };
 
@@ -32,7 +32,7 @@ use bar::DesktopBar;
 use launcher::{ProgramLauncher, ProgramLauncherOverlay};
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
-use placeholders::{PlaceholderWindow, Placeholders};
+use placeholders::{Placeholder, Placeholders};
 
 const WINDOW_ORIGIN: f32 = 48.0;
 const WINDOW_CASCADE: f32 = 32.0;
@@ -77,6 +77,11 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let desk = workspace.desk();
     let placeholders = Placeholders::new(workspace);
     hold_saving_while_ending(workspace);
+    let placeholder = RenderFn::new(move |key: HostWindowId| {
+        view! {
+            <Placeholder placeholders key />
+        }
+    });
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
@@ -99,13 +104,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                         }}
                     </ForEach>
                     <ForEach keys={desk}>
-                        {move |entry: DeskEntry| match entry {
-                            DeskEntry::Window(window) => view! {
-                                <FloatingWindow workspace window />
-                            },
-                            DeskEntry::Placeholder(key) => view! {
-                                <PlaceholderWindow placeholders key />
-                            },
+                        {move |key: HostWindowId| view! {
+                            <FloatingWindow workspace key placeholder />
                         }}
                     </ForEach>
                     <ForEach keys={dialog_windows}>

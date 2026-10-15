@@ -17,7 +17,7 @@ mod window;
 mod workspace;
 
 pub use dialogs::WorkspaceDialogs;
-pub use kept::{DeskEntry, KeptWindow, placeholder_tab};
+pub use kept::KeptWindow;
 pub use picker_view::PickerDialogs;
 pub use saved::saved_windows;
 pub use window::{window_tab, window_title};

@@ -6,21 +6,16 @@ use block_editor_beui::beui::reactive::{
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Icon, IconButton, Text, TextColor, TextSize, TextStyle, use_theme,
 };
-use block_editor_beui::beui::unstyled::{DockNode, DockPane, DockTab, DockWindow, Picture, TabId};
-use block_editor_beui::beui::{Image, NodeId, Rect, pos2, vec2};
+use block_editor_beui::beui::unstyled::Picture;
+use block_editor_beui::beui::{Image, NodeId};
 use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, Programs};
-use block_shell::{KeptWindow, Workspace, placeholder_tab};
+use block_shell::{KeptWindow, Workspace};
 
 const ICON_POINTS: f32 = 64.0;
 const PICTURE_SIZE: f32 = 64.0;
 const BODY_SPACING: f32 = 12.0;
 const BUTTON_SPACING: f32 = 8.0;
 const BODY_PADDING: f32 = 24.0;
-const WINDOW_ORIGIN: f32 = 80.0;
-const WINDOW_CASCADE: f32 = 32.0;
-const WINDOW_CASCADES: u64 = 8;
-const WINDOW_WIDTH: f32 = 800.0;
-const WINDOW_HEIGHT: f32 = 500.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Placeholders {
@@ -155,16 +150,8 @@ fn name(kept: &KeptWindow, program: Option<&HostProgram>) -> String {
     }
 }
 
-fn place(key: HostWindowId) -> Rect {
-    let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
-    Rect::from_min_size(
-        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
-        vec2(WINDOW_WIDTH, WINDOW_HEIGHT),
-    )
-}
-
 #[component]
-pub(crate) fn PlaceholderWindow(placeholders: Placeholders, key: HostWindowId) -> DockNode<TabId> {
+pub(crate) fn Placeholder(placeholders: Placeholders, key: HostWindowId) -> NodeId {
     let workspace = placeholders.workspace;
     let kept = placeholders.kept(key);
     let program = placeholders.program(kept);
@@ -196,29 +183,16 @@ pub(crate) fn PlaceholderWindow(placeholders: Placeholders, key: HostWindowId) -
             })
         })
     });
-    let pane = format!("window.{}", key.0);
     view! {
-        <DockWindow id={pane.clone()} rect={place(key)}>
-            <DockPane id={pane}>
-                <DockTab
-                    id={placeholder_tab(key)}
-                    title
-                    icon=ICON_WEB_ASSET
-                    picture
-                    on_close={move || workspace.dismiss(key)}
-                >
-                    <PlaceholderBody
-                        key
-                        name
-                        title
-                        picture
-                        openable
-                        on_open={move || placeholders.open(key)}
-                        on_dismiss={move || workspace.dismiss(key)}
-                    />
-                </DockTab>
-            </DockPane>
-        </DockWindow>
+        <PlaceholderBody
+            key
+            name
+            title
+            picture
+            openable
+            on_open={move || placeholders.open(key)}
+            on_dismiss={move || workspace.dismiss(key)}
+        />
     }
 }
 
