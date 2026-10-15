@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{create_signal, view};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn setting_the_value_of_a_text_input_reports_the_change() {

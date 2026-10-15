@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 fn button(pos: Pos2, pressed: bool) -> Event {
     Event::PointerButton {

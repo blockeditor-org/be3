@@ -2,7 +2,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
     CanvasTextStyle, CanvasTextWeight,
 };
-use block_editor_beui::beui::reactive::{CanvasView, layout_text};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{
     Color32, FontId, Image, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
 };

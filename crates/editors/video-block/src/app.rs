@@ -5,10 +5,8 @@ use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CONTENT_CUT, ICON_DELETE, ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW,
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SUBDIRECTORY_ARROW_RIGHT, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Prop, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{IconButton, Scroll, Select, Separator};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockQuery, Loaded};
@@ -20,7 +18,6 @@ pub(crate) mod player;
 pub(crate) mod state;
 pub(crate) mod timeline;
 
-use block_editor_beui::beui::styled::{Text, TextStyle};
 use effects::EffectsPanel;
 use player::Player;
 use state::{VideoState, ZOOM_STEP};
@@ -118,7 +115,7 @@ fn VideoPreview(editor: Editor) -> NodeId {
 #[component]
 fn EffectsColumn(state: VideoState) -> NodeId {
     view! {
-        <Frame width=EFFECTS_WIDTH padding_horizontal=10.0 padding_vertical=10.0>
+        <Frame width=EFFECTS_WIDTH padding=10.0>
             <Scroll>
                 <EffectsPanel state={state} />
             </Scroll>
@@ -179,7 +176,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
         )
     });
     view! {
-        <Frame padding_horizontal=10.0 padding_vertical=4.0>
+        <Frame padding={Sides::symmetric(10.0, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
                     glyph={ICON_SKIP_PREVIOUS.to_owned()}
@@ -208,7 +205,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
 fn TimelineTools(state: VideoState) -> NodeId {
     let none = create_memo(move || state.selected.get().is_none());
     view! {
-        <Frame padding_horizontal=10.0 padding_vertical=4.0>
+        <Frame padding={Sides::symmetric(10.0, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
                     glyph={ICON_ADD.to_owned()}

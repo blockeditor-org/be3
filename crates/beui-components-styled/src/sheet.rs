@@ -5,7 +5,8 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SHEET_STOPS, SheetGripHandle};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Child, ClickCallback, Frame, List, Prop, Render};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const HANDLE_HEIGHT: f32 = 24.0;
 const GRIP_WIDTH: f32 = 36.0;
@@ -75,7 +76,7 @@ pub fn ModalSheet(
 fn SheetPanel(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.surface}>{children}</Frame>
+        <Frame fill={theme.surface}>{children}</Frame>
     }
 }
 
@@ -84,9 +85,9 @@ fn SheetGrip() -> NodeId {
     let theme = use_theme();
     view! {
         <List spacing=0.0>
-            <Frame height=BORDER_WIDTH color={theme.border} />
-            <Frame height=HANDLE_HEIGHT align_horizontal=Align::Center align_vertical=Align::Center>
-                <Frame width=GRIP_WIDTH height=GRIP_HEIGHT radius=2 color={theme.text_muted} />
+            <Frame height=BORDER_WIDTH fill={theme.border} />
+            <Frame height=HANDLE_HEIGHT align=Align::Center>
+                <Frame width=GRIP_WIDTH height=GRIP_HEIGHT radius=2.0 fill={theme.text_muted} />
             </Frame>
         </List>
     }

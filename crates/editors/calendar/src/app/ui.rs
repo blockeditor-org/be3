@@ -3,13 +3,8 @@ use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal,
-    component, create_effect, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, DateTimeField, Dialog, IconButton, Tabs, TextInput, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Editor, Toolbar};
@@ -19,7 +14,6 @@ use super::model::{
 };
 use super::month::MonthGrid;
 use super::timeline::Timeline;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -103,7 +97,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton
@@ -149,12 +143,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         on_click={add}
                     />
                 </Toolbar>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=0.0>
                         <Dynamic value={mode}>
                             {move |shown: CalendarView| {

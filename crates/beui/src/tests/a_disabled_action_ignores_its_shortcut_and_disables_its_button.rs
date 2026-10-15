@@ -1,8 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Action, Chord, build, create_memo, create_signal, view, with_reactive_scope,
-};
-use crate::styled::{Button, ButtonVariant};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {

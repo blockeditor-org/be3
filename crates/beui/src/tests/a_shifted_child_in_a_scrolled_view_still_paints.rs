@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, Shift};
+use crate::primitives::*;
+use crate::reactive::*;
 use beui_core::display::flatten;
 use beui_core::painter::Shape;
 
@@ -15,7 +16,7 @@ fn a_shifted_child_in_a_scrolled_view_still_paints() {
                     <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <Frame height=500.0 />
                         <Shift by={vec2(10.0, 0.0)}>
-                            <Frame height=50.0 color=MARK />
+                            <Frame height=50.0 fill=MARK />
                         </Shift>
                         <Frame height=500.0 />
                     </unstyled::Scroll>

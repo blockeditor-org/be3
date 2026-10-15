@@ -9,9 +9,8 @@ use beui_components_unstyled::{CommandRowHandle, TextInputHandle};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Child, ClickCallback, Direction, Frame, ItemSize, List, Prop, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const WIDTH: f32 = 520.0;
 const LIST_HEIGHT: f32 = 320.0;
@@ -53,16 +52,13 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
 fn PalettePanel(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+        <Frame padding=MARGIN>
             <Frame
-                max_width=WIDTH
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
+                width={Extent::at_most(WIDTH)}
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
                 radius=CARD_RADIUS
-                padding_horizontal=PADDING
-                padding_vertical=PADDING
+                padding=PADDING
             >
                 {children}
             </Frame>
@@ -77,11 +73,9 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            color={theme.surface}
-            outline={theme.accent}
-            outline_width=BORDER_WIDTH
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.accent.get(), BORDER_WIDTH)))}
             radius=RADIUS
-            outline_visible=true
         >
             {field}
         </Frame>
@@ -114,10 +108,9 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
     let shortcut = shortcut.unwrap_or_default();
     view! {
         <Frame
-            color={fill}
+            fill=fill
             radius=RADIUS
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=ROW_PADDING_VERTICAL
+            padding={Sides::symmetric(PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Frame width=ICON_WIDTH>

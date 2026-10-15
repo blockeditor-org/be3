@@ -7,27 +7,80 @@ use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
+use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Outline {
+    pub color: Color32,
+    pub width: f32,
+    pub offset: f32,
+}
+
+impl Outline {
+    pub const fn new(color: Color32, width: f32) -> Self {
+        Self {
+            color,
+            width,
+            offset: 0.0,
+        }
+    }
+
+    pub const fn offset(self, offset: f32) -> Self {
+        Self { offset, ..self }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FrameStyle {
     pub fill: Color32,
-    pub outline: Color32,
-    pub outline_width: f32,
     pub radius: Corners,
-    pub outline_offset: f32,
-    pub outline_visible: bool,
+    pub outline: Option<Outline>,
 }
 
 impl Default for FrameStyle {
     fn default() -> Self {
         Self {
             fill: Color32::TRANSPARENT,
-            outline: Color32::TRANSPARENT,
-            outline_width: 0.0,
             radius: Corners::all(0.0),
-            outline_offset: 0.0,
-            outline_visible: false,
+            outline: None,
         }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Align2 {
+    pub horizontal: Align,
+    pub vertical: Align,
+}
+
+impl Align2 {
+    pub const STRETCH: Align2 = Align2::all(Align::Stretch);
+    pub const CENTER: Align2 = Align2::all(Align::Center);
+    pub const START: Align2 = Align2::all(Align::Start);
+
+    pub const fn new(horizontal: Align, vertical: Align) -> Self {
+        Self {
+            horizontal,
+            vertical,
+        }
+    }
+
+    pub const fn all(align: Align) -> Self {
+        Self::new(align, align)
+    }
+
+    pub const fn horizontal(horizontal: Align) -> Self {
+        Self::new(horizontal, Align::Stretch)
+    }
+
+    pub const fn vertical(vertical: Align) -> Self {
+        Self::new(Align::Stretch, vertical)
+    }
+}
+
+impl Default for Align2 {
+    fn default() -> Self {
+        Self::STRETCH
     }
 }
 
@@ -40,13 +93,47 @@ pub struct Sides {
 }
 
 impl Sides {
-    pub fn symmetric(horizontal: f32, vertical: f32) -> Self {
+    pub const ZERO: Sides = Sides::all(0.0);
+
+    pub const fn new(left: f32, top: f32, right: f32, bottom: f32) -> Self {
         Self {
-            left: horizontal,
-            top: vertical,
-            right: horizontal,
-            bottom: vertical,
+            left,
+            top,
+            right,
+            bottom,
         }
+    }
+
+    pub const fn all(amount: f32) -> Self {
+        Self::symmetric(amount, amount)
+    }
+
+    pub const fn symmetric(horizontal: f32, vertical: f32) -> Self {
+        Self::new(horizontal, vertical, horizontal, vertical)
+    }
+
+    pub const fn horizontal(horizontal: f32) -> Self {
+        Self::symmetric(horizontal, 0.0)
+    }
+
+    pub const fn vertical(vertical: f32) -> Self {
+        Self::symmetric(0.0, vertical)
+    }
+
+    pub const fn left(self, left: f32) -> Self {
+        Self { left, ..self }
+    }
+
+    pub const fn top(self, top: f32) -> Self {
+        Self { top, ..self }
+    }
+
+    pub const fn right(self, right: f32) -> Self {
+        Self { right, ..self }
+    }
+
+    pub const fn bottom(self, bottom: f32) -> Self {
+        Self { bottom, ..self }
     }
 
     fn snapped(self, grid: PixelGrid) -> Self {
@@ -76,6 +163,49 @@ pub struct Extent {
 }
 
 impl Extent {
+    pub const INTRINSIC: Extent = Extent {
+        exact: None,
+        fraction: None,
+        min: None,
+        max: None,
+    };
+
+    pub const fn px(length: f32) -> Self {
+        Self {
+            exact: Some(length),
+            ..Self::INTRINSIC
+        }
+    }
+
+    pub const fn fraction(fraction: f32) -> Self {
+        Self {
+            fraction: Some(fraction),
+            ..Self::INTRINSIC
+        }
+    }
+
+    pub const fn at_least(min: f32) -> Self {
+        Self::INTRINSIC.min(min)
+    }
+
+    pub const fn at_most(max: f32) -> Self {
+        Self::INTRINSIC.max(max)
+    }
+
+    pub const fn min(self, min: f32) -> Self {
+        Self {
+            min: Some(min),
+            ..self
+        }
+    }
+
+    pub const fn max(self, max: f32) -> Self {
+        Self {
+            max: Some(max),
+            ..self
+        }
+    }
+
     fn scales_with(self, available: f32) -> bool {
         self.exact.is_none() && self.fraction.is_some() && available.is_finite()
     }
@@ -115,8 +245,7 @@ pub struct FrameNode {
     pub height: Extent,
     pub aspect_ratio: Option<f32>,
     pub padding: Sides,
-    pub align_horizontal: Align,
-    pub align_vertical: Align,
+    pub align: Align2,
     pub style: FrameStyle,
     pub visible: bool,
 }
@@ -157,7 +286,7 @@ impl FrameNode {
         inner: Rect,
     ) -> Rect {
         let grid = doc.pixel_grid();
-        if self.align_horizontal == Align::Stretch && self.align_vertical == Align::Stretch {
+        if self.align == Align2::STRETCH {
             return inner;
         }
         let measured = crate::layout::measure(doc, painter, child, inner.size());
@@ -170,8 +299,8 @@ impl FrameNode {
                 Align::End => (room - length, length),
             }
         };
-        let (x, width) = place(self.align_horizontal, inner.width(), measured.x);
-        let (y, height) = place(self.align_vertical, inner.height(), measured.y);
+        let (x, width) = place(self.align.horizontal, inner.width(), measured.x);
+        let (y, height) = place(self.align.vertical, inner.height(), measured.y);
         Rect::from_min_size(inner.min + vec2(x, y), vec2(width, height))
     }
 }
@@ -199,8 +328,7 @@ impl Default for FrameNode {
             height: Extent::default(),
             aspect_ratio: None,
             padding: Sides::default(),
-            align_horizontal: Align::Stretch,
-            align_vertical: Align::Stretch,
+            align: Align2::STRETCH,
             style: FrameStyle::default(),
             visible: true,
         }
@@ -255,12 +383,12 @@ impl Element for FrameNode {
         let padding = self.padding(grid);
         let offered = self.child_available(available, padding.amount());
         let baseline = crate::layout::baseline(doc, painter, child, offered)?;
-        let offset = match self.align_vertical {
+        let offset = match self.align.vertical {
             Align::Center | Align::End => {
                 let size = crate::layout::measure(doc, painter, child, offered);
                 let room = self.measure(doc, painter, available).y - padding.amount().y;
                 let spare = (room - size.y).max(0.0);
-                match self.align_vertical {
+                match self.align.vertical {
                     Align::Center => grid.snap(spare / 2.0),
                     _ => spare,
                 }
@@ -299,12 +427,12 @@ impl Element for FrameNode {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
-        if self.style.outline_visible {
+        if let Some(outline) = self.style.outline {
             painter.rect_stroke(
-                rect.expand(self.style.outline_offset),
+                rect.expand(outline.offset),
                 self.style.radius,
-                self.style.outline_width,
-                self.style.outline,
+                outline.width,
+                outline.color,
             );
         }
     }
@@ -369,21 +497,21 @@ impl Element for FrameNode {
             ),
             (
                 "align",
-                format!("{:?} {:?}", self.align_horizontal, self.align_vertical),
+                format!("{:?} {:?}", self.align.horizontal, self.align.vertical),
             ),
             ("fill", format_hex(self.style.fill, true)),
             (
                 "outline",
-                format!(
-                    "{} {} offset {}{}",
-                    self.style.outline_width,
-                    format_hex(self.style.outline, true),
-                    self.style.outline_offset,
-                    if self.style.outline_visible {
-                        " focus ring"
-                    } else {
-                        ""
-                    }
+                self.style.outline.map_or_else(
+                    || "none".to_owned(),
+                    |outline| {
+                        format!(
+                            "{} {} offset {}",
+                            outline.width,
+                            format_hex(outline.color, true),
+                            outline.offset
+                        )
+                    },
                 ),
             ),
             (
@@ -434,49 +562,13 @@ impl Document {
         }
     }
 
-    pub fn set_frame_width(&mut self, frame: NodeOf<FrameNode>, width: Option<f32>) {
-        self.update_frame_width(frame, |extent| extent.exact = width);
-    }
-
-    pub fn set_frame_min_width(&mut self, frame: NodeOf<FrameNode>, min_width: Option<f32>) {
-        self.update_frame_width(frame, |extent| extent.min = min_width);
-    }
-
-    pub fn set_frame_max_width(&mut self, frame: NodeOf<FrameNode>, max_width: Option<f32>) {
-        self.update_frame_width(frame, |extent| extent.max = max_width);
-    }
-
-    pub fn set_frame_width_fraction(&mut self, frame: NodeOf<FrameNode>, fraction: Option<f32>) {
-        self.update_frame_width(frame, |extent| extent.fraction = fraction);
-    }
-
-    pub fn set_frame_height(&mut self, frame: NodeOf<FrameNode>, height: Option<f32>) {
-        self.update_frame_height(frame, |extent| extent.exact = height);
-    }
-
-    pub fn set_frame_min_height(&mut self, frame: NodeOf<FrameNode>, min_height: Option<f32>) {
-        self.update_frame_height(frame, |extent| extent.min = min_height);
-    }
-
-    pub fn set_frame_max_height(&mut self, frame: NodeOf<FrameNode>, max_height: Option<f32>) {
-        self.update_frame_height(frame, |extent| extent.max = max_height);
-    }
-
-    pub fn set_frame_height_fraction(&mut self, frame: NodeOf<FrameNode>, fraction: Option<f32>) {
-        self.update_frame_height(frame, |extent| extent.fraction = fraction);
-    }
-
-    fn update_frame_width(&mut self, frame: NodeOf<FrameNode>, change: impl FnOnce(&mut Extent)) {
-        let mut width = self.arena.get_as::<FrameNode>(frame).width;
-        change(&mut width);
+    pub fn set_frame_width(&mut self, frame: NodeOf<FrameNode>, width: Extent) {
         if self.arena.get_as::<FrameNode>(frame).width != width {
             self.arena.get_mut_as::<FrameNode>(frame).width = width;
         }
     }
 
-    fn update_frame_height(&mut self, frame: NodeOf<FrameNode>, change: impl FnOnce(&mut Extent)) {
-        let mut height = self.arena.get_as::<FrameNode>(frame).height;
-        change(&mut height);
+    pub fn set_frame_height(&mut self, frame: NodeOf<FrameNode>, height: Extent) {
         if self.arena.get_as::<FrameNode>(frame).height != height {
             self.arena.get_mut_as::<FrameNode>(frame).height = height;
         }
@@ -494,19 +586,10 @@ impl Document {
         }
     }
 
-    pub fn set_frame_content_align(
-        &mut self,
-        frame: NodeOf<FrameNode>,
-        horizontal: Align,
-        vertical: Align,
-    ) {
-        let node = self.arena.get_as::<FrameNode>(frame);
-        if node.align_horizontal == horizontal && node.align_vertical == vertical {
-            return;
+    pub fn set_frame_align(&mut self, frame: NodeOf<FrameNode>, align: Align2) {
+        if self.arena.get_as::<FrameNode>(frame).align != align {
+            self.arena.get_mut_as::<FrameNode>(frame).align = align;
         }
-        let node = self.arena.get_mut_as::<FrameNode>(frame);
-        node.align_horizontal = horizontal;
-        node.align_vertical = vertical;
     }
 
     pub fn set_frame_style(&mut self, frame: NodeOf<FrameNode>, style: FrameStyle) {
@@ -532,3 +615,40 @@ impl Document {
         }
     }
 }
+
+macro_rules! into_prop_via {
+    ($target:ty, $value:ty, $convert:expr) => {
+        impl IntoProp<$target> for $value {
+            fn into_prop(self) -> Prop<$target> {
+                Prop::Static(self).map($convert)
+            }
+        }
+
+        impl IntoProp<$target> for Prop<$value> {
+            fn into_prop(self) -> Prop<$target> {
+                self.map($convert)
+            }
+        }
+
+        impl IntoProp<$target> for Memo<$value> {
+            fn into_prop(self) -> Prop<$target> {
+                IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+
+        impl IntoProp<$target> for ReadSignal<$value> {
+            fn into_prop(self) -> Prop<$target> {
+                IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+    };
+}
+
+into_prop_via!(Extent, f32, Extent::px);
+into_prop_via!(Extent, Option<f32>, |exact| Extent {
+    exact,
+    ..Extent::INTRINSIC
+});
+into_prop_via!(Sides, f32, Sides::all);
+into_prop_via!(Corners, f32, Corners::all);
+into_prop_via!(Align2, Align, Align2::all);

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, view};
-use crate::styled::TextInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {

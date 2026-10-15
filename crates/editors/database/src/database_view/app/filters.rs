@@ -8,15 +8,10 @@ use block_editor_beui::be_block::database_schema::{
 use block_editor_beui::be_block::database_view::{DatabaseView, FilterCondition, ViewFilter};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CLOSE, ICON_FILTER_LIST};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
-    create_signal, view,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PopoverPanel;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
-use block_editor_beui::beui::styled::{
-    ButtonVariant, Checkbox, IconButton, IconButtonSize, Scroll, Select, TextInput, use_theme,
-};
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopoverTriggerHandle};
 use block_editor_beui::block_ui::database::{
     DatabaseBlockPickRequest, DatabaseValueChange, ValueLabels, database_value_text,
@@ -27,7 +22,6 @@ use uuid::Uuid;
 use crate::database_view::app::controls::{ControlFace, MARK};
 use crate::database_view::app::data::Data;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const SPACING: f32 = 6.0;
 const EDITOR_WIDTH: f32 = 300.0;
@@ -234,11 +228,9 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
     let label = text;
     view! {
         <Frame
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
-            radius=14
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
+            radius=14.0
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <unstyled::Popover

@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::icons::ICON_BEDTIME;
-use beui::reactive::{Frame, build, view};
-use beui::styled::{LockAction, LockScreen, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 
 use super::*;
 
@@ -19,7 +19,7 @@ fn the_lock_screens_actions_are_told_apart_by_place() {
                 glyph: ICON_BEDTIME.to_owned(),
             };
             view! {
-                <Frame color={theme.background}>
+                <Frame fill={theme.background}>
                     <LockScreen
                         open=true
                         time="09:41"

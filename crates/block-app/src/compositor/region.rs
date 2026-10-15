@@ -4,13 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use beui::reactive::{
-    BackHandler, Callback, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach,
-    Frame, Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack, use_context, use_screens,
-    view,
-};
-use beui::styled::CrashNotice;
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
 use beui::{
     Align, CursorIcon, ForwardedInput, ImeCursor, Modifiers, NodeId, Pos2, Rect, Region, Vec2, pos2,
@@ -467,7 +462,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
         spinner: true,
     });
     view! {
-        <Frame align_horizontal=Align::Center align_vertical=Align::Center>
+        <Frame align=Align::Center>
             <List spacing=0.0>
                 <Show condition={failed}>
                     <CrashNotice

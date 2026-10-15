@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, create_signal, view, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{Edge, Floating};
 
 #[test]
@@ -14,7 +15,7 @@ fn an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout() {
                 <Floating anchor={stage} edge=Edge::TopEnd>
                     <Frame width=40.0 height=20.0 @node_ref={&pill} />
                 </Floating>
-                <Frame height={banner} />
+                <Frame height=banner />
                 <Frame height=100.0 @node_ref={&stage} />
             </List>
         }

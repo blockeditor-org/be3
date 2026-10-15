@@ -5,9 +5,6 @@ use beui::icons::{
     ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_FOLDER, ICON_INFO, ICON_SAVE, ICON_SCHEDULE,
     ICON_WARNING,
 };
-use beui::styled::{
-    Family, Icon, Span, Text, TextColor, TextSize, TextStyle, TextStyleProvider, Weight,
-};
 
 const COLUMN_SPACING: f32 = 20.0;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
@@ -212,7 +209,7 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
     };
     let id = tab.map_or(0, TabId::value);
     view! {
-        <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+        <Frame padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
                 <Text string={message} />
                 <List direction=Direction::Horizontal spacing=ROW_SPACING>
@@ -617,7 +614,7 @@ fn FocusedTile() -> NodeId {
                     label="Open the album"
                     on_click={move || set_opened.set("Opened the album".to_owned())}
                     content={move |handle: beui::unstyled::ButtonHandle| view! {
-                        <FocusRing focused={handle.focused} radius={CARD_RADIUS + 3} offset=3.0>
+                        <FocusRing focused={handle.focused} radius={CARD_RADIUS + 3.0} offset=3.0>
                             <Card>
                                 <Text string={handle.label} />
                             </Card>
@@ -1262,7 +1259,7 @@ fn PaintPicker() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
+            <Frame height=SWATCH_HEIGHT fill=shown_paint radius=RADIUS />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
@@ -1283,7 +1280,7 @@ fn HueWheel() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
+            <Frame height=SWATCH_HEIGHT fill=shown_paint radius=RADIUS />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
@@ -1312,7 +1309,7 @@ fn PerceptualWheel() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
+            <Frame height=SWATCH_HEIGHT fill=shown_paint radius=RADIUS />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
@@ -2092,10 +2089,9 @@ fn ToastArea() -> NodeId {
         <Frame
             @node_ref=&area
             height=TOAST_AREA_HEIGHT
-            color={theme.surface}
+            fill={theme.surface}
             radius=CARD_RADIUS
-            padding_horizontal=12.0
-            padding_vertical=12.0
+            padding=12.0
         >
             <List spacing=0.0>
                 <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
@@ -2246,11 +2242,7 @@ fn FullscreenButton() -> NodeId {
 fn FullscreenBody(on_close: ClickCallback) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background}
-            padding_horizontal=PAGE_PADDING
-            padding_vertical=PAGE_PADDING
-        >
+        <Frame fill={theme.background} padding=PAGE_PADDING>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Text
@@ -2343,13 +2335,15 @@ fn FittedScroll() -> NodeId {
                     on_click={move || set_count.update(|count| *count = count.saturating_sub(1))}
                 />
             </List>
-            <Frame outline={theme.border} outline_width=1.0 outline_visible=true radius=RADIUS>
+            <Frame
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                radius=RADIUS
+            >
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
                     <ForEach keys={rows}>
                         {move |index: usize| view! {
                             <Frame
-                                padding_horizontal=ROW_PADDING_HORIZONTAL
-                                padding_vertical=ROW_PADDING_VERTICAL
+                                padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                             >
                                 <Text string={format!("Row {}", index + 1)} />
                             </Frame>
@@ -2367,15 +2361,12 @@ fn StripCard(index: ReadSignal<usize>) -> NodeId {
     let theme = use_theme();
     let label = create_memo(move || format!("Card {}", index.get()));
     view! {
-        <Frame padding_horizontal=4.0 padding_vertical=0.0>
+        <Frame padding={Sides::symmetric(4.0, 0.0)}>
             <Frame
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=1.0
-                outline_visible=true
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                 radius=RADIUS
-                padding_horizontal=12.0
-                padding_vertical=10.0
+                padding={Sides::symmetric(12.0, 10.0)}
             >
                 <Text string={label} align=TextAlign::Center />
             </Frame>
@@ -2494,13 +2485,10 @@ fn ScrollRowFace(
     });
     view! {
         <Frame
-            color={fill_color}
-            outline={theme.accent}
-            outline_width=2.0
+            fill=fill_color
+            outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
             radius=RADIUS
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=ROW_PADDING_HORIZONTAL
-            padding_vertical={vertical}
+            padding={create_memo(move || Sides::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Text @sizing=ItemSize::Percent(100.0) string={label} />
@@ -2729,7 +2717,7 @@ fn Separators() -> NodeId {
             </List>
             <Separator />
             <Bordered corner_radius=CARD_RADIUS>
-                <Frame padding_horizontal=ROW_SPACING padding_vertical=ROW_SPACING>
+                <Frame padding=ROW_SPACING>
                     <Text string="A border drawn around whatever it holds" />
                 </Frame>
             </Bordered>
@@ -2900,12 +2888,7 @@ fn CanvasBoard(
     let [first, second, third, fourth] = STAGE_CARDS;
     let theme = use_theme();
     view! {
-        <Frame
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            radius=RADIUS
-        >
+        <Frame outline={focus_outline(focused, theme.accent, 2.0, 0.0)} radius=RADIUS>
             <Canvas view>
                 <StageCard card=first scale={scale} />
                 <StageCard card=second scale={scale} />
@@ -2921,20 +2904,17 @@ fn CanvasBoard(
 fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> CanvasItem {
     let (x, y, width, height, label) = card;
     let theme = use_theme();
-    let font = create_memo(move || beui::FontId::proportional(STAGE_LABEL_SIZE * scale.get()));
+    let size = create_memo(move || TextSize::Custom(STAGE_LABEL_SIZE * scale.get()));
     let padding = create_memo(move || STAGE_PADDING * scale.get());
     view! {
         <CanvasItem x y width height>
             <Frame
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=1.0
-                outline_visible=true
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                 radius=CARD_RADIUS
-                padding_horizontal={padding}
-                padding_vertical={padding}
+                padding=padding
             >
-                <beui::reactive::Text string={label.to_string()} font color={theme.text} />
+                <Text string={label.to_string()} size />
             </Frame>
         </CanvasItem>
     }
@@ -2990,12 +2970,7 @@ fn ThemedSamples() -> NodeId {
 fn ThemeSample(name: &'static str) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background}
-            radius=CARD_RADIUS
-            padding_horizontal=ROW_SPACING
-            padding_vertical=ROW_SPACING
-        >
+        <Frame fill={theme.background} radius=CARD_RADIUS padding=ROW_SPACING>
             <Card>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::HEADING string={name} />

@@ -1,9 +1,8 @@
 use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{Frame, List, Show, component, create_memo, view};
-use block_editor_beui::beui::styled::{NumberInput, use_theme};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
 use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
@@ -147,11 +146,7 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
     let theme = use_theme();
 
     view! {
-        <Frame
-            color={theme.background}
-            padding_horizontal=SETTINGS_PADDING
-            padding_vertical=SETTINGS_PADDING
-        >
+        <Frame fill={theme.background} padding=SETTINGS_PADDING>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <NumberInput

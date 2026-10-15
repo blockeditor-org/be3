@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Text, TextStyle};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn flicking_across_the_screen_reader_reads_the_next_item() {

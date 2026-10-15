@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn activation_requires_a_matching_release_and_escape_cancels_it() {

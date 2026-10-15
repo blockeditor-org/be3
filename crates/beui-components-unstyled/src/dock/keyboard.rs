@@ -1,6 +1,6 @@
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
-use beui_view::reactive::with_document;
+use beui_view::reactive::*;
 
 use super::{DockTabControl, LeafId, State, TabId};
 

@@ -12,11 +12,8 @@ mod switcher;
 mod tray;
 mod volume;
 
-use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, NodeRef, RenderFn, Show, component, create_effect, create_memo,
-    untrack, view,
-};
-use block_editor_beui::beui::styled::{Docking, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     Container, DockNode, DockPane, DockWindow, TabId, container_size,
 };
@@ -97,7 +94,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let bar_node = NodeRef::new();
     let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} color={theme.background}>
+        <Frame @node_ref={&surface} fill={theme.background}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking

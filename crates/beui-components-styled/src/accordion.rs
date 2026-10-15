@@ -10,9 +10,8 @@ use beui_core::base::TextAlign;
 use beui_core::document::Document;
 use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const SPACING: f32 = 8.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -35,7 +34,7 @@ pub fn Accordion(
             }}
             open
         >
-            <Frame padding_horizontal=PADDING_HORIZONTAL>{children}</Frame>
+            <Frame padding={Sides::horizontal(PADDING_HORIZONTAL)}>{children}</Frame>
         </unstyled::Disclosure>
     }
 }
@@ -55,14 +54,10 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     let title_color = TextColor::Default;
     view! {
         <Frame
-            color={header_color}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
+            fill=header_color
+            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, 2.0)}
             radius=RADIUS
-            outline_offset=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text

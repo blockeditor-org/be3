@@ -1,12 +1,9 @@
 use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Child, Direction, ForEach, Frame, List, Memo, component, create_memo, view,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::theme::RADIUS;
-use block_editor_beui::beui::styled::use_theme;
-use block_editor_beui::beui::styled::{Text, TextColor, TextSize};
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
 use uuid::Uuid;
@@ -34,13 +31,10 @@ pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
     });
     view! {
         <Frame
-            color={fill}
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focused}
+            fill=fill
+            outline={create_memo(move || focused.get().then(|| Outline::new(theme.accent.get(), 2.0)))}
             radius=RADIUS
-            padding_horizontal=8.0
-            padding_vertical=5.0
+            padding={Sides::symmetric(8.0, 5.0)}
         >
             {children}
         </Frame>

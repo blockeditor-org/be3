@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{List, NodeRef, Text, build, view};
-use crate::styled::SelectableText;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_long_press_on_selectable_text_selects_the_word_and_copy_copies_it() {

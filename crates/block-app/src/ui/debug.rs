@@ -1,14 +1,10 @@
 use beui::NodeId;
-use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, VirtualList,
-    component, create_memo, on_cleanup, use_context, view,
-};
-use beui::styled::{Button, ButtonVariant, Link, Scroll, Spinner, Weight, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use block_plugin_api::HostPanel;
 
 use super::onboarding::ErrorText;
 use super::{UiCommand, send};
-use beui::styled::{Family, Text, TextColor, TextSize, TextStyle};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
@@ -112,7 +108,7 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
     let shown = create_memo(move || panel);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <List spacing=0.0>
                 <Dynamic value={shown}>
                     {move |panel: HostPanel| {
@@ -182,9 +178,12 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
 #[component]
 fn LineView(line: Memo<Option<Line>>) -> NodeId {
     let indent = create_memo(move || {
-        Some(
+        Sides::new(
             line.get()
                 .map_or(0.0, |line| f32::from(line.indent) * INDENT),
+            0.0,
+            0.0,
+            0.0,
         )
     });
     let text = create_memo(move || line.get().map(|line| line.text).unwrap_or_default());
@@ -207,7 +206,7 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
         _ => TextSize::Sm,
     });
     view! {
-        <Frame padding_left={indent}>
+        <Frame padding=indent>
             <Text string={text} size color weight family wrap=true />
         </Frame>
     }
@@ -217,7 +216,7 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
 fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
     let lines = create_memo(move || client.get().unwrap_or_default());
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <LinesView lines />
         </Frame>
     }
@@ -228,7 +227,7 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
     let rows = create_memo(move || performance.get().unwrap_or_default());
     let keys = create_memo(move || (0..rows.get().len()).collect::<Vec<_>>());
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <Scroll>
                 <PerformanceLine
                     row={create_memo(|| Some(PerformanceRow {
@@ -324,7 +323,7 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
     let idle = create_memo(move || runtime_keys.get().is_empty());
     let running = create_memo(move || format!("Running ({})", runtime_keys.get().len()));
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <Scroll>
                 <ForEach keys={line_keys}>
                     {move |index: usize| {
@@ -375,7 +374,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
     let crash = id.clone();
     let crash_id = format!("debug.plugins.crash.{id}");
     view! {
-        <Frame padding_vertical=6.0>
+        <Frame padding={Sides::vertical(6.0)}>
             <List spacing=2.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Text style=TextStyle::HEADING string={id} />
@@ -440,7 +439,7 @@ fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
             .collect::<Vec<_>>()
     });
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <List spacing=8.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Text style=TextStyle::CAPTION string="Running build:" />
@@ -497,15 +496,12 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
     let error = create_memo(move || run.get().and_then(|run| run.error));
     let install = run;
     view! {
-        <Frame padding_vertical=4.0>
+        <Frame padding={Sides::vertical(4.0)}>
             <Frame
-                color={theme.surface}
-                outline={theme.border}
-                outline_width=1.0
-                outline_visible=true
-                radius=6
-                padding_horizontal=10.0
-                padding_vertical=8.0
+                fill={theme.surface}
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                radius=6.0
+                padding={Sides::symmetric(10.0, 8.0)}
             >
                 <List spacing=4.0>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

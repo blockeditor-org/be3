@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls() {

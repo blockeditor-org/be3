@@ -1,7 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, Text, build, create_signal, view};
-use crate::styled::Dialog;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 const WIDE: Vec2 = Vec2::new(1600.0, 1000.0);
 

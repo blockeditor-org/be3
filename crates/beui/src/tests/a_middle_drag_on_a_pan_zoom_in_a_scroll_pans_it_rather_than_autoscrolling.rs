@@ -1,6 +1,7 @@
 use super::*;
 use crate::FontId;
-use crate::reactive::{ForEach, ItemSize, List, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{PanZoomView, Scroll, pan_zoom_view};
 
 #[test]

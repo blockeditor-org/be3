@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::ColorInput;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_color_input_reports_the_hex_it_was_typed() {

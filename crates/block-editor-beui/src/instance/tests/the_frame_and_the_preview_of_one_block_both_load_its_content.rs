@@ -1,7 +1,8 @@
 use super::*;
 use be_block::ObjectId;
 use be_block::presentation::PresentationContent;
-use beui::reactive::{Frame, Memo};
+use beui::reactive::*;
+use beui::styled::*;
 use block_editor_plugin::HostContent;
 
 thread_local! {

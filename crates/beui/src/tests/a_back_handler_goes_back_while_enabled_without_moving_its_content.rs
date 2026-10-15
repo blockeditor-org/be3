@@ -1,8 +1,7 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{
-    BackHandler, NodeRef, Text, build, create_signal, view, with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {

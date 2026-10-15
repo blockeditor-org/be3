@@ -8,10 +8,8 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{
-    Dynamic, Frame, List, NodeRef, Store, component, copy_text, create_memo, view,
-};
-use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
@@ -343,7 +341,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let locking = view;
     let area = NodeRef::new();
     view! {
-        <Frame @node_ref=&area color={theme.background}>
+        <Frame @node_ref=&area fill={theme.background}>
             <List spacing=0.0>
                 <Dynamic value={screen}>
                     {move |screen: Screen| {

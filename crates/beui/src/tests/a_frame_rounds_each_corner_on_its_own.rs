@@ -1,6 +1,7 @@
 use super::*;
 use crate::Corners;
-use crate::reactive::{Frame, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const FILL: Color32 = Color32::from_rgb(9, 8, 7);
 
@@ -8,14 +9,7 @@ const FILL: Color32 = Color32::from_rgb(9, 8, 7);
 fn a_frame_rounds_each_corner_on_its_own() {
     let document = build(|| {
         view! {
-            <Frame
-                width=100.0
-                height=40.0
-                color=FILL
-                radius=8
-                radius_top_left=0
-                radius_bottom_right=16
-            />
+            <Frame width=100.0 height=40.0 fill=FILL radius={Corners::new(0.0, 8.0, 16.0, 8.0)} />
         }
     });
     let mut harness = Harness::sized(document, vec2(200.0, 100.0));

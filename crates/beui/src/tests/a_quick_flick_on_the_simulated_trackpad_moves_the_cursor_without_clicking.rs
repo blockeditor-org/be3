@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Checkbox;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking() {

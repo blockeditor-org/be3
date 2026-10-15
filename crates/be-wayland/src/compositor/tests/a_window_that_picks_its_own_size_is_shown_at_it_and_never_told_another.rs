@@ -18,7 +18,7 @@ fn Floating(windows: Windows) -> NodeId {
                     let width = create_memo(move || Some(size.get().x));
                     let height = create_memo(move || Some(size.get().y));
                     view! {
-                        <Frame width height>
+                        <Frame width=width height=height>
                             <WindowView windows id />
                         </Frame>
                     }

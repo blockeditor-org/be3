@@ -1,15 +1,12 @@
 use block_editor_beui::beui::icons::{
     ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIRST_PAGE, ICON_LAST_PAGE,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{IconButton, IconButtonSize, TextColor, TextSize, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
 use block_editor_beui::beui::{Color32, NodeId, TextAlign};
 
 use super::{Steps, Table};
-use block_editor_beui::beui::styled::{Text, TextStyle, Weight};
 
 const NUMBER_WIDTH: f32 = 30.0;
 
@@ -236,7 +233,7 @@ fn MoveCell(
             @test_id={format!("game.history.{row}.{column}")}
             on_click={open}
             content={move |_: unstyled::ButtonHandle| view! {
-                <Frame color={fill} radius=4 padding_horizontal=6.0 padding_vertical=3.0>
+                <Frame fill=fill radius=4.0 padding={Sides::symmetric(6.0, 3.0)}>
                     <Text string={text} size=TextSize::Sm color={color} />
                 </Frame>
             }}

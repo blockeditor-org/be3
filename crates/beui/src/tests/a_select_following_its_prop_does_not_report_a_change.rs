@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{build, create_signal, view};
-use crate::styled::Select;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::ChoiceOption;
 
 #[test]

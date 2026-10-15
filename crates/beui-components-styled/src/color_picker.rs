@@ -17,10 +17,8 @@ use beui_core::color::{Color32, Hsva};
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_view::reactive::{
-    Callback, Draw, Drawing, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track,
-    create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub const PICKER_WIDTH: f32 = 244.0;
 const AREA_HEIGHT: f32 = 156.0;
@@ -214,7 +212,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
 #[component]
 fn ChannelLabel(content: Prop<String>) -> NodeId {
     view! {
-        <Frame align_vertical=Align::Center>
+        <Frame align={Align2::vertical(Align::Center)}>
             <Text style=TextStyle::CAPTION string={content} />
         </Frame>
     }
@@ -242,7 +240,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
                 texel_centres(image.width(), image.height()),
                 &image,
                 Color32::WHITE,
-                RADIUS as f32,
+                RADIUS,
                 true,
             );
             let centre = pos2(
@@ -253,7 +251,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
         }) as Draw
     });
     view! {
-        <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={RADIUS + 2.0} offset=FOCUS_RING_OFFSET>
             <Frame height=AREA_HEIGHT>
                 <Drawing draw />
             </Frame>
@@ -311,7 +309,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
         }) as Draw
     });
     view! {
-        <FocusRing focused radius=10 offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius=10.0 offset=FOCUS_RING_OFFSET>
             <Frame height=SLIDER_HEIGHT>
                 <Drawing draw />
             </Frame>
@@ -324,7 +322,7 @@ pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
     let draw = Prop::dynamic(move || {
         let color = color.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
-            let radius = RADIUS as f32;
+            let radius = RADIUS;
             if color.alpha() < u8::MAX {
                 checkerboard(painter, rect);
             }
@@ -333,7 +331,7 @@ pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
         }) as Draw
     });
     view! {
-        <Frame width height>
+        <Frame width=width height=height>
             <Drawing draw />
         </Frame>
     }
@@ -356,19 +354,14 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
     });
     view! {
         <Frame
-            outline={ring_color}
-            outline_width=FOCUS_RING_WIDTH
-            radius={CHIP_RADIUS + 2}
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={ring}
+            outline={create_memo(move || ring.get().then(|| Outline::new(ring_color.get(), FOCUS_RING_WIDTH).offset(FOCUS_RING_OFFSET)))}
+            radius={CHIP_RADIUS + 2.0}
         >
             <Frame
                 width=SWATCH_SIZE
                 height=SWATCH_SIZE
-                color
-                outline={OUTLINE_DARK}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
+                fill=color
+                outline={Outline::new(OUTLINE_DARK, BORDER_WIDTH)}
                 radius=CHIP_RADIUS
             />
         </Frame>

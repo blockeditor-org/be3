@@ -7,7 +7,7 @@ fn an_unchanged_container_is_not_walked_again_for_accessibility_but_a_moved_one_
     let mut document = Document::new();
     let list = document.create_list(Direction::Vertical, 0.0);
     let spacer = document.create_frame();
-    document.set_frame_height(spacer, Some(10.0));
+    document.set_frame_height(spacer, Extent::px(10.0));
     document.append_child(list, spacer.id(), ItemSize::Intrinsic);
     let labels: Vec<NodeOf<TextNode>> = (0..GROUPS)
         .map(|index| {
@@ -36,7 +36,9 @@ fn an_unchanged_container_is_not_walked_again_for_accessibility_but_a_moved_one_
     );
 
     let before = top_of(&harness, "group 5");
-    harness.document_mut().set_frame_height(spacer, Some(50.0));
+    harness
+        .document_mut()
+        .set_frame_height(spacer, Extent::px(50.0));
     let moved = harness.frame(Vec::new());
     let sent = moved.accessibility_tree("Test", VIEWPORT).nodes;
     let after = sent

@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::SecondaryDrag;
-use crate::reactive::{Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {

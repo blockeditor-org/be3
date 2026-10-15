@@ -13,10 +13,8 @@ use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Align, Callback, Direction, ForEach, Frame, IntoChild, Layer, Layers, List, Memo, Prop, Show,
-    component_accessibility, create_memo, create_signal, use_screens,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const FIELD_WIDTH: f32 = 280.0;
 const SPACING: f32 = 8.0;
@@ -72,7 +70,7 @@ pub fn LockScreen(
             scrim={theme.background}
             level=LayerLevel::Lock
             content={move || view! {
-                <Frame width={width} height={height}>
+                <Frame width=width height=height>
                     <Layers>
                         <ForEach keys={places}>
                             {move |index: usize| {
@@ -134,10 +132,9 @@ fn LockCard(
     on_submit: Callback<String>,
     on_action: Callback<usize>,
 ) -> NodeId {
-    let left = create_memo(move || Some(place.get().left()));
-    let top = create_memo(move || Some(place.get().top()));
-    let width = create_memo(move || Some(place.get().width()));
-    let height = create_memo(move || Some(place.get().height()));
+    let inset = create_memo(move || Sides::new(place.get().left(), place.get().top(), 0.0, 0.0));
+    let width = create_memo(move || place.get().width());
+    let height = create_memo(move || place.get().height());
     component_accessibility(create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Locked");
@@ -150,19 +147,8 @@ fn LockCard(
     let error_id = format!("{id}.error");
     let action_id = id.clone();
     view! {
-        <Frame
-            padding_left={left}
-            padding_top={top}
-            align_horizontal=Align::Start
-            align_vertical=Align::Start
-        >
-            <Frame
-                width={width}
-                height={height}
-                align_horizontal=Align::Center
-                align_vertical=Align::Center
-                @test_id={id.clone()}
-            >
+        <Frame padding=inset align=Align::Start>
+            <Frame width=width height=height align=Align::Center @test_id={id.clone()}>
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
                         <Text style=TextStyle::DISPLAY string={time} />

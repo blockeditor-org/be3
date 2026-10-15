@@ -4,7 +4,8 @@ use crate::Chip;
 use crate::text::{Text, TextColor, TextSize};
 use beui_core::base::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Direction, ItemSize, List, Prop};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const SPACING: f32 = 10.0;
 

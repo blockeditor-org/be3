@@ -1,6 +1,6 @@
 use beui::icons::ICON_VOLUME_OFF;
-use beui::reactive::{Frame, build, view};
-use beui::styled::{LevelOsd, OsdLevel, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Rect, Screen};
 
 use super::*;
@@ -18,7 +18,7 @@ fn the_level_display_shows_on_every_screen() {
             muted: true,
         });
         view! {
-            <Frame color={theme.background}>
+            <Frame fill={theme.background}>
                 <LevelOsd level={level} shown=1_u64 />
             </Frame>
         }

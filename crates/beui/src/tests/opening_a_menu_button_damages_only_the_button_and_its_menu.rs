@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, NodeRef, build, view};
-use crate::styled::MenuButton;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
@@ -13,12 +13,7 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
                 <unstyled::MenuItem label="Paste" />
             };
             view! {
-                <Frame
-                    color={Color32::from_gray(20)}
-                    radius=0
-                    padding_horizontal=16.0
-                    padding_vertical=16.0
-                >
+                <Frame fill={Color32::from_gray(20)} radius=0.0 padding=16.0>
                     <List spacing=0.0>
                         <MenuButton
                             @node_ref=&button

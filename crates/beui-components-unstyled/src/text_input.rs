@@ -27,10 +27,8 @@ use crate::text_menu::TextContextMenu;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use beui_view::reactive::{
-    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, create_effect,
-    create_memo, create_signal, set_component_state, store,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
 const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
@@ -195,7 +193,11 @@ pub fn TextInput(
             }}
             frame={move |field: Child| {
                 let field = view! {
-                    <Frame padding_horizontal padding_vertical>{field}</Frame>
+                    <Frame
+                        padding={create_memo(move || Sides::symmetric(padding_horizontal.get(), padding_vertical.get()))}
+                    >
+                        {field}
+                    </Frame>
                 };
                 view! {
                     <TextContextMenu

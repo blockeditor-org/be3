@@ -2,11 +2,8 @@ use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component,
-    create_memo, view,
-};
-use block_editor_beui::beui::styled::{IconButton, Scroll, Select, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Displays, Editor, HostDisplay, HostDisplayMode};
 
@@ -14,7 +11,6 @@ use super::modes::{
     LOCK_AFTER, SCREEN_OFF, Size, effective, lock_after_label, mode_label, rate_label, rates,
     saved, screen_off_label, size_label, size_of, sizes,
 };
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const PADDING: f32 = 20.0;
 const SECTION_SPACING: f32 = 18.0;
@@ -43,9 +39,9 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     let none = create_memo(move || displays.with(Vec::is_empty));
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <Scroll>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::HEADING string="Displays" />

@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
-use beui::reactive::{Frame, component, create_memo, view};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
 use block_plugin_api::{
     ChildRect, HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin,

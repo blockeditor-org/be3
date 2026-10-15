@@ -1,5 +1,5 @@
-use beui::reactive::{Frame, NodeRef, build, view};
-use beui::styled::{Toast, ToastAction, Toasts, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Edge;
 
 use super::*;
@@ -30,7 +30,7 @@ fn toasts_on_the_top_edge_stack_in_the_top_corner() {
             },
         ];
         view! {
-            <Frame @node_ref=&area color={theme.background}>
+            <Frame @node_ref=&area fill={theme.background}>
                 <Toasts
                     anchor={area}
                     edge=Edge::TopEnd

@@ -1,5 +1,5 @@
 use accesskit::{Node, Role};
-use beui_view::reactive::Prop;
+use beui_view::reactive::*;
 
 pub fn labelled_node(
     role: Role,

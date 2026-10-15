@@ -1,8 +1,8 @@
 use accesskit::Role;
 
 use super::*;
-use crate::reactive::view;
-use crate::styled::Link;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn clicking_a_link_reports_it_and_reads_as_a_link() {

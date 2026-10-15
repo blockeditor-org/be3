@@ -1,15 +1,11 @@
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::logic_game::QuizRow;
 use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
-use block_editor_beui::beui::reactive::{
-    Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
-    Show, Spacer, Stored, component, create_memo, create_signal, store, view,
-};
-use block_editor_beui::beui::styled::{Bordered, Button, ButtonVariant, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 
 use super::{BinaryAdditionQuiz, next_answer};
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 type Answers = (Vec<Option<bool>>, Vec<Option<bool>>);
 
@@ -86,8 +82,8 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     view! {
         <List spacing=ROW_SPACING>
             <Text string={title} />
-            <Bordered corner_radius=8>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+            <Bordered corner_radius=8.0>
+                <Frame padding=PADDING>
                     <ProblemGrid
                         quiz={quiz}
                         block={block}
@@ -196,8 +192,8 @@ fn ProblemGrid(
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     height=RULE_HEIGHT
-                    color={theme.border}
-                    radius=0
+                    fill={theme.border}
+                    radius=0.0
                 />
             </List>
             <BitRow
@@ -330,11 +326,8 @@ fn BitCell(
     view! {
         <Frame
             width=CELL
-            outline={outline}
-            outline_width=1.0
-            outline_offset=1.0
-            outline_visible={wrong}
-            radius=4
+            outline={create_memo(move || wrong.get().then(|| Outline::new(outline.get(), 1.0).offset(1.0)))}
+            radius=4.0
         >
             <Button
                 label={label}

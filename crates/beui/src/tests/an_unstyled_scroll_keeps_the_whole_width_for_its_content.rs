@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const CONTENT_HEIGHT: f32 = 2000.0;
 

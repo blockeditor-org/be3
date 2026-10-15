@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use super::*;
-use crate::reactive::{Frame, Interactive, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::MenuItem;
 
 const LONG_PRESS: Duration = Duration::from_millis(500);

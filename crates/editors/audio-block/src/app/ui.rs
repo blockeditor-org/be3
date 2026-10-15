@@ -2,16 +2,12 @@ use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
 use std::time::Duration;
 
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, NodeRef, Show, component, create_effect, create_memo,
-    create_signal, create_timer, now, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -93,14 +89,9 @@ pub fn AudioView(editor: Editor) -> NodeId {
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <List direction=Direction::Horizontal spacing=0.0>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=SPACING>
                         <Text size=TextSize::Xl4 align=TextAlign::Center>
                             <Icon glyph={ICON_AUDIO_FILE.to_owned()} />

@@ -21,15 +21,13 @@ use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, create_memo,
-    focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
 const SEGMENT_PADDING: f32 = 2.0;
-const SEGMENT_RADIUS: u8 = 3;
+const SEGMENT_RADIUS: f32 = 3.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const TRIGGER_PADDING: f32 = 4.0;
 const TRIGGER_GAP: f32 = 4.0;
@@ -79,7 +77,7 @@ pub fn DateTimeField(
                 <LiteralFace text />
             }}
             segments={|field: Child| view! {
-                <Frame height=HEIGHT padding_horizontal=PADDING_HORIZONTAL>{field}</Frame>
+                <Frame height=HEIGHT padding={Sides::horizontal(PADDING_HORIZONTAL)}>{field}</Frame>
             }}
             field={|handle: DateTimeBoxHandle| view! {
                 <FieldBox handle />
@@ -118,20 +116,15 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
     let ring = create_memo(move || outer && keyboard.get());
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius={RADIUS + 3}
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={ring}
+            outline={create_memo(move || ring.get().then(|| Outline::new(theme.accent.get(), FOCUS_RING_WIDTH).offset(FOCUS_RING_OFFSET)))}
+            radius={RADIUS + 3.0}
         >
             <Frame
                 height=HEIGHT
-                color={fill}
-                outline={border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
+                fill=fill
+                outline={create_memo(move || Some(Outline::new(border.get(), BORDER_WIDTH)))}
                 radius=RADIUS
-                padding_right=TRIGGER_GAP
+                padding={Sides::new(0.0, 0.0, TRIGGER_GAP, 0.0)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     {field} @sizing=ItemSize::Percent(100.0)
@@ -163,8 +156,8 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
         },
     );
     view! {
-        <Frame height_fraction=1.0 align_vertical=Align::Center>
-            <Frame color={fill} radius=SEGMENT_RADIUS padding_horizontal=SEGMENT_PADDING>
+        <Frame height={Extent::fraction(1.0)} align={Align2::vertical(Align::Center)}>
+            <Frame fill=fill radius=SEGMENT_RADIUS padding={Sides::horizontal(SEGMENT_PADDING)}>
                 <Text string={text} color={ink} align=TextAlign::Center />
             </Frame>
         </Frame>
@@ -216,12 +209,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
     view! {
         <Tooltip label disabled={open}>
             <FocusRing focused offset=1.0>
-                <Frame
-                    color={fill}
-                    radius=SEGMENT_RADIUS
-                    padding_horizontal=TRIGGER_PADDING
-                    padding_vertical=TRIGGER_PADDING
-                >
+                <Frame fill=fill radius=SEGMENT_RADIUS padding=TRIGGER_PADDING>
                     <Text color={ink} align=TextAlign::Center>
                         <Icon glyph={glyph.to_owned()} />
                     </Text>
@@ -260,10 +248,10 @@ fn PickerPanel(
     });
     let width = panel_width;
     view! {
-        <Frame width={panel_width}>
+        <Frame width=panel_width>
             <List spacing=PANEL_SPACING>
                 <List direction=Direction::Horizontal spacing=0.0>
-                    <Frame width={field_width}>{field}</Frame>
+                    <Frame width=field_width>{field}</Frame>
                 </List>
                 <Dynamic value={layout}>
                     {move |shape: DateTimePanelLayout| {
@@ -389,7 +377,9 @@ fn PanelBody(
 #[component]
 fn Centred(children: Child) -> NodeId {
     view! {
-        <Frame width_fraction=1.0 align_horizontal=Align::Center>{children}</Frame>
+        <Frame width={Extent::fraction(1.0)} align={Align2::horizontal(Align::Center)}>
+            {children}
+        </Frame>
     }
 }
 
@@ -438,7 +428,7 @@ fn TimePane(
     } = handle;
     let centred = grid_columns(step_minutes, max_columns) > 1;
     view! {
-        <Frame height>
+        <Frame height=height>
             <unstyled::TimeList
                 value={time}
                 step_minutes
@@ -484,13 +474,10 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
     view! {
         <Frame
             height=TIME_ROW_HEIGHT
-            color={fill}
+            fill=fill
             radius=RADIUS
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_offset=-1.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=10.0
+            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, -1.0)}
+            padding={Sides::horizontal(10.0)}
         >
             <Text
                 string={label}

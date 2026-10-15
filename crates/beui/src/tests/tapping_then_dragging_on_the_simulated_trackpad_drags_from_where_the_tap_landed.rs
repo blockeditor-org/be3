@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Slider;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed() {

@@ -1,9 +1,8 @@
 use beui::NodeId;
-use beui::reactive::{Align, Direction, Frame, List, Show, component, create_memo, view};
-use beui::styled::{Button, ButtonVariant, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 
 use super::state::State;
-use beui::styled::{Text, TextColor};
 
 const BAR_PADDING_HORIZONTAL: f32 = 12.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
@@ -31,9 +30,8 @@ fn ImportErrorRow(state: State) -> NodeId {
     let message = create_memo(move || error.get().unwrap_or_default());
     view! {
         <Frame
-            color={theme.surface}
-            padding_horizontal=BAR_PADDING_HORIZONTAL
-            padding_vertical=BAR_PADDING_VERTICAL
+            fill={theme.surface}
+            padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 <Text string={message} color=TextColor::Danger />

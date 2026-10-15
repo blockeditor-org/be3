@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Text, view};
-use crate::styled::ListRow;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_inspector_shows_the_base_nodes_of_a_styled_component() {

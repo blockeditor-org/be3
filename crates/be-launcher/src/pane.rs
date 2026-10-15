@@ -1,9 +1,7 @@
 use std::cell::RefCell;
 
-use beui::reactive::{
-    ForEach, Frame, Interactive, LayoutBuilder, List, Memo, ReadSignal, Stored, Text, WriteSignal,
-    component, create_effect, create_memo, create_signal, layout_text, store, untrack, view,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Color32, Direction, FontId, KeyPress, NodeId, ScrollGesture, TextLayout, Vec2};
 use ghostty_vt::{Renderer, Rgb, Terminal};
 
@@ -213,11 +211,7 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
                             }
                         }}
                     >
-                        <Frame
-                            color={background}
-                            padding_horizontal=PADDING
-                            padding_vertical=PADDING
-                        >
+                        <Frame fill=background padding=PADDING>
                             <List spacing=0.0>
                                 <ForEach keys>
                                     {move |index: usize| {
@@ -260,10 +254,9 @@ fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
     };
     let bold = field(|span| span.bold);
     let italic = field(|span| span.italic);
-    let font = create_memo(move || {
-        FontId::monospace(FONT_SIZE)
-            .bold(bold.get())
-            .italic(italic.get())
+    let weight = create_memo(move || match bold.get() {
+        true => Weight::Bold,
+        false => Weight::Normal,
     });
     let underline = field(|span| span.underline);
     let text = create_memo(move || {
@@ -274,15 +267,23 @@ fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
         })
     });
     let color = create_memo(move || {
-        span.with(|span| span.as_ref().map_or(Color32::WHITE, |span| span.color))
+        TextColor::Custom(span.with(|span| span.as_ref().map_or(Color32::WHITE, |span| span.color)))
     });
     let background = create_memo(move || {
         span.with(|span| span.as_ref().and_then(|span| span.background))
             .unwrap_or(Color32::TRANSPARENT)
     });
     view! {
-        <Frame color={background}>
-            <Text string={text} font color underline />
+        <Frame fill=background>
+            <Text
+                string={text}
+                size=TextSize::Custom(FONT_SIZE)
+                family=Family::Mono
+                weight
+                italic
+                color
+                underline
+            />
         </Frame>
     }
 }

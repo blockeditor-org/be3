@@ -1,6 +1,6 @@
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::BrowserTabContent;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;

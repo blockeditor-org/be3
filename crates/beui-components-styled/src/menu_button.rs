@@ -14,9 +14,8 @@ use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::image::Image;
 use beui_core::input::ScrollGesture;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Children, ClickCallback, Frame, List, Memo, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PICTURE_SIZE: f32 = TextSize::Base.icon_px();
 const PICTURE_PADDING: f32 = 6.0;
@@ -133,13 +132,8 @@ pub fn PictureMenuButton(
         let (image, pictured, plain) = (image, pictured, plain);
         view! {
             <Tooltip label disabled={open}>
-                <FocusRing focused radius={RADIUS + 2} offset=PICTURE_FOCUS_RING_OFFSET>
-                    <Frame
-                        color={fill}
-                        radius=RADIUS
-                        padding_horizontal=PICTURE_PADDING
-                        padding_vertical=PICTURE_PADDING
-                    >
+                <FocusRing focused radius={RADIUS + 2.0} offset=PICTURE_FOCUS_RING_OFFSET>
+                    <Frame fill=fill radius=RADIUS padding=PICTURE_PADDING>
                         <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                             <List spacing=0.0 align=Align::Center>
                                 <Show condition={pictured}>

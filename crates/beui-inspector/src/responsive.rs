@@ -7,10 +7,8 @@ use beui_core::geometry::{Vec2, vec2};
 use beui_core::icons::{ICON_CLOSE, ICON_SCREEN_ROTATION};
 use beui_core::node::NodeId;
 use beui_core::screen_simulation::{MAXIMUM_SIZE, MINIMUM_SIZE, ScreenSimulation};
-use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, ReadSignal, RootScope, Scope,
-    Spacer, Stored, WriteSignal, component, create_memo, create_signal, view,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use super::State;
 use beui_components_styled::{Text, TextStyle};
@@ -114,10 +112,9 @@ fn ResponsiveToolbar(
     view! {
         <List spacing=0.0>
             <Frame
-                color={THEME.surface}
-                radius=0
-                padding_horizontal=PADDING_HORIZONTAL
-                padding_vertical=PADDING_VERTICAL
+                fill={THEME.surface}
+                radius=0.0
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Frame width=DEVICE_WIDTH>

@@ -7,10 +7,8 @@ use beui_macros::{component, view};
 use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
-use beui_view::reactive::Memo;
-use beui_view::reactive::{
-    Align, Direction, Frame, ItemSize, List, Prop, Show, create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
@@ -18,7 +16,7 @@ pub(super) use beui_components_unstyled::ChoiceKind as Kind;
 const MARK_SPACING: f32 = 10.0;
 const MARK_BOX: f32 = 18.0;
 const MARK_DOT: f32 = 8.0;
-const MARK_RADIUS: u8 = 9;
+const MARK_RADIUS: f32 = 9.0;
 
 #[component]
 pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
@@ -38,14 +36,10 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
     view! {
         <Frame
-            color={fill_color}
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
+            fill=fill_color
+            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, 1.0)}
             radius=RADIUS
-            outline_offset=1.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=14.0
-            padding_vertical=6.0
+            padding={Sides::symmetric(14.0, 6.0)}
         >
             <ChoiceLabel kind label color={label_color} checked />
         </Frame>
@@ -82,18 +76,15 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
         <Frame
             width=MARK_BOX
             height=MARK_BOX
-            outline={ring_color}
-            outline_width=2.0
+            outline={create_memo(move || Some(Outline::new(ring_color.get(), 2.0)))}
             radius=MARK_RADIUS
-            outline_visible=true
-            align_horizontal=Align::Center
-            align_vertical=Align::Center
+            align=Align::Center
         >
             <Frame
                 visible={checked}
                 width=MARK_DOT
                 height=MARK_DOT
-                color={theme.accent}
+                fill={theme.accent}
                 radius=MARK_RADIUS
             />
         </Frame>

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use beui::NodeId;
-use beui::reactive::view;
+use beui::reactive::*;
 use block_editor_beui::Loaded;
 use block_editor_beui::{ArtifactDescription, Artifacts, Creation, Editor};
 

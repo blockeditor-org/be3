@@ -1,11 +1,8 @@
 use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{Repository, RepositoryContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Card, Scroll, use_theme};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
     BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, short_id,
 };
@@ -77,7 +74,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill={theme.background} padding=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>

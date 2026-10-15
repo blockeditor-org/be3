@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Listbox;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {

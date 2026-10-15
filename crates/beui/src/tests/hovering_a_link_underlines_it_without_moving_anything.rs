@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::Link;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn hovering_a_link_underlines_it_without_moving_anything() {

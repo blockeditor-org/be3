@@ -11,7 +11,7 @@ use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Ver
 use uuid::Uuid;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 
 use crate::app::{PaintReviewApp, PaintReviewEditor, Status};
 use crate::download::{Painting, Source};

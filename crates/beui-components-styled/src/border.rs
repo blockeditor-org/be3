@@ -2,18 +2,16 @@ use beui_macros::{component, view};
 
 use crate::theme::{BORDER_WIDTH, SEPARATOR_THICKNESS, use_theme};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, Direction, Frame, Memo, Prop, create_memo};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 #[component]
-pub fn Bordered(corner_radius: u8, children: Child) -> NodeId {
+pub fn Bordered(corner_radius: f32, children: Child) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            radius={corner_radius}
-            outline_offset=0.0
-            outline_visible=true
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
+            radius=corner_radius
         >
             {children}
         </Frame>
@@ -40,6 +38,6 @@ pub fn Separator(
     let width = measurement_along(Direction::Horizontal, direction, length);
     let height = measurement_along(Direction::Vertical, direction, length);
     view! {
-        <Frame color={theme.border} width={width} height={height} radius=0 />
+        <Frame fill={theme.border} width=width height=height radius=0.0 />
     }
 }

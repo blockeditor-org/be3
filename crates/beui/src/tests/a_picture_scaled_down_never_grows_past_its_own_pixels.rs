@@ -1,13 +1,14 @@
 use super::*;
 use crate::image::{Image, ImageFit};
-use crate::reactive::{Frame, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Picture;
 
 fn drawn(width: f32, height: f32) -> Rect {
     let image = Image::from_rgba(20, 10, vec![128; 800]);
     let document = build(move || {
         view! {
-            <Frame width={width} height={height}>
+            <Frame width=width height=height>
                 <Picture image={Some(image)} fit=ImageFit::ScaleDown />
             </Frame>
         }

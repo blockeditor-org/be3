@@ -4,14 +4,8 @@ use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_CIRCLE, ICON_DELETE, ICON_MY_LOCATION};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, component, create_memo,
-    view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Checkbox, ColorInput, IconButton, ListRow, NumberInput, Separator,
-    Tooltip,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Pressable;
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget};
 use uuid::Uuid;
@@ -20,7 +14,6 @@ use crate::points::marker_color;
 
 use super::state::MapState;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PREVIEW_HEIGHT: f32 = 130.0;
 
@@ -385,7 +378,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 />
                 <Text @sizing=ItemSize::Percent(100.0) string={label} />
             </List>
-            <Frame height=PREVIEW_HEIGHT radius=4>
+            <Frame height=PREVIEW_HEIGHT radius=4.0>
                 <ChildBlock
                     editor={editor}
                     block={block}

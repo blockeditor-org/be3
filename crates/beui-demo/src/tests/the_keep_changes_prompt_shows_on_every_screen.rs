@@ -1,5 +1,5 @@
-use beui::reactive::{Frame, build, view};
-use beui::styled::{KeepChanges, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Rect, Screen};
 
 use super::*;
@@ -11,7 +11,7 @@ fn the_keep_changes_prompt_shows_on_every_screen() {
     let document = build(move || {
         let theme = use_theme();
         view! {
-            <Frame color={theme.background}>
+            <Frame fill={theme.background}>
                 <KeepChanges
                     open=true
                     title="Keep these display settings?"

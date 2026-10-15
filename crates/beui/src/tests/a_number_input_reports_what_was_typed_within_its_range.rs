@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{NumberInput, number_input_field, number_input_text};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_number_input_reports_what_was_typed_within_its_range() {

@@ -19,7 +19,7 @@ use std::{
     rc::Rc,
 };
 
-use beui::reactive::CanvasView;
+use beui::reactive::*;
 use beui::{Color32, Key, Pos2, Rect, TextAlign, Vec2};
 use block_editor_beui::BlockParent;
 use block_editor_beui::ContentProjection;

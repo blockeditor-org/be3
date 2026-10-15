@@ -7,11 +7,8 @@ use beui::icons::{
     ICON_KEYBOARD_ARROW_UP, ICON_KEYBOARD_DOUBLE_ARROW_DOWN, ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
     ICON_KEYBOARD_DOUBLE_ARROW_RIGHT, ICON_KEYBOARD_DOUBLE_ARROW_UP, ICON_PAUSE, ICON_PLAY_ARROW,
 };
-use beui::reactive::{
-    Align, Callback, List, Memo, ReadSignal, Timer, create_effect, create_memo, create_signal,
-    create_timer, now, store, untrack, view,
-};
-use beui::styled::{IconButton, Slider, TextArea, ToggleButton};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
@@ -20,7 +17,6 @@ use text_editor_core::{CursorPosition, EditorCommand, TextLanguage};
 use super::{Caret, Side, SideDocument, Simulation};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
-use beui::styled::{Text, TextStyle};
 
 const TEXT: &str = "# Shared notes\n\nType on both sides. Each side keeps its own copy and \
 sends its edits over a simulated network.\n\n- [ ] type at the same place on both sides\n";

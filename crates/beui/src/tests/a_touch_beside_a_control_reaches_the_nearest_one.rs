@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, Interactive, List, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_touch_beside_a_control_reaches_the_nearest_one() {
@@ -8,7 +9,7 @@ fn a_touch_beside_a_control_reaches_the_nearest_one() {
     let document = build({
         move || {
             view! {
-                <Frame padding_horizontal=40.0 padding_vertical=40.0>
+                <Frame padding=40.0>
                     <List direction=Direction::Horizontal spacing=10.0>
                         <Interactive
                             on_click={move || set_clicks.update(|clicks| clicks.push("left"))}

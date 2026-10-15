@@ -1,11 +1,11 @@
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{ForEach, Frame, List, Show, component, create_memo, view};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ChildBlock, ChildMode, ChildState};
 use uuid::Uuid;
 
 use super::state::VideoState;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const DEFAULT_ASPECT_RATIO: f32 = 16.0 / 9.0;
 const STAGE: Color32 = Color32::from_gray(18);
@@ -38,14 +38,14 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
     });
 
     view! {
-        <Frame color=STAGE padding_horizontal=8.0 padding_vertical=8.0>
+        <Frame fill=STAGE padding=8.0>
             <List spacing=0.0>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION string="No clip at the playhead" />
                 </Show>
                 <Show condition={any}>
                     {move || view! {
-                        <Frame aspect_ratio={ratio} color=Color32::BLACK>
+                        <Frame aspect_ratio={ratio} fill=Color32::BLACK>
                             <List spacing=0.0>
                                 <ForEach keys={visible}>
                                     {move |id: Uuid| {

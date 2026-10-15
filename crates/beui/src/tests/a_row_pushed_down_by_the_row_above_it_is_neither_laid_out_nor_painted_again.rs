@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Direction, ForEach, List, Text, build, create_signal, view, with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const ROWS: usize = 12;
 const LABELS: usize = 6;
@@ -13,10 +12,10 @@ fn a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again()
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Frame height={height} color=Color32::WHITE radius=0 />
+                <Frame height=height fill=Color32::WHITE radius=0.0 />
                 <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>
                     {|row: usize| view! {
-                        <Frame height=30.0 color=Color32::WHITE radius=0>
+                        <Frame height=30.0 fill=Color32::WHITE radius=0.0>
                             <List direction=Direction::Horizontal spacing=4.0>
                                 <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>
                                     {move |label: usize| view! {

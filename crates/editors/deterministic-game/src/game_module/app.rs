@@ -1,6 +1,6 @@
 use block_editor_beui::Loaded;
 use block_editor_beui::be_block::GameModuleContent;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
 use game_host::Game;

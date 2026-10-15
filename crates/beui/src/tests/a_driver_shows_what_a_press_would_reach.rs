@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, component, view};
-use crate::styled::{Button, ButtonVariant};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[component]
 fn Wrapper() -> NodeId {

@@ -1,10 +1,7 @@
 use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::be_block::database_view::DatabaseViewKind;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, List, Memo, NodeRef, Show, component,
-    create_effect, create_memo, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::DatabaseValueEditor;
@@ -18,7 +15,6 @@ use crate::database_view::app::list::{ListView, RowBeside};
 use crate::database_view::app::scatter::Scatter;
 use crate::database_view::app::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
-use block_editor_beui::beui::styled::Text;
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
 const CELL_EDITOR_HEIGHT: f32 = 40.0;
@@ -54,7 +50,7 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <List spacing=0.0>
                 <Show condition={spreadsheet}>
                     {move || view! {
@@ -84,7 +80,7 @@ pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
     let loaded = data.loaded;
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <Loaded loaded={loaded} label="Loading the database">
                 <Content data={data} panels=false />
             </Loaded>

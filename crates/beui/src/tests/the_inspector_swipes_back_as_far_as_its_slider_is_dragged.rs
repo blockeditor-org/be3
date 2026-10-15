@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, Text, build, create_memo, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::BackSlide;
 
 const REVEAL: f32 = 200.0;

@@ -1,9 +1,8 @@
-use beui::reactive::{Frame, List, build, create_signal, view};
-use beui::styled::{Button, ButtonVariant, Dialog, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Justify, Rect, Screen};
 
 use super::*;
-use beui::styled::{Text, TextStyle};
 
 #[test]
 fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
@@ -14,7 +13,7 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
         let (open, set_open) = create_signal(false);
         let closing = set_open;
         view! {
-            <Frame color={theme.background}>
+            <Frame fill={theme.background}>
                 <List direction=beui::Direction::Horizontal justify=Justify::End spacing=0.0>
                     <Button
                         label="About"

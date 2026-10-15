@@ -1,10 +1,7 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::reactive::{
-    Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, LayoutBuilder,
-    List, Memo, ReadSignal, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{ListRow, Scroll, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, PointerPress, Vec2};
 use block_ui::datetime::civil_from_days;
 
@@ -12,7 +9,6 @@ use super::model::{
     SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
     weekday_from_days,
 };
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const HEADER_HEIGHT: f32 = 22.0;
 const HOUR_HEIGHT: f32 = 40.0;
@@ -58,7 +54,7 @@ pub(crate) fn Timeline(
                     }}
                 </ForEach>
             </List>
-            <Frame height=RULE color={theme.border} radius=0 />
+            <Frame height=RULE fill={theme.border} radius=0.0 />
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Grid
                     first_day={first_day}
@@ -131,7 +127,7 @@ fn Grid(
                                         let color = hour_border;
                                         view! {
                                             <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                                <Frame color={color} radius=0 />
+                                                <Frame fill=color radius=0.0 />
                                             </CanvasItem>
                                         }
                                     }}
@@ -162,7 +158,7 @@ fn Grid(
                                                 width=RULE
                                                 height=CONTENT_HEIGHT
                                             >
-                                                <Frame color={color} radius=0 />
+                                                <Frame fill=color radius=0.0 />
                                             </CanvasItem>
                                         }
                                     }}
@@ -209,7 +205,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame color={theme.accent} radius=3>
+            <Frame fill={theme.accent} radius=3.0>
                 <ListRow @test_id={test_id} on_click={open} on_activate={open}>
                     <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
                 </ListRow>

@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, Text, build, create_signal, view, with_reactive_scope};
-use crate::styled::Dialog;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {

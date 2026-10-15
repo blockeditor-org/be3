@@ -1,10 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{
-    Canvas, CanvasItem, Frame, Interactive, NodeRef, build, create_signal, view,
-    with_reactive_scope,
-};
-use crate::styled::{Dialog, TextInput};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_app_it_returns_to() {

@@ -11,10 +11,8 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Children, ClickCallback, Direction, Frame, List, Memo, Prop, ReadSignal, Show,
-    create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const INSET: f32 = 2.0;
 const GLYPH_SPACING: f32 = 6.0;
@@ -41,13 +39,10 @@ pub fn SplitButton(
     let fill = create_memo(move || variant.fill(&theme, disabled.get(), false, false));
     view! {
         <Frame
-            color={fill}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible={variant == ButtonVariant::Secondary}
+            fill=fill
+            outline={create_memo(move || (variant == ButtonVariant::Secondary).then(|| Outline::new(theme.border.get(), BORDER_WIDTH)))}
             radius=RADIUS
-            padding_horizontal=INSET
-            padding_vertical=INSET
+            padding=INSET
         >
             <unstyled::SplitButton
                 label
@@ -129,8 +124,8 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
     let divider = create_memo(move || divider_color(&theme, variant, disabled.get()));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame padding_vertical=DIVIDER_INSET>
-                <Frame width=DIVIDER_WIDTH color={divider} />
+            <Frame padding={Sides::vertical(DIVIDER_INSET)}>
+                <Frame width=DIVIDER_WIDTH fill=divider />
             </Frame>
             <Tooltip label disabled={open}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
@@ -152,10 +147,10 @@ enum Side {
 }
 
 impl Side {
-    fn corners(self, radius: u8) -> (u8, u8) {
+    fn corners(self, radius: f32) -> (f32, f32) {
         match self {
-            Side::Leading => (radius, 0),
-            Side::Trailing => (0, radius),
+            Side::Leading => (radius, 0.0),
+            Side::Trailing => (0.0, radius),
         }
     }
 }
@@ -170,26 +165,16 @@ fn HalfFace(
 ) -> NodeId {
     let theme = use_theme();
     let (ring_left, ring_right) = side.corners(RADIUS);
-    let (fill_left, fill_right) = side.corners(RADIUS - INSET as u8);
+    let (fill_left, fill_right) = side.corners(RADIUS - INSET);
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            radius_top_left=ring_left
-            radius_bottom_left=ring_left
-            radius_top_right=ring_right
-            radius_bottom_right=ring_right
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
+            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, FOCUS_RING_OFFSET)}
+            radius={Corners::new(ring_left, ring_right, ring_right, ring_left)}
         >
             <Frame
-                color={fill}
-                radius_top_left=fill_left
-                radius_bottom_left=fill_left
-                radius_top_right=fill_right
-                radius_bottom_right=fill_right
-                padding_horizontal=padding
-                padding_vertical=PADDING_VERTICAL
+                fill=fill
+                radius={Corners::new(fill_left, fill_right, fill_right, fill_left)}
+                padding={Sides::symmetric(padding, PADDING_VERTICAL)}
             >
                 {children}
             </Frame>

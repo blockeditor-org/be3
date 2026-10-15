@@ -1,11 +1,6 @@
 use block_editor_beui::beui::icons::{ICON_OPEN_IN_NEW, ICON_REOPEN_WINDOW, ICON_WEB_ASSET};
-use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Justify, List, Memo, Show, StoredCell, component,
-    create_effect, create_memo, pixels_per_point, untrack, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Icon, IconButton, Text, TextColor, TextSize, TextStyle, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, NodeId};
 use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, Programs};
@@ -220,9 +215,8 @@ fn PlaceholderBody(
     });
     view! {
         <Frame
-            color={theme.background}
-            padding_horizontal=BODY_PADDING
-            padding_vertical=BODY_PADDING
+            fill={theme.background}
+            padding=BODY_PADDING
             @test_id={format!("desktop.placeholder.{}", key.0)}
         >
             <List spacing=BODY_SPACING align=Align::Center justify=Justify::Center>

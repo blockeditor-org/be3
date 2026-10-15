@@ -1,7 +1,5 @@
-use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Show, component, create_memo, create_signal, view,
-};
-use beui::styled::{Button, ButtonVariant, TextSize, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{NodeId, TextAlign};
 use block_editor_beui::{
     ChildBlock, ChildMode, ChildState, ChildTarget, InteractionMode,
@@ -10,12 +8,11 @@ use block_editor_beui::{
 
 use super::embeds::ResolvedEmbed;
 use super::state::{FocusedEmbed, State};
-use beui::styled::{Icon, Text, TextColor};
 
 const TITLE_SPACING: f32 = 6.0;
 const TITLE_PADDING: f32 = 6.0;
-const FRAME_RADIUS: u8 = 6;
-const TITLE_RADIUS: u8 = 4;
+const FRAME_RADIUS: f32 = 6.0;
+const TITLE_RADIUS: f32 = 4.0;
 
 #[component]
 pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
@@ -63,20 +60,17 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     };
     view! {
         <Frame
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
             radius=FRAME_RADIUS
-            padding_horizontal=EMBEDDED_EDITOR_PADDING
-            padding_vertical=EMBEDDED_EDITOR_PADDING
+            padding=EMBEDDED_EDITOR_PADDING
         >
             <List spacing=EMBEDDED_EDITOR_TITLE_GAP>
                 <Frame
                     height=EMBEDDED_EDITOR_TITLE_HEIGHT
-                    color={theme.surface_raised}
+                    fill={theme.surface_raised}
                     radius=TITLE_RADIUS
-                    padding_horizontal=TITLE_PADDING
+                    padding={Sides::horizontal(TITLE_PADDING)}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
                         <Show condition={has_icon} then={icon_row} />

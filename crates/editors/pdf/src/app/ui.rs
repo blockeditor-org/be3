@@ -1,17 +1,13 @@
 use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Show, Spacer, component, create_effect, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 
@@ -153,7 +149,7 @@ fn PageCanvas(
         <List spacing=0.0>
             <Canvas @sizing=ItemSize::Percent(100.0) view={view}>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Frame color=PAGE_FILL />
+                    <Frame fill=PAGE_FILL />
                 </CanvasItem>
                 <ForEach keys={keys}>
                     {move |index: usize| {

@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use super::*;
-use crate::reactive::{List, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Button;
 use crate::unstyled::{Tooltip, TooltipHandle};
 

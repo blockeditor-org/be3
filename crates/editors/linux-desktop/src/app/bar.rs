@@ -3,11 +3,8 @@ use std::time::Duration;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Show, Spacer, component,
-    create_memo, create_signal, create_timer, now, view,
-};
-use block_editor_beui::beui::styled::{IconButton, MenuButton, Separator, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
 use block_editor_beui::{Media, Power, utc_offset};
 use block_shell::Workspace;
@@ -96,12 +93,7 @@ pub(crate) fn DesktopBar(
     view! {
         <List spacing=0.0>
             <Separator />
-            <Frame
-                color={theme.surface}
-                padding_horizontal=BAR_PADDING
-                padding_vertical=BAR_PADDING
-                @test_id={"desktop.bar"}
-            >
+            <Frame fill={theme.surface} padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <IconButton
                         glyph={ICON_MENU.to_owned()}

@@ -1,11 +1,7 @@
 use beui::KeyAt;
-use beui::reactive::LayerPolicy;
+use beui::reactive::*;
 
-use beui::reactive::{
-    Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Overlay, OverlayAnchor, Placement,
-    PlacementBuilder, Prop, ReadSignal, component, create_effect, create_memo, draw_gpu,
-    on_cleanup, untrack, view, with_document,
-};
+use beui::styled::*;
 use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
 
 use crate::state::WindowId;
@@ -106,7 +102,7 @@ pub fn WindowView(
                                 <Drawing
                                     draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
                                 />
-                                <Frame color={dim} />
+                                <Frame fill=dim />
                             </Layers>
                         </Interactive>
                         <Overlay
@@ -116,7 +112,7 @@ pub fn WindowView(
                             traps_focus=false
                             open={open}
                         >
-                            <Frame width height>
+                            <Frame width=width height=height>
                                 <Interactive
                                     @node_ref={&popup_catcher}
                                     focusable=true

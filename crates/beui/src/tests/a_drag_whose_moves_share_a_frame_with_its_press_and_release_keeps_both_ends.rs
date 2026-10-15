@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::PointerPress;
-use crate::reactive::{Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends() {

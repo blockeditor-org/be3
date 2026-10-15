@@ -20,11 +20,8 @@ use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::ICON_CLOSE;
 use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, RootScope,
-    Scope, Show, ShowKeepAlive, Spacer, Stored, StoredCell, WriteSignal, component, create_memo,
-    create_signal, view,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
@@ -251,9 +248,9 @@ pub fn build(state: Stored<State>) -> Panel {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />
-                <Frame @sizing=ItemSize::Percent(100.0) color={THEME.surface} radius=0>
+                <Frame @sizing=ItemSize::Percent(100.0) fill={THEME.surface} radius=0.0>
                     <List spacing=0.0>
-                        <Frame padding_horizontal=HEADER_PADDING padding_vertical=HEADER_PADDING>
+                        <Frame padding=HEADER_PADDING>
                             <List spacing=HEADER_SPACING>
                                 <List
                                     direction=Direction::Horizontal
@@ -360,7 +357,7 @@ pub fn build(state: Stored<State>) -> Panel {
                             </List>
                         </Frame>
                         <Separator />
-                        <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
+                        <Frame padding=FOOTER_PADDING>
                             <List spacing=0.0>
                                 <ShowKeepAlive condition={footer_tree_visible}>
                                     <List spacing=FOOTER_SPACING>
@@ -420,12 +417,11 @@ pub fn build_bar(state: Stored<State>) -> Bar {
     let (selected, set_selected) = create_signal(1);
     let document = beui_view::reactive::build(|| {
         view! {
-            <Frame color={THEME.surface} radius=0>
+            <Frame fill={THEME.surface} radius=0.0>
                 <List spacing=0.0>
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
-                        padding_horizontal=BAR_PADDING_HORIZONTAL
-                        padding_vertical=BAR_PADDING_VERTICAL
+                        padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
                     >
                         <List
                             direction=Direction::Horizontal
@@ -475,7 +471,7 @@ fn SimulationPanel(
         .unwrap_or(0);
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
-            <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+            <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
@@ -797,7 +793,7 @@ fn PerformancePanel(
     let other = timing_values(performance, |timings| timings.other);
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
-            <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+            <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <List spacing=FOOTER_SPACING>
                         <Text style=TextStyle::CODE string={latest_work} />
@@ -917,7 +913,7 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
         <List spacing=0.0>
             <Separator />
             <Scroll @sizing=ItemSize::Percent(100.0) focus_color={Some(THEME.accent)}>
-                <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+                <Frame padding=BODY_PADDING>
                     <List spacing=TIMING_SPACING>
                         <Text style=TextStyle::HEADING string="Properties" />
                         <ForEach keys={properties}>
@@ -1056,13 +1052,10 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
     view! {
         <unstyled::Pressable on_click={move || state.get().toggle_picking()}>
             <Frame
-                color={fill_color}
-                outline={THEME.border}
-                outline_width=BORDER_WIDTH
+                fill=fill_color
+                outline={Outline::new(THEME.border, BORDER_WIDTH)}
                 radius=CHIP_RADIUS
-                outline_visible=true
-                padding_horizontal=TOGGLE_PADDING_HORIZONTAL
-                padding_vertical=TOGGLE_PADDING_VERTICAL
+                padding={Sides::symmetric(TOGGLE_PADDING_HORIZONTAL, TOGGLE_PADDING_VERTICAL)}
             >
                 <Text
                     style=TextStyle::CODE
@@ -1091,13 +1084,10 @@ fn CloseButton(state: Stored<State>) -> NodeId {
             on_focus_change={move |focused| set_focused.set(focused)}
         >
             <Frame
-                color={fill_color}
-                outline={outline_color}
-                outline_width=BORDER_WIDTH
+                fill=fill_color
+                outline={create_memo(move || Some(Outline::new(outline_color.get(), BORDER_WIDTH)))}
                 radius=CHIP_RADIUS
-                outline_visible=true
-                padding_horizontal=CLOSE_PADDING
-                padding_vertical=CLOSE_PADDING
+                padding=CLOSE_PADDING
             >
                 <Text
                     size=TextSize::Sm

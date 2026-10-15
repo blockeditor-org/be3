@@ -1,6 +1,8 @@
 use super::*;
-use crate::reactive::{ForEach, NodeRef, Text};
-use crate::styled::{Dialog, Scroll};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {

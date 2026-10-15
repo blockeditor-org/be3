@@ -1,11 +1,10 @@
 use super::*;
-use beui::styled::{Family, Text, TextSize, TextStyle};
 
 #[component]
 pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
     view! {
         <Scroll>
-            <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+            <Frame padding=PAGE_PADDING>
                 <List spacing=PAGE_SPACING children />
             </Frame>
         </Scroll>
@@ -54,19 +53,19 @@ fn CodeBlock(source: String) -> NodeId {
     });
     view! {
         <Frame
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
             radius=RADIUS
-            padding_horizontal=CODE_PADDING
-            padding_vertical=CODE_PADDING
+            padding=CODE_PADDING
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
                 <Text size=TextSize::Sm family=Family::Mono wrap=true>
                     <ForEach keys={tokens}>
                         {move |(start, end, color): (usize, usize, Color32)| view! {
-                            <Span text={source[start..end].to_owned()} color />
+                            <Span
+                                text={source[start..end].to_owned()}
+                                color={TextColor::Custom(color)}
+                            />
                         }}
                     </ForEach>
                 </Text>

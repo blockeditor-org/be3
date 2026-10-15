@@ -1,7 +1,7 @@
 use super::*;
 use crate::KeyAt;
-use crate::reactive::{Action, Chord, NodeRef, build, create_signal, view};
-use crate::styled::CommandPalette;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::command_palette_shown;
 
 #[test]

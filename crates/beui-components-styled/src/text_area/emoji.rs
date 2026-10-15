@@ -7,7 +7,8 @@ use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, Frame, List, create_memo};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const MENU_WIDTH: f32 = 240.0;
 const EMOJI_COLUMN: f32 = 22.0;
@@ -33,13 +34,10 @@ fn EmojiPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=MENU_WIDTH
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
+            fill={theme.surface_raised}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
             radius=RADIUS
-            padding_horizontal=4.0
-            padding_vertical=4.0
+            padding=4.0
         >
             {children}
         </Frame>
@@ -61,7 +59,7 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     view! {
-        <Frame color={fill} radius=RADIUS padding_horizontal=8.0 padding_vertical=3.0>
+        <Frame fill=fill radius=RADIUS padding={Sides::symmetric(8.0, 3.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Frame width=EMOJI_COLUMN>
                     <Text string={emoji} size=TextSize::Lg align=TextAlign::Center />

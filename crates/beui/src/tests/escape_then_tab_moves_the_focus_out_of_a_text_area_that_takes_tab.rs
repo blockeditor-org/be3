@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, List, view};
-use crate::styled::{Button, ButtonVariant, TextArea, text_area_surface};
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::{TextAreaState, text_area_shown};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;

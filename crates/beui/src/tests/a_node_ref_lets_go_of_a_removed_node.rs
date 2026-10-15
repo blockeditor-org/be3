@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, view};
-use crate::styled::{Text, TextStyle};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn a_node_ref_lets_go_of_a_removed_node() {

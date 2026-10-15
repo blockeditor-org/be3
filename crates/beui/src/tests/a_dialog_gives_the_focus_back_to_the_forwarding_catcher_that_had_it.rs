@@ -1,10 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
-use crate::reactive::{
-    Canvas, CanvasItem, Frame, Interactive, NodeRef, build, create_signal, view,
-    with_reactive_scope,
-};
-use crate::styled::{Dialog, TextInput};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {

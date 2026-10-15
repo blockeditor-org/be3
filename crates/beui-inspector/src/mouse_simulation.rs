@@ -624,7 +624,7 @@ impl MouseSimulation {
             } else {
                 Theme::DARK.text
             };
-            painter.rect_filled(*bounds, f32::from(CARD_RADIUS), fill);
+            painter.rect_filled(*bounds, CARD_RADIUS, fill);
             glyph(
                 painter,
                 bounds.center(),

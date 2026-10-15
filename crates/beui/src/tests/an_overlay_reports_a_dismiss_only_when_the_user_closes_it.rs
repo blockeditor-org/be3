@@ -2,10 +2,8 @@ use super::*;
 use crate::Dismiss;
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::input::BackGesture;
-use crate::reactive::{
-    Frame, NodeRef, Overlay, WriteSignal, build, create_signal, view, with_document,
-    with_reactive_scope,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {

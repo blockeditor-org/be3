@@ -1,9 +1,7 @@
 use std::ops::Range;
 
-use beui::reactive::{
-    Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, Prop, ReadSignal, component, copy_text,
-    create_memo, layout_text, pixels_per_point, view,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;
 use beui::{
@@ -401,7 +399,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                     rows,
                 };
                 view! {
-                    <Frame color={COLORS.surface}>
+                    <Frame fill={COLORS.surface}>
                         <Scroll focus_color={Color32::TRANSPARENT}>
                             <Interactive
                                 focusable=true
@@ -416,7 +414,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                                     }
                                 }}
                             >
-                                <Frame width={width} height={height}>
+                                <Frame width=width height=height>
                                     <Drawing draw={draw} />
                                 </Frame>
                             </Interactive>

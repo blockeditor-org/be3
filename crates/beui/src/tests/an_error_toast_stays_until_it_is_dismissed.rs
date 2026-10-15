@@ -1,5 +1,5 @@
 use super::*;
-use crate::styled::{TOAST_DURATION, Toast, Toasts};
+use crate::styled::*;
 
 #[test]
 fn an_error_toast_stays_until_it_is_dismissed() {

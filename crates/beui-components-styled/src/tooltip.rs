@@ -5,7 +5,8 @@ use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TOOLTIP_DELAY, TooltipHandle};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, Frame, Prop};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 use std::time::Duration;
 
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -39,15 +40,12 @@ fn TooltipBubble(handle: TooltipHandle) -> NodeId {
     let TooltipHandle { label, .. } = handle;
     let theme = use_theme();
     view! {
-        <Frame padding_vertical=GAP max_width=MAX_WIDTH>
+        <Frame padding={Sides::vertical(GAP)} width={Extent::at_most(MAX_WIDTH)}>
             <Frame
-                color={theme.surface_raised}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
                 radius=RADIUS
-                padding_horizontal=PADDING_HORIZONTAL
-                padding_vertical=PADDING_VERTICAL
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <Text style=TextStyle::CAPTION string={label} color=TextColor::Default />
             </Frame>

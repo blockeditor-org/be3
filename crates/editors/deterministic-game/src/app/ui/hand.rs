@@ -1,10 +1,7 @@
 use std::rc::Rc;
 
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Draw, Drawing, ForEach, Frame, Memo, PlacementBuilder, Prop,
-    ReadSignal, WriteSignal, component, create_effect, create_memo, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Painter, Pos2, Rect, Vec2, pos2};
 use game_api::Spot;
 use game_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId};
@@ -63,11 +60,9 @@ pub(crate) fn HandBar(
                 let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
                 view! {
                     <Frame
-                        height={height}
-                        color={theme.surface}
-                        outline={theme.border}
-                        outline_width=1.0
-                        outline_visible=true
+                        height=height
+                        fill={theme.surface}
+                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                         visible={shown}
                         @test_id={"game.hand"}
                     >

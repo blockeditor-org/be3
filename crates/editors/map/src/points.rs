@@ -1,9 +1,7 @@
 use block_editor_beui::be_block::map::{MapColor, MapPoint};
 use block_editor_beui::beui::icons::ICON_LOCATION_ON;
-use block_editor_beui::beui::reactive::{
-    Align, CanvasItem, Frame, List, Prop, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Pos2, Rect, TextAlign};
 use uuid::Uuid;
 
@@ -49,10 +47,8 @@ pub(crate) fn Marker(
                 <Frame
                     width=RING_SIZE
                     height=RING_SIZE
-                    radius={(RING_SIZE / 2.0) as u8}
-                    outline=SELECTION_COLOR
-                    outline_width=2.0
-                    outline_visible={selected}
+                    radius={(RING_SIZE / 2.0).floor()}
+                    outline={create_memo(move || selected.get().then(|| Outline::new(SELECTION_COLOR, 2.0)))}
                 >
                     <Text
                         size=MARKER_SIZE
@@ -64,9 +60,9 @@ pub(crate) fn Marker(
                 </Frame>
                 <Frame
                     visible={named}
-                    color=LABEL_BACKGROUND
-                    radius=3
-                    padding_horizontal=3.0
+                    fill=LABEL_BACKGROUND
+                    radius=3.0
+                    padding={Sides::horizontal(3.0)}
                     height=LABEL_HEIGHT
                 >
                     <Text

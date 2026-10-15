@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, with_reactive_scope};
-use crate::styled::ModalSheet;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_modal_sheet_slides_in_and_out() {

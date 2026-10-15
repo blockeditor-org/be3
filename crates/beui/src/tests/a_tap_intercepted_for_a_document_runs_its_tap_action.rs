@@ -1,7 +1,7 @@
 use super::*;
 use crate::KeyAt;
 use crate::KeyChord;
-use crate::reactive::{Action, Chord, build, view};
+use crate::reactive::*;
 
 #[test]
 fn a_tap_intercepted_for_a_document_runs_its_tap_action() {

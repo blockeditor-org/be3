@@ -15,9 +15,8 @@ use beui_core::icons::{
     ICON_ARROW_DROP_DOWN, ICON_ARROW_DROP_UP, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT,
 };
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING;
 const DAY_SIZE: f32 = 38.0;
@@ -41,7 +40,7 @@ pub fn Calendar(
     on_change: Callback<Date>,
 ) -> NodeId {
     view! {
-        <Frame width>
+        <Frame width=width>
             <unstyled::Calendar
                 selected
                 min
@@ -202,13 +201,11 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
     let ink = create_memo(move || cell_ink(selected.get(), disabled.get(), outside.get()));
     let ring = create_memo(move || marked.get() && !selected.get());
     view! {
-        <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={RADIUS + 2.0} offset=FOCUS_RING_OFFSET>
             <Frame
-                height
-                color={fill}
-                outline={theme.accent}
-                outline_width=TODAY_RING_WIDTH
-                outline_visible={ring}
+                height=height
+                fill=fill
+                outline={create_memo(move || ring.get().then(|| Outline::new(theme.accent.get(), TODAY_RING_WIDTH)))}
                 radius=RADIUS
             >
                 <Text

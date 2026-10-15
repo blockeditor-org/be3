@@ -1,7 +1,7 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{Callback, Prop, Render, component, view};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::{PANEL_MAX_WIDTH, PANEL_PADDING};
-use block_editor_beui::beui::styled::{ButtonVariant, Popover};
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::PopoverHandle;
 
 #[component]

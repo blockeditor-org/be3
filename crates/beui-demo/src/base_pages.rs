@@ -2,12 +2,9 @@ use super::*;
 use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
-use beui::reactive::Dismiss;
-use beui::reactive::{
-    Dynamic, Fade, Gap, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay,
-    Placement, ReadSignal, Shift, Track,
-};
-use beui::reactive::{Icon, Text};
+use beui::primitives::Icon;
+use beui::primitives::Span;
+use beui::primitives::Text;
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -44,33 +41,27 @@ fn FrameSwatches() -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
-            <Frame width=SWATCH height=SWATCH color={theme.accent} />
-            <Frame width=SWATCH height=SWATCH color={theme.accent} radius=12 />
-            <Frame width=SWATCH height=SWATCH radius=36 color={theme.success} />
+            <Frame width=SWATCH height=SWATCH fill={theme.accent} />
+            <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
+            <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.success} />
             <Frame
                 width=SWATCH
                 height=SWATCH
-                outline={theme.text}
-                outline_width=2.0
-                outline_visible=true
-                radius=8
+                outline={create_memo(move || Some(Outline::new(theme.text.get(), 2.0)))}
+                radius=8.0
             />
             <Frame
                 width=SWATCH
                 height=SWATCH
-                color={theme.surface_raised}
-                outline={theme.accent}
-                outline_width=2.0
-                outline_offset=4.0
-                outline_visible=true
-                radius=8
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0)))}
+                radius=8.0
             />
             <Frame
                 width=SWATCH
                 height=SWATCH
-                color={theme.warning}
-                radius_top_left=Some(36)
-                radius_bottom_right=Some(36)
+                fill={theme.warning}
+                radius={Corners::new(36.0, 0.0, 36.0, 0.0)}
             />
         </List>
     }
@@ -93,16 +84,8 @@ fn FrameAlignment() -> NodeId {
 fn AlignedBox(align: Align) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame
-            height=SWATCH
-            color={theme.surface_raised}
-            radius=RADIUS
-            padding_horizontal=8.0
-            padding_vertical=8.0
-            align_horizontal=align
-            align_vertical=align
-        >
-            <Frame width=BADGE height=BADGE color={theme.accent} radius=4 />
+        <Frame height=SWATCH fill={theme.surface_raised} radius=RADIUS padding=8.0 align=align>
+            <Frame width=BADGE height=BADGE fill={theme.accent} radius=4.0 />
         </Frame>
     }
 }
@@ -114,11 +97,10 @@ fn FrameSizes() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Frame
-                max_width=Some(320.0)
-                color={theme.surface_raised}
+                width={Extent::at_most(320.0)}
+                fill={theme.surface_raised}
                 radius=RADIUS
-                padding_horizontal=12.0
-                padding_vertical=8.0
+                padding={Sides::symmetric(12.0, 8.0)}
             >
                 <Text
                     string="This frame stops growing at 320 points wide."
@@ -127,9 +109,9 @@ fn FrameSizes() -> NodeId {
                 />
             </Frame>
             <Frame
-                width=Some(160.0)
+                width=160.0
                 aspect_ratio=Some(16.0 / 9.0)
-                color={theme.accent_soft}
+                fill={theme.accent_soft}
                 radius=RADIUS
             />
         </List>
@@ -274,11 +256,11 @@ fn Tile(label: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            min_height={Some(TILE_HEIGHT)}
-            color={theme.surface_raised}
+            height={Extent::at_least(TILE_HEIGHT)}
+            fill={theme.surface_raised}
             radius=RADIUS
-            padding_horizontal=12.0
-            align_vertical=Align::Center
+            padding={Sides::horizontal(12.0)}
+            align={Align2::vertical(Align::Center)}
         >
             <Text string={label} color={theme.text} wrap=true />
         </Frame>
@@ -450,7 +432,7 @@ fn DynamicShape() -> NodeId {
             <Dynamic value={round}>
                 {move |round: bool| match round {
                     true => view! {
-                        <Frame width=SWATCH height=SWATCH radius=36 color={theme.accent} />
+                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                     },
                     false => view! {
                         <Text string="Rebuilt whenever its value changes" color={theme.text} />
@@ -514,13 +496,10 @@ fn InteractiveCard() -> NodeId {
             >
                 <Frame
                     height=CARD_HEIGHT
-                    color={fill}
-                    outline={theme.accent}
-                    outline_width=2.0
-                    outline_visible={focus_ring(focused)}
+                    fill=fill
+                    outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
                     radius=CARD_RADIUS
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    align=Align::Center
                 >
                     <Text string={log} color={theme.text} />
                 </Frame>
@@ -563,28 +542,21 @@ fn BadgedCard() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <Layers>
                 <Frame
-                    width=Some(200.0)
+                    width=200.0
                     height=CARD_HEIGHT
-                    color={theme.surface_raised}
+                    fill={theme.surface_raised}
                     radius=CARD_RADIUS
-                    padding_horizontal=12.0
-                    padding_vertical=12.0
+                    padding=12.0
                 >
                     <Text string="Inbox" color={theme.text} />
                 </Frame>
-                <Frame
-                    align_horizontal=Align::End
-                    align_vertical=Align::Start
-                    padding_horizontal=8.0
-                    padding_vertical=8.0
-                >
+                <Frame align={Align2::new(Align::End, Align::Start)} padding=8.0>
                     <Frame
                         width=BADGE
                         height=BADGE
-                        radius=11
-                        color={theme.danger}
-                        align_horizontal=Align::Center
-                        align_vertical=Align::Center
+                        radius=11.0
+                        fill={theme.danger}
+                        align=Align::Center
                     >
                         <Text
                             string="3"
@@ -612,12 +584,12 @@ fn NudgedTile() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive on_click={move || set_nudged.update(|nudged| *nudged = !*nudged)}>
-                <Frame color={face} radius=RADIUS padding_horizontal=16.0 padding_vertical=10.0>
+                <Frame fill=face radius=RADIUS padding={Sides::symmetric(16.0, 10.0)}>
                     <Text string="Nudge" color={ink} />
                 </Frame>
             </Interactive>
             <Shift by={by}>
-                <Frame width=SWATCH height=SWATCH color={theme.accent} radius=12 />
+                <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
             </Shift>
         </List>
     }
@@ -660,10 +632,9 @@ fn AnchoredOverlay() -> NodeId {
             >
                 <Frame
                     @node_ref=&target
-                    color={face}
+                    fill=face
                     radius=RADIUS
-                    padding_horizontal=16.0
-                    padding_vertical=10.0
+                    padding={Sides::symmetric(16.0, 10.0)}
                 >
                     <Text string="Open the overlay" color={ink} />
                 </Frame>
@@ -674,17 +645,14 @@ fn AnchoredOverlay() -> NodeId {
                 open={open}
                 on_dismiss={move |_: Dismiss| dismiss.set(false)}
             >
-                <Frame padding_vertical=4.0>
+                <Frame padding={Sides::vertical(4.0)}>
                     <Frame
                         @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
-                        color={theme.surface_raised}
-                        outline={theme.border}
-                        outline_width=1.0
-                        outline_visible=true
+                        fill={theme.surface_raised}
+                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
                         radius=CARD_RADIUS
-                        padding_horizontal=12.0
-                        padding_vertical=12.0
+                        padding=12.0
                     >
                         <Text
                             string="An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."

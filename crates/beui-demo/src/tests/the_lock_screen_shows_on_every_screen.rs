@@ -1,6 +1,6 @@
 use beui::icons::ICON_BEDTIME;
-use beui::reactive::{Frame, build, view};
-use beui::styled::{LockAction, LockScreen, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Rect, Screen};
 
 use super::*;
@@ -12,7 +12,7 @@ fn the_lock_screen_shows_on_every_screen() {
     let document = build(move || {
         let theme = use_theme();
         view! {
-            <Frame color={theme.background}>
+            <Frame fill={theme.background}>
                 <LockScreen
                     open=true
                     time="09:41"

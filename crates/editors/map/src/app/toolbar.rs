@@ -3,11 +3,10 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_beui::beui::reactive::{Prop, Show, component, create_memo, view};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 use super::state::{MapState, ZOOM_STEP};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[component]
 pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {

@@ -11,9 +11,8 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 #[component]
 pub fn ToggleButton(
@@ -78,13 +77,10 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     view! {
         <FocusRing focused offset=3.0>
             <Frame
-                color={fill_color}
-                outline={border_color}
-                outline_width=1.0
+                fill=fill_color
+                outline={create_memo(move || Some(Outline::new(border_color.get(), 1.0)))}
                 radius=RADIUS
-                outline_visible=true
-                padding_horizontal=14.0
-                padding_vertical=8.0
+                padding={Sides::symmetric(14.0, 8.0)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>

@@ -13,26 +13,9 @@ use beui::icons::{
     ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN,
     ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP, ICON_WIDGETS,
 };
-use beui::reactive::{
-    Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
-    ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    Span, Stored, VirtualList, WriteSignal, batch, build, create_effect, create_memo,
-    create_selector, create_signal, focus_ring, held_modifiers, on_shortcut, provide_context,
-    store, untrack, use_context, view, with_document,
-};
-use beui::styled::DocumentTheme;
+use beui::reactive::*;
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
-use beui::styled::{
-    Accordion, ActionRow, Bordered, Button, ButtonVariant, Calendar, Card, Checkbox, Chip,
-    ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, CrashNotice, DateTimeField,
-    Dialog, Docking, FocusRing, Fullscreen, IconButton, IconButtonSize, KeepChanges, Launcher,
-    LauncherItem, LevelOsd, Link, ListRow, Listbox, LockAction, LockScreen, MenuButton, ModalSheet,
-    NumberInput, OklchColorWheel, OsdLevel, PictureMenuButton, Popover, Progress, RadioGroup,
-    ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut, Slider, Spinner,
-    SplitButton, Stack, StaleNotice, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider,
-    Toast, ToastAction, Toasts, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
-};
-use beui::styled::{Icon, Text, TextStyle};
+use beui::styled::*;
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockDialog, DockMode, DockPane, DockSplit, DockTab,
     DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
@@ -349,7 +332,7 @@ impl DemoApp {
 fn LonePage(page: Page) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <PageView page />
         </Frame>
     }
@@ -577,9 +560,9 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <List spacing=0.0>
-                <Frame padding_horizontal=SHELL_PADDING padding_vertical=SHELL_PADDING>
+                <Frame padding=SHELL_PADDING>
                     <DemoToolbar pages mobile set_mobile />
                 </Frame>
                 <Separator />
@@ -787,7 +770,7 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
 fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
     view! {
         <Scroll>
-            <Frame padding_horizontal=CATALOG_PADDING padding_vertical=CATALOG_PADDING>
+            <Frame padding=CATALOG_PADDING>
                 <List spacing=0.0>
                     <CatalogGroup
                         title="Styled"
@@ -826,7 +809,7 @@ fn CatalogGroup(
 ) -> NodeId {
     view! {
         <List spacing=0.0>
-            <Frame padding_horizontal=CATALOG_GROUP_PADDING padding_vertical=CATALOG_GROUP_PADDING>
+            <Frame padding=CATALOG_GROUP_PADDING>
                 <List spacing=2.0>
                     <Text style=TextStyle::HEADING string={title} />
                     <Text style=TextStyle::CAPTION string={summary} ellipsis=true />
@@ -869,7 +852,7 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
 #[component]
 fn EmptyPanel() -> NodeId {
     view! {
-        <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+        <Frame padding=PAGE_PADDING>
             <List spacing=4.0 align=Align::Center>
                 <Text style=TextStyle::HEADING string="Nothing open" />
                 <Text

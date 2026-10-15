@@ -1,8 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Frame, Interactive, ItemSize, List, NodeRef, Offset, Text, VirtualList, build, create_memo,
-    create_signal, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {

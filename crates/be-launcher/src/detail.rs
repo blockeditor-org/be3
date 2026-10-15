@@ -1,12 +1,7 @@
 use beui::NodeId;
 use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
-use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Track,
-    component, create_memo, provide_context, use_context, view,
-};
-use beui::styled::{
-    Button, ButtonVariant, IconButton, Link, Scroll, SelectableText, Separator, Spinner, use_theme,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled;
 use beui::unstyled::Picture;
 
@@ -21,7 +16,6 @@ use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
 use crate::workspace::{Actions, Notes};
 use beui::TextAlign;
 use beui::styled::theme::CARD_RADIUS;
-use beui::styled::{Family, Icon, Text, TextColor, TextSize, TextStyle, Weight};
 
 const SPACING: f32 = 12.0;
 const CARD_PADDING: f32 = 12.0;
@@ -29,7 +23,7 @@ const AVATAR: f32 = 24.0;
 const AVATAR_PIXELS: u32 = 64;
 const BADGE_PADDING_HORIZONTAL: f32 = 10.0;
 const BADGE_PADDING_VERTICAL: f32 = 4.0;
-const BADGE_RADIUS: u8 = 14;
+const BADGE_RADIUS: f32 = 14.0;
 const QUOTE_BAR: f32 = 3.0;
 const BULLET: f32 = 5.0;
 const BULLET_INDENT: f32 = 8.0;
@@ -126,7 +120,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     view! {
         <SelectableText child_size=ItemSize::Percent(100.0)>
             <List spacing=0.0>
-                <Frame padding_horizontal=PADDING padding_vertical=4.0>
+                <Frame padding={Sides::symmetric(PADDING, 4.0)}>
                     <List spacing=SPACING>
                         <Text string={title} size=TextSize::Xl wrap=true />
                         <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
@@ -174,7 +168,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                     </List>
                 </Frame>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding_horizontal=PADDING padding_top=8.0 padding_bottom=PADDING>
+                    <Frame padding={Sides::horizontal(PADDING).top(8.0).bottom(PADDING)}>
                         <List spacing=0.0>
                             <ForEach keys>
                                 {move |index: usize| {
@@ -214,10 +208,9 @@ fn StateBadge(state: Memo<State>) -> NodeId {
     });
     view! {
         <Frame
-            color={fill}
+            fill=fill
             radius=BADGE_RADIUS
-            padding_horizontal=BADGE_PADDING_HORIZONTAL
-            padding_vertical=BADGE_PADDING_VERTICAL
+            padding={Sides::symmetric(BADGE_PADDING_HORIZONTAL, BADGE_PADDING_VERTICAL)}
         >
             <Text color={ink}>
                 <Icon glyph={glyph} />
@@ -273,21 +266,17 @@ fn CommentCard(
     let inline_keys: Vec<usize> = (0..inline.len()).collect();
     let open = move || model.open(&url);
     view! {
-        <Frame padding_vertical=6.0>
+        <Frame padding={Sides::vertical(6.0)}>
             <Frame
-                color={theme.surface}
-                outline
-                outline_width=1.0
-                outline_visible=true
+                fill={theme.surface}
+                outline={create_memo(move || Some(Outline::new(outline.get(), 1.0)))}
                 radius=CARD_RADIUS
             >
                 <List spacing=0.0>
                     <Frame
-                        color={theme.surface_raised}
-                        radius_top_left=CARD_RADIUS
-                        radius_top_right=CARD_RADIUS
-                        padding_horizontal=CARD_PADDING
-                        padding_vertical=8.0
+                        fill={theme.surface_raised}
+                        radius={Corners::top(CARD_RADIUS)}
+                        padding={Sides::symmetric(CARD_PADDING, 8.0)}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Avatar model={model} url={author.avatar} />
@@ -295,7 +284,7 @@ fn CommentCard(
                             <Link label={time} size=TextSize::Sm on_click={open} />
                         </List>
                     </Frame>
-                    <Frame padding_horizontal=CARD_PADDING padding_vertical=CARD_PADDING>
+                    <Frame padding=CARD_PADDING>
                         <List spacing=10.0>
                             <Blocks model={model} blocks={body} />
                             <ForEach keys={inline_keys}>
@@ -324,13 +313,10 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
     } = comment;
     view! {
         <Frame
-            color={theme.background}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=6
-            padding_horizontal=10.0
-            padding_vertical=8.0
+            fill={theme.background}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+            radius=6.0
+            padding={Sides::symmetric(10.0, 8.0)}
         >
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -346,7 +332,7 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
 #[component]
 fn CommitRow(sha: String, message: String) -> NodeId {
     view! {
-        <Frame padding_horizontal=EVENT_INDENT padding_vertical=3.0>
+        <Frame padding={Sides::symmetric(EVENT_INDENT, 3.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_COMMIT />
@@ -362,7 +348,7 @@ fn CommitRow(sha: String, message: String) -> NodeId {
 fn EventRow(actor: String, text: String, when: i64) -> NodeId {
     let line = format!("{actor} {text} · {}", relative(now(), when));
     view! {
-        <Frame padding_horizontal=EVENT_INDENT padding_vertical=3.0>
+        <Frame padding={Sides::symmetric(EVENT_INDENT, 3.0)}>
             <Text style=TextStyle::CAPTION string={line} wrap=true />
         </Frame>
     }
@@ -377,7 +363,7 @@ fn Avatar(model: Model, url: String) -> NodeId {
         _ => None,
     });
     view! {
-        <Frame width=AVATAR height=AVATAR radius=12 color={use_theme().border}>
+        <Frame width=AVATAR height=AVATAR radius=12.0 fill={use_theme().border}>
             <Picture image={picture} radius={AVATAR / 2.0} />
         </Frame>
     }
@@ -445,12 +431,9 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
         .collect();
     view! {
         <Frame
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=6
-            padding_horizontal=8.0
-            padding_vertical=8.0
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+            radius=6.0
+            padding=8.0
         >
             <Grid columns={vec![Track::Fraction(1.0); columns]} column_spacing=8.0 row_spacing=8.0>
                 <ForEach keys>
@@ -477,7 +460,7 @@ fn Prose(text: String) -> NodeId {
 fn CodeBlock(text: String) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.background} radius=6 padding_horizontal=10.0 padding_vertical=8.0>
+        <Frame fill={theme.background} radius=6.0 padding={Sides::symmetric(10.0, 8.0)}>
             <Text string={text} size=TextSize::Sm family=Family::Mono wrap=true />
         </Frame>
     }
@@ -488,7 +471,7 @@ fn Quote(text: String) -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=10.0>
-            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) color={theme.border} />
+            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) fill={theme.border} />
             <Text @sizing=ItemSize::Percent(100.0) string={text} color=TextColor::Muted wrap=true />
         </List>
     }
@@ -499,8 +482,8 @@ fn Item(text: String) -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=BULLET_INDENT>
-            <Frame padding_horizontal=BULLET_INDENT padding_vertical=7.0>
-                <Frame width=BULLET height=BULLET radius=3 color={theme.text_muted} />
+            <Frame padding={Sides::symmetric(BULLET_INDENT, 7.0)}>
+                <Frame width=BULLET height=BULLET radius=3.0 fill={theme.text_muted} />
             </Frame>
             <Text @sizing=ItemSize::Percent(100.0) string={text} wrap=true />
         </List>

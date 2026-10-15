@@ -6,16 +6,13 @@ use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::ICON_TUNE;
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, List, Memo, Show, component, create_memo,
-    use_context, view,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
-use block_editor_beui::beui::styled::{IconButton, use_theme};
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle};
 use block_editor_beui::{narrow_chrome, sheet_control};
 
-const RADIUS: u8 = 12;
+const RADIUS: f32 = 12.0;
 const SWATCH: f32 = 22.0;
 const SWATCH_RING: f32 = 3.0;
 
@@ -42,13 +39,10 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
             radius=RADIUS
-            padding_horizontal=6.0
-            padding_vertical=6.0
+            padding=6.0
             @test_id={"infinite-canvas.selection-bar"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -121,21 +115,16 @@ pub(crate) fn Swatch(
                 });
                 view! {
                     <Frame
-                        padding_horizontal=SWATCH_RING
-                        padding_vertical=SWATCH_RING
-                        radius=16
-                        outline={ring}
-                        outline_width=2.0
-                        outline_visible={ringed}
+                        padding=SWATCH_RING
+                        radius=16.0
+                        outline={create_memo(move || ringed.get().then(|| Outline::new(ring.get(), 2.0)))}
                     >
                         <Frame
                             width=SWATCH
                             height=SWATCH
-                            radius=11
-                            color={fill}
-                            outline={theme.border}
-                            outline_width=BORDER_WIDTH
-                            outline_visible=true
+                            radius=11.0
+                            fill=fill
+                            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
                         />
                     </Frame>
                 }

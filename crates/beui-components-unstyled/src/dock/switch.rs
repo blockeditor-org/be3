@@ -6,9 +6,8 @@ use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    ClickCallback, Frame, Func, Memo, NodeRef, create_memo, on_global_key, with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use super::{DockState, State, TabId};
 

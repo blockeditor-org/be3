@@ -6,10 +6,8 @@ use beui_components_unstyled as unstyled;
 use beui_core::font::TextAlign;
 use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, ReadSignal, Show,
-    create_memo, focus_ring,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const ROW_HEIGHT: f32 = 52.0;
 const PADDING_HORIZONTAL: f32 = 12.0;
@@ -88,12 +86,10 @@ pub(crate) fn ActionRowFace(
     view! {
         <Frame
             height=ROW_HEIGHT
-            color={fill}
+            fill=fill
             radius=RADIUS
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=PADDING_HORIZONTAL
+            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, 0.0)}
+            padding={Sides::horizontal(PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={has_glyph}>

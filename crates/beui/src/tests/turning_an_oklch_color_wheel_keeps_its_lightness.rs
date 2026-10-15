@@ -1,7 +1,7 @@
 use super::*;
 use crate::color::Oklch;
-use crate::reactive::view;
-use crate::styled::{OklchColorWheel, WHEEL_SIZE};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn turning_an_oklch_color_wheel_keeps_its_lightness() {

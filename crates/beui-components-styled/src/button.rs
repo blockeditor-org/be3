@@ -8,9 +8,8 @@ use crate::theme::{BORDER_WIDTH, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_core::base::{ItemSize, TextAlign};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Action, Align, ClickCallback, Direction, Frame, List, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const GLYPH_SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 16.0;
@@ -112,15 +111,12 @@ pub fn ButtonFace(
     let has_trailing = create_memo(move || !trailing.get().is_empty());
     let trailing_color = label_color;
     view! {
-        <FocusRing focused radius={RADIUS + 4} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={RADIUS + 4.0} offset=FOCUS_RING_OFFSET>
             <Frame
-                color={fill_color}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
+                fill=fill_color
+                outline={create_memo(move || (variant == ButtonVariant::Secondary).then(|| Outline::new(theme.border.get(), BORDER_WIDTH)))}
                 radius=RADIUS
-                outline_visible={variant == ButtonVariant::Secondary}
-                padding_horizontal=PADDING_HORIZONTAL
-                padding_vertical=PADDING_VERTICAL
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>

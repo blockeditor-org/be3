@@ -5,14 +5,8 @@ use block_editor_beui::be_block::input_settings::{
 use block_editor_beui::be_block::{InputSettings, InputSettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
-use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component,
-    create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,
-};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, HostInputDevice, InputDevices};
 
@@ -65,9 +59,9 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let paste_off = read_only;
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <Scroll>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::HEADING string="Keyboard" />

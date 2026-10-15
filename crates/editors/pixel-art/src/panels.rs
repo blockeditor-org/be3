@@ -10,14 +10,9 @@ use block_editor_beui::beui::icons::{
     ICON_NORTH_EAST, ICON_NORTH_WEST, ICON_RESIZE, ICON_SOUTH_EAST, ICON_SOUTH_WEST, ICON_SQUARE,
     ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show,
-    Spacer, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Checkbox, Dialog as Modal, IconButton, NumberInput, TextInput,
-    ToggleButton, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::Dialog as Modal;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Pressable;
 
 use crate::canvas::ZOOM_STEP;
@@ -25,7 +20,6 @@ use crate::color::{parse_hex_color, swatch_color};
 use crate::drawing::{BrushShape, MAX_BRUSH_SIZE, PixelTool};
 
 use crate::app::state::{Dialog, Tools};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const SPACING: f32 = 8.0;
 const SWATCH: f32 = 20.0;
@@ -397,11 +391,9 @@ fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback
             <Frame
                 width=SWATCH
                 height=SWATCH
-                color={fill}
-                outline={outline}
-                outline_width=2.0
-                outline_visible=true
-                radius=2
+                fill=fill
+                outline={create_memo(move || Some(Outline::new(outline.get(), 2.0)))}
+                radius=2.0
             />
         </Pressable>
     }

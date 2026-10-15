@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::with_reactive_scope;
+use crate::reactive::*;
 use crate::unstyled::{DockPane, DockTab, DockingLayout};
 
 type Heard = Rc<RefCell<Vec<(u64, bool)>>>;
@@ -14,7 +14,7 @@ fn control(id: u64, heard: Heard) -> NodeId {
             @test_id={format!("control.{id}")}
             on_focus_change={move |focused: bool| heard.borrow_mut().push((id, focused))}
         >
-            <Frame width={Some(80.0)} height={Some(30.0)} />
+            <Frame width=80.0 height=30.0 />
         </Interactive>
     }
 }

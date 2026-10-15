@@ -4,10 +4,8 @@ use beui_macros::{component, view};
 use beui_core::geometry::Vec2;
 use beui_core::input::{CursorIcon, Key, KeyPress};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Interactive, Prop, ReadSignal, Render, component_accessibility, create_effect,
-    create_signal, on_cleanup, try_with_document, untrack, with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub struct PointerLockHandle {
     pub locked: ReadSignal<bool>,

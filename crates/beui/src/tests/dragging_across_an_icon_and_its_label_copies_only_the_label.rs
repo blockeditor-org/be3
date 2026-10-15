@@ -1,7 +1,8 @@
 use super::*;
 use crate::icons::{ICON_FOLDER, ICON_SAVE};
-use crate::reactive::{Icon, NodeRef, Text, build, view};
-use crate::styled::SelectableText;
+use crate::primitives::{Icon, Text};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn dragging_across_an_icon_and_its_label_copies_only_the_label() {

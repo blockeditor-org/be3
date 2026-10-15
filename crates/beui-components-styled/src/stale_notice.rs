@@ -5,7 +5,8 @@ use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_DELETE, ICON_HISTORY, ICON_RESTART_ALT};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, ClickCallback, Direction, Frame, List, Prop, Show, create_memo};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;
@@ -26,7 +27,7 @@ pub fn StaleNotice(
         format!("{id}.try"),
     );
     view! {
-        <Frame @test_id={id} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame @test_id={id} padding=PADDING>
             <List spacing=SPACING align=Align::Center>
                 <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph={ICON_HISTORY.to_owned()} />

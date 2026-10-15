@@ -3,13 +3,8 @@ use beui::icons::{
     ICON_BUILD, ICON_DOWNLOAD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
     ICON_TERMINAL,
 };
-use beui::reactive::{
-    Align, Direction, DynamicSegment, ForEach, Frame, ItemSize, List, ListChild, Memo, ReadSignal,
-    Show, VirtualList, component, create_memo, view,
-};
-use beui::styled::{
-    Button, ButtonVariant, Docking, IconButton, Scroll, Spinner, SplitButton, TextInput,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{DockEntry, DockPane, DockTab, MenuItem};
 
 use crate::detail::Detail;
@@ -19,7 +14,6 @@ use crate::pane::TerminalPane;
 use crate::targets::{Action, Target};
 use crate::view::{PADDING, state_glyph};
 use beui::TextAlign;
-use beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const SPACING: f32 = 8.0;
 const TARGET_ROW: f32 = 44.0;
@@ -50,7 +44,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
     let pane = model.pane;
     view! {
         <List spacing=0.0>
-            <Frame padding_horizontal=PADDING padding_vertical=12.0>
+            <Frame padding={Sides::symmetric(PADDING, 12.0)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                     <Text
                         style=TextStyle::CAPTION
@@ -85,7 +79,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         <TargetList model />
                     </DockTab>
                     <DockTab id=Tab::Log title="Log" icon=ICON_TERMINAL>
-                        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                        <Frame padding=PADDING>
                             <TerminalPane pane />
                         </Frame>
                     </DockTab>
@@ -172,7 +166,7 @@ fn TargetList(model: Model) -> NodeId {
     let refresh = move || model.refresh_targets();
     view! {
         <List spacing=0.0>
-            <Frame padding_horizontal=PADDING padding_vertical=4.0>
+            <Frame padding={Sides::symmetric(PADDING, 4.0)}>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text color=TextColor::Muted align=TextAlign::Center>
@@ -257,7 +251,7 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
     };
     let busy = model.running;
     view! {
-        <Frame padding_horizontal=PADDING padding_vertical=4.0>
+        <Frame padding={Sides::symmetric(PADDING, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={label} />
                 <Text style=TextStyle::CAPTION string={kind} />

@@ -2,9 +2,9 @@ use super::*;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use beui_view::reactive::{
-    Drawing, Prop, WriteSignal, build, create_signal, draw_gpu, view, with_reactive_scope,
-};
+use crate::Draw;
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 struct Held(Rc<Cell<bool>>);
 

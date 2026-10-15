@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, view};
-use crate::styled::TextArea;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::TextAreaState;
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
@@ -14,7 +14,7 @@ fn the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before() {
             as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
-            <Frame padding_horizontal=200.0 padding_vertical=150.0>
+            <Frame padding={Sides::symmetric(200.0, 150.0)}>
                 <TextArea @node_ref=&area state={state} />
             </Frame>
         }

@@ -9,10 +9,8 @@ mod surface;
 mod toolbar;
 
 use beui::NodeId;
-use beui::reactive::{
-    ItemSize, List, NodeRef, Show, action_scope, component, create_effect, create_memo,
-    create_signal, view,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use block_editor_beui::be_block::TextContent;
 use block_editor_beui::{Creation, Editor, Loaded};
 use uuid::Uuid;

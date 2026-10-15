@@ -4,14 +4,9 @@ use block_editor_beui::be_block::database_schema::{
     ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, ReadSignal, Show,
-    VirtualList, component, create_memo, view,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
-use block_editor_beui::beui::styled::{
-    ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, Separator, TextColor, use_theme,
-};
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
 use block_editor_beui::database::{ChoiceMark, choice_color};
@@ -22,7 +17,6 @@ use crate::database_view::app::data::Data;
 use crate::database_view::app::row::RowPanel;
 use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::sort::BlockLabels;
-use block_editor_beui::beui::styled::{Icon, Text, TextSize, TextStyle};
 
 const PANEL_WIDTH: f32 = 460.0;
 const LINE_HEIGHT: f32 = 38.0;
@@ -83,13 +77,13 @@ pub fn ListView(data: Data) -> NodeId {
     );
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <Scroll>
-                <Frame padding_bottom={Some(GUTTER * 2.0)}>
+                <Frame padding={Sides::new(0.0, 0.0, 0.0, GUTTER * 2.0)}>
                     <List spacing=0.0>
                         <Show condition={empty}>
                             {move || view! {
-                                <Frame padding_horizontal={GUTTER * 1.5} padding_vertical=GUTTER>
+                                <Frame padding={Sides::symmetric(GUTTER * 1.5, GUTTER)}>
                                     <Text style=TextStyle::CAPTION string={blank} />
                                 </Frame>
                             }}
@@ -231,10 +225,8 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface}
-            padding_left={Some(GUTTER * 0.5)}
-            padding_right={Some(GUTTER * 0.5)}
-            padding_vertical=2.0
+            fill={theme.surface}
+            padding={Sides::vertical(2.0).left(GUTTER * 0.5).right(GUTTER * 0.5)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <IconButton
@@ -552,17 +544,14 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
     let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));
     view! {
         <Frame
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
-            radius=10
-            padding_horizontal=8.0
-            padding_vertical=1.0
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
+            radius=10.0
+            padding={Sides::symmetric(8.0, 1.0)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
                 <Show condition={dotted}>
                     {move || view! {
-                        <Frame width=8.0 height=8.0 radius=2 color={dot} />
+                        <Frame width=8.0 height=8.0 radius=2.0 fill=dot />
                     }}
                 </Show>
                 <Show condition={linked}>

@@ -82,7 +82,7 @@ fn label(painter: &Painter, rect: Rect, text: &str) {
     };
     let left = rect.left().min(clip.right() - size.x).max(clip.left());
     let box_rect = Rect::from_min_size(pos2(left, top), size);
-    painter.rect_filled(box_rect, f32::from(CHIP_RADIUS), Theme::DARK.accent);
+    painter.rect_filled(box_rect, CHIP_RADIUS, Theme::DARK.accent);
     painter.galley(
         box_rect.min + vec2(LABEL_PADDING, LABEL_PADDING),
         galley,

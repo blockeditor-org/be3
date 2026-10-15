@@ -1,7 +1,8 @@
 use super::*;
 use crate::format_hex;
-use crate::reactive::{List, NodeRef, build, view};
-use crate::styled::{Text, TextColor, TextSize, TextStyle, TextStyleProvider, Theme};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 #[test]
 fn a_style_provider_sizes_and_colours_the_text_inside_it() {

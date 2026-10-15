@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 struct Hosting(Document);
 

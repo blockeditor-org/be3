@@ -17,12 +17,8 @@ use beui_view::components::overlay::Overlay;
 use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
 
 use crate::{Toggle, ToggleHandle};
-use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, Dynamic, ForEach, Frame, Gap, Icon, IntoChild, List, Memo,
-    NodeRef, Portal, ReadSignal, RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList,
-    component_placed, create_binding, create_effect, create_memo, on_cleanup, untrack,
-    with_document,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
 use super::rows::{
@@ -53,15 +49,18 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let bottom = create_memo(move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)));
     let estimate = cx.row_estimate();
     view! {
-        <Frame @node_ref=&canvas min_height={fill}>
+        <Frame
+            @node_ref=&canvas
+            height={create_memo(move || Extent { min: fill.get(), ..Extent::INTRINSIC })}
+        >
             <List spacing=0.0>
-                <Frame height={top} />
+                <Frame height=top />
                 <VirtualList @node_ref=&list keys item_size=estimate>
                     {move |line: ReadSignal<usize>| view! {
                         <AreaRow cx={cx} line />
                     }}
                 </VirtualList>
-                <Frame height={bottom} />
+                <Frame height=bottom />
             </List>
         </Frame>
     }
@@ -131,11 +130,14 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Frame width={gutter}>
+                <Frame width=gutter>
                     <Gutter cx={cx} model={gutter_model} />
                 </Frame>
-                <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal={padding}>
-                    <Frame color={code} padding_horizontal={inset}>
+                <Frame
+                    @sizing=ItemSize::Percent(100.0)
+                    padding={create_memo(move || Sides::horizontal(padding.get()))}
+                >
+                    <Frame fill=code padding={create_memo(move || Sides::horizontal(inset.get()))}>
                         <List spacing=0.0>
                             <RowText cx model text wrap=true />
                             <Dynamic value={shown_block}>
@@ -616,7 +618,7 @@ fn row_piece(
             let height = create_memo(move || Some(size.get().y));
             view! {
                 <TextItem>
-                    <Frame width height />
+                    <Frame width=width height=height />
                 </TextItem>
             }
             .into_child()
@@ -670,7 +672,7 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
     view! {
-        <Frame width={width} height=RUN_CHIP_HEIGHT color={fill} radius=RUN_CHIP_RADIUS>
+        <Frame width=width height=RUN_CHIP_HEIGHT fill=fill radius=RUN_CHIP_RADIUS>
             <Text
                 string={label}
                 font={FontId::monospace(RUN_CHIP_SIZE)}
@@ -739,10 +741,8 @@ fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
         <Frame
             width=size
             height=size
-            color={fill}
-            outline={outline}
-            outline_width=CHECKBOX_OUTLINE
-            outline_visible=true
+            fill=fill
+            outline={create_memo(move || Some(Outline::new(outline.get(), CHECKBOX_OUTLINE)))}
             radius=CHECKBOX_RADIUS
         >
             <List spacing=0.0>
@@ -814,9 +814,9 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     view! {
         <Frame
             @node_ref=&pill
-            width={width}
+            width=width
             height=INLINE_WIDGET_HEIGHT
-            color={fill}
+            fill=fill
             radius=INLINE_WIDGET_RADIUS
         >
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
@@ -899,9 +899,9 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let arrow_color = create_memo(move || cx.colors.get().gutter_arrow);
     let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
-        <Frame padding_left=GUTTER_PADDING_LEFT padding_right=GUTTER_PADDING_RIGHT>
+        <Frame padding={Sides::new(GUTTER_PADDING_LEFT, 0.0, GUTTER_PADDING_RIGHT, 0.0)}>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Frame width=GUTTER_ARROW_SIZE height={height}>
+                <Frame width=GUTTER_ARROW_SIZE height=height>
                     <Text
                         font={FontId::proportional(GUTTER_ARROW_SIZE)}
                         color={arrow_color}
@@ -910,7 +910,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                         <Icon glyph={arrow} />
                     </Text>
                 </Frame>
-                <Frame @sizing=ItemSize::Percent(100.0) height={height}>
+                <Frame @sizing=ItemSize::Percent(100.0) height=height>
                     <Text
                         string={number}
                         font={FontId::monospace(BODY_SIZE)}

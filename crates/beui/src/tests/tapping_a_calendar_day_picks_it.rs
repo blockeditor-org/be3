@@ -2,8 +2,8 @@ use accesskit::Role;
 
 use super::*;
 use crate::datetime::Date;
-use crate::reactive::view;
-use crate::styled::Calendar;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn tapping_a_calendar_day_picks_it() {

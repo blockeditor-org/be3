@@ -1,7 +1,7 @@
 use super::*;
 use crate::icons::ICON_EDIT;
-use crate::reactive::view;
-use crate::styled::MenuButton;
+use crate::reactive::*;
+use crate::styled::*;
 use crate::unstyled::MenuItem;
 
 fn shown(harness: &Harness, text: &str) -> Option<Pos2> {

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Drawing, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const PANEL_HEIGHT: f32 = 200.0;
 
@@ -11,7 +12,7 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Frame @node_ref=&panel height={PANEL_HEIGHT} color=Color32::WHITE radius=0 />
+                    <Frame @node_ref=&panel height=PANEL_HEIGHT fill=Color32::WHITE radius=0.0 />
                     <Frame width=40.0 height=20.0>
                         <Drawing @node_ref=&text draw={blinking()} />
                     </Frame>

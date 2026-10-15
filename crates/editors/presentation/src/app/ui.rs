@@ -4,20 +4,14 @@ use std::rc::Rc;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_CLOSE, ICON_DELETE, ICON_FULLSCREEN,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef, Prop, ReadSignal, Show,
-    component, create_memo, create_selector, create_signal, view,
-};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, IconButton, Scroll, theme, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
 use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
 use uuid::Uuid;
 
 use super::slides::Slides;
-use block_editor_beui::beui::styled::{Text, TextColor, TextSize, TextStyle};
 
 const FILMSTRIP_WIDTH: f32 = 210.0;
 const THUMBNAIL_WIDTH: f32 = 176.0;
@@ -51,7 +45,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
-            <Frame color={background}>
+            <Frame fill=background>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Filmstrip
                         @sizing=ItemSize::Fixed(FILMSTRIP_WIDTH)
@@ -59,10 +53,10 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                         slides={slides}
                         shown={editing}
                     />
-                    <Frame visible={editing} width=theme::BORDER_WIDTH color={theme.border} />
+                    <Frame visible={editing} width=theme::BORDER_WIDTH fill={theme.border} />
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Toolbar editor={editor} slides={slides} shown={editing} />
-                        <Frame visible={editing} height=theme::BORDER_WIDTH color={theme.border} />
+                        <Frame visible={editing} height=theme::BORDER_WIDTH fill={theme.border} />
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
                             @node_ref={&stage}
@@ -190,12 +184,7 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     };
     let present = move || editor.present(true);
     view! {
-        <Frame
-            visible={shown}
-            color={theme.surface}
-            padding_horizontal=PANEL_PADDING
-            padding_vertical=PANEL_PADDING
-        >
+        <Frame visible={shown} fill={theme.surface} padding=PANEL_PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Text
                     style=TextStyle::CAPTION
@@ -252,8 +241,8 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
             >
                 <Frame
                     visible={over}
-                    color=Color32::from_rgba_unmultiplied(0, 0, 0, 180)
-                    padding_horizontal=12.0
+                    fill={Color32::from_rgba_unmultiplied(0, 0, 0, 180)}
+                    padding={Sides::horizontal(12.0)}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                         <IconButton
@@ -306,12 +295,7 @@ fn Filmstrip(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     };
 
     view! {
-        <Frame
-            visible={shown}
-            color={theme.surface}
-            padding_horizontal=FILMSTRIP_PADDING
-            padding_vertical=FILMSTRIP_PADDING
-        >
+        <Frame visible={shown} fill={theme.surface} padding=FILMSTRIP_PADDING>
             <List spacing=TILE_SPACING>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION string="Add a slide to start this deck." />
@@ -379,13 +363,10 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
         view! {
             <Frame
                 width=THUMBNAIL_WIDTH
-                color={theme.surface_raised}
-                outline={theme.accent}
-                outline_width=2.0
-                outline_visible=true
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(theme.accent.get(), 2.0)))}
                 radius=theme::RADIUS
-                padding_horizontal=8.0
-                padding_vertical=8.0
+                padding=8.0
                 @test_id="presentation.slide-ghost"
             >
                 <Text style=TextStyle::CAPTION string={label} />
@@ -395,15 +376,12 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
     let remove = move || slides.remove(id);
 
     view! {
-        <Frame padding_horizontal=TILE_INSET padding_vertical=TILE_INSET>
+        <Frame padding=TILE_INSET>
             <Frame
-                color={theme.surface_raised}
-                outline={outline}
-                outline_width={width}
-                outline_visible=true
+                fill={theme.surface_raised}
+                outline={create_memo(move || Some(Outline::new(outline.get(), width.get())))}
                 radius=theme::RADIUS
-                padding_horizontal=6.0
-                padding_vertical=6.0
+                padding=6.0
             >
                 <List spacing=6.0>
                     <DropTarget on_over={over}>

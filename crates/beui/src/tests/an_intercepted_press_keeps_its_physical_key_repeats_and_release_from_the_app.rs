@@ -1,7 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::KeyAt;
-use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const KEY_F: u32 = 33;
 const KEY_LEFTMETA: u32 = 125;

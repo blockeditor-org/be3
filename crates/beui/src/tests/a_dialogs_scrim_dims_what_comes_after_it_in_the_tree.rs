@@ -1,8 +1,8 @@
 use super::*;
 use crate::geometry::Rect;
 use crate::painter::Shape;
-use crate::reactive::{Frame, build, create_signal, view, with_reactive_scope};
-use crate::styled::Dialog;
+use crate::reactive::*;
+use crate::styled::*;
 
 const SIBLING: Color32 = Color32::from_rgb(200, 40, 40);
 
@@ -17,7 +17,7 @@ fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
                     <Dialog open={open} title="Discard changes?" on_dismiss={|| ()}>
                         <Frame width=10.0 height=10.0 />
                     </Dialog>
-                    <Frame width=50.0 height=50.0 color={SIBLING} />
+                    <Frame width=50.0 height=50.0 fill=SIBLING />
                 </List>
             }
         }

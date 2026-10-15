@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use beui::icons::ICON_VOLUME_UP;
-use beui::reactive::{Frame, List, build, create_signal, view};
-use beui::styled::{Button, ButtonVariant, LevelOsd, OSD_DURATION, OsdLevel, use_theme};
+use beui::reactive::*;
+use beui::styled::*;
 
 use super::*;
 
@@ -17,7 +17,7 @@ fn level_display() -> DocumentTest {
             muted: false,
         });
         view! {
-            <Frame color={theme.background}>
+            <Frame fill={theme.background}>
                 <List spacing=0.0>
                     <Button
                         @test_id={"test.show"}

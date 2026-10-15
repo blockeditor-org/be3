@@ -1,7 +1,7 @@
 use super::*;
 use crate::KeyAt;
 use crate::KeyPress;
-use crate::reactive::{Action, Chord, build, on_shortcut, view};
+use crate::reactive::*;
 
 #[test]
 fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {

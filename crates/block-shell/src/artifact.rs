@@ -2,10 +2,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_AUTO_AWESOME, ICON_LINK_OFF, ICON_REFRESH, ICON_SETTINGS,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
@@ -13,7 +11,6 @@ use super::panel::Info;
 use super::tab::TabItem;
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const PADDING_HORIZONTAL: f32 = 8.0;
 const PADDING_VERTICAL: f32 = 5.0;
@@ -96,9 +93,8 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
     view! {
         <Frame
             visible={shown}
-            color={theme.surface}
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
+            fill={theme.surface}
+            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List spacing=PADDING_VERTICAL>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

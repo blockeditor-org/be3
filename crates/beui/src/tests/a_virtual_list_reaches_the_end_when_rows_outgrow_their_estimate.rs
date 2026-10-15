@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, create_binding, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const ROWS: usize = 100;
 const ESTIMATE: f32 = 20.0;

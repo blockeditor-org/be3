@@ -4,12 +4,8 @@ use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort,
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Callback, ClickCallback, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Prop, ReadSignal, Show, Spacer, VirtualList, component, create_effect, create_memo,
-    view, with_document,
-};
-use block_editor_beui::beui::styled::{Scroll, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
 use std::collections::HashMap;
@@ -19,7 +15,6 @@ use crate::database_view::app::data::Data;
 use crate::database_view::sort::{
     DisplayRow, ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width, display_rows, next_sort,
 };
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
 
 const BORDER: f32 = 1.0;
 const CELL_PADDING: f32 = 6.0;
@@ -38,10 +33,10 @@ pub fn Spreadsheet(data: Data) -> NodeId {
     let keyboard = Callback::new(keyboard(data, display));
     let theme = use_theme();
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <List spacing=0.0>
                 <Show condition={empty}>
-                    <Frame padding_horizontal=12.0 padding_vertical=12.0>
+                    <Frame padding=12.0>
                         <Text style=TextStyle::CAPTION string="This database has no columns yet." />
                     </Frame>
                 </Show>
@@ -121,10 +116,8 @@ fn HeaderRow(data: Data) -> NodeId {
             <Frame
                 width=ROW_HEADER_WIDTH
                 height=ROW_HEIGHT
-                color={theme.surface}
-                outline={theme.border}
-                outline_width=BORDER
-                outline_visible=true
+                fill={theme.surface}
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
             />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
@@ -186,15 +179,13 @@ fn HeaderCell(
     let theme = use_theme();
     view! {
         <Frame
-            width={width}
+            width=width
             height=ROW_HEIGHT
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=BORDER
-            outline_visible=true
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
         >
             <Interactive on_click={on_click}>
-                <Frame padding_horizontal=CELL_PADDING>
+                <Frame padding={Sides::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Text string={label} />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -247,10 +238,8 @@ fn Row(
             <Frame
                 @sizing=ItemSize::Fixed(ROW_HEADER_WIDTH)
                 height=ROW_HEIGHT
-                color={header_fill}
-                outline={theme.border}
-                outline_width=BORDER
-                outline_visible=true
+                fill=header_fill
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
             >
                 <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
@@ -363,15 +352,13 @@ fn Cell(
     view! {
         <Frame
             @node_ref=&shown
-            width={width}
+            width=width
             height=ROW_HEIGHT
-            color={fill}
-            outline={outline}
-            outline_width=BORDER
-            outline_visible=true
+            fill=fill
+            outline={create_memo(move || Some(Outline::new(outline.get(), BORDER)))}
         >
             <Interactive @test_id={test_id} on_click={click}>
-                <Frame padding_horizontal=CELL_PADDING>
+                <Frame padding={Sides::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>
                             <Text color={glyph_color} align=TextAlign::Center>
@@ -382,11 +369,9 @@ fn Cell(
                             <Frame
                                 @sizing=ItemSize::Fixed(SWATCH_WIDTH)
                                 height=SWATCH_HEIGHT
-                                color={swatch}
-                                outline={theme.border}
-                                outline_width=BORDER
-                                outline_visible=true
-                                radius=2
+                                fill=swatch
+                                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
+                                radius=2.0
                             />
                         </Show>
                         <Text

@@ -10,12 +10,11 @@ use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Children, Frame, List, ListChild, Memo, Prop, Spacer, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const MARKER_SIZE: f32 = 28.0;
-const MARKER_RADIUS: u8 = 14;
+const MARKER_RADIUS: f32 = 14.0;
 
 #[component]
 pub fn Scroll(
@@ -86,13 +85,11 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
     });
     view! {
         <Frame
-            width={Some(MARKER_SIZE)}
-            height={Some(MARKER_SIZE)}
+            width=MARKER_SIZE
+            height=MARKER_SIZE
             radius=MARKER_RADIUS
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
+            fill={theme.surface_raised}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
         >
             <List align=Align::Center spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(50.0) />

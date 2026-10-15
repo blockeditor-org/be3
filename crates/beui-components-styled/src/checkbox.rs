@@ -10,13 +10,12 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const BOX_SIZE: f32 = 18.0;
 const MARK_SIZE: f32 = 10.0;
-const MARK_RADIUS: u8 = 2;
+const MARK_RADIUS: f32 = 2.0;
 const SPACING: f32 = 10.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 
@@ -69,19 +68,16 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    color={fill_color}
-                    outline={box_border}
-                    outline_width=BORDER_WIDTH
+                    fill=fill_color
+                    outline={create_memo(move || border_visible.get().then(|| Outline::new(box_border.get(), BORDER_WIDTH)))}
                     radius=CHIP_RADIUS
-                    outline_visible={border_visible}
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    align=Align::Center
                 >
                     <Frame
                         visible={checked}
                         width=MARK_SIZE
                         height=MARK_SIZE
-                        color={mark_color}
+                        fill=mark_color
                         radius=MARK_RADIUS
                     />
                 </Frame>

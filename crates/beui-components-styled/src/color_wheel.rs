@@ -11,7 +11,8 @@ use beui_core::color::{Color32, Hsva, Oklch};
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_view::reactive::{Callback, Draw, Drawing, Frame, Prop, create_memo, focus_ring};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub const WHEEL_SIZE: f32 = 200.0;
 const RING_WIDTH: f32 = 22.0;
@@ -217,14 +218,11 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
         }) as Draw
     });
     let theme = use_theme();
-    let ring_radius = (WHEEL_SIZE / 2.0) as u8 + 2;
+    let ring_radius = (WHEEL_SIZE / 2.0).floor() + 2.0;
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
+            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, FOCUS_RING_OFFSET)}
             radius=ring_radius
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
         >
             <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
                 <Drawing draw />

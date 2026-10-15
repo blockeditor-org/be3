@@ -1,7 +1,7 @@
 use block_editor_beui::Editor;
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{create_memo, view};
+use block_editor_beui::beui::reactive::*;
 
 mod ui;
 

@@ -5,13 +5,11 @@ use beui_macros::{component, view};
 
 use crate::theme::use_theme;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Direction, Frame, ItemSize, List, Prop, Spacer, component_accessibility, component_placed,
-    create_effect, create_memo, create_signal, create_timer, now,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const HEIGHT: f32 = 4.0;
-const RADIUS: u8 = 2;
+const RADIUS: f32 = 2.0;
 const SEGMENT: f32 = 0.35;
 const PERIOD: f32 = 1.2;
 const FRAME: Duration = Duration::from_millis(16);
@@ -52,12 +50,12 @@ pub fn Spinner(
     let width = create_memo(move || Some(width.get()));
     let theme = use_theme();
     view! {
-        <Frame width height=HEIGHT color={theme.track} radius=RADIUS>
+        <Frame width=width height=HEIGHT fill={theme.track} radius=RADIUS>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Spacer @sizing={before} />
                 <Frame
                     @sizing=ItemSize::Percent(SEGMENT * 100.0)
-                    color={theme.accent}
+                    fill={theme.accent}
                     radius=RADIUS
                 />
                 <Spacer @sizing={after} />

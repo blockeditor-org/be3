@@ -3,19 +3,15 @@ use block_editor_beui::beui::icons::{
     ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
     ICON_UNDO,
 };
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, Prop, Show, Spacer, component,
-    create_memo, use_context, view,
-};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
-use block_editor_beui::beui::styled::{Button, ButtonVariant, IconButton, ToggleButton, use_theme};
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{BottomDock, sheet_open};
 
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
-use block_editor_beui::beui::styled::{Text, TextColor};
 
 const TOOLS: [(Tool, &str, &str); 6] = [
     (Tool::Select, ICON_SELECT, "Select"),
@@ -28,7 +24,7 @@ const TOOLS: [(Tool, &str, &str); 6] = [
 
 const DOCK_TOOLS: [usize; 4] = [0, 5, 3, 4];
 const PILL_MARGIN: f32 = 12.0;
-const PILL_RADIUS: u8 = 16;
+const PILL_RADIUS: f32 = 16.0;
 const PILL_PADDING: f32 = 4.0;
 const DIVIDER_HEIGHT: f32 = 24.0;
 
@@ -78,7 +74,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 @test_id={"infinite-canvas.dock.block"}
                 action={actions.add_block}
             />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT color={theme.border} />
+            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill={theme.border} />
             <IconButton
                 glyph={ICON_UNDO.to_owned()}
                 label="Undo"
@@ -102,15 +98,12 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::TopEnd open={open}>
-            <Frame padding_vertical=PILL_MARGIN padding_horizontal=PILL_MARGIN>
+            <Frame padding=PILL_MARGIN>
                 <Frame
-                    color={theme.surface_raised}
-                    outline={theme.border}
-                    outline_width=BORDER_WIDTH
-                    outline_visible=true
+                    fill={theme.surface_raised}
+                    outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
                     radius=PILL_RADIUS
-                    padding_horizontal=PILL_PADDING
-                    padding_vertical=PILL_PADDING
+                    padding=PILL_PADDING
                     @test_id={"infinite-canvas.zoom-pill"}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=2.0>

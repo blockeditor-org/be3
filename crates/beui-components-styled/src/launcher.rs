@@ -20,10 +20,8 @@ use beui_core::input::{Key, KeyPress};
 use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop,
-    ReadSignal, Show, WriteSignal, create_effect, create_memo, create_signal, on_key, untrack,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const WIDTH: f32 = 560.0;
 const LIST_HEIGHT: f32 = 380.0;
@@ -265,16 +263,13 @@ pub fn Launcher(
             open
             on_dismiss={move |_: Dismiss| on_close.call()}
             content={move || view! {
-                <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+                <Frame padding=MARGIN>
                     <Frame
-                        max_width=WIDTH
-                        color={theme.surface_raised}
-                        outline={theme.border}
-                        outline_width=BORDER_WIDTH
-                        outline_visible=true
+                        width={Extent::at_most(WIDTH)}
+                        fill={theme.surface_raised}
+                        outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
                         radius=CARD_RADIUS
-                        padding_horizontal=PADDING
-                        padding_vertical=PADDING
+                        padding=PADDING
                         @test_id={"launcher"}
                     >
                         <List spacing=PADDING>
@@ -318,12 +313,10 @@ fn LauncherSearch(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            color={theme.surface}
-            outline={theme.accent}
-            outline_width=BORDER_WIDTH
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.accent.get(), BORDER_WIDTH)))}
             radius=RADIUS
-            outline_visible=true
-            padding_horizontal=ROW_PADDING_HORIZONTAL
+            padding={Sides::horizontal(ROW_PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text color=TextColor::Muted align=TextAlign::Center>
@@ -426,10 +419,9 @@ fn LauncherRowFace(
     let described = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame
-            color={fill}
+            fill=fill
             radius=RADIUS
-            padding_horizontal=ROW_PADDING_HORIZONTAL
-            padding_vertical=ROW_PADDING_VERTICAL
+            padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Frame width=PICTURE_SIZE height=PICTURE_SIZE>

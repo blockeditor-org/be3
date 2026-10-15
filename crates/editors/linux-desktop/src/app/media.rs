@@ -4,10 +4,8 @@ use block_editor_beui::beui::icons::{
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_STOP, ICON_VOLUME_DOWN, ICON_VOLUME_OFF,
     ICON_VOLUME_UP,
 };
-use block_editor_beui::beui::reactive::{
-    Action, Chord, component, create_memo, create_signal, view,
-};
-use block_editor_beui::beui::styled::{LevelOsd, OsdLevel};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Key, NodeId};
 use block_editor_beui::{Editor, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
 

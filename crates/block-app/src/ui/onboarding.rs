@@ -2,14 +2,8 @@ use beui::icons::{
     ICON_ADD, ICON_CHECK, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD, ICON_KEYBOARD_ARROW_DOWN,
     ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
 };
-use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer, component,
-    copy_text, create_effect, create_memo, create_signal, untrack, view,
-};
-use beui::styled::{
-    Button, ButtonVariant, Card, Dialog, IconButton, MenuButton, Scroll, Spinner, SplitButton,
-    Switch, Tabs, TextInput, Tooltip,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::{ChoiceOption, MenuItem};
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
@@ -17,7 +11,6 @@ use uuid::Uuid;
 use super::{AccountForm, AccountRow, AppViewStore, ErrorAction, UiCommand, WorkspacesState, send};
 use crate::platform;
 use crate::root_settings::{SESSION_TYPES, session_type_name};
-use beui::styled::{Icon, Text, TextColor, TextSize, TextStyle};
 
 const COLUMN_WIDTH: f32 = 460.0;
 
@@ -44,7 +37,7 @@ pub(super) fn Column(children: beui::reactive::Children<beui::reactive::ListChil
     view! {
         <Scroll>
             <List spacing=0.0 align=Align::Center>
-                <Frame max_width=COLUMN_WIDTH padding_horizontal=16.0 padding_vertical=36.0>
+                <Frame width={Extent::at_most(COLUMN_WIDTH)} padding={Sides::symmetric(16.0, 36.0)}>
                     <List spacing=12.0>{children}</List>
                 </Frame>
             </List>

@@ -1,6 +1,6 @@
 use super::*;
 use crate::FontId;
-use crate::reactive::view;
+use crate::reactive::*;
 
 const PUNNED: &str = "Punned";
 

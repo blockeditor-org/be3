@@ -1,11 +1,7 @@
 use std::cell::Cell;
 
-use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, component, create_effect,
-    create_memo, create_signal, untrack, view,
-};
-use block_editor_beui::beui::styled::Text;
-use block_editor_beui::beui::styled::{Button, ButtonVariant, WINDOW_CHROME, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
 use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{
@@ -19,7 +15,7 @@ const WINDOW_CASCADE: f32 = 32.0;
 const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: f32 = 12.0;
 const BANNER_SPACING: f32 = 12.0;
-const BANNER_RADIUS: u8 = 8;
+const BANNER_RADIUS: f32 = 8.0;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
@@ -172,15 +168,10 @@ fn NotResponding(
     let message = create_memo(move || format!("{} is not responding", name.get()));
     view! {
         <Frame
-            color={theme.surface}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=BANNER_RADIUS
-            radius_top_left={Some(0)}
-            radius_top_right={Some(0)}
-            padding_horizontal=BANNER_PADDING
-            padding_vertical=BANNER_PADDING
+            fill={theme.surface}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+            radius={Corners::bottom(BANNER_RADIUS)}
+            padding=BANNER_PADDING
             @test_id={"workspace.window.not_responding"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BANNER_SPACING>

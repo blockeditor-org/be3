@@ -9,9 +9,8 @@ use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
 use beui_core::icons::ICON_CLOSE;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize};
@@ -90,24 +89,19 @@ fn TextInputFrame(
     });
     view! {
         <Frame
-            outline={theme.accent}
-            outline_width=FOCUS_RING_WIDTH
+            outline={create_memo(move || focused.get().then(|| Outline::new(theme.accent.get(), FOCUS_RING_WIDTH).offset(FOCUS_RING_OFFSET)))}
             radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
         >
             <Frame
                 height=HEIGHT
-                color={fill}
-                outline={border}
-                outline_width=BORDER_WIDTH
+                fill=fill
+                outline={create_memo(move || raised.get().then(|| Outline::new(border.get(), BORDER_WIDTH)))}
                 radius=RADIUS
-                outline_visible={raised}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
                         {move || view! {
-                            <Frame padding_left=PADDING_HORIZONTAL>
+                            <Frame padding={Sides::new(PADDING_HORIZONTAL, 0.0, 0.0, 0.0)}>
                                 <Text color=TextColor::Muted align=TextAlign::Center>
                                     <Icon glyph={glyph} />
                                 </Text>
@@ -117,7 +111,7 @@ fn TextInputFrame(
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
                         {move || view! {
-                            <Frame padding_horizontal=CLEAR_PADDING>
+                            <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
                                 <IconButton
                                     glyph={ICON_CLOSE.to_owned()}
                                     label="Clear"

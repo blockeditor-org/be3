@@ -298,7 +298,7 @@ impl Keyboard {
             } else {
                 Theme::DARK.text
             };
-            painter.rect_filled(bounds, f32::from(CHIP_RADIUS), fill);
+            painter.rect_filled(bounds, CHIP_RADIUS, fill);
             match cap.face {
                 Face::Named {
                     icon: Some(icon), ..

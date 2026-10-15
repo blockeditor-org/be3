@@ -1,7 +1,7 @@
 use super::*;
 use crate::base::overlay::OverlayNode;
-use crate::reactive::{ForEach, NodeRef, view};
-use crate::styled::ContextMenu;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls() {

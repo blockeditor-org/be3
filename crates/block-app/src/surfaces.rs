@@ -1,17 +1,13 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use beui::reactive::{
-    ForEach, Frame, Layers, List, Memo, ReadSignal, Show, WriteSignal, component, create_memo,
-    create_signal, store, view,
-};
-use beui::styled::{Spinner, StaleNotice, TextColor};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Align, Color32, NodeId, TextAlign};
 use block_plugin_api::{BlockCommand, BlockLocation, EditorInstanceId, EditorRegion, FrameSpec};
 use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::HostItem;
-use beui::styled::{Icon, Text, TextSize, TextStyle};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
@@ -195,15 +191,7 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     };
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
-        <Frame
-            color=surface
-            outline=outline
-            outline_width=1.0
-            outline_visible=true
-            radius=5
-            padding_horizontal=12.0
-            padding_vertical=12.0
-        >
+        <Frame fill=surface outline={Outline::new(outline, 1.0)} radius=5.0 padding=12.0>
             <List spacing=8.0 align=Align::Center>
                 <Show condition={unsupported}>
                     <Text
@@ -260,7 +248,7 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
         );
     };
     view! {
-        <Frame align_horizontal=Align::Center align_vertical=Align::Center>
+        <Frame align=Align::Center>
             <StaleNotice
                 title="Saved by another build"
                 detail={detail}

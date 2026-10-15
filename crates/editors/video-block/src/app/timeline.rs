@@ -1,12 +1,8 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use block_editor_beui::beui::reactive::{
-    Align, Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List,
-    Memo, PlacementBuilder, ReadSignal, component, create_effect, create_memo, create_selector,
-    create_signal, untrack, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2};
 use block_editor_beui::{ChildBlock, ChildMode, Drag};
@@ -18,10 +14,9 @@ use crate::timeline::{
 };
 
 use super::state::{ClipDrag, VideoState};
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const THUMBNAIL_MARGIN: f32 = 3.0;
-const CLIP_RADIUS: u8 = 4;
+const CLIP_RADIUS: f32 = 4.0;
 
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
@@ -220,7 +215,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                                         width=1.5
                                         height={playhead_height}
                                     >
-                                        <Frame color={theme.accent} />
+                                        <Frame fill={theme.accent} />
                                     </CanvasItem>
                                 </Canvas>
                             </Interactive>
@@ -267,7 +262,7 @@ fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
     let width = create_memo(move || content.get().width());
     view! {
         <CanvasItem x=0.0 y={y} width={width} height=LANE_HEIGHT>
-            <Frame color={color} radius=3 />
+            <Frame fill=color radius=3.0 />
         </CanvasItem>
     }
 }
@@ -344,13 +339,10 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                         on_press={move |press: PointerPress| grabbing.set(Some(press.local))}
                     >
                         <Frame
-                            color={fill}
+                            fill=fill
                             radius=CLIP_RADIUS
-                            outline={theme.accent}
-                            outline_width=2.0
-                            outline_visible={selected}
-                            padding_horizontal=THUMBNAIL_MARGIN
-                            padding_vertical=THUMBNAIL_MARGIN
+                            outline={create_memo(move || selected.get().then(|| Outline::new(theme.accent.get(), 2.0)))}
+                            padding=THUMBNAIL_MARGIN
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
                                 <Frame
@@ -418,11 +410,9 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame
                 visible={shown}
-                color={theme.accent_soft}
+                fill={theme.accent_soft}
                 radius=CLIP_RADIUS
-                outline={theme.accent}
-                outline_width=2.0
-                outline_visible={shown}
+                outline={create_memo(move || shown.get().then(|| Outline::new(theme.accent.get(), 2.0)))}
             />
         </CanvasItem>
     }

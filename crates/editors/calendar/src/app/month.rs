@@ -1,14 +1,11 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::reactive::{
-    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, component, create_memo, view,
-};
-use block_editor_beui::beui::styled::{ListRow, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_ui::datetime::{civil_from_days, days_from_civil};
 
 use super::model::{Shown, WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 const CELL_HEIGHT: f32 = 92.0;
 const CELL_SPACING: f32 = 2.0;
@@ -137,13 +134,10 @@ fn MonthCell(
     let pick = move || on_pick_day.call(day);
     view! {
         <Frame
-            color={fill}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
-            radius=4
-            padding_horizontal=4.0
-            padding_vertical=4.0
+            fill=fill
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+            radius=4.0
+            padding=4.0
         >
             <List spacing=2.0>
                 <ListRow
@@ -192,7 +186,7 @@ fn EventChip(
     let theme = use_theme();
     let click = on_click;
     view! {
-        <Frame color={theme.accent} radius=3>
+        <Frame fill={theme.accent} radius=3.0>
             <ListRow on_click={click} on_activate={on_click}>
                 <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
             </ListRow>

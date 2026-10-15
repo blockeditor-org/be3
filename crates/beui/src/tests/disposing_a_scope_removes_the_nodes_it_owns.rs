@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, Show, Text, component, create_signal, on_cleanup, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn disposing_a_scope_removes_the_nodes_it_owns() {

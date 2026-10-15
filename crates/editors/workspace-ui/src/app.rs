@@ -3,12 +3,8 @@ use std::cell::Cell;
 use block_editor_beui::be_block::FILES_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_FOLDER;
-use block_editor_beui::beui::reactive::{
-    Align, ForEach, Frame, ItemSize, List, NodeRef, component, create_effect, create_memo, untrack,
-    view,
-};
-use block_editor_beui::beui::styled::{Docking, use_theme};
-use block_editor_beui::beui::styled::{Text, TextStyle};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
 };
@@ -80,7 +76,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let panels = workspace.panels();
     let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} color={theme.background}>
+        <Frame @node_ref={&surface} fill={theme.background}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
@@ -162,7 +158,7 @@ fn FilesPanel(workspace: Workspace) -> NodeId {
 #[component]
 fn EmptyPanel() -> NodeId {
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
                 <Text style=TextStyle::HEADING string="No file open" />
                 <Text

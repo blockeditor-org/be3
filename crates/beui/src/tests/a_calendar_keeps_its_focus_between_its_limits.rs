@@ -2,8 +2,8 @@ use accesskit::Role;
 
 use super::*;
 use crate::datetime::Date;
-use crate::reactive::view;
-use crate::styled::Calendar;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_calendar_keeps_its_focus_between_its_limits() {

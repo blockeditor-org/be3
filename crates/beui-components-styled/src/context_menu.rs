@@ -14,10 +14,8 @@ use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Child, Children, ClickCallback, Direction, Frame, ItemSize, List, Prop, Show,
-    create_memo,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const PADDING_HORIZONTAL: f32 = 14.0;
 const PADDING_VERTICAL: f32 = 6.0;
@@ -124,10 +122,9 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
                 <Separator />
             </Show>
             <Frame
-                color={fill_color}
+                fill=fill_color
                 radius=RADIUS
-                padding_horizontal=PADDING_HORIZONTAL
-                padding_vertical=PADDING_VERTICAL
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <Show condition={has_glyph}>
@@ -206,7 +203,7 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
             stops={SHEET_STOPS.to_vec()}
             on_close={on_close}
         >
-            <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>{menu}</Frame>
+            <Frame padding=SHEET_PADDING>{menu}</Frame>
         </ModalSheet>
     }
 }
@@ -217,20 +214,16 @@ fn MenuPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=MENU_WIDTH
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=BORDER_WIDTH
+            fill={theme.surface_raised}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
             radius=RADIUS
-            outline_visible=true
         >
             <unstyled::Scroll
                 fit=true
                 tab_stop=false
                 scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
             >
-                <Frame padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
-                    {children}
-                </Frame>
+                <Frame padding=MENU_PADDING>{children}</Frame>
             </unstyled::Scroll>
         </Frame>
     }

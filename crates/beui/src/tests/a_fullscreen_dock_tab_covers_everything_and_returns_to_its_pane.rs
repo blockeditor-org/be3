@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Interactive, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{DockPane, DockTab, DockingLayout};
 
 #[derive(Default)]

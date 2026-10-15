@@ -13,11 +13,8 @@ use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{
-    Align, ClickCallback, Direction, ForEach, Frame, IntoChild, Justify, Layer, Layers, List, Memo,
-    Prop, StoredCell, component_accessibility, create_effect, create_memo, create_signal,
-    create_timer, now, untrack, use_screens,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 pub const KEEP_CHANGES_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -105,7 +102,7 @@ pub fn KeepChanges(
             scrim=SCRIM
             on_dismiss={move |_: Dismiss| revert()}
             content={move || view! {
-                <Frame width={width} height={height}>
+                <Frame width=width height=height>
                     <Layers>
                         <ForEach keys={places}>
                             {move |index: usize| {
@@ -157,10 +154,9 @@ fn KeepChangesCard(
     on_revert: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let left = create_memo(move || Some(place.get().left()));
-    let top = create_memo(move || Some(place.get().top()));
-    let width = create_memo(move || Some(place.get().width()));
-    let height = create_memo(move || Some(place.get().height()));
+    let inset = create_memo(move || Sides::new(place.get().left(), place.get().top(), 0.0, 0.0));
+    let width = create_memo(move || place.get().width());
+    let height = create_memo(move || place.get().height());
     let label = title;
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::AlertDialog);
@@ -168,28 +164,15 @@ fn KeepChangesCard(
         node
     }));
     view! {
-        <Frame
-            padding_left={left}
-            padding_top={top}
-            align_horizontal=Align::Start
-            align_vertical=Align::Start
-        >
-            <Frame
-                width={width}
-                height={height}
-                align_horizontal=Align::Center
-                align_vertical=Align::Center
-            >
-                <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+        <Frame padding=inset align=Align::Start>
+            <Frame width=width height=height align=Align::Center>
+                <Frame padding=MARGIN>
                     <Frame
-                        max_width=Some(WIDTH)
-                        color={theme.surface_raised}
-                        outline={theme.border}
-                        outline_width=BORDER_WIDTH
-                        outline_visible=true
+                        width={Extent::at_most(WIDTH)}
+                        fill={theme.surface_raised}
+                        outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
                         radius=CARD_RADIUS
-                        padding_horizontal=PADDING_HORIZONTAL
-                        padding_vertical=PADDING_VERTICAL
+                        padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                         @test_id={id.clone()}
                     >
                         <List spacing=SPACING>

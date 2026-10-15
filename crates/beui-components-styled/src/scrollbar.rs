@@ -7,9 +7,10 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollbarHandle, ScrollbarThumb};
 use beui_core::base::{Direction, ScrollPosition};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Frame, Memo, Prop, create_memo};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
-const RADIUS: u8 = 3;
+const RADIUS: f32 = 3.0;
 
 #[component]
 pub fn Scrollbar(
@@ -20,7 +21,9 @@ pub fn Scrollbar(
     let ends_horizontal = inset_when(&direction, Direction::Horizontal);
     let ends_vertical = inset_when(&direction, Direction::Vertical);
     view! {
-        <Frame padding_horizontal={ends_horizontal} padding_vertical={ends_vertical}>
+        <Frame
+            padding={create_memo(move || Sides::symmetric(ends_horizontal.get(), ends_vertical.get()))}
+        >
             <unstyled::Scrollbar
                 position
                 direction
@@ -44,9 +47,12 @@ fn inset_when(direction: &Prop<Direction>, along: Direction) -> Memo<f32> {
     })
 }
 
-fn outer_side_inset(direction: &Prop<Direction>, along: Direction) -> Memo<Option<f32>> {
+fn outer_side_inset(direction: &Prop<Direction>, along: Direction) -> Memo<f32> {
     let direction = *direction;
-    create_memo(move || (direction.get() == along).then_some(SCROLLBAR_INSET))
+    create_memo(move || match direction.get() == along {
+        true => SCROLLBAR_INSET,
+        false => 0.0,
+    })
 }
 
 #[component]
@@ -66,9 +72,9 @@ fn ScrollbarTrack(handle: ScrollbarHandle) -> NodeId {
     let bottom = outer_side_inset(&direction, Direction::Horizontal);
 
     view! {
-        <Frame padding_right={right} padding_bottom={bottom}>
-            <Frame color={track} radius=RADIUS>
-                <ScrollbarThumb position direction color radius={f32::from(RADIUS)} />
+        <Frame padding={create_memo(move || Sides::new(0.0, 0.0, right.get(), bottom.get()))}>
+            <Frame fill=track radius=RADIUS>
+                <ScrollbarThumb position direction color radius=RADIUS />
             </Frame>
         </Frame>
     }

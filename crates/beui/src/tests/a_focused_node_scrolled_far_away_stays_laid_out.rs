@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ForEach, Frame, ItemSize, List, NodeRef, Offset, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const ROWS: usize = 300;
 const ROW_HEIGHT: f32 = 30.0;

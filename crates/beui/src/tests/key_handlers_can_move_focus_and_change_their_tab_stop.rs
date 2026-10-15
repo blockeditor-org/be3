@@ -1,6 +1,6 @@
 use super::*;
 use crate::KeyPress;
-use crate::reactive::{NodeRef, create_memo, create_signal};
+use crate::reactive::*;
 
 #[test]
 fn key_handlers_can_move_focus_and_change_their_tab_stop() {

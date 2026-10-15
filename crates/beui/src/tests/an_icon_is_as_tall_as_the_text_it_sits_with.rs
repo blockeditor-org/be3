@@ -1,8 +1,9 @@
 use super::*;
 use crate::TextAlign;
 use crate::icons::ICON_FOLDER;
-use crate::reactive::{Align, Direction, Frame, List, NodeRef, view};
-use crate::styled::{Icon, Text};
+use crate::reactive::*;
+use crate::styled::Text;
+use crate::styled::*;
 
 const LABEL: &str = "Folder";
 

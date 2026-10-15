@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, build, view};
+use crate::reactive::*;
 use crate::unstyled::dock_state;
 
 #[test]

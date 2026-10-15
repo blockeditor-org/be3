@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, Interactive, List, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 const ROW: f32 = 20.0;
 

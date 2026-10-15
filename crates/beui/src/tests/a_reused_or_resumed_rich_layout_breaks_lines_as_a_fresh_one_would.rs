@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Piece, RichLayout, SpanStyle};
+use crate::reactive::*;
 use beui_core::font::{FontId, Galley, TextLayout};
 use beui_core::rich::RichOptions;
 

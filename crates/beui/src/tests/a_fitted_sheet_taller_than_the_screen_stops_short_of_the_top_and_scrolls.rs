@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::{NodeRef, with_reactive_scope};
-use crate::styled::ModalSheet;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {

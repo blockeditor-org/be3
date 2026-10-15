@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;

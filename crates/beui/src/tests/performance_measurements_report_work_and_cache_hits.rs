@@ -1,11 +1,12 @@
 use super::*;
-use crate::reactive::{Frame, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn performance_measurements_report_work_and_cache_hits() {
     let document = build(|| {
         view! {
-            <Frame color=Color32::WHITE radius=0 />
+            <Frame fill=Color32::WHITE radius=0.0 />
         }
     });
     let mut harness = Harness::new(document);

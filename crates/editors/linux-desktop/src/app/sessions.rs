@@ -2,7 +2,7 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{
     EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
 };
-use block_editor_beui::beui::reactive::{Memo, create_memo};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::root_settings::RootSettings;
 use block_shell::Workspace;
 use uuid::Uuid;

@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Frame, ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured() {

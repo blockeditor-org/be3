@@ -1,8 +1,7 @@
 use block_editor_beui::be_block::{Calendar, CalendarContent, Root, ViewState};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Frame, Memo, batch, component, create_effect, create_memo, create_signal, untrack, view,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::container_size;
 use block_editor_beui::{BlockQuery, ChildBlock, ChildMode, ChildTarget, Editor};
 use uuid::Uuid;
@@ -29,7 +28,7 @@ pub(crate) fn DesktopCalendar(editor: Editor) -> NodeId {
         Some(room.map_or(HEIGHT, |room| room.min(HEIGHT)))
     });
     view! {
-        <Frame max_width=CALENDAR_WIDTH height={height} @test_id={"desktop.calendar"}>
+        <Frame width={Extent::at_most(CALENDAR_WIDTH)} height=height @test_id={"desktop.calendar"}>
             <ChildBlock editor={editor} block={target} mode=ChildMode::Live own_frame=true />
         </Frame>
     }

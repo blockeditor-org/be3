@@ -10,10 +10,8 @@ use beui_core::geometry::{Rect, pos2};
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_view::reactive::{
-    Callback, Drawing, Interactive, Memo, Prop, ReadSignal, Render, create_memo, create_signal,
-    untrack,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const MINIMUM_THUMB: f32 = 0.08;
 

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Separator, Theme};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_bare_separator_rules_across_the_column_it_sits_in() {

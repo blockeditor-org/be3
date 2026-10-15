@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{Button, List, NodeRef, Show, Text, build, create_signal, view};
+use crate::primitives::*;
+use crate::reactive::*;
+use crate::unstyled::Button;
 
 #[test]
 fn a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it() {

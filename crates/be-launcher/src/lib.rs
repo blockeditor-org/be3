@@ -27,12 +27,11 @@ mod tests;
 #[cfg(not(target_os = "android"))]
 use std::error::Error;
 
-use beui::styled::DocumentTheme;
+use beui::styled::*;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 
-use beui::reactive::{Frame, build, view, with_reactive_scope};
-use beui::styled::use_theme;
+use beui::reactive::*;
 use beui::{App, Color32, Context, Document, Rect, Setup};
 
 use model::Model;
@@ -83,7 +82,7 @@ impl LauncherApp {
             let model = model(tasks.clone());
             exported = Some(model);
             view! {
-                <Frame color={theme.background} radius=0>
+                <Frame fill={theme.background} radius=0.0>
                     <Launcher model />
                 </Frame>
             }

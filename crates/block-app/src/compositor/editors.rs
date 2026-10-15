@@ -5,12 +5,8 @@ use std::{
 };
 
 use be_graph::Access;
-use beui::reactive::{
-    Callback, Canvas, CanvasItem, ClickCallback, Dynamic, ForEach, Frame, Interactive, Layers,
-    Memo, NodeRef, Overlay, OverlayAnchor, OwnedStored, Placement, PlacementBuilder, Portal, Prop,
-    ReadSignal, Show, Stored, WriteSignal, component, create_effect, create_memo, create_signal,
-    on_cleanup, on_global_key, provide_context, store, use_context, view, with_document,
-};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
@@ -906,7 +902,7 @@ enum Resolution {
 fn Notice(item: HostItem) -> NodeId {
     let content = create_memo(move || item.clone());
     view! {
-        <Frame align_horizontal=beui::Align::Center align_vertical=beui::Align::Center>
+        <Frame align=beui::Align::Center>
             <HostItemFace content />
         </Frame>
     }

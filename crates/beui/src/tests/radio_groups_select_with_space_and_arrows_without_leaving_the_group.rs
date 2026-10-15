@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::RadioGroup;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {

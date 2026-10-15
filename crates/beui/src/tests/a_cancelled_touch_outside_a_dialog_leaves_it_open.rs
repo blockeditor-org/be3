@@ -1,6 +1,7 @@
 use super::*;
-use crate::reactive::{Text, build, create_signal, view, with_reactive_scope};
-use crate::styled::Dialog;
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {

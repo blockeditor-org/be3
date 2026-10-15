@@ -1,13 +1,14 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ForEach, List, Text, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]
 fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes() {
     let document = build(|| {
         view! {
-            <Frame color=Color32::BLACK radius=0>
+            <Frame fill=Color32::BLACK radius=0.0>
                 <List spacing=0.0>
                     <Frame height=200.0>
                         <Scroll @test_id="scroll">

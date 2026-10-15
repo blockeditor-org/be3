@@ -5,12 +5,8 @@ use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FOLDER};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, component, create_memo,
-    view,
-};
-use block_editor_beui::beui::styled::{Icon, Text, TextColor, TextStyle};
-use block_editor_beui::beui::styled::{IconButton, Scroll, use_theme};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
@@ -53,7 +49,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame fill={theme.background} padding=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={empty}>
                     <Text

@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{Frame, Interactive, List, NodeRef, build, view};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn pointer_motion_only_reaches_what_lies_under_the_pointer() {

@@ -6,8 +6,8 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
     let panels = three_panels();
     let (top, middle, bottom) = (panels.top, panels.middle, panels.bottom);
     let mut document = panels.document;
-    document.set_frame_height(top, Some(40.0));
-    document.set_frame_height(bottom, Some(40.0));
+    document.set_frame_height(top, Extent::px(40.0));
+    document.set_frame_height(bottom, Extent::px(40.0));
     let (_, paints) = counted(&mut document, middle);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

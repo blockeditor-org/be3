@@ -1,12 +1,7 @@
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
-use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, create_signal,
-    view,
-};
-use block_editor_beui::beui::styled::{
-    Accordion, ButtonVariant, IconButton, IconButtonSize, TextColor, use_theme,
-};
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, NodeId};
 use uuid::Uuid;
@@ -14,10 +9,9 @@ use uuid::Uuid;
 use crate::geometry::entity_kind_label;
 
 use super::state::CanvasState;
-use block_editor_beui::beui::styled::{Text, TextStyle};
 
 const ROW_PADDING: f32 = 4.0;
-const ROW_RADIUS: u8 = 4;
+const ROW_RADIUS: f32 = 4.0;
 
 #[derive(Clone, Copy, PartialEq)]
 struct Layer(Uuid);
@@ -103,11 +97,9 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                 });
                 view! {
                     <Frame
-                        color={fill}
+                        fill=fill
                         radius=ROW_RADIUS
-                        outline={theme.accent}
-                        outline_width=1.0
-                        outline_visible={handle.over}
+                        outline={create_memo(move || handle.over.get().then(|| Outline::new(theme.accent.get(), 1.0)))}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                             <IconButton
@@ -128,7 +120,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                                 @test_id={format!("infinite-canvas.layer.{id}")}
                             >
                                 {move |_: DragHandle| view! {
-                                    <Frame padding_vertical=ROW_PADDING>
+                                    <Frame padding={Sides::vertical(ROW_PADDING)}>
                                         <Text string={label} color={text} />
                                     </Frame>
                                 }}
@@ -146,10 +138,9 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised}
+            fill={theme.surface_raised}
             radius=ROW_RADIUS
-            padding_horizontal=8.0
-            padding_vertical=ROW_PADDING
+            padding={Sides::symmetric(8.0, ROW_PADDING)}
         >
             <Text string={label} />
         </Frame>

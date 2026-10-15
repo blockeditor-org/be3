@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{BlockQuery, Loaded};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;

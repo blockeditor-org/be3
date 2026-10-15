@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::view;
-use crate::styled::{Listbox, Tabs};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {

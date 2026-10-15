@@ -3,11 +3,8 @@ use std::collections::HashMap;
 
 use beui::NodeId;
 use beui::icons::ICON_PLAY_ARROW;
-use beui::reactive::{
-    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Stored, WriteSignal, component,
-    create_memo, create_signal, store, view,
-};
-use beui::styled::{ButtonVariant, Spinner, SplitButton};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::unstyled::MenuItem;
 
 use crate::android;
@@ -15,7 +12,6 @@ use crate::builds::{self, Build, Installed, Object, Slot};
 use crate::github::{Entry, PullRequest};
 use crate::model::{Cache, Loaded, Model};
 use crate::tasks::{self, Tasks};
-use beui::styled::{Text, TextColor, TextStyle};
 
 const APP: &str = "app.apk";
 const LAUNCHER: &str = "launcher.apk";

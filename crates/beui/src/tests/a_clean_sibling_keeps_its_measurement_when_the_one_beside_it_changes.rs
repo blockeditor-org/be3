@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::view;
+use crate::reactive::*;
 
 #[test]
 fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {

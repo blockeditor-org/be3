@@ -1,9 +1,7 @@
 use super::*;
-use crate::reactive::{Text, view};
-use crate::styled::{
-    Accordion, Button, Checkbox, ListRow, Listbox, RadioGroup, Slider, Switch, Tabs, TextInput,
-    ToggleButton,
-};
+use crate::primitives::Text;
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {

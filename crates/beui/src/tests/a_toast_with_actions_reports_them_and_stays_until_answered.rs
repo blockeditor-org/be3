@@ -1,5 +1,5 @@
 use super::*;
-use crate::styled::{TOAST_DURATION, Toast, ToastAction, Toasts};
+use crate::styled::*;
 
 #[test]
 fn a_toast_with_actions_reports_them_and_stays_until_answered() {

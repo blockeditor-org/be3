@@ -7,11 +7,8 @@ use beui_core::input::{CursorIcon, Key, PointerPress};
 use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
 use beui_core::node::NodeId;
 use beui_core::tree::component_node;
-use beui_view::reactive::{
-    Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, ShowKeepAlive,
-    StoredCell, component_accessibility, create_effect, create_memo, create_signal, on_key,
-    set_component_state,
-};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const DRAG_THRESHOLD: f32 = 2.0;
 

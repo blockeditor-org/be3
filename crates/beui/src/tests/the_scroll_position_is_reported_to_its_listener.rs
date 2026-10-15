@@ -1,5 +1,6 @@
 use super::*;
-use crate::reactive::{ForEach, ItemSize, List, Offset, build};
+use crate::primitives::*;
+use crate::reactive::*;
 
 #[test]
 fn the_scroll_position_is_reported_to_its_listener() {

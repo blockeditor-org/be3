@@ -1,7 +1,5 @@
-use beui::styled::Docking;
+use beui::styled::*;
 use beui::unstyled::{DockPane, DockTab, DockingLayout};
-
-use beui::reactive::Layers;
 
 use super::*;
 

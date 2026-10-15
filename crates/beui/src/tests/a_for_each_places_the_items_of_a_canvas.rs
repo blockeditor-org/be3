@@ -1,7 +1,6 @@
 use super::*;
-use crate::reactive::{
-    Canvas, CanvasItem, ForEach, ItemSize, List, Text, build, create_signal, view,
-};
+use crate::primitives::*;
+use crate::reactive::*;
 use crate::unstyled::Button;
 
 #[test]

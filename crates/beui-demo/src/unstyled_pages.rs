@@ -1,8 +1,5 @@
 use super::*;
 use beui::Pos2;
-use beui::reactive::IntoProp;
-use beui::reactive::NodeRef;
-use beui::styled::{Text, TextColor, Weight};
 use beui::unstyled::{
     ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
     DropHandle, MenuButtonHandle, MenuRowHandle, PopoverTriggerHandle, ScrollHandle,
@@ -19,7 +16,7 @@ use beui::unstyled::{
 
 const FACE_PADDING_HORIZONTAL: f32 = 16.0;
 const FACE_PADDING_VERTICAL: f32 = 10.0;
-const PILL_RADIUS: u8 = 18;
+const PILL_RADIUS: f32 = 18.0;
 const BOX_SIZE: f32 = 20.0;
 const MARK_SIZE: f32 = 10.0;
 const METER_HEIGHT: f32 = 28.0;
@@ -88,10 +85,9 @@ fn PressCounter() -> NodeId {
                 on_active_change={move |on| set_active.set(on)}
             >
                 <Frame
-                    color={fill}
+                    fill=fill
                     radius=RADIUS
-                    padding_horizontal=FACE_PADDING_HORIZONTAL
-                    padding_vertical=FACE_PADDING_VERTICAL
+                    padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
                     <Text string={label} />
                 </Frame>
@@ -139,14 +135,10 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
     });
     view! {
         <Frame
-            color={fill}
+            fill=fill
             radius=PILL_RADIUS
-            outline={theme.text}
-            outline_width=2.0
-            outline_offset=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=FACE_PADDING_HORIZONTAL
-            padding_vertical=FACE_PADDING_VERTICAL
+            outline={focus_outline(focused, theme.text, 2.0, 2.0)}
+            padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text string={label.to_owned()} color=TextColor::OnAccent weight=Weight::Bold />
         </Frame>
@@ -182,29 +174,15 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
         false => theme.text_muted.get(),
     });
     view! {
-        <Frame
-            outline={theme.accent}
-            outline_width=2.0
-            outline_offset=2.0
-            radius=RADIUS
-            outline_visible={focus_ring(focused)}
-        >
+        <Frame outline={focus_outline(focused, theme.accent, 2.0, 2.0)} radius=RADIUS>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    outline={border}
-                    outline_width=2.0
-                    outline_visible=true
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    outline={create_memo(move || Some(Outline::new(border.get(), 2.0)))}
+                    align=Align::Center
                 >
-                    <Frame
-                        width=MARK_SIZE
-                        height=MARK_SIZE
-                        color={theme.accent}
-                        visible={checked}
-                    />
+                    <Frame width=MARK_SIZE height=MARK_SIZE fill={theme.accent} visible={checked} />
                 </Frame>
                 <Text string={label.to_owned()} />
             </List>
@@ -281,15 +259,12 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
     view! {
         <Frame
             height=METER_HEIGHT
-            color={theme.track}
+            fill={theme.track}
             radius=RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_offset=2.0
-            outline_visible={focus_ring(focused)}
+            outline={focus_outline(focused, theme.accent, 2.0, 2.0)}
         >
             <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing={filled} height=METER_HEIGHT color={theme.accent} radius=RADIUS />
+                <Frame @sizing={filled} height=METER_HEIGHT fill={theme.accent} radius=RADIUS />
                 <Spacer @sizing={rest} />
             </List>
         </Frame>
@@ -342,7 +317,7 @@ fn UnderlinedField(handle: TextInputHandle) -> NodeId {
     view! {
         <List spacing=6.0>
             {field}
-            <Frame height=UNDERLINE color={line} />
+            <Frame height=UNDERLINE fill=line />
         </List>
     }
 }
@@ -393,12 +368,7 @@ fn SegmentedControl() -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame
-                color={theme.surface_raised}
-                radius=PILL_RADIUS
-                padding_horizontal=4.0
-                padding_vertical=4.0
-            >
+            <Frame fill={theme.surface_raised} radius=PILL_RADIUS padding=4.0>
                 <unstyled::Choice
                     options={view! {
                         <ChoiceOption label="List" />
@@ -443,13 +413,10 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
     });
     view! {
         <Frame
-            color={fill}
+            fill=fill
             radius=PILL_RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=14.0
-            padding_vertical=6.0
+            outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
+            padding={Sides::symmetric(14.0, 6.0)}
         >
             <Text string={label} color={ink} />
         </Frame>
@@ -497,30 +464,20 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     view! {
-        <Frame
-            outline={theme.accent}
-            outline_width=2.0
-            radius=RADIUS
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=4.0
-            padding_vertical=4.0
-        >
+        <Frame outline={focus_outline(focused, theme.accent, 2.0, 0.0)} radius=RADIUS padding=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    radius=10
-                    outline={theme.text_muted}
-                    outline_width=2.0
-                    outline_visible=true
-                    align_horizontal=Align::Center
-                    align_vertical=Align::Center
+                    radius=10.0
+                    outline={create_memo(move || Some(Outline::new(theme.text_muted.get(), 2.0)))}
+                    align=Align::Center
                 >
                     <Frame
                         width=MARK_SIZE
                         height=MARK_SIZE
-                        radius=5
-                        color={theme.accent}
+                        radius=5.0
+                        fill={theme.accent}
                         visible={selected}
                     />
                 </Frame>
@@ -622,13 +579,10 @@ fn PopupPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=PANEL_WIDTH
-            color={theme.surface_raised}
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
+            fill={theme.surface_raised}
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
             radius=CARD_RADIUS
-            padding_horizontal=12.0
-            padding_vertical=12.0
+            padding=12.0
         >
             {children}
         </Frame>
@@ -680,7 +634,7 @@ fn HintTooltip() -> NodeId {
             <unstyled::Tooltip
                 label="Saved two minutes ago"
                 content={move |handle: TooltipHandle| view! {
-                    <Frame padding_vertical=4.0>
+                    <Frame padding={Sides::vertical(4.0)}>
                         <PopupPanel>
                             <Text string={handle.label} color={ink} />
                         </PopupPanel>
@@ -688,10 +642,9 @@ fn HintTooltip() -> NodeId {
                 }}
             >
                 <Frame
-                    color={theme.surface_raised}
+                    fill={theme.surface_raised}
                     radius=RADIUS
-                    padding_horizontal=FACE_PADDING_HORIZONTAL
-                    padding_vertical=FACE_PADDING_VERTICAL
+                    padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
                     <Text string="Hover me" />
                 </Frame>
@@ -792,7 +745,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     view! {
-        <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
+        <Frame fill=fill radius=RADIUS padding={Sides::symmetric(10.0, 6.0)}>
             <Text string={label} />
         </Frame>
     }
@@ -847,12 +800,9 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
                 view! {
                     <Frame
                         height=BIN_HEIGHT
-                        outline={edge}
-                        outline_width=2.0
-                        outline_visible=true
+                        outline={create_memo(move || Some(Outline::new(edge.get(), 2.0)))}
                         radius=CARD_RADIUS
-                        padding_horizontal=12.0
-                        padding_vertical=12.0
+                        padding=12.0
                     >
                         <List spacing=8.0>
                             <Text string={BINS[bin].to_owned()} color=TextColor::Muted />
@@ -887,7 +837,7 @@ fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
         false => theme.surface_raised.get(),
     });
     view! {
-        <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
+        <Frame fill=fill radius=RADIUS padding={Sides::symmetric(10.0, 6.0)}>
             <Text string={PRODUCE[fruit].to_owned()} />
         </Frame>
     }
@@ -912,13 +862,16 @@ pub(crate) fn ScrollingPage() -> NodeId {
 fn ThinScroll() -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame outline={theme.border} outline_width=1.0 outline_visible=true radius=CARD_RADIUS>
+        <Frame
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+            radius=CARD_RADIUS
+        >
             <List spacing=0.0>
                 <unstyled::Scroll
                     @sizing=ItemSize::Fixed(SCROLL_HEIGHT)
                     scrollbar={thin_scrollbar()}
                 >
-                    <Frame padding_horizontal=12.0 padding_vertical=12.0>
+                    <Frame padding=12.0>
                         <List spacing=6.0>
                             <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>
                                 {move |line: usize| view! {
@@ -1027,13 +980,10 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
     });
     view! {
         <Frame
-            color={fill}
+            fill=fill
             radius=RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=10.0
-            padding_vertical=6.0
+            outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
+            padding={Sides::symmetric(10.0, 6.0)}
         >
             <Text string={name.to_owned()} />
         </Frame>
@@ -1088,13 +1038,10 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
     });
     view! {
         <Frame
-            color={fill}
+            fill=fill
             radius=RADIUS
-            outline={theme.accent}
-            outline_width=2.0
-            outline_visible={focus_ring(focused)}
-            padding_horizontal=FACE_PADDING_HORIZONTAL
-            padding_vertical=FACE_PADDING_VERTICAL
+            outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
+            padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text string={text} align=TextAlign::Center />
         </Frame>
@@ -1175,7 +1122,7 @@ fn HueAndHex() -> NodeId {
                 }}
             </Swatches>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Frame width=SWATCH_SIZE height=SWATCH_SIZE radius=RADIUS color={shown} />
+                <Frame width=SWATCH_SIZE height=SWATCH_SIZE radius=RADIUS fill=shown />
                 <unstyled::TextInput
                     @sizing=ItemSize::Percent(100.0)
                     value={hex.text()}
@@ -1206,13 +1153,7 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
         )
     });
     view! {
-        <Frame
-            height=PAD_HEIGHT
-            color={fill}
-            radius=RADIUS
-            padding_horizontal=8.0
-            padding_vertical=8.0
-        >
+        <Frame height=PAD_HEIGHT fill=fill radius=RADIUS padding=8.0>
             <Text string={place} color={TextColor::Custom(Color32::WHITE)} />
         </Frame>
     }
@@ -1233,12 +1174,9 @@ fn SwatchDot(handle: SwatchHandle) -> NodeId {
         <Frame
             width=DOT_SIZE
             height=DOT_SIZE
-            color
+            fill=color
             radius=PILL_RADIUS
-            outline={theme.text}
-            outline_width=2.0
-            outline_offset=2.0
-            outline_visible={ring}
+            outline={create_memo(move || ring.get().then(|| Outline::new(theme.text.get(), 2.0).offset(2.0)))}
         />
     }
 }
@@ -1364,13 +1302,10 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
             </Frame>
             <Frame
                 @sizing=ItemSize::Percent(100.0)
-                color={fill}
+                fill=fill
                 radius=RADIUS
-                outline={theme.accent}
-                outline_width=2.0
-                outline_visible={focus_ring(focused)}
-                padding_horizontal=6.0
-                padding_vertical=3.0
+                outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
+                padding={Sides::symmetric(6.0, 3.0)}
             >
                 <unstyled::TreeRowArea target>
                     <Text string={label} />
@@ -1391,9 +1326,7 @@ fn PlainNote() -> NodeId {
     view! {
         <Frame
             height=NOTE_HEIGHT
-            outline={theme.border}
-            outline_width=1.0
-            outline_visible=true
+            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
             radius=RADIUS
         >
             <unstyled::TextContextMenu
@@ -1448,7 +1381,7 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     view! {
-        <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=4.0>
+        <Frame fill=fill radius=RADIUS padding={Sides::symmetric(10.0, 4.0)}>
             <Text string={label} />
         </Frame>
     }
@@ -1478,11 +1411,11 @@ fn PullUpSheet() -> NodeId {
                     <SheetGrip />
                 }}
                 panel={move |content: Child| view! {
-                    <Frame color={theme.surface} radius=CARD_RADIUS>{content}</Frame>
+                    <Frame fill={theme.surface} radius=CARD_RADIUS>{content}</Frame>
                 }}
                 on_close={move || closing.set(false)}
             >
-                <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+                <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
                         <Text
                             string="Swipe the sheet down, tap above, or press Escape to close."
@@ -1523,7 +1456,7 @@ fn FolderPages() -> NodeId {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
         let (page, ink) = (page, ink);
         view! {
-            <Frame color={page} radius=0>
+            <Frame fill=page radius=0.0>
                 <Text string={label} color={ink} wrap=true />
             </Frame>
         }
@@ -1535,7 +1468,7 @@ fn FolderPages() -> NodeId {
             on_back={move || rising.set(depth.get_untracked().saturating_sub(1))}
             behind={above}
         >
-            <Frame color={page} radius=0>
+            <Frame fill=page radius=0.0>
                 <List spacing=SECTION_SPACING>
                     <Text string={label} color={ink} wrap=true />
                     <List direction=Direction::Horizontal spacing=0.0>
@@ -1557,8 +1490,8 @@ fn FolderPages() -> NodeId {
 fn SheetGrip() -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame height=24.0 align_horizontal=Align::Center align_vertical=Align::Center>
-            <Frame width=36.0 height=4.0 radius=2 color={theme.text_muted} />
+        <Frame height=24.0 align=Align::Center>
+            <Frame width=36.0 height=4.0 radius=2.0 fill={theme.text_muted} />
         </Frame>
     }
 }
@@ -1585,7 +1518,7 @@ fn DeadlinePicker() -> NodeId {
                         <Text string={text} color=TextColor::Muted />
                     }}
                     segments={move |segments: Child| view! {
-                        <Frame padding_horizontal=10.0 padding_vertical=6.0>{segments}</Frame>
+                        <Frame padding={Sides::symmetric(10.0, 6.0)}>{segments}</Frame>
                     }}
                     field={move |handle: DateTimeBoxHandle| view! {
                         <DateBox handle />
@@ -1623,7 +1556,7 @@ fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
         false => TextColor::Default,
     });
     view! {
-        <Frame color={fill} radius=3 padding_horizontal=2.0>
+        <Frame fill=fill radius=3.0 padding={Sides::horizontal(2.0)}>
             <Text string={text} color={ink} />
         </Frame>
     }
@@ -1645,12 +1578,9 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
     });
     view! {
         <Frame
-            outline={line}
-            outline_width=1.0
-            outline_visible=true
+            outline={create_memo(move || Some(Outline::new(line.get(), 1.0)))}
             radius=RADIUS
-            padding_right=4.0
-            padding_vertical=4.0
+            padding={Sides::vertical(4.0).right(4.0)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 {field}

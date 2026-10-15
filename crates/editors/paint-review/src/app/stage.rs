@@ -1,15 +1,11 @@
-use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Show, component, create_effect,
-    create_memo, create_timer, set_component_state, untrack, view,
-};
-use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
 
 use crate::render::Rendered;
 
 use super::state::{Review, Shown};
-use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
 #[derive(Clone)]
 struct StageState {
@@ -144,7 +140,7 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
     });
 
     view! {
-        <Frame color={theme.background}>
+        <Frame fill={theme.background}>
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={places}>

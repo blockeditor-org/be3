@@ -1,5 +1,5 @@
 use super::*;
-use crate::styled::text_input_value;
+use crate::styled::*;
 use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 
 fn input(id: u64) -> NodeId {

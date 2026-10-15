@@ -10,7 +10,7 @@ use beui_core::color::Color32;
 use beui_core::font::{FontId, Galley, TextLayout};
 use beui_core::geometry::Vec2;
 use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
-use beui_view::reactive::layout_text;
+use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
 use super::state::Snapshot;

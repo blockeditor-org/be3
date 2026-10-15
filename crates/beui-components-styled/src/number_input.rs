@@ -10,7 +10,8 @@ use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Frame, NodeRef, Prop, create_memo, set_component_state};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
@@ -102,12 +103,10 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         <FocusRing focused offset=FOCUS_RING_OFFSET>
             <Frame
                 height=HEIGHT
-                color={fill}
-                outline={theme.border}
-                outline_width=BORDER_WIDTH
+                fill=fill
+                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
                 radius=RADIUS
-                outline_visible=true
-                padding_horizontal=PADDING_HORIZONTAL
+                padding={Sides::horizontal(PADDING_HORIZONTAL)}
             >
                 <Text
                     @node_ref=&shown

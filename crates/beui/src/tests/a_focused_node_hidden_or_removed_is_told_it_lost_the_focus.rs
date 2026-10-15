@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::{Portal, Show, with_reactive_scope};
+use crate::primitives::*;
+use crate::reactive::*;
 
 type Heard = Rc<RefCell<Vec<(&'static str, bool)>>>;
 
@@ -13,7 +14,7 @@ fn control(name: &'static str, heard: Heard) -> NodeId {
             @test_id={name}
             on_focus_change={move |focused: bool| heard.borrow_mut().push((name, focused))}
         >
-            <Frame width={Some(80.0)} height={Some(30.0)} />
+            <Frame width=80.0 height=30.0 />
         </Interactive>
     }
 }
