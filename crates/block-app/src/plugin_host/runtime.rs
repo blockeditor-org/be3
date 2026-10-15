@@ -6,6 +6,7 @@ use std::{
     time::Duration,
 };
 
+use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion,
@@ -24,7 +25,7 @@ use super::{
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
-    preview_size,
+    preview_scale,
 };
 
 const HOST_NAME: &str = "BE3";
@@ -144,6 +145,7 @@ pub(super) struct Runtime {
     described: bool,
     painting: bool,
     pub(super) placements: HashMap<(EditorInstanceId, EditorRegion), Placed>,
+    offers: HashMap<(EditorInstanceId, EditorRegion), Vec<Offer>>,
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
@@ -153,6 +155,7 @@ pub(super) struct Placed {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
     pub(super) zoom: f32,
+    shown: Rect,
 }
 
 #[derive(Default)]
@@ -260,6 +263,7 @@ impl Runtime {
             described: false,
             painting: false,
             placements: HashMap::new(),
+            offers: HashMap::new(),
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
             frames: 0,
@@ -1562,22 +1566,47 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
     host::request_repaint();
 }
 
-pub(crate) fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
+pub(crate) fn unmount_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    mount: u64,
+) {
     with(plugin_id, |runtime| {
-        runtime.placements.remove(&(instance, region));
-        runtime.instances.unmount(instance, region)
+        runtime.instances.unmount(instance, region);
+        withdraw(runtime, instance, region, mount);
     });
     mark(plugin_id);
     host::request_repaint();
 }
 
-pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
+pub(crate) fn unplace_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    mount: u64,
+) {
     with(plugin_id, |runtime| {
-        runtime.placements.remove(&(instance, region));
-        runtime.instances.unplace(instance, region)
+        withdraw(runtime, instance, region, mount)
     });
     mark(plugin_id);
     host::request_repaint();
+}
+
+fn withdraw(runtime: &mut Runtime, instance: EditorInstanceId, region: EditorRegion, mount: u64) {
+    let key = (instance, region);
+    let remaining = runtime.offers.get_mut(&key).map_or(0, |offers| {
+        offers.retain(|offer| offer.mount != mount);
+        offers.len()
+    });
+    match remaining {
+        0 => {
+            runtime.offers.remove(&key);
+            runtime.placements.remove(&key);
+            runtime.instances.unplace(instance, region);
+        }
+        _ => apply_offers(runtime, instance, region),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1588,10 +1617,18 @@ pub(crate) struct RegionPlacement {
     pub(crate) screens: Vec<beui::Screen>,
 }
 
+pub(super) struct Offer {
+    mount: u64,
+    placement: RegionPlacement,
+    frame: Option<FrameSpec>,
+    view: Option<EditorView>,
+}
+
 pub(crate) fn place_region(
     plugin_id: &str,
     instance: EditorInstanceId,
     region: EditorRegion,
+    mount: u64,
     placement: RegionPlacement,
     frame: Option<FrameSpec>,
     view: Option<EditorView>,
@@ -1600,56 +1637,92 @@ pub(crate) fn place_region(
         if !runtime.instances.mounted(instance, region) {
             return;
         }
-        runtime.placed = host::pass();
-        let RegionPlacement {
-            rect,
-            clip,
-            zoom,
-            screens,
-        } = placement;
-        let zoom = match zoom.is_finite() && zoom > 0.0 && region != EditorRegion::Preview {
-            true => zoom,
-            false => 1.0,
-        };
-        runtime
-            .placements
-            .insert((instance, region), Placed { rect, clip, zoom });
-        let (size, scale_factor) = match region {
-            EditorRegion::Preview => (
-                preview_size(rect.size(), host::pixels_per_point()),
-                host::pixels_per_point(),
-            ),
-            _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
-        };
-        let cropped = Quad::upright(rect).crop_to(clip);
-        let visible = cropped
-            .as_ref()
-            .map_or(Rect::ZERO, |(_, source)| scale_rect(*source, size));
-        let monitors = region_monitors(&screens, rect, size);
-        runtime.instances.place_mounted(
-            instance,
-            region,
+        let offers = runtime.offers.entry((instance, region)).or_default();
+        let offer = Offer {
+            mount,
+            placement,
             frame,
-            size,
-            visible,
-            scale_factor,
-            monitors,
-        );
-        if let Some(view) = view {
-            runtime.instances.set_view(instance, view);
+            view,
+        };
+        match offers.iter_mut().find(|held| held.mount == mount) {
+            Some(held) => *held = offer,
+            None => offers.push(offer),
         }
-        runtime.instances.place(
-            instance,
-            region,
-            Placement {
-                rect,
-                clip,
-                pass: runtime.pass,
-            },
-        );
+        apply_offers(runtime, instance, region);
         mark(plugin_id);
     });
     host::request_repaint();
+}
+
+fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: EditorRegion) {
+    let Some(offers) = runtime.offers.get(&(instance, region)) else {
+        return;
+    };
+    let area = |offer: &Offer| offer.placement.rect.width() * offer.placement.rect.height();
+    let Some(chosen) = offers.iter().max_by(|a, b| area(a).total_cmp(&area(b))) else {
+        return;
+    };
+    let shown = offers
+        .iter()
+        .filter_map(|offer| {
+            Quad::upright(offer.placement.rect)
+                .crop_to(offer.placement.clip)
+                .map(|(_, source)| source)
+        })
+        .reduce(|shown, source| shown.union(source));
+    let frame = chosen.frame;
+    let view = chosen.view;
+    let RegionPlacement {
+        rect,
+        clip,
+        zoom,
+        ref screens,
+    } = chosen.placement;
+    let screens = screens.clone();
+    runtime.placed = host::pass();
+    let zoom = match zoom.is_finite() && zoom > 0.0 && region != EditorRegion::Preview {
+        true => zoom,
+        false => 1.0,
+    };
+    runtime.placements.insert(
+        (instance, region),
+        Placed {
+            rect,
+            clip,
+            zoom,
+            shown: shown.unwrap_or(Rect::ZERO),
+        },
+    );
+    let (size, scale_factor) = match region {
+        EditorRegion::Preview => (
+            rect.size(),
+            preview_scale(rect.size(), host::pixels_per_point()),
+        ),
+        _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
+    };
+    let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
+    let monitors = region_monitors(&screens, rect, size);
+    runtime.instances.place_mounted(
+        instance,
+        region,
+        frame,
+        size,
+        visible,
+        scale_factor,
+        monitors,
+    );
+    if let Some(view) = view {
+        runtime.instances.set_view(instance, view);
+    }
+    runtime.instances.place(
+        instance,
+        region,
+        Placement {
+            rect,
+            clip,
+            pass: runtime.pass,
+        },
+    );
 }
 
 fn region_monitors(screens: &[beui::Screen], rect: Rect, size: Vec2) -> Vec<Monitor> {
@@ -1817,7 +1890,7 @@ impl RegionView {
     }
 }
 
-fn pieces_of(rect: Rect, visible: Rect, shown: &[Rect]) -> Vec<Piece> {
+fn pieces_of(rect: Rect, visible: Rect, textured: Rect, shown: &[Rect]) -> Vec<Piece> {
     let fraction = |at: Rect, of: Rect| {
         Rect::from_min_max(
             pos2(
@@ -1832,11 +1905,11 @@ fn pieces_of(rect: Rect, visible: Rect, shown: &[Rect]) -> Vec<Piece> {
     };
     shown
         .iter()
-        .map(|piece| piece.intersect(visible))
+        .map(|piece| piece.intersect(visible).intersect(textured))
         .filter(|piece| piece.is_positive())
         .map(|piece| Piece {
             local: fraction(piece, rect),
-            source: fraction(piece, visible),
+            source: fraction(piece, textured),
         })
         .collect()
 }
@@ -1845,6 +1918,7 @@ pub(crate) fn region_view(
     plugin: &PluginManifest,
     instance: EditorInstanceId,
     region: EditorRegion,
+    own: Option<EmbedPlacement>,
 ) -> RegionView {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -1856,7 +1930,7 @@ pub(crate) fn region_view(
             runtime
                 .error
                 .is_none()
-                .then(|| placed_view(runtime, instance, region))
+                .then(|| placed_view(runtime, instance, region, own))
         });
         match (view, runtime.error.clone()) {
             (_, Some(error)) => RegionView::failed(error, true),
@@ -1870,6 +1944,7 @@ fn placed_view(
     runtime: &mut Runtime,
     instance: EditorInstanceId,
     region: EditorRegion,
+    own: Option<EmbedPlacement>,
 ) -> RegionView {
     {
         if let Some(stopped) = runtime.instances.stopped(instance, region) {
@@ -1884,15 +1959,27 @@ fn placed_view(
         let Some(placement) = runtime.instances.placement(instance, region) else {
             return RegionView::waiting();
         };
-        let (rect, clip) = (placement.rect, placement.clip);
+        let chosen = (placement.rect, placement.clip);
+        let (rect, clip) = own.map_or(chosen, |own| (own.rect, own.clip));
         let screen = runtime.instances.screen_id(instance, region);
         let drawn = screen
             .and_then(|screen| runtime.layout.placement(screen))
             .map(|placement| (placement.width, placement.height));
         let visible = rect.intersect(clip);
-        let held = runtime
-            .instances
-            .held(instance, region, Some(visible), clip, drawn);
+        let shown = runtime
+            .placements
+            .get(&(instance, region))
+            .map_or(UNIT, |placed| placed.shown);
+        let textured = Rect::from_min_max(
+            rect.min + vec2(shown.min.x * rect.width(), shown.min.y * rect.height()),
+            rect.min + vec2(shown.max.x * rect.width(), shown.max.y * rect.height()),
+        );
+        let held = match (rect, clip) == chosen {
+            true => runtime
+                .instances
+                .held(instance, region, Some(visible), clip, drawn),
+            false => None,
+        };
         let (children, holes) = runtime
             .instances
             .host_children(instance, region, rect, clip);
@@ -1955,8 +2042,8 @@ fn placed_view(
                 Vec::new(),
             ),
             None => (
-                pieces_of(rect, visible, &base),
-                pieces_of(rect, visible, &floating_rects),
+                pieces_of(rect, visible, textured, &base),
+                pieces_of(rect, visible, textured, &floating_rects),
             ),
         };
         let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());

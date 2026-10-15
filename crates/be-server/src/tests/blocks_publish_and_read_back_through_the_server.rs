@@ -25,8 +25,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
             chunks: chunks.clone(),
             time: 1_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;
@@ -60,8 +59,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
             chunks: next_chunks,
             time: 2_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;
