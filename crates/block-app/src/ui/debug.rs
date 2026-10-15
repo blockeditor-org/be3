@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, VirtualList, component,
-    create_memo, on_cleanup, use_context, view,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, VirtualList,
+    component, create_memo, on_cleanup, use_context, view,
 };
 use beui::styled::{Button, ButtonVariant, Link, Scroll, Spinner, Weight, use_theme};
 use block_plugin_api::HostPanel;
@@ -167,9 +167,9 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
     view! {
         <Scroll>
             <VirtualList keys={keys} item_size=LINE_HEIGHT>
-                {move |index: usize| {
+                {move |index: ReadSignal<usize>| {
                     let lines = lines;
-                    let line = create_memo(move || lines.get().get(index).cloned());
+                    let line = create_memo(move || lines.with(|lines| lines.get(index.get()).cloned()));
                     view! {
                         <LineView line />
                     }

@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::{
-    ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view, with_document,
+    ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, create_binding,
+    create_memo, view, with_document,
 };
 
 const ROWS: usize = 1000;
@@ -21,13 +22,16 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
-                            {move |index: usize| {
-                                let walk = with_document(|document| {
-                                    document.laying_out().map(|_| document.layout_pass())
+                            {move |index: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    index.get();
+                                    let walk = with_document(|document| {
+                                        document.laying_out().map(|_| document.layout_pass())
+                                    });
+                                    set_built.update(|built| built.push(walk));
                                 });
-                                set_built.update(|built| built.push(walk));
                                 view! {
-                                    <Frame height={height(index)}>
+                                    <Frame height={create_memo(move || height(index.get()))}>
                                         <Spacer />
                                     </Frame>
                                 }

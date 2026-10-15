@@ -4,8 +4,8 @@ use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldT
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, VirtualList, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, VirtualList,
+    component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     ButtonVariant, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
@@ -233,7 +233,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                             </Frame>
                             <Scroll @sizing=ItemSize::Percent(100.0)>
                                 <VirtualList keys={keys} item_size=CARD_HEIGHT overscan=CARD_HEIGHT>
-                                    {move |row: usize| {
+                                    {move |row: ReadSignal<usize>| {
                                         view! {
                                             <Frame padding_bottom={Some(CARD_SPACING)}>
                                                 <KanbanCard data={data} row={row} />
@@ -251,15 +251,16 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
 }
 
 #[component]
-fn KanbanCard(data: Data, row: usize) -> NodeId {
+fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
     let selected = create_memo(move || {
         data.selected
             .get()
-            .is_some_and(|selection| selection.row == row)
+            .is_some_and(|selection| selection.row == row.get())
     });
-    let pick = move || data.select(row, None);
+    let pick = move || data.select(row.get_untracked(), None);
     let read_only = data.read_only;
-    let payload = create_memo(move || (!read_only.get()).then_some(row));
+    let payload = create_memo(move || (!read_only.get()).then(|| row.get()));
+    let test_id = create_memo(move || format!("database-view.card.{}", row.get()));
     let ghost = move |row: usize| {
         view! {
             <Frame width={COLUMN_WIDTH - 16.0} @test_id="database-view.card-ghost">
@@ -270,12 +271,7 @@ fn KanbanCard(data: Data, row: usize) -> NodeId {
     view! {
         <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>
             {move |_: DragHandle| view! {
-                <ListRow
-                    selected={selected}
-                    @test_id={format!("database-view.card.{row}")}
-                    on_click={pick}
-                    on_activate={pick}
-                >
+                <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
                     <CardLines data={data} row={row} />
                 </ListRow>
             }}
@@ -302,11 +298,11 @@ fn CardFace(data: Data, row: usize) -> NodeId {
 }
 
 #[component]
-fn CardLines(data: Data, row: usize) -> NodeId {
-    let entry = create_memo(move || data.rows.with(|rows| rows.get(row).cloned()));
+fn CardLines(data: Data, row: Prop<usize>) -> NodeId {
+    let entry = create_memo(move || data.rows.with(|rows| rows.get(row.get()).cloned()));
     let code = create_memo(move || {
         data.row_ids
-            .with(|ids| ids.get(row).copied())
+            .with(|ids| ids.get(row.get()).copied())
             .map_or_else(String::new, |id: ObjectId| {
                 short_id(&data.prefix.get(), id.as_uuid())
             })

@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::{
-    ItemSize, List, NodeRef, Offset, VirtualList, build, create_memo, create_signal, view,
+    ItemSize, List, NodeRef, Offset, ReadSignal, VirtualList, build, create_binding, create_memo,
+    create_signal, view,
 };
 use crate::styled::Switch;
 
@@ -39,8 +40,11 @@ fn check_compact_rows(inset: f32) {
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size={item_height}
                         >
-                            {move |index: usize| {
-                                set_built.update(|built| built.push(index));
+                            {move |index: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let index = index.get();
+                                    set_built.update(|built| built.push(index));
+                                });
                                 view! {
                                     <Frame padding_horizontal=0.0 padding_vertical={padding}>
                                         <Spacer />

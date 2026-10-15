@@ -10,34 +10,6 @@ use beui_core::base::list::Direction;
 use beui_core::node::NodeId;
 use beui_macros::component;
 
-#[component]
-pub fn VirtualList<K>(
-    keys: Prop<Vec<K>>,
-    item_size: Prop<f32>,
-    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(default = 0.0)] overscan: Prop<f32>,
-    #[prop(children)] item: RenderFn<K>,
-) -> NodeId
-where
-    K: Clone + Hash + Eq + 'static,
-{
-    let list = with_document(|document| document.create_virtual_list(move |key| item.call(key)));
-    create_effect(move || {
-        with_document(|document| document.set_virtual_list_direction::<K>(list, direction.get()))
-    });
-    create_effect(move || {
-        let keys = keys.get();
-        with_document(|document| document.set_virtual_list_keys(list, keys));
-    });
-    create_effect(move || {
-        with_document(|document| document.set_virtual_list_overscan::<K>(list, overscan.get()))
-    });
-    create_effect(move || {
-        with_document(|document| document.set_virtual_list_item_size::<K>(list, item_size.get()))
-    });
-    list.id()
-}
-
 struct Slot<K: 'static> {
     node: NodeId,
     key: OwnedSignal<K>,
@@ -51,7 +23,7 @@ struct Pool<K: 'static> {
 }
 
 #[component]
-pub fn RecyclingVirtualList<K>(
+pub fn VirtualList<K>(
     keys: Prop<Vec<K>>,
     item_size: Prop<f32>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
@@ -70,9 +42,12 @@ where
     let building = Rc::clone(&pool);
     let list = with_document(|document| {
         document.create_virtual_list(move |key: K| {
-            let slot = match reusable(&building) {
+            let slot = match reusable(&building, &key) {
                 Some(slot) => {
-                    slot.key.write().set(key);
+                    if slot.key.read().with_untracked(|shown| *shown != key) {
+                        slot.key.write().set(key);
+                    }
+                    slot.scope.resume();
                     slot.scope.flush_owned();
                     slot
                 }
@@ -80,7 +55,8 @@ where
                     let scope = owner
                         .as_ref()
                         .and_then(|owner| owner.child())
-                        .unwrap_or_else(Scope::detached);
+                        .unwrap_or_else(Scope::detached)
+                        .pausable();
                     let signal = OwnedSignal::new(key);
                     let read = signal.read();
                     let node = scope.run(|| item.call(read));
@@ -103,6 +79,7 @@ where
                 let mut held = releasing.borrow_mut();
                 held.live -= 1;
                 if held.free.len() < held.peak {
+                    slot.scope.pause();
                     held.free.push(slot);
                 }
             });
@@ -126,7 +103,17 @@ where
     list.id()
 }
 
-fn reusable<K>(pool: &Rc<RefCell<Pool<K>>>) -> Option<Slot<K>> {
+fn reusable<K: Eq>(pool: &Rc<RefCell<Pool<K>>>, key: &K) -> Option<Slot<K>> {
+    {
+        let mut held = pool.borrow_mut();
+        if let Some(at) = held
+            .free
+            .iter()
+            .rposition(|slot| slot.key.read().with_untracked(|shown| shown == key))
+        {
+            return Some(held.free.swap_remove(at));
+        }
+    }
     loop {
         let slot = pool.borrow_mut().free.pop()?;
         if !with_document(|document| document.focus_is_within(slot.node)) {

@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
+use crate::reactive::{
+    ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, view,
+};
 
 const ROWS: usize = 4;
 const ESTIMATE: f32 = 10.0;
@@ -21,7 +23,7 @@ fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
                                     keys={indices(ROWS)}
                                     item_size=ESTIMATE
                                 >
-                                    {move |_: usize| view! {
+                                    {move |_: ReadSignal<usize>| view! {
                                         <Frame height=ACTUAL>
                                             <Spacer />
                                         </Frame>

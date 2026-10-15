@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
+use crate::reactive::{
+    ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, create_memo, view,
+};
 
 const ROWS: usize = 1000;
 const ESTIMATE: f32 = 20.0;
@@ -23,8 +25,10 @@ fn nested_offsets_lay_their_content_out_once_a_layout() {
                                     <Offset fit=true>
                                         <Offset fit=true>
                                             <VirtualList keys={indices(ROWS)} item_size=ESTIMATE>
-                                                {move |index: usize| view! {
-                                                    <Frame height={height(index)}>
+                                                {move |index: ReadSignal<usize>| view! {
+                                                    <Frame
+                                                        height={create_memo(move || height(index.get()))}
+                                                    >
                                                         <Spacer />
                                                     </Frame>
                                                 }}

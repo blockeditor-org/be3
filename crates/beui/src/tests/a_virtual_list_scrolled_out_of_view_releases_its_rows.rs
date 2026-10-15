@@ -19,8 +19,11 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
                                 keys={indices(ROWS)}
                                 item_size=VIRTUAL_ITEM_HEIGHT
                             >
-                                {move |key: usize| {
-                                    set_built.update(|built| built.push(key));
+                                {move |key: ReadSignal<usize>| {
+                                    create_binding(move || {
+                                        let key = key.get();
+                                        set_built.update(|built| built.push(key));
+                                    });
                                     view! {
                                         <Frame height=VIRTUAL_ITEM_HEIGHT>
                                             <Spacer />
@@ -48,9 +51,9 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
     harness.document.set_scroll_offset(scroll, BELOW / 2.0);
     harness.frame(Vec::new());
     assert!(harness.document.children(list).is_empty());
-    assert!(rows.iter().all(|&row| !harness.document.contains(row)));
 
     harness.document.set_scroll_offset(scroll, 0.0);
     harness.frame(Vec::new());
-    assert_eq!(built.get_untracked(), indices(ROWS));
+    assert!(built.with_untracked(|built| built.is_empty()));
+    assert_eq!(harness.document.children(list), rows);
 }

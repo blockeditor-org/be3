@@ -5,9 +5,8 @@ use block_editor_beui::be_block::database_schema::{
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, ReadSignal,
-    RecyclingVirtualList, Show,
-    component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, ReadSignal, Show,
+    VirtualList, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
@@ -95,11 +94,11 @@ pub fn ListView(data: Data) -> NodeId {
                                 </Frame>
                             }}
                         </Show>
-                        <RecyclingVirtualList keys={lines} item_size=LINE_HEIGHT>
+                        <VirtualList keys={lines} item_size=LINE_HEIGHT>
                             {move |line: ReadSignal<Line>| view! {
                                 <AnyLine data={data} groups={groups} line={line} />
                             }}
-                        </RecyclingVirtualList>
+                        </VirtualList>
                     </List>
                 </Frame>
             </Scroll>
@@ -306,7 +305,9 @@ fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> Node
                                     Some(key) => view! {
                                         <GroupHeader data={data} groups={groups} key={key} />
                                     },
-                                    None => view! { <Frame /> },
+                                    None => view! {
+                                        <Frame />
+                                    },
                                 }}
                             </Dynamic>
                         </List>
@@ -389,12 +390,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     let (wide_entry, narrow_entry) = (entry, entry);
     let (wide_code, wide_title) = (code, title);
     view! {
-        <ListRow
-            selected={selected}
-            @test_id={test_id}
-            on_click={pick}
-            on_activate={pick}
-        >
+        <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
             <List spacing=0.0>
                 <Show condition={wide}>
                     {move || view! {

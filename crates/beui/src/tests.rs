@@ -223,7 +223,6 @@ mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
-mod a_recycling_virtual_list_shows_new_keys_in_the_rows_that_left;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
 mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
@@ -321,6 +320,7 @@ mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk;
+mod a_virtual_list_shows_new_keys_in_the_rows_that_left;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
@@ -740,7 +740,7 @@ use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
     Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, ReadSignal, Spacer,
-    Text, VirtualList, WriteSignal, build, create_signal, with_document,
+    Text, VirtualList, WriteSignal, build, create_binding, create_signal, with_document,
 };
 use crate::styled;
 use crate::styled::DocumentTheme;
@@ -1482,8 +1482,11 @@ pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
-                            {move |index: usize| {
-                                built.update(|built| built.push(index));
+                            {move |index: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let index = index.get();
+                                    built.update(|built| built.push(index));
+                                });
                                 view! {
                                     <Frame
                                         padding_horizontal=0.0
@@ -1524,8 +1527,11 @@ pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtual
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
-                            {move |key: usize| {
-                                built.update(|built| built.push(key));
+                            {move |key: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let key = key.get();
+                                    built.update(|built| built.push(key));
+                                });
                                 view! {
                                     <Frame height=VIRTUAL_ITEM_HEIGHT>
                                         <Spacer />

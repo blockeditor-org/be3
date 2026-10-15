@@ -8,7 +8,6 @@ fn jumping_up_a_virtual_scroll_only_builds_the_items_in_view() {
     let mut harness = Harness::new(scroll.document);
     harness.document.set_scroll_offset(scroll.scroll, f32::MAX);
     harness.frame(Vec::new());
-    let previous = harness.document.children(scroll.list);
 
     set_built.update(|built| built.clear());
     harness
@@ -20,7 +19,6 @@ fn jumping_up_a_virtual_scroll_only_builds_the_items_in_view() {
     assert_eq!(built.get_untracked(), (0..visible).collect::<Vec<usize>>());
     let children = harness.document.children(scroll.list);
     assert_eq!(children.len(), visible);
-    assert!(previous.iter().all(|&id| !harness.document.contains(id)));
     assert_eq!(harness.rect(children[0]).top(), -VIRTUAL_ITEM_HEIGHT / 2.0);
     assert!(harness.rect(*children.last().unwrap()).bottom() >= VIEWPORT.y);
 

@@ -18,9 +18,10 @@ use text_editor_core::{EditorCommand, MarkdownCommand, SynHlColorScope};
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ForEach, Frame, Gap, Icon, IntoChild, List, Memo, NodeRef,
-    Portal, RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList, component_placed,
-    create_effect, create_memo, on_cleanup, untrack, with_document,
+    Callback, Canvas, CanvasItem, Dynamic, ForEach, Frame, Gap, Icon, IntoChild, List, Memo,
+    NodeRef, Portal, ReadSignal, RenderFn, Show, Span, Text, TextChild, TextItem, VirtualList,
+    component_placed, create_binding, create_effect, create_memo, on_cleanup, untrack,
+    with_document,
 };
 
 use super::colors::TextAreaColors;
@@ -56,7 +57,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             <List spacing=0.0>
                 <Frame height={top} />
                 <VirtualList @node_ref=&list keys item_size=estimate>
-                    {move |line: usize| view! {
+                    {move |line: ReadSignal<usize>| view! {
                         <AreaRow cx={cx} line />
                     }}
                 </VirtualList>
@@ -69,7 +70,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
 #[component]
 pub(super) fn SingleLine(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
-    let model = row_model(cx, 0);
+    let model = row_model(cx, || 0);
     let text = create_memo(move || {
         let row = model.get();
         cx.metrics.get();
@@ -109,8 +110,8 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
 }
 
 #[component]
-fn AreaRow(cx: Context, line: usize) -> NodeId {
-    let model = row_model(cx, line);
+fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
+    let model = row_model(cx, move || line.get());
     let gutter = create_memo(move || Some(cx.gutter.get()));
     let padding = create_memo(move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0));
     let inset = create_memo(move || cx.padding.get().x.min(CODE_OUTSET.x));
@@ -120,12 +121,12 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
     });
     let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
-    let has_block = create_memo(move || renders && block.get().is_some());
+    let shown_block = create_memo(move || block.get().filter(|_| renders).map(|(index, _)| index));
     let block_ref = NodeRef::new();
     let block_node = block_ref;
     let row = NodeRef::new();
     let text = GeometryCell::default();
-    register_row(&cx, line, &row, &text, &block_ref, model);
+    register_row(&cx, move || line.get(), &row, &text, &block_ref, model);
     let gutter_model = model;
     view! {
         <Frame @node_ref=&row>
@@ -137,18 +138,20 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
                     <Frame color={code} padding_horizontal={inset}>
                         <List spacing=0.0>
                             <RowText cx model text wrap=true />
-                            <Show condition={has_block}>
-                                {move || {
-                                    let (index, size) = block.get_untracked().unwrap_or_default();
-                                    let render = cx
-                                        .block
-                                        .expect("a block is only shown when the area was given one");
-                                    let node = block_node;
-                                    view! {
-                                        <BlockSlot @node_ref=&node render index size />
+                            <Dynamic value={shown_block}>
+                                {move |index: Option<usize>| match (index, cx.block) {
+                                    (Some(index), Some(render)) => {
+                                        let size = block.get_untracked().unwrap_or_default().1;
+                                        let node = block_node;
+                                        view! {
+                                            <BlockSlot @node_ref=&node render index size />
+                                        }
                                     }
+                                    _ => view! {
+                                        <Frame />
+                                    },
                                 }}
-                            </Show>
+                            </Dynamic>
                         </List>
                     </Frame>
                 </Frame>
@@ -161,7 +164,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
 fn AreaText(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let row = NodeRef::new();
     let text = GeometryCell::default();
-    register_row(&cx, 0, &row, &text, &NodeRef::new(), model);
+    register_row(&cx, || 0, &row, &text, &NodeRef::new(), model);
     view! {
         <Frame @node_ref=&row>
             <RowText cx model text wrap=false layer=Layer::Text />
@@ -171,32 +174,38 @@ fn AreaText(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
 
 fn register_row(
     cx: &Context,
-    line: usize,
+    line: impl Fn() -> usize + 'static,
     row: &NodeRef,
     geometry: &GeometryCell,
     block: &NodeRef,
     model: Memo<Rc<Row>>,
 ) {
-    let held = cx.held.get();
-    let id = held.registered.get() + 1;
-    held.registered.set(id);
-    held.rows.borrow_mut().insert(
-        line,
-        RowEntry {
-            id,
-            row: *row,
-            geometry: geometry.clone(),
-            model,
-            block: *block,
-        },
-    );
-    let registry = cx.held;
-    on_cleanup(move || {
-        registry.try_with(|held| {
-            let mut rows = held.rows.borrow_mut();
-            if rows.get(&line).is_some_and(|entry| entry.id == id) {
-                rows.remove(&line);
-            }
+    let held = cx.held;
+    let (row, geometry, block) = (*row, geometry.clone(), *block);
+    create_binding(move || {
+        let line = line();
+        let id = held.with(|held| {
+            let id = held.registered.get() + 1;
+            held.registered.set(id);
+            held.rows.borrow_mut().insert(
+                line,
+                RowEntry {
+                    id,
+                    row,
+                    geometry: geometry.clone(),
+                    model,
+                    block,
+                },
+            );
+            id
+        });
+        on_cleanup(move || {
+            held.try_with(|held| {
+                let mut rows = held.rows.borrow_mut();
+                if rows.get(&line).is_some_and(|entry| entry.id == id) {
+                    rows.remove(&line);
+                }
+            });
         });
     });
 }
@@ -303,10 +312,11 @@ fn bytes_hash(bytes: &[u8]) -> u64 {
     foldhash::fast::FixedState::with_seed(0).hash_one(bytes)
 }
 
-fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
+fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
     let content = cx.state.content();
     create_memo(move || {
         content.get();
+        let line = line();
         let starts = cx.starts.get();
         let tables = cx.tables.get();
         let widgets = cx.widgets.get();

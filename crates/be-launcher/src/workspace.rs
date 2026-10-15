@@ -205,9 +205,13 @@ fn TargetList(model: Model) -> NodeId {
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <VirtualList keys item_size=TARGET_ROW>
-                    {move |label: String| {
+                    {move |label: ReadSignal<String>| {
                         let target = create_memo(move || {
-                            shown.get().into_iter().find(|target| target.label == label)
+                            label.with(|label| {
+                                shown.with(|shown| {
+                                    shown.iter().find(|target| &target.label == label).cloned()
+                                })
+                            })
                         });
                         view! {
                             <TargetRow model={model} target />

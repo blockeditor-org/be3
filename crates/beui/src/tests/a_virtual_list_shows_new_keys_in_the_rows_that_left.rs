@@ -1,11 +1,11 @@
 use super::*;
 use crate::reactive::{
-    Frame, Interactive, ItemSize, List, NodeRef, Offset, RecyclingVirtualList, Text, build,
-    create_memo, create_signal, view,
+    Frame, Interactive, ItemSize, List, NodeRef, Offset, Text, VirtualList, build, create_memo,
+    create_signal, view,
 };
 
 #[test]
-fn a_recycling_virtual_list_shows_new_keys_in_the_rows_that_left() {
+fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
     let _root = crate::reactive::RootScope::new();
     let (built, set_built) = create_signal(0usize);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
@@ -14,7 +14,7 @@ fn a_recycling_virtual_list_shows_new_keys_in_the_rows_that_left() {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <RecyclingVirtualList
+                        <VirtualList
                             @node_ref=&list
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
@@ -30,7 +30,7 @@ fn a_recycling_virtual_list_shows_new_keys_in_the_rows_that_left() {
                                     </Interactive>
                                 }
                             }}
-                        </RecyclingVirtualList>
+                        </VirtualList>
                     </Offset>
                 </List>
             }
