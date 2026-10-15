@@ -342,16 +342,31 @@ impl ScreenReader {
                 continue;
             };
             match phase {
-                TouchPhase::Start if content.contains(pos) => self.begin(ctx, id, pos),
+                TouchPhase::Start if content.contains(pos) => self.begin(id, pos),
                 TouchPhase::Start => {}
                 TouchPhase::Move => self.advance(ctx, id, pos, commands),
                 TouchPhase::End => self.finish(ctx, id, pos, false, commands),
                 TouchPhase::Cancel => self.finish(ctx, id, pos, true, commands),
             }
         }
+        self.hold(ctx);
     }
 
-    fn begin(&mut self, ctx: &Context, id: TouchId, pos: Pos2) {
+    fn hold(&mut self, ctx: &Context) {
+        if self.multi {
+            return;
+        }
+        let Some((_, finger)) = self.fingers.first() else {
+            return;
+        };
+        let (held, last) = (self.elapsed(finger.started), finger.last);
+        match held > SWIPE_TIME {
+            true => self.explore(ctx, last),
+            false => ctx.request_repaint_after(SWIPE_TIME - held + Duration::from_millis(1)),
+        }
+    }
+
+    fn begin(&mut self, id: TouchId, pos: Pos2) {
         self.fingers.push((
             id,
             Finger {
@@ -370,7 +385,6 @@ impl ScreenReader {
             return;
         }
         self.finger_at = Some(pos);
-        self.explore(ctx, pos);
     }
 
     fn advance(&mut self, ctx: &Context, id: TouchId, pos: Pos2, commands: &mut Vec<Command>) {
@@ -403,7 +417,9 @@ impl ScreenReader {
             return;
         }
         self.finger_at = Some(pos);
-        self.explore(ctx, pos);
+        if self.elapsed(self.fingers[index].1.started) > SWIPE_TIME {
+            self.explore(ctx, pos);
+        }
     }
 
     fn finish(
@@ -434,14 +450,16 @@ impl ScreenReader {
         }
         let travel = pos - finger.origin;
         if quick && finger.origin.distance(pos) >= SWIPE_DISTANCE {
-            self.cursor = finger.cursor;
             commands.push(match travel.x.abs() >= travel.y.abs() {
                 true if travel.x > 0.0 => Command::Next,
                 true => Command::Previous,
                 false if travel.y < 0.0 => Command::Increment,
                 false => Command::Decrement,
             });
-        } else if quick && !finger.moved {
+        } else {
+            self.explore(ctx, pos);
+        }
+        if quick && !finger.moved {
             match self
                 .last_tap
                 .filter(|at| self.elapsed(*at) <= DOUBLE_TAP_TIME)
