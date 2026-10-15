@@ -18,7 +18,7 @@ pub use linux::{
     NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
     NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction, PowerAvailability,
     ProgramAction, Programs, ScreenLocked, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
-    TrayToggle, WindowAction,
+    TrayToggle, WindowAction, WindowOrigin,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,

@@ -19,6 +19,8 @@ pub struct WindowInfo {
     pub responding: bool,
     pub icon: Option<Image>,
     pub inhibits_shortcuts: bool,
+    pub launch: Option<u64>,
+    pub command: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,6 +35,7 @@ pub(crate) enum Command {
 pub struct Launch {
     pub arguments: Vec<String>,
     pub working_dir: Option<String>,
+    pub tag: Option<u64>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -204,6 +207,7 @@ impl Windows {
         self.run(Launch {
             arguments: vec!["sh".to_owned(), "-c".to_owned(), line],
             working_dir: None,
+            tag: None,
         });
     }
 

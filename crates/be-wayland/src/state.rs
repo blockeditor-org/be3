@@ -180,6 +180,13 @@ pub struct KeyboardConfig {
     pub repeat_rate: i32,
 }
 
+fn first_window() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| u64::try_from(since.as_micros()).unwrap_or(0))
+        .max(1)
+}
+
 impl State {
     pub fn new(
         handle: &DisplayHandle,
@@ -246,7 +253,7 @@ impl State {
             popups: PopupManager::default(),
             popup_grab: None,
             windows: Vec::new(),
-            next_window: 1,
+            next_window: first_window(),
             events: Vec::new(),
             committed: Vec::new(),
             cursor: CursorImageStatus::default_named(),

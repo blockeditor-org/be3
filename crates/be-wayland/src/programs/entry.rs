@@ -18,6 +18,7 @@ pub struct DesktopEntry {
     pub hidden: bool,
     pub only_show_in: Vec<String>,
     pub not_show_in: Vec<String>,
+    pub startup_wm_class: Option<String>,
 }
 
 impl DesktopEntry {
@@ -46,6 +47,7 @@ impl DesktopEntry {
             hidden: flag("Hidden"),
             only_show_in: list("OnlyShowIn"),
             not_show_in: list("NotShowIn"),
+            startup_wm_class: plain("StartupWMClass").filter(|class| !class.is_empty()),
         })
     }
 

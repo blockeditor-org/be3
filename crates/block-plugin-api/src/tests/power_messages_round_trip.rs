@@ -8,6 +8,7 @@ fn power_messages_round_trip() {
         restart: true,
         power_off: false,
         log_out: true,
+        ending: false,
     };
     host_value_round_trips::<Power>(available);
     for action in PowerAction::ALL {

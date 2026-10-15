@@ -20,6 +20,7 @@ fn a_shell_only_host_value_reaches_only_the_shell() {
         focused: false,
         icon: None,
         raised: 0,
+        origin: Default::default(),
     }];
     instances.next_screens(PASS);
 

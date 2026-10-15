@@ -37,7 +37,7 @@ impl block_editor_beui::BeuiApp for WorkspaceUiApp {
 
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
-    let workspace = Workspace::new(editor, true);
+    let workspace = Workspace::new(editor, true, false);
     view! {
         <Container>
             {move |_| {
@@ -99,7 +99,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             </ForEach>
                             <ForEach keys={top_windows}>
                                 {move |window: HostWindowId| view! {
-                                    <WindowTab workspace window />
+                                    <WindowTab workspace key={window} />
                                 }}
                             </ForEach>
                         </DockPane>
