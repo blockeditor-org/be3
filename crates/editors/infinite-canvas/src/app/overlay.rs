@@ -75,6 +75,7 @@ pub(crate) struct Overlay {
     pub(crate) gesture: Option<Gesture>,
     pub(crate) outlines: Vec<SelectionFrame>,
     pub(crate) frame: Option<SelectionFrame>,
+    pub(crate) line: Option<[CanvasPoint; 2]>,
     pub(crate) resize: ResizeMode,
     pub(crate) rotatable: bool,
     pub(crate) presence: Presence,
@@ -108,8 +109,15 @@ impl Overlay {
             let corners = outline_frame.corners().map(|corner| self.camera.at(corner));
             outline(painter, corners, 1.0, SELECTION);
         }
-        if let Some(frame) = self.frame {
-            self.draw_selection(painter, frame);
+        match (self.line, self.frame) {
+            (Some(ends), _) => {
+                let [start, end] = ends.map(|at| self.camera.at(at));
+                painter.line(start, end, 1.0, SELECTION);
+                handle(painter, start, SELECTION);
+                handle(painter, end, SELECTION);
+            }
+            (None, Some(frame)) => self.draw_selection(painter, frame),
+            (None, None) => {}
         }
         self.draw_presence(painter);
         self.draw_badge(painter);
@@ -158,6 +166,7 @@ impl Overlay {
             Some(Gesture::Move { .. })
             | Some(Gesture::Resize { .. })
             | Some(Gesture::Rotate { .. })
+            | Some(Gesture::Endpoint { .. })
             | None => {}
         }
     }

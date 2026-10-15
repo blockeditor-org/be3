@@ -69,6 +69,7 @@ pub(crate) fn PluginRegion(
     region: EditorRegion,
     #[prop(default = None)] frame: Prop<Option<FrameSpec>>,
     #[prop(default = None)] view: Prop<Option<EditorView>>,
+    #[prop(default = 1.0)] zoom: Prop<f32>,
     #[prop(default = false)] passive: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
@@ -100,6 +101,7 @@ pub(crate) fn PluginRegion(
             RegionPlacement {
                 rect: placement.rect,
                 clip: placement.clip,
+                zoom: zoom.peek(),
                 screens: screens.get_untracked(),
             },
             frame.peek(),
@@ -115,6 +117,7 @@ pub(crate) fn PluginRegion(
     create_effect(move || {
         let _ = frame.get();
         let _ = view.get();
+        let _ = zoom.get();
         screens.with(|_| ());
         place.call(placed.with(Cell::get));
     });
@@ -306,8 +309,27 @@ pub(crate) fn PluginRegion(
         plugin_host::back_region(&plugin_id.get(), instance, region, gesture);
     };
     let occluded = occlusion();
+    let beyond = move |local: Pos2| {
+        let Some(placed) = frame.peek().and_then(|frame| frame.content) else {
+            return false;
+        };
+        let placed = Rect::from_min_size(
+            pos2(placed.x, placed.y),
+            Vec2::new(placed.width, placed.height),
+        );
+        region == EditorRegion::Frame
+            && !placed.contains(local)
+            && plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+                frame.content.contains(local)
+                    && !frame
+                        .floating
+                        .iter()
+                        .any(|floating| floating.contains(local))
+            })
+    };
     let takes = move |local: Pos2| {
         !passive.peek()
+            && !beyond(local)
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
                 view.takes(local)

@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Edge, Floating};
+use beui::unstyled::{Edge, Floating, Scroll};
 
 use crate::chrome::sheet_open;
 
@@ -32,12 +32,20 @@ pub fn BottomDock(
                         padding=DOCK_PADDING
                         @test_id={name}
                     >
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=DOCK_SPACING
-                            children={children}
-                        />
+                        <List direction=Direction::Horizontal spacing=0.0>
+                            <Scroll
+                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                direction=Direction::Horizontal
+                                fit=true
+                            >
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=DOCK_SPACING
+                                    children={children}
+                                />
+                            </Scroll>
+                        </List>
                     </Frame>
                 </List>
             </Frame>

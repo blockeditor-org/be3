@@ -339,7 +339,19 @@ enum Flow<'a> {
 
 impl TextNode {
     pub fn accessible_text(&self) -> Option<&str> {
-        (!self.content.is_empty()).then_some(&self.content)
+        let seen = |color: Color32| color.alpha() > 0;
+        let shown = (!self.string.content().text.is_empty() && seen(self.color))
+            || self.parts.iter().any(|part| match part {
+                TextPart::Span(span) => {
+                    let content = span.content();
+                    content.icon.is_none()
+                        && !content.text.is_empty()
+                        && seen(content.color.unwrap_or(self.color))
+                }
+                TextPart::Inline(_) => true,
+                TextPart::Anchored(_) | TextPart::Gap(_) => false,
+            });
+        (shown && !self.content.is_empty()).then_some(&self.content)
     }
 
     fn refresh_content(&mut self) {

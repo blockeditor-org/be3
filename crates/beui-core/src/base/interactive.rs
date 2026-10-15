@@ -49,6 +49,7 @@ pub struct InteractiveNode {
     pub on_autoscroll: Callback<AutoscrollGesture>,
     pub on_zoom: Callback<ZoomGesture>,
     pub capture_at: Callback<Pos2, bool>,
+    pub gestures_at: Callback<Pos2, bool>,
     pub hit_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub inhibits_shortcuts: bool,
@@ -100,6 +101,7 @@ impl InteractiveNode {
             on_autoscroll: Callback::empty(),
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
+            gestures_at: Callback::empty(),
             hit_at: Callback::empty(),
             on_forward: Callback::empty(),
             inhibits_shortcuts: false,
@@ -123,6 +125,10 @@ impl InteractiveNode {
     pub fn captures(&self, pos: Pos2, rect: Rect) -> bool {
         (self.capture_presses && rect.contains_half_open(pos))
             || (!self.capture_at.is_empty() && self.capture_at.call(pos))
+    }
+
+    pub fn takes_gestures_at(&self, pos: Pos2) -> bool {
+        !self.gestures_at.is_empty() && self.gestures_at.call(pos)
     }
 
     pub fn forwards(&self) -> bool {
