@@ -709,7 +709,7 @@ fn listen(
             event.meta_key(),
             event.shift_key(),
         );
-        let key = key(&event.code());
+        let key = key(&event);
         push(Keystroke {
             key,
             pressed: true,
@@ -734,7 +734,7 @@ fn listen(
             event.shift_key(),
         );
         push(Keystroke {
-            key: key(&event.code()),
+            key: key(&event),
             ..Keystroke::default()
         });
     })?;
@@ -875,9 +875,10 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
     }
 }
 
-fn key(code: &str) -> Option<Key> {
-    match code {
+fn key(event: &web_sys::KeyboardEvent) -> Option<Key> {
+    match event.code().as_str() {
         "MetaLeft" | "MetaRight" => Some(Key::meta(apple())),
+        "" => Key::from_code(&event.key()),
         code => Key::from_code(code),
     }
 }
