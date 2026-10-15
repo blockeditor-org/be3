@@ -39,7 +39,7 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     state: Cell<State>,
     refreshing: Cell<bool>,
     execution_owner: RefCell<Option<Rc<Owner>>>,
-    pub(crate) dependencies: RefCell<Vec<(Rc<dyn Tracked>, u64)>>,
+    pub(crate) dependencies: RefCell<Vec<Dependency>>,
     pub(crate) source: Option<Rc<dyn Tracked>>,
     pub(crate) queued: Cell<bool>,
     pub(crate) queued_at: Cell<u64>,
@@ -48,6 +48,8 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     gate: Option<Rc<Gate>>,
     callback: RefCell<Slot<F>>,
 }
+
+pub(crate) type Dependency = (Rc<dyn Tracked>, u64, usize);
 
 pub(crate) fn no_computation() -> Weak<Computation> {
     Weak::<Computation<fn() -> bool>>::new()
@@ -93,14 +95,18 @@ impl Computation {
         let stale = read
             .iter()
             .any(|(source, version)| source.source().version.get() != *version);
-        for (source, _) in &read {
-            source
-                .source()
-                .subscribers
-                .borrow_mut()
-                .push(Rc::downgrade(self));
-        }
-        *self.dependencies.borrow_mut() = read;
+        let dependencies = read
+            .into_iter()
+            .map(|(source, version)| {
+                let slot = source
+                    .source()
+                    .subscribers
+                    .borrow_mut()
+                    .add(Rc::downgrade(self));
+                (source, version, slot)
+            })
+            .collect();
+        *self.dependencies.borrow_mut() = dependencies;
         self.state.set(State::Clean);
         if stale {
             self.invalidate(State::Dirty);
@@ -121,11 +127,9 @@ impl Computation {
         }
         self.state.set(state);
         if let Some(source) = &self.source {
-            let subscribers = source.source().subscribers.borrow().clone();
+            let subscribers = source.source().subscribers.borrow().live();
             for subscriber in subscribers {
-                if let Some(subscriber) = subscriber.upgrade() {
-                    subscriber.invalidate(State::Check);
-                }
+                subscriber.invalidate(State::Check);
             }
         }
     }
@@ -162,7 +166,7 @@ impl Computation {
     fn refresh_inner(self: &Rc<Self>) {
         if self.state.get() == State::Check {
             let dependencies = self.dependencies.borrow().clone();
-            for (source, version) in dependencies {
+            for (source, version, _) in dependencies {
                 let source = source.source();
                 let producer = source.producer.borrow().upgrade();
                 if let Some(producer) = producer {
@@ -273,14 +277,8 @@ impl Computation {
     }
 
     fn detach(&self) {
-        for (source, _) in self.dependencies.take() {
-            source
-                .source()
-                .subscribers
-                .borrow_mut()
-                .retain(|subscriber| {
-                    !std::ptr::addr_eq(subscriber.as_ptr(), self) && subscriber.strong_count() > 0
-                });
+        for (source, _, slot) in self.dependencies.take() {
+            source.source().subscribers.borrow_mut().remove(slot, self);
         }
     }
 

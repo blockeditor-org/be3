@@ -3,6 +3,10 @@ use std::rc::Rc;
 use beui::reactive::{Memo, ReadSignal, create_effect, create_memo, create_signal};
 use uuid::Uuid;
 
+use be_block::Root;
+use be_block::be_model::{Document, Field, FieldRef, List, Model, ObjectId};
+use block_editor_plugin::Objects;
+
 use crate::{BlockQuery, ContentProjection, Editor};
 
 pub fn content_settled(editor: Editor, block: Uuid, loaded: ReadSignal<bool>) -> Memo<bool> {
@@ -94,6 +98,50 @@ where
             let inner = editor
                 .content_of::<C>(block)
                 .project(move |content| project(content));
+            create_effect(move || write.set(inner.get()));
+        });
+        read
+    }
+}
+
+impl<R: Root + 'static> RelatedContent<Document<R>>
+where
+    Document<R>: be_block::LiveEdit + Clone + Default,
+{
+    pub fn objects<M: 'static, T: Model + 'static>(
+        &self,
+        owner: ObjectId,
+        field: FieldRef<M, List<T>>,
+    ) -> ReadSignal<Objects<T>> {
+        let (read, write) = create_signal(Objects::default());
+        let id = self.id;
+        let editor = self.editor;
+        create_effect(move || {
+            let Some(block) = id.get() else {
+                write.set(Objects::default());
+                return;
+            };
+            let inner = editor
+                .content_of::<Document<R>>(block)
+                .objects(owner, field);
+            create_effect(move || write.set(inner.get()));
+        });
+        read
+    }
+
+    pub fn field<M: 'static, F>(&self, object: ObjectId, field: FieldRef<M, F>) -> ReadSignal<F>
+    where
+        F: Field + Clone + Default + PartialEq + 'static,
+    {
+        let (read, write) = create_signal(F::default());
+        let id = self.id;
+        let editor = self.editor;
+        create_effect(move || {
+            let Some(block) = id.get() else {
+                write.set(F::default());
+                return;
+            };
+            let inner = editor.content_of::<Document<R>>(block).field(object, field);
             create_effect(move || write.set(inner.get()));
         });
         read

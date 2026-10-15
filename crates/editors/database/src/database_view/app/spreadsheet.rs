@@ -6,11 +6,13 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Prop, Show, Spacer, component, create_effect, create_memo, view, with_document,
+    NodeRef, Prop, Show, Spacer, VirtualList, component, create_effect, create_memo, view,
+    with_document,
 };
 use block_editor_beui::beui::styled::{Scroll, use_theme};
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
@@ -66,6 +68,15 @@ fn Grid(
     keys: Memo<Vec<usize>>,
     on_key: Callback<KeyPress, bool>,
 ) -> NodeId {
+    let positions = create_memo(move || {
+        display.with(|display| {
+            display
+                .iter()
+                .enumerate()
+                .map(|(position, row)| (row.index, position))
+                .collect::<HashMap<usize, usize>>()
+        })
+    });
     view! {
         <List spacing=0.0>
             <Scroll @sizing=ItemSize::Percent(100.0)>
@@ -73,14 +84,23 @@ fn Grid(
                     <Interactive focusable=true on_key={on_key}>
                         <List spacing=0.0>
                             <HeaderRow data={header} />
-                            <ForEach keys={keys}>
+                            <VirtualList
+                                keys={keys}
+                                item_size=ROW_HEIGHT
+                                overscan={ROW_HEIGHT * 2.0}
+                            >
                                 {move |index: usize| {
-                                    let display = display;
+                                    let (display, positions) = (display, positions);
                                     view! {
-                                        <Row data={data} display={display} index={index} />
+                                        <Row
+                                            data={data}
+                                            display={display}
+                                            positions={positions}
+                                            index={index}
+                                        />
                                     }
                                 }}
-                            </ForEach>
+                            </VirtualList>
                         </List>
                     </Interactive>
                 </Scroll>
@@ -191,12 +211,16 @@ fn HeaderCell(
 }
 
 #[component]
-fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
+fn Row(
+    data: Data,
+    display: Memo<Vec<DisplayRow>>,
+    positions: Memo<HashMap<usize, usize>>,
+    index: usize,
+) -> NodeId {
+    let position = create_memo(move || positions.with(|positions| positions.get(&index).copied()));
     let entry = create_memo(move || {
-        display.with(|display| display.iter().find(|row| row.index == index).cloned())
-    });
-    let position = create_memo(move || {
-        display.with(|display| display.iter().position(|row| row.index == index))
+        let position = position.get()?;
+        display.with(|display| display.get(position).cloned())
     });
     let number = create_memo(move || {
         position

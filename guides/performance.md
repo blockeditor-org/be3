@@ -65,6 +65,18 @@ or dump stacks to fold them yourself:
 - To see where allocations come from, probe malloc:
   `perf probe -x /lib/x86_64-linux-gnu/libc.so.6 malloc`, record with
   `-e probe_libc:malloc -g`, and `perf probe -d 'probe_libc:*'` afterwards.
+- To profile block-app itself, start it with `BE3_PERF_MAP=1` (`BE3_PERF_MAP=1 ./scripts/buck run
+  -m release //crates/block-app:dev`), which makes wasmtime write `/tmp/perf-PID.map` so the
+  plugins' compiled wasm has names, and record the running app with `perf record -g -p PID`
+  around the `drive` commands being measured. Each plugin runs on a thread named
+  `plugin <id>` (cut to 15 characters, such as `plugin be3.data`), so `perf report --sort comm`
+  splits the report by plugin and `--comms 'plugin be3.data'` keeps one plugin's samples.
+  Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
+  scroll's or resize's samples; leave them out when judging the app's own work.
+- To fill a workspace with data, add an agent from the dev app's menu (Agents) and point a
+  `be` built from the checkout at it with the `BE3_*` values the dialog shows
+  (guides/tracker.md): `be new-database`, `add-column` and `import` a generated CSV make
+  a tracker of any size.
 
 4. Ideas tried and set aside
 
@@ -81,8 +93,6 @@ nothing better is left.
 
 These were measured and changed nothing worth their code:
 
-- Unsubscribing a disposed computation lazily, compacting a signal's subscribers once half
-  are stale, instead of `retain`ing the list each time: subscriber lists are short.
 - Skipping the reactive context a disposing scope enters when disposal is already
   untracked: checking cost more than it saved.
 - Giving a component no scope of its own until something is created in it: only about one

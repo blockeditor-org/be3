@@ -226,6 +226,8 @@ pub(super) trait Session {
 
     fn session_state(&self) -> Vec<u8>;
 
+    fn derived(&self) -> Option<be_block::Entries>;
+
     fn head(&self) -> Option<CommitId>;
 
     fn is_clean(&self) -> bool;
@@ -341,6 +343,10 @@ where
 
     fn session_state(&self) -> Vec<u8> {
         self.live.content().session_state()
+    }
+
+    fn derived(&self) -> Option<be_block::Entries> {
+        Some(be_block::derived_metadata(self.live.content()))
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -524,6 +530,10 @@ where
 
     fn session_state(&self) -> Vec<u8> {
         self.live.content().session_state()
+    }
+
+    fn derived(&self) -> Option<be_block::Entries> {
+        Some(be_block::derived_metadata(self.live.content()))
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -1422,62 +1432,107 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<M
 }
 
 fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
-    let mut held = shared.lock().unwrap();
-    held.unsealed = sessions
+    let known: std::collections::HashSet<Uuid> = {
+        let held = shared.lock().unwrap();
+        sessions
+            .keys()
+            .filter(|block| held.blocks.contains_key(*block))
+            .copied()
+            .collect()
+    };
+    let unsealed = sessions
         .values()
         .filter(|session| !session.is_clean())
         .count();
-    let mut changed = false;
-    for (block, session) in sessions.iter_mut() {
-        let history = session.history();
-        if held.histories.get(block) != Some(&history) {
-            held.histories.insert(*block, history);
-            held.touch(*block);
-            changed = true;
-        }
-        if let Some(presence) = session.take_presence() {
-            held.presence_revision += 1;
-            let revision = held.presence_revision;
-            held.presence.insert(*block, (revision, presence));
-            held.touch(*block);
-            changed = true;
-        }
-        let conflicts = session.take_conflicts();
-        if !conflicts.is_empty() {
-            let count: usize = conflicts.iter().map(|conflict| conflict.count).sum();
-            held.error = Some(format!(
-                "block {block} merged with {count} conflicting change(s); both versions are kept in its history"
-            ));
-            held.conflicts.entry(*block).or_default().extend(conflicts);
-            changed = true;
-        }
-        held.graph.set_head(*block, session.head());
-        let log = session.take_log();
-        let Some(content) = held.blocks.get_mut(block) else {
-            held.blocks.insert(
-                *block,
-                Content::new(
+    let published: Vec<Published> = sessions
+        .iter_mut()
+        .map(|(block, session)| {
+            let log = session.take_log();
+            let content = (!known.contains(block) || !log.is_empty()).then(|| {
+                (
                     session.content_type(),
                     session.bytes(),
                     session.session_state(),
-                ),
-            );
-            held.touch(*block);
+                    session.derived(),
+                )
+            });
+            Published {
+                block: *block,
+                history: session.history(),
+                presence: session.take_presence(),
+                conflicts: session.take_conflicts(),
+                head: session.head(),
+                log,
+                content,
+            }
+        })
+        .collect();
+    let mut held = shared.lock().unwrap();
+    held.unsealed = unsealed;
+    let mut changed = false;
+    for published in published {
+        let block = published.block;
+        if held.histories.get(&block) != Some(&published.history) {
+            held.histories.insert(block, published.history);
+            held.touch(block);
             changed = true;
+        }
+        if let Some(presence) = published.presence {
+            held.presence_revision += 1;
+            let revision = held.presence_revision;
+            held.presence.insert(block, (revision, presence));
+            held.touch(block);
+            changed = true;
+        }
+        if !published.conflicts.is_empty() {
+            let count: usize = published
+                .conflicts
+                .iter()
+                .map(|conflict| conflict.count)
+                .sum();
+            held.error = Some(format!(
+                "block {block} merged with {count} conflicting change(s); both versions are kept in its history"
+            ));
+            held.conflicts
+                .entry(block)
+                .or_default()
+                .extend(published.conflicts);
+            changed = true;
+        }
+        held.graph.set_head(block, published.head);
+        let Some((content_type, bytes, session, derived)) = published.content else {
             continue;
         };
-        if log.is_empty() {
-            continue;
+        match held.blocks.get_mut(&block) {
+            Some(content) => {
+                for entry in published.log {
+                    content.record(entry);
+                }
+                content.bytes = bytes;
+                content.session = session;
+                content.derived = derived;
+            }
+            None => {
+                held.blocks
+                    .insert(block, Content::new(content_type, bytes, session, derived));
+            }
         }
-        for entry in log {
-            content.record(entry);
-        }
-        content.bytes = session.bytes();
-        content.session = session.session_state();
-        held.touch(*block);
+        held.touch(block);
         changed = true;
     }
     changed
+}
+
+type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>);
+
+struct Published {
+    block: Uuid,
+    history: History,
+    presence: Option<Vec<Presence>>,
+    conflicts: Vec<Conflict>,
+    head: Option<CommitId>,
+    log: Vec<Logged>,
+    content: Option<PublishedContent>,
 }
 
 async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientError> {

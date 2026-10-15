@@ -22,6 +22,8 @@ pub(crate) fn replace_gpu(_setup: &Setup) {}
 
 pub(crate) fn exiting() {}
 
+pub(crate) fn set_owned(_owned: bool) {}
+
 pub(crate) fn revision() -> u64 {
     0
 }

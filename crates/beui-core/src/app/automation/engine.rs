@@ -110,6 +110,7 @@ pub struct World<'a> {
 pub struct Settled {
     pub busy: bool,
     pub again: bool,
+    pub drawing: bool,
 }
 
 enum Phase {
@@ -139,6 +140,7 @@ enum Phase {
     },
     Capturing {
         crop: Option<Rect>,
+        drawn: bool,
     },
     Reading {
         pasted: std::sync::mpsc::Receiver<Pasted>,
@@ -326,6 +328,9 @@ impl Automation {
         let settling = |before: &mut String| Phase::Settling {
             before: Some(std::mem::take(before)),
         };
+        if let Phase::Capturing { drawn, .. } = &mut active.phase {
+            *drawn = !settled.drawing;
+        }
         let mut failed = None;
         match &mut active.phase {
             Phase::Input {
@@ -410,7 +415,7 @@ impl Automation {
         }
     }
 
-    pub fn wants_capture(&self) -> bool {
+    pub fn wants_sight(&self) -> bool {
         matches!(
             self.active,
             Some(Active {
@@ -420,9 +425,19 @@ impl Automation {
         )
     }
 
+    pub fn wants_capture(&self) -> bool {
+        matches!(
+            self.active,
+            Some(Active {
+                phase: Phase::Capturing { drawn: true, .. },
+                ..
+            })
+        )
+    }
+
     pub fn captured(&mut self, capture: Option<Capture>) {
         let Some(Active {
-            phase: Phase::Capturing { crop },
+            phase: Phase::Capturing { crop, .. },
             ..
         }) = &self.active
         else {
@@ -1056,7 +1071,7 @@ impl Automation {
                     Some(target) => Some(locate(target, view.lines)?),
                     None => None,
                 };
-                Ok(Started::Phase(Phase::Capturing { crop }))
+                Ok(Started::Phase(Phase::Capturing { crop, drawn: false }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }

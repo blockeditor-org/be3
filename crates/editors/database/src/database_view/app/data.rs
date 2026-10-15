@@ -50,6 +50,7 @@ pub struct ViewData {
     pub inverses: Memo<Vec<Inverse>>,
     pub rows: Memo<Vec<DatabaseRow>>,
     pub row_ids: Memo<Vec<ObjectId>>,
+    pub row_index: Memo<HashMap<ObjectId, usize>>,
     pub prefix: Memo<String>,
     pub title_field: Memo<Option<Uuid>>,
     pub fields: Memo<Vec<DatabaseField>>,
@@ -81,43 +82,40 @@ impl ViewData {
         let database_ref = view.project(|view| view.root().database);
         let database_id = create_memo(move || database_ref.get());
         let database = editor.related_content::<DatabaseContent>(database_id);
-        let schema_ref = database.project(|database| database.root().schema);
+        let schema_ref = database.field(ObjectId::ROOT, Database::SCHEMA);
         let schema_id = create_memo(move || schema_ref.get());
         let schema = editor.related_content::<DatabaseSchemaContent>(schema_id);
 
-        let rows = database.project(|database| {
-            database
-                .root()
-                .rows
-                .iter()
-                .map(|row| row.value.clone())
-                .collect::<Vec<DatabaseRow>>()
+        let stored = database.objects(ObjectId::ROOT, Database::ROWS);
+        let row_ids = create_memo(move || {
+            stored.with(|rows| rows.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
         });
-        let row_ids = database.project(|database| {
-            database
-                .root()
-                .rows
-                .iter()
-                .map(|row| row.id)
-                .collect::<Vec<ObjectId>>()
+        let row_index = create_memo(move || {
+            row_ids.with(|ids| {
+                ids.iter()
+                    .enumerate()
+                    .map(|(index, id)| (*id, index))
+                    .collect::<HashMap<ObjectId, usize>>()
+            })
         });
-        let row_ids = create_memo(move || row_ids.get());
         let found_inverses = watch_inverses(editor, database_id);
         let inverses = create_memo(move || found_inverses.get().unwrap_or_default());
         let rows = create_memo(move || {
-            let ids = row_ids.get();
-            let inverses = inverses.get();
-            rows.get()
-                .into_iter()
-                .zip(ids)
-                .map(|(row, id)| {
-                    inverses
-                        .iter()
-                        .fold(row, |row, inverse| inverse.shown_on(&row, id.as_uuid()))
+            inverses.with(|inverses| {
+                stored.with(|rows| {
+                    rows.iter()
+                        .map(|(id, row)| {
+                            let mut row = row.as_ref().clone();
+                            for inverse in inverses {
+                                inverse.show_on(&mut row, id.as_uuid());
+                            }
+                            row
+                        })
+                        .collect::<Vec<DatabaseRow>>()
                 })
-                .collect::<Vec<DatabaseRow>>()
+            })
         });
-        let prefix = database.project(|database| database.root().prefix.clone());
+        let prefix = database.field(ObjectId::ROOT, Database::PREFIX);
         let prefix = create_memo(move || prefix.get());
         let title_field = schema.project(|schema| schema.root().title_field());
         let title_field = create_memo(move || title_field.get());
@@ -238,6 +236,7 @@ impl ViewData {
             inverses,
             rows,
             row_ids,
+            row_index,
             prefix,
             title_field,
             fields,
@@ -422,8 +421,8 @@ impl ViewData {
     }
 
     pub fn index_of(&self, row: ObjectId) -> Option<usize> {
-        self.row_ids
-            .with_untracked(|ids| ids.iter().position(|id| *id == row))
+        self.row_index
+            .with_untracked(|indices| indices.get(&row).copied())
     }
 
     pub fn add_row(&self, values: Vec<(Uuid, DatabaseValue)>) -> ObjectId {
@@ -440,18 +439,19 @@ impl ViewData {
             self.set_inverse(&inverse, row, value);
             return;
         }
-        let edit = self.database.read(|database| {
-            let database = database.root();
-            match value {
-                Some(DatabaseValue::Links(targets)) => database.set_links(row, field, &targets),
-                None => Database::set_value(row, field, None)
+        let edit = match value {
+            Some(DatabaseValue::Links(targets)) => self
+                .database
+                .read(|database| database.root().set_links(row, field, &targets)),
+            None => self.database.read(|database| {
+                Database::set_value(row, field, None)
                     .0
                     .into_iter()
-                    .chain(database.set_links(row, field, &[]).0)
-                    .collect(),
-                Some(value) => Database::set_value(row, field, Some(&value)),
-            }
-        });
+                    .chain(database.root().set_links(row, field, &[]).0)
+                    .collect()
+            }),
+            Some(value) => Some(Database::set_value(row, field, Some(&value))),
+        };
         if let Some(edit) = edit {
             self.database.operate(edit);
         }

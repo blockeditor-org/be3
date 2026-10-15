@@ -439,6 +439,12 @@ impl Runner {
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
+        let seen = !self.occluded
+            || self
+                .automation
+                .as_ref()
+                .is_some_and(Automation::wants_sight);
+        self.context.set_seen(seen);
         self.context.set_accessibility_window(&self.title, screen);
         let app = &mut self.app;
         let mut output = self.context.run(raw, |context| {
@@ -481,12 +487,7 @@ impl Runner {
             platform.set_fullscreen(fullscreen);
         }
 
-        let looked_at = !self.occluded
-            || self
-                .automation
-                .as_ref()
-                .is_some_and(Automation::wants_capture);
-        let pending = match looked_at {
+        let pending = match seen {
             true => renderers.prepare(&output, scale, self.app.clear_color()),
             false => {
                 renderers.note(&output, scale, self.app.clear_color());
@@ -518,6 +519,7 @@ impl Runner {
             };
             let settled = Settled {
                 busy: self.app.busy(),
+                drawing: self.app.drawing(),
                 again: match automation.clock_stopped() {
                     true => frame.deferred,
                     false => frame.again(),

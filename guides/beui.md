@@ -753,14 +753,20 @@ view! {
 
 `item_size` is an estimate, and a row that measures differently is laid out at
 the size it measured. The list remembers what each row it has built actually
-measured and reports the sum, so its length grows towards the truth as rows come
-into view and the last row can always be scrolled to. A row that is measured
+measured and reports the sum, counting each row it has not built at the average
+of those it has, so its length is close to the truth from the first layout and
+the last row can always be scrolled to. A row that is measured
 above the viewport would move everything below it, so the list keeps drawing
 from the row it drew from last frame and asks the scroll around it to move its
 offset by the difference instead; the scroll applies that before it places
 anything, so nothing on screen shifts. Outside a scroll a `VirtualList` builds
 what fits in the box it is given, which is how one sized by a `Stack` builds a
 screenful in one layout and a hundred pixels' worth in the next.
+
+`overscan` builds that many pixels of rows beyond each edge of the window, so the
+row a key press moves to already exists to be revealed. A list scrolled to its
+very top shows a row inserted above the rest rather than holding the rows below
+in place.
 
 Rows belong to their keys, not to their positions. Scrolling reuses the rows
 that stay in view and disposes the effects of the ones that leave, and the item
@@ -1937,8 +1943,16 @@ paint, accessibility, the driver), but the runner hands each one's output to
 what the frame damaged, so the wgpu `Target` draws the union of every unseen
 frame's damage into its retained frame the next time it does draw; a renderer
 without `note` prepares as usual. The headless adapter is always occluded, so it
-draws only for a driver's `shot`: the frame that takes one prepares and
-presents, and is read back.
+draws only for a driver's `shot`.
+
+`Context::seen` tells the app whether the frame it is running will be drawn. A
+`shot` makes an occluded window seen until it is taken, and it is taken in the
+first frame whose app says through `App::drawing` that it has nothing still to
+draw. block-app answers with its plugins: each `DrawFrame` carries `seen`, an
+unseen plugin runs its frames (layout, its description, children) without
+encoding or presenting them, and keeps what they damaged; when the host is seen
+again it asks each plugin that drew unseen for a frame, which paints all of it,
+and `drawing` holds the shot until those frames have arrived.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,
