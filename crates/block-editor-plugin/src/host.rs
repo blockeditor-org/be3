@@ -445,6 +445,7 @@ pub struct EditorHost {
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
+    child_focuses: Rc<RefCell<HashSet<ChildId>>>,
     bar_actions: Rc<RefCell<Vec<BarAction>>>,
     menu: Rc<RefCell<Vec<MenuEntry>>>,
     menu_picks: Rc<RefCell<Vec<String>>>,
@@ -1653,6 +1654,15 @@ impl EditorHost {
             .borrow_mut()
             .remove(&child)
             .unwrap_or_default()
+    }
+
+    pub fn take_child_focus(&self, child: ChildId) -> bool {
+        self.child_focuses.borrow_mut().remove(&child)
+    }
+
+    pub(crate) fn push_child_focus(&self, child: ChildId) {
+        self.child_focuses.borrow_mut().insert(child);
+        self.changed();
     }
 
     pub(crate) fn push_child_bar_action(&self, child: ChildId, action: BarAction) {

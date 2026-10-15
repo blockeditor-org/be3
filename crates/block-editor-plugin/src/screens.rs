@@ -432,6 +432,13 @@ impl Screens {
                     session.child_bar_action(*child, *action);
                 }
             }
+            Message::Editor(EditorMessage::ChildFocused {
+                instance, child, ..
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.child_focused(*child);
+                }
+            }
             Message::Editor(EditorMessage::ReplaceChild {
                 instance,
                 request_id,

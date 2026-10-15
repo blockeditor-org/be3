@@ -439,7 +439,7 @@ fn RowText(
     let carets = create_memo(move || {
         let row = model.get();
         let colors = cx.colors.get();
-        let focused = cx.focused.get();
+        let typing = cx.focused.get() && cx.keyboard.get();
         let contains = |byte: usize| byte >= row.start && byte <= row.end;
         let mut carets = Vec::new();
         let cursors = cursors.get();
@@ -467,7 +467,7 @@ fn RowText(
                 CARET_WIDTH,
             ));
         }
-        if focused {
+        if typing {
             for byte in &cursors.carets {
                 carets.push(TextCaret {
                     blink: true,

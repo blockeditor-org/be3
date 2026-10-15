@@ -89,7 +89,7 @@ pub struct Document {
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
     pub(crate) tapping: Option<Key>,
-    pub(crate) keyboard: bool,
+    keyboard: ::reactive::OwnedSignal<bool>,
     input_frames: u64,
     modifiers: ::reactive::OwnedSignal<Modifiers>,
     intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
@@ -294,7 +294,7 @@ impl Document {
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
             tapping: None,
-            keyboard: true,
+            keyboard: ::reactive::OwnedSignal::new(true),
             input_frames: 0,
             modifiers: ::reactive::OwnedSignal::new(Modifiers::NONE),
             intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
@@ -477,6 +477,20 @@ impl Document {
 
     pub fn set_focus_visible(&self, visible: bool) {
         self.focus_visible.write().set(visible);
+    }
+
+    pub fn has_keyboard(&self) -> bool {
+        self.keyboard.read().get_untracked()
+    }
+
+    pub fn watch_keyboard(&self) -> ::reactive::ReadSignal<bool> {
+        self.keyboard.read()
+    }
+
+    pub(crate) fn set_keyboard(&self, keyboard: bool) {
+        if self.has_keyboard() != keyboard {
+            self.keyboard.write().set(keyboard);
+        }
     }
 
     pub fn register_finger_tap(&self, tap: Weak<FingerTap>) {
@@ -1177,7 +1191,7 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
-        if self.keyboard
+        if self.has_keyboard()
             && let Some(area) = self.focused_ime_area()
         {
             ctx.set_ime_area(Some(area));

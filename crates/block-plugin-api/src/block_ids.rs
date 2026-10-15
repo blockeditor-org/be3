@@ -275,6 +275,7 @@ impl EditorMessage {
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }
             | Self::ChildBar { .. }
+            | Self::ChildFocused { .. }
             | Self::CopyText { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }

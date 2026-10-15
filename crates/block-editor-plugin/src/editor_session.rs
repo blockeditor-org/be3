@@ -775,6 +775,10 @@ impl EditorSession {
         self.host.push_child_bar_action(child, action);
     }
 
+    pub(crate) fn child_focused(&self, child: ChildId) {
+        self.host.push_child_focus(child);
+    }
+
     pub(crate) fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {
         self.host.set_child_statuses(statuses);
     }
