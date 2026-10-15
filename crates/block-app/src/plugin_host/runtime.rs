@@ -23,14 +23,10 @@ use super::{
     backend::{Availability, Backend, Deadline, ShownFrame},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
-    presenter::{
-        self, Blit, MAX_SURFACES, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing,
-        Shared,
-    },
+    presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
     preview_size,
 };
 
-const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
@@ -76,9 +72,7 @@ impl Host {
         if let Err(error) = &self.availability.0 {
             return Err(error.clone());
         }
-        let Some(surface) = self.surface_for(&plugin.identity.id) else {
-            return Err(CROWDED.to_owned());
-        };
+        let surface = self.surface_for(&plugin.identity.id);
         let focus = self.focus.clone();
         let published = &self.published;
         let shell = self
@@ -103,33 +97,27 @@ impl Host {
         Ok(runtime)
     }
 
-    fn surface_for(&mut self, plugin_id: &str) -> Option<u32> {
+    fn surface_for(&self, plugin_id: &str) -> u32 {
         if let Some(runtime) = self.runtimes.get(plugin_id) {
-            return Some(runtime.surface);
+            return runtime.surface;
         }
-        if let Some(surface) = (0..MAX_SURFACES).find(|surface| {
-            !self
-                .runtimes
-                .values()
-                .any(|runtime| runtime.surface == *surface)
-        }) {
-            return Some(surface);
-        }
-        let evicted = self
-            .runtimes
-            .iter()
-            .filter(|(_, runtime)| runtime.instances.is_empty())
-            .min_by_key(|(_, runtime)| runtime.pass)
-            .map(|(id, _)| id.clone())?;
-        self.shutdown(&evicted)
+        (0..)
+            .find(|surface| {
+                !self
+                    .runtimes
+                    .values()
+                    .any(|runtime| runtime.surface == *surface)
+            })
+            .expect("fewer runtimes than surface ids")
     }
 
-    fn shutdown(&mut self, plugin_id: &str) -> Option<u32> {
-        let mut runtime = self.runtimes.remove(plugin_id)?;
+    fn shutdown(&mut self, plugin_id: &str) {
+        let Some(mut runtime) = self.runtimes.remove(plugin_id) else {
+            return;
+        };
         runtime.stop();
         presenter::release(runtime.surface, &runtime.status);
         host::request_repaint();
-        Some(runtime.surface)
     }
 }
 
