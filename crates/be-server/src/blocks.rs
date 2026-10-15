@@ -245,6 +245,9 @@ impl ServerStore {
             if current == Some(commit) {
                 return Ok(PublishOutcome::Published(commit, false));
             }
+            let mut references = references;
+            let mut seen = std::collections::HashSet::new();
+            references.retain(|reference| seen.insert(*reference));
             let relinked = graph.references(block) != references;
             let redescribed = relinked
                 || graph
