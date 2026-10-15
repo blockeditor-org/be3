@@ -338,6 +338,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.with_bar(closable, TopBar::Shown)
     }
 
+    pub fn without_top_bar(self) -> Self {
+        self.with_bar(false, TopBar::Hidden)
+    }
+
     pub fn on_phone(self) -> Self {
         self.with_bar(false, TopBar::Phone)
     }

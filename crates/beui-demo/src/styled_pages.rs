@@ -783,6 +783,11 @@ fn NameInput() -> NodeId {
                 string="Click to place the caret, drag to select, and Ctrl+Z to undo."
                 wrap=true
             />
+            <TextInput
+                value=String::new()
+                placeholder="A note, over several lines"
+                multiline=true
+            />
         </List>
     }
 }

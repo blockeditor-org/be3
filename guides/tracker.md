@@ -54,6 +54,9 @@ be Issues add-option Status Backlog default=yes first=yes
 be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
 be new-database Milestones --prefix MS --in a1f3
 be Issues import issues.csv             Linear's export, or any CSV
+be Issues download issues.block         a block and everything inside it, as one file
+be upload issues.block --in a1f3 --prefix CP
+                                        a copy of it, here or in another workspace
 ```
 
 A target is a block, by the start of its id as `be ls` prints it, its full id
@@ -73,7 +76,15 @@ A relation of several rows takes `FIELD=A,B`, `FIELD+=A` and `FIELD-=A`, and so
 does its inverse column (`Blocking+=BE-…` writes `Blocked by` on that row). The
 title is the first text column. `--body` replaces the row's page and `--append`
 adds a paragraph to it; `-` reads either from standard input. `--json` prints
-JSON. An import's Title column is the title, Description the page, and every
+JSON. `download` writes a block file (`crates/be-cli/src/transfer.rs`): each
+block's type, metadata, references and decrypted content bytes, the outermost
+block first and every block after its parent, into a new file only its owner
+may read; a database inside a view is
+downloaded from the view. `upload` gives every block a new id and swaps the old
+ids for the new ones in the content bytes (as 16 raw bytes, hyphenated or
+simple hex) and references, so the copy points at its own children; ids of
+blocks outside the file are left as they were. A database whose prefix is
+taken where it lands needs `--prefix`. The file format is not frozen. An import's Title column is the title, Description the page, and every
 column named like a field sets it, adding the options an Enum column lacks and
 the rows a Relation column names that its database lacks.
 

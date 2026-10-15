@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use beui::{Rect, Vec2, vec2};
+use beui::{Rect, Vec2};
 use block_plugin_api::{
     ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, EditorRegion,
     InteractionMode, PluginManifest, ResizeMode, ScreenId,
@@ -226,15 +226,14 @@ pub(crate) struct ScreenStatus {
     pub(crate) child_generation: u64,
 }
 
-pub(crate) fn preview_size(size: Vec2, scale_factor: f32) -> Vec2 {
-    const STEP: f32 = 64.0;
+pub(crate) fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
     const MAXIMUM: f32 = 2048.0;
     let scale = scale_factor.max(f32::EPSILON);
-    let pixels = size * scale;
-    vec2(
-        ((pixels.x / STEP).ceil() * STEP).clamp(STEP, MAXIMUM),
-        ((pixels.y / STEP).ceil() * STEP).clamp(STEP, MAXIMUM),
-    ) / scale
+    let largest = size.x.max(size.y) * scale;
+    match largest > MAXIMUM {
+        true => MAXIMUM / largest * scale,
+        false => scale,
+    }
 }
 
 pub(crate) struct CreationSlot<'a> {

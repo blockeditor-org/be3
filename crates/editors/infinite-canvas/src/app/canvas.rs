@@ -153,6 +153,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
             stage: stage.get(),
             empty: state.entities.get().is_empty(),
             gesture: state.gesture.get(),
+            outlines: super::state::selected_outlines(&state.displayed(), &state.selection.get()),
             frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
             line: state.selected_line().and_then(|line| {
                 let shown = state
