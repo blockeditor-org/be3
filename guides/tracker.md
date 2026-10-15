@@ -78,7 +78,8 @@ title is the first text column. `--body` replaces the row's page and `--append`
 adds a paragraph to it; `-` reads either from standard input. `--json` prints
 JSON. `download` writes a block file (`crates/be-cli/src/transfer.rs`): each
 block's type, metadata, references and decrypted content bytes, the outermost
-block first and every block after its parent; a database inside a view is
+block first and every block after its parent, into a new file only its owner
+may read; a database inside a view is
 downloaded from the view. `upload` gives every block a new id and swaps the old
 ids for the new ones in the content bytes (as 16 raw bytes, hyphenated or
 simple hex) and references, so the copy points at its own children; ids of

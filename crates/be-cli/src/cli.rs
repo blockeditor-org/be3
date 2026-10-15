@@ -421,7 +421,7 @@ async fn block_verb<S: ObjectStore>(
                 .cloned()
                 .unwrap_or_else(|| format!("{}.block", file_stem(&top.label())));
             let bytes = crate::transfer::encode(&blocks);
-            std::fs::write(&file, &bytes)
+            write_private(&file, &bytes)
                 .map_err(|error| format!("could not write {file}: {error}"))?;
             let inside = match blocks.len() {
                 1 => String::new(),
@@ -599,6 +599,15 @@ async fn row_verb<S: ObjectStore>(
             "a row takes show, set, page and delete, not {other}"
         )),
     }
+}
+
+fn write_private(file: &str, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options.open(file)?.write_all(bytes)
 }
 
 fn file_stem(name: &str) -> String {

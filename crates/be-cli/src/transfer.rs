@@ -101,6 +101,10 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
             content,
         });
     }
+    let mut seen = std::collections::HashSet::new();
+    if blocks.iter().any(|block| !seen.insert(block.id)) {
+        return Err("the block file holds one block twice".to_owned());
+    }
     if reader.at != bytes.len() {
         return Err("the block file has more in it than its blocks".to_owned());
     }
@@ -243,7 +247,7 @@ impl<S: ObjectStore> Tracker<S> {
                 let database = DatabaseContent::decode(bytes)
                     .map_err(|error| format!("a database in the file is unreadable: {error}"))?;
                 let held = database.root().prefix.trim().to_owned();
-                if !held.is_empty() && !matches!(self.database_with_prefix(&held).await, Ok(None)) {
+                if !held.is_empty() && self.database_with_prefix(&held).await?.is_some() {
                     taken.push((prepared.len(), held, database));
                 }
             }
@@ -305,18 +309,22 @@ impl<S: ObjectStore> Tracker<S> {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |since| since.as_millis() as i64);
-            peer.publish_manifest(
-                id,
-                manifest,
-                references,
-                None,
-                now,
-                false,
-                Vec::new(),
-                metadata,
-            )
-            .await
-            .map_err(explain)?;
+            let saved = peer
+                .publish_manifest(
+                    id,
+                    manifest,
+                    references,
+                    None,
+                    now,
+                    false,
+                    Vec::new(),
+                    metadata,
+                )
+                .await
+                .map_err(explain)?;
+            if saved.published().is_none() {
+                return Err(format!("the server would not take the content of {id}"));
+            }
         }
         self.invalidate().await;
         Ok(Uploaded {
