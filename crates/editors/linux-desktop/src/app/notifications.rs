@@ -52,6 +52,7 @@ impl Listed {
 pub(crate) struct DesktopNotifications {
     shared: Stored<Shared>,
     revision: ReadSignal<u64>,
+    pub(crate) offered: Memo<bool>,
     locked: Memo<bool>,
     browsing: ReadSignal<bool>,
     set_browsing: WriteSignal<bool>,
@@ -96,6 +97,7 @@ impl DesktopNotifications {
         Self {
             shared,
             revision,
+            offered: editor.host_offers::<Notifications>(),
             locked: editor.host_value::<ScreenLocked>(),
             browsing,
             set_browsing,

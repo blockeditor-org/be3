@@ -13,9 +13,8 @@ mod tray;
 mod volume;
 
 use block_editor_beui::Editor;
-use block_editor_beui::Power;
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, NodeRef, RenderFn, component, create_effect, create_memo,
+    ForEach, Frame, ItemSize, List, NodeRef, RenderFn, Show, component, create_effect, create_memo,
     untrack, view,
 };
 use block_editor_beui::beui::styled::{Docking, use_theme};
@@ -24,6 +23,7 @@ use block_editor_beui::beui::unstyled::{
 };
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
+use block_editor_beui::{Media, Power};
 use block_shell::{
     AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, Workspace,
     WorkspaceDialogs,
@@ -87,6 +87,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let panels = workspace.panels();
     let editor = workspace.editor();
     let launcher = ProgramLauncher::new(editor);
+    let launchable = launcher.offered;
+    let keyed = editor.host_offers::<Media>();
     let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
     let theme = use_theme();
@@ -130,8 +132,12 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 />
                 <PickerDialogs workspace />
                 <WorkspaceDialogs workspace />
-                <MediaKeys editor />
-                <ProgramLauncherOverlay launcher />
+                <Show condition={keyed}>
+                    <MediaKeys editor />
+                </Show>
+                <Show condition={launchable}>
+                    <ProgramLauncherOverlay launcher />
+                </Show>
                 <DesktopToasts notifications bar={bar_node} />
             </List>
         </Frame>

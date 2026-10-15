@@ -1,7 +1,7 @@
 # The Linux desktop
 
 block-app is also a Linux desktop: a Wayland compositor whose shell is the linux-desktop
-plugin instead of workspace-ui. Two flags start it that way:
+plugin instead of workspace-ui. These flags start it that way:
 
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
@@ -9,13 +9,26 @@ plugin instead of workspace-ui. Two flags start it that way:
   session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
   once and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
-- `--desktop` (Linux): the desktop shell, linux-desktop on its own session as under
-  `--session`, in a normal window, with programs opening as windows inside it as they do in
-  any windowed run. What needs the displays and input devices themselves, such as display
-  modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
-  running: the power actions start only when the DRM seat provides its `DisplayControl`.
+- `--desktop` (every native platform): the desktop shell, linux-desktop on its own session as
+  under `--session`, in a normal window, with programs opening as windows inside it as they
+  do in any windowed run. What needs the displays and input devices themselves, such as
+  display modes, pointer settings and the power menu's actions other than Lock, is absent,
+  since `beui-adapter-drm` is not running: the power actions start only when the DRM seat
+  provides its `DisplayControl`. On Windows and macOS (`src/arguments.rs` parses the flags)
+  it is the shell alone: there are no program windows, notification server, tray, media,
+  power, lock screen or launcher.
   `./scripts/buck test //crates/block-app:smoke-desktop` starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
+
+Everything the desktop gets from the host is a host value, and linux-desktop shows a control
+only while the host offers what backs it (`editor.host_offers::<T>()`, true once the host has
+published `T`): the Programs button, the Super tap and placeholders' Open need `Programs`, the
+bell `Notifications`, the power menu `Power`, the media keys `Media` (the volume item, its
+`output`), and the tray its items. block-app publishes each as soon as the service behind it
+runs, even empty, and off Linux its `host_values.rs` tables list none of them, so a plugin
+watching one gets nothing and its actions are refused. The web and Android apps have no
+`--desktop`: a desktop with none of these is only a dock of block windows, which their own
+shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).

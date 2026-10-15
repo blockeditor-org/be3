@@ -46,6 +46,7 @@ mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod the_calendar_popup_fits_a_narrow_screen;
+mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
 mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
@@ -87,6 +88,10 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         Self::holding(EditorView::document(LINUX_DESKTOP_EDITOR, None))
+    }
+
+    fn away_from_linux() -> Self {
+        Self::unserved(EditorView::document(LINUX_DESKTOP_EDITOR, None))
     }
 
     fn resumed(saved: EditorViewContent) -> Self {
@@ -132,6 +137,21 @@ impl Fixture {
     }
 
     fn holding(view: EditorViewContent) -> Self {
+        let mut fixture = Self::unserved(view);
+        fixture.test.set_host_value::<Programs>(&Vec::new());
+        fixture
+            .test
+            .set_host_value::<Notifications>(&NotificationInbox::default());
+        fixture
+            .test
+            .set_host_value::<Media>(&MediaLevels::default());
+        fixture
+            .test
+            .set_host_value::<Power>(&PowerAvailability::default());
+        fixture
+    }
+
+    fn unserved(view: EditorViewContent) -> Self {
         let desktop = Uuid::new_v4();
         let client = Uuid::new_v4();
         let host = EditorHost::default();

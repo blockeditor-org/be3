@@ -5,6 +5,7 @@ use crate::{plugin_host, wayland};
 #[derive(Default)]
 pub(crate) struct Programs {
     programs: wayland::Programs,
+    offered: bool,
 }
 
 impl Programs {
@@ -27,7 +28,9 @@ impl Programs {
                 }
             }
         }
-        if self.programs.receive() {
+        let offering = !self.offered && wayland::running();
+        self.offered |= offering;
+        if self.programs.receive() || offering {
             plugin_host::publish::<Listed>(&self.programs.listed());
         }
     }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::icons::ICON_APPS;
 use block_editor_beui::beui::reactive::{
-    Action, Chord, ReadSignal, WriteSignal, component, create_memo, create_signal,
+    Action, Chord, Memo, ReadSignal, WriteSignal, component, create_memo, create_signal,
     pixels_per_point, view,
 };
 use block_editor_beui::beui::styled::{Launcher, LauncherItem};
@@ -18,6 +18,7 @@ pub(crate) struct ProgramLauncher {
     open: ReadSignal<bool>,
     set_open: WriteSignal<bool>,
     scale: ReadSignal<f32>,
+    pub(crate) offered: Memo<bool>,
 }
 
 impl ProgramLauncher {
@@ -28,6 +29,7 @@ impl ProgramLauncher {
             open,
             set_open,
             scale: pixels_per_point(),
+            offered: editor.host_offers::<Programs>(),
         }
     }
 
