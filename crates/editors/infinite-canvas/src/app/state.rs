@@ -7,6 +7,7 @@ use crate::presence::CanvasCursor;
 use block_editor_beui::BlockList;
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
+use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
@@ -610,15 +611,29 @@ pub(crate) fn displayed_entities(
 
 impl CanvasState {
     fn operate(&self, operation: &InfiniteCanvasOperation) {
-        if let Some(edit) = self
-            .cells
-            .get()
-            .content
-            .read(|canvas| canvas.root().edit_for(operation))
-            && !edit.0.is_empty()
+        self.operate_all(std::slice::from_ref(operation));
+    }
+
+    fn operate_all(&self, operations: &[InfiniteCanvasOperation]) {
+        if let Some(edit) = self.cells.get().content.read(|canvas| {
+            operations
+                .iter()
+                .flat_map(|operation| canvas.root().edit_for(operation).0)
+                .collect::<Edit>()
+        }) && !edit.0.is_empty()
         {
             self.cells.get().content.operate(edit);
         }
+    }
+
+    fn add_selected(&self, entities: Vec<CanvasEntity>) {
+        self.set_selection
+            .set(entities.iter().map(|entity| entity.id).collect());
+        let operations = entities
+            .into_iter()
+            .map(|entity| InfiniteCanvasOperation::Add { entity })
+            .collect::<Vec<_>>();
+        self.operate_all(&operations);
     }
 
     pub(crate) fn record(&self, operation: InfiniteCanvasOperation) {
@@ -906,15 +921,7 @@ impl CanvasState {
             self.selected_entities(),
             CanvasPoint::new(IMPORT_CASCADE_OFFSET, IMPORT_CASCADE_OFFSET),
         );
-        if duplicates.is_empty() {
-            return;
-        }
-        let mut selection = HashSet::new();
-        for entity in duplicates {
-            selection.insert(entity.id);
-            self.operate(&InfiniteCanvasOperation::Add { entity });
-        }
-        self.set_selection.set(selection);
+        self.add_selected(duplicates);
     }
 
     pub(crate) fn begin_move(&self, world: CanvasPoint, duplicate: bool) {
@@ -1221,6 +1228,14 @@ impl CanvasState {
         }
     }
 
+    fn paste_center(&self) -> CanvasPoint {
+        let context = self.take_context_position();
+        self.pointer
+            .get_untracked()
+            .or(context)
+            .unwrap_or_else(|| self.viewport_center())
+    }
+
     pub(crate) fn ask_to_paste(&self) {
         block_editor_beui::beui::reactive::request_paste();
     }
@@ -1237,16 +1252,21 @@ impl CanvasState {
                 return true;
             }
         };
+        let Some(bounds) = payload
+            .entities
+            .iter()
+            .map(entity_bounds)
+            .reduce(WorldRect::union)
+        else {
+            return true;
+        };
+        let from = bounds.center();
+        let to = self.paste_center();
         let duplicates = duplicate_entities(
             payload.entities,
-            CanvasPoint::new(IMPORT_CASCADE_OFFSET, IMPORT_CASCADE_OFFSET),
+            CanvasPoint::new(to.x - from.x, to.y - from.y),
         );
-        let mut selection = HashSet::new();
-        for entity in duplicates {
-            selection.insert(entity.id);
-            self.operate(&InfiniteCanvasOperation::Add { entity });
-        }
-        self.set_selection.set(selection);
+        self.add_selected(duplicates);
         self.put_down_tool();
         true
     }
@@ -1459,6 +1479,24 @@ pub(crate) fn selection_frame(
             .reduce(WorldRect::union)
             .map(SelectionFrame::from_world_rect),
     }
+}
+
+pub(crate) fn selected_outlines(
+    entities: &[CanvasEntity],
+    selection: &HashSet<Uuid>,
+) -> Vec<SelectionFrame> {
+    if selection.len() < 2 {
+        return Vec::new();
+    }
+    entities
+        .iter()
+        .filter(|entity| selection.contains(&entity.id))
+        .map(|entity| SelectionFrame {
+            center: entity.transform.center,
+            size: entity.transform.size,
+            rotation: entity.transform.rotation,
+        })
+        .collect()
 }
 
 pub(crate) fn attach_component(
@@ -2021,7 +2059,7 @@ impl CanvasState {
             }
             Pasted::Image(file) => {
                 self.set_import_error.set(None);
-                let center = self.viewport_center();
+                let center = self.paste_center();
                 self.add_imported_image(ImageContent::from_file(file.name, file.data), center);
             }
         }

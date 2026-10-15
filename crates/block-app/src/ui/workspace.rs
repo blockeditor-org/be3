@@ -164,5 +164,6 @@ fn panel_icon(panel: HostPanel) -> &'static str {
         HostPanel::BlockStack => beui::icons::ICON_LAYERS,
         HostPanel::Performance => beui::icons::ICON_SPEED,
         HostPanel::Plugins => beui::icons::ICON_EXTENSION,
+        HostPanel::BeuiDemo => beui::icons::ICON_WIDGETS,
     }
 }
