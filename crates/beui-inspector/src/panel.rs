@@ -145,12 +145,13 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
                     percentage(snapshot.paint_cache_hits, snapshot.samples)
                 ),
                 format!(
-                    "Reused: {} of {} measured | {} of {} painted | {} accessibility nodes rebuilt",
+                    "Reused: {} of {} measured | {} of {} painted | {} accessibility nodes rebuilt of {} walked",
                     work.reused_measurements,
                     work.reused_measurements + work.measured,
                     work.replayed_nodes,
                     work.replayed_nodes + work.painted_nodes,
-                    work.described_nodes
+                    work.described_nodes,
+                    work.walked_nodes
                 ),
             )
         };

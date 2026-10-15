@@ -355,7 +355,10 @@ hooks the higher crates fill in:
   Accessibility trees are published only between
   `Runner::accessibility_requested` and `accessibility_deactivated`, and
   `Context::accessibility_requested` says whether they are, so a host asks what it
-  embeds to describe itself only while something is listening.
+  embeds to describe itself only while something is listening. A document
+  describes again only the nodes a change or a move reached, and passes over a
+  subtree nothing in it changed (`FrameWork::walked_nodes` counts what it
+  visited).
   `Frame::wait` is how long the adapter may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.
@@ -769,8 +772,11 @@ very top shows a row inserted above the rest rather than holding the rows below
 in place.
 
 Rows belong to their keys, not to their positions. Scrolling reuses the rows
-that stay in view and disposes the effects of the ones that leave, and the item
-builder runs once per key for as long as that row stays in view. Changing `keys`
+that stay in view, and keeps the ones that just left, as many as are in view
+and only while they are within a window's length of it, so scrolling back
+shows them without building them again; anything further away is disposed
+with its effects, so a long jump or a list scrolled out of view keeps nothing.
+The item builder runs once per key for as long as its row is kept. Changing `keys`
 keeps every row whose key is still there: inserting a key anywhere builds only
 its row, and only if it lands in view; removing one disposes only its row; and
 the sizes the list measured move with their keys. A key inserted or removed
@@ -2229,8 +2235,11 @@ and the scopes under it; a write the build makes to a signal outside its
 subtree wakes that signal's effects once the walk has finished, which is what
 keeps a build confined to its node.
 
-Layout is a function of the tree and the constraints it is offered. Two nodes
-build during it:
+Layout is a function of the tree and the constraints it is offered, so a new
+window size or set of screens lays the tree out again from its root and every
+node offered the space it had keeps its measurements, placement and paint; only
+a new scale, new fonts or a new context lay out everything. Two nodes build
+during it:
 
 - `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the size it is
   laid out at, on each axis its parent bounds (an axis the parent measured it
