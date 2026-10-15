@@ -24,6 +24,9 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
         true,
     );
     editor.run();
+    let [placeholder] = entities(&editor)
+        .try_into()
+        .expect("the drop added one card");
     let report = |editor: &mut BeuiTest<CanvasApp>| {
         editor.report_children(|placement| ChildStatus {
             instance: block_editor_beui::EditorInstanceId(0),
@@ -71,4 +74,24 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
         "the card would resize the slide to {assigned:?}"
     );
     editor.snapshot("a_dropped_slide_takes_its_own_size_rather_than_the_cards");
+
+    apply(
+        &mut editor,
+        InfiniteCanvasOperation::Update {
+            entities: vec![placeholder.clone()],
+        },
+    );
+    report(&mut editor);
+    report(&mut editor);
+
+    assert_eq!(
+        entities(&editor),
+        [placeholder],
+        "undoing the fit leaves the placeholder rather than fitting it again"
+    );
+    assert_eq!(
+        editor.children()[0].intrinsic,
+        None,
+        "a card back at its placeholder does not resize the slide to it"
+    );
 }

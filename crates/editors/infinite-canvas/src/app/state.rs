@@ -222,6 +222,12 @@ pub(crate) struct Presence {
     pub(crate) selections: Vec<RemoteSelection>,
 }
 
+#[derive(Clone)]
+struct Placeholder {
+    entity: CanvasEntity,
+    fitted: bool,
+}
+
 struct CanvasCells {
     content: ContentProjection<CanvasContent>,
     dependencies: BlockList,
@@ -235,7 +241,7 @@ struct CanvasCells {
     last_foreground: Cell<CanvasColor>,
     last_fill: Cell<Option<CanvasColor>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
-    fitting: RefCell<HashSet<Uuid>>,
+    placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
     color: Cell<Option<PresenceColor>>,
@@ -311,7 +317,7 @@ impl CanvasState {
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
             last_fill: Cell::new(CanvasEntityStyle::default().fill),
             children: RefCell::new(HashMap::new()),
-            fitting: RefCell::new(HashSet::new()),
+            placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
             color: Cell::new(None),
@@ -1541,22 +1547,27 @@ impl CanvasState {
         let size = direct_editor_entity_size(Vec2::new(180.0, 100.0), 1.0);
         let entity_id = Uuid::new_v4();
         let transform = CanvasTransform::new(center, size, 0.0);
-        self.cells.get().fitting.borrow_mut().insert(entity_id);
-        self.set_selection.set(HashSet::from([entity_id]));
-        self.record(InfiniteCanvasOperation::Add {
-            entity: CanvasEntity {
-                id: entity_id,
-                transform,
-                kind: CanvasEntityKind::DirectEditor {
-                    block_id,
-                    scale: 1.0,
-                },
-                style: CanvasEntityStyle::default(),
-                group_id: None,
-                locked: false,
-                components: Vec::new(),
+        let entity = CanvasEntity {
+            id: entity_id,
+            transform,
+            kind: CanvasEntityKind::DirectEditor {
+                block_id,
+                scale: 1.0,
             },
-        });
+            style: CanvasEntityStyle::default(),
+            group_id: None,
+            locked: false,
+            components: Vec::new(),
+        };
+        self.cells.get().placeholders.borrow_mut().insert(
+            entity_id,
+            Placeholder {
+                entity: entity.clone(),
+                fitted: false,
+            },
+        );
+        self.set_selection.set(HashSet::from([entity_id]));
+        self.record(InfiniteCanvasOperation::Add { entity });
     }
 
     pub(crate) fn add_imported_image(&self, image: ImageContent, center: CanvasPoint) {
@@ -2104,21 +2115,40 @@ impl CanvasState {
             if !child.placed {
                 continue;
             }
-            let fitting = self.cells.get().fitting.borrow().contains(&entity.id);
-            if fitting && child.resize == ResizeMode::Both {
-                let Some(fitted) = child
-                    .intrinsic_size
-                    .and_then(|intrinsic| fit_to_child(&entity, intrinsic))
-                else {
+            let placeholder = self
+                .cells
+                .get()
+                .placeholders
+                .borrow()
+                .get(&entity.id)
+                .cloned();
+            if let Some(placeholder) = placeholder {
+                if child.resize != ResizeMode::Both {
+                    self.cells
+                        .get()
+                        .placeholders
+                        .borrow_mut()
+                        .remove(&entity.id);
+                } else if placeholder.entity == entity {
+                    if !placeholder.fitted
+                        && let Some(fitted) = child
+                            .intrinsic_size
+                            .and_then(|intrinsic| fit_to_child(&entity, intrinsic))
+                    {
+                        if let Some(held) = self
+                            .cells
+                            .get()
+                            .placeholders
+                            .borrow_mut()
+                            .get_mut(&entity.id)
+                        {
+                            held.fitted = true;
+                        }
+                        before.push(entity);
+                        after.push(fitted);
+                    }
                     continue;
-                };
-                self.cells.get().fitting.borrow_mut().remove(&entity.id);
-                before.push(entity);
-                after.push(fitted);
-                continue;
-            }
-            if fitting {
-                self.cells.get().fitting.borrow_mut().remove(&entity.id);
+                }
             }
             let intrinsic = match child.resize {
                 ResizeMode::Horizontal => {
@@ -2165,13 +2195,20 @@ impl CanvasState {
         self.record_update(before, after, true);
     }
 
+    fn is_placeholder(&self, entity: &CanvasEntity) -> bool {
+        self.cells
+            .get()
+            .placeholders
+            .borrow()
+            .get(&entity.id)
+            .is_some_and(|placeholder| placeholder.entity == *entity)
+    }
+
     pub(crate) fn assigned_intrinsic(&self, entity: &CanvasEntity) -> Option<Vec2> {
         let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
             return None;
         };
-        if self.peek_child(entity.id).resize != ResizeMode::Both
-            || self.cells.get().fitting.borrow().contains(&entity.id)
-        {
+        if self.peek_child(entity.id).resize != ResizeMode::Both || self.is_placeholder(entity) {
             return None;
         }
         let content = direct_editor_layout(entity)?.content.size();

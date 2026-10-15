@@ -265,10 +265,15 @@ fn parse(text: &str) -> Option<f64> {
     }
 }
 
+const MAX_DECIMALS: u32 = 15;
+
 fn format_number(value: f64, decimals: Option<u32>) -> String {
     if !value.is_finite() {
         return String::new();
     }
+    let decimals = decimals
+        .map(|decimals| decimals.min(MAX_DECIMALS))
+        .filter(|decimals| (value * 10f64.powi(*decimals as i32)).is_finite());
     let value = match decimals {
         Some(decimals) => {
             let factor = 10f64.powi(decimals as i32);
