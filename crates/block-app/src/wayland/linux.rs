@@ -189,6 +189,10 @@ pub(crate) fn set_locked(locked: bool) {
     with(|running| running.compositor.set_locked(locked));
 }
 
+pub(crate) fn set_owned(owned: bool) {
+    with(|running| running.compositor.set_owned(owned));
+}
+
 pub(crate) fn set_primary_selection(on: bool) {
     with(|running| running.compositor.set_primary_selection(on));
 }

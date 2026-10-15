@@ -57,6 +57,7 @@ pub struct Compositor {
     gtk_profile: Option<std::path::PathBuf>,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
     cursor_revision: u64,
+    unowned: unowned::Unowned,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -94,6 +95,7 @@ impl Compositor {
             gtk_profile,
             cursor_surface: None,
             cursor_revision: 0,
+            unowned: unowned::Unowned::default(),
         }
     }
 
@@ -537,6 +539,9 @@ impl Compositor {
 
     fn input(&mut self, now: Instant) {
         let inputs = self.windows.take_input();
+        if !self.owned() {
+            return;
+        }
         for (id, input) in &inputs {
             let id = *id;
             if !self.server.state.windows().contains(&id) {
@@ -643,8 +648,7 @@ impl Compositor {
 
     fn focus(&mut self, now: Instant) {
         let focused = self
-            .windows
-            .focused()
+            .keyboard_for(self.windows.focused())
             .map(|id| self.windows.blocked_by(id).unwrap_or(id));
         if self.server.state.keyboard_window() == focused {
             return;
@@ -889,6 +893,7 @@ impl Compositor {
         self.input(now);
         self.apply(now, document);
         self.server.flush();
+        self.ping_unowned(context);
         self.watch_pings(context);
         if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
             context.request_repaint();
@@ -957,6 +962,7 @@ fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
 }
 
 mod clipboard;
+mod unowned;
 
 #[cfg(test)]
 mod tests;
