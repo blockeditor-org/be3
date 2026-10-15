@@ -164,6 +164,7 @@ pub(super) struct Runtime {
 pub(super) struct Placed {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
+    pub(super) zoom: f32,
 }
 
 #[derive(Default)]
@@ -1457,6 +1458,10 @@ pub(crate) fn aspect_ratio(plugin_id: &str, instance: EditorInstanceId) -> Optio
     .flatten()
 }
 
+pub(crate) fn assigned_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
+    with(plugin_id, |runtime| runtime.instances.assigned_size(instance)).flatten()
+}
+
 pub(crate) fn intrinsic_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
     with(plugin_id, |runtime| {
         runtime.instances.intrinsic_size(instance)
@@ -1584,6 +1589,7 @@ pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region
 pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
+    pub(crate) zoom: f32,
     pub(crate) screens: Vec<beui::Screen>,
 }
 
@@ -1603,15 +1609,22 @@ pub(crate) fn place_region(
         let RegionPlacement {
             rect,
             clip,
+            zoom,
             screens,
         } = placement;
+        let zoom = match zoom.is_finite() && zoom > 0.0 && region != EditorRegion::Preview {
+            true => zoom,
+            false => 1.0,
+        };
         runtime
             .placements
-            .insert((instance, region), Placed { rect, clip });
-        let scale_factor = host::pixels_per_point();
-        let size = match region {
-            EditorRegion::Preview => preview_size(rect.size(), scale_factor),
-            _ => rect.size(),
+            .insert((instance, region), Placed { rect, clip, zoom });
+        let (size, scale_factor) = match region {
+            EditorRegion::Preview => (
+                preview_size(rect.size(), host::pixels_per_point()),
+                host::pixels_per_point(),
+            ),
+            _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
         };
         let cropped = Quad::upright(rect).crop_to(clip);
         let visible = cropped

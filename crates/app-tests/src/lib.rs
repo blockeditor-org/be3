@@ -163,7 +163,16 @@ impl AppTest {
         let log = self
             .app
             .as_ref()
-            .map(|app| format!("\n\nThe end of the app's log:\n{}", app.log_tail()))
+            .map(|app| {
+                let tree = match app.request(&["tree"]) {
+                    Ok(Reply::Text(tree)) => tree,
+                    _ => "(the app did not answer)".to_owned(),
+                };
+                format!(
+                    "\n\nWhat the app shows:\n{tree}\n\nThe end of the app's log:\n{}",
+                    app.log_tail()
+                )
+            })
             .unwrap_or_default();
         panic!(
             "{error}\n\nThe steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}",

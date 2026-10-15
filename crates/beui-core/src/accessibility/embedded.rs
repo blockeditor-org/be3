@@ -17,7 +17,7 @@ pub struct Embedded {
     next: u64,
     changed: HashSet<AccessNodeId>,
     restructured: bool,
-    placed: Option<(String, Rect, Vec2)>,
+    placed: Option<(String, Rect, Vec2, f32)>,
 }
 
 impl Embedded {
@@ -65,10 +65,11 @@ impl Embedded {
         title: &str,
         area: Rect,
         origin: Vec2,
+        scale: f32,
         focused: bool,
         full: bool,
     ) -> Fragment {
-        let placed = (title.to_owned(), area, origin);
+        let placed = (title.to_owned(), area, origin, scale);
         let moved = self.placed.as_ref() != Some(&placed);
         self.placed = Some(placed);
         let restructured = std::mem::take(&mut self.restructured);
@@ -104,7 +105,7 @@ impl Embedded {
         }
         sent.sort_unstable_by_key(|id| id.0);
         for id in sent {
-            let node = self.translate(id, origin);
+            let node = self.translate(id, origin, scale);
             nodes.push((self.host(id), node));
         }
         let focus = self
@@ -159,7 +160,7 @@ impl Embedded {
         });
     }
 
-    fn translate(&mut self, id: AccessNodeId, origin: Vec2) -> Node {
+    fn translate(&mut self, id: AccessNodeId, origin: Vec2, scale: f32) -> Node {
         let mut node = self.nodes[&id].clone();
         let mut seen = HashSet::new();
         let children: Vec<AccessNodeId> = node
@@ -235,7 +236,11 @@ impl Embedded {
         node.clear_tree_id();
         if Some(id) == self.root {
             let local = node.transform().copied().unwrap_or(Affine::IDENTITY);
-            node.set_transform(Affine::translate((origin.x.into(), origin.y.into())) * local);
+            node.set_transform(
+                Affine::translate((origin.x.into(), origin.y.into()))
+                    * Affine::scale(scale.into())
+                    * local,
+            );
             node.set_role(Role::GenericContainer);
             node.clear_label();
         }

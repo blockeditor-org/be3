@@ -41,9 +41,9 @@ pub(crate) fn describe(context: &beui::Context) {
             .placements
             .iter()
             .filter(|((_, region), _)| *region == EditorRegion::Frame)
-            .map(|((instance, _), placed)| (*instance, placed.rect, placed.clip))
+            .map(|((instance, _), placed)| (*instance, placed.rect, placed.clip, placed.zoom))
             .collect();
-        for (instance, rect, clip) in placements {
+        for (instance, rect, clip, zoom) in placements {
             let Some(described) = runtime.instances.described(instance, EditorRegion::Frame) else {
                 continue;
             };
@@ -61,6 +61,7 @@ pub(crate) fn describe(context: &beui::Context) {
                 &name,
                 rect.intersect(clip),
                 rect.min.to_vec2(),
+                zoom,
                 described.focused,
                 !context.accessibility_known(document),
             );

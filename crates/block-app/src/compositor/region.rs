@@ -69,6 +69,7 @@ pub(crate) fn PluginRegion(
     region: EditorRegion,
     #[prop(default = None)] frame: Prop<Option<FrameSpec>>,
     #[prop(default = None)] view: Prop<Option<EditorView>>,
+    #[prop(default = 1.0)] zoom: Prop<f32>,
     #[prop(default = false)] passive: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
@@ -100,6 +101,7 @@ pub(crate) fn PluginRegion(
             RegionPlacement {
                 rect: placement.rect,
                 clip: placement.clip,
+                zoom: zoom.peek(),
                 screens: screens.get_untracked(),
             },
             frame.peek(),
@@ -115,6 +117,7 @@ pub(crate) fn PluginRegion(
     create_effect(move || {
         let _ = frame.get();
         let _ = view.get();
+        let _ = zoom.get();
         screens.with(|_| ());
         place.call(placed.with(Cell::get));
     });

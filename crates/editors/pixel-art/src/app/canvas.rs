@@ -223,13 +223,14 @@ pub(crate) fn ArtworkCanvas(
 
 fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt || !press.pressed {
-        return !matches!(shortcut_kind(press.key), Shortcut::None);
+        return !matches!(
+            shortcut_kind(press.key),
+            Shortcut::None | Shortcut::Cancel
+        );
     }
     match shortcut_kind(press.key) {
         Shortcut::Tool(tool) => tools.select_tool(tool),
-        Shortcut::Cancel => {
-            tools.draw(|drawing| drawing.take());
-        }
+        Shortcut::Cancel => return tools.draw(|drawing| drawing.take()).is_some(),
         Shortcut::Larger => {
             let size = tools.brush_size.get_untracked();
             tools.set_brush_size.set((size + 1).min(MAX_BRUSH_SIZE));

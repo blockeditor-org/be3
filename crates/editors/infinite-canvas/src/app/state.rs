@@ -479,6 +479,16 @@ impl CanvasState {
     }
 
     pub(crate) fn report_child(&self, entity: Uuid, state: ChildState) {
+        let released = self
+            .cells
+            .get()
+            .children
+            .borrow()
+            .get(&entity)
+            .is_some_and(|held| held.active && !state.active);
+        if released && self.focused_editor.get_untracked() == Some(entity) {
+            self.focus_editor(None);
+        }
         self.cells.get().children.borrow_mut().insert(entity, state);
         let held = self.cells.get().children.borrow().clone();
         self.set_child_states.set(held);
@@ -503,6 +513,16 @@ impl CanvasState {
             CanvasEntityKind::DirectEditor { .. } => self.peek_child(entity.id).resize,
             _ => ResizeMode::Both,
         }
+    }
+
+    pub(crate) fn takes_frame(&self, entity: Uuid) -> bool {
+        let child = self.peek_child(entity);
+        child.interaction.is_some() && child.capabilities.pan_and_zoom
+    }
+
+    pub(crate) fn works_in_place(&self, entity: Uuid) -> bool {
+        let child = self.child_state(entity);
+        child.interaction == Some(InteractionMode::Live) && !child.capabilities.pan_and_zoom
     }
 
     pub(crate) fn shows_preview(&self, entity: Uuid) -> bool {
@@ -539,6 +559,8 @@ pub(crate) fn camera_view(
     )
 }
 
+const FITTED_ROOM: Vec2 = Vec2::new(640.0, 480.0);
+
 fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> {
     let CanvasEntityKind::DirectEditor { block_id, .. } = entity.kind else {
         return None;
@@ -547,8 +569,10 @@ fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> 
         return None;
     }
     let room = direct_editor_layout(entity)?.content.size();
+    let room = Vec2::new(room.x.max(FITTED_ROOM.x), room.y.max(FITTED_ROOM.y));
     let scale = (room.x / intrinsic.x)
         .min(room.y / intrinsic.y)
+        .min(1.0)
         .max(f32::EPSILON);
     let bounds = entity_bounds(entity);
     let size = direct_editor_entity_size(intrinsic, scale);

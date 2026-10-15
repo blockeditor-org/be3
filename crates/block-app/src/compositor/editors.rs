@@ -1218,6 +1218,18 @@ fn BlockFrameView(
                                 .any(|floating| floating.translate(origin).contains(pos))
                         })
                 };
+                let placed_zoom = create_memo(move || {
+                    if handle.pan_and_zoom || !embedded || content.get().is_some() {
+                        return 1.0;
+                    }
+                    revision.get();
+                    let shown = rect.get();
+                    plugin_host::assigned_size(&plugin_id.get(), instance)
+                        .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
+                        .map_or(1.0, |assigned| {
+                            (shown.width() / assigned.x).min(shown.height() / assigned.y)
+                        })
+                });
                 let child_view = child_view(block, EditorRegion::Frame);
                 view! {
                     <Interactive
@@ -1231,6 +1243,7 @@ fn BlockFrameView(
                             region=EditorRegion::Frame
                             frame={frame}
                             view={editor_view}
+                            zoom={placed_zoom}
                             passive={passive}
                             child_view
                         />
@@ -1597,7 +1610,11 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         available,
         intrinsic,
         aspect_ratio,
-        active: available && child.is_active(),
+        active: available
+            && match child.mode {
+                ChildMode::Active => child.frame_owner,
+                _ => child.is_active(),
+            },
         interaction,
         capabilities,
         resize,

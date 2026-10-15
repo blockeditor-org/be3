@@ -1,4 +1,3 @@
-use block_editor_beui::InteractionMode;
 use block_editor_beui::be_block::canvas::{
     CanvasEntityKind, CanvasPoint, CanvasTextStyle, CanvasTransform,
 };
@@ -79,7 +78,7 @@ impl CanvasState {
         let world = self.world_at(press.pos);
         self.hover(Some(world));
         if let Some(child) = self.live_child_at(world) {
-            if self.interaction(child) == Some(InteractionMode::Live) {
+            if self.takes_frame(child) {
                 self.focus_editor(Some(child));
             }
             return;
@@ -208,8 +207,7 @@ impl CanvasState {
             if let CanvasEntityKind::DirectEditor { .. } = entity.kind {
                 let content = direct_editor_layout(entity)
                     .is_some_and(|layout| layout.content.contains(world));
-                let live = self.interaction(entity.id) == Some(InteractionMode::Live);
-                if content && live {
+                if content && self.takes_frame(entity.id) {
                     self.focus_editor(Some(id));
                     self.begin_gesture(None);
                     return;

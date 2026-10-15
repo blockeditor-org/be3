@@ -306,9 +306,10 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
         Some(entity) => match entity.kind {
             CanvasEntityKind::DirectEditor { .. } => match state.focused_editor.get() == Some(id) {
                 true => ChildMode::Active,
-                false => match state.shows_preview(id) {
-                    true => ChildMode::Preview,
-                    false => ChildMode::Passive,
+                false => match (state.shows_preview(id), state.works_in_place(id)) {
+                    (true, _) => ChildMode::Preview,
+                    (false, true) => ChildMode::InPlace,
+                    (false, false) => ChildMode::Passive,
                 },
             },
             _ => ChildMode::Preview,
