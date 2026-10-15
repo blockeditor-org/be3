@@ -59,3 +59,12 @@ filegroup(
     srcs = glob(["ci-keystore.base64"]),
     visibility = ["PUBLIC"],
 )
+
+# The keystore ./scripts/deploy signs :android-release with, which it writes
+# here from the one it keeps in ~/.config/be3 (guides/hosting.md); git ignores
+# it too.
+filegroup(
+    name = "release-keystore",
+    srcs = glob(["release-keystore.base64"]),
+    visibility = ["PUBLIC"],
+)

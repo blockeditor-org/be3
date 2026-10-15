@@ -53,7 +53,7 @@ app(
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
     sdk = "//crates/block-plugin-sdk:module",
-    visibility = ["//crates/app-tests:"],
+    visibility = ["//crates/app-tests:", "//crates/local-tools:"],
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -183,14 +183,17 @@ app(
 
 # What CI ships is :android-dist, signed on a worker with CI's keystore, so the
 # runner downloads only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
+# What ./scripts/deploy uploads is :android-release, signed with the release
+# keystore, under the id and label its --android-id and --android-label give
+# (be3.android_id and be3.android_label), so that it can install beside CI's.
 [
     android_apk(
         name = name,
         activity = "com.be3.block.MainActivity",
         application_id = application_id,
         assets = ":android-assets",
-        ci_signed = ci_signed,
         java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
+        keystore = keystore,
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",
@@ -200,10 +203,17 @@ app(
         target_sdk = 35,
         version_code = 1,
         version_name = "0.1.0",
+        visibility = ["//crates/local-tools:"],
     )
-    for name, application_id, label, ci_signed in [
-        ("android", "com.be3.block", "Block", False),
-        ("android-dist", "com.be3.block.ci", "Block (CI)", True),
+    for name, application_id, label, keystore in [
+        ("android", "com.be3.block", "Block", None),
+        ("android-dist", "com.be3.block.ci", "Block (CI)", "//buck/android:ci-keystore"),
+        (
+            "android-release",
+            read_config("be3", "android_id", "com.be3.block"),
+            read_config("be3", "android_label", "Block"),
+            "//buck/android:release-keystore",
+        ),
     ]
 ]
 

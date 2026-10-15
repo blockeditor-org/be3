@@ -48,18 +48,43 @@ How the server runs on a VPS for real notes. The files referred to are in
 
 ## Deploying
 
-`./scripts/deploy` builds be-server and `be` in release in one buck2 command
+`./scripts/deploy` builds be-server, `be` and the app for every platform in release in one buck2 command
 (local-tools deploy, in crates/local-tools) and then, from that build:
 
 - uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
   `be/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
   `lfs.pfg.pw` to check the hash, and pins it in `scripts/internal/common.sh`,
   which `./scripts/be` must match the server by (guides/tracker.md);
+- uploads the app's downloads to `app/BUILD/` in the same zone, each read
+  back the same way: `:native` with its plugins for Linux, macOS and Windows on
+  x86_64 and arm64 and the web bundle, each zipped on a worker by
+  `buck-tools archive` into a folder of its own name, and `:android-release`,
+  signed on a worker with the release keystore under the id and label
+  `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
+  it installs beside CI's `com.be3.block.ci`), with
+  `app/BUILD/index.html` linking them. Once the server runs the build (not
+  under `--skip-server`), it writes the same page to `app/index.html`, the one
+  people are sent to (`lfs.pfg.pw/by-name/be3/app/`), without reading it back
+  through the CDN, and purges it from the CDN when `BUNNY_API_KEY` is set. A
+  download connects only to a server of its build. `--skip-downloads` leaves
+  the downloads out of the build, and `--skip-android` only the APK, so that
+  neither needs the keystore;
 - copies `be-server`, its `build-id` and the web bundle (`//crates/block-app:web`,
   with every plugin) to the VPS beside the running ones, stops Caddy and
   be-server, moves them into place (the bundle to `/srv/be3-web`, keeping the
   last one as `/srv/be3-web.old`) and starts both again. The app, the web app
   and `be` are then all one build, which the server requires.
+
+Before building it finds the keys it needs besides the build server's,
+asking at a terminal for any it lacks and saving them in `~/.config/be3`:
+the storage zone's password (`BUNNY_STORAGE_KEY`, `bunny-storage-key`), the
+account's API key for the purge (`BUNNY_API_KEY`, `bunny-api-key`, which may
+be left empty), and the release keystore (`android-release-keystore.base64`),
+which it can make anew and copies to `buck/android/release-keystore.base64`
+for the signing action. Android installs an update only when it is signed
+with the same key, so keep a copy of the keystore off the machine: a new one
+means every device uninstalls the app once. Like CI's, it is an input of the
+signing action, so it is in the build server's CAS.
 
 It refuses a working tree that differs from its commit, so every deployed build
 can be built again. Commit the pin it writes. `--dry-run` prints each step and
