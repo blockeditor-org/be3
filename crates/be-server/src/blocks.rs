@@ -223,8 +223,7 @@ impl ServerStore {
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
-        references_added: Vec<Uuid>,
-        references_removed: Vec<Uuid>,
+        references: Vec<Uuid>,
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         let mut held = vec![commit.hash()];
@@ -246,9 +245,14 @@ impl ServerStore {
             if current == Some(commit) {
                 return Ok(PublishOutcome::Published(commit, false));
             }
-            let redescribed = graph
-                .get(block)
-                .is_some_and(|node| node.metadata != metadata);
+            let mut references = references;
+            let mut seen = std::collections::HashSet::new();
+            references.retain(|reference| seen.insert(*reference));
+            let relinked = graph.references(block) != references;
+            let redescribed = relinked
+                || graph
+                    .get(block)
+                    .is_some_and(|node| node.metadata != metadata);
             let transaction = database.unchecked_transaction()?;
             let workspace = identity.workspace.to_string();
             let existing: Option<i64> = transaction
@@ -301,22 +305,27 @@ impl ServerStore {
                     metadata
                 ],
             )?;
-            for reference in &references_removed {
+            if relinked {
                 transaction.execute(
-                    "DELETE FROM block_edges
-                     WHERE workspace_id = ?1 AND block_id = ?2 AND reference_id = ?3",
-                    params![workspace, block.to_string(), reference.to_string()],
+                    "DELETE FROM block_edges WHERE workspace_id = ?1 AND block_id = ?2",
+                    params![workspace, block.to_string()],
                 )?;
-            }
-            for reference in &references_added {
-                transaction.execute(
-                    "INSERT OR IGNORE INTO block_edges (workspace_id, block_id, reference_id)
-                     VALUES (?1, ?2, ?3)",
-                    params![workspace, block.to_string(), reference.to_string()],
-                )?;
+                for (position, reference) in references.iter().enumerate() {
+                    transaction.execute(
+                        "INSERT OR IGNORE INTO block_edges
+                            (workspace_id, block_id, reference_id, position)
+                         VALUES (?1, ?2, ?3, ?4)",
+                        params![
+                            workspace,
+                            block.to_string(),
+                            reference.to_string(),
+                            i64::try_from(position).map_err(|_| ServerError::Corrupt)?
+                        ],
+                    )?;
+                }
             }
             transaction.commit()?;
-            graph.apply_references(block, &references_added, &references_removed)?;
+            graph.set_references(block, &references)?;
             graph.set_head(block, commit)?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;

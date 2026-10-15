@@ -24,8 +24,7 @@ async fn pruning_history_keeps_pinned_commits() {
             chunks: first_chunks.clone(),
             time: 1_000,
             pinned: true,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;

@@ -26,8 +26,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
             chunks: chunks.clone(),
             time: 1_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;
@@ -42,8 +41,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
             chunks: chunks.clone(),
             time: 1_000,
             pinned: false,
-            references_added: vec![child],
-            references_removed: Vec::new(),
+            references: vec![child],
             metadata: Vec::new(),
         })
         .await;
