@@ -56,13 +56,11 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 view={create_memo(move || Some(placement.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
-                                <Show condition={!previewing}>
-                                    <CanvasBackdrop
-                                        state={state}
-                                        camera={backdrop_camera}
-                                        stage={backdrop_stage}
-                                    />
-                                </Show>
+                                <CanvasBackdrop
+                                    state={state}
+                                    camera={backdrop_camera}
+                                    stage={backdrop_stage}
+                                />
                                 <ForEach keys={ids}>
                                     {move |id: Uuid| {
                                         let camera = shape_camera;
@@ -201,6 +199,7 @@ fn CanvasBackdrop(
             stage: stage.get(),
             background: theme.background.get(),
             label: theme.text_muted.get(),
+            chrome: !state.previewing(),
             artboards,
         };
         if shown.borrow().as_ref() == Some(&backdrop) {

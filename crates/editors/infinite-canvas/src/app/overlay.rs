@@ -28,6 +28,7 @@ pub(crate) struct Backdrop {
     pub(crate) stage: Rect,
     pub(crate) background: Color32,
     pub(crate) label: Color32,
+    pub(crate) chrome: bool,
     pub(crate) artboards: Vec<Artboard>,
 }
 
@@ -36,9 +37,14 @@ impl Backdrop {
         if self.artboards.is_empty() {
             return;
         }
-        painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+        if self.chrome {
+            painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+        }
         for artboard in &self.artboards {
             painter.rect_filled(self.camera.rect(artboard.bounds), 0.0, self.background);
+        }
+        if !self.chrome {
+            return;
         }
         for artboard in &self.artboards {
             let rect = self.camera.rect(artboard.bounds);
