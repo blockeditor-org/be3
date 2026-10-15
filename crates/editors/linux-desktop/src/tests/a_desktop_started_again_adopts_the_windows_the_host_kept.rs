@@ -46,7 +46,10 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     first.test.set_host_value::<HostWindows>(&kept(false));
     first.settle();
     let opened = placed(&first, 2).expect("the desktop shows the window");
-    let tab = first.test.point_of(&format!("dock.tab.{}.close", window_tab(2))) - Vec2::new(60.0, 0.0);
+    let tab = first
+        .test
+        .point_of(&format!("dock.tab.{}.close", window_tab(2)))
+        - Vec2::new(60.0, 0.0);
     first.test.drag(tab, tab + Vec2::new(120.0, 80.0));
     first.settle();
     let moved = placed(&first, 2).expect("the window is still shown");
@@ -76,10 +79,18 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
         "a dialog is shown over its parent again"
     );
     assert!(
-        second.test.take_actions::<WindowAction>().iter().all(|action| !matches!(
-            action,
-            WindowAction::Close(_) | WindowAction::Fullscreen { fullscreen: false, .. }
-        )),
+        second
+            .test
+            .take_actions::<WindowAction>()
+            .iter()
+            .all(|action| !matches!(
+                action,
+                WindowAction::Close(_)
+                    | WindowAction::Fullscreen {
+                        fullscreen: false,
+                        ..
+                    }
+            )),
         "adopting the windows closes none and takes none out of fullscreen"
     );
 }

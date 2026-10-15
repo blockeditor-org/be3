@@ -18,8 +18,8 @@ use crate::app::LinuxDesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
-mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
+mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
 mod a_held_volume_key_keeps_turning_the_volume;

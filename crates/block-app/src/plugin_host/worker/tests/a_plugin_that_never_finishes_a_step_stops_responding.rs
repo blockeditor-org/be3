@@ -47,7 +47,10 @@ fn a_plugin_that_never_finishes_a_step_stops_responding() {
 
     worker.channel.events.push(Event::Stepped(produced()));
     assert_eq!(worker.poll(), None);
-    assert_eq!(worker.channel.stepped, 2, "a finished step lets the next go");
+    assert_eq!(
+        worker.channel.stepped, 2,
+        "a finished step lets the next go"
+    );
     let later = start + STEP_TIMEOUT - Duration::from_secs(1);
     assert_eq!(
         worker.hung(later),
