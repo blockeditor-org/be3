@@ -22,7 +22,7 @@ pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
-    #[prop(default = None)] focus_color: Prop<Option<Color32>>,
+    #[prop(default = ColorRole::Accent)] focus_color: Prop<ColorRole>,
     #[prop(default = None)] max_length: Option<f32>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
@@ -102,7 +102,7 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
     }
 }
 
-fn focus_ring(color: Prop<Option<Color32>>) -> Memo<Color32> {
+fn focus_ring(color: Prop<ColorRole>) -> Memo<Color32> {
     let theme = use_theme();
-    create_memo(move || color.get().unwrap_or_else(|| theme.accent.get()))
+    create_memo(move || color.get().resolve(&theme))
 }

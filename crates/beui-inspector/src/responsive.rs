@@ -1,17 +1,13 @@
-use beui_components_styled::{
-    ButtonVariant, IconButton, NumberInput, Select, Separator, Theme, select_open,
-};
+use beui_components_styled::*;
 use beui_components_unstyled::ChoiceOption;
 use beui_core::document::Document;
 use beui_core::geometry::{Vec2, vec2};
 use beui_core::icons::{ICON_CLOSE, ICON_SCREEN_ROTATION};
 use beui_core::node::NodeId;
 use beui_core::screen_simulation::{MAXIMUM_SIZE, MINIMUM_SIZE, ScreenSimulation};
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use super::State;
-use beui_components_styled::{Text, TextStyle};
 
 pub const HEIGHT: f32 = 51.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
@@ -20,7 +16,6 @@ const SPACING: f32 = 6.0;
 const DEVICE_WIDTH: f32 = 140.0;
 const DIMENSION_WIDTH: f32 = 72.0;
 const ZOOM_WIDTH: f32 = 84.0;
-const THEME: Theme = Theme::DARK;
 
 pub const DEVICES: [(&str, Vec2); 9] = [
     ("Responsive", Vec2::ZERO),
@@ -112,8 +107,7 @@ fn ResponsiveToolbar(
     view! {
         <List spacing=0.0>
             <Frame
-                fill={THEME.surface}
-                radius=0.0
+                fill=ColorRole::Surface
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

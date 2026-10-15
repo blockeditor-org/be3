@@ -750,6 +750,7 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
                 }}
             />
             <IconButton
+                @test_id={"demo.inspector"}
                 glyph=ICON_BUG_REPORT
                 label="Open the inspector"
                 variant=ButtonVariant::Ghost

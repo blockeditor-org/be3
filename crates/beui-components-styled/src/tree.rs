@@ -51,7 +51,7 @@ pub fn Tree<K>(
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = 0.0)] padding: f32,
-    #[prop(default = None)] focus_color: Prop<Option<Color32>>,
+    #[prop(default = ColorRole::Accent)] focus_color: Prop<ColorRole>,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,

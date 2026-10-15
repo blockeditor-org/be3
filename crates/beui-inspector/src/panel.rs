@@ -1,34 +1,22 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use accesskit::{Node, Role};
-
-use beui_core::color::Color32;
-
 use crate::screen_reader::Command;
-use beui_components_styled::Radius;
-use beui_components_styled::theme::BORDER_WIDTH;
-use beui_components_styled::{
-    Button, ButtonVariant, Checkbox, RadioGroup, Scroll, Separator, Slider, Tabs, TextSize, Theme,
-    Tree, TreeRowFace,
-};
-use beui_components_unstyled as unstyled;
+use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
 use beui_core::context::RendererChoices;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
-use beui_core::icons::ICON_CLOSE;
+use beui_core::icons::{ICON_ARROW_SELECTOR_TOOL, ICON_CLOSE};
 use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_core::performance::PerformanceSnapshot;
+use beui_core::performance::PerformanceTimings;
 use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
-use beui_components_styled::{Icon, Text, TextColor, TextStyle};
-use beui_core::performance::PerformanceSnapshot;
-use beui_core::performance::PerformanceTimings;
 
 const HEADER_PADDING: f32 = 12.0;
 const HEADER_SPACING: f32 = 8.0;
@@ -36,9 +24,6 @@ const BODY_PADDING: f32 = 8.0;
 const FOOTER_PADDING: f32 = 10.0;
 const FOOTER_SPACING: f32 = 3.0;
 const ROW_SPACING: f32 = 6.0;
-const TOGGLE_PADDING_HORIZONTAL: f32 = 8.0;
-const TOGGLE_PADDING_VERTICAL: f32 = 3.0;
-const CLOSE_PADDING: f32 = 3.0;
 const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
 const BLUR_MIDPOINT: f32 = 12.0;
@@ -88,7 +73,6 @@ const TOUCH_GUIDE: [&str; 5] = [
     "Double tap - activate",
     "Two finger tap - repeat, drag two fingers - scroll",
 ];
-const THEME: Theme = Theme::DARK;
 
 #[derive(Clone, Default, PartialEq)]
 pub struct Summary {
@@ -249,7 +233,7 @@ pub fn build(state: Stored<State>) -> Panel {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />
-                <Frame @sizing=ItemSize::Percent(100.0) fill={THEME.surface} radius=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) fill=ColorRole::Surface>
                     <List spacing=0.0>
                         <Frame padding=HEADER_PADDING>
                             <List spacing=HEADER_SPACING>
@@ -307,7 +291,6 @@ pub fn build(state: Stored<State>) -> Panel {
                                             selected={selected}
                                             ancestors={move |key: Key| ancestors(lineage, key)}
                                             padding=BODY_PADDING
-                                            focus_color={Some(THEME.accent)}
                                             row_test_id={move |key: Key| key.test_id()}
                                             reveal_test_id={"inspector.reveal".to_owned()}
                                             on_select={move |key: Key| state.get().select_row(key)}
@@ -366,7 +349,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                         <Text
                                             style=TextStyle::CODE
                                             string={bounds_text}
-                                            color={TextColor::Custom(THEME.text_muted)}
+                                            color=TextColor::Muted
                                         />
                                     </List>
                                 </ShowKeepAlive>
@@ -381,7 +364,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                     <Text
                                         style=TextStyle::CODE
                                         string={native_pixel_ratio_text}
-                                        color={TextColor::Custom(THEME.text_muted)}
+                                        color=TextColor::Muted
                                     />
                                 </ShowKeepAlive>
                             </List>
@@ -418,7 +401,7 @@ pub fn build_bar(state: Stored<State>) -> Bar {
     let (selected, set_selected) = create_signal(1);
     let document = beui_view::reactive::build(|| {
         view! {
-            <Frame fill={THEME.surface} radius=0.0>
+            <Frame fill=ColorRole::Surface>
                 <List spacing=0.0>
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
@@ -471,7 +454,7 @@ fn SimulationPanel(
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
     view! {
-        <Scroll focus_color={Some(THEME.accent)}>
+        <Scroll>
             <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <Checkbox
@@ -730,11 +713,7 @@ fn ScreenReaderSection(state: Stored<State>) -> NodeId {
 fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
     view! {
         <List spacing=FOOTER_SPACING>
-            <Text
-                style=TextStyle::CAPTION
-                string={title.to_owned()}
-                color={TextColor::Custom(THEME.text)}
-            />
+            <Text style=TextStyle::CAPTION string={title.to_owned()} color=TextColor::Default />
             <ForEach keys={lines.to_vec()}>
                 {|line: &'static str| view! {
                     <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
@@ -793,26 +772,14 @@ fn PerformancePanel(
     let accessibility = timing_values(performance, |timings| timings.accessibility);
     let other = timing_values(performance, |timings| timings.other);
     view! {
-        <Scroll focus_color={Some(THEME.accent)}>
+        <Scroll>
             <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <List spacing=FOOTER_SPACING>
                         <Text style=TextStyle::CODE string={latest_work} />
-                        <Text
-                            style=TextStyle::CODE
-                            string={scene}
-                            color={TextColor::Custom(THEME.text_muted)}
-                        />
-                        <Text
-                            style=TextStyle::CODE
-                            string={cache}
-                            color={TextColor::Custom(THEME.text_muted)}
-                        />
-                        <Text
-                            style=TextStyle::CODE
-                            string={reuse}
-                            color={TextColor::Custom(THEME.text_muted)}
-                        />
+                        <Text style=TextStyle::CODE string={scene} color=TextColor::Muted />
+                        <Text style=TextStyle::CODE string={cache} color=TextColor::Muted />
+                        <Text style=TextStyle::CODE string={reuse} color=TextColor::Muted />
                     </List>
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -913,7 +880,7 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Separator />
-            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={Some(THEME.accent)}>
+            <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=BODY_PADDING>
                     <List spacing=TIMING_SPACING>
                         <Text style=TextStyle::HEADING string="Properties" />
@@ -942,7 +909,7 @@ fn LabeledRow(label: String, value: String) -> NodeId {
                 style=TextStyle::CAPTION
                 @sizing=ItemSize::Percent(100.0)
                 string={value}
-                color={TextColor::Custom(THEME.text)}
+                color=TextColor::Default
                 wrap=true
             />
         </List>
@@ -1034,84 +1001,30 @@ fn percentage(count: usize, total: usize) -> usize {
     count.saturating_mul(100) / total.max(1)
 }
 
-pub fn toggle_fill(picking: bool) -> Color32 {
-    if picking {
-        THEME.accent
-    } else {
-        THEME.surface_raised
-    }
-}
-
-pub fn toggle_text(picking: bool) -> Color32 {
-    if picking { THEME.on_accent } else { THEME.text }
-}
-
 #[component]
 fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
-    let label_color = create_memo(move || TextColor::Custom(toggle_text(picking.get())));
-    let fill_color = create_memo(move || toggle_fill(picking.get()));
     view! {
-        <unstyled::Pressable on_click={move || state.get().toggle_picking()}>
-            <Frame
-                fill=fill_color
-                outline={Outline::new(THEME.border, BORDER_WIDTH)}
-                radius={Radius::Sm.px()}
-                padding={Sides::symmetric(TOGGLE_PADDING_HORIZONTAL, TOGGLE_PADDING_VERTICAL)}
-            >
-                <Text
-                    style=TextStyle::CODE
-                    string="Pick"
-                    align=TextAlign::Center
-                    color={label_color}
-                />
-            </Frame>
-        </unstyled::Pressable>
+        <ToggleButton
+            label="Pick"
+            glyph={ICON_ARROW_SELECTOR_TOOL.to_owned()}
+            icon_only=true
+            pressed={picking}
+            on_change={move |_| state.get().toggle_picking()}
+        />
     }
 }
 
 #[component]
 fn CloseButton(state: Stored<State>) -> NodeId {
-    let (hovered, set_hovered) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
-    let fill_color = create_memo(move || close_fill(hovered.get()));
-    let outline_color = create_memo(move || close_outline(focused.get()));
-    let mut accessibility = Node::new(Role::Button);
-    accessibility.set_label("Close inspector");
     view! {
-        <unstyled::Pressable
-            accessibility={Prop::Static(accessibility)}
+        <IconButton
+            glyph={ICON_CLOSE.to_owned()}
+            label="Close inspector"
+            variant=ButtonVariant::Ghost
+            size=IconButtonSize::Compact
             on_click={move || state.get().close()}
-            on_hover_change={move |hovered| set_hovered.set(hovered)}
-            on_focus_change={move |focused| set_focused.set(focused)}
-        >
-            <Frame
-                fill=fill_color
-                outline={create_memo(move || Some(Outline::new(outline_color.get(), BORDER_WIDTH)))}
-                radius={Radius::Sm.px()}
-                padding=CLOSE_PADDING
-            >
-                <Text
-                    size=TextSize::Sm
-                    color={TextColor::Custom(THEME.text_muted)}
-                    align=TextAlign::Center
-                >
-                    <Icon glyph=ICON_CLOSE />
-                </Text>
-            </Frame>
-        </unstyled::Pressable>
+        />
     }
-}
-
-fn close_fill(hovered: bool) -> Color32 {
-    if hovered {
-        THEME.pressed
-    } else {
-        Color32::TRANSPARENT
-    }
-}
-
-fn close_outline(focused: bool) -> Color32 {
-    if focused { THEME.accent } else { THEME.border }
 }
 
 fn entry_field<T: Clone + Default + PartialEq + 'static>(
@@ -1142,14 +1055,9 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
                 style=TextStyle::CODE
                 @sizing=ItemSize::Percent(100.0)
                 string={detail}
-                color={TextColor::Custom(THEME.text_muted)}
+                color=TextColor::Muted
             />
-            <Text
-                style=TextStyle::CODE
-                string={size}
-                color={TextColor::Custom(THEME.text_muted)}
-                align=TextAlign::End
-            />
+            <Text style=TextStyle::CODE string={size} color=TextColor::Muted align=TextAlign::End />
         </List>
     }
 }
