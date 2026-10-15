@@ -1,7 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
-    ICON_UNDO,
+    ICON_REDO, ICON_UNDO,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
@@ -22,7 +22,7 @@ const TOOLS: [(Tool, &str, &str); 6] = [
     (Tool::Pen, ICON_DRAW, "Pen"),
 ];
 
-const DOCK_TOOLS: [usize; 4] = [0, 5, 3, 4];
+const DOCK_TOOLS: [usize; 6] = [0, 5, 2, 3, 4, 1];
 const PILL_MARGIN: f32 = 12.0;
 const PILL_RADIUS: f32 = 16.0;
 const PILL_PADDING: f32 = 4.0;
@@ -45,9 +45,14 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     };
     let history = state.editor().history(state.editor().block_id());
     let stuck = create_memo(move || !history.get().can_undo);
+    let redo_stuck = create_memo(move || !history.get().can_redo);
     let undo = move || {
         let editor = state.editor();
         editor.host().undo(editor.block_id());
+    };
+    let redo = move || {
+        let editor = state.editor();
+        editor.host().redo(editor.block_id());
     };
     view! {
         <BottomDock
@@ -80,6 +85,13 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 disabled={stuck}
                 @test_id={"infinite-canvas.dock.undo"}
                 on_click={undo}
+            />
+            <IconButton
+                glyph={ICON_REDO.to_owned()}
+                label="Redo"
+                disabled={redo_stuck}
+                @test_id={"infinite-canvas.dock.redo"}
+                on_click={redo}
             />
         </BottomDock>
     }

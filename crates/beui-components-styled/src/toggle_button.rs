@@ -60,6 +60,10 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     let theme = use_theme();
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let named = create_memo(move || !icon_only.get());
+    let padding = create_memo(move || match icon_only.get() {
+        true => Sides::symmetric(8.0, 8.0),
+        false => Sides::symmetric(14.0, 8.0),
+    });
     let text_color = create_memo(move || match disabled.get() {
         true => TextColor::Muted,
         false => TextColor::Default,
@@ -81,7 +85,7 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
                 fill={ColorRole::custom(fill_color)}
                 border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}
                 radius=Radius::Md
-                padding={Sides::symmetric(14.0, 8.0)}
+                padding={padding}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>

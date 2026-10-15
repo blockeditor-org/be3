@@ -142,6 +142,10 @@ fn CanvasOverlay(
             empty: state.entities.get().is_empty(),
             gesture: state.gesture.get(),
             frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
+            line: state.selected_line().and_then(|line| {
+                let shown = state.displayed().into_iter().find(|entity| entity.id == line.id)?;
+                Some(line_ends(&shown))
+            }),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
             presence: state.presence.get(),

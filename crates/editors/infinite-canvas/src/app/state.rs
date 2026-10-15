@@ -137,12 +137,20 @@ pub(crate) enum Gesture {
         handle: ResizeHandle,
         frame: SelectionFrame,
         current: CanvasPoint,
+        grab: CanvasPoint,
         originals: Vec<CanvasEntity>,
         default_preserve_aspect_ratio: bool,
         force_preserve_aspect_ratio: bool,
         preserve_aspect_ratio: bool,
         scale_text: bool,
         scale_editors: bool,
+    },
+    Endpoint {
+        original: CanvasEntity,
+        end: usize,
+        current: CanvasPoint,
+        grab: CanvasPoint,
+        snap: bool,
     },
     Rotate {
         frame: SelectionFrame,
@@ -197,6 +205,24 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             originals,
             snap_angle,
         } => rotate_entities(*frame, *start_angle, *current, originals, *snap_angle),
+        Gesture::Endpoint {
+            original,
+            end,
+            current,
+            snap,
+            ..
+        } => {
+            let mut ends = line_ends(original);
+            ends[*end] = match snap {
+                true => constrain_point_angle(
+                    ends[1 - end],
+                    *current,
+                    std::f32::consts::FRAC_PI_4,
+                ),
+                false => *current,
+            };
+            vec![line_through(original.clone(), ends[0], ends[1])]
+        }
         Gesture::Create { .. } | Gesture::Pen { .. } | Gesture::SelectBox { .. } => Vec::new(),
     }
 }
@@ -756,6 +782,15 @@ impl CanvasState {
             .into_iter()
             .filter(|entity| !entity.locked)
             .collect()
+    }
+
+    pub(crate) fn selected_line(&self) -> Option<CanvasEntity> {
+        match self.selected_entities().as_slice() {
+            [entity] if !entity.locked && matches!(entity.kind, CanvasEntityKind::Line) => {
+                Some(entity.clone())
+            }
+            _ => None,
+        }
     }
 
     pub(crate) fn selection_has_unlocked(&self) -> bool {
@@ -1694,6 +1729,10 @@ impl CanvasState {
                 if !updates.is_empty() {
                     self.record_update(originals.clone(), updates, false);
                 }
+            }
+            Gesture::Endpoint { ref original, .. } => {
+                let updates = preview_entities(&gesture);
+                self.record_update(vec![original.clone()], updates, false);
             }
         }
     }

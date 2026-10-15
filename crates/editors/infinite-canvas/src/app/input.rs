@@ -22,6 +22,12 @@ impl CanvasState {
         let Some(world) = self.pointer.get() else {
             return CursorIcon::Default;
         };
+        if let Some(line) = self.selected_line() {
+            return match line_end_at(line_ends(&line), world, self.scale(), HANDLE_REACH) {
+                Some(_) => CursorIcon::Crosshair,
+                None => CursorIcon::Default,
+            };
+        }
         let Some(frame) = selection_frame_of(self) else {
             return CursorIcon::Default;
         };
@@ -124,8 +130,25 @@ impl CanvasState {
     }
 
     fn press_select(&self, press: PointerPress, world: CanvasPoint) {
+        if let Some(line) = self.selected_line() {
+            let ends = line_ends(&line);
+            let reach = match press.touch {
+                true => TOUCH_HANDLE_REACH,
+                false => HANDLE_REACH,
+            };
+            if let Some(end) = line_end_at(ends, world, self.scale(), reach) {
+                self.begin_gesture(Some(Gesture::Endpoint {
+                    original: line,
+                    end,
+                    current: ends[end],
+                    grab: CanvasPoint::new(ends[end].x - world.x, ends[end].y - world.y),
+                    snap: press.modifiers.shift,
+                }));
+                return;
+            }
+        }
         let frame = selection_frame_of(self);
-        let has_unlocked = self.selection_has_unlocked();
+        let has_unlocked = self.selection_has_unlocked() && self.selected_line().is_none();
         let (resize, scale_editors) = self.selection_handles();
         let scale = self.scale();
         let reach = frame.map_or(HANDLE_REACH, |frame| {
@@ -158,10 +181,15 @@ impl CanvasState {
             let preserve_aspect_ratio = scale_text
                 || force_preserve_aspect_ratio
                 || default_preserve_aspect_ratio != press.modifiers.shift;
+            let at = frame.point(CanvasPoint::new(
+                handle.x as f32 * 0.5,
+                handle.y as f32 * 0.5,
+            ));
             self.begin_gesture(Some(Gesture::Resize {
                 handle,
                 frame,
-                current: world,
+                current: at,
+                grab: CanvasPoint::new(at.x - world.x, at.y - world.y),
                 originals: self.selected_unlocked(),
                 default_preserve_aspect_ratio,
                 force_preserve_aspect_ratio,
@@ -288,6 +316,15 @@ impl CanvasState {
                 *from_center = modifiers.alt;
             }
             Gesture::Move { current, .. } => *current = world,
+            Gesture::Endpoint {
+                current,
+                grab,
+                snap,
+                ..
+            } => {
+                *current = CanvasPoint::new(world.x + grab.x, world.y + grab.y);
+                *snap = modifiers.shift;
+            }
             Gesture::Rotate {
                 current,
                 snap_angle,
@@ -298,13 +335,14 @@ impl CanvasState {
             }
             Gesture::Resize {
                 current,
+                grab,
                 default_preserve_aspect_ratio,
                 force_preserve_aspect_ratio,
                 preserve_aspect_ratio,
                 scale_text,
                 ..
             } => {
-                *current = world;
+                *current = CanvasPoint::new(world.x + grab.x, world.y + grab.y);
                 *scale_text = modifiers.alt;
                 *preserve_aspect_ratio = *scale_text
                     || *force_preserve_aspect_ratio
