@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::time::Instant;
 
 use be_drive::Driven;
@@ -148,10 +147,10 @@ impl AppTest {
         let log = self
             .app
             .as_ref()
-            .map(|app| tail(app.log()))
+            .map(|app| format!("\n\nThe end of the app's log:\n{}", app.log_tail()))
             .unwrap_or_default();
         panic!(
-            "{error}\n\nThe steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}\n\nThe end of the app's log:\n{log}",
+            "{error}\n\nThe steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}",
             self.steps.join("\n")
         );
     }
@@ -172,12 +171,6 @@ fn line(words: &[&str]) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn tail(log: &Path) -> String {
-    let text = std::fs::read_to_string(log).unwrap_or_default();
-    let lines: Vec<&str> = text.lines().collect();
-    lines[lines.len().saturating_sub(40)..].join("\n")
 }
 
 #[cfg(test)]

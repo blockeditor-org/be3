@@ -150,9 +150,9 @@ has settled once a frame asks for no other and `App::busy` is false; block-app i
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
 frame's layout and is shown only by the next, while an account or workspace request is
-pending, and while the block store has commands to carry out, edits it has not sealed yet
-(sealing waits 750ms of wall time for more) or is still loading the workspace's graph, and
-never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
+pending, and while the block store has commands to carry out, edits it owes a seal (which a
+driven app asks for at once, rather than after the pause a person's edits wait for) or is
+still loading the workspace's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;

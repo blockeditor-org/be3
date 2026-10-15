@@ -147,6 +147,10 @@ pub struct ScreenPaintings {
 }
 
 impl ScreenPaintings {
+    pub fn encoded_len(&self) -> usize {
+        bincode::serialized_size(self).map_or(usize::MAX, |size| size as usize)
+    }
+
     pub fn encode(&self) -> Vec<u8> {
         bincode::serialize(self).unwrap_or_default()
     }

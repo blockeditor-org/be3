@@ -135,6 +135,9 @@ impl Screens {
                 .and_then(|session| session.painting(placement.region))
             {
                 paintings.screens.push((placement.screen.0, painting));
+                if paintings.encoded_len() > block_plugin_api::MAX_BLOB_BYTES {
+                    paintings.screens.pop();
+                }
             }
         }
         Message::Extension {

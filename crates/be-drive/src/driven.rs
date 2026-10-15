@@ -8,6 +8,7 @@ use beui_core::app::automation::Reply;
 use crate::{Unanswered, launch, request};
 
 const CLOSING: Duration = Duration::from_secs(60);
+const LOG_TAIL: usize = 40;
 
 pub struct Driven {
     child: Option<Child>,
@@ -54,8 +55,13 @@ impl Driven {
         })
     }
 
-    pub fn log(&self) -> &Path {
-        &self.log
+    pub fn log_tail(&self) -> String {
+        let text = std::fs::read_to_string(&self.log).unwrap_or_default();
+        let lines: Vec<&str> = text.lines().collect();
+        lines[lines.len().saturating_sub(LOG_TAIL)..].join(
+            "
+",
+        )
     }
 
     pub fn request(&self, words: &[&str]) -> Result<Reply, String> {
@@ -67,14 +73,14 @@ impl Driven {
         let Some(child) = self.child.take() else {
             return Ok(());
         };
-        match request(&self.socket, &["close".to_owned()], self.timeout) {
-            Ok(_) | Err(Unanswered::Closed) => {}
+        let closed = match request(&self.socket, &["close".to_owned()], self.timeout) {
+            Ok(_) | Err(Unanswered::Closed) => launch::wait_for_exit(child, CLOSING),
             Err(Unanswered::Failed(error)) => {
                 launch::kill(child.id());
-                return Err(error);
+                Err(error)
             }
-        }
-        launch::wait_for_exit(child, CLOSING)
+        };
+        closed.map_err(|error| format!("{error}\n\nThe end of the app's log:\n{}", self.log_tail()))
     }
 }
 

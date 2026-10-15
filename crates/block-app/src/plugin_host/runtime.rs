@@ -455,11 +455,11 @@ impl Runtime {
 
     fn painted(&mut self, payload: &[u8]) {
         self.painting = false;
+        let mut shared = self.shared.borrow_mut();
+        shared.paintings.clear();
         let Ok(paintings) = beui::painting::ScreenPaintings::decode(payload) else {
             return;
         };
-        let mut shared = self.shared.borrow_mut();
-        shared.paintings.clear();
         for (screen, painting) in paintings.screens {
             shared.paintings.insert(ScreenId(screen), painting);
         }

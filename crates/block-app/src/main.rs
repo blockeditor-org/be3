@@ -303,6 +303,9 @@ impl beui::App for Shell {
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context, &self.document);
+        if context.automated() {
+            be::seal_owed();
+        }
         wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
         if let Some(theme) = self.app.theme.take() {

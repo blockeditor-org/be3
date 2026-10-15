@@ -318,8 +318,7 @@ the whole window, every plugin included; and fails unless the app exits cleanly 
   host's own document with each plugin's painting put where the host composites its surface.
 - A failure prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, and the end of the app's log.
-- Each test takes a few seconds, most of it the app starting and the block store sealing what
-  an edit wrote, and they run in parallel. Keep to what only the app can show, and test an
+- Each test takes a second or two, most of it the app starting, and they run in parallel. Keep to what only the app can show, and test an
   editor's own behaviour in its own crate.
 
   ./scripts/buck test //crates/app-tests:test

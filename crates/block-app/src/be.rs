@@ -658,8 +658,15 @@ fn send(command: Command) {
 }
 
 pub(crate) fn busy() -> bool {
-    with_shared(|shared| shared.pending > 0 || shared.unsealed > 0 || !shared.graph.loaded)
+    with_shared(|shared| shared.pending > 0 || shared.owing > 0 || !shared.graph.loaded)
         .unwrap_or_default()
+}
+
+pub(crate) fn seal_owed() {
+    if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
+        let (done, _) = std::sync::mpsc::channel();
+        send(Command::Flush(done));
+    }
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
