@@ -2303,7 +2303,6 @@ impl BlockApp {
         }
         self.process_pending_transfers();
         self.process_pending_copies();
-        debug::poll();
         self.show_shell();
         #[cfg(target_os = "linux")]
         self.take_power_request();
