@@ -53,6 +53,8 @@ pub struct PluginSurface {
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
     described: Option<u64>,
+    pressed: u8,
+    blurred: bool,
 }
 
 impl PluginSurface {
@@ -86,6 +88,8 @@ impl PluginSurface {
             platform: HostPlatform::new(host),
             surface,
             described: None,
+            pressed: 0,
+            blurred: false,
         }
     }
 
@@ -108,8 +112,27 @@ impl PluginSurface {
     }
 
     pub fn input(&mut self, region: &Region, event: &InputEvent) {
+        match event {
+            InputEvent::Focus(false) if self.pressed > 0 => {
+                self.blurred = true;
+                return;
+            }
+            InputEvent::Focus(true) => self.blurred = false,
+            InputEvent::PointerButton { pressed: true, .. } => {
+                self.pressed = self.pressed.saturating_add(1);
+            }
+            InputEvent::PointerButton { pressed: false, .. } => {
+                self.pressed = self.pressed.saturating_sub(1);
+            }
+            _ => {}
+        }
         if let Some(input) = input::translate(region, event) {
             self.runner.push(input);
+        }
+        if self.pressed == 0 && std::mem::take(&mut self.blurred) {
+            self.runner.push(beui_core::runner::Input::from(
+                beui_core::input::Event::Focus(false),
+            ));
         }
     }
 
