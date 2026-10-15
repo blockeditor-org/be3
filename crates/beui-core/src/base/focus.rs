@@ -8,9 +8,17 @@ use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, NodeId, NodeOf};
+use crate::node::{Element, FocusChild, NodeId, NodeOf};
+use std::ops::Range;
 
 pub type KeyCallback = Callback<KeyPress, bool>;
+
+const TAB_BUILD_LIMIT: usize = 4096;
+
+enum TabStop {
+    Node(NodeId),
+    Unbuilt(NodeId, Range<usize>),
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ImeCursor {
@@ -405,27 +413,75 @@ impl Document {
     }
 
     fn move_focus(&mut self, step: isize) {
-        let order = self.focusables();
+        let layers = self.layers();
+        let blocked = self.blocked_roots(&layers);
+        let mut order = Vec::new();
+        if let Some(start) = layers[layers.keyboard()].content {
+            self.collect_tab_stops(start, &mut order, &blocked);
+        }
         if order.is_empty() {
             self.update_focus(None);
             return;
         }
-        let index = self
-            .focused
-            .and_then(|focused| order.iter().position(|id| *id == focused));
+        let index = self.focused.and_then(|focused| {
+            order
+                .iter()
+                .position(|stop| matches!(stop, TabStop::Node(id) if *id == focused))
+        });
         let start = index.map_or_else(
             || if step >= 0 { 0 } else { order.len() - 1 },
             |index| (index as isize + step).rem_euclid(order.len() as isize) as usize,
         );
         for offset in 0..order.len() {
-            let id = order[(start as isize + offset as isize * step)
+            let stop = &order[(start as isize + offset as isize * step)
                 .rem_euclid(order.len() as isize) as usize];
-            if focus_of(self.arena.get(id)).is_none_or(|focus| focus.tab_stop) {
-                self.update_focus(Some(id));
+            if let Some(found) = self.tab_stop_at(stop, step, &blocked) {
+                self.update_focus(Some(found));
                 return;
             }
         }
         self.update_focus(None);
+    }
+
+    fn tab_stop_at(&mut self, stop: &TabStop, step: isize, blocked: &[NodeId]) -> Option<NodeId> {
+        match stop {
+            TabStop::Node(id) => focus_of(self.arena.get(*id))
+                .is_none_or(|focus| focus.tab_stop)
+                .then_some(*id),
+            TabStop::Unbuilt(list, rows) => self.build_tab_stop(*list, rows.clone(), step, blocked),
+        }
+    }
+
+    fn build_tab_stop(
+        &mut self,
+        list: NodeId,
+        rows: Range<usize>,
+        step: isize,
+        blocked: &[NodeId],
+    ) -> Option<NodeId> {
+        for at in 0..rows.len().min(TAB_BUILD_LIMIT) {
+            let index = match step >= 0 {
+                true => rows.start + at,
+                false => rows.end - 1 - at,
+            };
+            let mut element = self.arena.take(list);
+            let row = element.build_for_focus(self, list, index);
+            self.arena.put_back(list, element);
+            let row = row?;
+            self.arena.invalidate_node(list);
+            let mut stops = Vec::new();
+            self.collect_tab_stops(row, &mut stops, blocked);
+            if step < 0 {
+                stops.reverse();
+            }
+            for stop in &stops {
+                if let Some(found) = self.tab_stop_at(stop, step, blocked) {
+                    return Some(found);
+                }
+            }
+            self.arena.get_mut(list).release_for_focus(row);
+        }
+        None
     }
 
     pub(crate) fn focusables(&self) -> Vec<NodeId> {
@@ -439,6 +495,15 @@ impl Document {
     }
 
     fn collect_focusables(&self, id: NodeId, out: &mut Vec<NodeId>, blocked: &[NodeId]) {
+        let mut stops = Vec::new();
+        self.collect_tab_stops(id, &mut stops, blocked);
+        out.extend(stops.into_iter().filter_map(|stop| match stop {
+            TabStop::Node(id) => Some(id),
+            TabStop::Unbuilt(..) => None,
+        }));
+    }
+
+    fn collect_tab_stops(&self, id: NodeId, out: &mut Vec<TabStop>, blocked: &[NodeId]) {
         if blocked.contains(&id) {
             return;
         }
@@ -460,9 +525,21 @@ impl Document {
             return;
         }
         if focus_of(element).is_some() {
-            out.push(id);
+            out.push(TabStop::Node(id));
         }
-        element.for_each_child(&mut |child| self.collect_focusables(child, out, blocked));
+        match element.focus_children() {
+            Some(children) => {
+                for child in children {
+                    match child {
+                        FocusChild::Node(child) => self.collect_tab_stops(child, out, blocked),
+                        FocusChild::Unbuilt(rows) => out.push(TabStop::Unbuilt(id, rows)),
+                    }
+                }
+            }
+            None => {
+                element.for_each_child(&mut |child| self.collect_tab_stops(child, out, blocked))
+            }
+        }
     }
 
     pub fn validate_focus(&mut self) {

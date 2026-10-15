@@ -17,6 +17,7 @@ use crate::app::state::{attach_component, remove_component, set_component_value}
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
+mod a_dropped_slide_takes_its_own_size_rather_than_the_cards;
 mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_finger_on_the_pen_tool_draws_before_it_moves;
@@ -27,6 +28,7 @@ mod a_preview_with_no_camera_fits_its_artboard;
 mod a_second_finger_calls_off_the_shape_being_drawn;
 mod a_short_finger_stroke_keeps_every_point;
 mod a_typed_transform_value_is_one_edit;
+mod an_artboard_background_is_picked_in_the_sidebar;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
 mod attaching_component_fills_only_missing_selected_entities;
 mod clicking_a_live_editor_hands_it_the_frame;
@@ -50,6 +52,7 @@ mod the_canvas_paints_the_entities_it_holds;
 mod the_intrinsic_size_follows_the_first_artboard;
 mod the_layers_panel_selects_reorders_and_hides;
 mod the_palette_and_the_shortcuts_run_the_canvas_actions;
+mod the_preview_fills_the_artboard_with_its_background;
 mod the_preview_shows_the_first_artboard;
 mod the_transform_fields_edit_the_selected_entity;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;

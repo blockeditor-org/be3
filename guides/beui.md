@@ -775,7 +775,15 @@ Rows belong to their keys, not to their positions. Scrolling reuses the rows
 that stay in view, and keeps the ones that just left, as many as are in view
 and only while they are within a window's length of it, so scrolling back
 shows them without building them again; anything further away is disposed
-with its effects, so a long jump or a list scrolled out of view keeps nothing.
+with its effects, so a long jump or a list scrolled out of view keeps nothing
+but the row holding the focus. That row stays a child of the list, laid out at
+its own place off screen, until the focus leaves it, so the focus stays where it
+was. Tab order runs over every key, built or not: Tab and Shift+Tab reaching a
+run of rows the list has not built build them one at a time, from the end they
+come in at, until one has a Tab stop (rows with none are released again, and
+the search gives up past 4096 of them), and the focus then reveals that row as
+it would any other. Elements opt into this through `Element::focus_children`,
+`build_for_focus` and `release_for_focus`.
 A row the list disposes is not dropped but recycled: the item builder is
 handed a `ReadSignal` of its key rather than the key, and when a key comes into
 view the list sets that signal on a row that left instead of building a new one.

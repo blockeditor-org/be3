@@ -68,10 +68,10 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
             .document
             .set_scroll_offset(scroll, step as f32 * VIRTUAL_ITEM_HEIGHT * shown as f32);
         harness.frame(Vec::new());
+        assert_eq!(harness.document.focused, Some(focused));
         assert!(
-            !harness.document.children(list).contains(&focused)
-                || harness.document.focused != Some(focused),
-            "the focus must not follow its row to another key"
+            text_within(&harness.document, focused, "Row 0").is_some(),
+            "the focused row keeps its key"
         );
     }
 }
