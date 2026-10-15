@@ -7,7 +7,7 @@ fn a_desktop_started_again_adopts_live_windows_instead_of_placeholders() {
     before.show_windows(&[foot(1), notes(2)]);
     let places = [1, 2].map(|id| before.window_rect(id).expect("the window is placed"));
 
-    let mut again = Fixture::with_view(before.saved());
+    let mut again = Fixture::holding(before.saved());
     again.show_windows(&[foot(1), notes(2)]);
     again.settle();
     for (id, place) in [1, 2].into_iter().zip(places) {

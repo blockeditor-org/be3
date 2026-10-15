@@ -69,7 +69,7 @@ A panic must not take every program's window with it, so block-app's `panic_guar
 panics by where they happen. Every panic is logged with its backtrace. One inside
 `panic_guard::contain` is contained: a plugin, or the host's work for one, stops only that
 plugin (guides/adding_a_plugin_editor.md), the shell included, while the compositor and its
-clients keep running; a D-Bus task (`dbus::spawn`) ends alone with a toast; a
+clients keep running (see A shell that stops, below); a D-Bus task (`dbus::spawn`) ends alone with a toast; a
 password check that panics fails. Any other panic, on the UI thread or on a thread nothing
 contains (the block stack's, say), is the app's own: in a window the app shows its error
 screen, and under `--session` it ends the session instead, through beui's runner and
@@ -114,6 +114,22 @@ puts back what the console showed) and, last, the seat. Every D-Bus conversation
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
 thread waits on the bus. `dbus::session()` is the shared session bus connection.
+
+## A shell that stops
+
+When the shell's plugin stops (a panic, a trap, a hang or its session failing; any stop
+`Runtime::crashed` reports), block-app's `watch_shell` closes it and every editor under it,
+drops its runtime and shows the host's own session and profile picker (`Screen::Sessions`)
+with the error toast and its Copy report. Choosing a session or profile, or keeping the current
+one, opens a fresh shell. The windows stay: the compositor keeps every client connected,
+and `Compositor::set_owned(false)`, which block-app sets whenever no shell is on screen, takes
+the keyboard, the pointer, held buttons and popups from them, drops any input meant for them
+and pings every client each `PING_TIMEOUT`, so one that froze meanwhile is listed as not
+responding. The lock screen is the host's and works throughout. The new shell sees the
+windows in `HostWindows` and shows them as it shows any window; linux-desktop's saved layout
+names window tabs by `HostWindowId`, which the compositor keeps, so a restored layout puts
+each window back where it was, fullscreen and dialogs included. To try it, open the Plugins
+panel from the bar's menu and press Crash beside `be3.linux-desktop`.
 
 ## Notifications
 

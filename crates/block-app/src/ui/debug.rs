@@ -13,6 +13,7 @@ use beui::styled::{Family, Text, TextColor, TextSize, TextStyle};
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
     KillPlugin(String),
+    CrashPlugin(String),
     RefreshVersions,
     Install(u64),
     OpenUrl(String),
@@ -371,6 +372,8 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
     });
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let kill = id.clone();
+    let crash = id.clone();
+    let crash_id = format!("debug.plugins.crash.{id}");
     view! {
         <Frame padding_vertical=6.0>
             <List spacing=2.0>
@@ -385,6 +388,12 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                         label="Kill"
                         variant=ButtonVariant::Secondary
                         on_click={move || debug(DebugCommand::KillPlugin(kill.clone()))}
+                    />
+                    <Button
+                        label="Crash"
+                        variant=ButtonVariant::Secondary
+                        @test_id={crash_id}
+                        on_click={move || debug(DebugCommand::CrashPlugin(crash.clone()))}
                     />
                 </List>
                 <ForEach keys={keys}>

@@ -9,6 +9,8 @@ use std::{
 use super::backend::{Deadline, StepTime};
 
 pub(super) const STOPPED: &str = "The plugin worker stopped.";
+pub(super) const NOT_RESPONDING: &str = "The plugin stopped responding.";
+pub(super) const STEP_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub(super) trait Presented {
     fn surface(&self) -> u32;
@@ -75,6 +77,8 @@ pub(super) struct Worker<C: Channel> {
     presented: Vec<C::Presented>,
     presents: u64,
     took: Option<StepTime>,
+    steps: u64,
+    watched: Option<(u64, Duration)>,
 }
 
 impl<C: Channel> Worker<C> {
@@ -90,6 +94,8 @@ impl<C: Channel> Worker<C> {
             presented: Vec::new(),
             presents: 0,
             took: None,
+            steps: 0,
+            watched: None,
         }
     }
 
@@ -127,6 +133,7 @@ impl<C: Channel> Worker<C> {
             return Some(STOPPED.to_owned());
         }
         self.stepping = true;
+        self.steps += 1;
         self.carrying = carrying;
         None
     }
@@ -142,6 +149,24 @@ impl<C: Channel> Worker<C> {
                 Some(failure) => Err(failure),
                 None => Ok(true),
             },
+        }
+    }
+
+    pub(super) fn hung(&mut self, now: Duration) -> Result<Option<Duration>, String> {
+        if !self.stepping {
+            self.watched = None;
+            return Ok(None);
+        }
+        let since = match self.watched {
+            Some((step, since)) if step == self.steps => since,
+            _ => {
+                self.watched = Some((self.steps, now));
+                now
+            }
+        };
+        match STEP_TIMEOUT.checked_sub(now.saturating_sub(since)) {
+            Some(left) if !left.is_zero() => Ok(Some(left)),
+            _ => Err(NOT_RESPONDING.to_owned()),
         }
     }
 
@@ -192,3 +217,6 @@ impl<C: Channel> Worker<C> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

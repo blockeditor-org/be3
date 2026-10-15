@@ -29,7 +29,7 @@ fn a_window_launched_from_a_placeholder_takes_its_place() {
         },
         ..foot(50)
     };
-    resumed.show_windows(&[launched]);
+    resumed.show_windows(&[launched.clone()]);
     assert!(
         resumed.placeholder_rect(2).is_none(),
         "the new window replaces the placeholder it was started from"
@@ -40,6 +40,16 @@ fn a_window_launched_from_a_placeholder_takes_its_place() {
     );
     let shown = resumed.window_rect(50).expect("the new window is placed");
     assert_eq!(shown.min, place.min, "in the placeholder's place");
+
+    let mut again = Fixture::holding(resumed.saved());
+    again.show_windows(&[launched.clone()]);
+    assert_eq!(
+        again.window_rect(50).map(|rect| rect.min),
+        Some(place.min),
+        "a shell started again over the same windows keeps it in the place it took"
+    );
+    assert!(again.placeholder_rect(2).is_none());
+    assert!(again.placeholder_rect(1).is_some());
 
     resumed.show_windows(&[]);
     assert!(
