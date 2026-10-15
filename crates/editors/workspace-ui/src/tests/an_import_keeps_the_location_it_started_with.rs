@@ -1,0 +1,76 @@
+use block_editor_beui::be_block::{BlockContent, FolderContent};
+use block_editor_beui::{
+    BlockCommand, BlockImport, BlockInfo, BlockLocation, BlockPick, HostReply, HostRequest,
+};
+
+use super::*;
+
+#[test]
+fn an_import_keeps_the_location_it_started_with() {
+    let (mut fixture, _) = editor();
+    let folder = Uuid::new_v4();
+    let mut info = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
+    info.set_name("Trips".to_owned());
+    fixture.test.store().add_block(info);
+    let mut placing = filter();
+    placing.place = Some(BlockLocation::Root);
+    fixture.test.request_pick(
+        5,
+        placing,
+        BlockLocation::Block(Uuid::new_v4().into_bytes()),
+    );
+    fixture.settle();
+    fixture.test.take_requests();
+
+    fixture.click_text("Import");
+    fixture.test.click("picker.import");
+    fixture.settle();
+    let (request, place) = fixture
+        .test
+        .take_requests()
+        .into_iter()
+        .find_map(|(id, request)| match request {
+            HostRequest::ImportBlocks(place) => Some((id, place)),
+            _ => None,
+        })
+        .expect("choosing a file asks the host to import one");
+    assert_eq!(
+        place,
+        BlockLocation::Root,
+        "the import goes to the location chosen"
+    );
+
+    fixture.test.click(&format!("picker.place.{folder}"));
+    fixture.settle();
+
+    let imported = Uuid::new_v4();
+    fixture.test.reply(
+        request,
+        HostReply::BlocksImported(BlockImport::Imported {
+            block_id: imported.into_bytes(),
+            block_type: SHOWN_TYPE.into_bytes(),
+        }),
+    );
+    fixture.settle();
+
+    assert_eq!(
+        fixture.test.take_pick_answers(),
+        vec![(
+            5,
+            BlockPick::Chosen {
+                block_id: imported.into_bytes(),
+                block_type: SHOWN_TYPE.into_bytes(),
+                linked: false,
+                placed: true,
+            }
+        )]
+    );
+    assert!(
+        !fixture
+            .test
+            .take_block_commands()
+            .iter()
+            .any(|(_, command)| matches!(command, BlockCommand::Place { .. })),
+        "a location chosen while importing does not move the copy"
+    );
+}

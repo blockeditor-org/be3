@@ -25,6 +25,8 @@ const HISTORY_STEPS: usize = 200;
 
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
+type ExportReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
+
 pub(super) enum Command {
     Open {
         block: Uuid,
@@ -82,6 +84,14 @@ pub(super) enum Command {
     ListAccess {
         block: Uuid,
         reply: AccessReply,
+    },
+    Export {
+        blocks: Vec<be_client::transfer::Saved>,
+        reply: ExportReply,
+    },
+    Import {
+        block: be_client::transfer::Saved,
+        parent: BlockParent,
     },
     Version {
         block: Uuid,
@@ -1354,6 +1364,49 @@ async fn apply(
             reply(listed);
             crate::host::wake();
             false
+        }
+        Command::Export { mut blocks, reply } => {
+            let mut failed = None;
+            for block in &mut blocks {
+                let content = match sessions.get(&block.id) {
+                    Some(session) => Ok(Some(session.bytes())),
+                    None => match peer.summary(block.id).await {
+                        Ok(summary) => peer.head_content(&summary).await,
+                        Err(error) => Err(error),
+                    },
+                };
+                match content {
+                    Ok(content) => block.content = content,
+                    Err(error) => {
+                        failed = Some(error.to_string());
+                        break;
+                    }
+                }
+            }
+            reply(match failed {
+                Some(error) => Err(error),
+                None => Ok(be_client::transfer::encode(&blocks)),
+            });
+            crate::host::wake();
+            false
+        }
+        Command::Import { block, parent } => {
+            let created = peer
+                .create_block(block.id, block.block_type, parent, &block.metadata)
+                .await;
+            if let Err(error) = settled(peer, shared, block.id, created).await {
+                record(shared, error);
+                return false;
+            }
+            match peer.publish_content(&block).await {
+                Ok(Some(saved)) if saved.published().is_none() => {
+                    record(shared, ClientError::Contended);
+                }
+                Ok(_) => {}
+                Err(error) => record(shared, error),
+            }
+            remember_head(peer, shared, block.id);
+            true
         }
         Command::Flush(done) => {
             seal_all(sessions, shared).await;

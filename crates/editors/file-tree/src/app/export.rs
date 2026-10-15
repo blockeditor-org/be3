@@ -8,11 +8,18 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{Editor, FileSaver, SavedFile};
 use uuid::Uuid;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ExportFormat {
+    Own,
+    BlockFile,
+}
+
 #[derive(Clone, PartialEq)]
 pub(crate) struct Export {
     pub(crate) id: Uuid,
     pub(crate) block_type: Uuid,
     pub(crate) name: String,
+    pub(crate) format: ExportFormat,
 }
 
 #[derive(Clone, Copy)]
@@ -22,14 +29,18 @@ pub(crate) struct Exporter {
     set_error: WriteSignal<Option<String>>,
 }
 
-pub(crate) fn exportable(block_type: Uuid) -> bool {
-    [
-        ImageContent::CONTENT_TYPE,
-        TextContent::CONTENT_TYPE,
-        PdfContent::CONTENT_TYPE,
-        AudioContent::CONTENT_TYPE,
-    ]
-    .contains(&block_type)
+pub(crate) fn formats(block_type: Uuid) -> Vec<(ExportFormat, &'static str)> {
+    let own = match block_type {
+        kind if kind == TextContent::CONTENT_TYPE => Some("Text file"),
+        kind if kind == ImageContent::CONTENT_TYPE => Some("Image file"),
+        kind if kind == PdfContent::CONTENT_TYPE => Some("PDF file"),
+        kind if kind == AudioContent::CONTENT_TYPE => Some("Audio file"),
+        _ => None,
+    };
+    own.map(|label| (ExportFormat::Own, label))
+        .into_iter()
+        .chain([(ExportFormat::BlockFile, "Block file")])
+        .collect()
 }
 
 impl Exporter {
@@ -47,6 +58,13 @@ impl Exporter {
             let Some(export) = wanted.get() else {
                 return;
             };
+            if export.format == ExportFormat::BlockFile {
+                untrack(|| {
+                    set_wanted.set(None);
+                    saving.borrow_mut().export(&editor.host(), export.id);
+                });
+                return;
+            }
             let Some(file) = file_of(editor, &export) else {
                 return;
             };

@@ -76,11 +76,11 @@ A relation of several rows takes `FIELD=A,B`, `FIELD+=A` and `FIELD-=A`, and so
 does its inverse column (`Blocking+=BE-…` writes `Blocked by` on that row). The
 title is the first text column. `--body` replaces the row's page and `--append`
 adds a paragraph to it; `-` reads either from standard input. `--json` prints
-JSON. `download` writes a block file (`crates/be-cli/src/transfer.rs`): each
+JSON. `download` writes a block file (`crates/be-client/src/transfer.rs`): each
 block's type, metadata, references and decrypted content bytes, the outermost
 block first and every block after its parent, into a new file only its owner
-may read; a database inside a view is
-downloaded from the view. `upload` gives every block a new id and swaps the old
+may read; a database inside a view is downloaded from the view. The app writes and reads the same file: the files
+pane's Export as, Block file, and the block picker's Import tab. `upload` gives every block a new id and swaps the old
 ids for the new ones in the content bytes (as 16 raw bytes, hyphenated or
 simple hex) and references, so the copy points at its own children; ids of
 blocks outside the file are left as they were. A database whose prefix is

@@ -5,9 +5,8 @@ use block_editor_beui::be_block::{BlockContent, EditorViewContent, FolderContent
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DELETE,
-    ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF,
-    ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_SEARCH, ICON_SEARCH_OFF,
-    ICON_SHARE,
+    ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF, ICON_MORE_VERT,
+    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_SEARCH, ICON_SEARCH_OFF, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -16,9 +15,9 @@ use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label};
 use uuid::Uuid;
 
-use super::export::{Exporter, exportable};
+use super::export::Exporter;
 use super::rows::{Inspection, Placement, Row, RowKey, Tree as FileTree, describe};
-use super::ui::{OpenWith, Picker, menu_action};
+use super::ui::{ExportAs, OpenWith, Picker, menu_action};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING: f32 = 8.0;
@@ -703,7 +702,7 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
         inspect,
         set_level,
     } = tools;
-    let chosen = menu_action(editor, tree, picker, exporter, inspect, row);
+    let chosen = menu_action(editor, tree, picker, inspect, row);
     let add_inside = move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
@@ -720,7 +719,6 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
     let unlinkable = off(|row| row.is_reference && row.unlink.is_ok());
     let undeletable = off(|row| row.can_delete);
     let uninspectable = off(|row| row.inspection.is_some());
-    let unexportable = off(|row| row.access.can_view() && exportable(row.block_type));
     let delete_label = create_memo(
         move || match row.get().is_some_and(|row| row.is_reference) {
             true => "Remove link".to_owned(),
@@ -801,11 +799,10 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                     glyph={ICON_INFO.to_owned()}
                     disabled={uninspectable}
                 />
-                <MenuItem
+                <ExportAs
+                    exporter={exporter}
+                    row={row}
                     row_test_id={"file-tree.actions.export".to_owned()}
-                    label="Export"
-                    glyph={ICON_FILE_DOWNLOAD.to_owned()}
-                    disabled={unexportable}
                 />
                 <MenuItem
                     row_test_id={"file-tree.actions.delete".to_owned()}
@@ -824,7 +821,6 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                 [5] => chosen(vec![2, 0]),
                 [6] => chosen(vec![5]),
                 [7] => chosen(vec![7]),
-                [8] => chosen(vec![8]),
                 [9] => chosen(vec![6]),
                 _ => {}
             }}
