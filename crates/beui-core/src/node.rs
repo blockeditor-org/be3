@@ -537,6 +537,8 @@ pub struct Arena {
     repaints: Vec<NodeId>,
     everything: bool,
     reparented: Cell<bool>,
+    watched: Vec<NodeId>,
+    watched_slots: Vec<bool>,
 }
 
 impl Arena {
@@ -908,6 +910,9 @@ impl Arena {
                 continue;
             }
             adoption[slot] = Adoption::Settled;
+            if self.watched_slots.get(slot).copied().unwrap_or(false) {
+                self.reparented.set(true);
+            }
             if self.removed[slot] {
                 continue;
             }
@@ -938,6 +943,21 @@ impl Arena {
 
     pub fn adopt_children(&mut self, id: NodeId) {
         self.queue_adoption(id);
+    }
+
+    pub fn watch(&mut self, path: Vec<NodeId>) {
+        for id in std::mem::take(&mut self.watched) {
+            if let Some(watched) = self.watched_slots.get_mut(id.index as usize) {
+                *watched = false;
+            }
+        }
+        self.watched_slots.resize(self.nodes.len(), false);
+        for id in &path {
+            if let Some(slot) = self.slot(*id) {
+                self.watched_slots[slot] = true;
+            }
+        }
+        self.watched = path;
     }
 
     pub fn take_reparented(&mut self) -> bool {

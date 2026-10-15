@@ -711,7 +711,9 @@ that state on its own — a click moves focus, a scrim click dismisses an overla
 pair the prop with the matching callback and write the signal back:
 `on_focus_change` for `focused` and `on_dismiss` for `open`. Without the write
 back the signal goes stale and the next write of the value it already holds
-changes nothing. `on_dismiss` reports only the document closing the overlay,
+changes nothing. The document reports every way a node loses the focus,
+including being hidden or removed, and a `focused` that starts `false` does not
+touch the focus. `on_dismiss` reports only the document closing the overlay,
 never the owner writing `open` false, so it can mean "cancel" without guarding
 against the owner's own close.
 

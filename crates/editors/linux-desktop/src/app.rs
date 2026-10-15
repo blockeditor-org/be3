@@ -96,6 +96,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <Failure failed={failed} reason={reason} />
                 <Docking
                     @sizing=ItemSize::Percent(100.0)
+                    @test_id={"desktop.dock"}
                     layout
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
