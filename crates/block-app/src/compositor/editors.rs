@@ -821,32 +821,30 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
-    if !presented {
-        let counted = store(Cell::new(false));
-        create_effect(move || {
-            any.get();
-            if counted.with(Cell::get) {
-                return;
+    let counted = store(Cell::new(false));
+    create_effect(move || {
+        any.get();
+        if counted.with(Cell::get) {
+            return;
+        }
+        let shown = editors().with(|open| match open.get_mut(&block) {
+            Some(editor) => {
+                editor.shown(true);
+                true
             }
-            let shown = editors().with(|open| match open.get_mut(&block) {
-                Some(editor) => {
-                    editor.shown(true);
-                    true
+            None => false,
+        });
+        counted.with(|counted| counted.set(shown));
+    });
+    on_cleanup(move || {
+        if counted.with(Cell::get) {
+            editors().with(|open| {
+                if let Some(editor) = open.get_mut(&block) {
+                    editor.shown(false);
                 }
-                None => false,
             });
-            counted.with(|counted| counted.set(shown));
-        });
-        on_cleanup(move || {
-            if counted.with(Cell::get) {
-                editors().with(|open| {
-                    if let Some(editor) = open.get_mut(&block) {
-                        editor.shown(false);
-                    }
-                });
-            }
-        });
-    }
+        }
+    });
     let shown = create_memo(move || {
         any.get();
         presented

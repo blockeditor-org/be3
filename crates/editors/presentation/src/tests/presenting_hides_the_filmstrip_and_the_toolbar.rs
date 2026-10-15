@@ -12,8 +12,14 @@ fn presenting_hides_the_filmstrip_and_the_toolbar() {
 
     assert!(!test.shown("presentation.add"));
     let presenting = editor.content_rect();
-    assert!(presenting.left() < editing.left());
     assert!(presenting.top() < editing.top());
+    let window = test.rect();
+    assert_eq!(
+        presenting.center().x,
+        window.center().x,
+        "the slide is centred in the whole window, not beside a hidden filmstrip"
+    );
+    test.snapshot("presenting_hides_the_filmstrip_and_the_toolbar");
 
     test.hover("presentation.playback");
     test.run();

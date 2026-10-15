@@ -27,6 +27,7 @@ pub fn NumberInput(
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
+    #[prop(default = None)] decimals: Prop<Option<u32>>,
     on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
@@ -42,6 +43,7 @@ pub fn NumberInput(
             label
             disabled
             drag
+            decimals
             face={move |handle: NumberFaceHandle| view! {
                 <NumberFace handle shown placeholder={face_placeholder} />
             }}

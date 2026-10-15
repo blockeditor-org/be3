@@ -17,6 +17,7 @@ use crate::app::state::{attach_component, remove_component, set_component_value}
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
+mod a_dropped_slide_takes_its_own_size_rather_than_the_cards;
 mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_finger_on_the_pen_tool_draws_before_it_moves;
