@@ -796,6 +796,18 @@ impl Instances {
         }
     }
 
+    pub(super) fn awaiting_content(&self) -> bool {
+        self.entries.values().any(|entry| {
+            let mounted = entry.screens.values().any(|screen| screen.mounted > 0);
+            match (entry.role.block(), &entry.content) {
+                (Some(block), Some(link)) => {
+                    mounted && link.sent.is_none() && crate::be::may_load(block.id)
+                }
+                _ => false,
+            }
+        })
+    }
+
     pub(super) fn has_mounted(&self) -> bool {
         self.entries
             .values()

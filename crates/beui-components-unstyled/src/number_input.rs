@@ -64,12 +64,13 @@ pub fn NumberInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
+    #[prop(default = None)] decimals: Prop<Option<u32>>,
     face: Render<NumberFaceHandle>,
     field: Render<NumberFieldHandle>,
     on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
-    let (text, set_text) = create_signal(format_number(value.peek()));
+    let (text, set_text) = create_signal(format_number(value.peek(), decimals.peek()));
     let (editing, set_editing) = create_signal(false);
     let (refocus, set_refocus) = create_signal(false);
     let (hovered, set_hovered) = create_signal(false);
@@ -79,7 +80,7 @@ pub fn NumberInput(
         let next = value.get();
         let held = text.get_untracked();
         if parse(&held) != Some(next) {
-            set_text.set(format_number(next));
+            set_text.set(format_number(next, decimals.peek()));
         }
     });
     let off = create_memo(move || disabled.get());
@@ -123,7 +124,7 @@ pub fn NumberInput(
         };
         held.set(Some((origin, start, true)));
         let next = next.clamp(min, max);
-        set_text.set(format_number(next));
+        set_text.set(format_number(next, decimals.peek()));
         changed.call(next);
     };
     let open = move || {
@@ -158,10 +159,10 @@ pub fn NumberInput(
         let shown = value.peek();
         match typed {
             Some(typed) if typed != shown => {
-                set_text.set(format_number(typed));
+                set_text.set(format_number(typed, decimals.peek()));
                 on_change.call(typed);
             }
-            _ => set_text.set(format_number(shown)),
+            _ => set_text.set(format_number(shown, decimals.peek())),
         }
         on_preview.call(None);
     };
@@ -261,12 +262,30 @@ fn parse(text: &str) -> Option<f64> {
     }
 }
 
-fn format_number(value: f64) -> String {
+const MAX_DECIMALS: u32 = 15;
+
+fn format_number(value: f64, decimals: Option<u32>) -> String {
     if !value.is_finite() {
         return String::new();
     }
+    let decimals = decimals
+        .map(|decimals| decimals.min(MAX_DECIMALS))
+        .filter(|decimals| (value * 10f64.powi(*decimals as i32)).is_finite());
+    let value = match decimals {
+        Some(decimals) => {
+            let factor = 10f64.powi(decimals as i32);
+            (value * factor).round() / factor + 0.0
+        }
+        None => value,
+    };
     if value == value.trunc() && value.abs() < 1e15 {
         return format!("{}", value as i64);
     }
-    format!("{value}")
+    match decimals {
+        Some(decimals) => {
+            let fixed = format!("{value:.0$}", decimals as usize);
+            fixed.trim_end_matches('0').trim_end_matches('.').to_owned()
+        }
+        None => format!("{value}"),
+    }
 }

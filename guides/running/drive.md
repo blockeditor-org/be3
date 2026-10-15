@@ -53,7 +53,9 @@ shell.
 `be-drive run` takes the same options and is for tests: it starts the program with fresh data
 and its output on its own, runs the commands on its standard input as `drive -` does, then
 waits for the program to exit, and fails unless every command succeeded and the program exited
-cleanly. block-app's smoke test (buck/app/smoke.sh) is `wait` for its shell's pane, then `close`.
+cleanly. From Rust, `be_drive::Driven` does the same: it starts a program with fresh data in a
+directory of its own, sends it commands and closes it, which is how crates/app-tests drives
+block-app (guides/testing_a_gui.md, 6).
 
 ## Reading the screen
 
@@ -91,6 +93,14 @@ so dialogs, the file tree and every editor read like the host's own controls.
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
 - `drive shot FILE [TARGET]` writes a PNG of the window, or of one target.
+- `drive paint FILE [TARGET]` writes what the window paints as a paint snapshot
+  (guides/testing_a_gui.md, 4), every plugin's painting included where the host composites it,
+  so it compares exactly where a PNG would not; `example-rasterize` turns it into a PNG and
+  `example-dump` lists its shapes. It waits until the app settles, then asks every running
+  plugin for what it last painted, through an extension message (`PAINTING_EXTENSION` in
+  crates/paint-format) rather than the plugin protocol proper. What a plugin draws through a
+  `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
+  snapshot.
 
 ## Targets
 
@@ -137,9 +147,12 @@ Every command that gives input waits until the app has settled and prints what c
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
 change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more. The app
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
-plugin is starting, owes a frame or holds unanswered input, while an account or workspace
-request is pending, and while the block store has commands to carry out or is still loading the
-workspace's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
+plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
+an editor on screen waits for its block's content, while a plugin's change arrived after the
+frame's layout and is shown only by the next, while an account or workspace request is
+pending, and while the block store has commands to carry out, edits it owes a seal (which a
+driven app asks for at once, rather than after the pause a person's edits wait for) or is
+still loading the workspace's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;

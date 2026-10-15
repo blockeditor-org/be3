@@ -17,7 +17,7 @@ plugin instead of workspace-ui. These flags start it that way:
   provides its `DisplayControl`. On Windows and macOS (`src/arguments.rs` parses the flags)
   it is the shell alone: there are no program windows, notification server, tray, media,
   power, lock screen or launcher.
-  `./scripts/buck test //crates/block-app:smoke-desktop` starts it headless and closes it.
+  The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/app-tests) starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
 
 Everything the desktop gets from the host is a host value, and linux-desktop shows a control

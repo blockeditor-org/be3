@@ -20,14 +20,15 @@ const ARTBOARD_LABEL_SIZE: f32 = 12.0;
 pub(crate) struct Artboard {
     pub(crate) bounds: WorldRect,
     pub(crate) name: String,
+    pub(crate) fill: Color32,
 }
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Backdrop {
     pub(crate) camera: Camera,
     pub(crate) stage: Rect,
-    pub(crate) background: Color32,
     pub(crate) label: Color32,
+    pub(crate) chrome: bool,
     pub(crate) artboards: Vec<Artboard>,
 }
 
@@ -36,9 +37,14 @@ impl Backdrop {
         if self.artboards.is_empty() {
             return;
         }
-        painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+        if self.chrome {
+            painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+        }
         for artboard in &self.artboards {
-            painter.rect_filled(self.camera.rect(artboard.bounds), 0.0, self.background);
+            painter.rect_filled(self.camera.rect(artboard.bounds), 0.0, artboard.fill);
+        }
+        if !self.chrome {
+            return;
         }
         for artboard in &self.artboards {
             let rect = self.camera.rect(artboard.bounds);

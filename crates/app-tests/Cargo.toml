@@ -1,0 +1,13 @@
+[package]
+name = "app-tests"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-drive = { path = "../be-drive" }
+beui-core = { path = "../beui-core" }
+paint-snapshot = { path = "../paint-snapshot" }
+
+[lints]
+workspace = true

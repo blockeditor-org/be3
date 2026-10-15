@@ -506,6 +506,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         frame
     }
 
+    fn painting(&mut self, region: EditorRegion) -> Option<beui::painting::Painting> {
+        self.surfaces.get(&region)?.painting()
+    }
+
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         match self.surfaces.get_mut(&target.region) {

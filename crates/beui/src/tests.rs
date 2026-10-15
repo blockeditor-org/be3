@@ -122,6 +122,7 @@ mod a_focused_forwarding_catcher_takes_the_keys_from_the_document;
 mod a_focused_node_hidden_or_removed_is_told_it_lost_the_focus;
 mod a_focused_node_scrolled_far_away_stays_laid_out;
 mod a_focused_text_input_asks_for_the_keyboard;
+mod a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
@@ -190,6 +191,7 @@ mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
 mod a_node_ref_lets_go_of_a_removed_node;
 mod a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it;
 mod a_number_input_reports_what_was_typed_within_its_range;
+mod a_number_input_shows_its_value_to_the_decimals_asked;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_panel_between_two_damaged_ones_is_left_alone;
 mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
@@ -629,10 +631,12 @@ mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod switching_a_show_damages_both_panels;
 mod switching_dock_tabs_keeps_the_panel_it_hides;
 mod switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one;
+mod tab_builds_the_virtual_rows_beyond_the_ones_in_view;
 mod tab_focus_stays_in_the_active_document_when_the_inspector_is_open;
 mod tab_is_trapped_inside_an_open_context_menu;
 mod tab_moves_focus_from_one_text_input_to_the_next;
 mod tab_moves_focus_to_the_next_button;
+mod tab_skips_virtual_rows_without_a_control;
 mod tabbing_to_an_offscreen_control_reveals_it;
 mod tabs_collapse_into_a_select_when_their_container_is_narrow;
 mod tabs_have_one_tab_stop_and_wrap_with_arrow_keys;
@@ -2244,6 +2248,7 @@ impl Driven {
                     Reply::Text(text) => Ok(text),
                     Reply::Error(error) => Err(error),
                     Reply::Image { .. } => Err("an image".to_owned()),
+                    Reply::Painting(_) => Err("a painting".to_owned()),
                 };
             }
         }

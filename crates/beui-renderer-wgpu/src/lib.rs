@@ -71,6 +71,13 @@ pub fn drawing(draw: impl Draw) -> Drawing {
     Drawing::erased(draw)
 }
 
+pub fn painted_drawing(draw: impl Draw + beui_core::painting::Paints) -> Drawing {
+    let draw = Rc::new(draw);
+    let paints: Rc<dyn beui_core::painting::Paints> = draw.clone();
+    let draw: Rc<dyn Draw> = draw;
+    Drawing::painted(draw, paints)
+}
+
 pub fn renderer_info(adapter: &wgpu::AdapterInfo, format: wgpu::TextureFormat) -> RendererInfo {
     let mut rows = vec![
         ("Backend", format!("{:?}", adapter.backend)),

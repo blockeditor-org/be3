@@ -13,7 +13,7 @@ use crate::geometry::*;
 
 use super::menu::CanvasMenu;
 use super::overlay::{Artboard, Backdrop, Overlay};
-use super::paint::{Camera, EntityPaint, Palette};
+use super::paint::{Camera, EntityPaint, Palette, resolve_color};
 use super::state::CanvasState;
 
 const ITEM_MARGIN: f32 = 2.0;
@@ -52,13 +52,11 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 view={create_memo(move || Some(placement.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
-                                <Show condition={!previewing}>
-                                    <CanvasBackdrop
-                                        state={state}
-                                        camera={backdrop_camera}
-                                        stage={backdrop_stage}
-                                    />
-                                </Show>
+                                <CanvasBackdrop
+                                    state={state}
+                                    camera={backdrop_camera}
+                                    stage={backdrop_stage}
+                                />
                                 <ForEach keys={ids}>
                                     {move |id: Uuid| {
                                         let camera = shape_camera;
@@ -188,6 +186,10 @@ fn CanvasBackdrop(
                 CanvasEntityKind::Artboard { name } => Some(Artboard {
                     bounds: entity_bounds(&entity),
                     name: name.clone(),
+                    fill: resolve_color(
+                        entity.style.fill.unwrap_or_default(),
+                        theme.background.get(),
+                    ),
                 }),
                 _ => None,
             })
@@ -195,8 +197,8 @@ fn CanvasBackdrop(
         let backdrop = Backdrop {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             stage: stage.get(),
-            background: theme.background.get(),
             label: theme.text_muted.get(),
+            chrome: !state.previewing(),
             artboards,
         };
         if shown.borrow().as_ref() == Some(&backdrop) {

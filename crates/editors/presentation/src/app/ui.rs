@@ -47,12 +47,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
         <Interactive focusable=true focused={presenting} on_key={keys}>
             <Frame fill={ColorRole::custom(background)}>
                 <List direction=Direction::Horizontal spacing=0.0>
-                    <Filmstrip
-                        @sizing=ItemSize::Fixed(FILMSTRIP_WIDTH)
-                        editor={editor}
-                        slides={slides}
-                        shown={editing}
-                    />
+                    <Filmstrip editor={editor} slides={slides} shown={editing} />
                     <Frame visible={editing} width=theme::BORDER_WIDTH fill=ColorRole::Border />
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Toolbar editor={editor} slides={slides} shown={editing} />
@@ -297,7 +292,12 @@ fn Filmstrip(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     };
 
     view! {
-        <Frame visible={shown} fill=ColorRole::Surface padding=FILMSTRIP_PADDING>
+        <Frame
+            visible={shown}
+            width=FILMSTRIP_WIDTH
+            fill=ColorRole::Surface
+            padding=FILMSTRIP_PADDING
+        >
             <List spacing=TILE_SPACING>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION string="Add a slide to start this deck." />

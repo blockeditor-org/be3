@@ -100,6 +100,11 @@ impl NodeId {
 pub type Handler<V, R = ()> = Box<dyn FnMut(V) -> R>;
 pub type ClickHandler = Box<dyn FnMut()>;
 
+pub enum FocusChild {
+    Node(NodeId),
+    Unbuilt(std::ops::Range<usize>),
+}
+
 pub trait Element: Any {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2;
 
@@ -140,6 +145,21 @@ pub trait Element: Any {
     }
 
     fn remove_child(&mut self, child: NodeId);
+
+    fn focus_children(&self) -> Option<Vec<FocusChild>> {
+        None
+    }
+
+    fn build_for_focus(
+        &mut self,
+        _doc: &mut Document,
+        _id: NodeId,
+        _index: usize,
+    ) -> Option<NodeId> {
+        None
+    }
+
+    fn release_for_focus(&mut self, _child: NodeId) {}
 
     fn live_children(&self) -> Vec<NodeId> {
         self.children()
