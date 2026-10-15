@@ -6,8 +6,8 @@ use beui::icons::{
     ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
 };
 use beui::reactive::{
-    Action, Align, Chord, Direction, ForEach, Frame, Interactive, ItemSize, List, Show, WriteSignal, component,
-    create_memo, create_signal, view, with_document,
+    Action, Align, Chord, Direction, ForEach, Frame, Interactive, ItemSize, List, Show,
+    WriteSignal, component, create_memo, create_signal, view, with_document,
 };
 use beui::styled::{Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
 use beui::unstyled::{ChoiceOption, Scroll};
@@ -196,35 +196,35 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         let markdown = markdown;
         view! {
             <Interactive press_focus=false @test_id={"text.format"}>
-            <Frame color={theme.surface}>
-                <List spacing=0.0>
-                    <Separator />
-                    <Frame padding_vertical=FORMAT_PADDING>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Scroll
-                                @sizing=ItemSize::Percent(100.0)
-                                direction=Direction::Horizontal
-                            >
-                                <Frame padding_horizontal=FORMAT_PADDING>
-                                    <List spacing=0.0>
-                                        <Show condition={markdown} then={controls} />
-                                    </List>
-                                </Frame>
-                            </Scroll>
-                            <Show condition={keyboard}>
-                                <Frame padding_horizontal=FORMAT_PADDING>
-                                    <IconButton
-                                        glyph=ICON_KEYBOARD_HIDE
-                                        label="Done"
-                                        @test_id={"text.format.done"}
-                                        on_click={|| with_document(|document| document.update_focus(None))}
-                                    />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </Frame>
-                </List>
-            </Frame>
+                <Frame color={theme.surface}>
+                    <List spacing=0.0>
+                        <Separator />
+                        <Frame padding_vertical=FORMAT_PADDING>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                <Scroll
+                                    @sizing=ItemSize::Percent(100.0)
+                                    direction=Direction::Horizontal
+                                >
+                                    <Frame padding_horizontal=FORMAT_PADDING>
+                                        <List spacing=0.0>
+                                            <Show condition={markdown} then={controls} />
+                                        </List>
+                                    </Frame>
+                                </Scroll>
+                                <Show condition={keyboard}>
+                                    <Frame padding_horizontal=FORMAT_PADDING>
+                                        <IconButton
+                                            glyph=ICON_KEYBOARD_HIDE
+                                            label="Done"
+                                            @test_id={"text.format.done"}
+                                            on_click={|| with_document(|document| document.update_focus(None))}
+                                        />
+                                    </Frame>
+                                </Show>
+                            </List>
+                        </Frame>
+                    </List>
+                </Frame>
             </Interactive>
         }
     };
