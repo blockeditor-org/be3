@@ -306,8 +306,11 @@ impl Builder<'_> {
             return;
         };
         let listed = orphans.read();
-        let loaded = orphans.is_loaded();
-        if listed.is_empty() && loaded {
+        if !orphans.is_loaded() {
+            self.rows.push(Row::note(Vec::new(), 1, "Loading…"));
+            return;
+        }
+        if listed.is_empty() {
             self.rows
                 .push(Row::note(Vec::new(), 1, "No recently deleted blocks"));
             return;
@@ -355,8 +358,12 @@ impl Builder<'_> {
         }
         let watched = &self.watched.expanded[&reference.id];
         let children = watched.read();
-        let loaded = watched.is_loaded();
-        if children.is_empty() && loaded {
+        if !watched.is_loaded() {
+            self.rows
+                .push(Row::note(key_path.clone(), depth + 1, "Loading…"));
+            return;
+        }
+        if children.is_empty() {
             self.rows
                 .push(Row::note(key_path.clone(), depth + 1, "No references"));
             return;

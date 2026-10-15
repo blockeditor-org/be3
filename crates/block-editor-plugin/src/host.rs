@@ -416,8 +416,9 @@ pub struct EditorHost {
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
-    version_status: Rc<RefCell<block_plugin_api::VersionStatus>>,
+    version_status: Rc<RefCell<Option<block_plugin_api::VersionStatus>>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
+    block_types_known: Rc<Cell<bool>>,
     drag: Rc<Cell<Option<BlockDrag>>>,
     files: Rc<RefCell<Option<FileDrop>>>,
     drag_accepted: Rc<Cell<Option<bool>>>,
@@ -871,16 +872,24 @@ impl EditorHost {
     }
 
     pub fn set_version_status(&self, status: block_plugin_api::VersionStatus) {
-        *self.version_status.borrow_mut() = status;
+        *self.version_status.borrow_mut() = Some(status);
         self.push(Pushed::Version);
     }
 
     pub fn version_status(&self) -> block_plugin_api::VersionStatus {
-        self.version_status.borrow().clone()
+        self.version_status.borrow().clone().unwrap_or_default()
+    }
+
+    pub fn version_known(&self) -> bool {
+        self.version_status.borrow().is_some()
     }
 
     pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
         std::mem::take(&mut self.block_commands.borrow_mut())
+    }
+
+    pub fn block_types_known(&self) -> bool {
+        self.block_types_known.get()
     }
 
     pub fn block_types(&self) -> Rc<BlockCatalog> {
@@ -1481,6 +1490,7 @@ impl EditorHost {
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         *self.block_types.borrow_mut() = catalog;
+        self.block_types_known.set(true);
         self.push(Pushed::Catalog);
     }
 
