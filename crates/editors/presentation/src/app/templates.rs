@@ -2,7 +2,7 @@ use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
-    CanvasTextStyle, CanvasTextWeight, CanvasTransform,
+    CanvasTextStyle, CanvasTextVerticalAlign, CanvasTextWeight, CanvasTransform,
 };
 use block_editor_beui::beui::{Vec2, vec2};
 use uuid::Uuid;
@@ -65,6 +65,7 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                     font_size: TITLE_FONT_SIZE,
                     weight: CanvasTextWeight::Bold,
                     alignment: CanvasTextAlign::Center,
+                    vertical_alignment: CanvasTextVerticalAlign::Middle,
                     line_height: 1.2,
                     wrap: false,
                 },
@@ -77,6 +78,7 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                     font_size: SUBTITLE_FONT_SIZE,
                     weight: CanvasTextWeight::Regular,
                     alignment: CanvasTextAlign::Center,
+                    vertical_alignment: CanvasTextVerticalAlign::Middle,
                     line_height: 1.2,
                     wrap: false,
                 },
@@ -91,6 +93,7 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                     font_size: HEADER_FONT_SIZE,
                     weight: CanvasTextWeight::Bold,
                     alignment: CanvasTextAlign::Left,
+                    vertical_alignment: CanvasTextVerticalAlign::Middle,
                     line_height: 1.2,
                     wrap: false,
                 },
@@ -103,6 +106,7 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                     font_size: BODY_FONT_SIZE,
                     weight: CanvasTextWeight::Regular,
                     alignment: CanvasTextAlign::Left,
+                    vertical_alignment: CanvasTextVerticalAlign::Top,
                     line_height: 1.3,
                     wrap: true,
                 },

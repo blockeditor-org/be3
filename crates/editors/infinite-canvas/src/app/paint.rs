@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
-    CanvasTextStyle, CanvasTextWeight,
+    CanvasTextStyle, CanvasTextVerticalAlign, CanvasTextWeight,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{
@@ -201,15 +201,24 @@ impl EntityPaint {
         let galley = painter.layout_text(
             shown,
             text_font(text_style, self.camera.scale),
-            text_layout(text_style, rect.width()),
+            text_layout(
+                text_style,
+                rect.width() - 2.0 * TEXT_INSET * self.camera.scale,
+            ),
         );
         let size = galley.size();
+        let inset = TEXT_INSET * self.camera.scale;
         let x = match text_style.alignment {
-            CanvasTextAlign::Left => rect.left(),
+            CanvasTextAlign::Left => rect.left() + inset,
             CanvasTextAlign::Center => rect.center().x - size.x / 2.0,
-            CanvasTextAlign::Right => rect.right() - size.x,
+            CanvasTextAlign::Right => rect.right() - inset - size.x,
         };
-        let origin = pos2(x, rect.center().y - size.y / 2.0);
+        let y = match text_style.vertical_alignment {
+            CanvasTextVerticalAlign::Top => rect.top() + inset,
+            CanvasTextVerticalAlign::Middle => rect.center().y - size.y / 2.0,
+            CanvasTextVerticalAlign::Bottom => rect.bottom() - inset - size.y,
+        };
+        let origin = pos2(x, y);
         if text_style.weight == CanvasTextWeight::Bold {
             painter.galley(
                 pos2(origin.x + 0.6 * self.camera.scale, origin.y),
@@ -472,7 +481,7 @@ pub(crate) fn measure_text(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
     let galley = layout_text(
         shown,
         text_font(*text_style, scale),
-        text_layout(*text_style, width),
+        text_layout(*text_style, width - 2.0 * TEXT_INSET * scale),
     )?;
     let size = galley.size();
     Some(Vec2::new(size.x / scale, size.y / scale))
