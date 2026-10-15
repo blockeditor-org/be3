@@ -22,8 +22,8 @@ cargo_binary(name = "native")
         name = name,
         activity = "com.be3.launcher.LauncherActivity",
         application_id = application_id,
-        ci_signed = ci_signed,
         java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
+        keystore = keystore,
         label = label,
         library = ":be-launcher",
         manifest = "android/AndroidManifest.xml",
@@ -34,9 +34,9 @@ cargo_binary(name = "native")
         version_code = 1,
         version_name = "0.1.0",
     )
-    for name, application_id, label, ci_signed in [
-        ("android", "com.be3.launcher", "be3 launcher", False),
-        ("android-dist", "com.be3.launcher.ci", "be3 launcher (CI)", True),
+    for name, application_id, label, keystore in [
+        ("android", "com.be3.launcher", "be3 launcher", None),
+        ("android-dist", "com.be3.launcher.ci", "be3 launcher (CI)", "//buck/android:ci-keystore"),
     ]
 ]
 

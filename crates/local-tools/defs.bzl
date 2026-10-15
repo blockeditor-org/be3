@@ -87,8 +87,8 @@ _NATIVE = ["linux_x86_64", "linux_arm64", "macos_arm64", "macos_x86_64", "window
 
 deploy = rule(
     attrs = {
-        # The APK, signed on a worker, which builds for Android whatever the
-        # command is configured for.
+        # The APK, signed on a worker with the release keystore, which builds
+        # for Android whatever the command is configured for.
         "app_android": attrs.dep(),
         "app_linux_arm64": attrs.transition_dep(cfg = _linux_arm64),
         "app_linux_x86_64": attrs.transition_dep(cfg = _linux_x86_64),

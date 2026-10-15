@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 const USAGE: &str = "\
 usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
-                        [--skip-downloads]
+                        [--skip-downloads] [--android-id ID] [--android-label LABEL]
 
 Builds be-server, the web bundle, be and the app for every platform in
 release, uploads each be and each of the app's downloads to the mirror, swaps
@@ -17,7 +17,9 @@ the server and the web bundle on the VPS, points the mirror's download page at
 the new build, and pins the uploaded be in scripts/internal/common.sh.
 
 The downloads are the app with its plugins for Linux, macOS and Windows on
-x86_64 and arm64 and the web bundle, each zipped, and the signed APK. They go
+x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
+release keystore under the id and label --android-id and --android-label give
+(com.be3.block and Block), so it installs beside CI's com.be3.block.ci. They go
 to app/BUILD/ beside a page linking them, and app/index.html is that page for
 the build the server runs (https://lfs.pfg.pw/by-name/be3/app/).
 
@@ -27,6 +29,11 @@ the build the server runs (https://lfs.pfg.pw/by-name/be3/app/).
   --skip-be      leave be as it is
   --skip-web     leave the web bundle as it is
   --skip-downloads  upload none of the app's downloads
+
+./scripts/deploy asks at a terminal for any key it lacks and saves it in
+~/.config/be3: the storage zone's password (bunny-storage-key), the API
+key (bunny-api-key, which may be empty) and the release keystore
+(android-release-keystore.base64), which it can make anew.
 
 Environment:
   BUNNY_STORAGE_KEY   the storage zone's password (needed to upload be and the downloads)
