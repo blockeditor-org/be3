@@ -32,7 +32,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 let view = state.editor().canvas();
                 let world = state.editor().world();
                 let camera = create_memo(move || {
-                    super::state::camera_view(view.get(), world.get(), placed.get(), state.centre())
+                    super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
                 });
                 let ids = create_memo(move || {
                     state
