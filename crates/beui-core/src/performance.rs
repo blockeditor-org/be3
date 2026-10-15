@@ -22,6 +22,7 @@ pub struct FrameWork {
     pub painted_nodes: usize,
     pub replayed_nodes: usize,
     pub described_nodes: usize,
+    pub walked_nodes: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

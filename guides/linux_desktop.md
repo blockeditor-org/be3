@@ -370,6 +370,33 @@ keyboard. An honoured request goes through `Windows::activate`, as `WindowAction
 which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;
 the dock has no way yet to mark a tab as wanting attention.
 
+### Windows kept across restarts
+
+A desktop session keeps its program windows: the next time it is opened with none of them
+running, as after the computer restarts, each one's tab is where the window was and shows a
+placeholder instead, with the program's icon and name, the window's old title, Open and
+Dismiss, and the bar offers to open them all. block-shell's `Workspace` (with `keeps_windows`,
+which only linux-desktop sets) saves a `KeptWindow` per top-level window beside the dock layout
+in its `layout` view state. Each window tab is keyed by a kept key that outlives the window
+(`window_tab(key)`), and `kept.rs` binds live windows to keys: a window a record names is bound
+to its key (a shell started again over the same compositor keeps every window), a window that
+appears after the restore takes the placeholder it was launched from, else the oldest unbound
+one with its app id, and any other window is its own key. The dock never sees a binding change:
+`WindowTab` shows the bound window's `WindowPanel`, or the placeholder linux-desktop hands it
+when none is bound. While the host's `PowerAvailability` says the session is `ending`, nothing
+is saved, so the programs closing as it ends stay kept.
+
+Window ids start from the compositor's start time in microseconds, so an id never names two
+windows across runs: a saved record's window id is only ever adopted by that window, and a new
+window's own id never collides with a kept key. The host fills `HostWindow::origin`: when the
+compositor launched the program or an ancestor of it, the `.desktop` entry it was launched from
+and the `launch` number the shell put on its `ProgramAction::Launch` or `Exec`; otherwise the
+program's executable, the first word of the client's `/proc` command line (an X11 window's
+`_NET_WM_PID`). The arguments are never kept, since saved layouts outlive the process and an
+argument can be a secret. linux-desktop opens a placeholder with that entry, else one from
+`Programs` whose `StartupWMClass` or id matches the app id, else the executable. The host runs
+a `Launch` that arrives before it has listed the programs once the list is in.
+
 ### X11 programs
 
 `be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts

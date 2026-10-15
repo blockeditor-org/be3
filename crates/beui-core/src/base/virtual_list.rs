@@ -1,5 +1,6 @@
-use foldhash::HashMap;
+use foldhash::{HashMap, HashSet};
 use std::any::Any;
+use std::collections::VecDeque;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -129,6 +130,7 @@ pub struct VirtualListNode<K> {
     rows: Rc<KeyedItems<K, NodeId>>,
     owner: Option<ScopeContext>,
     placed: Vec<Row<K>>,
+    retained: VecDeque<K>,
     origin: Option<(K, f32)>,
     overscan: f32,
 }
@@ -144,6 +146,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             rows: Rc::new(KeyedItems::new(build)),
             owner: owner_scope(),
             placed: Vec::new(),
+            retained: VecDeque::new(),
             origin: None,
             overscan: 0.0,
         }
@@ -177,9 +180,15 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         for row in &mut self.placed {
             row.index = indices[&row.key];
         }
+        self.retained.retain(|key| indices.contains_key(key));
         self.keys = keys;
         self.indices = indices;
-        let kept: Vec<K> = self.placed.iter().map(|row| row.key.clone()).collect();
+        let kept: Vec<K> = self
+            .placed
+            .iter()
+            .map(|row| row.key.clone())
+            .chain(self.retained.iter().cloned())
+            .collect();
         self.rows.retain(&kept);
     }
 
@@ -366,7 +375,28 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     }
 
     fn keep(&mut self, rows: Vec<Row<K>>) {
-        let kept: Vec<K> = rows.iter().map(|row| row.key.clone()).collect();
+        let placed: HashSet<K> = rows.iter().map(|row| row.key.clone()).collect();
+        for row in self.placed.iter().rev() {
+            if !placed.contains(&row.key) {
+                self.retained.push_front(row.key.clone());
+            }
+        }
+        let reach = rows.len();
+        let near = match (rows.first(), rows.last()) {
+            (Some(first), Some(last)) => {
+                first.index.saturating_sub(reach)..last.index.saturating_add(reach + 1)
+            }
+            _ => 0..0,
+        };
+        let indices = &self.indices;
+        self.retained.retain(|key| {
+            !placed.contains(key) && indices.get(key).is_some_and(|index| near.contains(index))
+        });
+        self.retained.truncate(reach);
+        let kept: Vec<K> = placed
+            .into_iter()
+            .chain(self.retained.iter().cloned())
+            .collect();
         self.placed = rows;
         self.rows.retain(&kept);
     }

@@ -15,6 +15,7 @@ use block_shell::Workspace;
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
 use super::launcher::ProgramLauncher;
 use super::notifications::{DesktopNotifications, NotificationsButton};
+use super::placeholders::{OpenAllButton, Placeholders};
 use super::popup::BarPopup;
 use super::power::PowerMenu;
 use super::sessions::Sessions;
@@ -55,12 +56,15 @@ pub(crate) fn DesktopBar(
     workspace: Workspace,
     notifications: DesktopNotifications,
     launcher: ProgramLauncher,
+    placeholders: Placeholders,
 ) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
+    let kept = placeholders.keys;
+    let waiting = create_memo(move || !kept.with(Vec::is_empty));
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(workspace);
@@ -141,6 +145,9 @@ pub(crate) fn DesktopBar(
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Show condition={waiting}>
+                        <OpenAllButton placeholders />
+                    </Show>
                     <TrayItems editor={editor} />
                     <Show condition={audible}>
                         <VolumeButton editor={editor} levels={levels} />

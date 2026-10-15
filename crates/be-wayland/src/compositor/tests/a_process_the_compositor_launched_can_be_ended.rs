@@ -22,6 +22,7 @@ fn a_process_the_compositor_launched_can_be_ended() {
             format!("sleep 1000 & echo $! > '{}'; wait", fifo.display()),
         ],
         working_dir: None,
+        tag: None,
     });
     harness.frame(Vec::new());
     let told = std::fs::read_to_string(&fifo).expect("the shell names its child");

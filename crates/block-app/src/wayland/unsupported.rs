@@ -42,6 +42,10 @@ pub(crate) fn launch(_command: String) -> bool {
     false
 }
 
+pub(crate) fn exec(_arguments: Vec<String>, _launch: Option<u64>) -> bool {
+    false
+}
+
 #[component]
 pub(crate) fn WindowActions() -> NodeId {
     view! {
@@ -71,7 +75,7 @@ impl Programs {
         Vec::new()
     }
 
-    pub(crate) fn launch(&self, _key: &str) -> bool {
+    pub(crate) fn launch(&mut self, _key: &str, _launch: Option<u64>) -> bool {
         false
     }
 }

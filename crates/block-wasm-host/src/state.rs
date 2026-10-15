@@ -49,6 +49,12 @@ pub struct State {
     pub(crate) submit_time: Duration,
 }
 
+impl Drop for State {
+    fn drop(&mut self) {
+        self.threads.release();
+    }
+}
+
 pub(crate) struct Threaded {
     pub(crate) wasi: WasiP1Ctx,
     pub(crate) threads: Arc<Spawner>,

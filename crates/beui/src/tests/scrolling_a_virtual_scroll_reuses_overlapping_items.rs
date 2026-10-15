@@ -21,7 +21,8 @@ fn scrolling_a_virtual_scroll_reuses_overlapping_items() {
     assert!(
         original[..2]
             .iter()
-            .all(|&id| !harness.document.contains(id))
+            .all(|&id| harness.document.contains(id)),
+        "the rows that just left are kept"
     );
 
     set_built.update(|built| built.clear());
@@ -30,7 +31,12 @@ fn scrolling_a_virtual_scroll_reuses_overlapping_items() {
         .set_scroll_offset(scroll.scroll, VIRTUAL_ITEM_HEIGHT);
     harness.frame(Vec::new());
     let upper = harness.document.children(scroll.list);
-    assert_eq!(built.get_untracked(), vec![1]);
+    assert_eq!(
+        built.get_untracked(),
+        Vec::<usize>::new(),
+        "scrolling back shows the kept row rather than building it again"
+    );
+    assert_eq!(upper[0], original[1]);
     assert_eq!(upper[1..], lower[..visible - 1]);
-    assert!(!harness.document.contains(*lower.last().unwrap()));
+    assert!(harness.document.contains(*lower.last().unwrap()));
 }
