@@ -1738,7 +1738,7 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
         let face = dock.bar.call(handle);
         view! {
             <Interactive
-                keeps_focus=true
+                press_focus=false
                 claims_touch=false
                 on_press={move |press: PointerPress| {
                     if let Some(leaf) = leaf {

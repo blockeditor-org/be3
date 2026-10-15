@@ -20,7 +20,7 @@ pub struct InteractiveNode {
     pub cursor: Option<CursorIcon>,
     pub scroll_axis: Option<Direction>,
     pub capture_presses: bool,
-    pub keeps_focus: bool,
+    pub press_focus: bool,
     pub repeat_drag: bool,
     pub touch_drags: bool,
     pub touch_drag_axis: Option<Direction>,
@@ -71,7 +71,7 @@ impl InteractiveNode {
             cursor: None,
             scroll_axis: None,
             capture_presses: false,
-            keeps_focus: false,
+            press_focus: true,
             repeat_drag: false,
             touch_drags: false,
             touch_drag_axis: None,
@@ -330,7 +330,7 @@ impl Element for InteractiveNode {
             |focus| {
                 let flags: Vec<&str> = [
                     (focus.tab_stop, "tab stop"),
-                    (focus.press_focus, "press"),
+                    (self.press_focus, "press"),
                     (focus.ime, "ime"),
                     (focus.keyboard_on_focus, "keyboard"),
                 ]
@@ -409,9 +409,9 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_keeps_focus(&mut self, id: NodeOf<InteractiveNode>, keeps: bool) {
-        if self.arena.get_as::<InteractiveNode>(id).keeps_focus != keeps {
-            self.arena.touch_mut_as::<InteractiveNode>(id).keeps_focus = keeps;
+    pub fn set_interactive_press_focus(&mut self, id: NodeOf<InteractiveNode>, press_focus: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).press_focus != press_focus {
+            self.arena.touch_mut_as::<InteractiveNode>(id).press_focus = press_focus;
         }
     }
 

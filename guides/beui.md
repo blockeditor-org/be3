@@ -1483,7 +1483,7 @@ and a screen reader does not read it. Closing the tab is what removes it.
 
 Pressing a pane's or a window's own chrome - its bar, a tab, a grip - gives the
 keyboard to the tab it shows rather than taking it: the bar is an `Interactive`
-with `keeps_focus`, and the dock (`dock/keyboard.rs`) puts the focus in the
+with `press_focus=false` (guides/beui_keyboard.md), and the dock (`dock/keyboard.rs`) puts the focus in the
 panel, where it was when that tab last had it or else on the panel's first
 focusable (`Document::focus_into`, which waits a layout for a panel still being
 built). Picking a tab with the pointer does the same for the tab it shows, while

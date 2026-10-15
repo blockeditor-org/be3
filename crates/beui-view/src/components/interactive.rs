@@ -44,7 +44,6 @@ pub fn Interactive(
     cursor: Option<Prop<CursorIcon>>,
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
-    #[prop(default = false)] keeps_focus: Prop<bool>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
     #[prop(default = false)] touch_drags: Prop<bool>,
     #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
@@ -152,11 +151,10 @@ pub fn Interactive(
     });
     if focusable {
         create_binding(move || {
-            let (tab_stop, press_focus, ime) = (tab_stop.get(), press_focus.get(), ime.get());
+            let (tab_stop, ime) = (tab_stop.get(), ime.get());
             let (pastes, keyboard, asks) = (pastes.get(), ime_keyboard.get(), keyboard_asks.get());
             with_document(|document| {
                 document.set_focusable_tab_stop(interactive, tab_stop);
-                document.set_focusable_press_focus(interactive, press_focus);
                 document.set_focusable_ime(interactive, ime);
                 document.set_focusable_pastes(interactive, pastes);
                 document.set_focusable_ime_keyboard(interactive, keyboard);
@@ -196,7 +194,7 @@ pub fn Interactive(
     create_binding(move || {
         let (capture, repeat, touch) =
             (capture_presses.get(), repeat_drag.get(), touch_drags.get());
-        let keeps = keeps_focus.get();
+        let pressing = press_focus.get();
         let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
         let (active, inhibits, claimed) = (
             key_active.get(),
@@ -205,7 +203,7 @@ pub fn Interactive(
         );
         with_document(|document| {
             document.set_interactive_capture_presses(interactive, capture);
-            document.set_interactive_keeps_focus(interactive, keeps);
+            document.set_interactive_press_focus(interactive, pressing);
             document.set_interactive_repeat_drag(interactive, repeat);
             document.set_interactive_touch_drags(interactive, touch);
             document.set_interactive_touch_drag_axis(interactive, axis);

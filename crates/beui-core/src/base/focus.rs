@@ -20,7 +20,6 @@ pub struct ImeCursor {
 
 pub struct Focus {
     pub tab_stop: bool,
-    pub press_focus: bool,
     pub ime: bool,
     pub keyboard_on_focus: bool,
     pub keyboard_asks: Option<u32>,
@@ -49,7 +48,6 @@ impl Focus {
     pub fn new() -> Self {
         Self {
             tab_stop: true,
-            press_focus: true,
             ime: false,
             keyboard_on_focus: true,
             keyboard_asks: None,
@@ -85,20 +83,6 @@ impl Document {
         }
         if focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.tab_stop != tab_stop) {
             self.focus_mut(focusable).tab_stop = tab_stop;
-        }
-    }
-
-    pub fn set_focusable_press_focus(
-        &mut self,
-        focusable: NodeOf<InteractiveNode>,
-        press_focus: bool,
-    ) {
-        if !self.contains(focusable) {
-            return;
-        }
-        if focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.press_focus != press_focus)
-        {
-            self.focus_mut(focusable).press_focus = press_focus;
         }
     }
 
@@ -626,8 +610,8 @@ impl Document {
         if let Some(target) = target
             && self.focused == Some(target)
             && self.contains(target)
+            && crate::interact::hit::interactive(self, target).is_some_and(|node| node.press_focus)
             && let Some(keyboard) = focus_of(self.arena.get(target))
-                .filter(|node| node.press_focus)
                 .map(|node| node.ime && node.ime_keyboard && node.keyboard_asks.is_none())
         {
             if keyboard {

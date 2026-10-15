@@ -6,7 +6,7 @@ use beui::icons::{
     ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
 };
 use beui::reactive::{
-    Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component,
+    Action, Align, Chord, Direction, ForEach, Frame, Interactive, ItemSize, List, Show, WriteSignal, component,
     create_memo, create_signal, view, with_document,
 };
 use beui::styled::{Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
@@ -195,6 +195,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         let keyboard = keyboard;
         let markdown = markdown;
         view! {
+            <Interactive press_focus=false @test_id={"text.format"}>
             <Frame color={theme.surface}>
                 <List spacing=0.0>
                     <Separator />
@@ -215,7 +216,6 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                                     <IconButton
                                         glyph=ICON_KEYBOARD_HIDE
                                         label="Done"
-                                        press_focus=false
                                         @test_id={"text.format.done"}
                                         on_click={|| with_document(|document| document.update_focus(None))}
                                     />
@@ -225,6 +225,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                     </Frame>
                 </List>
             </Frame>
+            </Interactive>
         }
     };
     view! {
@@ -244,7 +245,7 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
                     let action = formats[index].clone();
                     let id = action.id().to_owned();
                     view! {
-                        <IconButton @test_id={id} action press_focus=false />
+                        <IconButton @test_id={id} action />
                     }
                 }}
             </ForEach>

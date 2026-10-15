@@ -125,7 +125,7 @@ report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
 is never reported. `Key` also has the volume, mic mute, brightness and media
 transport keys, mapped wherever the platform reports them.
 
-Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. An `Interactive` with `keeps_focus` leaves the focus where it is when it is pressed, whatever focusable inside it is under the pointer. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
+Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 
 ## Actions and the command palette
 
@@ -354,7 +354,16 @@ instead of querying the control's state back afterwards.
 `tab_stop` is a prop on `<unstyled::Button>` and a focusable `<Interactive>`: set it to
 `false` to keep a control reachable by pointer and programmatic focus while
 removing it from sequential Tab navigation, which is how single-Tab-stop groups
-work. `on_key` returns `true` only for keys it handled; a control that needs
+work.
+
+`press_focus=false` is the one way to make pressing something leave the focus,
+and with it a text field's caret and selection, where it is. It is a prop on any
+`<Interactive>`, focusable or not, and on the controls built on one (`Button`,
+`IconButton`, `Toggle`, `Checkbox`), and it covers everything inside it: a press
+anywhere in it focuses nothing, whatever focusable is under the pointer. Put it
+on a whole toolbar rather than on each of its buttons, as the text editor's
+format bar and the dock's bars do, so its padding and scroll strip keep the
+focus too. `on_key` returns `true` only for keys it handled; a control that needs
 keys before a text input inside it sees them listens at it (How a key travels,
 above). `Document::focused_node` reports the current focus.
 
