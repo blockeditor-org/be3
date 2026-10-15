@@ -15,7 +15,8 @@ mod volume;
 use block_editor_beui::Editor;
 use block_editor_beui::Power;
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, NodeRef, RenderFn, component, create_effect, create_memo, untrack, view,
+    ForEach, Frame, ItemSize, List, NodeRef, RenderFn, component, create_effect, create_memo,
+    untrack, view,
 };
 use block_editor_beui::beui::styled::{Docking, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -24,8 +25,8 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs,
-    Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, Workspace,
+    WorkspaceDialogs,
 };
 
 use bar::DesktopBar;

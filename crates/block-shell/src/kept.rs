@@ -80,10 +80,7 @@ pub(crate) fn sort_out(kept: &Kept, windows: &[HostWindow]) -> Desk {
         }
     }
     for window in &live {
-        if !kept.restored
-            || kept.seen.contains(&window.id)
-            || desk.bound.contains_key(&window.id)
-        {
+        if !kept.restored || kept.seen.contains(&window.id) || desk.bound.contains_key(&window.id) {
             continue;
         }
         let launched = free

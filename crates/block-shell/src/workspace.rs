@@ -9,8 +9,7 @@ use std::rc::Rc;
 use block_editor_beui::beui::icons::ICON_WEB_ASSET;
 use block_editor_beui::beui::reactive::{
     Dynamic, Frame, ItemSize, Layers, List, Memo, ReadSignal, RenderFn, Spacer, Stored,
-    WriteSignal, batch, component,
-    create_effect, create_memo, create_signal, store, untrack, view,
+    WriteSignal, batch, component, create_effect, create_memo, create_signal, store, untrack, view,
 };
 use block_editor_beui::beui::unstyled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
@@ -33,7 +32,8 @@ use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, shown_size, tab_window, window_picture, window_tab, window_title,
+    WindowPanel, floating_window, kept_window, shown_size, tab_window, window_picture, window_tab,
+    window_title,
 };
 use block_editor_beui::beui::styled::{Text, TextColor, TextStyle};
 
