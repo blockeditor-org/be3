@@ -1577,6 +1577,8 @@ pub enum HostRequest {
     Fetch(String),
     ListData,
     ReadData(String),
+    ExportBlock([u8; 16]),
+    ImportBlocks(BlockLocation),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1588,6 +1590,17 @@ pub enum HostReply {
     DataListed(DataListing),
     DataRead(FetchResult),
     AccessListed(AccessListing),
+    BlocksImported(BlockImport),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BlockImport {
+    Imported {
+        block_id: [u8; 16],
+        block_type: [u8; 16],
+    },
+    Cancelled,
+    Failed(String),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -2816,6 +2829,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
+        HostRequest::ExportBlock(_) | HostRequest::ImportBlocks(_) => Ok(()),
     }
 }
 
@@ -2836,7 +2850,8 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::Fetched(FetchResult::Failed(message))
         | HostReply::DataRead(FetchResult::Failed(message))
         | HostReply::DataListed(DataListing::Failed(message))
-        | HostReply::AccessListed(AccessListing::Failed(message)) => string(message),
+        | HostReply::AccessListed(AccessListing::Failed(message))
+        | HostReply::BlocksImported(BlockImport::Failed(message)) => string(message),
         HostReply::AccessListed(AccessListing::Listed(grants)) => {
             collection(grants.len())?;
             for grant in grants {
@@ -2847,7 +2862,10 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         }
         HostReply::FilePicked(FilePick::Cancelled)
         | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
-        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled) => Ok(()),
+        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
+        | HostReply::BlocksImported(BlockImport::Imported { .. } | BlockImport::Cancelled) => {
+            Ok(())
+        }
     }
 }
 

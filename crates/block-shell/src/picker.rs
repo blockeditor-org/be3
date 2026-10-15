@@ -12,6 +12,7 @@ pub(crate) enum PickerTab {
     Add,
     Templates,
     LinkExisting,
+    Import,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +33,7 @@ pub(crate) struct Pick {
     pub(crate) name: String,
     pub(crate) place: Option<BlockParent>,
     pub(crate) creating: Option<Creating>,
+    pub(crate) importing: Option<u64>,
     pub(crate) error: Option<String>,
 }
 
@@ -43,6 +45,7 @@ pub(crate) enum PickAction {
     Place(BlockParent),
     Make(TemplateEntry),
     Link(Uuid, Uuid),
+    Import,
     Create,
     CancelCreation,
     Close,
@@ -76,6 +79,7 @@ impl Pick {
             name: String::new(),
             place,
             creating: None,
+            importing: None,
             error: None,
         }
     }
@@ -139,6 +143,7 @@ impl Pick {
                     None,
                 );
             }
+            PickAction::Import => {}
             PickAction::Create => {
                 if let Some(creating) = &mut self.creating {
                     creating.committed = true;
@@ -168,23 +173,7 @@ impl Pick {
         match progress {
             CreationProgress::Created(block) => {
                 let block_type = creating.template.block_type;
-                let placed = self.place.is_some();
-                let into = match self.place {
-                    Some(BlockParent::Block(container)) => {
-                        Some((Uuid::from_bytes(*block), block_type, container))
-                    }
-                    Some(BlockParent::Root | BlockParent::Detached) | None => None,
-                };
-                PickOutcome::Answered(
-                    self.pick,
-                    BlockPick::Chosen {
-                        block_id: *block,
-                        block_type: block_type.into_bytes(),
-                        linked: false,
-                        placed,
-                    },
-                    into,
-                )
+                self.made(Uuid::from_bytes(*block), block_type)
             }
             CreationProgress::Failed(error) => {
                 self.creating = None;
@@ -195,6 +184,41 @@ impl Pick {
                 PickOutcome::Open(Box::new(self))
             }
         }
+    }
+
+    pub(crate) fn imported(mut self, imported: Result<Option<(Uuid, Uuid)>, String>) -> PickOutcome {
+        self.importing = None;
+        match imported {
+            Ok(Some((block, block_type))) if self.allowed(block_type) => {
+                self.made(block, block_type)
+            }
+            Ok(Some(_)) => {
+                self.error = Some("The imported block can't be used here.".to_owned());
+                PickOutcome::Open(Box::new(self))
+            }
+            Ok(None) => PickOutcome::Open(Box::new(self)),
+            Err(error) => {
+                self.error = Some(error);
+                PickOutcome::Open(Box::new(self))
+            }
+        }
+    }
+
+    fn made(&self, block: Uuid, block_type: Uuid) -> PickOutcome {
+        let into = match self.place {
+            Some(BlockParent::Block(container)) => Some((block, block_type, container)),
+            Some(BlockParent::Root | BlockParent::Detached) | None => None,
+        };
+        PickOutcome::Answered(
+            self.pick,
+            BlockPick::Chosen {
+                block_id: block.into_bytes(),
+                block_type: block_type.into_bytes(),
+                linked: false,
+                placed: self.place.is_some(),
+            },
+            into,
+        )
     }
 }
 
@@ -224,7 +248,7 @@ pub(crate) fn sections(catalog: &BlockCatalog, pick: &Pick) -> Vec<TileSection> 
     match pick.tab {
         PickerTab::Add => add_sections(catalog, pick),
         PickerTab::Templates => template_sections(catalog, pick),
-        PickerTab::LinkExisting => Vec::new(),
+        PickerTab::LinkExisting | PickerTab::Import => Vec::new(),
     }
 }
 

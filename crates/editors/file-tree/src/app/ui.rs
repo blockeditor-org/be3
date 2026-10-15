@@ -14,7 +14,7 @@ use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout};
 use uuid::Uuid;
 
-use super::export::{Export, Exporter, exportable};
+use super::export::{Export, ExportFormat, Exporter, formats};
 use super::phone::PhoneFiles;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use block_editor_beui::beui::TextAlign;
@@ -358,7 +358,7 @@ fn TreeRow(
             [id].into_iter().collect::<HashSet<Uuid>>(),
         );
     };
-    let chose = menu_action(editor, tree, picker, exporter, inspect, row);
+    let chose = menu_action(editor, tree, picker, inspect, row);
     let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let unlinkable = create_memo(move || {
@@ -380,10 +380,6 @@ fn TreeRow(
             || row
                 .get()
                 .is_some_and(|row| row.parent == BlockParent::Detached)
-    });
-    let unexportable = create_memo(move || {
-        !row.get()
-            .is_some_and(|row| row.access.can_view() && exportable(row.block_type))
     });
     let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
     let glyph_color = TextColor::Muted;
@@ -417,11 +413,7 @@ fn TreeRow(
                     danger=true
                 />
                 <MenuItem label="Inspect" glyph={ICON_INFO.to_owned()} disabled={uninspectable} />
-                <MenuItem
-                    label="Export"
-                    glyph={ICON_FILE_DOWNLOAD.to_owned()}
-                    disabled={unexportable}
-                />
+                <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
             }}
             on_select={chose}
         >
@@ -504,6 +496,62 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                             on_click={move || {
                                 if let Some((id, block_type)) = block.get_untracked() {
                                     editor.host().open_block_with(id, block_type, chosen);
+                                }
+                            }}
+                        />
+                    }
+                }}
+            </ForEach>
+        </MenuItem>
+    }
+}
+
+#[component]
+pub(crate) fn ExportAs(exporter: Exporter, row: Memo<Option<Row>>, row_test_id: String) -> MenuItem {
+    let block = create_memo(move || {
+        row.get()
+            .filter(|row| row.access.can_view())
+            .and_then(|row| Some((row.id?, row.block_type, row.label)))
+    });
+    let shown = create_memo(move || {
+        block
+            .get()
+            .map_or_else(Vec::new, |(_, block_type, _)| formats(block_type))
+    });
+    let keys = create_memo(move || {
+        shown.with(|shown| shown.iter().map(|(format, _)| *format).collect::<Vec<_>>())
+    });
+    let none = create_memo(move || keys.with(Vec::is_empty));
+    let prefix = row_test_id.clone();
+    view! {
+        <MenuItem
+            label="Export as"
+            glyph={ICON_FILE_DOWNLOAD.to_owned()}
+            disabled={none}
+            row_test_id={row_test_id}
+        >
+            <ForEach keys={keys}>
+                {move |format: ExportFormat| {
+                    let label = create_memo(move || {
+                        shown.with(|shown| {
+                            shown
+                                .iter()
+                                .find(|(shown, _)| *shown == format)
+                                .map(|(_, label)| (*label).to_owned())
+                                .unwrap_or_default()
+                        })
+                    });
+                    let named = match format {
+                        ExportFormat::Own => format!("{prefix}.own"),
+                        ExportFormat::BlockFile => format!("{prefix}.block"),
+                    };
+                    view! {
+                        <MenuItem
+                            label={label}
+                            row_test_id={named}
+                            on_click={move || {
+                                if let Some((id, block_type, name)) = block.get_untracked() {
+                                    exporter.export(Export { id, block_type, name, format });
                                 }
                             }}
                         />
@@ -642,7 +690,6 @@ pub(crate) fn menu_action(
     editor: Editor,
     tree: FileTree,
     picker: Picker,
-    exporter: Exporter,
     inspect: WriteSignal<Option<Inspection>>,
     row: Memo<Option<Row>>,
 ) -> impl Fn(Vec<usize>) + 'static {
@@ -674,11 +721,6 @@ pub(crate) fn menu_action(
                     .delete_block(id, shown.block_type, shown.source, shown.is_reference)
             }
             [7] => inspect.set(shown.inspection),
-            [8] => exporter.export(Export {
-                id,
-                block_type: shown.block_type,
-                name: shown.label.clone(),
-            }),
             _ => {}
         }
     }

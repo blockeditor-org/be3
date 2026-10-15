@@ -25,7 +25,8 @@ fn exporting_a_text_block_saves_it_as_a_markdown_file() {
     fixture.settle();
     fixture.test.take_requests();
 
-    fixture.choose(notes, "Export");
+    fixture.choose(notes, "Export as");
+    fixture.click_item("Text file");
 
     let saves: Vec<_> = fixture
         .test
@@ -53,7 +54,8 @@ fn exporting_a_text_block_saves_it_as_a_markdown_file() {
         "a save that failed says why"
     );
 
-    fixture.choose(photo, "Export");
+    fixture.choose(photo, "Export as");
+    fixture.click_item("Image file");
     let file = fixture
         .test
         .take_requests()

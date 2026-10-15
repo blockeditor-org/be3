@@ -1,5 +1,5 @@
 use crate::{
-    ArtifactDescription, BlockCommand, BlockLocation, BlockPick, BlockQuery, ChildContent,
+    ArtifactDescription, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery, ChildContent,
     CreationOutcome, EditorInstanceId, EditorMessage, HostReply, HostRequest, Message,
     VersionCommand,
 };
@@ -155,7 +155,10 @@ impl EditorMessage {
                         location(place, &mut existing);
                     }
                 }
-                HostRequest::ListAccess(block_id) => existing(block_id),
+                HostRequest::ListAccess(block_id) | HostRequest::ExportBlock(block_id) => {
+                    existing(block_id)
+                }
+                HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
                 | HostRequest::Fetch(_)
@@ -163,14 +166,18 @@ impl EditorMessage {
                 | HostRequest::ReadData(_) => {}
             },
             Self::Replied { reply, .. } => match reply {
-                HostReply::BlockPicked(BlockPick::Chosen { block_id, .. }) => existing(block_id),
+                HostReply::BlockPicked(BlockPick::Chosen { block_id, .. })
+                | HostReply::BlocksImported(BlockImport::Imported { block_id, .. }) => {
+                    existing(block_id)
+                }
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
                 | HostReply::FilePicked(_)
                 | HostReply::FileSaved(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
-                | HostReply::AccessListed(_) => {}
+                | HostReply::AccessListed(_)
+                | HostReply::BlocksImported(BlockImport::Cancelled | BlockImport::Failed(_)) => {}
             },
             Self::CreationBlock { outcome, .. } => match outcome {
                 CreationOutcome::Created(block_id) => existing(block_id),
