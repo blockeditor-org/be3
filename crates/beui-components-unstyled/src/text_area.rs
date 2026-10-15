@@ -962,6 +962,7 @@ struct Field {
 pub fn TextArea(
     state: TextAreaState,
     #[prop(default = false)] single_line: bool,
+    #[prop(default = true)] line_numbers: bool,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
     #[prop(default = TextAreaColors::DEFAULT)] colors: Prop<TextAreaColors>,
     #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
@@ -1090,7 +1091,7 @@ pub fn TextArea(
                         let gutter = create_memo(move || {
                             scale.get();
                             attached.get();
-                            match single_line {
+                            match single_line || !line_numbers {
                                 true => 0.0,
                                 false => gutter_width(starts.get().len()),
                             }
@@ -1331,6 +1332,10 @@ pub fn TextArea(
                         let gutter_color = create_memo(move || colors.get().gutter);
                         let border_color = create_memo(move || colors.get().gutter_border);
                         let border_x = create_memo(move || gutter.get() - 1.0);
+                        let border_width = create_memo(move || match gutter.get() > 0.0 {
+                            true => 1.0,
+                            false => 0.0,
+                        });
                         let (strip_height, border_height, area_width, area_height) = (
                             height,
                             height,
@@ -1360,8 +1365,8 @@ pub fn TextArea(
                                         {move || {
                                         let (width, height, strip_width, strip_height) =
                                             (width, height, strip_width, strip_height);
-                                        let (gutter_color, border_x, border_height, border_color) =
-                                            (gutter_color, border_x, border_height, border_color);
+                                        let (gutter_color, border_x, border_width, border_height, border_color) =
+                                            (gutter_color, border_x, border_width, border_height, border_color);
                                         let (area_width, area_height, offset, set_scroll, scrolled) =
                                             (area_width, area_height, offset, set_scroll, scrolled);
                                         view! {
@@ -1381,7 +1386,7 @@ pub fn TextArea(
                                                 <CanvasItem
                                                     x={border_x}
                                                     y=0.0
-                                                    width=1.0
+                                                    width={border_width}
                                                     height={border_height}
                                                 >
                                                     <Frame fill=border_color />

@@ -112,6 +112,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
 fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let model = row_model(cx, move || line.get());
     let gutter = create_memo(move || Some(cx.gutter.get()));
+    let numbered = create_memo(move || cx.gutter.get() > 0.0);
     let padding = create_memo(move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0));
     let inset = create_memo(move || cx.padding.get().x.min(CODE_OUTSET.x));
     let code = create_memo(move || match model.get().code_block {
@@ -130,9 +131,13 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Frame width=gutter>
-                    <Gutter cx={cx} model={gutter_model} />
-                </Frame>
+                <Show condition={numbered}>
+                    {move || view! {
+                        <Frame width=gutter>
+                            <Gutter cx={cx} model={gutter_model} />
+                        </Frame>
+                    }}
+                </Show>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     padding={create_memo(move || Sides::horizontal(padding.get()))}

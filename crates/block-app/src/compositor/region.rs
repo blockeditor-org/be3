@@ -63,6 +63,17 @@ pub(crate) fn occlusion() -> Option<Memo<Vec<Rect>>> {
     use_context::<Occlusion>().map(|Occlusion(rects)| rects)
 }
 
+fn next_mount() -> u64 {
+    thread_local! {
+        static MOUNTS: Cell<u64> = const { Cell::new(0) };
+    }
+    MOUNTS.with(|mounts| {
+        let mount = mounts.get() + 1;
+        mounts.set(mount);
+        mount
+    })
+}
+
 #[component]
 pub(crate) fn PluginRegion(
     editor: RegionEditor,
@@ -89,7 +100,8 @@ pub(crate) fn PluginRegion(
         instance,
         region,
     });
-    on_cleanup(move || plugin_host::unmount_region(&plugin_id.get(), instance, region));
+    let mount = next_mount();
+    on_cleanup(move || plugin_host::unmount_region(&plugin_id.get(), instance, region, mount));
     let revision = super::listen(&plugin_id.get());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let screens = use_screens();
@@ -98,6 +110,7 @@ pub(crate) fn PluginRegion(
             &plugin_id.get(),
             instance,
             region,
+            mount,
             RegionPlacement {
                 rect: placement.rect,
                 clip: placement.clip,
@@ -107,7 +120,7 @@ pub(crate) fn PluginRegion(
             frame.peek(),
             view.peek(),
         ),
-        None => plugin_host::unplace_region(&plugin_id.get(), instance, region),
+        None => plugin_host::unplace_region(&plugin_id.get(), instance, region, mount),
     });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
@@ -123,7 +136,7 @@ pub(crate) fn PluginRegion(
     });
     let state = create_memo(move || {
         revision.get();
-        plugin_host::region_view(&editor.plugin, instance, region)
+        plugin_host::region_view(&editor.plugin, instance, region, placed.with(Cell::get))
     });
     create_effect(move || {
         revision.get();
