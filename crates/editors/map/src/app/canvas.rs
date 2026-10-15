@@ -90,7 +90,6 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     });
     let selection = create_selector(move || state.selected.get());
 
-    let theme = use_theme();
     let tile_scale = scale;
     let marker_scale = scale;
     let marker_world = world;
@@ -100,7 +99,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     state.editor().content(&content);
 
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Canvas view={camera} @test_id={"map.canvas"}>
@@ -158,7 +157,10 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> CanvasItem {
     let height = create_memo(move || rect.get().height());
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame visible={shown} outline={Outline::new(REGION_COLOR, 1.5)} />
+            <Frame
+                visible={shown}
+                border={Border::new(ColorRole::Custom(REGION_COLOR)).width(1.5)}
+            />
         </CanvasItem>
     }
 }
@@ -201,7 +203,11 @@ fn PointMarker(
 #[component]
 fn Attribution() -> NodeId {
     view! {
-        <Frame height=ATTRIBUTION_HEIGHT fill=HALO padding={Sides::horizontal(6.0)}>
+        <Frame
+            height=ATTRIBUTION_HEIGHT
+            fill={ColorRole::Custom(HALO)}
+            padding={Sides::horizontal(6.0)}
+        >
             <Text style=TextStyle::CAPTION string=ATTRIBUTION align=TextAlign::End />
         </Frame>
     }

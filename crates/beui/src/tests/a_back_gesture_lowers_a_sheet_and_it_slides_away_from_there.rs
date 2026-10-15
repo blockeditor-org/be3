@@ -1,5 +1,6 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
+use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
 

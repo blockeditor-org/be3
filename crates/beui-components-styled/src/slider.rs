@@ -1,8 +1,9 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, knob_outline, use_theme};
+use crate::theme::{ThemeStore, knob_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
 use beui_core::document::Document;
@@ -70,28 +71,28 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, FOCUS_RING_OFFSET)}
-            radius=RADIUS
+            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            radius=Radius::Md
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <Frame
                     @sizing={filled_percent}
                     height=TRACK_HEIGHT
-                    fill=filled_color
-                    radius=TRACK_RADIUS
+                    fill={ColorRole::custom(filled_color)}
+                    radius={Radius::custom(TRACK_RADIUS)}
                 />
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    fill=knob_color
-                    outline={knob_outline(&theme)}
-                    radius=KNOB_RADIUS
+                    fill={ColorRole::custom(knob_color)}
+                    border={knob_border(&theme)}
+                    radius={Radius::custom(KNOB_RADIUS)}
                 />
                 <Frame
                     @sizing={rest_percent}
                     height=TRACK_HEIGHT
-                    fill={theme.track}
-                    radius=TRACK_RADIUS
+                    fill=ColorRole::Track
+                    radius={Radius::custom(TRACK_RADIUS)}
                 />
             </List>
         </Frame>

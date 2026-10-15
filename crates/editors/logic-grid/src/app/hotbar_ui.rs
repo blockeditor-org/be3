@@ -187,15 +187,14 @@ fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: 
             model.drop_hotbar_slot(Some(target));
         });
     };
-    let theme = use_theme();
     view! {
         <DropTarget accepts={accepts} on_drop={dropped}>
             {move |handle: DropHandle| {
                 let DropHandle { over, .. } = handle;
                 view! {
                     <Frame
-                        outline={create_memo(move || over.get().then(|| Outline::new(theme.accent.get(), 2.0).offset(2.0)))}
-                        radius=4.0
+                        border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0).offset(2.0)))}
+                        radius=Radius::Sm
                     >
                         {children}
                     </Frame>
@@ -230,8 +229,8 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
         <SlotDrop session={session} target={folder} folder=true>
             <Frame
                 @test_id={format!("logic-grid.column.{column}")}
-                fill=fill
-                radius=4.0
+                fill={ColorRole::custom(fill)}
+                radius=Radius::Sm
                 padding=COLUMN_PADDING
             >
                 <List align=Align::Center spacing=4.0>
@@ -397,9 +396,9 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
         <Frame
             width=SLOT_SIZE
             height=SLOT_SIZE
-            fill=fill
-            outline={create_memo(move || Some(Outline::new(outline.get(), 1.5)))}
-            radius=4.0
+            fill={ColorRole::custom(fill)}
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(1.5)))}
+            radius=Radius::Sm
         >
             <Canvas width=SLOT_SIZE height=SLOT_SIZE>
                 <CanvasItem x=SLOT_INSET y=SLOT_INSET width=GLYPH_WIDTH height=GLYPH_HEIGHT>
@@ -421,7 +420,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                     />
                 </CanvasItem>
                 <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
-                    <Frame visible={badged} fill={theme.background} radius=3.0>
+                    <Frame visible={badged} fill=ColorRole::Background radius={Radius::custom(3.0)}>
                         <Text
                             string={hotkey}
                             size=TextSize::Xs

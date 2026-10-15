@@ -14,9 +14,8 @@ impl SurveyApp {
     fn new() -> Self {
         let document = build(|| {
             let (state, set_state) = create_signal("Hello, world!".to_owned());
-            let theme = use_theme();
             view! {
-                <Frame fill={theme.background} radius=0.0 padding=16.0>
+                <Frame fill=ColorRole::Background padding=16.0>
                     <List spacing=8.0>
                         <Text string={state} />
                         <TextInput

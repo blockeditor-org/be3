@@ -10,7 +10,6 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CLOSE, ICON_FILTER_LIST};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PopoverPanel;
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopoverTriggerHandle};
 use block_editor_beui::block_ui::database::{
@@ -224,14 +223,9 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
     });
     let remove = move || data.operate_view(DatabaseView::remove_filter(id));
     let read_only = data.read_only;
-    let theme = use_theme();
     let label = text;
     view! {
-        <Frame
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=14.0
-        >
+        <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius={Radius::custom(14.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <unstyled::Popover
                     label={label}

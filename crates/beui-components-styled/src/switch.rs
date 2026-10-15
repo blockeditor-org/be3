@@ -1,15 +1,15 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use beui_core::color::Color32;
 
-use crate::theme::{ThemeStore, control_outline, use_theme};
+use crate::theme::{ThemeStore, control_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 const WIDTH: f32 = 42.0;
@@ -73,18 +73,18 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
             <Frame
                 width=WIDTH
                 height=HEIGHT
-                fill=track_color
-                outline={control_outline(&theme)}
-                radius=TRACK_RADIUS
+                fill={ColorRole::custom(track_color)}
+                border={control_border(&theme)}
+                radius={Radius::custom(TRACK_RADIUS)}
                 padding=PADDING
                 align=knob_align
             >
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    fill={theme.knob}
-                    outline={control_outline(&theme)}
-                    radius=KNOB_RADIUS
+                    fill=ColorRole::Knob
+                    border={control_border(&theme)}
+                    radius={Radius::custom(KNOB_RADIUS)}
                 />
             </Frame>
         </FocusRing>

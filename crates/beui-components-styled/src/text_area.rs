@@ -1,6 +1,7 @@
 pub mod emoji;
 pub mod find;
 
+use crate::frame::Frame;
 use beui_macros::{component, view};
 
 use crate::checkbox::Checkbox;

@@ -173,7 +173,6 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                     playhead.get() as f32 * pixels_per_frame.get()
                 });
                 let playhead_height = create_memo(move || content.get().height());
-                let theme = use_theme();
 
                 view! {
                     <DropTarget on_over={on_over} on_drop={on_drop}>
@@ -215,7 +214,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                                         width=1.5
                                         height={playhead_height}
                                     >
-                                        <Frame fill={theme.accent} />
+                                        <Frame fill=ColorRole::Accent />
                                     </CanvasItem>
                                 </Canvas>
                             </Interactive>
@@ -262,7 +261,7 @@ fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
     let width = create_memo(move || content.get().width());
     view! {
         <CanvasItem x=0.0 y={y} width={width} height=LANE_HEIGHT>
-            <Frame fill=color radius=3.0 />
+            <Frame fill={ColorRole::custom(color)} radius={Radius::custom(3.0)} />
         </CanvasItem>
     }
 }
@@ -339,9 +338,9 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                         on_press={move |press: PointerPress| grabbing.set(Some(press.local))}
                     >
                         <Frame
-                            fill=fill
-                            radius=CLIP_RADIUS
-                            outline={create_memo(move || selected.get().then(|| Outline::new(theme.accent.get(), 2.0)))}
+                            fill={ColorRole::custom(fill)}
+                            radius={Radius::custom(CLIP_RADIUS)}
+                            border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
                             padding=THUMBNAIL_MARGIN
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
@@ -405,14 +404,13 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
     let y = create_memo(move || rect.get().top());
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
-    let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame
                 visible={shown}
-                fill={theme.accent_soft}
-                radius=CLIP_RADIUS
-                outline={create_memo(move || shown.get().then(|| Outline::new(theme.accent.get(), 2.0)))}
+                fill=ColorRole::AccentSoft
+                radius={Radius::custom(CLIP_RADIUS)}
+                border={create_memo(move || shown.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
             />
         </CanvasItem>
     }

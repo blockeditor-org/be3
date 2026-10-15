@@ -211,7 +211,7 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
                             }
                         }}
                     >
-                        <Frame fill=background padding=PADDING>
+                        <Frame fill={ColorRole::custom(background)} padding=PADDING>
                             <List spacing=0.0>
                                 <ForEach keys>
                                     {move |index: usize| {
@@ -274,7 +274,7 @@ fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
             .unwrap_or(Color32::TRANSPARENT)
     });
     view! {
-        <Frame fill=background>
+        <Frame fill={ColorRole::custom(background)}>
             <Text
                 string={text}
                 size=TextSize::Custom(FONT_SIZE)

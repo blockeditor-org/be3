@@ -1,9 +1,8 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::theme::use_theme;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 const HEIGHT: f32 = 6.0;
@@ -27,17 +26,16 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
         node.set_max_numeric_value(1.0);
         node
     }));
-    let theme = use_theme();
 
     view! {
         <Frame
             height=HEIGHT
             width={Extent::fraction(1.0)}
-            fill={theme.track}
-            radius=RADIUS
+            fill=ColorRole::Track
+            radius={Radius::custom(RADIUS)}
             align={Align2::horizontal(Align::Start)}
         >
-            <Frame width=filled fill={theme.accent} radius=RADIUS />
+            <Frame width=filled fill=ColorRole::Accent radius={Radius::custom(RADIUS)} />
         </Frame>
     }
 }

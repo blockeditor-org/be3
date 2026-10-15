@@ -1,10 +1,11 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
 use crate::focus_ring::FocusRing;
 use crate::text::{Icon, Text, TextColor};
-use crate::theme::{BORDER_WIDTH, RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_core::base::{ItemSize, TextAlign};
 use beui_core::node::NodeId;
@@ -111,11 +112,11 @@ pub fn ButtonFace(
     let has_trailing = create_memo(move || !trailing.get().is_empty());
     let trailing_color = label_color;
     view! {
-        <FocusRing focused radius={RADIUS + 4.0} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={Radius::custom(Radius::Md.px() + 4.0)} offset=FOCUS_RING_OFFSET>
             <Frame
-                fill=fill_color
-                outline={create_memo(move || (variant == ButtonVariant::Secondary).then(|| Outline::new(theme.border.get(), BORDER_WIDTH)))}
-                radius=RADIUS
+                fill={ColorRole::custom(fill_color)}
+                border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
+                radius=Radius::Md
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>

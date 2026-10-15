@@ -140,7 +140,6 @@ fn Sidebar(
     set_selected: WriteSignal<Option<usize>>,
     set_open: WriteSignal<bool>,
 ) -> NodeId {
-    let theme = use_theme();
     let scale = editor.scale();
     let readout = create_memo(move || format!("Zoom {:.0}%", scale.get() * 100.0));
     let chosen = create_memo(move || match selected.get() {
@@ -152,7 +151,7 @@ fn Sidebar(
     let fit = move || editor.fit();
     let hide = move || set_open.set(false);
     view! {
-        <Frame fill={theme.surface} padding=PANEL_PADDING>
+        <Frame fill=ColorRole::Surface padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
                 <Text string="Pan and Zoom" size=TextSize::Lg @test_id={"pan_zoom.title"} />
                 <Text
@@ -226,13 +225,12 @@ fn FocusRow(editor: Editor, index: usize, set_selected: WriteSignal<Option<usize
 
 #[component]
 fn Rail(set_open: WriteSignal<bool>) -> NodeId {
-    let theme = use_theme();
     let show = move || set_open.set(true);
     view! {
-        <Frame fill={theme.surface} padding={Sides::symmetric(6.0, PANEL_PADDING)}>
+        <Frame fill=ColorRole::Surface padding={Sides::symmetric(6.0, PANEL_PADDING)}>
             <List spacing=0.0>
                 <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
-                    <Frame fill={theme.surface_raised} radius=6.0 padding=8.0>
+                    <Frame fill=ColorRole::SurfaceRaised radius=Radius::Md padding=8.0>
                         <Text align=TextAlign::Center>
                             <Icon glyph={ICON_LEFT_PANEL_OPEN.to_owned()} />
                         </Text>
@@ -283,7 +281,7 @@ fn CardView(
     let label_size = create_memo(move || TextSize::Custom(label_size.get()));
     let padding = scaled(scale, CARD_PADDING);
     let spacing = scaled(scale, CARD_SPACING);
-    let radius = create_memo(move || (CARD_RADIUS * scale.get()).floor());
+    let radius = create_memo(move || Radius::custom((CARD_RADIUS * scale.get()).floor()));
     let outline_width = scaled(scale, CARD_OUTLINE);
     let position = format!("{:.0}, {:.0}", card.x, card.y);
     let select = move || set_selected.set(Some(index));
@@ -298,8 +296,8 @@ fn CardView(
         >
             <Interactive cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
-                    fill={theme.surface_raised}
-                    outline={create_memo(move || Some(Outline::new(outline.get(), outline_width.get())))}
+                    fill=ColorRole::SurfaceRaised
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(outline_width.get())))}
                     radius=radius
                     padding=padding
                 >

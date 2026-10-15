@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::action_row::ActionRow;
@@ -8,7 +9,7 @@ use crate::icon_button::{IconButton, IconButtonSize};
 use crate::list_row::ListRow;
 use crate::sheet::ModalSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
-use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, SHEET_STOPS, TabId,
@@ -49,12 +50,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         switch_label,
         open_switcher,
     } = handle;
-    let theme = use_theme();
     let counted = create_memo(move || others.get() > 0);
     let pictured = create_memo(move || !icon.get().is_empty());
     view! {
         <List spacing=0.0>
-            <Frame fill={theme.surface} padding=BAR_PADDING>
+            <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={away}>
                         {move || view! {
@@ -128,16 +128,16 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                     <Frame
                         width=COUNT_TARGET
                         height=COUNT_TARGET
-                        fill=fill
-                        radius=COUNT_TARGET_RADIUS
-                        outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, 0.0)}
+                        fill={ColorRole::custom(fill)}
+                        radius={Radius::custom(COUNT_TARGET_RADIUS)}
+                        border={focus_border(focused, Border::FOCUS)}
                         align=Align::Center
                     >
                         <Frame
                             width=COUNT_SIDE
                             height=COUNT_SIDE
-                            radius=COUNT_RADIUS
-                            outline={create_memo(move || Some(Outline::new(theme.text.get(), COUNT_OUTLINE)))}
+                            radius={Radius::custom(COUNT_RADIUS)}
+                            border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
                         >
                             <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
                         </Frame>
@@ -226,9 +226,9 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
     view! {
         <Frame
             height=CARD_HEIGHT
-            radius=CARD_RADIUS
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(outline.get(), CARD_OUTLINE)))}
+            radius=Radius::Lg
+            fill=ColorRole::SurfaceRaised
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(CARD_OUTLINE)))}
             padding=CARD_PADDING
         >
             <List direction=Direction::Horizontal spacing=0.0>

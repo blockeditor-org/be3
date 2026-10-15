@@ -467,9 +467,9 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
         <Frame
             width=TILE_WIDTH
             height=TILE_HEIGHT
-            fill=fill
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=5.0
+            fill={ColorRole::custom(fill)}
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::custom(5.0)}
             padding={Sides::symmetric(6.0, 10.0)}
         >
             <List spacing=6.0 align=Align::Center>

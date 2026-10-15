@@ -133,7 +133,7 @@ pub(crate) fn Tile(
     };
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame fill=backdrop>
+            <Frame fill={ColorRole::custom(backdrop)}>
                 <Picture image={image} source={source} fit=ImageFit::Fill @test_id={test_id} />
             </Frame>
         </CanvasItem>

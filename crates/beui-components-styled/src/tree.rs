@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use std::hash::Hash;
 
 use beui_macros::{component, view};
@@ -5,7 +6,7 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonVariant};
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -199,9 +200,9 @@ where
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}
                     height=ROW_HEIGHT
-                    fill=fill
-                    outline={create_memo(move || outlined.get().then(|| Outline::new(outline_color.get(), OUTLINE_WIDTH)))}
-                    radius=RADIUS
+                    fill={ColorRole::custom(fill)}
+                    border={create_memo(move || outlined.get().then(|| Border::new(ColorRole::Custom(outline_color.get())).width(OUTLINE_WIDTH)))}
+                    radius=Radius::Md
                     padding={Sides::horizontal(PADDING_HORIZONTAL)}
                 >
                     <unstyled::TreeRowArea target>{content.call(face)}</unstyled::TreeRowArea>
@@ -266,9 +267,9 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
             <Frame
                 width=CHEVRON_WIDTH
                 height=ROW_HEIGHT
-                fill=fill
-                outline={create_memo(move || outlined.get().then(|| Outline::new(theme.accent.get(), OUTLINE_WIDTH)))}
-                radius=CHEVRON_RADIUS
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || outlined.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                radius={Radius::custom(CHEVRON_RADIUS)}
             >
                 <Text size=TextSize::Xs color={color} align=TextAlign::Center>
                     <Icon glyph={glyph} />

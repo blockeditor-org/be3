@@ -57,9 +57,8 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let paste_on = create_memo(move || effective.get().middle_click_paste());
     let paste_unset = create_memo(move || paste.get().is_none());
     let paste_off = read_only;
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <Scroll>
                 <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>

@@ -2,6 +2,7 @@ use super::*;
 use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
+use beui::primitives::Frame;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
@@ -84,7 +85,13 @@ fn FrameAlignment() -> NodeId {
 fn AlignedBox(align: Align) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame height=SWATCH fill={theme.surface_raised} radius=RADIUS padding=8.0 align=align>
+        <Frame
+            height=SWATCH
+            fill={theme.surface_raised}
+            radius={Radius::Md.px()}
+            padding=8.0
+            align=align
+        >
             <Frame width=BADGE height=BADGE fill={theme.accent} radius=4.0 />
         </Frame>
     }
@@ -99,7 +106,7 @@ fn FrameSizes() -> NodeId {
             <Frame
                 width={Extent::at_most(320.0)}
                 fill={theme.surface_raised}
-                radius=RADIUS
+                radius={Radius::Md.px()}
                 padding={Sides::symmetric(12.0, 8.0)}
             >
                 <Text
@@ -112,7 +119,7 @@ fn FrameSizes() -> NodeId {
                 width=160.0
                 aspect_ratio=Some(16.0 / 9.0)
                 fill={theme.accent_soft}
-                radius=RADIUS
+                radius={Radius::Md.px()}
             />
         </List>
     }
@@ -258,7 +265,7 @@ fn Tile(label: Prop<String>) -> NodeId {
         <Frame
             height={Extent::at_least(TILE_HEIGHT)}
             fill={theme.surface_raised}
-            radius=RADIUS
+            radius={Radius::Md.px()}
             padding={Sides::horizontal(12.0)}
             align={Align2::vertical(Align::Center)}
         >
@@ -498,7 +505,7 @@ fn InteractiveCard() -> NodeId {
                     height=CARD_HEIGHT
                     fill=fill
                     outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
-                    radius=CARD_RADIUS
+                    radius={Radius::Lg.px()}
                     align=Align::Center
                 >
                     <Text string={log} color={theme.text} />
@@ -545,7 +552,7 @@ fn BadgedCard() -> NodeId {
                     width=200.0
                     height=CARD_HEIGHT
                     fill={theme.surface_raised}
-                    radius=CARD_RADIUS
+                    radius={Radius::Lg.px()}
                     padding=12.0
                 >
                     <Text string="Inbox" color={theme.text} />
@@ -584,7 +591,7 @@ fn NudgedTile() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive on_click={move || set_nudged.update(|nudged| *nudged = !*nudged)}>
-                <Frame fill=face radius=RADIUS padding={Sides::symmetric(16.0, 10.0)}>
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
                     <Text string="Nudge" color={ink} />
                 </Frame>
             </Interactive>
@@ -633,7 +640,7 @@ fn AnchoredOverlay() -> NodeId {
                 <Frame
                     @node_ref=&target
                     fill=face
-                    radius=RADIUS
+                    radius={Radius::Md.px()}
                     padding={Sides::symmetric(16.0, 10.0)}
                 >
                     <Text string="Open the overlay" color={ink} />
@@ -651,7 +658,7 @@ fn AnchoredOverlay() -> NodeId {
                         width=PANEL_WIDTH
                         fill={theme.surface_raised}
                         outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-                        radius=CARD_RADIUS
+                        radius={Radius::Lg.px()}
                         padding=12.0
                     >
                         <Text

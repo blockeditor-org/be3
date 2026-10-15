@@ -1,3 +1,4 @@
+use crate::frame::{ColorRole, Frame};
 use beui_macros::{component, view};
 
 use text_editor_core::FindDirection;
@@ -9,7 +10,6 @@ use crate::IconButton;
 use crate::TextInput;
 use crate::ToggleButton;
 use crate::text::{Text, TextColor, TextStyle};
-use crate::use_theme;
 use beui_components_unstyled::TextAreaState;
 use beui_core::font::TextAlign;
 use beui_core::icons::{
@@ -42,7 +42,6 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
 
 #[component]
 fn FindBarRows(state: TextAreaState) -> NodeId {
-    let theme = use_theme();
     let summary = create_memo(move || state.find_summary());
     let no_matches = create_memo(move || !state.find_has_matches());
     let no_current = create_memo(move || !state.find_has_current());
@@ -54,7 +53,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let previous_disabled = no_matches;
     let replace_no_matches = no_matches;
     view! {
-        <Frame fill={theme.surface}>
+        <Frame fill=ColorRole::Surface>
             <List spacing=0.0>
                 <Frame padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>

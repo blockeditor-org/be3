@@ -14,7 +14,7 @@ use beui::icons::{
     ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP, ICON_WIDGETS,
 };
 use beui::reactive::*;
-use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
+use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockDialog, DockMode, DockPane, DockSplit, DockTab,
@@ -330,9 +330,8 @@ impl DemoApp {
 #[cfg(test)]
 #[component]
 fn LonePage(page: Page) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <PageView page />
         </Frame>
     }
@@ -539,7 +538,6 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
 #[sample]
 #[component]
 fn DemoShell() -> NodeId {
-    let theme = use_theme();
     let dialogs = DemoDialogs::new();
     let pages = Pages::new(dialogs);
     let (mobile, set_mobile) = create_signal(false);
@@ -560,7 +558,7 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Frame padding=SHELL_PADDING>
                     <DemoToolbar pages mobile set_mobile />

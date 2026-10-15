@@ -78,11 +78,10 @@ impl LauncherApp {
     fn with(tasks: Tasks, events: Receiver<Event>, model: impl FnOnce(Tasks) -> Model) -> Self {
         let mut exported = None;
         let document = build(|| {
-            let theme = use_theme();
             let model = model(tasks.clone());
             exported = Some(model);
             view! {
-                <Frame fill={theme.background} radius=0.0>
+                <Frame fill=ColorRole::Background>
                     <Launcher model />
                 </Frame>
             }

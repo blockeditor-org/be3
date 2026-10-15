@@ -71,12 +71,11 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
     let nowhere = create_memo(|| None);
     let original_info = info;
     let unlinking_info = info;
-    let theme = use_theme();
     let heading_color = TextColor::Default;
     view! {
         <Frame
             visible={shown}
-            fill={theme.surface}
+            fill=ColorRole::Surface
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

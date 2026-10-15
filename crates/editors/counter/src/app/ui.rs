@@ -19,9 +19,8 @@ pub fn Counter(editor: Editor) -> NodeId {
             counter.operate(edit);
         }
     };
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=16.0>
                 <Text style=TextStyle::DISPLAY string={shown} @test_id={"counter.value"} />
                 <List direction=Direction::Horizontal align=Align::Center spacing=10.0>

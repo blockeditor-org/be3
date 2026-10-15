@@ -1,3 +1,4 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
@@ -7,7 +8,6 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollbarHandle, ScrollbarThumb};
 use beui_core::base::{Direction, ScrollPosition};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 const RADIUS: f32 = 3.0;
@@ -73,7 +73,7 @@ fn ScrollbarTrack(handle: ScrollbarHandle) -> NodeId {
 
     view! {
         <Frame padding={create_memo(move || Sides::new(0.0, 0.0, right.get(), bottom.get()))}>
-            <Frame fill=track radius=RADIUS>
+            <Frame fill={ColorRole::custom(track)} radius={Radius::custom(RADIUS)}>
                 <ScrollbarThumb position direction color radius=RADIUS />
             </Frame>
         </Frame>

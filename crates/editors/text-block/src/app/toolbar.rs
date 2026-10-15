@@ -169,7 +169,6 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
 
 #[component]
 pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
-    let theme = use_theme();
     let typing = state.typing;
     let hex = state.hex_view;
     let shown = create_memo(move || typing.get() && !hex.get());
@@ -192,7 +191,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         let markdown = markdown;
         view! {
             <Interactive press_focus=false @test_id={"text.format"}>
-                <Frame fill={theme.surface}>
+                <Frame fill=ColorRole::Surface>
                     <List spacing=0.0>
                         <Separator />
                         <Frame padding={Sides::vertical(FORMAT_PADDING)}>

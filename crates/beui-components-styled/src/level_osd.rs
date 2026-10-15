@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::time::{Duration, Instant};
 
@@ -5,7 +6,7 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
@@ -163,9 +164,9 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
     view! {
         <Frame padding={Sides::all(MARGIN).bottom(BOTTOM_MARGIN)}>
             <Frame
-                fill=card
-                outline={create_memo(move || Some(Outline::new(outline.get(), BORDER_WIDTH)))}
-                radius=CARD_RADIUS
+                fill={ColorRole::custom(card)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get()))))}
+                radius=Radius::Lg
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={id}
             >
@@ -176,11 +177,15 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
                     <Frame
                         width=BAR_WIDTH
                         height=BAR_HEIGHT
-                        fill=rail
-                        radius=BAR_RADIUS
+                        fill={ColorRole::custom(rail)}
+                        radius={Radius::custom(BAR_RADIUS)}
                         align={Align2::horizontal(Align::Start)}
                     >
-                        <Frame width=filled fill=fill radius=BAR_RADIUS />
+                        <Frame
+                            width=filled
+                            fill={ColorRole::custom(fill)}
+                            radius={Radius::custom(BAR_RADIUS)}
+                        />
                     </Frame>
                 </List>
             </Frame>

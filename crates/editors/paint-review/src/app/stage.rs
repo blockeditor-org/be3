@@ -130,7 +130,6 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
     });
 
     let places = create_memo(move || (0..layout.get().len()).collect::<Vec<usize>>());
-    let theme = use_theme();
     let progress = create_memo(move || {
         let _ = revision.get();
         match review.loading() {
@@ -140,7 +139,7 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
     });
 
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={places}>

@@ -5,7 +5,6 @@ use block_editor_beui::be_block::database_schema::{
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
@@ -75,9 +74,8 @@ pub fn ListView(data: Data) -> NodeId {
             false => "No rows match the search.".to_owned(),
         },
     );
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <Scroll>
                 <Frame padding={Sides::new(0.0, 0.0, 0.0, GUTTER * 2.0)}>
                     <List spacing=0.0>
@@ -222,10 +220,9 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
     };
     let read_only = data.read_only;
     let test_key = group_test_key(key);
-    let theme = use_theme();
     view! {
         <Frame
-            fill={theme.surface}
+            fill=ColorRole::Surface
             padding={Sides::vertical(2.0).left(GUTTER * 0.5).right(GUTTER * 0.5)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -543,15 +540,16 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
     });
     let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));
     view! {
-        <Frame
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=10.0
-            padding={Sides::symmetric(8.0, 1.0)}
-        >
+        <Frame border={Border::DEFAULT} radius=Radius::Lg padding={Sides::symmetric(8.0, 1.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
                 <Show condition={dotted}>
                     {move || view! {
-                        <Frame width=8.0 height=8.0 radius=2.0 fill=dot />
+                        <Frame
+                            width=8.0
+                            height=8.0
+                            radius=Radius::Xs
+                            fill={ColorRole::custom(dot)}
+                        />
                     }}
                 </Show>
                 <Show condition={linked}>

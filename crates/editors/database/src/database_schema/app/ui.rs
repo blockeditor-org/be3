@@ -104,9 +104,8 @@ pub fn SchemaView(editor: Editor) -> NodeId {
     };
 
     let add_disabled = read_only;
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=SECTION_SPACING>
                 <Text style=TextStyle::HEADING string="Fields" />
                 <Scroll @sizing=ItemSize::Percent(100.0)>

@@ -164,13 +164,12 @@ fn NotResponding(
     on_wait: ClickCallback,
     on_force_close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let message = create_memo(move || format!("{} is not responding", name.get()));
     view! {
         <Frame
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius={Corners::bottom(BANNER_RADIUS)}
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::Custom(Corners::bottom(BANNER_RADIUS))}
             padding=BANNER_PADDING
             @test_id={"workspace.window.not_responding"}
         >

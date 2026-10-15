@@ -10,9 +10,8 @@ fn the_lock_screen_shows_on_every_screen() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(640.0, 480.0));
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
-        let theme = use_theme();
         view! {
-            <Frame fill={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <LockScreen
                     open=true
                     time="09:41"

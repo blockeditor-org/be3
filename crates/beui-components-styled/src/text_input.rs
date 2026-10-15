@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, field_border, use_theme};
+use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
@@ -89,14 +90,14 @@ fn TextInputFrame(
     });
     view! {
         <Frame
-            outline={create_memo(move || focused.get().then(|| Outline::new(theme.accent.get(), FOCUS_RING_WIDTH).offset(FOCUS_RING_OFFSET)))}
-            radius=RADIUS
+            border={create_memo(move || focused.get().then_some(Border::FOCUS.offset(FOCUS_RING_OFFSET)))}
+            radius=Radius::Md
         >
             <Frame
                 height=HEIGHT
-                fill=fill
-                outline={create_memo(move || raised.get().then(|| Outline::new(border.get(), BORDER_WIDTH)))}
-                radius=RADIUS
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || raised.get().then(|| Border::new(ColorRole::Custom(border.get()))))}
+                radius=Radius::Md
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>

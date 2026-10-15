@@ -5,6 +5,8 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
+use crate::frame::{Border, ColorRole};
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ThemeKind {
     Dark,
@@ -173,14 +175,22 @@ pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> N
     content.call(())
 }
 
-pub fn control_outline(theme: &ThemeStore) -> Memo<Option<Outline>> {
+pub fn control_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     let outline = theme.control_outline;
-    create_memo(move || outline.get().map(|color| Outline::new(color, BORDER_WIDTH)))
+    create_memo(move || {
+        outline
+            .get()
+            .map(|color| Border::new(ColorRole::Custom(color)))
+    })
 }
 
-pub fn knob_outline(theme: &ThemeStore) -> Memo<Option<Outline>> {
+pub fn knob_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     let outline = theme.knob_outline;
-    create_memo(move || outline.get().map(|color| Outline::new(color, BORDER_WIDTH)))
+    create_memo(move || {
+        outline
+            .get()
+            .map(|color| Border::new(ColorRole::Custom(color)))
+    })
 }
 
 pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
@@ -219,10 +229,6 @@ impl DocumentTheme for Document {
         with_reactive_scope(self, move || store.set(theme));
     }
 }
-
-pub const RADIUS: f32 = 6.0;
-pub const CARD_RADIUS: f32 = 10.0;
-pub const CHIP_RADIUS: f32 = 4.0;
 
 pub const NARROW_WIDTH: f32 = 700.0;
 

@@ -1,3 +1,4 @@
+use crate::frame::Frame;
 use beui_core::layer::LayerLevel;
 use std::rc::Rc;
 

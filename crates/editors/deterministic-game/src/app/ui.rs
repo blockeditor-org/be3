@@ -369,7 +369,6 @@ fn GamePlay(
 
 #[component]
 fn Sidebar(panel: Panel) -> NodeId {
-    let theme = use_theme();
     let Panel {
         game,
         play,
@@ -390,7 +389,7 @@ fn Sidebar(panel: Panel) -> NodeId {
     };
     let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     view! {
-        <Frame fill={theme.surface}>
+        <Frame fill=ColorRole::Surface>
             <Scroll>
                 <Frame padding=PANEL_PADDING>
                     <List spacing=SECTION_SPACING>
@@ -524,16 +523,15 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let theme = use_theme();
     let color = TextColor::Default;
     view! {
         <unstyled::Floating anchor open={open}>
             <Frame padding=BANNER_MARGIN>
                 <Frame
-                    fill={theme.surface_raised}
-                    radius=8.0
+                    fill=ColorRole::SurfaceRaised
+                    radius={Radius::custom(8.0)}
                     padding={Sides::symmetric(14.0, 8.0)}
-                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                    border={Border::new(ColorRole::Border).width(1.0)}
                     @test_id={"game.banner"}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>

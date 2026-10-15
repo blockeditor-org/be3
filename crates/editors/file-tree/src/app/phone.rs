@@ -10,7 +10,6 @@ use block_editor_beui::beui::icons::{
     ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::theme::{CARD_RADIUS, RADIUS};
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{BackSlide, Edge, Floating, MenuItem};
 use block_editor_beui::block_ui::BlockTypes;
@@ -150,7 +149,7 @@ pub(crate) fn PhoneFiles(
         let at_top = create_memo(move || above.get() == Level::Root);
         let (color, folder, set_level, on_menu) = (page_color, shelf, shelf.set_level, menu);
         view! {
-            <Frame fill=color radius=0.0>
+            <Frame fill={ColorRole::custom(color)}>
                 <List spacing=0.0>
                     <Header
                         level={above}
@@ -171,7 +170,7 @@ pub(crate) fn PhoneFiles(
     };
     view! {
         <BackSlide enabled={nested} on_back={rising} behind={parent}>
-            <Frame fill=page_color radius=0.0>
+            <Frame fill={ColorRole::custom(page_color)}>
                 <List spacing=0.0>
                     <Header
                         level={header_level}
@@ -260,7 +259,6 @@ fn Header(
     set_query: WriteSignal<String>,
     on_menu: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let top = create_memo(move || level.get() == Level::Root);
     let inside = create_memo(move || !top.get());
     let titled = top;
@@ -287,7 +285,7 @@ fn Header(
     let up = move || set_level.set(level.get_untracked().up());
     let typed = query;
     view! {
-        <Frame fill={theme.background} padding=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                     <Show condition={inside}>
@@ -422,7 +420,6 @@ fn Recents(editor: Editor) -> NodeId {
 
 #[component]
 fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
-    let theme = use_theme();
     let target = create_memo(move || Some(ChildTarget::new(id, block_type)));
     let shown = watch_block_label(editor, target);
     let resolved = create_memo(move || shown.with(|shown| shown.resolved));
@@ -435,9 +432,9 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
             <Frame
                 width=RECENT_WIDTH
                 height=RECENT_HEIGHT
-                radius=CARD_RADIUS
-                fill={theme.surface_raised}
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                radius=Radius::Lg
+                fill=ColorRole::SurfaceRaised
+                border={Border::new(ColorRole::Border).width(1.0)}
             >
                 <ListRow
                     @test_id={format!("file-tree.recent.{id}")}
@@ -573,7 +570,6 @@ fn PhoneRow(
     set_level: WriteSignal<Level>,
     tools: RowTools,
 ) -> NodeId {
-    let theme = use_theme();
     let id = row
         .get_untracked()
         .and_then(|row| row.id)
@@ -654,8 +650,8 @@ fn PhoneRow(
                         <Frame
                             width=TILE_SIDE
                             height=TILE_SIDE
-                            radius=RADIUS
-                            fill={theme.surface_raised}
+                            radius=Radius::Md
+                            fill=ColorRole::SurfaceRaised
                             align=Align::Center
                         >
                             <Text size=TextSize::Lg color=TextColor::Accent align=TextAlign::Center>

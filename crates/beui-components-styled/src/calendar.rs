@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Node;
 use beui_macros::{component, view};
 
@@ -5,7 +6,7 @@ use crate::button::{ButtonFace, ButtonVariant};
 use crate::focus_ring::FocusRing;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Text, TextColor, TextSize};
-use crate::theme::{RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
@@ -201,12 +202,12 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
     let ink = create_memo(move || cell_ink(selected.get(), disabled.get(), outside.get()));
     let ring = create_memo(move || marked.get() && !selected.get());
     view! {
-        <FocusRing focused radius={RADIUS + 2.0} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
             <Frame
                 height=height
-                fill=fill
-                outline={create_memo(move || ring.get().then(|| Outline::new(theme.accent.get(), TODAY_RING_WIDTH)))}
-                radius=RADIUS
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Accent).width(TODAY_RING_WIDTH)))}
+                radius=Radius::Md
             >
                 <Text
                     string={label}

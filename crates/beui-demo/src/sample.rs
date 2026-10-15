@@ -53,9 +53,9 @@ fn CodeBlock(source: String) -> NodeId {
     });
     view! {
         <Frame
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=RADIUS
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius=Radius::Md
             padding=CODE_PADDING
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>

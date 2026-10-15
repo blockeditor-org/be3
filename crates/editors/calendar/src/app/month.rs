@@ -134,9 +134,9 @@ fn MonthCell(
     let pick = move || on_pick_day.call(day);
     view! {
         <Frame
-            fill=fill
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=4.0
+            fill={ColorRole::custom(fill)}
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius=Radius::Sm
             padding=4.0
         >
             <List spacing=2.0>
@@ -183,10 +183,9 @@ fn EventChip(
     title: Memo<String>,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let click = on_click;
     view! {
-        <Frame fill={theme.accent} radius=3.0>
+        <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
             <ListRow on_click={click} on_activate={on_click}>
                 <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
             </ListRow>

@@ -122,7 +122,12 @@ pub fn ChoiceMark(
                     </Text>
                 </Frame>
                 <Frame visible={dotted} align=Align::Center>
-                    <Frame width=dot height=dot radius={(dot / 2.0).floor()} fill=dot_color />
+                    <Frame
+                        width=dot
+                        height=dot
+                        radius={Radius::custom((dot / 2.0).floor())}
+                        fill={ColorRole::custom(dot_color)}
+                    />
                 </Frame>
             </Layers>
         </Frame>

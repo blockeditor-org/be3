@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{CommandRowHandle, TextInputHandle};
 use beui_core::base::TextAlign;
@@ -50,14 +51,13 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
 
 #[component]
 fn PalettePanel(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame padding=MARGIN>
             <Frame
                 width={Extent::at_most(WIDTH)}
-                fill={theme.surface_raised}
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-                radius=CARD_RADIUS
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Lg
                 padding=PADDING
             >
                 {children}
@@ -69,13 +69,12 @@ fn PalettePanel(children: Child) -> NodeId {
 #[component]
 fn PaletteSearch(handle: TextInputHandle) -> NodeId {
     let TextInputHandle { field, .. } = handle;
-    let theme = use_theme();
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.accent.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Accent)}
+            radius=Radius::Md
         >
             {field}
         </Frame>
@@ -108,8 +107,8 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
     let shortcut = shortcut.unwrap_or_default();
     view! {
         <Frame
-            fill=fill
-            radius=RADIUS
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>

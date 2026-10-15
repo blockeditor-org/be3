@@ -512,7 +512,11 @@ fn InstructionRow(
     let unresolved = create_memo(move || row.get().is_none_or(|row| row.2 != Some(true)));
     let target = move || session.update(|model| model.select_instruction_target(index));
     view! {
-        <Frame fill=fill radius=3.0 padding={Sides::horizontal(4.0)}>
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius={Radius::custom(3.0)}
+            padding={Sides::horizontal(4.0)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={text} />
                 <Show condition={calls}>

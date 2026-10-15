@@ -9,11 +9,10 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(640.0, 480.0));
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
-        let theme = use_theme();
         let (open, set_open) = create_signal(false);
         let closing = set_open;
         view! {
-            <Frame fill={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <List direction=beui::Direction::Horizontal justify=Justify::End spacing=0.0>
                     <Button
                         label="About"

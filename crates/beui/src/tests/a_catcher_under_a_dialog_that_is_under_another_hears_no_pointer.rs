@@ -1,5 +1,6 @@
 use super::*;
 use crate::ForwardedInput;
+use crate::primitives::Frame;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;

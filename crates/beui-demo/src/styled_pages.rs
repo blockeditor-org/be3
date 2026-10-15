@@ -614,7 +614,11 @@ fn FocusedTile() -> NodeId {
                     label="Open the album"
                     on_click={move || set_opened.set("Opened the album".to_owned())}
                     content={move |handle: beui::unstyled::ButtonHandle| view! {
-                        <FocusRing focused={handle.focused} radius={CARD_RADIUS + 3.0} offset=3.0>
+                        <FocusRing
+                            focused={handle.focused}
+                            radius={Radius::custom(Radius::Lg.px() + 3.0)}
+                            offset=3.0
+                        >
                             <Card>
                                 <Text string={handle.label} />
                             </Card>
@@ -1259,7 +1263,7 @@ fn PaintPicker() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT fill=shown_paint radius=RADIUS />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
@@ -1280,7 +1284,7 @@ fn HueWheel() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT fill=shown_paint radius=RADIUS />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
@@ -1309,7 +1313,7 @@ fn PerceptualWheel() -> NodeId {
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />
-            <Frame height=SWATCH_HEIGHT fill=shown_paint radius=RADIUS />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
     }
@@ -2059,7 +2063,6 @@ fn ActionsSheet() -> NodeId {
 #[sample]
 #[component]
 fn ToastArea() -> NodeId {
-    let theme = use_theme();
     let area = beui::reactive::NodeRef::new();
     let (toasts, set_toasts) = create_signal(vec![
         Toast {
@@ -2089,8 +2092,8 @@ fn ToastArea() -> NodeId {
         <Frame
             @node_ref=&area
             height=TOAST_AREA_HEIGHT
-            fill={theme.surface}
-            radius=CARD_RADIUS
+            fill=ColorRole::Surface
+            radius=Radius::Lg
             padding=12.0
         >
             <List spacing=0.0>
@@ -2240,9 +2243,8 @@ fn FullscreenButton() -> NodeId {
 #[sample]
 #[component]
 fn FullscreenBody(on_close: ClickCallback) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=PAGE_PADDING>
+        <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Text
@@ -2311,7 +2313,6 @@ fn CardStrip() -> NodeId {
 #[sample]
 #[component]
 fn FittedScroll() -> NodeId {
-    let theme = use_theme();
     let (count, set_count) = create_signal(FITTED_SCROLL_ROWS);
     let rows = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
     let adding = set_count;
@@ -2335,10 +2336,7 @@ fn FittedScroll() -> NodeId {
                     on_click={move || set_count.update(|count| *count = count.saturating_sub(1))}
                 />
             </List>
-            <Frame
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-                radius=RADIUS
-            >
+            <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
                     <ForEach keys={rows}>
                         {move |index: usize| view! {
@@ -2358,14 +2356,13 @@ fn FittedScroll() -> NodeId {
 #[sample]
 #[component]
 fn StripCard(index: ReadSignal<usize>) -> NodeId {
-    let theme = use_theme();
     let label = create_memo(move || format!("Card {}", index.get()));
     view! {
         <Frame padding={Sides::symmetric(4.0, 0.0)}>
             <Frame
-                fill={theme.surface_raised}
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-                radius=RADIUS
+                fill=ColorRole::SurfaceRaised
+                border={Border::new(ColorRole::Border).width(1.0)}
+                radius=Radius::Md
                 padding={Sides::symmetric(12.0, 10.0)}
             >
                 <Text string={label} align=TextAlign::Center />
@@ -2485,9 +2482,9 @@ fn ScrollRowFace(
     });
     view! {
         <Frame
-            fill=fill_color
-            outline={focus_outline(focused, theme.accent, 2.0, 0.0)}
-            radius=RADIUS
+            fill={ColorRole::custom(fill_color)}
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            radius=Radius::Md
             padding={create_memo(move || Sides::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
@@ -2639,10 +2636,75 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Separators and borders" code={vec![Separators::SOURCE]}>
                 <Separators />
             </Sample>
+            <Sample title="Frame tokens" code={vec![FrameTokens::SOURCE]}>
+                <FrameTokens />
+            </Sample>
             <Sample title="A scroll inside a scroll" code={vec![NestedScroll::SOURCE]}>
                 <NestedScroll />
             </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn FrameTokens() -> NodeId {
+    const BORDERS: [(&str, Border); 4] = [
+        ("default", Border::DEFAULT),
+        ("focus", Border::FOCUS),
+        ("danger, 2", Border::new(ColorRole::Danger).width(2.0)),
+        ("offset 3", Border::DEFAULT.offset(3.0)),
+    ];
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+                <ForEach keys={ColorRole::ROLES.to_vec()}>
+                    {|role: ColorRole| view! {
+                        <List spacing=4.0>
+                            <Frame
+                                width=88.0
+                                height=32.0
+                                fill=role
+                                border=Border::DEFAULT
+                                radius=Radius::Sm
+                            />
+                            <Text style=TextStyle::CAPTION string={role.name()} />
+                        </List>
+                    }}
+                </ForEach>
+            </List>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+                <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>
+                    {|index: usize| view! {
+                        <List spacing=4.0>
+                            <Frame
+                                width=48.0
+                                height=48.0
+                                fill=ColorRole::AccentSoft
+                                radius={Radius::ALL[index]}
+                            />
+                            <Text style=TextStyle::CAPTION string={Radius::ALL[index].name()} />
+                        </List>
+                    }}
+                </ForEach>
+            </List>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+                <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>
+                    {|index: usize| view! {
+                        <List spacing=4.0>
+                            <Frame
+                                width=88.0
+                                height=48.0
+                                fill=ColorRole::Surface
+                                border={Some(BORDERS[index].1)}
+                                radius=Radius::Md
+                            />
+                            <Text style=TextStyle::CAPTION string={BORDERS[index].0} />
+                        </List>
+                    }}
+                </ForEach>
+            </List>
+        </List>
     }
 }
 
@@ -2716,7 +2778,7 @@ fn Separators() -> NodeId {
                 <Text string="Three" />
             </List>
             <Separator />
-            <Bordered corner_radius=CARD_RADIUS>
+            <Bordered corner_radius=Radius::Lg>
                 <Frame padding=ROW_SPACING>
                     <Text string="A border drawn around whatever it holds" />
                 </Frame>
@@ -2886,9 +2948,11 @@ fn CanvasBoard(
     focused: ReadSignal<bool>,
 ) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
-    let theme = use_theme();
     view! {
-        <Frame outline={focus_outline(focused, theme.accent, 2.0, 0.0)} radius=RADIUS>
+        <Frame
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            radius=Radius::Md
+        >
             <Canvas view>
                 <StageCard card=first scale={scale} />
                 <StageCard card=second scale={scale} />
@@ -2903,15 +2967,14 @@ fn CanvasBoard(
 #[component]
 fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> CanvasItem {
     let (x, y, width, height, label) = card;
-    let theme = use_theme();
     let size = create_memo(move || TextSize::Custom(STAGE_LABEL_SIZE * scale.get()));
     let padding = create_memo(move || STAGE_PADDING * scale.get());
     view! {
         <CanvasItem x y width height>
             <Frame
-                fill={theme.surface_raised}
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-                radius=CARD_RADIUS
+                fill=ColorRole::SurfaceRaised
+                border={Border::new(ColorRole::Border).width(1.0)}
+                radius=Radius::Lg
                 padding=padding
             >
                 <Text string={label.to_string()} size />
@@ -2968,9 +3031,8 @@ fn ThemedSamples() -> NodeId {
 #[sample]
 #[component]
 fn ThemeSample(name: &'static str) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} radius=CARD_RADIUS padding=ROW_SPACING>
+        <Frame fill=ColorRole::Background radius=Radius::Lg padding=ROW_SPACING>
             <Card>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::HEADING string={name} />

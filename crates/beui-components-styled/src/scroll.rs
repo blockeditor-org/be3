@@ -1,8 +1,9 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::Scrollbar;
 use crate::text::{Icon, Text};
-use crate::theme::{BORDER_WIDTH, SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
+use crate::theme::{SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
@@ -75,7 +76,6 @@ pub fn scrollbar_style() -> ScrollbarStyle {
 
 #[component]
 fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
-    let theme = use_theme();
     let glyph = axis.map(|axis| {
         match axis {
             Direction::Vertical => ICON_HEIGHT,
@@ -87,9 +87,9 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
         <Frame
             width=MARKER_SIZE
             height=MARKER_SIZE
-            radius=MARKER_RADIUS
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
+            radius={Radius::custom(MARKER_RADIUS)}
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
         >
             <List align=Align::Center spacing=0.0>
                 <Spacer @sizing=ItemSize::Percent(50.0) />

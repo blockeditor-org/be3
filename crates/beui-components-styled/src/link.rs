@@ -1,3 +1,4 @@
+use crate::frame::Radius;
 use accesskit::Role;
 use beui_macros::{component, view};
 
@@ -49,7 +50,7 @@ fn LinkFace(handle: unstyled::ButtonHandle, size: Prop<TextSize>) -> NodeId {
         create_memo(move || text_color(&theme, disabled.get(), hovered.get(), active.get()));
     let underlined = create_memo(move || hovered.get() || focused.get());
     view! {
-        <FocusRing focused radius=FOCUS_RING_RADIUS offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius={Radius::custom(FOCUS_RING_RADIUS)} offset=FOCUS_RING_OFFSET>
             <Text size color underline={underlined}>
                 <Icon glyph={glyph} />
                 {label}

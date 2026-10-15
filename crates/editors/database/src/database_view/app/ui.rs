@@ -48,9 +48,8 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     });
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={spreadsheet}>
                     {move || view! {
@@ -78,9 +77,8 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
 pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
     let data = ViewData::new(editor);
     let loaded = data.loaded;
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <Loaded loaded={loaded} label="Loading the database">
                 <Content data={data} panels=false />
             </Loaded>

@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::Frame;
 use crate::styled::*;
 
 #[test]

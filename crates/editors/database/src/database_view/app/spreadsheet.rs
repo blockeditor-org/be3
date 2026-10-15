@@ -31,9 +31,8 @@ pub fn Spreadsheet(data: Data) -> NodeId {
     let empty = create_memo(move || fields.with(Vec::is_empty));
     let filled = create_memo(move || !empty.get());
     let keyboard = Callback::new(keyboard(data, display));
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={empty}>
                     <Frame padding=12.0>
@@ -110,14 +109,13 @@ fn HeaderRow(data: Data) -> NodeId {
     let keys = create_memo(move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame
                 width=ROW_HEADER_WIDTH
                 height=ROW_HEIGHT
-                fill={theme.surface}
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
+                fill=ColorRole::Surface
+                border={Border::new(ColorRole::Border).width(BORDER)}
             />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
@@ -176,13 +174,12 @@ fn HeaderCell(
         None => String::new(),
     });
     let marked = create_memo(move || sorted.get().is_some());
-    let theme = use_theme();
     view! {
         <Frame
             width=width
             height=ROW_HEIGHT
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(BORDER)}
         >
             <Interactive on_click={on_click}>
                 <Frame padding={Sides::horizontal(CELL_PADDING)}>
@@ -238,8 +235,8 @@ fn Row(
             <Frame
                 @sizing=ItemSize::Fixed(ROW_HEADER_WIDTH)
                 height=ROW_HEIGHT
-                fill=header_fill
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
+                fill={ColorRole::custom(header_fill)}
+                border={Border::new(ColorRole::Border).width(BORDER)}
             >
                 <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
@@ -354,8 +351,8 @@ fn Cell(
             @node_ref=&shown
             width=width
             height=ROW_HEIGHT
-            fill=fill
-            outline={create_memo(move || Some(Outline::new(outline.get(), BORDER)))}
+            fill={ColorRole::custom(fill)}
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(BORDER)))}
         >
             <Interactive @test_id={test_id} on_click={click}>
                 <Frame padding={Sides::horizontal(CELL_PADDING)}>
@@ -369,9 +366,9 @@ fn Cell(
                             <Frame
                                 @sizing=ItemSize::Fixed(SWATCH_WIDTH)
                                 height=SWATCH_HEIGHT
-                                fill=swatch
-                                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER)))}
-                                radius=2.0
+                                fill={ColorRole::custom(swatch)}
+                                border={Border::new(ColorRole::Border).width(BORDER)}
+                                radius=Radius::Xs
                             />
                         </Show>
                         <Text

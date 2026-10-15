@@ -62,9 +62,8 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
 
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <Frame @node_ref={&content} padding=PADDING>
                 <List spacing=ROW_SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>

@@ -149,7 +149,7 @@ fn PageCanvas(
         <List spacing=0.0>
             <Canvas @sizing=ItemSize::Percent(100.0) view={view}>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Frame fill=PAGE_FILL />
+                    <Frame fill={ColorRole::Custom(PAGE_FILL)} />
                 </CanvasItem>
                 <ForEach keys={keys}>
                     {move |index: usize| {

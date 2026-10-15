@@ -102,7 +102,7 @@ pub fn WindowView(
                                 <Drawing
                                     draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
                                 />
-                                <Frame fill=dim />
+                                <Frame fill={ColorRole::custom(dim)} />
                             </Layers>
                         </Interactive>
                         <Overlay

@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, field_border, use_theme};
+use crate::theme::{ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -97,14 +98,14 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
     view! {
         <Frame
             width={Extent::at_most(TRIGGER_MAX_WIDTH)}
-            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, FOCUS_RING_OFFSET)}
-            radius=RADIUS
+            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            radius=Radius::Md
         >
             <Frame
                 height=HEIGHT
-                fill=fill
-                outline={create_memo(move || Some(Outline::new(border.get(), BORDER_WIDTH)))}
-                radius=RADIUS
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+                radius=Radius::Md
                 padding={Sides::horizontal(PADDING_HORIZONTAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
@@ -137,9 +138,9 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(border.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill=ColorRole::Surface
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+            radius=Radius::Md
         >
             {field}
         </Frame>
@@ -159,8 +160,8 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
         create_memo(move || option_background(&theme, highlighted.get(), hovered.get()));
     view! {
         <Frame
-            fill=fill_color
-            radius=RADIUS
+            fill={ColorRole::custom(fill_color)}
+            radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, OPTION_PADDING_VERTICAL)}
         >
             <Text string={label} align=TextAlign::Start />
@@ -170,13 +171,12 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
 
 #[component]
 fn SelectPopup(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
             width=POPUP_WIDTH
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
             padding=POPUP_PADDING
         >
             {children}

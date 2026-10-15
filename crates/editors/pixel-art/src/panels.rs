@@ -391,9 +391,9 @@ fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback
             <Frame
                 width=SWATCH
                 height=SWATCH
-                fill=fill
-                outline={create_memo(move || Some(Outline::new(outline.get(), 2.0)))}
-                radius=2.0
+                fill={ColorRole::custom(fill)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(2.0)))}
+                radius=Radius::Xs
             />
         </Pressable>
     }

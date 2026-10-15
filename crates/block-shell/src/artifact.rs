@@ -88,12 +88,11 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
     let settings = block_command(&workspace, block, Command::Settings);
     let regenerate = block_command(&workspace, block, Command::Regenerate);
     let unlink = block_command(&workspace, block, Command::Unlink);
-    let theme = use_theme();
     let heading_color = TextColor::Default;
     view! {
         <Frame
             visible={shown}
-            fill={theme.surface}
+            fill=ColorRole::Surface
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List spacing=PADDING_VERTICAL>

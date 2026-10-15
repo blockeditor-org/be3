@@ -49,7 +49,6 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
         let editor = state.editor();
         editor.host().undo(editor.block_id());
     };
-    let theme = use_theme();
     view! {
         <BottomDock
             anchor={anchor}
@@ -74,7 +73,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 @test_id={"infinite-canvas.dock.block"}
                 action={actions.add_block}
             />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill={theme.border} />
+            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
             <IconButton
                 glyph={ICON_UNDO.to_owned()}
                 label="Undo"
@@ -95,14 +94,13 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let scale = state.editor().scale();
     let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
-    let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::TopEnd open={open}>
             <Frame padding=PILL_MARGIN>
                 <Frame
-                    fill={theme.surface_raised}
-                    outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-                    radius=PILL_RADIUS
+                    fill=ColorRole::SurfaceRaised
+                    border={Border::DEFAULT}
+                    radius={Radius::custom(PILL_RADIUS)}
                     padding=PILL_PADDING
                     @test_id={"infinite-canvas.zoom-pill"}
                 >

@@ -97,9 +97,9 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                 });
                 view! {
                     <Frame
-                        fill=fill
-                        radius=ROW_RADIUS
-                        outline={create_memo(move || handle.over.get().then(|| Outline::new(theme.accent.get(), 1.0)))}
+                        fill={ColorRole::custom(fill)}
+                        radius={Radius::custom(ROW_RADIUS)}
+                        border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent).width(1.0)))}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                             <IconButton
@@ -135,11 +135,10 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
 
 #[component]
 fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
-            fill={theme.surface_raised}
-            radius=ROW_RADIUS
+            fill=ColorRole::SurfaceRaised
+            radius={Radius::custom(ROW_RADIUS)}
             padding={Sides::symmetric(8.0, ROW_PADDING)}
         >
             <Text string={label} />

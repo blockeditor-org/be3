@@ -47,8 +47,8 @@ pub(crate) fn Marker(
                 <Frame
                     width=RING_SIZE
                     height=RING_SIZE
-                    radius={(RING_SIZE / 2.0).floor()}
-                    outline={create_memo(move || selected.get().then(|| Outline::new(SELECTION_COLOR, 2.0)))}
+                    radius={Radius::custom((RING_SIZE / 2.0).floor())}
+                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR)).width(2.0)))}
                 >
                     <Text
                         size=MARKER_SIZE
@@ -60,8 +60,8 @@ pub(crate) fn Marker(
                 </Frame>
                 <Frame
                     visible={named}
-                    fill=LABEL_BACKGROUND
-                    radius=3.0
+                    fill={ColorRole::Custom(LABEL_BACKGROUND)}
+                    radius={Radius::custom(3.0)}
                     padding={Sides::horizontal(3.0)}
                     height=LABEL_HEIGHT
                 >

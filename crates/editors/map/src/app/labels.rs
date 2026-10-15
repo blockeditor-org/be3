@@ -208,8 +208,8 @@ pub(crate) fn MapLabel(
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame
-                fill=HALO
-                radius=2.0
+                fill={ColorRole::Custom(HALO)}
+                radius=Radius::Xs
                 padding={Sides::horizontal(HALO_PADDING)}
                 @test_id={test_id}
             >

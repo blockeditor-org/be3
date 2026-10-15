@@ -37,9 +37,8 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
             .collect::<Vec<_>>()
     });
     let empty = create_memo(move || types.with(Vec::is_empty));
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame padding=PADDING>

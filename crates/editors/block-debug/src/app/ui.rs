@@ -42,9 +42,8 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                 })
         })
     });
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Tree
                     @sizing=ItemSize::Percent(100.0)

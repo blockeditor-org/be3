@@ -35,9 +35,8 @@ pub fn Kanban(data: Data) -> NodeId {
                 .collect::<Vec<GroupKey>>()
         })
     });
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding=PADDING>
@@ -117,9 +116,13 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
         })
     });
     let unfold = move || data.toggle_group(key);
-    let theme = use_theme();
     view! {
-        <Frame width=FOLDED_WIDTH fill={theme.surface} radius=10.0 padding={Sides::vertical(10.0)}>
+        <Frame
+            width=FOLDED_WIDTH
+            fill=ColorRole::Surface
+            radius=Radius::Lg
+            padding={Sides::vertical(10.0)}
+        >
             <List align=Align::Center spacing=8.0>
                 <ChoiceMark option={option} size=MARK />
                 <Text style=TextStyle::CAPTION string={count} />
@@ -187,7 +190,6 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         };
         data.set_cell(row, field_id, value.get_untracked());
     };
-    let theme = use_theme();
     view! {
         <DropTarget on_drop={dropped}>
             {move |handle: DropHandle| {
@@ -195,9 +197,9 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                 view! {
                     <Frame
                         width=COLUMN_WIDTH
-                        fill={theme.surface}
-                        outline={create_memo(move || over.get().then(|| Outline::new(theme.accent.get(), 2.0)))}
-                        radius=10.0
+                        fill=ColorRole::Surface
+                        border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                        radius=Radius::Lg
                         padding={Sides::horizontal(8.0).bottom(8.0)}
                     >
                         <List spacing=CARD_SPACING>
@@ -274,12 +276,11 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
 
 #[component]
 fn CardFace(data: Data, row: usize) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=8.0
+            fill=ColorRole::SurfaceRaised
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::custom(8.0)}
             padding={Sides::symmetric(10.0, 8.0)}
         >
             <CardLines data={data} row={row} />

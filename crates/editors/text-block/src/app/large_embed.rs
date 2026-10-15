@@ -16,7 +16,6 @@ const TITLE_RADIUS: f32 = 4.0;
 
 #[component]
 pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
-    let theme = use_theme();
     let key = FocusedEmbed {
         id: embed.id,
         source_start: embed.range.start,
@@ -60,16 +59,16 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     };
     view! {
         <Frame
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=FRAME_RADIUS
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius={Radius::custom(FRAME_RADIUS)}
             padding=EMBEDDED_EDITOR_PADDING
         >
             <List spacing=EMBEDDED_EDITOR_TITLE_GAP>
                 <Frame
                     height=EMBEDDED_EDITOR_TITLE_HEIGHT
-                    fill={theme.surface_raised}
-                    radius=TITLE_RADIUS
+                    fill=ColorRole::SurfaceRaised
+                    radius={Radius::custom(TITLE_RADIUS)}
                     padding={Sides::horizontal(TITLE_PADDING)}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>

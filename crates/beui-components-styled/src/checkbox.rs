@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
@@ -5,7 +6,7 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 
 use crate::text::{Text, TextColor};
-use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
@@ -68,17 +69,17 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    fill=fill_color
-                    outline={create_memo(move || border_visible.get().then(|| Outline::new(box_border.get(), BORDER_WIDTH)))}
-                    radius=CHIP_RADIUS
+                    fill={ColorRole::custom(fill_color)}
+                    border={create_memo(move || border_visible.get().then(|| Border::new(ColorRole::Custom(box_border.get()))))}
+                    radius=Radius::Sm
                     align=Align::Center
                 >
                     <Frame
                         visible={checked}
                         width=MARK_SIZE
                         height=MARK_SIZE
-                        fill=mark_color
-                        radius=MARK_RADIUS
+                        fill={ColorRole::custom(mark_color)}
+                        radius={Radius::custom(MARK_RADIUS)}
                     />
                 </Frame>
                 <Show condition={labeled}>

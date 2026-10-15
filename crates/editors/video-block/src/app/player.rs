@@ -38,14 +38,14 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
     });
 
     view! {
-        <Frame fill=STAGE padding=8.0>
+        <Frame fill={ColorRole::Custom(STAGE)} padding=8.0>
             <List spacing=0.0>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION string="No clip at the playhead" />
                 </Show>
                 <Show condition={any}>
                     {move || view! {
-                        <Frame aspect_ratio={ratio} fill=Color32::BLACK>
+                        <Frame aspect_ratio={ratio} fill={ColorRole::Custom(Color32::BLACK)}>
                             <List spacing=0.0>
                                 <ForEach keys={visible}>
                                     {move |id: Uuid| {

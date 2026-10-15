@@ -82,7 +82,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     view! {
         <List spacing=ROW_SPACING>
             <Text string={title} />
-            <Bordered corner_radius=8.0>
+            <Bordered corner_radius={Radius::custom(8.0)}>
                 <Frame padding=PADDING>
                     <ProblemGrid
                         quiz={quiz}
@@ -174,7 +174,6 @@ fn ProblemGrid(
     let carry_expected =
         create_memo(move || quiz.get().problems()[page.get()].carry_bits().to_vec());
     let sum_expected = create_memo(move || quiz.get().problems()[page.get()].sum_bits().to_vec());
-    let theme = use_theme();
     view! {
         <List spacing=ROW_SPACING>
             <BitRow
@@ -189,12 +188,7 @@ fn ProblemGrid(
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
                 <Spacer @sizing=ItemSize::Fixed(LABEL_WIDTH) />
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    height=RULE_HEIGHT
-                    fill={theme.border}
-                    radius=0.0
-                />
+                <Frame @sizing=ItemSize::Percent(100.0) height=RULE_HEIGHT fill=ColorRole::Border />
             </List>
             <BitRow
                 label="sum"
@@ -326,8 +320,8 @@ fn BitCell(
     view! {
         <Frame
             width=CELL
-            outline={create_memo(move || wrong.get().then(|| Outline::new(outline.get(), 1.0).offset(1.0)))}
-            radius=4.0
+            border={create_memo(move || wrong.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(1.0).offset(1.0)))}
+            radius=Radius::Sm
         >
             <Button
                 label={label}

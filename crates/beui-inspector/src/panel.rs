@@ -6,7 +6,8 @@ use accesskit::{Node, Role};
 use beui_core::color::Color32;
 
 use crate::screen_reader::Command;
-use beui_components_styled::theme::{BORDER_WIDTH, CHIP_RADIUS};
+use beui_components_styled::Radius;
+use beui_components_styled::theme::BORDER_WIDTH;
 use beui_components_styled::{
     Button, ButtonVariant, Checkbox, RadioGroup, Scroll, Separator, Slider, Tabs, TextSize, Theme,
     Tree, TreeRowFace,
@@ -1054,7 +1055,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
             <Frame
                 fill=fill_color
                 outline={Outline::new(THEME.border, BORDER_WIDTH)}
-                radius=CHIP_RADIUS
+                radius={Radius::Sm.px()}
                 padding={Sides::symmetric(TOGGLE_PADDING_HORIZONTAL, TOGGLE_PADDING_VERTICAL)}
             >
                 <Text
@@ -1086,7 +1087,7 @@ fn CloseButton(state: Stored<State>) -> NodeId {
             <Frame
                 fill=fill_color
                 outline={create_memo(move || Some(Outline::new(outline_color.get(), BORDER_WIDTH)))}
-                radius=CHIP_RADIUS
+                radius={Radius::Sm.px()}
                 padding=CLOSE_PADDING
             >
                 <Text

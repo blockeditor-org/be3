@@ -69,7 +69,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                             <Portal node={Some(sidebar)} />
                         }}
                     >
-                        <Frame fill=page radius=0.0>
+                        <Frame fill={ColorRole::custom(page)}>
                             <List spacing=0.0>
                                 <Frame padding={Sides::symmetric(8.0, 4.0)}>
                                     <IconButton
@@ -100,10 +100,9 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 #[cfg(not(target_os = "android"))]
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) fill={theme.surface}>
+            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) fill=ColorRole::Surface>
                 <Sidebar model={model} />
             </Frame>
             <Separator direction=Direction::Vertical />
@@ -341,8 +340,8 @@ fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
     let ink = create_memo(move || TextColor::Custom(readable_on(color.get())));
     view! {
         <Frame
-            fill=color
-            radius=CHIP_RADIUS
+            fill={ColorRole::custom(color)}
+            radius={Radius::custom(CHIP_RADIUS)}
             padding={Sides::symmetric(CHIP_PADDING_HORIZONTAL, CHIP_PADDING_VERTICAL)}
         >
             <Text string={text} size=TextSize::Sm color={ink} />

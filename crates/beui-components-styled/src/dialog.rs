@@ -1,9 +1,9 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::{Node, Role};
 use beui_core::layer::Dismiss;
 use beui_macros::{component, view};
 
 use crate::text::{Text, TextStyle};
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_components_unstyled::BackSlide;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
@@ -62,14 +62,13 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
         }
         node
     }));
-    let theme = use_theme();
     view! {
         <Frame padding=MARGIN>
             <Frame
                 width={width.map(Extent::at_most)}
-                fill={theme.surface_raised}
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-                radius=CARD_RADIUS
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Lg
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List spacing=SPACING>

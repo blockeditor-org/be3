@@ -378,7 +378,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 />
                 <Text @sizing=ItemSize::Percent(100.0) string={label} />
             </List>
-            <Frame height=PREVIEW_HEIGHT radius=4.0>
+            <Frame height=PREVIEW_HEIGHT radius=Radius::Sm>
                 <ChildBlock
                     editor={editor}
                     block={block}

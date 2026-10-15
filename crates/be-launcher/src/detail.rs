@@ -15,7 +15,6 @@ use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
 #[cfg(not(target_os = "android"))]
 use crate::workspace::{Actions, Notes};
 use beui::TextAlign;
-use beui::styled::theme::CARD_RADIUS;
 
 const SPACING: f32 = 12.0;
 const CARD_PADDING: f32 = 12.0;
@@ -208,8 +207,8 @@ fn StateBadge(state: Memo<State>) -> NodeId {
     });
     view! {
         <Frame
-            fill=fill
-            radius=BADGE_RADIUS
+            fill={ColorRole::custom(fill)}
+            radius={Radius::custom(BADGE_RADIUS)}
             padding={Sides::symmetric(BADGE_PADDING_HORIZONTAL, BADGE_PADDING_VERTICAL)}
         >
             <Text color={ink}>
@@ -268,14 +267,14 @@ fn CommentCard(
     view! {
         <Frame padding={Sides::vertical(6.0)}>
             <Frame
-                fill={theme.surface}
-                outline={create_memo(move || Some(Outline::new(outline.get(), 1.0)))}
-                radius=CARD_RADIUS
+                fill=ColorRole::Surface
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(1.0)))}
+                radius=Radius::Lg
             >
                 <List spacing=0.0>
                     <Frame
-                        fill={theme.surface_raised}
-                        radius={Corners::top(CARD_RADIUS)}
+                        fill=ColorRole::SurfaceRaised
+                        radius={Radius::Custom(Corners::top(Radius::Lg.px()))}
                         padding={Sides::symmetric(CARD_PADDING, 8.0)}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -305,7 +304,6 @@ fn CommentCard(
 
 #[component]
 fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
-    let theme = use_theme();
     let InlineComment {
         author,
         location,
@@ -313,9 +311,9 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
     } = comment;
     view! {
         <Frame
-            fill={theme.background}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=6.0
+            fill=ColorRole::Background
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius=Radius::Md
             padding={Sides::symmetric(10.0, 8.0)}
         >
             <List spacing=6.0>
@@ -363,7 +361,7 @@ fn Avatar(model: Model, url: String) -> NodeId {
         _ => None,
     });
     view! {
-        <Frame width=AVATAR height=AVATAR radius=12.0 fill={use_theme().border}>
+        <Frame width=AVATAR height=AVATAR radius={Radius::custom(12.0)} fill=ColorRole::Border>
             <Picture image={picture} radius={AVATAR / 2.0} />
         </Frame>
     }
@@ -424,17 +422,12 @@ fn BlockView(model: Model, block: Block) -> NodeId {
 
 #[component]
 fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
-    let theme = use_theme();
     let columns = rows.iter().map(Vec::len).max().unwrap_or(0).max(1);
     let keys: Vec<(usize, usize)> = (0..rows.len())
         .flat_map(|row| (0..columns).map(move |column| (row, column)))
         .collect();
     view! {
-        <Frame
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=6.0
-            padding=8.0
-        >
+        <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md padding=8.0>
             <Grid columns={vec![Track::Fraction(1.0); columns]} column_spacing=8.0 row_spacing=8.0>
                 <ForEach keys>
                     {move |(row, column): (usize, usize)| {
@@ -458,9 +451,8 @@ fn Prose(text: String) -> NodeId {
 
 #[component]
 fn CodeBlock(text: String) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} radius=6.0 padding={Sides::symmetric(10.0, 8.0)}>
+        <Frame fill=ColorRole::Background radius=Radius::Md padding={Sides::symmetric(10.0, 8.0)}>
             <Text string={text} size=TextSize::Sm family=Family::Mono wrap=true />
         </Frame>
     }
@@ -468,10 +460,9 @@ fn CodeBlock(text: String) -> NodeId {
 
 #[component]
 fn Quote(text: String) -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=10.0>
-            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) fill={theme.border} />
+            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) fill=ColorRole::Border />
             <Text @sizing=ItemSize::Percent(100.0) string={text} color=TextColor::Muted wrap=true />
         </List>
     }
@@ -479,11 +470,15 @@ fn Quote(text: String) -> NodeId {
 
 #[component]
 fn Item(text: String) -> NodeId {
-    let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=BULLET_INDENT>
             <Frame padding={Sides::symmetric(BULLET_INDENT, 7.0)}>
-                <Frame width=BULLET height=BULLET radius=3.0 fill={theme.text_muted} />
+                <Frame
+                    width=BULLET
+                    height=BULLET
+                    radius={Radius::custom(3.0)}
+                    fill=ColorRole::TextMuted
+                />
             </Frame>
             <Text @sizing=ItemSize::Percent(100.0) string={text} wrap=true />
         </List>

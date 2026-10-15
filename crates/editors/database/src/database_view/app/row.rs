@@ -122,10 +122,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let wide = create_memo(move || !narrow.get());
     let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
     let editor = data.editor();
-    let theme = use_theme();
     view! {
         <BackHandler on_back={back}>
-            <Frame fill={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <List spacing=0.0>
                     <Frame padding={Sides::symmetric(SPACING, 6.0)}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>

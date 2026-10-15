@@ -87,9 +87,8 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=SPACING>

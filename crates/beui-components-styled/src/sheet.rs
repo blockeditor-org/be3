@@ -1,6 +1,7 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use crate::theme::{BORDER_WIDTH, use_theme};
+use crate::theme::BORDER_WIDTH;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SHEET_STOPS, SheetGripHandle};
 use beui_core::color::Color32;
@@ -74,20 +75,23 @@ pub fn ModalSheet(
 
 #[component]
 fn SheetPanel(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.surface}>{children}</Frame>
+        <Frame fill=ColorRole::Surface>{children}</Frame>
     }
 }
 
 #[component]
 fn SheetGrip() -> NodeId {
-    let theme = use_theme();
     view! {
         <List spacing=0.0>
-            <Frame height=BORDER_WIDTH fill={theme.border} />
+            <Frame height=BORDER_WIDTH fill=ColorRole::Border />
             <Frame height=HANDLE_HEIGHT align=Align::Center>
-                <Frame width=GRIP_WIDTH height=GRIP_HEIGHT radius=2.0 fill={theme.text_muted} />
+                <Frame
+                    width=GRIP_WIDTH
+                    height=GRIP_HEIGHT
+                    radius=Radius::Xs
+                    fill=ColorRole::TextMuted
+                />
             </Frame>
         </List>
     }

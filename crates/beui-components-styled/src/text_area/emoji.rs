@@ -1,7 +1,8 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::text::{Text, TextColor, TextSize};
-use crate::theme::{RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled::{CompletionMenu, CompletionRowHandle};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
@@ -30,13 +31,12 @@ pub fn emoji_menu() -> CompletionMenu {
 
 #[component]
 fn EmojiPanel(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
             width=MENU_WIDTH
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-            radius=RADIUS
+            fill=ColorRole::SurfaceRaised
+            border={Border::new(ColorRole::Border).width(1.0)}
+            radius=Radius::Md
             padding=4.0
         >
             {children}
@@ -59,7 +59,11 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
         false => Color32::TRANSPARENT,
     });
     view! {
-        <Frame fill=fill radius=RADIUS padding={Sides::symmetric(8.0, 3.0)}>
+        <Frame
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            padding={Sides::symmetric(8.0, 3.0)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Frame width=EMOJI_COLUMN>
                     <Text string={emoji} size=TextSize::Lg align=TextAlign::Center />

@@ -1,7 +1,8 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{FOCUS_RING_WIDTH, RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_core::font::TextAlign;
 use beui_core::icons::ICON_CHEVRON_RIGHT;
@@ -86,9 +87,9 @@ pub(crate) fn ActionRowFace(
     view! {
         <Frame
             height=ROW_HEIGHT
-            fill=fill
-            radius=RADIUS
-            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, 0.0)}
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
+            border={focus_border(focused, Border::FOCUS)}
             padding={Sides::horizontal(PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

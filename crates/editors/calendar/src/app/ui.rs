@@ -95,9 +95,8 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton

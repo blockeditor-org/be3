@@ -4,9 +4,8 @@ use beui::styled::*;
 
 #[component]
 pub fn Loading(#[prop(default = "Loading".to_owned())] label: Prop<String>) -> NodeId {
-    let theme = use_theme();
     view! {
-        <Frame @test_id={"editor.loading"} fill={theme.background}>
+        <Frame @test_id={"editor.loading"} fill=ColorRole::Background>
             <List spacing=0.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Spinner label={label} />

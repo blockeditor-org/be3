@@ -37,9 +37,8 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
         })
     });
     let none = create_memo(move || displays.with(Vec::is_empty));
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <Scroll>
                 <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>

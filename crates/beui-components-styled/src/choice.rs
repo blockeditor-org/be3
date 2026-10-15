@@ -1,10 +1,11 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
 use beui_view::primitives::*;
@@ -36,9 +37,9 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
     view! {
         <Frame
-            fill=fill_color
-            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, 1.0)}
-            radius=RADIUS
+            fill={ColorRole::custom(fill_color)}
+            border={focus_border(focused, Border::FOCUS.offset(1.0))}
+            radius=Radius::Md
             padding={Sides::symmetric(14.0, 6.0)}
         >
             <ChoiceLabel kind label color={label_color} checked />
@@ -76,16 +77,16 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
         <Frame
             width=MARK_BOX
             height=MARK_BOX
-            outline={create_memo(move || Some(Outline::new(ring_color.get(), 2.0)))}
-            radius=MARK_RADIUS
+            border={create_memo(move || Some(Border::new(ColorRole::Custom(ring_color.get())).width(2.0)))}
+            radius={Radius::custom(MARK_RADIUS)}
             align=Align::Center
         >
             <Frame
                 visible={checked}
                 width=MARK_DOT
                 height=MARK_DOT
-                fill={theme.accent}
-                radius=MARK_RADIUS
+                fill=ColorRole::Accent
+                radius={Radius::custom(MARK_RADIUS)}
             />
         </Frame>
     }

@@ -1,6 +1,6 @@
+use beui_components_styled::Radius;
 use beui_components_styled::TextSize;
 use beui_components_styled::Theme;
-use beui_components_styled::theme::CHIP_RADIUS;
 use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
@@ -298,7 +298,7 @@ impl Keyboard {
             } else {
                 Theme::DARK.text
             };
-            painter.rect_filled(bounds, CHIP_RADIUS, fill);
+            painter.rect_filled(bounds, Radius::Sm.px(), fill);
             match cap.face {
                 Face::Named {
                     icon: Some(icon), ..

@@ -3,8 +3,8 @@ use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::painter::Painter;
 
+use beui_components_styled::Radius;
 use beui_components_styled::Theme;
-use beui_components_styled::theme::CHIP_RADIUS;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 
@@ -82,7 +82,7 @@ fn label(painter: &Painter, rect: Rect, text: &str) {
     };
     let left = rect.left().min(clip.right() - size.x).max(clip.left());
     let box_rect = Rect::from_min_size(pos2(left, top), size);
-    painter.rect_filled(box_rect, CHIP_RADIUS, Theme::DARK.accent);
+    painter.rect_filled(box_rect, Radius::Sm.px(), Theme::DARK.accent);
     painter.galley(
         box_rect.min + vec2(LABEL_PADDING, LABEL_PADDING),
         galley,

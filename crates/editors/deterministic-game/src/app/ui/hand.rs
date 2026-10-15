@@ -50,7 +50,6 @@ pub(crate) fn HandBar(
             {move |rect: ReadSignal<Rect>| {
                 let bar = rect;
                 create_effect(move || set_bar.set(bar.get()));
-                let theme = use_theme();
                 let shown = create_memo(move || !hand.with(Vec::is_empty));
                 let height =
                     create_memo(move || Some(if shown.get() { BAR_HEIGHT } else { 0.0 }));
@@ -61,8 +60,8 @@ pub(crate) fn HandBar(
                 view! {
                     <Frame
                         height=height
-                        fill={theme.surface}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        fill=ColorRole::Surface
+                        border={Border::new(ColorRole::Border).width(1.0)}
                         visible={shown}
                         @test_id={"game.hand"}
                     >

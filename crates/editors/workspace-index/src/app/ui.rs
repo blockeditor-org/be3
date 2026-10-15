@@ -139,7 +139,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         _ => theme.danger.get(),
     });
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <Select
@@ -185,7 +185,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @node_ref={&content}
-                    outline={create_memo(move || hovering.get().then(|| Outline::new(outline.get(), DROP_OUTLINE)))}
+                    border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
                     padding=PADDING
                 >
                     <List spacing=0.0>

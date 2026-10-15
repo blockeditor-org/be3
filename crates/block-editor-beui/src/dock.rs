@@ -1,6 +1,5 @@
 use beui::NodeId;
 use beui::reactive::*;
-use beui::styled::theme::BORDER_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{Edge, Floating};
 
@@ -21,16 +20,15 @@ pub fn BottomDock(
 ) -> NodeId {
     let sheet = sheet_open();
     let open = create_memo(move || open.get() && !sheet.get());
-    let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::Bottom open={open}>
             <Frame padding=DOCK_MARGIN>
                 <List align=Align::Center spacing=0.0>
                     <Frame children={above} />
                     <Frame
-                        fill={theme.surface_raised}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-                        radius=DOCK_RADIUS
+                        fill=ColorRole::SurfaceRaised
+                        border={Border::DEFAULT}
+                        radius={Radius::custom(DOCK_RADIUS)}
                         padding=DOCK_PADDING
                         @test_id={name}
                     >

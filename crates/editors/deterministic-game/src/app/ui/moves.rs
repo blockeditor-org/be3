@@ -233,7 +233,11 @@ fn MoveCell(
             @test_id={format!("game.history.{row}.{column}")}
             on_click={open}
             content={move |_: unstyled::ButtonHandle| view! {
-                <Frame fill=fill radius=4.0 padding={Sides::symmetric(6.0, 3.0)}>
+                <Frame
+                    fill={ColorRole::custom(fill)}
+                    radius=Radius::Sm
+                    padding={Sides::symmetric(6.0, 3.0)}
+                >
                     <Text string={text} size=TextSize::Sm color={color} />
                 </Frame>
             }}

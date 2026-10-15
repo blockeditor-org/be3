@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
@@ -54,9 +55,9 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     let title_color = TextColor::Default;
     view! {
         <Frame
-            fill=header_color
-            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, 2.0)}
-            radius=RADIUS
+            fill={ColorRole::custom(header_color)}
+            border={focus_border(focused, Border::FOCUS.offset(2.0))}
+            radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

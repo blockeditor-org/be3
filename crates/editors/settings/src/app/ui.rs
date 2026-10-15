@@ -55,10 +55,9 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let loaded =
         editor.loaded::<SettingsContent>(&[BlockQuery::Roots, BlockQuery::Children(block)]);
     let children = editor.watch_blocks(BlockQuery::Children(block));
-    let theme = use_theme();
     view! {
         <Loaded loaded={loaded}>
-            <Frame fill={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <Scroll>
                     <Frame padding=PADDING>
                         <List spacing=SPACING>
@@ -164,10 +163,9 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         }) == Some(Some(block))
     });
     let unused = create_memo(move || !used.get() && !blocked.get());
-    let theme = use_theme();
     view! {
         <Loaded loaded={loaded}>
-            <Frame fill={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <Scroll>
                     <Frame padding=PADDING>
                         <List spacing=SPACING>

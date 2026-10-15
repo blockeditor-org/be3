@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::Dismiss;
 use std::time::{Duration, Instant};
 
@@ -6,7 +7,6 @@ use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::text::{Text, TextStyle};
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Rect;
@@ -153,7 +153,6 @@ fn KeepChangesCard(
     on_keep: ClickCallback,
     on_revert: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let inset = create_memo(move || Sides::new(place.get().left(), place.get().top(), 0.0, 0.0));
     let width = create_memo(move || place.get().width());
     let height = create_memo(move || place.get().height());
@@ -169,9 +168,9 @@ fn KeepChangesCard(
                 <Frame padding=MARGIN>
                     <Frame
                         width={Extent::at_most(WIDTH)}
-                        fill={theme.surface_raised}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-                        radius=CARD_RADIUS
+                        fill=ColorRole::SurfaceRaised
+                        border={Border::DEFAULT}
+                        radius=Radius::Lg
                         padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                         @test_id={id.clone()}
                     >

@@ -25,12 +25,11 @@ pub(crate) fn ImportError(state: State) -> NodeId {
 
 #[component]
 fn ImportErrorRow(state: State) -> NodeId {
-    let theme = use_theme();
     let error = state.import_error;
     let message = create_memo(move || error.get().unwrap_or_default());
     view! {
         <Frame
-            fill={theme.surface}
+            fill=ColorRole::Surface
             padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>

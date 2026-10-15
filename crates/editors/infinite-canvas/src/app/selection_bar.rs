@@ -7,7 +7,6 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::ICON_TUNE;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle};
 use block_editor_beui::{narrow_chrome, sheet_control};
@@ -36,12 +35,11 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
             sheet.set(true);
         }
     };
-    let theme = use_theme();
     view! {
         <Frame
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius={Radius::custom(RADIUS)}
             padding=6.0
             @test_id={"infinite-canvas.selection-bar"}
         >
@@ -116,15 +114,15 @@ pub(crate) fn Swatch(
                 view! {
                     <Frame
                         padding=SWATCH_RING
-                        radius=16.0
-                        outline={create_memo(move || ringed.get().then(|| Outline::new(ring.get(), 2.0)))}
+                        radius={Radius::custom(16.0)}
+                        border={create_memo(move || ringed.get().then(|| Border::new(ColorRole::Custom(ring.get())).width(2.0)))}
                     >
                         <Frame
                             width=SWATCH
                             height=SWATCH
-                            radius=11.0
-                            fill=fill
-                            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
+                            radius={Radius::custom(11.0)}
+                            fill={ColorRole::custom(fill)}
+                            border={Border::DEFAULT}
                         />
                     </Frame>
                 }

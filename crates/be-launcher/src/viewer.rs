@@ -45,7 +45,6 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
                 .is_none_or(|viewer| viewer.index + 1 >= viewer.images.len())
         })
     });
-    let theme = use_theme();
     let close = move || model.close_image();
     let previous = move || model.step_image(-1);
     let next = move || model.step_image(1);
@@ -69,7 +68,7 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
     };
     view! {
         <Fullscreen open={open} on_dismiss={close}>
-            <Frame fill={theme.background} padding=PADDING>
+            <Frame fill=ColorRole::Background padding=PADDING>
                 <List spacing=PADDING>
                     <ViewerBar
                         position

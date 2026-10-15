@@ -60,9 +60,8 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
         editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>

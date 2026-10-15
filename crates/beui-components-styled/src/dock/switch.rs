@@ -1,8 +1,8 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::list_row::ListRow;
 use crate::text::{Icon, Text, TextColor};
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_components_unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
 use beui_core::base::{Align, Direction};
 use beui_core::font::TextAlign;
@@ -19,13 +19,12 @@ const ICON_SPACING: f32 = 10.0;
 #[component]
 pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
     let DockSwitchHandle { tabs, row, .. } = handle;
-    let theme = use_theme();
     view! {
         <Frame
             width=PANEL_WIDTH
-            radius=CARD_RADIUS
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
+            radius=Radius::Lg
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
             padding=PANEL_PADDING
         >
             <List spacing=ROW_SPACING>

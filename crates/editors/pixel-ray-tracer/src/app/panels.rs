@@ -107,9 +107,9 @@ fn Swatch(state: RayState, index: usize) -> NodeId {
                 <Frame
                     width=SWATCH
                     height=SWATCH
-                    fill=color
-                    radius=3.0
-                    outline={create_memo(move || picked.get().then(|| Outline::new(outline.get(), 2.0)))}
+                    fill={ColorRole::custom(color)}
+                    radius={Radius::custom(3.0)}
+                    border={create_memo(move || picked.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(2.0)))}
                 />
             </Pressable>
         </Tooltip>

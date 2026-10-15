@@ -1,10 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
-use crate::theme::{BORDER_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -121,7 +121,6 @@ fn ToastCard(
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
 ) -> NodeId {
-    let theme = use_theme();
     let Toast {
         id,
         title,
@@ -197,9 +196,9 @@ fn ToastCard(
     view! {
         <Frame
             @test_id={format!("toast.{id}")}
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List spacing=SPACING>

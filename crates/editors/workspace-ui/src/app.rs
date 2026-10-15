@@ -74,9 +74,8 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
-    let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} fill={theme.background}>
+        <Frame @node_ref={&surface} fill=ColorRole::Background>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>

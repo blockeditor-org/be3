@@ -132,7 +132,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         set_landing.set(landed);
     });
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={toolbar}>
                     <IconButton
@@ -570,9 +570,9 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
             <Frame
                 width=ADD_WIDTH
                 height=ADD_WIDTH
-                fill=fill
-                outline={focus_outline(focused, theme.accent, 1.0, 0.0)}
-                radius=3.0
+                fill={ColorRole::custom(fill)}
+                border={focus_border(focused, Border::new(ColorRole::Accent).width(1.0))}
+                radius={Radius::custom(3.0)}
             >
                 <Text size=TextSize::Xs color={color} align=TextAlign::Center>
                     <Icon glyph={ICON_ADD.to_owned()} />

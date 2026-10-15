@@ -96,9 +96,8 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
         artifact.settings.rename_with_source = on;
         edited.edit_settings(artifact.encode());
     };
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=SETTINGS_PADDING>
+        <Frame fill=ColorRole::Background padding=SETTINGS_PADDING>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <Checkbox

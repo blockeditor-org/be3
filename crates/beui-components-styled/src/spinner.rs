@@ -1,9 +1,9 @@
+use crate::frame::{ColorRole, Frame, Radius};
 use std::time::Duration;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::theme::use_theme;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -48,15 +48,14 @@ pub fn Spinner(
         false => ticking.stop(),
     });
     let width = create_memo(move || Some(width.get()));
-    let theme = use_theme();
     view! {
-        <Frame width=width height=HEIGHT fill={theme.track} radius=RADIUS>
+        <Frame width=width height=HEIGHT fill=ColorRole::Track radius={Radius::custom(RADIUS)}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Spacer @sizing={before} />
                 <Frame
                     @sizing=ItemSize::Percent(SEGMENT * 100.0)
-                    fill={theme.accent}
-                    radius=RADIUS
+                    fill=ColorRole::Accent
+                    radius={Radius::custom(RADIUS)}
                 />
                 <Spacer @sizing={after} />
             </List>

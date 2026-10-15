@@ -386,7 +386,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    outline={create_memo(move || Some(Outline::new(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA), border.get())))}
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(border.get())))}
                 />
             </CanvasItem>
             <CanvasItem x={preview_x} y={preview_y} width={preview_width} height={preview_height}>
@@ -420,13 +420,18 @@ fn Artwork(
                     };
                     view! {
                         <CanvasItem x={x} y={y} width={line_width} height={line_height}>
-                            <Frame fill={Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA)} />
+                            <Frame
+                                fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, GRID_ALPHA))}
+                            />
                         </CanvasItem>
                     }
                 }}
             </ForEach>
             <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
-                <Frame visible={over} outline={Outline::new(Color32::WHITE, 1.0)} />
+                <Frame
+                    visible={over}
+                    border={Border::new(ColorRole::Custom(Color32::WHITE)).width(1.0)}
+                />
             </CanvasItem>
         </Canvas>
     }

@@ -106,9 +106,8 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
             .unwrap_or_default()
     });
     let shown = create_memo(move || panel);
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Dynamic value={shown}>
                     {move |panel: HostPanel| {
@@ -475,7 +474,6 @@ fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
 
 #[component]
 fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
-    let theme = use_theme();
     let field = |read: fn(&RunView) -> String| {
         create_memo(move || run.get().map(|run| read(&run)).unwrap_or_default())
     };
@@ -498,9 +496,9 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
     view! {
         <Frame padding={Sides::vertical(4.0)}>
             <Frame
-                fill={theme.surface}
-                outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
-                radius=6.0
+                fill=ColorRole::Surface
+                border={Border::new(ColorRole::Border).width(1.0)}
+                radius=Radius::Md
                 padding={Sides::symmetric(10.0, 8.0)}
             >
                 <List spacing=4.0>

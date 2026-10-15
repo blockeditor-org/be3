@@ -1,12 +1,11 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::button::{ButtonFace, ButtonVariant};
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{PopoverHandle, PopoverTriggerHandle};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub const PANEL_PADDING: f32 = 12.0;
@@ -53,12 +52,11 @@ pub fn PopoverPanel(
     #[prop(default = None)] max_width: Prop<Option<f32>>,
     children: Child,
 ) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=CARD_RADIUS
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Lg
             padding=PANEL_PADDING
             width={max_width.map(|max| Extent { max, ..Extent::INTRINSIC })}
         >

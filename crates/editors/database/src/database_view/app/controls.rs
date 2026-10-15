@@ -2,7 +2,6 @@ use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::context_menu::menu_style;
-use block_editor_beui::beui::styled::theme::RADIUS;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
@@ -31,9 +30,9 @@ pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
     });
     view! {
         <Frame
-            fill=fill
-            outline={create_memo(move || focused.get().then(|| Outline::new(theme.accent.get(), 2.0)))}
-            radius=RADIUS
+            fill={ColorRole::custom(fill)}
+            border={create_memo(move || focused.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+            radius=Radius::Md
             padding={Sides::symmetric(8.0, 5.0)}
         >
             {children}

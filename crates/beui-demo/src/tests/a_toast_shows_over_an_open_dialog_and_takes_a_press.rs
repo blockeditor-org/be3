@@ -11,7 +11,6 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
     let (heard, set_heard) = create_signal(Vec::<String>::new());
     let (dismissed, set_dismissed) = create_signal(0);
     let document = build(move || {
-        let theme = use_theme();
         let area = NodeRef::new();
         let toasts = vec![Toast {
             id: 1,
@@ -25,7 +24,7 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
             ..Toast::default()
         }];
         view! {
-            <Frame @node_ref=&area fill={theme.background}>
+            <Frame @node_ref=&area fill=ColorRole::Background>
                 <List spacing=0.0>
                     <Dialog
                         open=true

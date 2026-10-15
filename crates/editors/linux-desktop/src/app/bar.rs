@@ -55,7 +55,6 @@ pub(crate) fn DesktopBar(
     launcher: ProgramLauncher,
     placeholders: Placeholders,
 ) -> NodeId {
-    let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
@@ -93,7 +92,7 @@ pub(crate) fn DesktopBar(
     view! {
         <List spacing=0.0>
             <Separator />
-            <Frame fill={theme.surface} padding=BAR_PADDING @test_id={"desktop.bar"}>
+            <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <IconButton
                         glyph={ICON_MENU.to_owned()}

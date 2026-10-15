@@ -1,3 +1,4 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::layer::Dismiss;
 use std::rc::Rc;
 
@@ -7,7 +8,7 @@ use beui_macros::{component, view};
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextStyle};
 use crate::text_input::text_input_style;
-use crate::theme::{BORDER_WIDTH, CARD_RADIUS, RADIUS, use_theme};
+use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, Picture, TextInputHandle};
 use beui_core::base::TextAlign;
@@ -254,7 +255,6 @@ pub fn Launcher(
         node.set_label("Search programs");
         node
     });
-    let theme = use_theme();
     view! {
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
@@ -266,9 +266,9 @@ pub fn Launcher(
                 <Frame padding=MARGIN>
                     <Frame
                         width={Extent::at_most(WIDTH)}
-                        fill={theme.surface_raised}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-                        radius=CARD_RADIUS
+                        fill=ColorRole::SurfaceRaised
+                        border={Border::DEFAULT}
+                        radius=Radius::Lg
                         padding=PADDING
                         @test_id={"launcher"}
                     >
@@ -309,13 +309,12 @@ pub fn Launcher(
 #[component]
 fn LauncherSearch(handle: TextInputHandle) -> NodeId {
     let TextInputHandle { field, .. } = handle;
-    let theme = use_theme();
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            fill={theme.surface}
-            outline={create_memo(move || Some(Outline::new(theme.accent.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Accent)}
+            radius=Radius::Md
             padding={Sides::horizontal(ROW_PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -419,8 +418,8 @@ fn LauncherRowFace(
     let described = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame
-            fill=fill
-            radius=RADIUS
+            fill={ColorRole::custom(fill)}
+            radius=Radius::Md
             padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>

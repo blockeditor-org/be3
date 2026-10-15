@@ -92,9 +92,8 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let keyed = editor.host_offers::<Media>();
     let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
-    let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} fill={theme.background}>
+        <Frame @node_ref={&surface} fill=ColorRole::Background>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking

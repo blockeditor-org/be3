@@ -1,5 +1,6 @@
 use super::*;
 use crate::base::ScrollPosition;
+use crate::primitives::Frame;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;

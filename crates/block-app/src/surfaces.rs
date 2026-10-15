@@ -191,7 +191,12 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     };
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
-        <Frame fill=surface outline={Outline::new(outline, 1.0)} radius=5.0 padding=12.0>
+        <Frame
+            fill={ColorRole::custom(surface)}
+            border={Border::new(ColorRole::Custom(outline)).width(1.0)}
+            radius={Radius::custom(5.0)}
+            padding=12.0
+        >
             <List spacing=8.0 align=Align::Center>
                 <Show condition={unsupported}>
                     <Text

@@ -1,10 +1,11 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::action_row::ActionRowFace;
 use crate::border::Separator;
 use crate::sheet::ModalSheet;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{BORDER_WIDTH, RADIUS, SCROLL_FADE, ThemeStore, use_theme};
+use crate::theme::{SCROLL_FADE, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     MenuItem, MenuRowHandle, MenuSheetHandle, MenuStyle, ScrollbarStyle,
@@ -122,8 +123,8 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
                 <Separator />
             </Show>
             <Frame
-                fill=fill_color
-                radius=RADIUS
+                fill={ColorRole::custom(fill_color)}
+                radius=Radius::Md
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
@@ -210,13 +211,12 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
 
 #[component]
 fn MenuPanel(children: Child) -> NodeId {
-    let theme = use_theme();
     view! {
         <Frame
             width=MENU_WIDTH
-            fill={theme.surface_raised}
-            outline={create_memo(move || Some(Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
         >
             <unstyled::Scroll
                 fit=true

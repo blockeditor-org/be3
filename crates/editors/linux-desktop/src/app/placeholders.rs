@@ -205,7 +205,6 @@ fn PlaceholderBody(
     on_open: ClickCallback,
     on_dismiss: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let pictured = create_memo(move || picture.with(Option::is_some));
     let plain = create_memo(move || !pictured.get());
     let unopenable = create_memo(move || !openable.get());
@@ -215,7 +214,7 @@ fn PlaceholderBody(
     });
     view! {
         <Frame
-            fill={theme.background}
+            fill=ColorRole::Background
             padding=BODY_PADDING
             @test_id={format!("desktop.placeholder.{}", key.0)}
         >

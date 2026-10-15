@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
 use crate::text::{Icon, Text};
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuButtonHandle, MenuItem};
@@ -39,9 +40,9 @@ pub fn SplitButton(
     let fill = create_memo(move || variant.fill(&theme, disabled.get(), false, false));
     view! {
         <Frame
-            fill=fill
-            outline={create_memo(move || (variant == ButtonVariant::Secondary).then(|| Outline::new(theme.border.get(), BORDER_WIDTH)))}
-            radius=RADIUS
+            fill={ColorRole::custom(fill)}
+            border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
+            radius=Radius::Md
             padding=INSET
         >
             <unstyled::SplitButton
@@ -125,7 +126,7 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame padding={Sides::vertical(DIVIDER_INSET)}>
-                <Frame width=DIVIDER_WIDTH fill=divider />
+                <Frame width=DIVIDER_WIDTH fill={ColorRole::custom(divider)} />
             </Frame>
             <Tooltip label disabled={open}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
@@ -163,17 +164,16 @@ fn HalfFace(
     padding: f32,
     children: beui_view::reactive::Child,
 ) -> NodeId {
-    let theme = use_theme();
-    let (ring_left, ring_right) = side.corners(RADIUS);
-    let (fill_left, fill_right) = side.corners(RADIUS - INSET);
+    let (ring_left, ring_right) = side.corners(Radius::Md.px());
+    let (fill_left, fill_right) = side.corners(Radius::Md.px() - INSET);
     view! {
         <Frame
-            outline={focus_outline(focused, theme.accent, FOCUS_RING_WIDTH, FOCUS_RING_OFFSET)}
-            radius={Corners::new(ring_left, ring_right, ring_right, ring_left)}
+            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            radius={Radius::Custom(Corners::new(ring_left, ring_right, ring_right, ring_left))}
         >
             <Frame
-                fill=fill
-                radius={Corners::new(fill_left, fill_right, fill_right, fill_left)}
+                fill={ColorRole::custom(fill)}
+                radius={Radius::Custom(Corners::new(fill_left, fill_right, fill_right, fill_left))}
                 padding={Sides::symmetric(padding, PADDING_VERTICAL)}
             >
                 {children}

@@ -8,7 +8,6 @@ use super::*;
 
 fn level_display() -> DocumentTest {
     let document = build(move || {
-        let theme = use_theme();
         let (shown, set_shown) = create_signal(0_u64);
         let level = Some(OsdLevel {
             glyph: ICON_VOLUME_UP.to_owned(),
@@ -17,7 +16,7 @@ fn level_display() -> DocumentTest {
             muted: false,
         });
         view! {
-            <Frame fill={theme.background}>
+            <Frame fill=ColorRole::Background>
                 <List spacing=0.0>
                     <Button
                         @test_id={"test.show"}

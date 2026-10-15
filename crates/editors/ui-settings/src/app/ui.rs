@@ -23,9 +23,8 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
         )
     });
     let read_only = editor.read_only();
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=8.0>
                 <Text style=TextStyle::CAPTION string="Theme" />
                 <Select

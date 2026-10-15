@@ -1,9 +1,10 @@
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use crate::text::{Icon, Text, TextColor};
-use crate::theme::{RADIUS, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
@@ -77,9 +78,9 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     view! {
         <FocusRing focused offset=3.0>
             <Frame
-                fill=fill_color
-                outline={create_memo(move || Some(Outline::new(border_color.get(), 1.0)))}
-                radius=RADIUS
+                fill={ColorRole::custom(fill_color)}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}
+                radius=Radius::Md
                 padding={Sides::symmetric(14.0, 8.0)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>

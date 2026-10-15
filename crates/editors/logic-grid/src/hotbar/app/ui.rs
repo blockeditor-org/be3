@@ -47,9 +47,8 @@ pub fn HotbarView(editor: Editor) -> NodeId {
     let empty = create_memo(move || rows.with(Vec::is_empty));
     let read_only = editor.read_only();
 
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=PADDING>
+        <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={empty}>
                     <Text

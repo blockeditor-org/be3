@@ -399,7 +399,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                     rows,
                 };
                 view! {
-                    <Frame fill={COLORS.surface}>
+                    <Frame fill={ColorRole::Custom(COLORS.surface)}>
                         <Scroll focus_color={Color32::TRANSPARENT}>
                             <Interactive
                                 focusable=true

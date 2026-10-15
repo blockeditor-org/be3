@@ -8,7 +8,6 @@ use super::*;
 fn toasts_on_the_top_edge_stack_in_the_top_corner() {
     let size = Vec2::new(800.0, 500.0);
     let document = build(move || {
-        let theme = use_theme();
         let area = NodeRef::new();
         let toasts = vec![
             Toast {
@@ -30,7 +29,7 @@ fn toasts_on_the_top_edge_stack_in_the_top_corner() {
             },
         ];
         view! {
-            <Frame @node_ref=&area fill={theme.background}>
+            <Frame @node_ref=&area fill=ColorRole::Background>
                 <Toasts
                     anchor={area}
                     edge=Edge::TopEnd

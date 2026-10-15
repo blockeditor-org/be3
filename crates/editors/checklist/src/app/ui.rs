@@ -78,9 +78,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
         }
     };
 
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background} padding=PAGE_PADDING>
+        <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
                     <Text style=TextStyle::HEADING string="Checklist" />
@@ -187,9 +186,12 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
         })
     });
     let done = create_memo(move || item.with(|item| item.as_ref().is_some_and(|item| item.done)));
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.surface_raised} radius=6.0 padding={Sides::symmetric(12.0, 10.0)}>
+        <Frame
+            fill=ColorRole::SurfaceRaised
+            radius=Radius::Md
+            padding={Sides::symmetric(12.0, 10.0)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)

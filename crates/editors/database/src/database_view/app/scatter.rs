@@ -29,9 +29,8 @@ pub fn Scatter(data: Data) -> NodeId {
     let axes = axis_fields(data);
     let missing = create_memo(move || axes.get().is_none());
     let ready = create_memo(move || axes.get().is_some());
-    let theme = use_theme();
     view! {
-        <Frame fill={theme.background}>
+        <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding=12.0>
@@ -113,10 +112,10 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                     >
                         <Canvas>
                             <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
-                                <Frame fill=axis_color />
+                                <Frame fill={ColorRole::custom(axis_color)} />
                             </CanvasItem>
                             <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
-                                <Frame fill=rule_color />
+                                <Frame fill={ColorRole::custom(rule_color)} />
                             </CanvasItem>
                             <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
                                 <Text style=TextStyle::CAPTION string={x_low} />
@@ -208,10 +207,14 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
         true => theme.accent.get(),
         false => theme.text.get(),
     });
-    let radius = create_memo(move || (side.get() * 0.5).floor());
+    let radius = create_memo(move || Radius::custom((side.get() * 0.5).floor()));
     view! {
         <CanvasItem x={x} y={y} width={width} height={side}>
-            <Frame @test_id={format!("database-view.point.{row}")} fill=color radius=radius />
+            <Frame
+                @test_id={format!("database-view.point.{row}")}
+                fill={ColorRole::custom(color)}
+                radius=radius
+            />
         </CanvasItem>
     }
 }

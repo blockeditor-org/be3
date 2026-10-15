@@ -1,3 +1,4 @@
+use crate::frame::Frame;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
