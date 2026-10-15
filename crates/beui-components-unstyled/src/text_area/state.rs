@@ -151,7 +151,7 @@ struct Inner {
     heights: RefCell<HashMap<u64, (f32, f32)>>,
     find: Find,
     canvas: NodeRef,
-    cursor_cache: RefCell<(Vec<CursorPosition>, Option<std::ops::Range<usize>>)>,
+    cursor_cache: RefCell<CursorCache>,
     selecting: Cell<bool>,
     show_runs: Cell<bool>,
     touch_mode: ReadSignal<bool>,
@@ -178,6 +178,13 @@ struct Inner {
     set_layout: WriteSignal<TextAreaLayout>,
 }
 
+#[derive(Default, PartialEq)]
+struct CursorCache {
+    positions: Vec<CursorPosition>,
+    indices: Vec<(Option<usize>, Option<usize>)>,
+    composition: Option<std::ops::Range<usize>>,
+}
+
 #[derive(Clone, Copy)]
 pub struct TextAreaState(Stored<Inner>);
 
@@ -202,7 +209,7 @@ impl TextAreaState {
             heights: RefCell::default(),
             find: Find::new(),
             canvas: NodeRef::new(),
-            cursor_cache: RefCell::new((Vec::new(), None)),
+            cursor_cache: RefCell::new(CursorCache::default()),
             selecting: Cell::new(false),
             show_runs: Cell::new(false),
             touch_mode,
@@ -785,14 +792,28 @@ impl TextAreaState {
 
     fn sync_cursors(&self) {
         let inner = self.0.get();
-        let positions = {
+        let cursors = {
             let core = inner.core.borrow();
-            (core.cursor_positions().to_vec(), core.composition())
+            let positions = core.cursor_positions().to_vec();
+            let indices = positions
+                .iter()
+                .map(|cursor| {
+                    (
+                        core.position_index(cursor.pos.anchor),
+                        core.position_index(cursor.pos.focus),
+                    )
+                })
+                .collect();
+            CursorCache {
+                positions,
+                indices,
+                composition: core.composition(),
+            }
         };
-        if *inner.cursor_cache.borrow() == positions {
+        if *inner.cursor_cache.borrow() == cursors {
             return;
         }
-        *inner.cursor_cache.borrow_mut() = positions;
+        *inner.cursor_cache.borrow_mut() = cursors;
         inner.cursor_counter.set(inner.cursor_counter.get() + 1);
         inner.set_cursors.set(inner.cursor_counter.get());
     }
