@@ -1,3 +1,4 @@
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::BrowserTabContent;
 use block_editor_beui::beui::reactive::view;
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -16,8 +17,11 @@ pub struct BrowserTabApp;
 
 impl block_editor_beui::BeuiApp for BrowserTabApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::BrowserTabContent>(&[]);
         view! {
-            <BrowserTab editor={editor} />
+            <Loaded loaded={loaded}>
+                <BrowserTab editor={editor} />
+            </Loaded>
         }
     }
 

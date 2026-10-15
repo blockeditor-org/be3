@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{BlockQuery, Loaded};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -14,8 +15,14 @@ pub struct WorkspaceIndexApp;
 
 impl block_editor_beui::BeuiApp for WorkspaceIndexApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded =
+            editor.loaded::<block_editor_beui::be_block::FolderContent>(&[BlockQuery::References(
+                editor.block_id(),
+            )]);
         view! {
-            <FolderEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <FolderEditor editor={editor} />
+            </Loaded>
         }
     }
 

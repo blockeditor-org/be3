@@ -8,7 +8,7 @@ use beui::reactive::{
 };
 use beui::styled::{Button, ButtonVariant, IconButton, Separator, TextColor};
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
-use block_editor_beui::{Editor, Side, Sidebar, Toolbar};
+use block_editor_beui::{Editor, Loading, Side, Sidebar, Toolbar};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::Panels;
@@ -31,9 +31,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={waiting}>
-                <Frame padding_horizontal=16.0 padding_vertical=16.0>
-                    <Text style=TextStyle::CAPTION string="Loading the grid" />
-                </Frame>
+                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
             </Show>
             <Show condition={loaded}>
                 {move || view! {

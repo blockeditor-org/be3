@@ -1,9 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
+#[cfg(target_os = "linux")]
 use block_plugin_api::{
-    Displays, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, InputDevices,
-    LinkBase, Media, MediaRequest, Message, NotificationReport, Notifications, Power, PowerAction,
-    ProgramAction, Programs, ScreenLocked, Tray, TrayRequest, WindowAction,
+    Displays, InputDevices, Media, MediaRequest, NotificationReport, Notifications, Power,
+    PowerAction, ProgramAction, Programs, ScreenLocked, Tray, TrayRequest,
+};
+use block_plugin_api::{
+    EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, LinkBase, Message,
+    WindowAction,
 };
 
 pub(super) const MAX_ACTIONS: usize = 64;
@@ -14,6 +18,7 @@ enum Access {
     Shell,
 }
 
+#[cfg(target_os = "linux")]
 const VALUES: &[(&str, Access)] = &[
     (HostWindows::KEY, Access::Shell),
     (InputDevices::KEY, Access::Anyone),
@@ -27,6 +32,13 @@ const VALUES: &[(&str, Access)] = &[
     (LinkBase::KEY, Access::Anyone),
 ];
 
+#[cfg(not(target_os = "linux"))]
+const VALUES: &[(&str, Access)] = &[
+    (HostWindows::KEY, Access::Shell),
+    (LinkBase::KEY, Access::Anyone),
+];
+
+#[cfg(target_os = "linux")]
 const ACTIONS: &[(&str, Access)] = &[
     (WindowAction::KEY, Access::Shell),
     (PowerAction::KEY, Access::Shell),
@@ -35,6 +47,9 @@ const ACTIONS: &[(&str, Access)] = &[
     (ProgramAction::KEY, Access::Shell),
     (TrayRequest::KEY, Access::Shell),
 ];
+
+#[cfg(not(target_os = "linux"))]
+const ACTIONS: &[(&str, Access)] = &[(WindowAction::KEY, Access::Shell)];
 
 fn allowed(table: &[(&str, Access)], key: &str, shell: bool) -> bool {
     table

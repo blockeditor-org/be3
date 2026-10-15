@@ -1503,6 +1503,18 @@ the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
 
+Pressing a pane's or a window's own chrome - its bar, a tab, a grip - gives the
+keyboard to the tab it shows rather than taking it: the bar is an `Interactive`
+with `press_focus=false` (guides/beui_keyboard.md), and the dock (`dock/keyboard.rs`) puts the focus in the
+panel, where it was when that tab last had it or else on the panel's first
+focusable (`Document::focus_into`, which waits a layout for a panel still being
+built). Picking a tab with the pointer does the same for the tab it shows, while
+the arrow keys leave the focus in the tab bar. When a pane stops showing a tab
+whose panel has the focus, the dock remembers where it was and gives the
+keyboard to the tab shown in its place. Each time the dock gives a tab the
+keyboard, `DockTabControl::keyboard` changes, so content whose keyboard lives
+in another document, such as a program's window, can take it there.
+
 `drag_modifier` (none unless asked for) makes the dock a window manager while
 those modifiers are held. A primary drag anywhere in a floating window - its
 content, its bar or its tabs - moves the whole window, as dragging its bar does;
@@ -1916,6 +1928,9 @@ focused field into what is left, through every scroll it sits in.
   their worker threads, and the screens this way).
 - `busy` says whether work the app is waiting on, such as a server request or a
   plugin's frame, will still change what it shows. Only a driver reads it.
+- `environment` is the variables a program needs to open its windows inside an app
+  that hosts programs (block-app's Wayland compositor). Only a driver reads it,
+  for `drive env` and `drive exec`.
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,

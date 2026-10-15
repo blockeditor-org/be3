@@ -381,15 +381,12 @@ impl CanvasState {
             self.editor.canvas().get_untracked(),
             self.editor.world().get_untracked(),
             self.cells.get().stage.get(),
-            self.centre(),
+            self.framed(),
         )
     }
 
-    pub(crate) fn centre(&self) -> CanvasPoint {
-        match self.preview {
-            true => embedded_region(&self.entities.get()).center(),
-            false => CanvasPoint::default(),
-        }
+    pub(crate) fn framed(&self) -> Option<WorldRect> {
+        self.preview.then(|| embedded_region(&self.entities.get()))
     }
 
     pub(crate) fn scale(&self) -> f32 {
@@ -487,10 +484,11 @@ pub(crate) fn camera_view(
     view: Option<CanvasView>,
     world: Option<Vec2>,
     stage: Rect,
-    centre: CanvasPoint,
+    framed: Option<WorldRect>,
 ) -> CanvasView {
+    let centre = framed.map_or_else(CanvasPoint::default, WorldRect::center);
     let Some(view) = view else {
-        let scale = 1.0;
+        let scale = framed.map_or(1.0, |framed| fit_scale(stage, framed));
         return CanvasView::new(
             Pos2::new(
                 stage.center().x - centre.x * scale,
@@ -508,6 +506,13 @@ pub(crate) fn camera_view(
         ),
         scale,
     )
+}
+
+fn fit_scale(stage: Rect, framed: WorldRect) -> f32 {
+    let size = framed.size();
+    (stage.width() / size.x.max(f32::EPSILON))
+        .min(stage.height() / size.y.max(f32::EPSILON))
+        .max(f32::EPSILON)
 }
 
 pub(crate) fn displayed_entities(

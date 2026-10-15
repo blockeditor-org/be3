@@ -1,5 +1,7 @@
 mod accounts;
 mod app_state;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+mod arguments;
 mod be;
 mod block_label;
 mod compositor;
@@ -92,30 +94,25 @@ fn storage_dir() -> Option<PathBuf> {
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 pub fn run() -> Result<(), Box<dyn Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let arguments = arguments::parse(&arguments, arguments::LINUX)?;
     #[cfg(target_os = "linux")]
-    if arguments.first().map(String::as_str) == Some("--install-session") {
-        return session::install(arguments.get(1).map(String::as_str));
+    if let Some(prefix) = &arguments.install_session {
+        return session::install(prefix.as_deref());
     }
-    let session =
-        cfg!(target_os = "linux") && arguments.iter().any(|argument| argument == "--session");
     #[cfg(target_os = "linux")]
-    if session {
+    if arguments.session {
         session::start_log();
     }
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let options = run_options();
-    for argument in arguments {
-        if argument == "--dev-workspace" {
-            app.open_dev_workspace(None);
-        } else if cfg!(target_os = "linux") && (argument == "--session" || argument == "--desktop")
-        {
-            app.run_as_desktop();
-        } else {
-            return Err(format!("unknown argument {argument}").into());
-        }
+    if arguments.dev_workspace {
+        app.open_dev_workspace(None);
     }
-    run_shell(options, Shell::new(app), session)
+    if arguments.desktop {
+        app.run_as_desktop();
+    }
+    run_shell(options, Shell::new(app), arguments.session)
 }
 
 #[cfg(target_os = "linux")]
@@ -353,7 +350,11 @@ impl beui::App for Shell {
     }
 
     fn busy(&self) -> bool {
-        self.app.busy() || plugin_host::busy()
+        self.app.error.is_none() && (self.app.busy() || plugin_host::busy())
+    }
+
+    fn environment(&self) -> Vec<(String, String)> {
+        wayland::environment()
     }
 
     fn drawing(&self) -> bool {
@@ -815,6 +816,9 @@ impl BlockApp {
             && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
         {
             self.media = Some(media::Media::start());
+            plugin_host::publish::<block_plugin_api::Media>(
+                &block_plugin_api::MediaLevels::default(),
+            );
         }
         let Some(media) = &mut self.media else {
             return;
@@ -828,6 +832,10 @@ impl BlockApp {
     }
 
     fn busy(&self) -> bool {
+        self.error.is_none() && self.loading()
+    }
+
+    fn loading(&self) -> bool {
         self.pending_account_request.is_some()
             || self.pending_workspace_request.is_some()
             || !self.pending_transfers.is_empty()
@@ -2869,3 +2877,6 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
 }
+
+#[cfg(test)]
+mod tests;

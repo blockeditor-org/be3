@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::PixelRayTracerContent;
 
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
 use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
 use block_editor_beui::beui::styled::{Button, ButtonVariant};
@@ -23,14 +24,20 @@ pub struct PixelRayTracerApp;
 
 impl block_editor_beui::BeuiApp for PixelRayTracerApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelRayTracerContent>(&[]);
         view! {
-            <PixelRayTracerEditor editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelRayTracerEditor editor={editor} />
+            </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::PixelRayTracerContent>(&[]);
         view! {
-            <PixelRayTracerPreview editor={editor} />
+            <Loaded loaded={loaded}>
+                <PixelRayTracerPreview editor={editor} />
+            </Loaded>
         }
     }
 

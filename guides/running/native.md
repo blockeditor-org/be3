@@ -8,9 +8,9 @@ guide is for what that does not cover.
 - `--dev-workspace`: sign in to the first local account, registering `dev@localhost` with
   the password `dev-password` if there is none, save a recovery phrase without asking, and
   open the last workspace, or the first one, or a new one called Dev. `:dev` passes it.
-- `--desktop` and `--session` (Linux): the desktop shell, in a window or on the displays
-  themselves (guides/linux_desktop.md). `./scripts/buck run //crates/block-app:dev -- --desktop`
-  drives the desktop shell headless.
+- `--desktop` (every native platform): the desktop shell in a window; `--session` (Linux):
+  on the displays themselves (guides/linux_desktop.md).
+  `./scripts/buck run //crates/block-app:dev -- --desktop` drives the desktop shell headless.
 - `--install-session [PREFIX]` (Linux): install the app as a login session
   (guides/linux_desktop.md).
 

@@ -1,14 +1,14 @@
 use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::be_block::database_view::DatabaseViewKind;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, Layers, List, Memo, NodeRef, Show, component,
+    Align, Direction, Dynamic, Frame, ItemSize, List, Memo, NodeRef, Show, component,
     create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::DatabaseValueEditor;
-use block_editor_beui::{Editor, Loading, Toolbar, narrow_chrome};
+use block_editor_beui::{Editor, Loaded, Toolbar, narrow_chrome};
 use uuid::Uuid;
 
 use crate::database_view::app::data::{Data, ViewData};
@@ -39,7 +39,6 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     });
 
     let loaded = data.loaded;
-    let loading = create_memo(move || !loaded.get());
     let spreadsheet =
         create_memo(move || loaded.get() && data.kind.get() == DatabaseViewKind::Spreadsheet);
     let chrome = editor.chrome_shown();
@@ -70,16 +69,9 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
                     }}
                 </Show>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Layers>
-                        <Show condition={loading}>
-                            <Loading label="Loading the database" />
-                        </Show>
-                        <Show condition={loaded}>
-                            {move || view! {
-                                <Content data={data} panels=true />
-                            }}
-                        </Show>
-                    </Layers>
+                    <Loaded loaded={loaded} label="Loading the database">
+                        <Content data={data} panels=true />
+                    </Loaded>
                 </Frame>
             </List>
         </Frame>
@@ -90,20 +82,12 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
 pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
     let data = ViewData::new(editor);
     let loaded = data.loaded;
-    let loading = create_memo(move || !loaded.get());
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
-            <Layers>
-                <Show condition={loading}>
-                    <Loading label="Loading the database" />
-                </Show>
-                <Show condition={loaded}>
-                    {move || view! {
-                        <Content data={data} panels=false />
-                    }}
-                </Show>
-            </Layers>
+            <Loaded loaded={loaded} label="Loading the database">
+                <Content data={data} panels=false />
+            </Loaded>
         </Frame>
     }
 }

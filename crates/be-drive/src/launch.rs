@@ -14,6 +14,7 @@ Starts a beui program headless with an automation socket, waits until it settles
 an env file that puts `drive` on PATH pointed at it. Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 const SIZE: &str = "1100x720";
+const SOCKET_PATH: usize = 107;
 const SCREEN: &str = "1440x900";
 
 #[derive(Default)]
@@ -92,6 +93,14 @@ impl Launch {
                 .map_err(|error| format!("could not delete {}: {error}", data.display()))?;
         }
         let socket = dir.join("automation.sock");
+        let length = socket.as_os_str().len();
+        if length > SOCKET_PATH {
+            return Err(format!(
+                "{} is {length} bytes, longer than the {SOCKET_PATH} a Unix socket's path may be; \
+                 set BE_DRIVE_DIR to a shorter directory",
+                socket.display()
+            ));
+        }
         let _ = fs::remove_file(&socket);
         let mut command = Command::new(program);
         command

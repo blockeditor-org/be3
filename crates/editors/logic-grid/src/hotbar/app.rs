@@ -1,4 +1,5 @@
 use block_editor_beui::Editor;
+use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::view;
 
@@ -10,8 +11,11 @@ pub struct HotbarApp;
 
 impl block_editor_beui::BeuiApp for HotbarApp {
     fn view(editor: Editor) -> NodeId {
+        let loaded = editor.loaded::<block_editor_beui::be_block::HotbarContent>(&[]);
         view! {
-            <HotbarView editor={editor} />
+            <Loaded loaded={loaded}>
+                <HotbarView editor={editor} />
+            </Loaded>
         }
     }
 }

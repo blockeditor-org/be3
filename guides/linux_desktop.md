@@ -1,7 +1,7 @@
 # The Linux desktop
 
 block-app is also a Linux desktop: a Wayland compositor whose shell is the linux-desktop
-plugin instead of workspace-ui. Two flags start it that way:
+plugin instead of workspace-ui. These flags start it that way:
 
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
@@ -9,13 +9,26 @@ plugin instead of workspace-ui. Two flags start it that way:
   session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
   once and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
-- `--desktop` (Linux): the desktop shell, linux-desktop on its own session as under
-  `--session`, in a normal window, with programs opening as windows inside it as they do in
-  any windowed run. What needs the displays and input devices themselves, such as display
-  modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
-  running: the power actions start only when the DRM seat provides its `DisplayControl`.
+- `--desktop` (every native platform): the desktop shell, linux-desktop on its own session as
+  under `--session`, in a normal window, with programs opening as windows inside it as they
+  do in any windowed run. What needs the displays and input devices themselves, such as
+  display modes, pointer settings and the power menu's actions other than Lock, is absent,
+  since `beui-adapter-drm` is not running: the power actions start only when the DRM seat
+  provides its `DisplayControl`. On Windows and macOS (`src/arguments.rs` parses the flags)
+  it is the shell alone: there are no program windows, notification server, tray, media,
+  power, lock screen or launcher.
   `./scripts/buck test //crates/block-app:smoke-desktop` starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
+
+Everything the desktop gets from the host is a host value, and linux-desktop shows a control
+only while the host offers what backs it (`editor.host_offers::<T>()`, true once the host has
+published `T`): the Programs button, the Super tap and placeholders' Open need `Programs`, the
+bell `Notifications`, the power menu `Power`, the media keys `Media` (the volume item, its
+`output`), and the tray its items. block-app publishes each as soon as the service behind it
+runs, even empty, and off Linux its `host_values.rs` tables list none of them, so a plugin
+watching one gets nothing and its actions are refused. The web and Android apps have no
+`--desktop`: a desktop with none of these is only a dock of block windows, which their own
+shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).
@@ -200,7 +213,7 @@ The tests run a private bus with the test runtime's `dbus-daemon` (`BE3_DBUS_DAE
 in the dev app, start a bus as for notifications and run a tray program against it with the
 compositor's socket, for example a Python script using `gir1.2-ayatanaappindicator3-0.1`:
 
-    DBUS_SESSION_BUS_ADDRESS=ADDRESS WAYLAND_DISPLAY=/tmp/be-wayland-PID python3 indicator.py
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS drive exec python3 indicator.py
 
 ## Media and hardware keys
 
@@ -271,16 +284,20 @@ none can be read or acted on behind the lock; they show again once it is unlocke
 
 ## Wayland programs
 
-On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
-or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. In the desktop shell
+On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`.
+When that is unset, as it is under `:dev`, be-wayland (`src/runtime_dir.rs`) makes a private
+one, `/tmp/be-wayland-<pid>`, with the socket `wayland-0` in it, gives it to the programs it
+starts as their `XDG_RUNTIME_DIR` and removes it when the server goes; at start it removes
+those that processes now ended left behind (by name and owner). In the desktop shell
 the program launcher, which tapping Super alone or the bar's programs button opens, lists the
 `.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
-command, with `WAYLAND_DISPLAY` pointing at it. linux-desktop draws it; block-app only reads the
+command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`,
+`DISPLAY` for Xwayland and `DCONF_PROFILE`). linux-desktop draws it; block-app only reads the
 `.desktop` files and their icons and starts the programs (the `Programs` host value and
 `ProgramAction`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
-program can also be started against the socket directly:
-
-    WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
+program can also be started against a driven app directly: the app hands the same variables to
+`drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
+`eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
 A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
@@ -312,7 +329,7 @@ the dock's, so maximizing would change nothing (a request to maximize is still a
 with the maximized state, for programs that ask anyway). GTK ignores those capabilities
 before 4.20 and from then on only greys the buttons out; its header bar lays out its window
 buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
-(`src/gtk_settings.rs`) writes a dconf profile into `$XDG_RUNTIME_DIR/be-wayland`: the
+(`src/gtk_settings.rs`) writes a dconf profile into `be-wayland` in its runtime directory: the
 profile dconf would otherwise use, plus a database of its own that sets and locks that key to
 `appmenu:` (no window buttons); the lock makes it win over the user's own value. Programs
 it launches get it as `DCONF_PROFILE` (`Compositor::environment`), so they read and write
@@ -449,7 +466,7 @@ their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can s
 middle-click paste among themselves.
 
 To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
-`WAYLAND_DISPLAY` set to the app's socket, and copy or paste in the app with `drive key ctrl+c`
+`drive exec`, and copy or paste in the app with `drive key ctrl+c`
 and `ctrl+v`.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press

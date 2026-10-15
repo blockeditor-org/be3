@@ -505,19 +505,15 @@ fn reached(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> (Vec<No
 }
 
 fn focus_target(doc: &Document, rects: &Rects, reached: &[NodeId], pos: Pos2) -> Option<NodeId> {
-    for id in reached {
-        let Some(focus) = interactive(doc, *id).and_then(|node| node.focus.as_ref()) else {
-            continue;
-        };
-        if !over(rects, *id, pos) {
-            continue;
-        }
-        return match focus.press_focus {
-            true => Some(*id),
-            false => doc.focused_node(),
-        };
+    if reached
+        .iter()
+        .any(|id| interactive(doc, *id).is_some_and(|node| !node.press_focus))
+    {
+        return doc.focused_node();
     }
-    None
+    reached.iter().copied().find(|id| {
+        interactive(doc, *id).is_some_and(|node| node.focus.is_some()) && over(rects, *id, pos)
+    })
 }
 
 fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {

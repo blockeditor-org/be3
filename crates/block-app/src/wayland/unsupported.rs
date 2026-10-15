@@ -6,6 +6,10 @@ pub(crate) fn create() {}
 
 pub(crate) fn start(_setup: &Setup) {}
 
+pub(crate) fn environment() -> Vec<(String, String)> {
+    Vec::new()
+}
+
 pub(crate) fn running() -> bool {
     false
 }
