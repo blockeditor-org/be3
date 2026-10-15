@@ -9,20 +9,29 @@ use sha2::{Digest, Sha256};
 
 const USAGE: &str = "\
 usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
+                        [--skip-downloads]
 
-Builds be-server, the web bundle and be in release, uploads each be to the
-mirror, swaps the server and the web bundle on the VPS, and pins the uploaded
-be in scripts/internal/common.sh.
+Builds be-server, the web bundle, be and the app for every platform in
+release, uploads each be and each of the app's downloads to the mirror, swaps
+the server and the web bundle on the VPS, points the mirror's download page at
+the new build, and pins the uploaded be in scripts/internal/common.sh.
+
+The downloads are the app with its plugins for Linux, macOS and Windows on
+x86_64 and arm64 and the web bundle, each zipped, and the signed APK. They go
+to app/BUILD/ beside a page linking them, and app/index.html is that page for
+the build the server runs (https://lfs.pfg.pw/by-name/be3/app/).
 
   --dry-run      print what it would do, uploading and changing nothing
   --allow-dirty  deploy a working tree that differs from its commit
   --skip-server  only upload be and pin it
   --skip-be      leave be as it is
   --skip-web     leave the web bundle as it is
+  --skip-downloads  upload none of the app's downloads
 
 Environment:
-  BUNNY_STORAGE_KEY   the storage zone's password (needed to upload be)
-  BE3_DEPLOY_STORAGE  where be goes (https://la.storage.bunnycdn.com/clfs/by-name/be3)
+  BUNNY_STORAGE_KEY   the storage zone's password (needed to upload be and the downloads)
+  BUNNY_API_KEY       the account's API key, to purge the download page from the CDN
+  BE3_DEPLOY_STORAGE  where be and the downloads go (https://la.storage.bunnycdn.com/clfs/by-name/be3)
   BE3_DEPLOY_MIRROR   where it is read back from (https://lfs.pfg.pw/by-name/be3)
   BE3_DEPLOY_HOST     the server, for ssh and scp (ubuntu@blocks.pfg.pw)
   BE3_DEPLOY_DIR      the directory there that holds be-server (be-server)
@@ -39,6 +48,8 @@ struct Options {
     skip_be: bool,
     web: Option<PathBuf>,
     skip_web: bool,
+    downloads: Vec<(String, PathBuf)>,
+    skip_downloads: bool,
 }
 
 pub fn main(arguments: Vec<String>) -> ExitCode {
@@ -62,6 +73,8 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
         skip_be: false,
         web: None,
         skip_web: false,
+        downloads: Vec::new(),
+        skip_downloads: false,
     };
     while let Some(argument) = arguments.next() {
         let mut value = || {
@@ -85,6 +98,16 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--skip-be" => options.skip_be = true,
             "--web" => options.web = Some(PathBuf::from(value()?)),
             "--skip-web" => options.skip_web = true,
+            "--download" => {
+                let given = value()?;
+                let (platform, path) = given
+                    .split_once('=')
+                    .ok_or_else(|| format!("--download takes PLATFORM=FILE, not {given}"))?;
+                options
+                    .downloads
+                    .push((platform.to_owned(), PathBuf::from(path)));
+            }
+            "--skip-downloads" => options.skip_downloads = true,
             "--help" | "-h" => return Err(USAGE.to_owned()),
             other => return Err(format!("unknown argument {other}\n\n{USAGE}")),
         }
@@ -121,48 +144,74 @@ fn run(options: &Options) -> Result<(), String> {
     }
     println!("deploying build {build}");
 
+    let storage = setting(
+        "BE3_DEPLOY_STORAGE",
+        "https://la.storage.bunnycdn.com/clfs/by-name/be3",
+    );
+    let mirror = setting("BE3_DEPLOY_MIRROR", "https://lfs.pfg.pw/by-name/be3");
+    let key = std::env::var("BUNNY_STORAGE_KEY").unwrap_or_default();
+    let key = key.trim();
+    if key.is_empty() && !options.dry_run && !(options.skip_be && options.skip_downloads) {
+        return Err("set BUNNY_STORAGE_KEY to the storage zone's password".to_owned());
+    }
+    let agents = Agents::new();
+    let store = Store {
+        options,
+        agents: &agents,
+        storage: &storage,
+        mirror: &mirror,
+        key,
+    };
+
     let mut pins = Vec::new();
     if !options.skip_be {
-        let storage = setting(
-            "BE3_DEPLOY_STORAGE",
-            "https://la.storage.bunnycdn.com/clfs/by-name/be3",
-        );
-        let mirror = setting("BE3_DEPLOY_MIRROR", "https://lfs.pfg.pw/by-name/be3");
-        let key = std::env::var("BUNNY_STORAGE_KEY").unwrap_or_default();
-        if key.trim().is_empty() && !options.dry_run {
-            return Err("set BUNNY_STORAGE_KEY to the storage zone's password".to_owned());
-        }
-        let agents = Agents::new();
         for (triple, bundle) in &options.be {
             let directory = format!("be/{build}/be-{triple}");
             for name in ["be", "build-id"] {
                 let bytes = std::fs::read(bundle.join(name)).map_err(|error| {
                     format!("cannot read {}: {error}", bundle.join(name).display())
                 })?;
-                let sha256 = hex(&Sha256::digest(&bytes));
-                let target = format!("{storage}/{directory}/{name}");
-                println!(
-                    "upload {} ({} bytes, sha256 {sha256}) to {target}",
-                    bundle.join(name).display(),
-                    bytes.len()
-                );
-                if !options.dry_run {
-                    upload(agents.to(&target), &target, key.trim(), &bytes, &sha256)?;
-                    let source = format!("{mirror}/{directory}/{name}");
-                    let read = download(agents.to(&source), &source)?;
-                    if hex(&Sha256::digest(&read)) != sha256 {
-                        return Err(format!(
-                            "{source} is not what was uploaded to {target}; check \
-                             BE3_DEPLOY_STORAGE and BE3_DEPLOY_MIRROR name the same place"
-                        ));
-                    }
-                    println!("  read back from {source}");
-                }
+                let sha256 = store.put(
+                    &bundle.join(name).display().to_string(),
+                    &format!("{directory}/{name}"),
+                    &bytes,
+                    "application/octet-stream",
+                )?;
                 if name == "be" {
                     pins.push((triple.clone(), sha256));
                 }
             }
         }
+    }
+
+    let mut page = None;
+    if !options.skip_downloads {
+        let mut listed = Vec::new();
+        for (platform, file) in &options.downloads {
+            let extension = file.extension().and_then(|extension| extension.to_str());
+            let name = format!("block-app-{platform}.{}", extension.unwrap_or("zip"));
+            let bytes = std::fs::read(file)
+                .map_err(|error| format!("cannot read {}: {error}", file.display()))?;
+            let sha256 = store.put(
+                &file.display().to_string(),
+                &format!("app/{build}/{name}"),
+                &bytes,
+                "application/octet-stream",
+            )?;
+            listed.push(Download {
+                label: label(platform),
+                name,
+                size: bytes.len(),
+                sha256,
+            });
+        }
+        store.put(
+            "the download page",
+            &format!("app/{build}/index.html"),
+            download_page(&build, &listed, "").as_bytes(),
+            "text/html; charset=utf-8",
+        )?;
+        page = Some(download_page(&build, &listed, &format!("{build}/")));
     }
 
     if !options.skip_server {
@@ -235,6 +284,30 @@ fn run(options: &Options) -> Result<(), String> {
         started?;
     }
 
+    if let Some(page) = page {
+        store.put(
+            "the latest download page",
+            "app/index.html",
+            page.as_bytes(),
+            "text/html; charset=utf-8",
+        )?;
+        let url = format!("{mirror}/app/index.html");
+        let api_key = std::env::var("BUNNY_API_KEY").unwrap_or_default();
+        if options.dry_run {
+            println!("purge {url} and {mirror}/app/");
+        } else if api_key.trim().is_empty() {
+            println!(
+                "BUNNY_API_KEY is not set, so the CDN may serve the last download page at \
+                 {mirror}/app/ until its copy expires"
+            );
+        } else {
+            for url in [url, format!("{mirror}/app/")] {
+                purge(&agents, api_key.trim(), &url)?;
+            }
+        }
+        println!("the downloads for build {build} are at {mirror}/app/");
+    }
+
     if !pins.is_empty() {
         let common = options.repository.join("scripts/internal/common.sh");
         if options.dry_run {
@@ -247,6 +320,127 @@ fn run(options: &Options) -> Result<(), String> {
             );
         }
     }
+    Ok(())
+}
+
+struct Store<'a> {
+    options: &'a Options,
+    agents: &'a Agents,
+    storage: &'a str,
+    mirror: &'a str,
+    key: &'a str,
+}
+
+impl Store<'_> {
+    fn put(
+        &self,
+        what: &str,
+        path: &str,
+        bytes: &[u8],
+        content_type: &str,
+    ) -> Result<String, String> {
+        let sha256 = hex(&Sha256::digest(bytes));
+        let target = format!("{}/{path}", self.storage);
+        println!(
+            "upload {what} ({} bytes, sha256 {sha256}) to {target}",
+            bytes.len()
+        );
+        if self.options.dry_run {
+            return Ok(sha256);
+        }
+        upload(
+            self.agents.to(&target),
+            &target,
+            self.key,
+            bytes,
+            &sha256,
+            content_type,
+        )?;
+        let source = format!("{}/{path}", self.mirror);
+        let read = download(self.agents.to(&source), &source)?;
+        if hex(&Sha256::digest(&read)) != sha256 {
+            return Err(format!(
+                "{source} is not what was uploaded to {target}; check \
+                 BE3_DEPLOY_STORAGE and BE3_DEPLOY_MIRROR name the same place"
+            ));
+        }
+        println!("  read back from {source}");
+        Ok(sha256)
+    }
+}
+
+struct Download {
+    label: &'static str,
+    name: String,
+    size: usize,
+    sha256: String,
+}
+
+fn label(platform: &str) -> &'static str {
+    match platform {
+        "linux-x86_64" => "Linux (x86_64)",
+        "linux-arm64" => "Linux (arm64)",
+        "macos-arm64" => "macOS (Apple silicon)",
+        "macos-x86_64" => "macOS (Intel)",
+        "windows-x86_64" => "Windows (x86_64)",
+        "windows-arm64" => "Windows (arm64)",
+        "android" => "Android",
+        "web" => "Web (to serve yourself)",
+        _ => "Other",
+    }
+}
+
+fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
+    let rows: String = downloads
+        .iter()
+        .map(|download| {
+            format!(
+                "<tr><td>{}</td><td><a href=\"{prefix}{name}\">{name}</a></td><td>{:.1} MB</td><td><code>{}</code></td></tr>\n",
+                download.label,
+                download.size as f64 / 1_000_000.0,
+                download.sha256,
+                name = download.name,
+            )
+        })
+        .collect();
+    format!(
+        "<!doctype html>
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+<title>Block downloads</title>
+<style>
+:root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
+body {{ max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }}
+table {{ border-collapse: collapse; width: 100%; }}
+td, th {{ text-align: left; padding: 0.4rem 0.8rem 0.4rem 0; vertical-align: top; }}
+code {{ font-size: 0.75rem; word-break: break-all; }}
+</style>
+</head>
+<body>
+<h1>Block</h1>
+<p>Build <code>{build}</code>. A download connects only to a server running the same build.</p>
+<table>
+<tr><th>Platform</th><th>Download</th><th>Size</th><th>SHA-256</th></tr>
+{rows}</table>
+<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is what <code>./scripts/deploy</code> serves, to put behind a server of your own.</p>
+</body>
+</html>
+"
+    )
+}
+
+fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
+    let api = "https://api.bunny.net/purge";
+    agents
+        .to(api)
+        .post(api)
+        .query("url", url)
+        .set("AccessKey", api_key)
+        .call()
+        .map_err(|error| format!("purging {url} from the CDN failed: {error}"))?;
+    println!("purged {url}");
     Ok(())
 }
 
@@ -333,12 +527,13 @@ fn upload(
     key: &str,
     bytes: &[u8],
     sha256: &str,
+    content_type: &str,
 ) -> Result<(), String> {
     agent
         .put(url)
         .set("AccessKey", key)
         .set("Checksum", &sha256.to_ascii_uppercase())
-        .set("Content-Type", "application/octet-stream")
+        .set("Content-Type", content_type)
         .send_bytes(bytes)
         .map_err(|error| format!("uploading to {url} failed: {error}"))?;
     Ok(())

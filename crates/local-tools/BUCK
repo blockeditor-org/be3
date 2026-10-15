@@ -10,6 +10,13 @@ cargo_binary()
 
 deploy(
     name = "deploy",
+    app_android = "//crates/block-app:android-dist",
+    app_linux_arm64 = "//crates/block-app:native",
+    app_linux_x86_64 = "//crates/block-app:native",
+    app_macos_arm64 = "//crates/block-app:native",
+    app_macos_x86_64 = "//crates/block-app:native",
+    app_windows_arm64 = "//crates/block-app:native",
+    app_windows_x86_64 = "//crates/block-app:native",
     be_linux_arm64 = "//crates/be-cli:native",
     be_linux_x86_64 = "//crates/be-cli:native",
     server = "//crates/be-server:bin",
