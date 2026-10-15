@@ -235,6 +235,7 @@ struct CanvasCells {
     last_foreground: Cell<CanvasColor>,
     last_fill: Cell<Option<CanvasColor>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
+    fitting: RefCell<HashSet<Uuid>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
     color: Cell<Option<PresenceColor>>,
@@ -310,6 +311,7 @@ impl CanvasState {
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
             last_fill: Cell::new(CanvasEntityStyle::default().fill),
             children: RefCell::new(HashMap::new()),
+            fitting: RefCell::new(HashSet::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
             color: Cell::new(None),
@@ -506,6 +508,26 @@ pub(crate) fn camera_view(
         ),
         scale,
     )
+}
+
+fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> {
+    let CanvasEntityKind::DirectEditor { block_id, .. } = entity.kind else {
+        return None;
+    };
+    if intrinsic.x <= 0.0 || intrinsic.y <= 0.0 {
+        return None;
+    }
+    let room = direct_editor_layout(entity)?.content.size();
+    let scale = (room.x / intrinsic.x)
+        .min(room.y / intrinsic.y)
+        .max(f32::EPSILON);
+    let bounds = entity_bounds(entity);
+    let size = direct_editor_entity_size(intrinsic, scale);
+    let mut fitted = entity.clone();
+    fitted.kind = CanvasEntityKind::DirectEditor { block_id, scale };
+    fitted.transform.size = size;
+    fitted.transform.center = CanvasPoint::new(bounds.center().x, bounds.min.y + size.y * 0.5);
+    Some(fitted)
 }
 
 fn fit_scale(stage: Rect, framed: WorldRect) -> f32 {
@@ -1516,18 +1538,10 @@ impl CanvasState {
     }
 
     pub(crate) fn add_direct_editor(&self, block_id: Uuid, center: CanvasPoint) {
-        self.add_direct_editor_sized(block_id, center, CanvasPoint::new(180.0, 100.0));
-    }
-
-    pub(crate) fn add_direct_editor_sized(
-        &self,
-        block_id: Uuid,
-        center: CanvasPoint,
-        content_size: CanvasPoint,
-    ) {
-        let size = direct_editor_entity_size(Vec2::new(content_size.x, content_size.y), 1.0);
+        let size = direct_editor_entity_size(Vec2::new(180.0, 100.0), 1.0);
         let entity_id = Uuid::new_v4();
         let transform = CanvasTransform::new(center, size, 0.0);
+        self.cells.get().fitting.borrow_mut().insert(entity_id);
         self.set_selection.set(HashSet::from([entity_id]));
         self.record(InfiniteCanvasOperation::Add {
             entity: CanvasEntity {
@@ -2090,6 +2104,22 @@ impl CanvasState {
             if !child.placed {
                 continue;
             }
+            let fitting = self.cells.get().fitting.borrow().contains(&entity.id);
+            if fitting && child.resize == ResizeMode::Both {
+                let Some(fitted) = child
+                    .intrinsic_size
+                    .and_then(|intrinsic| fit_to_child(&entity, intrinsic))
+                else {
+                    continue;
+                };
+                self.cells.get().fitting.borrow_mut().remove(&entity.id);
+                before.push(entity);
+                after.push(fitted);
+                continue;
+            }
+            if fitting {
+                self.cells.get().fitting.borrow_mut().remove(&entity.id);
+            }
             let intrinsic = match child.resize {
                 ResizeMode::Horizontal => {
                     let width = direct_editor_layout(&entity)
@@ -2139,7 +2169,9 @@ impl CanvasState {
         let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
             return None;
         };
-        if self.peek_child(entity.id).resize != ResizeMode::Both {
+        if self.peek_child(entity.id).resize != ResizeMode::Both
+            || self.cells.get().fitting.borrow().contains(&entity.id)
+        {
             return None;
         }
         let content = direct_editor_layout(entity)?.content.size();

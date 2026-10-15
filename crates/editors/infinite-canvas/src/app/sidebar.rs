@@ -316,6 +316,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     label="X"
                     value={center_x}
                     disabled={locked}
+                    decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.x"}
                     on_change={x}
                     on_preview={x_preview}
@@ -327,6 +328,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     label="Y"
                     value={center_y}
                     disabled={locked}
+                    decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.y"}
                     on_change={y}
                     on_preview={y_preview}
@@ -339,6 +341,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     min={MIN_SIZE as f64}
                     value={size_x}
                     disabled={no_width}
+                    decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.width"}
                     on_change={width}
                     on_preview={width_preview}
@@ -351,6 +354,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     min={MIN_SIZE as f64}
                     value={size_y}
                     disabled={no_height}
+                    decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.height"}
                     on_change={height}
                     on_preview={height_preview}
@@ -363,6 +367,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     label="Rotation"
                     value={angle}
                     disabled={no_rotation}
+                    decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.rotation"}
                     on_change={rotation}
                     on_preview={rotation_preview}
