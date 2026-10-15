@@ -7,6 +7,7 @@ mod a_new_text_block_opens_in_a_tab_beside_the_files;
 mod a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it;
 mod closing_a_tab_shuts_its_editor_down;
 mod the_add_block_dialog_takes_presses_over_an_open_file;
+mod the_app_menu_opens_the_beui_demo;
 mod the_app_opens_its_files_and_closes_cleanly;
 mod the_desktop_shell_opens_and_closes_cleanly;
 
@@ -38,6 +39,7 @@ fn add_to_canvas(app: &mut AppTest, target: &str) {
     app.gone("Dialog \"Add block\"");
     app.wait("GenericContainer #infinite-canvas.entity.");
     app.gone("#editor.loading");
+    app.run(&["settle"]);
 }
 
 const CANVAS_TILE: &str = "#picker.tile.696e6669-6e69-7465-2d63-616e76617301/main";

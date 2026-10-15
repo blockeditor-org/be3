@@ -22,10 +22,16 @@ Commands:
   be new-database NAME [--prefix BE] [--in TARGET]
                                       Make a database (and a list view of it)
   be pull-request EVENT-FILE          Move the rows a GitHub pull request names
+  be upload FILE [--in TARGET] [--prefix BE]
+                                      Copy the blocks a download wrote into this workspace,
+                                      with new ids; --prefix renames a database's row ids
+                                      when another database here has its prefix
 
 Any block:
   ls | info                           Its children, or where it is and who may change it
   delete                              Move it, and everything inside it, to Recently Deleted
+  download [FILE]                     Write it, and everything inside it, to one file
+                                      (NAME.block unless FILE is given) for `be upload`
 
 A database (or a view of one):
   rows [FILTER]...                    Its rows; FILTER is FIELD=VALUE, FIELD!=VALUE or FIELD~TEXT
@@ -94,7 +100,14 @@ pub enum Outcome {
     },
 }
 
-const COMMANDS: [&str; 5] = ["ls", "whoami", "help", "new-database", "pull-request"];
+const COMMANDS: [&str; 6] = [
+    "ls",
+    "whoami",
+    "help",
+    "new-database",
+    "pull-request",
+    "upload",
+];
 
 pub fn parse(
     arguments: Vec<String>,
@@ -213,13 +226,7 @@ async fn command<S: ObjectStore>(
             let name = arguments
                 .first()
                 .ok_or("usage: be new-database NAME [--prefix BE] [--in TARGET]")?;
-            let parent = match &invocation.options.within {
-                Some(within) => match tracker.resolve(within).await? {
-                    Target::Block(entry) => BlockParent::Block(entry.id),
-                    Target::Row { .. } => return Err("--in takes a block, not a row".to_owned()),
-                },
-                None => BlockParent::Root,
-            };
+            let parent = within(tracker, invocation).await?;
             let prefix = invocation.options.prefix.clone().unwrap_or_default();
             let (view, database) = tracker.create_database(name, &prefix, parent).await?;
             let index = tracker.index().await?;
@@ -234,6 +241,31 @@ async fn command<S: ObjectStore>(
                 short(database),
                 short(view)
             ))
+        }
+        "upload" => {
+            let file = arguments
+                .first()
+                .ok_or("usage: be upload FILE [--in TARGET] [--prefix BE]")?;
+            let bytes =
+                std::fs::read(file).map_err(|error| format!("could not read {file}: {error}"))?;
+            let blocks = crate::transfer::decode(&bytes)?;
+            let parent = within(tracker, invocation).await?;
+            let uploaded = tracker
+                .upload(blocks, parent, invocation.options.prefix.as_deref())
+                .await?;
+            let index = tracker.index().await?;
+            let top = index.get(uploaded.top).map_or_else(
+                || uploaded.top.to_string(),
+                |entry| format!("{} ({})", entry.label(), entry.short),
+            );
+            let mut said = format!("uploaded {top}");
+            if uploaded.blocks > 1 {
+                said.push_str(&format!(" and {} blocks inside it", uploaded.blocks - 1));
+            }
+            if let Some((old, new)) = uploaded.renamed_prefix {
+                said.push_str(&format!("; its rows are {new}-… where they were {old}-…"));
+            }
+            Ok(said)
         }
         "pull-request" => {
             let event = arguments
@@ -259,6 +291,19 @@ async fn command<S: ObjectStore>(
             Ok(pull_request(tracker, &event, &statuses).await?.join("\n"))
         }
         other => Err(format!("unknown command {other}\n\n{USAGE}")),
+    }
+}
+
+async fn within<S: ObjectStore>(
+    tracker: &Tracker<S>,
+    invocation: &Invocation,
+) -> Result<BlockParent, String> {
+    match &invocation.options.within {
+        Some(within) => match tracker.resolve(within).await? {
+            Target::Block(entry) => Ok(BlockParent::Block(entry.id)),
+            Target::Row { .. } => Err("--in takes a block, not a row".to_owned()),
+        },
+        None => Ok(BlockParent::Root),
     }
 }
 
@@ -369,6 +414,26 @@ async fn block_verb<S: ObjectStore>(
         }
         ("help", _, _) => print(USAGE.to_owned()),
         ("delete", _, _) => print(tracker.delete_block(entry).await?),
+        ("download", _, _) => {
+            let (top, blocks) = tracker.download(entry).await?;
+            let file = arguments
+                .first()
+                .cloned()
+                .unwrap_or_else(|| format!("{}.block", file_stem(&top.label())));
+            let bytes = crate::transfer::encode(&blocks);
+            write_private(&file, &bytes)
+                .map_err(|error| format!("could not write {file}: {error}"))?;
+            let inside = match blocks.len() {
+                1 => String::new(),
+                count => format!(" and {} blocks inside it", count - 1),
+            };
+            print(format!(
+                "wrote {} ({}){inside} to {file}, {} bytes; `be upload {file}` copies it into a workspace",
+                top.label(),
+                top.short,
+                bytes.len()
+            ))
+        }
         ("cat", true, _) => print(tracker.text(entry.id).await?),
         ("write" | "append", true, _) => {
             let text = arguments
@@ -476,10 +541,10 @@ async fn block_verb<S: ObjectStore>(
             entry.short,
             entry.kind(),
             match (is_text, database) {
-                (true, _) => "cat, write, append, edit, ls and info",
+                (true, _) => "cat, write, append, edit, ls, info, download and delete",
                 (false, Some(_)) =>
-                    "rows, new, schema, option, add-option, add-column, import, ls and info",
-                (false, None) => "ls and info",
+                    "rows, new, schema, option, add-option, add-column, import, ls, info, download and delete",
+                (false, None) => "ls, info, download and delete",
             }
         ) + &format!(", not {verb}")),
     }
@@ -533,6 +598,30 @@ async fn row_verb<S: ObjectStore>(
         other => Err(format!(
             "a row takes show, set, page and delete, not {other}"
         )),
+    }
+}
+
+fn write_private(file: &str, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options.open(file)?.write_all(bytes)
+}
+
+fn file_stem(name: &str) -> String {
+    let stem: String = name
+        .trim()
+        .chars()
+        .map(|character| match character {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
+            character => character,
+        })
+        .collect();
+    match stem.is_empty() {
+        true => "block".to_owned(),
+        false => stem,
     }
 }
 
