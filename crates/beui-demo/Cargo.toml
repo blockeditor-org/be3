@@ -24,6 +24,9 @@ beui-core = { path = "../beui-core" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
 
+[features]
+fuzzing = []
+
 [lints]
 workspace = true
 

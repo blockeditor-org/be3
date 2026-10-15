@@ -24,7 +24,9 @@ use crate::node::{
 };
 use crate::paint::{self, PaintCache, verify};
 use crate::painter::{Painter, PainterState};
-use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
+use crate::performance::{
+    FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTimings, PerformanceTracker,
+};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
 use crate::screens::Screen;
@@ -195,7 +197,7 @@ fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct WorkCounters {
     measured: Cell<usize>,
     reused_measurements: Cell<usize>,
@@ -1177,6 +1179,9 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
+        if verifying_layout() && (1..LAYOUTS_PER_FRAME).contains(&measurement.layout_passes) {
+            self.verify_layout(ctx, rect);
+        }
         if self.keyboard
             && let Some(area) = self.focused_ime_area()
         {
@@ -1251,7 +1256,10 @@ impl Document {
         });
         measurement.work = self.work.gathered();
         let shapes = self.painting.iter().map(|(display, _)| display.count).sum();
-        let frame = measurement.finish(self.arena.len(), shapes);
+        let mut frame = measurement.finish(self.arena.len(), shapes);
+        if ctx.clock_stopped() {
+            frame.timings = PerformanceTimings::default();
+        }
         self.performance.record(frame);
     }
 
@@ -1359,21 +1367,7 @@ impl Document {
         moved: Option<Moved>,
         everything: bool,
     ) {
-        let counted = (
-            self.work.painted_nodes.get(),
-            self.work.replayed_nodes.get(),
-        );
-        let retained = self.paint_cache.replace(PaintCache::default());
-        let painting = std::mem::take(&mut self.painting);
-        let damage = std::mem::take(&mut self.damage);
-        ctx.verifying_paint(true);
-        self.paint(ctx);
-        ctx.verifying_paint(false);
-        let fresh = std::mem::replace(&mut self.painting, painting);
-        self.paint_cache.replace(retained);
-        self.damage = damage;
-        self.work.painted_nodes.set(counted.0);
-        self.work.replayed_nodes.set(counted.1);
+        let fresh = self.painted_from_scratch(ctx);
         assert!(
             fresh.len() == self.painting.len()
                 && fresh
@@ -1418,12 +1412,59 @@ impl Document {
             let rect = rect.intersect(viewport);
             assert!(
                 verify::covered(rect, region, scale),
-                "the painting changed outside the damaged region: {rect:?} ({why:?}) is not within {:?}{}",
+                "the painting changed outside the damaged region: {rect:?} ({why:?}, {}) is not within {:?}{}",
+                self.component_names(why.node()).join(" in "),
                 region.rects(),
                 match moved {
                     Some(moved) => format!(" (with {moved:?} copied)"),
                     None => String::new(),
                 },
+            );
+        }
+    }
+
+    fn painted_from_scratch(&mut self, ctx: &Context) -> Vec<(Rc<Display>, Vec2)> {
+        let work = self.work.clone();
+        let retained = self.paint_cache.replace(PaintCache::default());
+        let painting = std::mem::take(&mut self.painting);
+        let damage = std::mem::take(&mut self.damage);
+        ctx.verifying_paint(true);
+        self.paint(ctx);
+        ctx.verifying_paint(false);
+        let fresh = std::mem::replace(&mut self.painting, painting);
+        self.paint_cache.replace(retained);
+        self.damage = damage;
+        self.work = work;
+        fresh
+    }
+
+    fn verify_layout(&mut self, ctx: &Context, viewport: Rect) {
+        let shown = |painting: Vec<(Rc<Display>, Vec2)>| {
+            let mut shapes = Vec::new();
+            for (display, at) in painting {
+                display.flatten(at, &mut shapes);
+            }
+            shapes
+        };
+        let retained = shown(self.painted_from_scratch(ctx));
+        let work = self.work.clone();
+        self.arena.unplace_all();
+        self.lay_out_tree(ctx, viewport);
+        self.work = work;
+        let fresh = shown(self.painted_from_scratch(ctx));
+        let differs = (0..retained.len().max(fresh.len())).find(|index| {
+            match (retained.get(*index), fresh.get(*index)) {
+                (Some(retained), Some(fresh)) => !retained.same_look(fresh),
+                _ => true,
+            }
+        });
+        if let Some(index) = differs {
+            panic!(
+                "the retained layout paints differently from laying out from scratch: shape {index} of {} is at {:?}, and at {:?} of {} from scratch",
+                retained.len(),
+                retained.get(index).map(crate::damage::bounds),
+                fresh.get(index).map(crate::damage::bounds),
+                fresh.len(),
             );
         }
     }
@@ -2127,6 +2168,16 @@ pub fn verify_paint(enabled: bool) {
 
 fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+static VERIFY_LAYOUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn verify_layout(enabled: bool) {
+    VERIFY_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn verifying_layout() -> bool {
+    VERIFY_LAYOUT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 const LAYOUTS_PER_FRAME: usize = 4;

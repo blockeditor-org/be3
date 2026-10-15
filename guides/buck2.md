@@ -182,10 +182,12 @@ plugin SDK (guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm
 `cargo_fuzz()` (with `extra_features` for the library's features it needs),
 which is a `#![no_main]` crate defining `LLVMFuzzerTestOneInput` over the
 library (`crates/sequence/fuzz`). It becomes `:fuzz-<name>`, and `//:fuzz`
-finds it by itself (`buck/dev/fuzz.bxl`). It is built with rustc's sancov
-instrumentation and linked with LLVM's libFuzzer, on the stable compiler and
-without a sanitizer, for Linux x86_64 only, and `:fuzz-<name>-test` fuzzes for
-a moment from a fixed seed. Its corpus and crashes are kept in
+finds it by itself (`buck/dev/fuzz.bxl`). It is built in a configuration of
+its own (`buck/constraints:fuzzing`), where every first-party crate under it
+carries rustc's sancov instrumentation and everything is optimised, and linked
+with LLVM's libFuzzer, on the stable compiler and without a sanitizer, for
+Linux x86_64 only. `:fuzz-<name>-test` fuzzes from a fixed seed for
+`cargo_fuzz`'s `runs`, which a slow target such as beui-demo's lowers. Its corpus and crashes are kept in
 `target/fuzz/<crate>/<name>`, so it picks up where it was when it is started
 again.
 
