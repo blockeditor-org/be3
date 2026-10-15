@@ -486,6 +486,7 @@ impl Runtime {
         crate::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
         self.error = Some(error);
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
+        CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
         mark(&self.plugin.identity.id);
         host::request_repaint();
     }
@@ -535,6 +536,11 @@ impl Runtime {
         }
         match self.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
+            SessionState::Failed(failure) => {
+                let error = format!("The plugin session stopped: {failure:?}");
+                self.crashed(error);
+                return;
+            }
             state => {
                 self.error = Some(format!("The plugin session stopped: {state:?}"));
                 return;
@@ -1448,6 +1454,15 @@ fn theme() -> Theme {
 thread_local! {
     static CHANGED: RefCell<std::collections::HashSet<String>> =
         RefCell::new(std::collections::HashSet::new());
+    static CRASHED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+pub(crate) fn take_crashed() -> Vec<String> {
+    CRASHED.with(|crashed| std::mem::take(&mut *crashed.borrow_mut()))
+}
+
+pub(crate) fn crash(plugin_id: &str, error: String) {
+    with(plugin_id, |runtime| runtime.crashed(error));
 }
 
 pub(super) fn mark(plugin_id: &str) {

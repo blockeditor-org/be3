@@ -18,6 +18,7 @@ use crate::app::LinuxDesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
+mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
@@ -76,6 +77,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        Self::holding(EditorView::document(LINUX_DESKTOP_EDITOR, None))
+    }
+
+    fn holding(view: EditorViewContent) -> Self {
         let desktop = Uuid::new_v4();
         let client = Uuid::new_v4();
         let host = EditorHost::default();
@@ -84,7 +89,7 @@ impl Fixture {
         host.set_view_block(Some(desktop));
         let editor = OwnedEditor::new(host.clone(), desktop);
         let mut test = BeuiTest::new(editor);
-        test.hold(None, EditorView::document(LINUX_DESKTOP_EDITOR, None));
+        test.hold(None, view);
         Self {
             test,
             host,

@@ -185,6 +185,12 @@ impl Backend {
         };
         if let Some(failure) = worker.poll() {
             self.fail(failure);
+            return;
+        }
+        match worker.hung(host::now()) {
+            Ok(Some(left)) => host::request_repaint_after(left),
+            Ok(None) => {}
+            Err(failure) => self.fail(failure),
         }
     }
 

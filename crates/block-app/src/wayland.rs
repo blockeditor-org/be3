@@ -7,10 +7,10 @@ mod unsupported;
 pub(crate) use linux::{
     Programs, WindowActions, WindowSurface, after, before, close, create, environment, exiting,
     focus, fullscreen, launch, listed, replace_gpu, revision, running, set_blank_after,
-    set_keyboard, set_lock_after, set_locked, set_primary_selection, start, take_lock_due,
+    set_keyboard, set_lock_after, set_locked, set_owned, set_primary_selection, start, take_lock_due,
 };
 #[cfg(not(target_os = "linux"))]
 pub(crate) use unsupported::{
     Programs, WindowActions, WindowSurface, after, before, close, create, exiting, focus,
-    fullscreen, launch, listed, replace_gpu, revision, running, start,
+    fullscreen, launch, listed, replace_gpu, revision, running, set_owned, start,
 };

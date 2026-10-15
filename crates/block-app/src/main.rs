@@ -317,6 +317,7 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
+        wayland::set_owned(view.screen == ui::Screen::Workspace && self.app.shell.is_some());
         let store = self.view;
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
@@ -1624,13 +1625,8 @@ impl BlockApp {
     fn ensure_shell(&mut self) -> Option<Uuid> {
         self.root_settings.ensure_profile(self.client_id)?;
         let id = self.root_settings.ensure_session(self.client_id)?;
-        if let Some(previous) = self.shell.filter(|previous| *previous != id) {
-            self.shell = None;
-            let open: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
-            for editor in open {
-                self.close_editor(editor);
-            }
-            self.block_types.remove(&previous);
+        if self.shell.is_some_and(|previous| previous != id) {
+            self.stop_shell();
         }
         let shell_editor = self.root_settings.session_editor(id)?;
         self.block_types.insert(id, shell_editor);
@@ -1646,6 +1642,37 @@ impl BlockApp {
         }
         self.shell = Some(id);
         Some(id)
+    }
+
+    fn stop_shell(&mut self) {
+        let Some(previous) = self.shell.take() else {
+            return;
+        };
+        let open: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
+        for editor in open {
+            self.close_editor(editor);
+        }
+        self.block_types.remove(&previous);
+        compositor::set_shell(None);
+        plugin_host::set_shell(None);
+    }
+
+    fn watch_shell(&mut self) {
+        let crashed = plugin_host::take_crashed();
+        let Some(shell) = self.shell else {
+            return;
+        };
+        let plugin = self
+            .with_editor(shell, |editor| {
+                editor.plugin().map(|plugin| plugin.identity.id.clone())
+            })
+            .flatten();
+        let Some(plugin) = plugin.filter(|plugin| crashed.contains(plugin)) else {
+            return;
+        };
+        self.stop_shell();
+        plugin_host::kill(&plugin);
+        self.choosing_session = true;
     }
 
     fn handler_for(&self, from: Option<Uuid>, request: ShellRequest) -> Option<Uuid> {
@@ -2210,6 +2237,7 @@ impl BlockApp {
     fn run_frame(&mut self) {
         performance::begin_frame();
         plugin_host::poll();
+        self.watch_shell();
         #[cfg(target_os = "linux")]
         self.run_notifications();
         if !self.signed_in {
