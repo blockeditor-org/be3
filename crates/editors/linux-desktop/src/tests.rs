@@ -8,9 +8,10 @@ use block_editor_beui::{
     HostWindow, HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels,
     MediaRequest, NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
     Notifications, OwnedEditor, PlayerCommand, Power, PowerAction, PowerAvailability,
-    ProgramAction, Programs, WindowAction,
+    ProgramAction, Programs, WindowAction, WindowOrigin,
 };
 use block_plugin_api::Size;
+use block_shell::{KeptWindow, saved_windows};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -19,11 +20,14 @@ use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
+mod a_desktop_resumed_after_a_restart_shows_each_window_where_it_was;
+mod a_desktop_started_again_adopts_live_windows_instead_of_placeholders;
 mod a_desktop_started_again_adopts_the_windows_the_host_kept;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen;
 mod a_held_volume_key_keeps_turning_the_volume;
 mod a_locked_screen_shows_no_notification_toasts;
+mod a_new_window_fills_the_oldest_placeholder_of_its_program;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
 mod a_query_no_program_matches_runs_as_a_command;
@@ -31,6 +35,7 @@ mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_se
 mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
 mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
+mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
 mod a_windows_tab_menu_makes_it_full_screen;
@@ -41,6 +46,7 @@ mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod the_calendar_popup_fits_a_narrow_screen;
+mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
 mod the_notifications_button_lists_what_arrived_and_answers_it;
@@ -52,6 +58,7 @@ mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
 mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
+mod windows_that_close_as_the_session_ends_are_kept;
 
 const MAX_TAB: u64 = 64;
 const WINDOW_TABS: u64 = 1 << 41;
@@ -61,6 +68,7 @@ const EVERYTHING: PowerAvailability = PowerAvailability {
     restart: true,
     power_off: true,
     log_out: true,
+    ending: false,
 };
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
 const DEFAULT_ACTION: &str = "default";
@@ -79,6 +87,48 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         Self::holding(EditorView::document(LINUX_DESKTOP_EDITOR, None))
+    }
+
+    fn resumed(saved: EditorViewContent) -> Self {
+        let mut fixture = Self::holding(saved);
+        fixture.test.set_host_value::<Programs>(&programs());
+        fixture.settle();
+        fixture
+    }
+
+    fn saved(&self) -> EditorViewContent {
+        self.test.content::<EditorViewContent>(None)
+    }
+
+    fn kept(&self) -> Vec<KeptWindow> {
+        self.saved()
+            .root()
+            .state("layout")
+            .map(saved_windows)
+            .unwrap_or_default()
+    }
+
+    fn show_windows(&mut self, windows: &[HostWindow]) {
+        self.test.set_host_value::<HostWindows>(&windows.to_vec());
+        self.settle();
+    }
+
+    fn window_rect(&self, id: u64) -> Option<Rect> {
+        self.test
+            .children()
+            .iter()
+            .find(|placement| placement.content == ChildContent::Window(HostWindowId(id)))
+            .map(|placement| {
+                Rect::from_min_size(
+                    block_editor_beui::pos2(placement.rect.x, placement.rect.y),
+                    block_editor_beui::vec2(placement.rect.width, placement.rect.height),
+                )
+            })
+    }
+
+    fn placeholder_rect(&self, key: u64) -> Option<Rect> {
+        let id = format!("desktop.placeholder.{key}");
+        self.test.shown(&id).then(|| self.test.rect_of(&id))
     }
 
     fn holding(view: EditorViewContent) -> Self {
@@ -294,7 +344,43 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         focused,
         icon: None,
         raised: 0,
+        origin: Default::default(),
     }
+}
+
+fn program_window(id: u64, app_id: &str, title: &str, origin: WindowOrigin) -> HostWindow {
+    HostWindow {
+        title: title.to_owned(),
+        app_id: app_id.to_owned(),
+        origin,
+        ..host_window(id, false)
+    }
+}
+
+fn foot(id: u64) -> HostWindow {
+    program_window(
+        id,
+        "foot",
+        &format!("Terminal {id}"),
+        WindowOrigin {
+            program: Some("foot.desktop".to_owned()),
+            command: vec!["foot".to_owned()],
+            launch: None,
+        },
+    )
+}
+
+fn notes(id: u64) -> HostWindow {
+    program_window(
+        id,
+        "org.example.Notes",
+        "Shopping list",
+        WindowOrigin {
+            program: None,
+            command: vec!["/usr/bin/notes".to_owned()],
+            launch: None,
+        },
+    )
 }
 
 fn programs() -> Vec<HostProgram> {
@@ -310,6 +396,7 @@ fn programs() -> Vec<HostProgram> {
             generic_name: "File Manager".to_owned(),
             comment: String::new(),
             keywords: vec!["folder".to_owned()],
+            wm_class: None,
             icon: None,
         },
         HostProgram {
@@ -318,6 +405,7 @@ fn programs() -> Vec<HostProgram> {
             generic_name: "Terminal".to_owned(),
             comment: "A fast terminal emulator".to_owned(),
             keywords: vec!["shell".to_owned()],
+            wm_class: None,
             icon: Some(HostImage {
                 width: SIDE,
                 height: SIDE,
@@ -325,6 +413,10 @@ fn programs() -> Vec<HostProgram> {
             }),
         },
     ]
+}
+
+fn kept_keys(fixture: &Fixture) -> Vec<u64> {
+    fixture.kept().iter().map(|kept| kept.key.0).collect()
 }
 
 fn window_tab(id: u64) -> u64 {

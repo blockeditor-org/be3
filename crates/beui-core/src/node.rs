@@ -133,6 +133,12 @@ pub trait Element: Any {
 
     fn children(&self) -> Vec<NodeId>;
 
+    fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        for child in self.children() {
+            visit(child);
+        }
+    }
+
     fn remove_child(&mut self, child: NodeId);
 
     fn live_children(&self) -> Vec<NodeId> {
@@ -914,15 +920,15 @@ impl Arena {
                 adoption[slot] = Adoption::Taken;
                 continue;
             };
-            for child in element.children() {
+            element.for_each_child(&mut |child| {
                 let Some(held) = self.slot(child).map(|slot| &mut parents[slot]) else {
-                    continue;
+                    return;
                 };
                 if *held != Some(parent) {
                     *held = Some(parent);
                     moved = true;
                 }
-            }
+            });
         }
         drop(parents);
         let mut adopting = self.adopting.borrow_mut();

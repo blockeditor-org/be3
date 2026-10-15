@@ -4,6 +4,7 @@ mod fullscreen;
 pub(crate) mod launcher;
 pub(crate) mod media;
 mod notifications;
+mod placeholders;
 mod popup;
 mod power;
 mod sessions;
@@ -12,8 +13,10 @@ mod tray;
 mod volume;
 
 use block_editor_beui::Editor;
+use block_editor_beui::Power;
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, NodeRef, component, create_memo, view,
+    ForEach, Frame, ItemSize, List, NodeRef, RenderFn, component, create_effect, create_memo,
+    untrack, view,
 };
 use block_editor_beui::beui::styled::{Docking, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -30,6 +33,7 @@ use bar::DesktopBar;
 use launcher::{ProgramLauncher, ProgramLauncherOverlay};
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
+use placeholders::{Placeholder, Placeholders};
 
 const WINDOW_ORIGIN: f32 = 48.0;
 const WINDOW_CASCADE: f32 = 32.0;
@@ -48,7 +52,7 @@ impl block_editor_beui::BeuiApp for LinuxDesktopApp {
 
 #[component]
 fn DesktopShell(editor: Editor) -> NodeId {
-    let workspace = Workspace::new(editor, false);
+    let workspace = Workspace::new(editor, false, true);
     view! {
         <Container>
             {move |_| {
@@ -71,7 +75,14 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
-    let top_windows = workspace.windows();
+    let desk = workspace.desk();
+    let placeholders = Placeholders::new(workspace);
+    hold_saving_while_ending(workspace);
+    let placeholder = RenderFn::new(move |key: HostWindowId| {
+        view! {
+            <Placeholder placeholders key />
+        }
+    });
     let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let editor = workspace.editor();
@@ -94,9 +105,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                             <BlockWindow workspace tab />
                         }}
                     </ForEach>
-                    <ForEach keys={top_windows}>
-                        {move |window: HostWindowId| view! {
-                            <FloatingWindow workspace window />
+                    <ForEach keys={desk}>
+                        {move |key: HostWindowId| view! {
+                            <FloatingWindow workspace key placeholder />
                         }}
                     </ForEach>
                     <ForEach keys={dialog_windows}>
@@ -115,6 +126,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     workspace
                     notifications={notifications}
                     launcher={launcher}
+                    placeholders
                 />
                 <PickerDialogs workspace />
                 <WorkspaceDialogs workspace />
@@ -124,6 +136,15 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
             </List>
         </Frame>
     }
+}
+
+fn hold_saving_while_ending(workspace: Workspace) {
+    let power = workspace.editor().host_value::<Power>();
+    let ending = create_memo(move || power.with(|power| power.ending));
+    create_effect(move || {
+        let ending = ending.get();
+        untrack(|| workspace.hold_saving(ending));
+    });
 }
 
 fn block_window(tab: TabId, area: Vec2) -> Rect {

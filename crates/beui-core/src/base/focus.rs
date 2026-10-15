@@ -462,9 +462,7 @@ impl Document {
         if focus_of(element).is_some() {
             out.push(id);
         }
-        for child in element.children() {
-            self.collect_focusables(child, out, blocked);
-        }
+        element.for_each_child(&mut |child| self.collect_focusables(child, out, blocked));
     }
 
     pub fn validate_focus(&mut self) {

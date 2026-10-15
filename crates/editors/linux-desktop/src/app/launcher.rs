@@ -45,7 +45,10 @@ impl ProgramLauncher {
 
     fn launch(&self, id: String) {
         self.show(false);
-        self.editor.act(ProgramAction::Launch(id));
+        self.editor.act(ProgramAction::Launch {
+            program: id,
+            launch: None,
+        });
     }
 
     fn run(&self, line: String) {

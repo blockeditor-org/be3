@@ -66,6 +66,7 @@ impl Power {
             restart: idle && self.abilities.reboot,
             power_off: idle && self.abilities.power_off,
             log_out: idle,
+            ending: !idle,
         }
     }
 

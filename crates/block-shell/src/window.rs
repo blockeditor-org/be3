@@ -23,7 +23,7 @@ const BANNER_RADIUS: u8 = 8;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
-pub(crate) fn window_tab(window: HostWindowId) -> TabId {
+pub fn window_tab(window: HostWindowId) -> TabId {
     TabId::new(WINDOW_TABS + window.0)
 }
 
@@ -40,6 +40,14 @@ pub(crate) fn floating_window(window: &HostWindow) -> Rect {
     )
 }
 
+pub(crate) fn kept_window(key: HostWindowId) -> Rect {
+    let step = (key.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+    Rect::from_min_size(
+        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
+        PLACEHOLDER_SIZE + WINDOW_CHROME,
+    )
+}
+
 pub(crate) fn shown_size(size: Vec2) -> Vec2 {
     own_size(size).unwrap_or(PLACEHOLDER_SIZE)
 }
@@ -53,7 +61,7 @@ pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
         .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
-pub(crate) fn window_title(window: &HostWindow) -> String {
+pub fn window_title(window: &HostWindow) -> String {
     match (window.title.is_empty(), window.app_id.is_empty()) {
         (false, _) => window.title.clone(),
         (true, false) => window.app_id.clone(),
