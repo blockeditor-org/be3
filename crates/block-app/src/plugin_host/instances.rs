@@ -546,10 +546,6 @@ pub(super) struct NextScreens {
 }
 
 impl Instances {
-    pub(super) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     pub(super) fn translate(&self, message: &mut Message, inward: bool) {
         let mut carries = false;
         message.visit_block_ids(&mut |_, _, _| carries = true);

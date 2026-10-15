@@ -72,7 +72,6 @@ pub(super) trait SurfacePresenter {
     fn release(&mut self, slot: u32);
 }
 
-pub(super) const MAX_SURFACES: u32 = 8;
 const MAX_PENDING_FRAMES: usize = 8;
 pub(super) const REGION_BYTES: u64 = 64;
 
