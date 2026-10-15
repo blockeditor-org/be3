@@ -195,4 +195,5 @@ mod a_spawned_guest_thread_may_not_reach_the_gpu;
 mod a_spawned_guest_thread_shares_the_memory_it_was_given;
 mod a_spawned_guest_thread_wakes_the_host;
 mod a_thread_that_trapped_wakes_the_host_to_be_told;
+mod an_interrupted_host_loads_no_plugin;
 mod an_interrupted_plugin_stops_on_every_thread;

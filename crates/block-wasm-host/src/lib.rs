@@ -213,6 +213,9 @@ pub struct Plugin {
 
 impl Plugin {
     fn new(host: &Host, program: Program) -> Result<Self, String> {
+        if host.interrupt.interrupted() {
+            return Err(INTERRUPTED.to_owned());
+        }
         let engine = host.engine.clone();
         let memory = shared_memory(&engine, program.first())?;
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
