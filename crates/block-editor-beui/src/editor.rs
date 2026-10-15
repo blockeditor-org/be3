@@ -338,6 +338,13 @@ pub(crate) fn defer_graph_changes(host: &EditorHost) {
 
 type Pump = Rc<dyn Fn()>;
 
+#[derive(Default)]
+pub(crate) struct Contents {
+    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
+    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
+    due: Rc<RefCell<Vec<Option<Uuid>>>>,
+}
+
 #[derive(Clone, Copy)]
 pub struct Editor(Stored<EditorState>);
 
@@ -348,10 +355,15 @@ pub struct OwnedEditor {
 
 impl OwnedEditor {
     pub fn new(host: EditorHost, block: Uuid) -> Self {
-        Self::scaled(host, block, Rc::default())
+        Self::scaled(host, block, Rc::default(), Rc::default())
     }
 
-    pub(crate) fn scaled(host: EditorHost, block: Uuid, beui: Rc<Cell<BeuiScale>>) -> Self {
+    pub(crate) fn scaled(
+        host: EditorHost,
+        block: Uuid,
+        beui: Rc<Cell<BeuiScale>>,
+        contents: Rc<Contents>,
+    ) -> Self {
         defer_graph_changes(&host);
         let owner = RootScope::new();
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
@@ -401,14 +413,12 @@ impl OwnedEditor {
             pending_reveal: Cell::new(None),
             replace: RefCell::new(None),
             content: RefCell::new(None),
-            projections: RefCell::new(std::collections::HashMap::new()),
+            contents,
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             pick: RefCell::new(None),
-            pumps: RefCell::default(),
-            due: Rc::default(),
             seen: Cell::new(None),
             shown_rect: Cell::new(None),
             children_moved: Cell::new(false),
@@ -428,6 +438,10 @@ impl OwnedEditor {
 
     pub fn editor(&self) -> Editor {
         self.editor
+    }
+
+    pub(crate) fn contents(&self) -> Rc<Contents> {
+        Rc::clone(&self.editor.state().contents)
     }
 }
 
@@ -472,14 +486,12 @@ struct EditorState {
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<(NodeRef, u64)>>,
-    projections: RefCell<std::collections::HashMap<Option<Uuid>, Box<dyn std::any::Any>>>,
+    contents: Rc<Contents>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
-    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
-    due: Rc<RefCell<Vec<Option<Uuid>>>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
     children_moved: Cell<bool>,
@@ -606,6 +618,7 @@ impl Editor {
     pub fn raw_block_content(&self) -> ReadSignal<Option<RawContent>> {
         let state = self.state();
         let cached = state
+            .contents
             .projections
             .borrow()
             .get(&None)
@@ -617,7 +630,7 @@ impl Editor {
         let owned = OwnedSignal::new(None::<RawContent>);
         let (read, write) = (owned.read(), owned.write());
         let host = state.host.clone();
-        state.pumps.borrow_mut().insert(
+        state.contents.pumps.borrow_mut().insert(
             None,
             Rc::new(move || {
                 for update in host.take_content_updates(None) {
@@ -631,8 +644,12 @@ impl Editor {
                 }
             }),
         );
-        state.due.borrow_mut().push(None);
-        state.projections.borrow_mut().insert(None, Box::new(owned));
+        state.contents.due.borrow_mut().push(None);
+        state
+            .contents
+            .projections
+            .borrow_mut()
+            .insert(None, Box::new(owned));
         read
     }
 
@@ -642,6 +659,7 @@ impl Editor {
     {
         let state = self.state();
         let cached = state
+            .contents
             .projections
             .borrow()
             .get(&block)
@@ -652,18 +670,20 @@ impl Editor {
         }
         let owned = OwnedContentProjection::<C>::new(state.host.clone(), block);
         let source = owned.handle();
-        let due = Rc::downgrade(&state.due);
+        let due = Rc::downgrade(&state.contents.due);
         source.on_due(move || {
             if let Some(due) = due.upgrade() {
                 due.borrow_mut().push(block);
             }
         });
         state
+            .contents
             .pumps
             .borrow_mut()
             .insert(block, Rc::new(move || source.pump()));
-        state.due.borrow_mut().push(block);
+        state.contents.due.borrow_mut().push(block);
         state
+            .contents
             .projections
             .borrow_mut()
             .insert(block, Box::new(owned));
@@ -712,6 +732,7 @@ impl Editor {
 
     pub fn history(&self, block: Uuid) -> Memo<BlockHistory> {
         let host = self.state().host.clone();
+        host.watch_history([block]);
         let revision = self.pushed(Pushed::Histories);
         create_memo(move || {
             revision.get();
@@ -1087,7 +1108,7 @@ impl Editor {
         if pushed {
             state.host.flush_graph();
         }
-        let mut due = std::mem::take(&mut *state.due.borrow_mut());
+        let mut due = std::mem::take(&mut *state.contents.due.borrow_mut());
         if pushed {
             due.extend(state.host.updated_content());
         }
@@ -1154,7 +1175,7 @@ impl Editor {
     fn pump(&self, blocks: Vec<Option<Uuid>>) {
         let pumps: Vec<_> = {
             let state = self.state();
-            let held = state.pumps.borrow();
+            let held = state.contents.pumps.borrow();
             let mut pumped = std::collections::HashSet::new();
             blocks
                 .into_iter()

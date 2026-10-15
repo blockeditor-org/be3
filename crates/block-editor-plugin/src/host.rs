@@ -701,10 +701,10 @@ impl EditorHost {
     }
 
     pub fn watch_history(&self, blocks: impl IntoIterator<Item = Uuid>) {
-        let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
-        blocks.sort();
-        blocks.dedup();
-        *self.watched_history.borrow_mut() = blocks;
+        let mut watched = self.watched_history.borrow_mut();
+        watched.extend(blocks);
+        watched.sort();
+        watched.dedup();
     }
 
     pub fn history(&self, block_id: Uuid) -> BlockHistory {
@@ -1091,11 +1091,18 @@ impl EditorHost {
 
     pub fn view(&self) -> Option<Rect> {
         let origin = self.region.get().origin;
-        self.view.get().map(|view| view.rect.translate(origin))
+        self.framed_view().map(|view| view.rect.translate(origin))
     }
 
     pub fn view_scale(&self) -> Option<f32> {
-        self.view.get().map(|view| view.scale)
+        self.framed_view().map(|view| view.scale)
+    }
+
+    fn framed_view(&self) -> Option<View> {
+        let region = self.region.get().region;
+        matches!(region, None | Some(EditorRegion::Frame))
+            .then(|| self.view.get())
+            .flatten()
     }
 
     pub fn pan_view(&self, delta: Vec2) {

@@ -315,17 +315,33 @@ impl<A: BeuiApp> BeuiInstance<A> {
             .chrome
             .as_ref()
             .map(|chrome| chrome.document().zone());
-        frame.into_iter().any(beui::reactive::zone_pending)
+        let preview = self
+            .views
+            .preview_document
+            .as_ref()
+            .map(beui::Document::zone);
+        frame
+            .into_iter()
+            .chain(preview)
+            .any(beui::reactive::zone_pending)
     }
 }
 
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn connect(&mut self, block_id: Uuid) {
-        let scaled = |host: EditorHost| OwnedEditor::scaled(host, block_id, Rc::clone(&self.scale));
         let fresh = |editor: &Option<OwnedEditor>| {
             editor
                 .as_ref()
                 .is_none_or(|editor| editor.block_id() != block_id)
+        };
+        let contents = [&self.views.editor, &self.views.preview]
+            .into_iter()
+            .flatten()
+            .find(|editor| editor.block_id() == block_id)
+            .map(OwnedEditor::contents)
+            .unwrap_or_default();
+        let scaled = |host: EditorHost| {
+            OwnedEditor::scaled(host, block_id, Rc::clone(&self.scale), Rc::clone(&contents))
         };
         if fresh(&self.views.editor) {
             self.views.chrome = None;
