@@ -747,7 +747,7 @@ view! {
     <Scroll @sizing=ItemSize::Percent(100.0)>
         <Header />
         <VirtualList keys={row_ids} item_size=ROW_HEIGHT>
-            {move |id: RowId| view! { <Row id /> }}
+            {move |id: ReadSignal<RowId>| view! { <Row id /> }}
         </VirtualList>
         <Footer />
     </Scroll>
@@ -776,9 +776,19 @@ that stay in view, and keeps the ones that just left, as many as are in view
 and only while they are within a window's length of it, so scrolling back
 shows them without building them again; anything further away is disposed
 with its effects, so a long jump or a list scrolled out of view keeps nothing.
-The item builder runs once per key for as long as its row is kept. Changing `keys`
-keeps every row whose key is still there: inserting a key anywhere builds only
-its row, and only if it lands in view; removing one disposes only its row; and
+A row the list disposes is not dropped but recycled: the item builder is
+handed a `ReadSignal` of its key rather than the key, and when a key comes into
+view the list sets that signal on a row that left instead of building a new one.
+So the builder must derive everything it shows from the key signal (a memo of
+the label, a test id, the selection), read it untracked in event handlers, and
+expect any state it keeps of its own to carry over to the next key. A row that
+must start fresh for each key wraps its content in `<Dynamic value={key}>`,
+which rebuilds on a key change and so costs what building used to. A row
+holding focus is never handed another key, and the list keeps at most as many
+spare rows as it has ever shown at once. The item builder runs once per row it
+builds, and the key signal changes once per key it then shows. Changing `keys`
+keeps every row whose key is still there: inserting a key anywhere shows only
+its row, and only if it lands in view; removing one releases only its row; and
 the sizes the list measured move with their keys. A key inserted or removed
 above the view changes the length above what is shown, so the list moves the
 scroll's offset by that much and the rows on screen stay where they are. A
@@ -2268,7 +2278,8 @@ during it:
   space it was given, such as one that wraps text or switches between a row
   and a column, and give it that space from its parent (a stretch, a fixed or
   percent size) on the axis it reads.
-- `VirtualList` builds each row its window reaches that it does not have yet,
+- `VirtualList` shows each row its window reaches that it does not have yet,
+  recycling a released row or building one,
   as the walk reaches it, measures it and carries on, so one walk fills the
   window. A list laid out at the length it measured follows that length as
   its rows measure, rather than stopping at the estimate it was given, and

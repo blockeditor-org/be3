@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{Frame, ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
+use crate::reactive::{
+    Frame, ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, view,
+};
 
 #[test]
 fn a_virtual_list_builds_its_overscan_beyond_the_window() {
@@ -16,7 +18,7 @@ fn a_virtual_list_builds_its_overscan_beyond_the_window() {
                             item_size=VIRTUAL_ITEM_HEIGHT
                             overscan={VIRTUAL_ITEM_HEIGHT * 2.0}
                         >
-                            {move |_: usize| {
+                            {move |_: ReadSignal<usize>| {
                                 view! {
                                     <Frame height=VIRTUAL_ITEM_HEIGHT>
                                         <Spacer />

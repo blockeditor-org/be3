@@ -5,8 +5,8 @@ use block_editor_beui::be_block::database_schema::{
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList,
-    component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, ReadSignal, Show,
+    VirtualList, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
@@ -95,16 +95,8 @@ pub fn ListView(data: Data) -> NodeId {
                             }}
                         </Show>
                         <VirtualList keys={lines} item_size=LINE_HEIGHT>
-                            {move |line: Line| {
-                                let groups = groups;
-                                match line {
-                                    Line::Header(key) => view! {
-                                        <GroupHeader data={data} groups={groups} key={key} />
-                                    },
-                                    Line::Row(row) => view! {
-                                        <RowLine data={data} row={row} />
-                                    },
-                                }
+                            {move |line: ReadSignal<Line>| view! {
+                                <AnyLine data={data} groups={groups} line={line} />
                             }}
                         </VirtualList>
                     </List>
@@ -282,9 +274,59 @@ pub fn group_test_key(key: GroupKey) -> String {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LineKind {
+    Header,
+    Row,
+}
+
 #[component]
-fn RowLine(data: Data, row: ObjectId) -> NodeId {
-    let index = create_memo(move || data.row_index.with(|indices| indices.get(&row).copied()));
+fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> NodeId {
+    let kind = create_memo(move || match line.get() {
+        Line::Header(_) => LineKind::Header,
+        Line::Row(_) => LineKind::Row,
+    });
+    let header = create_memo(move || match line.get() {
+        Line::Header(key) => Some(key),
+        Line::Row(_) => None,
+    });
+    let row = create_memo(move || match line.get() {
+        Line::Row(row) => Some(row),
+        Line::Header(_) => None,
+    });
+    view! {
+        <List spacing=0.0>
+            <Dynamic value={kind}>
+                {move |kind: LineKind| match kind {
+                    LineKind::Header => view! {
+                        <List spacing=0.0>
+                            <Dynamic value={header}>
+                                {move |key: Option<GroupKey>| match key {
+                                    Some(key) => view! {
+                                        <GroupHeader data={data} groups={groups} key={key} />
+                                    },
+                                    None => view! {
+                                        <Frame />
+                                    },
+                                }}
+                            </Dynamic>
+                        </List>
+                    },
+                    LineKind::Row => view! {
+                        <RowLine data={data} row={row} />
+                    },
+                }}
+            </Dynamic>
+        </List>
+    }
+}
+
+#[component]
+fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
+    let index = create_memo(move || {
+        let row = row.get()?;
+        data.row_index.with(|indices| indices.get(&row).copied())
+    });
     let entry = create_memo(move || {
         let index = index.get()?;
         data.rows.with(|rows| rows.get(index).cloned())
@@ -295,7 +337,16 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
             .get()
             .is_some_and(|selection| Some(selection.row) == index)
     });
-    let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
+    let code = create_memo(move || {
+        row.get()
+            .map(|row| short_id(&data.prefix.get(), row.as_uuid()))
+            .unwrap_or_default()
+    });
+    let test_id = create_memo(move || {
+        row.get()
+            .map(|row| format!("database-view.list.row.{}", row.as_uuid()))
+            .unwrap_or_default()
+    });
     let title = create_memo(move || {
         let field = data.title_field.get();
         entry.with(|entry| row_title(entry.as_ref(), field))
@@ -328,19 +379,18 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
     let part_keys = create_memo(move || {
         parts.with(|parts| parts.iter().map(|(key, _)| *key).collect::<Vec<Uuid>>())
     });
-    let pick = move || data.select_row(row);
+    let pick = move || {
+        if let Some(row) = row.get_untracked() {
+            data.select_row(row);
+        }
+    };
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
     let (wide_marks, wide_parts, wide_keys) = (marks, parts, part_keys);
     let (wide_entry, narrow_entry) = (entry, entry);
     let (wide_code, wide_title) = (code, title);
     view! {
-        <ListRow
-            selected={selected}
-            @test_id={format!("database-view.list.row.{}", row.as_uuid())}
-            on_click={pick}
-            on_activate={pick}
-        >
+        <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
             <List spacing=0.0>
                 <Show condition={wide}>
                     {move || view! {

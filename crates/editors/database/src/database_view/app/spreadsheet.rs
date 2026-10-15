@@ -6,8 +6,8 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Prop, Show, Spacer, VirtualList, component, create_effect, create_memo, view,
-    with_document,
+    NodeRef, Prop, ReadSignal, Show, Spacer, VirtualList, component, create_effect, create_memo,
+    view, with_document,
 };
 use block_editor_beui::beui::styled::{Scroll, use_theme};
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
@@ -89,7 +89,7 @@ fn Grid(
                                 item_size=ROW_HEIGHT
                                 overscan={ROW_HEIGHT * 2.0}
                             >
-                                {move |index: usize| {
+                                {move |index: ReadSignal<usize>| {
                                     let (display, positions) = (display, positions);
                                     view! {
                                         <Row
@@ -215,9 +215,10 @@ fn Row(
     data: Data,
     display: Memo<Vec<DisplayRow>>,
     positions: Memo<HashMap<usize, usize>>,
-    index: usize,
+    index: ReadSignal<usize>,
 ) -> NodeId {
-    let position = create_memo(move || positions.with(|positions| positions.get(&index).copied()));
+    let position =
+        create_memo(move || positions.with(|positions| positions.get(&index.get()).copied()));
     let entry = create_memo(move || {
         let position = position.get()?;
         display.with(|display| display.get(position).cloned())
@@ -230,7 +231,7 @@ fn Row(
     let selected = create_memo(move || {
         data.selected
             .get()
-            .is_some_and(|selection| selection.row == index)
+            .is_some_and(|selection| selection.row == index.get())
     });
     let fields = data.fields;
     let keys = create_memo(move || {
@@ -274,7 +275,7 @@ fn Cell(
     data: Data,
     entry: Memo<Option<DisplayRow>>,
     field: Memo<Option<DatabaseField>>,
-    row: usize,
+    row: ReadSignal<usize>,
 ) -> NodeId {
     let id = field
         .get_untracked()
@@ -302,7 +303,7 @@ fn Cell(
     let selected = create_memo(move || {
         data.selected
             .get()
-            .is_some_and(|selection| selection.row == row && selection.field == Some(id))
+            .is_some_and(|selection| selection.row == row.get() && selection.field == Some(id))
     });
     let boolean = create_memo(move || {
         field.with(|field| {
@@ -332,7 +333,9 @@ fn Cell(
             false => TextAlign::Start,
         }
     });
+    let test_id = create_memo(move || format!("database-view.cell.{}.{id}", row.get()));
     let click = move || {
+        let row = row.get_untracked();
         data.select(row, Some(id));
         if boolean.get_untracked() {
             let value = !checked.get_untracked();
@@ -367,7 +370,7 @@ fn Cell(
             outline_width=BORDER
             outline_visible=true
         >
-            <Interactive @test_id={format!("database-view.cell.{row}.{id}")} on_click={click}>
+            <Interactive @test_id={test_id} on_click={click}>
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>

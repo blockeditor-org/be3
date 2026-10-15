@@ -2307,7 +2307,7 @@ fn CardStrip() -> NodeId {
                     keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
                     item_size=STRIP_ITEM_WIDTH
                 >
-                    {move |index: usize| view! {
+                    {move |index: ReadSignal<usize>| view! {
                         <StripCard index />
                     }}
                 </VirtualList>
@@ -2363,8 +2363,9 @@ fn FittedScroll() -> NodeId {
 
 #[sample]
 #[component]
-fn StripCard(index: usize) -> NodeId {
+fn StripCard(index: ReadSignal<usize>) -> NodeId {
     let theme = use_theme();
+    let label = create_memo(move || format!("Card {}", index.get()));
     view! {
         <Frame padding_horizontal=4.0 padding_vertical=0.0>
             <Frame
@@ -2376,7 +2377,7 @@ fn StripCard(index: usize) -> NodeId {
                 padding_horizontal=12.0
                 padding_vertical=10.0
             >
-                <Text string={format!("Card {index}")} align=TextAlign::Center />
+                <Text string={label} align=TextAlign::Center />
             </Frame>
         </Frame>
     }
@@ -2417,7 +2418,7 @@ fn ThousandsOfRows() -> NodeId {
             <Separator />
             <Scroll @sizing=ItemSize::Fixed(ROWS_HEIGHT)>
                 <VirtualList keys={(0..ROW_COUNT).collect::<Vec<usize>>()} item_size={row_height}>
-                    {move |index: usize| {
+                    {move |index: ReadSignal<usize>| {
                         let set_selected = set_selected;
                         let set_status = set_status;
                         view! {
@@ -2427,6 +2428,7 @@ fn ThousandsOfRows() -> NodeId {
                                 timings={timings}
                                 compact={compact}
                                 on_click={move || {
+                                    let index = index.get_untracked();
                                     set_selected.set(Some(index));
                                     set_status.set(format!("Row {index} selected"));
                                 }}
@@ -2442,13 +2444,13 @@ fn ThousandsOfRows() -> NodeId {
 #[sample]
 #[component]
 fn ScrollRow(
-    index: usize,
+    index: ReadSignal<usize>,
     selection: Selector<Option<usize>>,
     timings: ReadSignal<bool>,
     compact: ReadSignal<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
-    let selected = selection.memo(Some(index));
+    let selected = create_memo(move || selection.is_selected(&Some(index.get())));
     view! {
         <unstyled::Button
             on_click={on_click}
@@ -2462,7 +2464,7 @@ fn ScrollRow(
 #[sample]
 #[component]
 fn ScrollRowFace(
-    index: usize,
+    index: ReadSignal<usize>,
     handle: unstyled::ButtonHandle,
     selected: Memo<bool>,
     timings: ReadSignal<bool>,
@@ -2476,6 +2478,8 @@ fn ScrollRowFace(
         false => ROW_PADDING_VERTICAL,
     });
     let theme = use_theme();
+    let label = create_memo(move || format!("Row {}", index.get()));
+    let timing = create_memo(move || format!("{} ms", 7 + index.get() * 3 % 91));
     let value_color = create_memo(move || match selected.get() {
         true => TextColor::Accent,
         false => TextColor::Muted,
@@ -2499,11 +2503,11 @@ fn ScrollRowFace(
             padding_vertical={vertical}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                <Text @sizing=ItemSize::Percent(100.0) string={format!("Row {index}")} />
+                <Text @sizing=ItemSize::Percent(100.0) string={label} />
                 <Frame visible={timings}>
                     <Text
                         style=TextStyle::CAPTION
-                        string={format!("{} ms", 7 + index * 3 % 91)}
+                        string={timing}
                         align=TextAlign::End
                         color={value_color}
                     />

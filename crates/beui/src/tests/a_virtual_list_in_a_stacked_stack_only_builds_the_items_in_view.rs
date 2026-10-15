@@ -33,8 +33,11 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                         keys={indices(VIRTUAL_ITEM_COUNT)}
                                         item_size=VIRTUAL_ITEM_HEIGHT
                                     >
-                                        {move |index: usize| {
-                                            set_built.update(|built| built.push(index));
+                                        {move |index: ReadSignal<usize>| {
+                                            create_binding(move || {
+                                                let index = index.get();
+                                                set_built.update(|built| built.push(index));
+                                            });
                                             view! {
                                                 <Frame
                                                     padding_horizontal=0.0

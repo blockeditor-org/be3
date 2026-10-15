@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, List, VirtualList, build, view};
+use crate::reactive::{ItemSize, List, ReadSignal, VirtualList, build, view};
 use crate::unstyled::Scroll;
 
 #[test]
@@ -15,7 +15,7 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
-                            {move |_: usize| {
+                            {move |_: ReadSignal<usize>| {
                                 view! {
                                     <Frame
                                         padding_horizontal=0.0

@@ -899,7 +899,8 @@ the document.
 
 `Show`, `Dynamic`, `Keyed`, `ForEach` and `VirtualList` build each child in a
 scope of its own and drop that scope to drop the child: `Show` disposes its
-child's scope when it hides it, where `ShowKeepAlive` pauses it. Anything else
+child's scope when it hides it, where `ShowKeepAlive` pauses it, and
+`VirtualList` keeps a released row's scope to hand the row its next key. Anything else
 that drops part of a view on its own keeps a `Scope` for it and drops that,
 as the dock does for each tab's panel; nothing removes nodes by hand. A
 component that returns a value rather than a node lives as long as the scope

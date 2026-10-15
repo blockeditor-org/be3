@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view};
+use crate::reactive::{
+    ItemSize, List, NodeRef, Offset, ReadSignal, Spacer, VirtualList, build, view,
+};
 
 const ROWS: usize = 200;
 const ESTIMATE: f32 = 20.0;
@@ -17,7 +19,7 @@ fn scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent() {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
-                            {move |_: usize| {
+                            {move |_: ReadSignal<usize>| {
                                 view! {
                                     <Frame height=ACTUAL>
                                         <Spacer />
