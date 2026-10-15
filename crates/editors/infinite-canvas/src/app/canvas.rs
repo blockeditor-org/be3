@@ -23,7 +23,12 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
-                create_effect(move || state.set_stage(placed.get()));
+                let parent = state.editor().placed_content();
+                let shown = create_memo(move || match parent.get() {
+                    Some(parent) => parent.intersect(placed.get()),
+                    None => placed.get(),
+                });
+                create_effect(move || state.set_stage(shown.get()));
 
                 let view = state.editor().canvas();
                 let world = state.editor().world();
@@ -40,13 +45,23 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 let embeds = ids;
                 let shape_camera = camera;
                 let overlay_camera = camera;
-                let overlay_stage = placed;
+                let overlay_stage = shown;
                 let backdrop_camera = camera;
-                let backdrop_stage = placed;
+                let backdrop_stage = shown;
+                let inset = create_memo(move || {
+                    let (placed, shown) = (placed.get(), shown.get());
+                    Sides::new(
+                        (shown.left() - placed.left()).max(0.0),
+                        (shown.top() - placed.top()).max(0.0),
+                        (placed.right() - shown.right()).max(0.0),
+                        (placed.bottom() - shown.bottom()).max(0.0),
+                    )
+                });
                 let placement = camera;
                 let previewing = state.previewing();
                 view! {
                     <CanvasMenu disabled={previewing}>
+                        <Frame padding={inset}>
                         <CanvasSurface state={state}>
                             <Canvas
                                 view={create_memo(move || Some(placement.get()))}
@@ -81,6 +96,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 </Show>
                             </Canvas>
                         </CanvasSurface>
+                        </Frame>
                     </CanvasMenu>
                 }
             }}
@@ -128,7 +144,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 fn CanvasOverlay(
     state: CanvasState,
     camera: Memo<CanvasView>,
-    stage: ReadSignal<Rect>,
+    stage: Memo<Rect>,
 ) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
@@ -175,7 +191,7 @@ fn CanvasOverlay(
 fn CanvasBackdrop(
     state: CanvasState,
     camera: Memo<CanvasView>,
-    stage: ReadSignal<Rect>,
+    stage: Memo<Rect>,
 ) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();

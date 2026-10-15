@@ -309,8 +309,24 @@ pub(crate) fn PluginRegion(
         plugin_host::back_region(&plugin_id.get(), instance, region, gesture);
     };
     let occluded = occlusion();
+    let beyond = move |local: Pos2| {
+        let Some(placed) = frame.peek().and_then(|frame| frame.content) else {
+            return false;
+        };
+        let placed = Rect::from_min_size(
+            pos2(placed.x, placed.y),
+            Vec2::new(placed.width, placed.height),
+        );
+        region == EditorRegion::Frame
+            && !placed.contains(local)
+            && plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+                frame.content.contains(local)
+                    && !frame.floating.iter().any(|floating| floating.contains(local))
+            })
+    };
     let takes = move |local: Pos2| {
         !passive.peek()
+            && !beyond(local)
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
                 view.takes(local)

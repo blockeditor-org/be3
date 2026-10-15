@@ -1082,6 +1082,7 @@ fn BlockFrameView(
                         }
                         let rect = viewport_rect.get();
                         let content = content_size.get();
+                        let covered = chrome.get() == Chrome::None;
                         let mut state = viewport.get_untracked();
                         if let Some(previous) = state.center.replace(rect.center()) {
                             state.pan += previous - rect.center();
@@ -1089,7 +1090,7 @@ fn BlockFrameView(
                         if state.auto_fit.is_none() {
                             state.auto_fit = Some(true);
                         }
-                        if state.auto_fit == Some(true) {
+                        if state.auto_fit == Some(true) && !covered {
                             fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
                         }
                         if state != viewport.get_untracked() {

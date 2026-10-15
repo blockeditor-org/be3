@@ -6,7 +6,7 @@ const ARTWORK: &str = "#pixel-art.artwork";
 fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
     let mut app = AppTest::start();
     add_root_block(&mut app, "Canvas");
-    add_to_canvas(&mut app, "Pixel Art");
+    add_to_canvas(&mut app, "Label value=\"Pixel Art\"");
     let card = app.place("GenericContainer #infinite-canvas.entity.");
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
     app.crop("#workspace.block");
@@ -15,6 +15,7 @@ fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
     app.run(&["click", &inside]);
     app.wait("Pane \"Pixel Art\"");
     app.gone("#infinite-canvas.dock");
+    assert_eq!(app.count("Pane \"Pixel Art\""), 1, "the pixel art is described once");
     let artwork = app.place(ARTWORK);
     assert!(
         (artwork.0 - card.0).abs() < card.2 && (artwork.1 - card.1).abs() < card.3,

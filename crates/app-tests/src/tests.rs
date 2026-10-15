@@ -2,6 +2,7 @@ use crate::AppTest;
 
 mod a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl;
 mod a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it;
+mod a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside;
 mod a_checklist_on_a_canvas_works_in_place_and_zooms_with_it;
 mod a_new_text_block_opens_in_a_tab_beside_the_files;
 mod closing_a_tab_shuts_its_editor_down;
@@ -15,19 +16,20 @@ fn add_root_block(app: &mut AppTest, label: &str) {
     app.wait(&format!("Pane \"{label}\""));
 }
 
-fn add_to_canvas(app: &mut AppTest, label: &str) {
+fn add_to_canvas(app: &mut AppTest, target: &str) {
     app.click("#infinite-canvas.dock.block");
     app.wait("Dialog \"Add block\"");
-    let target = format!("Label value=\"{label}\"");
     while app
         .tree()
         .lines()
-        .any(|line| line.contains(&target) && line.contains("offscreen"))
+        .any(|line| line.contains(target) && line.contains("offscreen"))
     {
         app.run(&["wheel", "Dialog \"Add block\"", "3"]);
     }
-    app.click(&target);
+    app.click(target);
     app.gone("Dialog \"Add block\"");
     app.wait("GenericContainer #infinite-canvas.entity.");
     app.gone("#editor.loading");
 }
+
+const CANVAS_TILE: &str = "#picker.tile.696e6669-6e69-7465-2d63-616e76617301/main";
