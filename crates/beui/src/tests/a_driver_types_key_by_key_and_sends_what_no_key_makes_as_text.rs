@@ -35,6 +35,32 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
         "a character no key makes arrives as text"
     );
 
+    let mut held = Vec::new();
+    let shift = Modifiers {
+        shift: true,
+        ..Modifiers::default()
+    };
+    typed("a", shift, &mut held);
+    let shifts: Vec<(Key, bool, bool)> = held
+        .iter()
+        .filter_map(|event| match event {
+            Event::Key { press, .. } => {
+                Some((press.key, press.pressed, press.modifiers.shift))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        shifts,
+        vec![
+            (Key::Shift, false, false),
+            (Key::A, true, false),
+            (Key::A, false, false),
+            (Key::Shift, true, true),
+        ],
+        "a held Shift is let go for a character typed without it, and held again after"
+    );
+
     let document = build(|| {
         let (name, set_name) = create_signal(String::new());
         view! {

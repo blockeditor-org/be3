@@ -11,7 +11,9 @@ fn stale_sockets_of_ended_runs_are_swept_and_nothing_else() {
     for name in [
         format!("be-wayland-{ended}"),
         format!("be-wayland-{ended}.lock"),
+        format!("be-wayland-{ended}-2"),
         format!("be-wayland-{parent}"),
+        format!("be-wayland-{parent}-1"),
         format!("be-wayland-{parent}.lock"),
         format!("be-wayland-{ours}.lock"),
         "be-wayland-gtk-test-1".to_owned(),
@@ -39,6 +41,7 @@ fn stale_sockets_of_ended_runs_are_swept_and_nothing_else() {
     left.sort();
     let mut expected = vec![
         format!("be-wayland-{parent}"),
+        format!("be-wayland-{parent}-1"),
         format!("be-wayland-{parent}.lock"),
         format!("be-wayland-{ours}.lock"),
         "be-wayland-gtk-test-1".to_owned(),
@@ -59,6 +62,14 @@ fn stale_sockets_of_ended_runs_are_swept_and_nothing_else() {
         "it is ours alone"
     );
     assert!(runtime.private());
+    let second = RuntimeDir::private_in(&temp).expect("a second one is made");
+    assert_ne!(
+        second.path(),
+        path,
+        "a second server in one process gets a directory of its own"
+    );
+    assert!(path.exists(), "and the first one's is left alone");
+    drop(second);
     drop(runtime);
     assert!(!path.exists(), "it goes with the server that made it");
     let _ = std::fs::remove_dir_all(&temp);

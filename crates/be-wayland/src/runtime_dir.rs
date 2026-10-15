@@ -1,11 +1,13 @@
 use std::io::{Error, ErrorKind, Result};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use rustix::io::Errno;
 use rustix::process::{Pid, getuid, test_kill_process};
 
 const PREFIX: &str = "be-wayland-";
+static MADE: AtomicU32 = AtomicU32::new(0);
 
 pub(crate) struct RuntimeDir {
     path: PathBuf,
@@ -25,7 +27,10 @@ impl RuntimeDir {
 
     pub(crate) fn private_in(temp: &Path) -> Result<Self> {
         sweep(temp);
-        let path = temp.join(format!("{PREFIX}{}", std::process::id()));
+        let path = match MADE.fetch_add(1, Ordering::Relaxed) {
+            0 => temp.join(format!("{PREFIX}{}", std::process::id())),
+            made => temp.join(format!("{PREFIX}{}-{made}", std::process::id())),
+        };
         if let Ok(metadata) = path.symlink_metadata()
             && metadata.uid() == getuid().as_raw()
         {
@@ -92,11 +97,19 @@ fn remove(path: &Path, dir: bool) {
 
 fn pid_of(name: &str) -> Option<u32> {
     let rest = name.strip_prefix(PREFIX)?;
-    let digits = rest.strip_suffix(".lock").unwrap_or(rest);
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+    let rest = rest.strip_suffix(".lock").unwrap_or(rest);
+    let digits = rest.split_once('-').map_or(rest, |(pid, made)| match numeric(made) {
+        true => pid,
+        false => "",
+    });
+    if !numeric(digits) {
         return None;
     }
     digits.parse().ok()
+}
+
+fn numeric(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn alive(pid: u32) -> bool {

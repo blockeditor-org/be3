@@ -93,19 +93,19 @@ pub fn typed(text: &str, held: Modifiers, events: &mut Vec<Event>) {
         if !loose.is_empty() {
             events.push(Event::Text(std::mem::take(&mut loose)));
         }
-        let shifted = shift && !held.shift;
+        let changed = shift != held.shift;
         let mut state = held;
-        if shifted {
-            state.shift = true;
-            modifier_event(Key::Shift, true, state, events);
+        if changed {
+            state.shift = shift;
+            modifier_event(Key::Shift, shift, state, events);
         }
         let text = character
             .map(String::from)
             .filter(|_| !(state.ctrl || state.alt || state.logo));
         events.push(stroke(key, true, false, state, text));
         events.push(stroke(key, false, false, state, None));
-        if shifted {
-            modifier_event(Key::Shift, false, held, events);
+        if changed {
+            modifier_event(Key::Shift, held.shift, held, events);
         }
     }
     if !loose.is_empty() {
