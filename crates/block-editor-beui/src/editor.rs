@@ -745,17 +745,30 @@ impl Editor {
 
     pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
         let host = self.state().host.clone();
-        let revision = self
-            .state()
-            .host_values
-            .borrow_mut()
-            .entry(T::KEY)
-            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(T::KEY)))
-            .read();
+        let revision = self.host_value_revision(T::KEY);
         create_memo(move || {
             revision.get();
             host.host_value::<T>()
         })
+    }
+
+    pub fn host_offers<T: HostValue>(&self) -> Memo<bool> {
+        let host = self.state().host.clone();
+        let revision = self.host_value_revision(T::KEY);
+        create_memo(move || {
+            revision.get();
+            host.host_offers::<T>()
+        })
+    }
+
+    fn host_value_revision(&self, key: &'static str) -> ReadSignal<u64> {
+        let host = &self.state().host;
+        self.state()
+            .host_values
+            .borrow_mut()
+            .entry(key)
+            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(key)))
+            .read()
     }
 
     pub fn act<A: HostAction>(&self, action: A) {

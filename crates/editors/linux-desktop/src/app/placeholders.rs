@@ -21,6 +21,7 @@ const BODY_PADDING: f32 = 24.0;
 pub(crate) struct Placeholders {
     workspace: Workspace,
     programs: Memo<Vec<HostProgram>>,
+    pub(crate) launchable: Memo<bool>,
     pub(crate) keys: Memo<Vec<HostWindowId>>,
 }
 
@@ -42,6 +43,7 @@ impl Placeholders {
         Self {
             workspace,
             programs,
+            launchable: editor.host_offers::<Programs>(),
             keys,
         }
     }
@@ -174,14 +176,16 @@ pub(crate) fn Placeholder(placeholders: Placeholders, key: HostWindowId) -> Node
                 .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
         })
     });
+    let launchable = placeholders.launchable;
     let openable = create_memo(move || {
-        kept.with(|kept| {
-            kept.as_ref().is_some_and(|kept| {
-                placeholders
-                    .programs
-                    .with(|programs| launch_action(kept, programs).is_some())
+        launchable.get()
+            && kept.with(|kept| {
+                kept.as_ref().is_some_and(|kept| {
+                    placeholders
+                        .programs
+                        .with(|programs| launch_action(kept, programs).is_some())
+                })
             })
-        })
     });
     view! {
         <PlaceholderBody

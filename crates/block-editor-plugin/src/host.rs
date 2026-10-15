@@ -588,16 +588,26 @@ impl EditorHost {
     }
 
     pub fn host_value<T: HostValue>(&self) -> T::Value {
-        let mut values = self.host_values.borrow_mut();
-        if !values.watched.contains(T::KEY) {
-            values.watched.insert(T::KEY.to_owned());
-            values.unreported.push(T::KEY.to_owned());
-        }
-        values
+        self.watch_host_value(T::KEY);
+        self.host_values
+            .borrow()
             .values
             .get(T::KEY)
             .and_then(|bytes| decode_host(bytes))
             .unwrap_or_default()
+    }
+
+    pub fn host_offers<T: HostValue>(&self) -> bool {
+        self.watch_host_value(T::KEY);
+        self.host_values.borrow().values.contains_key(T::KEY)
+    }
+
+    fn watch_host_value(&self, key: &str) {
+        let mut values = self.host_values.borrow_mut();
+        if !values.watched.contains(key) {
+            values.watched.insert(key.to_owned());
+            values.unreported.push(key.to_owned());
+        }
     }
 
     pub fn set_host_value<T: HostValue>(&self, value: &T::Value) {

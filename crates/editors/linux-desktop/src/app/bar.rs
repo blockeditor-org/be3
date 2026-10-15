@@ -9,7 +9,7 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{IconButton, MenuButton, Separator, use_theme};
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Media, utc_offset};
+use block_editor_beui::{Media, Power, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -64,8 +64,12 @@ pub(crate) fn DesktopBar(
     let levels = editor.host_value::<Media>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
     let kept = placeholders.keys;
-    let waiting = create_memo(move || !kept.with(Vec::is_empty));
+    let launches = placeholders.launchable;
+    let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
+    let launchable = launcher.offered;
     let launcher = move || launcher.show(true);
+    let notified = notifications.offered;
+    let powered = editor.host_offers::<Power>();
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
@@ -105,12 +109,14 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.menu"}
                         on_click={menu}
                     />
-                    <IconButton
-                        glyph={ICON_APPS.to_owned()}
-                        label="Programs"
-                        @test_id={"desktop.launcher"}
-                        on_click={launcher}
-                    />
+                    <Show condition={launchable}>
+                        <IconButton
+                            glyph={ICON_APPS.to_owned()}
+                            label="Programs"
+                            @test_id={"desktop.launcher"}
+                            on_click={launcher}
+                        />
+                    </Show>
                     <MenuButton
                         label="Sessions"
                         glyph={ICON_WORKSPACES.to_owned()}
@@ -152,13 +158,17 @@ pub(crate) fn DesktopBar(
                     <Show condition={audible}>
                         <VolumeButton editor={editor} levels={levels} />
                     </Show>
-                    <NotificationsButton notifications />
+                    <Show condition={notified}>
+                        <NotificationsButton notifications />
+                    </Show>
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
                             <DesktopCalendar editor={editor} />
                         }}
                     </BarPopup>
-                    <PowerMenu editor={editor} />
+                    <Show condition={powered}>
+                        <PowerMenu editor={editor} />
+                    </Show>
                 </List>
             </Frame>
         </List>
