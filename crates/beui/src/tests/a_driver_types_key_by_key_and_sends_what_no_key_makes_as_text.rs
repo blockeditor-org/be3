@@ -44,9 +44,7 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
     let shifts: Vec<(Key, bool, bool)> = held
         .iter()
         .filter_map(|event| match event {
-            Event::Key { press, .. } => {
-                Some((press.key, press.pressed, press.modifiers.shift))
-            }
+            Event::Key { press, .. } => Some((press.key, press.pressed, press.modifiers.shift)),
             _ => None,
         })
         .collect();

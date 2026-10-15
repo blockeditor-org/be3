@@ -98,10 +98,12 @@ fn remove(path: &Path, dir: bool) {
 fn pid_of(name: &str) -> Option<u32> {
     let rest = name.strip_prefix(PREFIX)?;
     let rest = rest.strip_suffix(".lock").unwrap_or(rest);
-    let digits = rest.split_once('-').map_or(rest, |(pid, made)| match numeric(made) {
-        true => pid,
-        false => "",
-    });
+    let digits = rest
+        .split_once('-')
+        .map_or(rest, |(pid, made)| match numeric(made) {
+            true => pid,
+            false => "",
+        });
     if !numeric(digits) {
         return None;
     }
