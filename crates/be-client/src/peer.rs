@@ -6,7 +6,7 @@ use std::{
 use be_block::{BlockContent, BlockMetadata, Entries, Streamed, derived_metadata, payload_start};
 use be_commit::{
     Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds,
-    plan_retention, reference_delta,
+    plan_retention,
 };
 use be_graph::{Access, BlockParent};
 use be_protocol::{
@@ -525,7 +525,7 @@ impl<S: ObjectStore> Peer<S> {
         content: &C,
         parent: Option<CommitId>,
     ) -> Result<CommitId, ClientError> {
-        let references = sorted(self.resolve(block, content.references_in(self.workspace())));
+        let references = deduplicated(self.resolve(block, content.references_in(self.workspace())));
         let metadata = self
             .metadata_at(block, parent)
             .await?
@@ -618,7 +618,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
-        let references = sorted(references);
+        let references = deduplicated(references);
         let encoded = metadata.encode();
         if let Some(previous) = &previous
             && previous.manifest == manifest
@@ -652,10 +652,6 @@ impl<S: ObjectStore> Peer<S> {
         objects.extend(chunks.iter().copied());
         self.push(&objects).await?;
 
-        let before = previous
-            .map(|previous| previous.references)
-            .unwrap_or_default();
-        let (added, removed) = reference_delta(&before, &references);
         let sealed = self.seal_metadata(metadata);
         let response = self
             .connection
@@ -668,8 +664,7 @@ impl<S: ObjectStore> Peer<S> {
                 chunks: chunks.clone(),
                 time,
                 pinned,
-                references_added: added.clone(),
-                references_removed: removed.clone(),
+                references: references.clone(),
                 metadata: sealed.clone(),
             })
             .await?;
@@ -979,8 +974,10 @@ impl<S: ObjectStore> Peer<S> {
     }
 }
 
-fn sorted(mut references: Vec<Uuid>) -> Vec<Uuid> {
-    references.sort_unstable();
-    references.dedup();
+fn deduplicated(references: Vec<Uuid>) -> Vec<Uuid> {
+    let mut seen = std::collections::HashSet::new();
     references
+        .into_iter()
+        .filter(|reference| seen.insert(*reference))
+        .collect()
 }

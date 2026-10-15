@@ -4,7 +4,7 @@ pub mod commit;
 pub mod merge;
 pub mod retention;
 
-pub use commit::{Commit, CommitId, CommitKind, CommitStore, reference_delta};
+pub use commit::{Commit, CommitId, CommitKind, CommitStore};
 pub use merge::{
     Conflict, MapMerge, Merge, MergeOutcome, MergeResult, merge_lines, merge_map, merge_slices,
     render_conflicts,

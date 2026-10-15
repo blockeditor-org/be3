@@ -40,6 +40,7 @@ mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod pruning_history_keeps_pinned_commits;
+mod references_keep_the_order_their_block_lists_them_in;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
@@ -108,7 +109,12 @@ impl Harness {
         client
     }
 
-    async fn stop(mut self) {
+    async fn restart(mut self) -> Self {
+        self.halt().await;
+        Self::at(self.directory.clone()).await
+    }
+
+    async fn halt(&mut self) {
         if let Some(shutdown) = self.shutdown.take() {
             let _ = shutdown.send(());
         }
@@ -116,6 +122,10 @@ impl Harness {
             handle.abort();
             let _ = handle.await;
         }
+    }
+
+    async fn stop(mut self) {
+        self.halt().await;
         let _ = std::fs::remove_dir_all(&self.directory);
     }
 }
@@ -317,8 +327,7 @@ impl TestClient {
             chunks,
             time,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await

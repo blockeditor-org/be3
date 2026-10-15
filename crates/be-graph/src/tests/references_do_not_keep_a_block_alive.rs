@@ -7,7 +7,7 @@ fn references_do_not_keep_a_block_alive() {
         (2, BlockParent::Block(id(1))),
         (3, BlockParent::Root),
     ]);
-    graph.apply_references(id(3), &[id(2)], &[]).unwrap();
+    graph.set_references(id(3), &[id(2)]).unwrap();
     assert_eq!(graph.references(id(3)), vec![id(2)]);
     assert_eq!(graph.backrefs(id(2)), vec![id(3)]);
 
@@ -22,8 +22,8 @@ fn references_do_not_keep_a_block_alive() {
     assert!(graph.references(id(3)).is_empty());
     assert!(graph.backrefs(id(2)).is_empty());
 
-    graph.apply_references(id(3), &[id(1)], &[]).unwrap();
-    graph.apply_references(id(3), &[], &[id(1)]).unwrap();
+    graph.set_references(id(3), &[id(1)]).unwrap();
+    graph.set_references(id(3), &[]).unwrap();
     assert!(graph.references(id(3)).is_empty());
     assert!(graph.backrefs(id(1)).is_empty());
 }

@@ -650,12 +650,10 @@ impl Connection {
                 chunks,
                 time,
                 pinned,
-                references_added,
-                references_removed,
+                references,
                 metadata,
             } => {
                 let identity = self.identity()?;
-                let relinked = !references_added.is_empty() || !references_removed.is_empty();
                 let outcome = self
                     .store
                     .publish(
@@ -667,13 +665,12 @@ impl Connection {
                         chunks,
                         time,
                         pinned,
-                        references_added,
-                        references_removed,
+                        references,
                         metadata,
                     )
                     .await?;
                 if let PublishOutcome::Published(_, redescribed) = outcome
-                    && (relinked || redescribed)
+                    && redescribed
                 {
                     self.reannounce(identity, vec![block], false).await;
                 }

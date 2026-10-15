@@ -23,8 +23,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             chunks: base_chunks,
             time: 1_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;
@@ -43,8 +42,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             chunks: ours_chunks.clone(),
             time: 2_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;
@@ -64,8 +62,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             chunks: ours_chunks,
             time: 2_000,
             pinned: false,
-            references_added: Vec::new(),
-            references_removed: Vec::new(),
+            references: Vec::new(),
             metadata: Vec::new(),
         })
         .await;
