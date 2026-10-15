@@ -1129,6 +1129,11 @@ pub enum EditorMessage {
         child: ChildId,
         action: BarAction,
     },
+    ChildFocused {
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        child: ChildId,
+    },
     CopyText {
         instance: EditorInstanceId,
         text: String,
@@ -1262,6 +1267,7 @@ impl EditorMessage {
             | Self::ChildReplaced { instance, .. }
             | Self::ChildView { instance, .. }
             | Self::ChildBar { instance, .. }
+            | Self::ChildFocused { instance, .. }
             | Self::CopyText { instance, .. }
             | Self::Paste { instance }
             | Self::AspectRatio { instance, .. }
@@ -1840,6 +1846,7 @@ impl EditorMessage {
             | Self::ReplaceChild { .. }
             | Self::ChildView { .. }
             | Self::ChildBar { .. }
+            | Self::ChildFocused { .. }
             | Self::Blocks { .. }
             | Self::MenuPick { .. }
             | Self::HostValue { .. }

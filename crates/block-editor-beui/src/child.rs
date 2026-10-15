@@ -26,6 +26,7 @@ pub fn ChildBlock(
     on_state: Callback<ChildState>,
     on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
+    on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
@@ -41,6 +42,7 @@ pub fn ChildBlock(
         on_state,
         on_view_change,
         on_bar,
+        on_focus,
         content,
     };
     view! {
@@ -63,6 +65,7 @@ pub fn Subregion(
     on_state: Callback<ChildState>,
     on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
+    on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
     let placing = Placing {
@@ -77,6 +80,7 @@ pub fn Subregion(
         on_state,
         on_view_change,
         on_bar,
+        on_focus,
         content,
     };
     view! {
@@ -96,6 +100,7 @@ struct Placing {
     on_state: Callback<ChildState>,
     on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
+    on_focus: Callback<()>,
     content: Option<Render<ChildHandle>>,
 }
 
@@ -117,6 +122,7 @@ fn SubregionView(
         on_state,
         on_view_change,
         on_bar,
+        on_focus,
         content,
     } = placing;
     let slot = EmbedSlot::new();
@@ -137,6 +143,7 @@ fn SubregionView(
         on_state,
         on_view_change,
         on_bar,
+        on_focus,
     );
     let entries = create_memo(move || state.with(|state| (state.child, state.menu.clone())));
     let host = editor.host();
