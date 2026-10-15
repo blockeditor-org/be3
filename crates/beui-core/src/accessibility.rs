@@ -297,9 +297,9 @@ impl Pass<'_> {
                 return;
             }
             let mut inner = Gathered::default();
-            for child in element.children() {
+            element.for_each_child(&mut |child| {
                 self.visit(child, Some(id), origin, false, &mut inner);
-            }
+            });
             out.children.extend_from_slice(&inner.children);
             if inner.focus.is_some() {
                 out.focus = inner.focus;
@@ -331,9 +331,9 @@ impl Pass<'_> {
         }
 
         let mut inner = Gathered::default();
-        for child in element.children() {
+        element.for_each_child(&mut |child| {
             self.visit(child, Some(id), rect.min, false, &mut inner);
-        }
+        });
         self.described += 1;
         let (node, focus) = document.describe(id, rect, origin, explicit, text, inner);
         if focus.is_some() {
