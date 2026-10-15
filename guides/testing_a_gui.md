@@ -295,21 +295,21 @@ the whole window, every plugin included; and fails unless the app exits cleanly 
 
     let mut app = AppTest::start();
     add_root_block(&mut app, "Canvas");
-    app.click("#infinite-canvas.dock.block");
-    app.click("Label value=\"Checklist\"");
-    app.wait("Pane \"Checklist\"");
+    add_to_canvas(&mut app, "Checklist");
     app.crop("#workspace.block");
     app.record();
-    app.double_click("Pane \"Checklist\"");
-    app.wait("#checklist.add");
-    app.snapshot("a_checklist_on_a_canvas_takes_the_frame_when_opened_and_gives_it_back");
+    app.click("#checklist.draft");
+    app.type_text("buy milk");
+    app.click("#checklist.add");
+    app.wait("CheckBox \"buy milk\"");
+    app.snapshot("a_checklist_on_a_canvas_works_in_place_and_zooms_with_it");
     app.close();
 
 - Every step settles as `drive` does, and the clock is stopped as the app starts, so time
   passes only with pause(milliseconds) and a caret or an animation paints the same every run.
   click() first waits for its target, and record() and snapshot() wait for every editor's
   loading state (`#editor.loading`) to go.
-- Target nodes by test id or by a line of the tree, never by coordinates. Block ids are random,
+- Target nodes by test id or by a line of the tree, never by fixed coordinates: where a gesture needs a point, take it from `place(target)`, and send it with `run`, since `click` waits for its target first. Block ids are random,
   so a test id or a painting that holds one, or the order of blocks the file tree sorts by id,
   differs every run: crop(target) paints only that target's area, such as `#workspace.block`,
   the block a tab shows.
@@ -317,7 +317,9 @@ the whole window, every plugin included; and fails unless the app exits cleanly 
   snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface.
 - A failure prints the steps so far as `drive` commands, which replay against
-  `./scripts/buck run //crates/block-app:dev -- --fresh`, and the end of the app's log.
+  `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
+  the end of the app's log. A step that times out while the tree shows nothing pending means the
+  app never settled: something asks for a frame every frame.
 - Each test takes a second or two, most of it the app starting, and they run in parallel. Keep to what only the app can show, and test an
   editor's own behaviour in its own crate.
 
