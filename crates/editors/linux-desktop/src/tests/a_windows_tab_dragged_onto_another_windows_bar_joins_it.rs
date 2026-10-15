@@ -1,4 +1,5 @@
 use block_editor_beui::beui::Pos2;
+use block_editor_beui::beui::unstyled::dock_state;
 
 use super::*;
 
@@ -19,9 +20,16 @@ fn a_windows_tab_dragged_onto_another_windows_bar_joins_it() {
     let to = Pos2::new(first.max.x + 60.0, first.center().y);
     fixture.test.drag(second.center(), to);
     fixture.settle();
-    let moved = tab_rect(&fixture, "Program 2");
-    assert!(
-        (moved.center().y - tab_rect(&fixture, "Program 1").center().y).abs() < 1.0,
-        "the dragged tab sits in the other window's bar: {moved:?}"
+    let document = fixture.test.document();
+    let dock = document
+        .find_test_id("desktop.dock")
+        .expect("the desktop has a dock");
+    let state = dock_state(document, dock);
+    let windows = state.windows();
+    assert_eq!(windows.len(), 1, "the dragged tab left its own window");
+    assert_eq!(
+        state.surface_tabs(windows[0]).len(),
+        2,
+        "both programs are tabs of the window the tab was dropped on"
     );
 }

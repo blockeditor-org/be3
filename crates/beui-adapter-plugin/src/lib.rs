@@ -124,6 +124,7 @@ impl PluginSurface {
             InputEvent::PointerButton { pressed: false, .. } => {
                 self.pressed = self.pressed.saturating_sub(1);
             }
+            InputEvent::PointerLeft => self.pressed = 0,
             _ => {}
         }
         if let Some(input) = input::translate(region, event) {

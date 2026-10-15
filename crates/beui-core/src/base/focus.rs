@@ -178,6 +178,7 @@ impl Document {
     }
 
     pub fn blur(&mut self) {
+        self.focus_into = None;
         if self.focused.is_none() {
             return;
         }

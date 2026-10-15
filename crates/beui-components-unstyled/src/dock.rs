@@ -2902,14 +2902,18 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         capture_presses=true
                                         on_press={move |press: PointerPress| {
                                             pressed.set((rect.get_untracked(), press.pos));
-                                            dock.edit(|state| {
-                                                if let Some(leaf) = state.leaves(surface).first().copied() {
-                                                    state.focus(leaf);
-                                                }
+                                            let leaf = dock.state.with_untracked(|state| {
+                                                state
+                                                    .focused_leaf()
+                                                    .filter(|leaf| state.surface_of(*leaf) == Some(surface))
+                                                    .or_else(|| state.leaves(surface).first().copied())
                                             });
+                                            if let Some(leaf) = leaf {
+                                                dock.edit(|state| state.focus(leaf));
+                                            }
                                             dock.raise_window(lifted);
                                             dock.release_dialog_focus();
-                                            if let Some(leaf) = hoisted {
+                                            if let Some(leaf) = leaf {
                                                 dock.chrome_pressed(leaf, None);
                                             }
                                         }}
