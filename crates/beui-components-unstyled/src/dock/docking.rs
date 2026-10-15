@@ -242,6 +242,22 @@ impl<K> DockingSnapshot<K> {
     pub fn keys(&self) -> impl Iterator<Item = &K> {
         self.keys.iter().map(|(key, _)| key)
     }
+
+    pub fn rename(&mut self, key: &K, to: K) -> bool
+    where
+        K: PartialEq,
+    {
+        if self.keys.iter().any(|(held, _)| *held == to) {
+            return false;
+        }
+        match self.keys.iter_mut().find(|(held, _)| held == key) {
+            Some((held, _)) => {
+                *held = to;
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 struct KeyMap<K> {

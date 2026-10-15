@@ -35,7 +35,10 @@ fn the_programs_button_opens_the_launcher_on_the_programs_the_host_lists() {
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<ProgramAction>(),
-        [ProgramAction::Launch("foot.desktop".to_owned())]
+        [ProgramAction::Launch {
+            program: "foot.desktop".to_owned(),
+            launch: None
+        }]
     );
     assert!(!fixture.test.shown("launcher"), "launching closes it");
     assert!(!fixture.test.wants_keyboard());

@@ -37,7 +37,7 @@ impl block_editor_beui::BeuiApp for WorkspaceUiApp {
 
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
-    let workspace = Workspace::new(editor, true);
+    let workspace = Workspace::new(editor, true, false);
     view! {
         <Container>
             {move |_| {

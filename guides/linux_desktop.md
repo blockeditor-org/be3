@@ -350,6 +350,29 @@ keyboard. An honoured request goes through `Windows::activate`, as `WindowAction
 which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;
 the dock has no way yet to mark a tab as wanting attention.
 
+### Windows kept across restarts
+
+A desktop session keeps its program windows: the next time it is opened with none of them
+running, as after the computer restarts, each one is a placeholder tab where the window was,
+with the program's icon and name, the window's old title, Open and Dismiss, and the bar offers
+to open them all. block-shell's `Workspace` (with `keeps_windows`, which only linux-desktop
+sets) saves a `KeptWindow` per top-level window beside the dock layout in its `layout` view
+state, and sorts what it restores in `kept.rs`: a record whose window is listed is that
+window (a shell started again over the same compositor keeps every window); any other is a
+placeholder, under its own tab key (`placeholder_tab`), to which `adopt` renames the old
+window's key in the dock snapshot so it keeps its place. A window that appears after the
+restore takes the placeholder it was launched from, else the oldest one with its app id: its
+`FloatingWindow` replaces the placeholder's tab with its own (`DockingLayout::replace`), so
+both must come from one `ForEach` (`Workspace::desk`). While the host's `PowerAvailability`
+says the session is `ending`, nothing is saved, so the programs closing as it ends stay kept.
+
+Window ids start from the compositor's start time in microseconds, so an id never names two
+windows across runs. The host fills `HostWindow::origin`: the client's `/proc` command line
+(an X11 window's `_NET_WM_PID`), and, when the compositor launched it or an ancestor, the
+`.desktop` entry it was launched from and the `launch` number the shell put on its
+`ProgramAction::Launch` or `Exec`. linux-desktop opens a placeholder with that entry, else one
+from `Programs` whose `StartupWMClass` or id matches the app id, else its command line.
+
 ### X11 programs
 
 `be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts

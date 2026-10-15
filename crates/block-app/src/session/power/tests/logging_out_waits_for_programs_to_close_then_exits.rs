@@ -14,8 +14,11 @@ fn logging_out_waits_for_programs_to_close_then_exits() {
     assert_eq!(control.exits, 0);
     assert_eq!(
         power.availability(),
-        PowerAvailability::default(),
-        "nothing else can be asked for while the session ends"
+        PowerAvailability {
+            ending: true,
+            ..PowerAvailability::default()
+        },
+        "nothing else can be asked for while the session ends, which the shell is told"
     );
 
     control.windows = 1;

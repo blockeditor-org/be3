@@ -40,7 +40,8 @@ pub struct Compositor {
     textures: Rc<RefCell<Textures>>,
     watch: Option<Watch>,
     waker: Option<Waker>,
-    children: Vec<rustix::process::Pid>,
+    children: Vec<(rustix::process::Pid, Option<u64>)>,
+    origins: RefCell<std::collections::HashMap<WindowId, Origin>>,
     exited: (Sender<Exit>, Receiver<Exit>),
     on_failure: Option<Box<dyn Fn(String)>>,
     configured: std::collections::HashMap<WindowId, Configured>,
@@ -78,6 +79,7 @@ impl Compositor {
             watch: None,
             waker: None,
             children: Vec::new(),
+            origins: RefCell::new(std::collections::HashMap::new()),
             exited: channel(),
             on_failure: None,
             configured: std::collections::HashMap::new(),
@@ -270,7 +272,7 @@ impl Compositor {
             }
         };
         let pid = rustix::process::Pid::from_child(&child);
-        self.children.push(pid);
+        self.children.push((pid, launch.tag));
         let exited = self.exited.0.clone();
         let waker = self.waker.clone();
         let line = launch_name(launch);
@@ -296,7 +298,7 @@ impl Compositor {
 
     fn reap(&mut self) {
         while let Ok(exit) = self.exited.1.try_recv() {
-            self.children.retain(|pid| *pid != exit.pid);
+            self.children.retain(|(pid, _)| *pid != exit.pid);
             if let Some(problem) = exit.problem() {
                 self.fail(problem);
             }
@@ -358,6 +360,7 @@ impl Compositor {
         }
         let open = self.server.state.windows();
         self.configured.retain(|id, _| open.contains(id));
+        self.origins.borrow_mut().retain(|id, _| open.contains(id));
         if changed {
             let list = self.list();
             let windows = self.windows;
@@ -398,17 +401,35 @@ impl Compositor {
     }
 
     fn launched(&self, pid: rustix::process::Pid) -> bool {
+        self.launch_of(pid).is_some()
+    }
+
+    fn launch_of(&self, pid: rustix::process::Pid) -> Option<Option<u64>> {
         let mut pid = pid;
         for _ in 0..MAX_ANCESTORS {
-            if self.children.contains(&pid) {
-                return true;
+            if let Some((_, tag)) = self.children.iter().find(|(child, _)| *child == pid) {
+                return Some(*tag);
             }
-            match parent(pid) {
-                Some(parent) => pid = parent,
-                None => return false,
-            }
+            pid = parent(pid)?;
         }
-        false
+        None
+    }
+
+    fn origin(&self, id: WindowId) -> Origin {
+        if let Some(origin) = self.origins.borrow().get(&id) {
+            return origin.clone();
+        }
+        let pid = self
+            .server
+            .state
+            .client_pid(id)
+            .and_then(rustix::process::Pid::from_raw);
+        let origin = Origin {
+            launch: pid.and_then(|pid| self.launch_of(pid)).flatten(),
+            command: pid.map(command_line).unwrap_or_default(),
+        };
+        self.origins.borrow_mut().insert(id, origin.clone());
+        origin
     }
 
     fn list(&self) -> Vec<WindowInfo> {
@@ -417,9 +438,11 @@ impl Compositor {
             .windows()
             .into_iter()
             .filter_map(|id| {
+                let size = state.mapped_size(id)?;
+                let origin = self.origin(id);
                 Some(WindowInfo {
                     id,
-                    size: state.mapped_size(id)?,
+                    size,
                     title: state.title(id).unwrap_or_default(),
                     app_id: state.app_id(id).unwrap_or_default(),
                     parent: state.parent(id),
@@ -428,6 +451,8 @@ impl Compositor {
                     responding: state.responding(id),
                     icon: state.icon(id),
                     inhibits_shortcuts: state.inhibits_shortcuts(id),
+                    launch: origin.launch,
+                    command: origin.command,
                 })
             })
             .collect()
@@ -900,10 +925,26 @@ impl Compositor {
 
     pub fn exiting(&mut self) {
         self.reap();
-        for pid in &self.children {
+        for (pid, _) in &self.children {
             let _ = rustix::process::kill_process(*pid, rustix::process::Signal::KILL);
         }
     }
+}
+
+#[derive(Clone)]
+struct Origin {
+    launch: Option<u64>,
+    command: Vec<String>,
+}
+
+fn command_line(pid: rustix::process::Pid) -> Vec<String> {
+    let Ok(line) = std::fs::read(format!("/proc/{}/cmdline", pid.as_raw_nonzero())) else {
+        return Vec::new();
+    };
+    line.split(|byte| *byte == 0)
+        .filter(|argument| !argument.is_empty())
+        .map(|argument| String::from_utf8_lossy(argument).into_owned())
+        .collect()
 }
 
 struct Exit {

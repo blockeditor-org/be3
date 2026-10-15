@@ -23,11 +23,14 @@ const BANNER_RADIUS: u8 = 8;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
-pub(crate) fn window_tab(window: HostWindowId) -> TabId {
+pub fn window_tab(window: HostWindowId) -> TabId {
     TabId::new(WINDOW_TABS + window.0)
 }
 
 pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
+    if !super::kept::below_placeholders(tab) {
+        return None;
+    }
     tab.value().checked_sub(WINDOW_TABS).map(HostWindowId)
 }
 
@@ -53,7 +56,7 @@ pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
         .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
-pub(crate) fn window_title(window: &HostWindow) -> String {
+pub fn window_title(window: &HostWindow) -> String {
     match (window.title.is_empty(), window.app_id.is_empty()) {
         (false, _) => window.title.clone(),
         (true, false) => window.app_id.clone(),

@@ -28,6 +28,7 @@ fn a_launched_program_is_given_a_token_that_brings_a_window_forward() {
             ),
         ],
         working_dir: None,
+        tag: None,
     });
     harness.frame(Vec::new());
     let told = std::fs::read_to_string(&fifo).expect("the program tells its token");

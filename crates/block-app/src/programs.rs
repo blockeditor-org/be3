@@ -16,11 +16,14 @@ impl Programs {
                         .scan(icon_size.clamp(1, ProgramAction::MAX_ICON_SIZE));
                 }
                 ProgramAction::List { .. } => {}
-                ProgramAction::Launch(id) => {
-                    self.programs.launch(&id);
+                ProgramAction::Launch { program, launch } => {
+                    self.programs.launch(&program, launch);
                 }
                 ProgramAction::Run(line) => {
                     wayland::launch(line);
+                }
+                ProgramAction::Exec { command, launch } => {
+                    wayland::exec(command, launch);
                 }
             }
         }

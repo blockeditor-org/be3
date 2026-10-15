@@ -39,7 +39,7 @@ pub use block_plugin_api::{
     SettingsProgress, ShellDialog, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor,
     TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch,
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
+    WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction, WindowOrigin,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
