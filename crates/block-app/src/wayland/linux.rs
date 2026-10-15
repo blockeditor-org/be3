@@ -287,8 +287,8 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                 }),
                 raised: windows.raised(info.id),
                 origin: WindowOrigin {
+                    command: relaunch_command(&launched.program, info.command),
                     program: launched.program,
-                    command: info.command,
                     launch: launched.launch,
                 },
             }
@@ -341,6 +341,13 @@ pub(crate) fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
     true
 }
 
+fn relaunch_command(program: &Option<String>, command: Vec<String>) -> Vec<String> {
+    match program {
+        Some(_) => Vec::new(),
+        None => command.into_iter().take(1).collect(),
+    }
+}
+
 const WAITING_ICON_SIZE: u32 = 64;
 const ICON_BUDGET: usize = block_plugin_api::MAX_BLOB_BYTES / 2;
 
@@ -356,6 +363,7 @@ pub(crate) struct Programs {
     icons: HashMap<String, HostImage>,
     scanning: Option<Receiver<Scanned>>,
     waiting: Vec<(String, Option<u64>)>,
+    scanned: bool,
 }
 
 impl Programs {
@@ -412,6 +420,7 @@ impl Programs {
                 Ok(Scanned::Entries(environment, entries)) => {
                     self.environment = environment;
                     self.entries = entries;
+                    self.scanned = true;
                     changed = true;
                 }
                 Ok(Scanned::Icons(icons)) => {
@@ -425,7 +434,7 @@ impl Programs {
                 }
             }
         }
-        if changed && !self.entries.is_empty() {
+        if self.scanned {
             for (key, launch) in std::mem::take(&mut self.waiting) {
                 self.launch(&key, launch);
             }
@@ -460,13 +469,14 @@ impl Programs {
     }
 
     pub(crate) fn launch(&mut self, key: &str, launch: Option<u64>) -> bool {
-        if self.entries.is_empty() {
+        if !self.scanned {
             self.waiting.push((key.to_owned(), launch));
             self.scan(WAITING_ICON_SIZE);
             return false;
         }
         let Some(entry) = self.entries.iter().find(|entry| entry.id == key) else {
             eprintln!("block-app: no program {key} is installed");
+            crate::notices::report(format!("{key} could not be opened: it is not installed"));
             return false;
         };
         let arguments = match self.environment.command(entry) {

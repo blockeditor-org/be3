@@ -376,7 +376,7 @@ fn notes(id: u64) -> HostWindow {
         "Shopping list",
         WindowOrigin {
             program: None,
-            command: vec!["/usr/bin/notes".to_owned(), "--new-window".to_owned()],
+            command: vec!["/usr/bin/notes".to_owned()],
             launch: None,
         },
     )

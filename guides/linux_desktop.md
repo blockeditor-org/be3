@@ -384,11 +384,14 @@ is saved, so the programs closing as it ends stay kept.
 
 Window ids start from the compositor's start time in microseconds, so an id never names two
 windows across runs: a saved record's window id is only ever adopted by that window, and a new
-window's own id never collides with a kept key. The host fills `HostWindow::origin`: the client's `/proc` command line
-(an X11 window's `_NET_WM_PID`), and, when the compositor launched it or an ancestor, the
-`.desktop` entry it was launched from and the `launch` number the shell put on its
-`ProgramAction::Launch` or `Exec`. linux-desktop opens a placeholder with that entry, else one
-from `Programs` whose `StartupWMClass` or id matches the app id, else its command line.
+window's own id never collides with a kept key. The host fills `HostWindow::origin`: when the
+compositor launched the program or an ancestor of it, the `.desktop` entry it was launched from
+and the `launch` number the shell put on its `ProgramAction::Launch` or `Exec`; otherwise the
+program's executable, the first word of the client's `/proc` command line (an X11 window's
+`_NET_WM_PID`). The arguments are never kept, since saved layouts outlive the process and an
+argument can be a secret. linux-desktop opens a placeholder with that entry, else one from
+`Programs` whose `StartupWMClass` or id matches the app id, else the executable. The host runs
+a `Launch` that arrives before it has listed the programs once the list is in.
 
 ### X11 programs
 

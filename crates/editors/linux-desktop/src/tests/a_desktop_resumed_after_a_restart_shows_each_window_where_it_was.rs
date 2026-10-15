@@ -41,7 +41,7 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
                 launch: Some(1),
             },
             ProgramAction::Exec {
-                command: vec!["/usr/bin/notes".to_owned(), "--new-window".to_owned()],
+                command: vec!["/usr/bin/notes".to_owned()],
                 launch: Some(6),
             },
         ],
