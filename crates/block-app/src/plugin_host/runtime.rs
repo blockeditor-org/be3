@@ -798,6 +798,7 @@ pub(crate) fn replace_gpu(setup: &beui::Setup) {
 
 pub(crate) struct HostFrame {
     pub(crate) content: Rect,
+    pub(crate) floating: Vec<Rect>,
 }
 
 pub(crate) fn report_child_views(
@@ -1384,6 +1385,7 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
                 };
                 HostFrame {
                     content: rect(&report.content),
+                    floating: report.floating.iter().map(rect).collect(),
                 }
             })
     })

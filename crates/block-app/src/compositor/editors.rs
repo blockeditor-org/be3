@@ -1206,9 +1206,26 @@ fn BlockFrameView(
                         command(Command::Pan(delta));
                     }
                 };
+                let gestures_at = move |pos: Pos2| {
+                    let origin = rect.get_untracked().min.to_vec2();
+                    gestures
+                        && viewport_rect.get_untracked().contains(pos)
+                        && !steered.get_untracked().is_some_and(|rect| rect.contains(pos))
+                        && !plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+                            frame
+                                .floating
+                                .iter()
+                                .any(|floating| floating.translate(origin).contains(pos))
+                        })
+                };
                 let child_view = child_view(block, EditorRegion::Frame);
                 view! {
-                    <Interactive on_scroll={scroll} on_zoom={zoom} on_pan_drag={pan}>
+                    <Interactive
+                        on_scroll={scroll}
+                        on_zoom={zoom}
+                        on_pan_drag={pan}
+                        gestures_at={gestures_at}
+                    >
                         <PluginRegion
                             editor={region_editor}
                             region=EditorRegion::Frame

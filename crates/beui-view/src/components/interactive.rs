@@ -67,6 +67,7 @@ pub fn Interactive(
     on_autoscroll: Callback<AutoscrollGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
+    gestures_at: Callback<Pos2, bool>,
     hit_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
     #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
@@ -140,6 +141,7 @@ pub fn Interactive(
         node.on_autoscroll = on_autoscroll;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
+        node.gestures_at = gestures_at;
         node.hit_at = hit_at;
         node.on_forward = on_forward;
         document.set_interactive_claim_at(interactive, claim_at);

@@ -1,5 +1,6 @@
 use crate::AppTest;
 
+mod a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl;
 mod a_checklist_on_a_canvas_takes_the_frame_when_opened_and_gives_it_back;
 mod a_new_text_block_opens_in_a_tab_beside_the_files;
 mod closing_a_tab_shuts_its_editor_down;
