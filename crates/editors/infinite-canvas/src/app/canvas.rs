@@ -141,6 +141,7 @@ fn CanvasOverlay(
             stage: stage.get(),
             empty: state.entities.get().is_empty(),
             gesture: state.gesture.get(),
+            outlines: super::state::selected_outlines(&state.displayed(), &state.selection.get()),
             frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),

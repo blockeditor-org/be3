@@ -73,6 +73,7 @@ pub(crate) struct Overlay {
     pub(crate) stage: Rect,
     pub(crate) empty: bool,
     pub(crate) gesture: Option<Gesture>,
+    pub(crate) outlines: Vec<SelectionFrame>,
     pub(crate) frame: Option<SelectionFrame>,
     pub(crate) resize: ResizeMode,
     pub(crate) rotatable: bool,
@@ -103,6 +104,10 @@ impl Overlay {
             );
         }
         self.draw_gesture(painter);
+        for outline_frame in &self.outlines {
+            let corners = outline_frame.corners().map(|corner| self.camera.at(corner));
+            outline(painter, corners, 1.0, SELECTION);
+        }
         if let Some(frame) = self.frame {
             self.draw_selection(painter, frame);
         }

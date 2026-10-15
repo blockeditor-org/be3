@@ -199,6 +199,7 @@ impl<A: BeuiApp> Views<A> {
         let set_bar = chrome.set_bar();
         let bar = FrameBar {
             shown: region.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
+            framed: region.chrome_drawn(),
             closable: spec.content.is_some(),
             on_phone: spec.top_bar.phone(),
         };
