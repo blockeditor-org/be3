@@ -93,7 +93,9 @@ impl AppTest {
     pub fn place(&mut self, target: &str) -> (f32, f32, f32, f32) {
         let found = self.run(&["find", target]);
         let numbers: Vec<f32> = found
-            .split(|character: char| !character.is_ascii_digit() && character != '-' && character != '.')
+            .split(|character: char| {
+                !character.is_ascii_digit() && character != '-' && character != '.'
+            })
             .filter_map(|number| number.parse().ok())
             .collect();
         match numbers[..] {
@@ -103,7 +105,10 @@ impl AppTest {
     }
 
     pub fn count(&mut self, text: &str) -> usize {
-        self.tree().lines().filter(|line| line.contains(text)).count()
+        self.tree()
+            .lines()
+            .filter(|line| line.contains(text))
+            .count()
     }
 
     pub fn shown(&mut self, text: &str) -> bool {

@@ -17,7 +17,10 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     let zoomed = app.place(PANE);
     let zoomed_button = app.place("#checklist.add");
     let zoom = zoomed.2 / pane.2;
-    assert!(zoom > 1.1, "zooming in grows the checklist, from {pane:?} to {zoomed:?}");
+    assert!(
+        zoom > 1.1,
+        "zooming in grows the checklist, from {pane:?} to {zoomed:?}"
+    );
     assert!(
         (zoomed_button.2 / button.2 - zoom).abs() < 0.05,
         "its content grows with it rather than laying out again, from {button:?} to {zoomed_button:?}"
@@ -32,7 +35,11 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     app.click("#checklist.add");
     app.wait("CheckBox \"buy milk\"");
     app.wait("#infinite-canvas.dock");
-    assert_eq!(app.place(PANE), pane, "the checklist stays where it is on the canvas");
+    assert_eq!(
+        app.place(PANE),
+        pane,
+        "the checklist stays where it is on the canvas"
+    );
     app.snapshot("a_checklist_on_a_canvas_works_in_place_and_zooms_with_it");
     app.close();
 }

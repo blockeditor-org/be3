@@ -1,7 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
-    ICON_REDO, ICON_UNDO,
+    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_REDO, ICON_SELECT,
+    ICON_TEXT_FIELDS, ICON_UNDO,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;

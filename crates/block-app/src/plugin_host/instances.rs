@@ -1635,7 +1635,10 @@ impl Instances {
                 .filter(|occluder| occluder.after as usize > index)
                 .map(|occluder| host_rect(occluder.rect, origin, stretch))
                 .collect();
-            if matches!(mode, ChildMode::Active | ChildMode::Live | ChildMode::InPlace) {
+            if matches!(
+                mode,
+                ChildMode::Active | ChildMode::Live | ChildMode::InPlace
+            ) {
                 let interactive = child_rect.intersect(child_clip);
                 if interactive.is_positive() {
                     holes.holes.push(Hole {

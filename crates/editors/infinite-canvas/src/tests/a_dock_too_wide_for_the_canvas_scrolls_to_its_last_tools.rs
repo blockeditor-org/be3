@@ -11,8 +11,14 @@ fn a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools() {
     );
     let dock = editor.rect_of("infinite-canvas.dock");
     let redo = editor.rect_of("infinite-canvas.dock.redo");
-    assert!(dock.right() <= 300.0, "the dock keeps inside the canvas, got {dock:?}");
-    assert!(redo.left() > dock.right(), "redo starts scrolled out of view, at {redo:?}");
+    assert!(
+        dock.right() <= 300.0,
+        "the dock keeps inside the canvas, got {dock:?}"
+    );
+    assert!(
+        redo.left() > dock.right(),
+        "redo starts scrolled out of view, at {redo:?}"
+    );
     editor.record();
 
     let from = dock.center() + Vec2::new(dock.width() / 3.0, 0.0);

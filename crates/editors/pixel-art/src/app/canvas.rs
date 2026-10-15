@@ -223,10 +223,7 @@ pub(crate) fn ArtworkCanvas(
 
 fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt || !press.pressed {
-        return !matches!(
-            shortcut_kind(press.key),
-            Shortcut::None | Shortcut::Cancel
-        );
+        return !matches!(shortcut_kind(press.key), Shortcut::None | Shortcut::Cancel);
     }
     match shortcut_kind(press.key) {
         Shortcut::Tool(tool) => tools.select_tool(tool),

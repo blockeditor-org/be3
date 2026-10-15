@@ -15,7 +15,11 @@ fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
     app.run(&["click", &inside]);
     app.wait("Pane \"Pixel Art\"");
     app.gone("#infinite-canvas.dock");
-    assert_eq!(app.count("Pane \"Pixel Art\""), 1, "the pixel art is described once");
+    assert_eq!(
+        app.count("Pane \"Pixel Art\""),
+        1,
+        "the pixel art is described once"
+    );
     let artwork = app.place(ARTWORK);
     assert!(
         (artwork.0 - card.0).abs() < card.2 && (artwork.1 - card.1).abs() < card.3,
@@ -25,14 +29,24 @@ fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
 
     app.run(&["wheel", &inside, "2"]);
     let panned = app.place(ARTWORK);
-    assert!(panned.1 < artwork.1, "the wheel pans the canvas under the pixel art, from {artwork:?} to {panned:?}");
+    assert!(
+        panned.1 < artwork.1,
+        "the wheel pans the canvas under the pixel art, from {artwork:?} to {panned:?}"
+    );
     app.run(&["keydown", "ctrl"]);
     app.run(&["wheel", &inside, "-2"]);
     app.run(&["keyup", "ctrl"]);
     let zoomed = app.place(ARTWORK);
-    assert!(zoomed.2 > panned.2, "ctrl and the wheel zoom in, from {panned:?} to {zoomed:?}");
+    assert!(
+        zoomed.2 > panned.2,
+        "ctrl and the wheel zoom in, from {panned:?} to {zoomed:?}"
+    );
 
-    let pixel = format!("{:.0},{:.0}", zoomed.0 + zoomed.2 / 2.0, zoomed.1 + zoomed.3 / 2.0);
+    let pixel = format!(
+        "{:.0},{:.0}",
+        zoomed.0 + zoomed.2 / 2.0,
+        zoomed.1 + zoomed.3 / 2.0
+    );
     app.run(&["click", &pixel]);
     app.record();
 

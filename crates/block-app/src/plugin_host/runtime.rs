@@ -1459,7 +1459,10 @@ pub(crate) fn aspect_ratio(plugin_id: &str, instance: EditorInstanceId) -> Optio
 }
 
 pub(crate) fn assigned_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
-    with(plugin_id, |runtime| runtime.instances.assigned_size(instance)).flatten()
+    with(plugin_id, |runtime| {
+        runtime.instances.assigned_size(instance)
+    })
+    .flatten()
 }
 
 pub(crate) fn intrinsic_size(plugin_id: &str, instance: EditorInstanceId) -> Option<Vec2> {

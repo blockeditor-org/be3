@@ -321,7 +321,10 @@ pub(crate) fn PluginRegion(
             && !placed.contains(local)
             && plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
                 frame.content.contains(local)
-                    && !frame.floating.iter().any(|floating| floating.contains(local))
+                    && !frame
+                        .floating
+                        .iter()
+                        .any(|floating| floating.contains(local))
             })
     };
     let takes = move |local: Pos2| {

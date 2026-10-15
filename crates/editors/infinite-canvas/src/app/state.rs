@@ -214,11 +214,7 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
         } => {
             let mut ends = line_ends(original);
             ends[*end] = match snap {
-                true => constrain_point_angle(
-                    ends[1 - end],
-                    *current,
-                    std::f32::consts::FRAC_PI_4,
-                ),
+                true => constrain_point_angle(ends[1 - end], *current, std::f32::consts::FRAC_PI_4),
                 false => *current,
             };
             vec![line_through(original.clone(), ends[0], ends[1])]
@@ -572,8 +568,7 @@ fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> 
     let room = Vec2::new(room.x.max(FITTED_ROOM.x), room.y.max(FITTED_ROOM.y));
     let scale = (room.x / intrinsic.x)
         .min(room.y / intrinsic.y)
-        .min(1.0)
-        .max(f32::EPSILON);
+        .clamp(f32::EPSILON, 1.0);
     let bounds = entity_bounds(entity);
     let size = direct_editor_entity_size(intrinsic, scale);
     let mut fitted = entity.clone();

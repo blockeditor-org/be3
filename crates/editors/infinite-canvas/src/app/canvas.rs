@@ -90,12 +90,33 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 <Show condition={!previewing}>
                                     <CanvasOverlay
                                         state={state}
-                                        camera={overlay_camera}
-                                        stage={overlay_stage}
+                                        camera={backdrop_camera}
+                                        stage={backdrop_stage}
                                     />
-                                </Show>
-                            </Canvas>
-                        </CanvasSurface>
+                                    <ForEach keys={ids}>
+                                        {move |id: Uuid| {
+                                            let camera = shape_camera;
+                                            view! {
+                                                <EntityShape state id camera />
+                                            }
+                                        }}
+                                    </ForEach>
+                                    <ForEach keys={embeds}>
+                                        {move |id: Uuid| {
+                                            view! {
+                                                <EntityEmbed state id />
+                                            }
+                                        }}
+                                    </ForEach>
+                                    <Show condition={!previewing}>
+                                        <CanvasOverlay
+                                            state={state}
+                                            camera={overlay_camera}
+                                            stage={overlay_stage}
+                                        />
+                                    </Show>
+                                </Canvas>
+                            </CanvasSurface>
                         </Frame>
                     </CanvasMenu>
                 }
@@ -141,11 +162,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 }
 
 #[component]
-fn CanvasOverlay(
-    state: CanvasState,
-    camera: Memo<CanvasView>,
-    stage: Memo<Rect>,
-) -> CanvasItem {
+fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
@@ -159,7 +176,10 @@ fn CanvasOverlay(
             gesture: state.gesture.get(),
             frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
             line: state.selected_line().and_then(|line| {
-                let shown = state.displayed().into_iter().find(|entity| entity.id == line.id)?;
+                let shown = state
+                    .displayed()
+                    .into_iter()
+                    .find(|entity| entity.id == line.id)?;
                 Some(line_ends(&shown))
             }),
             resize: state.selection_handles().0,
@@ -188,11 +208,7 @@ fn CanvasOverlay(
 }
 
 #[component]
-fn CanvasBackdrop(
-    state: CanvasState,
-    camera: Memo<CanvasView>,
-    stage: Memo<Rect>,
-) -> CanvasItem {
+fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));

@@ -6,7 +6,8 @@ use block_editor_beui::beui::{Pos2, Vec2};
 fn dragging_an_end_of_a_selected_line_moves_only_that_end() {
     let mut line = entity(Uuid::from_u128(1));
     line.kind = CanvasEntityKind::Line;
-    line.transform = CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(180.0, 1.0), 0.0);
+    line.transform =
+        CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(180.0, 1.0), 0.0);
     line.style.line_width = 2.0;
     let mut marker = card();
     marker.id = Uuid::from_u128(2);

@@ -1307,7 +1307,8 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
     if along == Vec2::ZERO {
         return;
     }
-    let claimed = claimed.filter(|id| interactive(doc, *id).is_some_and(|node| node.wants_wheel(along)));
+    let claimed =
+        claimed.filter(|id| interactive(doc, *id).is_some_and(|node| node.wants_wheel(along)));
     let target = latched(doc, frame, pos, along).or(claimed).or_else(|| {
         for id in path {
             let node = interactive(doc, id)?;
