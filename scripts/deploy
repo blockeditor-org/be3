@@ -15,14 +15,17 @@
 # API key for purging the download page (BUNNY_API_KEY, or bunny-api-key,
 # which may be left empty), and the keystore the APK is signed with
 # (android-release-keystore.base64), which it can make anew and copies to
-# buck/android/release-keystore.base64 for the build. --android-id and
+# buck/android/release-keystore.base64 for the build. --skip-downloads and
+# --skip-android leave the downloads, or only the APK and so the keystore, out
+# of the build (be3.deploy_downloads and be3.deploy_android). --android-id and
 # --android-label name the APK, com.be3.block and Block unless given, so that
 # it installs beside CI's com.be3.block.ci. `./scripts/deploy --help` lists
 # the other options and the environment it reads.
 #
 # Usage:
 #   ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
-#                    [--skip-downloads] [--android-id ID] [--android-label LABEL]
+#                    [--skip-downloads] [--skip-android] [--android-id ID]
+#                    [--android-label LABEL]
 
 set -euo pipefail
 
@@ -32,7 +35,9 @@ config="${XDG_CONFIG_HOME:-$HOME/.config}/be3"
 android_id='com.be3.block'
 android_label='Block'
 dry_run=false
-uploads=2
+skip_be=false
+downloads=true
+android=true
 help=false
 arguments=()
 while [[ $# -gt 0 ]]; do
@@ -46,8 +51,14 @@ while [[ $# -gt 0 ]]; do
             shift 2
             continue
             ;;
+        --skip-android)
+            android=false
+            shift
+            continue
+            ;;
         --dry-run) dry_run=true ;;
-        --skip-be | --skip-downloads) uploads=$((uploads - 1)) ;;
+        --skip-be) skip_be=true ;;
+        --skip-downloads) downloads=false ;;
         --help | -h) help=true ;;
     esac
     arguments+=("$1")
@@ -156,14 +167,20 @@ keystore() {
     (umask 077 && cp "$saved" "$repository/buck/android/release-keystore.base64")
 }
 
+$downloads || android=false
 if ! $help; then
-    if ! $dry_run && [[ $uploads -gt 0 ]]; then
+    if ! $dry_run && { ! $skip_be || $downloads; }; then
         secret BUNNY_STORAGE_KEY bunny-storage-key "the Bunny storage zone's password" false
+    fi
+    if ! $dry_run && $downloads; then
         secret BUNNY_API_KEY bunny-api-key "the Bunny account's API key, to purge the download page from the CDN" true
     fi
-    keystore
+    if $android; then
+        keystore
+    fi
 fi
 
 exec "$repository/scripts/buck" run -m release \
+    -c "be3.deploy_downloads=$downloads" -c "be3.deploy_android=$android" \
     -c "be3.android_id=$android_id" -c "be3.android_label=$android_label" \
     //crates/local-tools:deploy -- --repository "$repository" ${arguments[@]+"${arguments[@]}"}

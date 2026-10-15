@@ -9,7 +9,8 @@ use sha2::{Digest, Sha256};
 
 const USAGE: &str = "\
 usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
-                        [--skip-downloads] [--android-id ID] [--android-label LABEL]
+                        [--skip-downloads] [--skip-android] [--android-id ID]
+                        [--android-label LABEL]
 
 Builds be-server, the web bundle, be and the app for every platform in
 release, uploads each be and each of the app's downloads to the mirror, swaps
@@ -20,15 +21,17 @@ The downloads are the app with its plugins for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
 (com.be3.block and Block), so it installs beside CI's com.be3.block.ci. They go
-to app/BUILD/ beside a page linking them, and app/index.html is that page for
-the build the server runs (https://lfs.pfg.pw/by-name/be3/app/).
+to app/BUILD/ beside a page linking them, and once the server runs the build,
+app/index.html is that page (https://lfs.pfg.pw/by-name/be3/app/). It is not
+read back from the mirror, whose CDN may hold the last one until it is purged.
 
   --dry-run      print what it would do, uploading and changing nothing
   --allow-dirty  deploy a working tree that differs from its commit
   --skip-server  only upload be and pin it
   --skip-be      leave be as it is
   --skip-web     leave the web bundle as it is
-  --skip-downloads  upload none of the app's downloads
+  --skip-downloads  build and upload none of the app's downloads
+  --skip-android    build and upload every download but the APK, which needs no keystore
 
 ./scripts/deploy asks at a terminal for any key it lacks and saves it in
 ~/.config/be3: the storage zone's password (bunny-storage-key), the API
@@ -183,6 +186,7 @@ fn run(options: &Options) -> Result<(), String> {
                     &format!("{directory}/{name}"),
                     &bytes,
                     "application/octet-stream",
+                    true,
                 )?;
                 if name == "be" {
                     pins.push((triple.clone(), sha256));
@@ -192,7 +196,7 @@ fn run(options: &Options) -> Result<(), String> {
     }
 
     let mut page = None;
-    if !options.skip_downloads {
+    if !options.skip_downloads && !options.downloads.is_empty() {
         let mut listed = Vec::new();
         for (platform, file) in &options.downloads {
             let extension = file.extension().and_then(|extension| extension.to_str());
@@ -204,6 +208,7 @@ fn run(options: &Options) -> Result<(), String> {
                 &format!("app/{build}/{name}"),
                 &bytes,
                 "application/octet-stream",
+                true,
             )?;
             listed.push(Download {
                 label: label(platform),
@@ -217,6 +222,7 @@ fn run(options: &Options) -> Result<(), String> {
             &format!("app/{build}/index.html"),
             download_page(&build, &listed, "").as_bytes(),
             "text/html; charset=utf-8",
+            true,
         )?;
         page = Some(download_page(&build, &listed, &format!("{build}/")));
     }
@@ -291,12 +297,18 @@ fn run(options: &Options) -> Result<(), String> {
         started?;
     }
 
-    if let Some(page) = page {
+    if page.is_some() && options.skip_server {
+        println!(
+            "the server still runs its last build, so {mirror}/app/ still offers that one's \
+             downloads; this build's are at {mirror}/app/{build}/"
+        );
+    } else if let Some(page) = page {
         store.put(
             "the latest download page",
             "app/index.html",
             page.as_bytes(),
             "text/html; charset=utf-8",
+            false,
         )?;
         let url = format!("{mirror}/app/index.html");
         let api_key = std::env::var("BUNNY_API_KEY").unwrap_or_default();
@@ -345,6 +357,7 @@ impl Store<'_> {
         path: &str,
         bytes: &[u8],
         content_type: &str,
+        read_back: bool,
     ) -> Result<String, String> {
         let sha256 = hex(&Sha256::digest(bytes));
         let target = format!("{}/{path}", self.storage);
@@ -363,6 +376,9 @@ impl Store<'_> {
             &sha256,
             content_type,
         )?;
+        if !read_back {
+            return Ok(sha256);
+        }
         let source = format!("{}/{path}", self.mirror);
         let read = download(self.agents.to(&source), &source)?;
         if hex(&Sha256::digest(&read)) != sha256 {

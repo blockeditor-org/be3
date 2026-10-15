@@ -62,10 +62,13 @@ How the server runs on a VPS for real notes. The files referred to are in
   signed on a worker with the release keystore under the id and label
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
   it installs beside CI's `com.be3.block.ci`), with
-  `app/BUILD/index.html` linking them. Once the server runs the build, it
-  writes the same page to `app/index.html`, the one people are sent to
-  (`lfs.pfg.pw/by-name/be3/app/`), and purges it from the CDN when
-  `BUNNY_API_KEY` is set. A download connects only to a server of its build;
+  `app/BUILD/index.html` linking them. Once the server runs the build (not
+  under `--skip-server`), it writes the same page to `app/index.html`, the one
+  people are sent to (`lfs.pfg.pw/by-name/be3/app/`), without reading it back
+  through the CDN, and purges it from the CDN when `BUNNY_API_KEY` is set. A
+  download connects only to a server of its build. `--skip-downloads` leaves
+  the downloads out of the build, and `--skip-android` only the APK, so that
+  neither needs the keystore;
 - copies `be-server`, its `build-id` and the web bundle (`//crates/block-app:web`,
   with every plugin) to the VPS beside the running ones, stops Caddy and
   be-server, moves them into place (the bundle to `/srv/be3-web`, keeping the

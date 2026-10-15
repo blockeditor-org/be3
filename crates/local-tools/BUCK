@@ -8,18 +8,26 @@ load(":defs.bzl", "deploy")
 
 cargo_binary()
 
+# ./scripts/deploy's --skip-downloads and --skip-android set
+# be3.deploy_downloads and be3.deploy_android to false, which leave those
+# downloads out of the build.
+downloads = read_config("be3", "deploy_downloads", "true") == "true"
+
+native_app = "//crates/block-app:native" if downloads else None
+
 deploy(
     name = "deploy",
-    app_android = "//crates/block-app:android-release",
-    app_linux_arm64 = "//crates/block-app:native",
-    app_linux_x86_64 = "//crates/block-app:native",
-    app_macos_arm64 = "//crates/block-app:native",
-    app_macos_x86_64 = "//crates/block-app:native",
-    app_windows_arm64 = "//crates/block-app:native",
-    app_windows_x86_64 = "//crates/block-app:native",
+    app_android = "//crates/block-app:android-release" if downloads and read_config("be3", "deploy_android", "true") == "true" else None,
+    app_linux_arm64 = native_app,
+    app_linux_x86_64 = native_app,
+    app_macos_arm64 = native_app,
+    app_macos_x86_64 = native_app,
+    app_windows_arm64 = native_app,
+    app_windows_x86_64 = native_app,
     be_linux_arm64 = "//crates/be-cli:native",
     be_linux_x86_64 = "//crates/be-cli:native",
     server = "//crates/be-server:bin",
     tool = ":bin",
     web = "//crates/block-app:web",
+    web_download = downloads,
 )

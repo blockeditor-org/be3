@@ -69,8 +69,12 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
         "--web",
         ctx.attrs.web[DefaultInfo].default_outputs[0],
     )
-    apps = [(name.replace("_", "-", 1), getattr(ctx.attrs, "app_" + name)) for name in _NATIVE] + [("web", ctx.attrs.web)]
+    apps = [(name.replace("_", "-", 1), getattr(ctx.attrs, "app_" + name)) for name in _NATIVE]
+    if ctx.attrs.web_download:
+        apps.append(("web", ctx.attrs.web))
     for name, bundle in apps:
+        if not bundle:
+            continue
         folder = "block-app-" + name
         archive = ctx.actions.declare_output(folder + ".zip")
         ctx.actions.run(
@@ -79,8 +83,9 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
             identifier = name,
         )
         command.add("--download", cmd_args(name, "=", archive, delimiter = ""))
-    apk = ctx.attrs.app_android[DefaultInfo].default_outputs[0]
-    command.add("--download", cmd_args("android=", apk, delimiter = ""))
+    if ctx.attrs.app_android:
+        apk = ctx.attrs.app_android[DefaultInfo].default_outputs[0]
+        command.add("--download", cmd_args("android=", apk, delimiter = ""))
     return [DefaultInfo(), RunInfo(args = command)]
 
 _NATIVE = ["linux_x86_64", "linux_arm64", "macos_arm64", "macos_x86_64", "windows_x86_64", "windows_arm64"]
@@ -88,14 +93,16 @@ _NATIVE = ["linux_x86_64", "linux_arm64", "macos_arm64", "macos_x86_64", "window
 deploy = rule(
     attrs = {
         # The APK, signed on a worker with the release keystore, which builds
-        # for Android whatever the command is configured for.
-        "app_android": attrs.dep(),
-        "app_linux_arm64": attrs.transition_dep(cfg = _linux_arm64),
-        "app_linux_x86_64": attrs.transition_dep(cfg = _linux_x86_64),
-        "app_macos_arm64": attrs.transition_dep(cfg = _macos_arm64),
-        "app_macos_x86_64": attrs.transition_dep(cfg = _macos_x86_64),
-        "app_windows_arm64": attrs.transition_dep(cfg = _windows_arm64),
-        "app_windows_x86_64": attrs.transition_dep(cfg = _windows_x86_64),
+        # for Android whatever the command is configured for. It and the
+        # other downloads are left out when ./scripts/deploy skips them, so
+        # that nothing builds them.
+        "app_android": attrs.option(attrs.dep(), default = None),
+        "app_linux_arm64": attrs.option(attrs.transition_dep(cfg = _linux_arm64), default = None),
+        "app_linux_x86_64": attrs.option(attrs.transition_dep(cfg = _linux_x86_64), default = None),
+        "app_macos_arm64": attrs.option(attrs.transition_dep(cfg = _macos_arm64), default = None),
+        "app_macos_x86_64": attrs.option(attrs.transition_dep(cfg = _macos_x86_64), default = None),
+        "app_windows_arm64": attrs.option(attrs.transition_dep(cfg = _windows_arm64), default = None),
+        "app_windows_x86_64": attrs.option(attrs.transition_dep(cfg = _windows_x86_64), default = None),
         "be_linux_arm64": attrs.transition_dep(cfg = _linux_arm64),
         "be_linux_x86_64": attrs.transition_dep(cfg = _linux_x86_64),
         "server": attrs.transition_dep(cfg = _linux_x86_64),
@@ -104,6 +111,8 @@ deploy = rule(
         # The web bundle with its plugins, which builds for wasm whatever the
         # command is configured for.
         "web": attrs.dep(),
+        # Whether the web bundle is zipped as a download too.
+        "web_download": attrs.bool(default = True),
         "_archive": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:bin", providers = [RunInfo])),
     },
     impl = _deploy_impl,
