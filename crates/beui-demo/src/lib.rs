@@ -571,7 +571,7 @@ fn DemoShell() -> NodeId {
                     <DemoToolbar pages mobile set_mobile />
                 </Frame>
                 <Separator />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=CATALOG drag_modifier>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
                     <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                         <DockPane id="catalog">
                             <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>

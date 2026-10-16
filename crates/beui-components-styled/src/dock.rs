@@ -57,7 +57,6 @@ const PREVIEW_ALPHA: u8 = 235;
 pub fn Docking<K>(
     layout: DockingLayout<K>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
-    #[prop(default = None)] home: Prop<Option<K>>,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     children: Children<DockNode<K>>,
@@ -80,7 +79,6 @@ where
         <unstyled::Docking
             layout
             mode
-            home
             focus
             drag_modifier
             inset={padding}
