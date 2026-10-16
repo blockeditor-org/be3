@@ -763,7 +763,7 @@ impl CanvasState {
         if (entity.transform.size.x - size.x).abs() >= 0.5
             || (entity.transform.size.y - size.y).abs() >= 0.5
         {
-            entity.transform.size = size;
+            entity.transform = text_grown(entity.transform, &text_style, size);
         }
         entity
     }
@@ -1624,7 +1624,7 @@ impl CanvasState {
                     let state = self.peek_child(entity.id);
                     !state.placed || state.capabilities.rotation
                 }
-                CanvasEntityKind::Artboard { .. } => false,
+                CanvasEntityKind::Artboard { .. } | CanvasEntityKind::Text { .. } => false,
                 _ => true,
             })
     }

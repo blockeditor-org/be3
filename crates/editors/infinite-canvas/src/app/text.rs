@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasTextAlign, CanvasTextStyle, CanvasTextWeight,
+    CanvasEntity, CanvasEntityKind, CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
+    CanvasTextWeight,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::text_input::text_input_style;
@@ -11,10 +12,10 @@ use block_editor_beui::beui::{
 
 use uuid::Uuid;
 
+use crate::geometry::TEXT_INSET;
+
 use super::paint::{resolve_color, with_opacity};
 use super::state::{CanvasState, TextEntry};
-
-pub(crate) const TEXT_INSET: f32 = 4.0;
 
 const PLACEHOLDER_OPACITY: f32 = 0.4;
 
@@ -31,7 +32,11 @@ pub(crate) fn prose(text_style: CanvasTextStyle, font_px: f32) -> Prose {
             CanvasTextAlign::Center => TextAlign::Center,
             CanvasTextAlign::Right => TextAlign::End,
         },
-        vertical_align: TextAlign::Center,
+        vertical_align: match text_style.vertical_alignment {
+            CanvasTextVerticalAlign::Top => TextAlign::Start,
+            CanvasTextVerticalAlign::Middle => TextAlign::Center,
+            CanvasTextVerticalAlign::Bottom => TextAlign::End,
+        },
         line_padding: (gap, gap),
         wrap: text_style.wrap,
     }
@@ -58,10 +63,8 @@ pub(crate) fn measure(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
     Some(Vec2::new(measured.x / scale, measured.y / scale))
 }
 
-pub(crate) fn shown_live(entity: &CanvasEntity, editing: bool) -> bool {
-    matches!(entity.kind, CanvasEntityKind::Text { .. })
-        && !entity.style.hidden
-        && (entity.transform.rotation == 0.0 || editing)
+pub(crate) fn shown_live(entity: &CanvasEntity) -> bool {
+    matches!(entity.kind, CanvasEntityKind::Text { .. }) && !entity.style.hidden
 }
 
 pub(crate) fn text_box(entity: &CanvasEntity) -> Rect {
@@ -153,7 +156,7 @@ pub(crate) fn EntityText(
         color: color.into_prop(),
         placeholder_color: Prop::dynamic(move || with_opacity(color.get(), PLACEHOLDER_OPACITY)),
         padding_horizontal: Prop::dynamic(move || TEXT_INSET * scale.get()),
-        padding_vertical: Prop::Static(0.0),
+        padding_vertical: Prop::dynamic(move || TEXT_INSET * scale.get()),
         prose: Prop::dynamic(move || Some(prose(text_style.get(), font_size.get()))),
         ..text_input_style()
     };

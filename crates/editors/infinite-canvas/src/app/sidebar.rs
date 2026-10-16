@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasTextAlign, CanvasTextWeight,
+    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasTextAlign,
+    CanvasTextVerticalAlign, CanvasTextWeight,
 };
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
@@ -1070,6 +1071,12 @@ const ALIGN_OPTIONS: [(&str, CanvasTextAlign); 3] = [
     ("Right", CanvasTextAlign::Right),
 ];
 
+const VERTICAL_ALIGN_OPTIONS: [(&str, CanvasTextVerticalAlign); 3] = [
+    ("Top", CanvasTextVerticalAlign::Top),
+    ("Middle", CanvasTextVerticalAlign::Middle),
+    ("Bottom", CanvasTextVerticalAlign::Bottom),
+];
+
 #[component]
 fn TextOptions(state: CanvasState) -> NodeId {
     let styles = create_memo(move || {
@@ -1093,14 +1100,13 @@ fn TextOptions(state: CanvasState) -> NodeId {
         .or(18.0) as f64
     });
     let line_height = create_memo(move || {
-        let height = common_value(styles.with(|styles| {
+        common_value(styles.with(|styles| {
             styles
                 .iter()
                 .map(|style| style.line_height)
                 .collect::<Vec<f32>>()
         }))
-        .or(1.2);
-        (height as f64 * 100.0).round() / 100.0
+        .or(1.2) as f64
     });
     let bold = create_memo(move || {
         common_value(styles.with(|styles| {
@@ -1123,6 +1129,14 @@ fn TextOptions(state: CanvasState) -> NodeId {
                 .iter()
                 .map(|style| style.alignment)
                 .collect::<Vec<CanvasTextAlign>>()
+        }))
+    });
+    let vertical_alignment = create_memo(move || {
+        common_value(styles.with(|styles| {
+            styles
+                .iter()
+                .map(|style| style.vertical_alignment)
+                .collect::<Vec<CanvasTextVerticalAlign>>()
         }))
     });
     let sized = move |value: f64| {
@@ -1159,6 +1173,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                                 min=4.0
                                 max=256.0
                                 value={font_size}
+                                decimals={Some(2)}
                                 @test_id={"infinite-canvas.font-size"}
                                 on_change={sized}
                             />
@@ -1171,6 +1186,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                                 min=0.5
                                 max=4.0
                                 value={line_height}
+                                decimals={Some(2)}
                                 drag={NumberDrag::Linear { speed: 0.05 }}
                                 @test_id={"infinite-canvas.line-height"}
                                 on_change={spaced}
@@ -1202,6 +1218,35 @@ fn TextOptions(state: CanvasState) -> NodeId {
                                             on_change={move |_: bool| {
                                                 state.update_selected_text(move |style| {
                                                     style.alignment = wanted;
+                                                });
+                                            }}
+                                        />
+                                    }
+                                }}
+                            </ForEach>
+                        </List>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=4.0
+                            wrap=true
+                        >
+                            <ForEach
+                                keys={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
+                            >
+                                {move |index: usize| {
+                                    let (label, wanted) = VERTICAL_ALIGN_OPTIONS[index];
+                                    let pressed = create_memo(move || {
+                                        vertical_alignment.get() == CommonValue::Uniform(wanted)
+                                    });
+                                    view! {
+                                        <ToggleButton
+                                            label={label}
+                                            pressed={pressed}
+                                            @test_id={format!("infinite-canvas.align-text.{label}")}
+                                            on_change={move |_: bool| {
+                                                state.update_selected_text(move |style| {
+                                                    style.vertical_alignment = wanted;
                                                 });
                                             }}
                                         />

@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextStyle,
-    CanvasTransform, first_artboard,
+    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
+    CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform, first_artboard,
 };
 use block_editor_beui::beui::{Pos2, Rect, Vec2, pos2};
 use block_editor_beui::block_ui::{
@@ -10,6 +10,7 @@ use block_editor_beui::{ResizeMode, block_ui};
 use uuid::Uuid;
 
 pub(crate) const MIN_SIZE: f32 = 4.0;
+pub(crate) const TEXT_INSET: f32 = 4.0;
 pub(crate) const HIT_RADIUS: f32 = 7.0;
 pub(crate) const HANDLE_RADIUS: f32 = 5.0;
 pub(crate) const HANDLE_REACH: f32 = HANDLE_RADIUS + 3.0;
@@ -770,7 +771,31 @@ pub(crate) fn pen_entity(points: Vec<CanvasPoint>, style: CanvasEntityStyle) -> 
 pub(crate) fn text_box_size(text_style: &CanvasTextStyle, measured: Vec2) -> CanvasPoint {
     let font_size = text_style.font_size.clamp(4.0, 256.0);
     CanvasPoint::new(
-        (measured.x + 8.0).max(16.0),
-        (measured.y + 8.0).max(font_size * text_style.line_height),
+        (measured.x + 2.0 * TEXT_INSET).max(16.0),
+        (measured.y + 2.0 * TEXT_INSET).max(font_size * text_style.line_height),
+    )
+}
+
+pub(crate) fn text_grown(
+    transform: CanvasTransform,
+    text_style: &CanvasTextStyle,
+    size: CanvasPoint,
+) -> CanvasTransform {
+    let grown = CanvasPoint::new(size.x - transform.size.x, size.y - transform.size.y);
+    let x = match text_style.alignment {
+        CanvasTextAlign::Left => grown.x / 2.0,
+        CanvasTextAlign::Center => 0.0,
+        CanvasTextAlign::Right => -grown.x / 2.0,
+    };
+    let y = match text_style.vertical_alignment {
+        CanvasTextVerticalAlign::Top => grown.y / 2.0,
+        CanvasTextVerticalAlign::Middle => 0.0,
+        CanvasTextVerticalAlign::Bottom => -grown.y / 2.0,
+    };
+    let shift = rotate(CanvasPoint::new(x, y), transform.rotation);
+    CanvasTransform::new(
+        CanvasPoint::new(transform.center.x + shift.x, transform.center.y + shift.y),
+        size,
+        transform.rotation,
     )
 }

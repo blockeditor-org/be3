@@ -52,6 +52,7 @@ mod selections_are_shared_with_peers_and_theirs_are_drawn;
 mod setting_component_value_writes_the_same_value_to_all_selected_entities;
 mod tapping_selected_text_on_a_phone_edits_it;
 mod text_is_edited_where_it_is_drawn;
+mod text_sits_against_the_edges_it_is_aligned_to;
 mod the_actions_menu_deletes_the_selection;
 mod the_canvas_opens_with_the_select_tool_so_a_finger_box_selects;
 mod the_canvas_paints_the_entities_it_holds;
@@ -61,6 +62,7 @@ mod the_palette_and_the_shortcuts_run_the_canvas_actions;
 mod the_preview_fills_the_artboard_with_its_background;
 mod the_preview_shows_the_first_artboard;
 mod the_transform_fields_edit_the_selected_entity;
+mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 
 fn entity(id: Uuid) -> CanvasEntity {

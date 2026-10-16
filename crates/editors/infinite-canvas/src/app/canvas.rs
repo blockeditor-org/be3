@@ -243,11 +243,7 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
 fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
     let entity = entity_of(state, id);
     let editing = create_memo(move || state.editing_text.get() == Some(id));
-    let live = create_memo(move || {
-        entity
-            .get()
-            .is_some_and(|entity| shown_live(&entity, editing.get()))
-    });
+    let live = create_memo(move || entity.get().is_some_and(|entity| shown_live(&entity)));
     let bounds = create_memo(move || {
         let Some(entity) = entity.get() else {
             return Rect::ZERO;
@@ -270,7 +266,6 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         let label = reference.and_then(|reference| state.label_of(reference));
         let loading = reference.is_some();
         let paint = EntityPaint {
-            live_text: live.get(),
             covered: state.child_state(entity.id).available,
             camera: Camera::of(Some(camera.get()), block_editor_beui::beui::Pos2::ZERO),
             palette: palette(&theme),

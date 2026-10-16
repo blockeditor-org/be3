@@ -3,7 +3,7 @@ use crate::input::CursorIcon;
 use crate::painter::Shape;
 
 #[test]
-fn the_simulated_cursor_is_the_touch_cursor_while_touch_is_emulated() {
+fn the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated() {
     let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
@@ -23,11 +23,14 @@ fn the_simulated_cursor_is_the_touch_cursor_while_touch_is_emulated() {
     let ring = output.shapes().iter().any(|shape| {
         matches!(shape, Shape::Rect { rect, stroke_width, .. }
             if *stroke_width == crate::touch_cursor::STROKE
-                && (rect.center() - cursor).length() < 0.01
-                && (rect.width() - (crate::touch_cursor::SIZE - crate::touch_cursor::STROKE)).abs() < 0.01)
+                && (rect.center() - cursor).length() < 0.01)
     });
-    assert!(
-        ring,
-        "the simulated cursor is not the circle the platforms show"
-    );
+    assert!(!ring, "the simulated cursor is the touch circle");
+    let arrow = output.shapes().iter().any(|shape| {
+        matches!(shape, Shape::Text { origin, .. }
+            if origin.x < cursor.x
+                && origin.y < cursor.y
+                && (*origin - cursor).length() < 16.0)
+    });
+    assert!(arrow, "the simulated cursor is not a mouse pointer");
 }
