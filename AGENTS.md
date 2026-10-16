@@ -41,6 +41,7 @@ Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
 - When done, open a pull request on GitHub. Don't watch it, subscribe to it or check on it, and don't create routines or check-in timers.
 - To wait for a background command, end your turn: you are re-invoked when it exits. This includes a foreground command that outlives its timeout and is moved to the background. Never loop reading its output file or sleeping to check on it. If a stop hook then tells you to commit uncommitted changes while the command is still running, end your turn again: the hook blocks only once.
+- To stop a process, kill its PID, or use `pkill -x NAME` to match the process name. Never `pkill -f PATTERN` or `kill $(pgrep -f PATTERN)`: each command runs as `bash -c '<the command text>'`, so the pattern also matches the shell the command runs in, and pkill kills that shell and the rest of the command with it.
 - When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied.
 
 Design principles:
@@ -67,7 +68,7 @@ Design principles:
   - Keep the plugin protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.
   - Pass textures through the plugin protocol without them leaving the GPU.
 - GUI:
-  - Use icons from the icon library in `beui_core::icons`. Where no icon fits or the library isn't usable, use no icon. Never use emoji or other Unicode symbols as icons.
+  - Use icons from the icon library in `beui_core::icons`. Where no icon fits or the library isn't usable, use no icon. Never use emoji or other Unicode symbols as icons. If the user gives you a Unicode icon, that is for illustration, don't use it directly. This rule only applies within the repository, so it doesn't apply to a claude artifact for example.
   - Make a scroll view fill its area edge to edge, and put padding inside it, around the content: `scroll(padding(content))`, not `padding(scroll(content))`.
 - Build system (buck2):
   - Keep `./scripts/verify` and `./scripts/ci` to exactly one buck2 invocation each, so buck2 can run everything in parallel.
