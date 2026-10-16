@@ -11,7 +11,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 
 | Command | What it does |
 |---|---|
-| `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm, and over what the desktop programs build for Windows and macOS |
+| `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
 | `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/ci` | what CI runs: `./scripts/verify`, and `--android DIR` the signed APKs, `--previews BASE OUT` the paint previews |
 | `./scripts/buck test //crates/...` | the tests alone; outside CI it prints only the failures and the compiler's errors, and `BE3_VERBOSE=1` prints everything |
@@ -344,8 +344,6 @@ extension ships: the toolchain's panics on this workspace.
   crate's sources, output as the files that changed. A fix that makes another
   possible shows up on the next run.
 - **Clippy** reads every target's `[clippy.json]` in the configurations
-  `//crates/...` resolves to, and, like `//:check`, in `windows_x86_64` and
-  `macos_arm64` for the desktop programs' first-party dependencies
-  (`rust_targets` in `buck/dev/workspace.bxl`), so code behind `cfg(windows)`
-  or `cfg(target_os = "macos")` is checked without a link or a test for either.
+  `//crates/...` resolves to. Code behind `cfg(windows)` or
+  `cfg(target_os = "macos")` is first compiled by `./scripts/deploy`.
   `clippy.toml` is empty but must exist.
