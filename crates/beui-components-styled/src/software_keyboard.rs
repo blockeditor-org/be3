@@ -201,7 +201,7 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
     };
     view! {
         <Frame align padding>
-            <Text string={text} size color>
+            <Text string={text} size color ellipsis={!center}>
                 <Icon glyph={glyph} size color />
             </Text>
         </Frame>

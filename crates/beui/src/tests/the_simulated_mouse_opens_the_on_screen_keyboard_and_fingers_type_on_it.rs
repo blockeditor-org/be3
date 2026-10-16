@@ -45,5 +45,8 @@ fn the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it() {
     harness.finger(1, TouchPhase::Start, toggle);
     harness.finger(1, TouchPhase::End, toggle);
     harness.frame(Vec::new());
-    assert!(harness.context().keyboard_rect().is_none(), "the button closes it again");
+    assert!(
+        harness.context().keyboard_rect().is_none(),
+        "the button closes it again"
+    );
 }
