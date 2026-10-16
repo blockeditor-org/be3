@@ -24,7 +24,10 @@ fn a_module_is_fetched_once_and_a_new_config_only_reconfigures_it() {
         loader.want(Some(wanted("remapper.wasm", b"c"))),
         Step::Configure(b"c".to_vec())
     );
-    assert_eq!(loader.want(Some(wanted("remapper.wasm", b"c"))), Step::Nothing);
+    assert_eq!(
+        loader.want(Some(wanted("remapper.wasm", b"c"))),
+        Step::Nothing
+    );
     assert_eq!(loader.want(None), Step::Stop);
     assert!(matches!(
         loader.want(Some(wanted("remapper.wasm", b"c"))),

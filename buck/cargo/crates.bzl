@@ -120,7 +120,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -138,7 +137,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -156,7 +154,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -174,7 +171,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -192,7 +188,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -210,7 +205,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -228,7 +222,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -246,7 +239,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -264,7 +256,6 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
-                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -10197,6 +10188,37 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/editors/input-remaps": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "input_remaps",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "input_remaps",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/remap/rules:be-remap",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/editors/input-settings": {
         "binaries": [],
         "edition": "2024",
@@ -10213,7 +10235,6 @@ crates = {
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
-                    "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -12591,20 +12612,6 @@ crates = {
                     "text",
                 ],
             },
-            "wasi": {
-                "binaries": {},
-                "deps": [
-                    "//third-party/rust:bincode-1.3.3",
-                    "//third-party/rust:serde-1.0.228",
-                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
-                ],
-                "examples": {},
-                "features": [
-                    "text",
-                ],
-                "test_deps": [],
-                "test_features": [],
-            },
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
@@ -12624,9 +12631,12 @@ crates = {
                 "deps": [
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
                 ],
                 "examples": {},
-                "features": [],
+                "features": [
+                    "text",
+                ],
                 "test_deps": [],
                 "test_features": [],
             },
@@ -48254,6 +48264,7 @@ third_party = {
             },
             "wasm32": {
                 "features": [
+                    "alloc",
                     "result",
                     "std",
                 ],
@@ -48602,7 +48613,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
+            "wasi-guest": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -48612,7 +48623,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi-guest": {
+            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -54451,7 +54462,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
+            "wasi-guest": {
                 "deps": [
                     ":serde_core-1.0.228",
                     ":serde_spanned-1.1.1",
@@ -54468,7 +54479,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi-guest": {
+            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                     ":serde_spanned-1.1.1",
@@ -54627,7 +54638,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
+            "wasi-guest": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -54637,7 +54648,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi-guest": {
+            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -54916,7 +54927,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
+            "wasi-guest": {
                 "deps": [
                     ":winnow-1.0.3",
                 ],
@@ -54925,7 +54936,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi-guest": {
+            "wasm32": {
                 "deps": [
                     ":winnow-1.0.3",
                 ],
@@ -55007,13 +55018,13 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
+            "wasi-guest": {
                 "features": [
                     "alloc",
                     "std",
                 ],
             },
-            "wasi-guest": {
+            "wasm32": {
                 "features": [
                     "alloc",
                     "std",
@@ -66695,8 +66706,8 @@ third_party = {
             },
             "macos-arm64": {},
             "macos-x86_64": {},
-            "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -66774,8 +66785,8 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {
                 "features": [
                     "alloc",

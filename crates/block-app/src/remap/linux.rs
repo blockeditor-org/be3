@@ -109,19 +109,19 @@ pub(crate) fn start(control: Option<InputControl>) {
 }
 
 pub(crate) fn load_cached(cached: Option<Vec<u8>>) {
-    let Some((wanted, module)) = cached.and_then(|cached| {
-        decode::<(String, String, Vec<u8>, Vec<u8>)>(&cached).ok()
-    })
-    .map(|(plugin, module_path, module, config)| {
-        (
-            Wanted {
-                plugin,
-                module: module_path,
-                config,
-            },
-            module,
-        )
-    }) else {
+    let Some((wanted, module)) = cached
+        .and_then(|cached| decode::<(String, String, Vec<u8>, Vec<u8>)>(&cached).ok())
+        .map(|(plugin, module_path, module, config)| {
+            (
+                Wanted {
+                    plugin,
+                    module: module_path,
+                    config,
+                },
+                module,
+            )
+        })
+    else {
         return;
     };
     install(&wanted, &module);
@@ -175,13 +175,11 @@ pub(crate) fn frame(store: &AppStateStore) {
         eprintln!("block-app: the input remapper was not kept for the next session: {error}");
     }
     let shown = STATE.with_borrow(|state| {
-        let value = match state.filter.as_ref().map(|filter| {
-            filter
-                .borrow()
-                .remapper
-                .as_ref()
-                .map(Remapper::stopped)
-        }) {
+        let value = match state
+            .filter
+            .as_ref()
+            .map(|filter| filter.borrow().remapper.as_ref().map(Remapper::stopped))
+        {
             Some(Some(false)) => RemapState::On,
             Some(Some(true)) => RemapState::Stopped,
             _ => RemapState::Off,
@@ -276,7 +274,8 @@ fn offers_remapper(plugin: &str) -> bool {
 }
 
 fn take_fetched() {
-    let fetched = STATE.with_borrow(|state| state.fetched.lock().ok().and_then(|mut slot| slot.take()));
+    let fetched =
+        STATE.with_borrow(|state| state.fetched.lock().ok().and_then(|mut slot| slot.take()));
     let Some((plugin, module, read)) = fetched else {
         return;
     };
