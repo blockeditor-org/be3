@@ -156,6 +156,7 @@ pub struct DockStackHandle {
     pub menu: Memo<Vec<Action>>,
     pub back: ClickCallback,
     pub others: Memo<usize>,
+    pub switchable: Memo<bool>,
     pub switch_label: Memo<String>,
     pub open_switcher: ClickCallback,
 }
@@ -1568,9 +1569,18 @@ fn stack_handle(
     });
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus, shown.get()));
+    let closable = dock.closable;
     let others = create_memo(move || {
         let shown = shown.get();
-        tabs.with(|tabs| tabs.iter().filter(|tab| Some(**tab) != shown).count())
+        tabs.with(|tabs| {
+            tabs.iter()
+                .filter(|tab| Some(**tab) != shown && closable.call(**tab))
+                .count()
+        })
+    });
+    let switchable = create_memo(move || {
+        let shown = shown.get();
+        tabs.with(|tabs| tabs.iter().any(|tab| Some(*tab) != shown))
     });
     let switch_label = create_memo(move || match others.get() {
         1 => "1 other open tab".to_owned(),
@@ -1584,6 +1594,7 @@ fn stack_handle(
         menu,
         back: ClickCallback::new(move || dock.go_back()),
         others,
+        switchable,
         switch_label,
         open_switcher: ClickCallback::new(move || set_switching.set(true)),
     }

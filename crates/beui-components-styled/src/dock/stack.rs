@@ -47,10 +47,10 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         menu,
         back,
         others,
+        switchable,
         switch_label,
         open_switcher,
     } = handle;
-    let counted = create_memo(move || others.get() > 0);
     let pictured = create_memo(move || !icon.get().is_empty());
     view! {
         <List spacing=0.0>
@@ -91,7 +91,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </Frame>
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
-                    <Show condition={counted}>
+                    <Show condition={switchable}>
                         {move || view! {
                             <DockTabCount
                                 count={others}

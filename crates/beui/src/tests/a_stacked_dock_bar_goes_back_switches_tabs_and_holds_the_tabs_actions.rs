@@ -92,7 +92,11 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
         laid_out(&harness, "dock.back"),
         "a tab opened from another can go back to it"
     );
-    assert_eq!(count(&harness), "2", "the count leaves out the tab on show");
+    assert_eq!(
+        count(&harness),
+        "1",
+        "the count leaves out the tab on show and the tab that cannot be closed"
+    );
     let action = harness.rect(harness.find("action.3"));
     let content = harness.rect(harness.find("content.3"));
     assert!(
