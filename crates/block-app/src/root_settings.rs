@@ -131,7 +131,7 @@ impl RootSettings {
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
         if self.find().is_none() && be::graph_loaded() {
-            let block = Uuid::new_v4();
+            let block = Uuid::now_v7();
             be::create(
                 block,
                 SettingsContent::CONTENT_TYPE,
