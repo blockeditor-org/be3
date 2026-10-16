@@ -464,6 +464,9 @@ impl Connection {
     }
 
     async fn dispatch(&mut self, message: ClientMessage) -> Result<ServerMessage, ServerError> {
+        if self.identity.is_some() {
+            self.identity = self.hub.identity(self.client).await;
+        }
         match message {
             ClientMessage::Register {
                 request,
@@ -627,15 +630,8 @@ impl Connection {
             }),
             ClientMessage::RemoveContact { request, account } => {
                 let caller = self.account()?;
-                for revoked in self.store.remove_contact(caller, account).await? {
-                    self.reannounce_in(
-                        revoked.organization,
-                        vec![revoked.block],
-                        true,
-                        revoked.before,
-                    )
-                    .await;
-                }
+                let revoked = self.store.remove_contact(caller, account).await?;
+                self.revoked(&revoked, &[caller, account]).await;
                 self.contacts_changed(&[caller, account]).await;
                 Ok(ServerMessage::Ok { request })
             }
@@ -674,10 +670,13 @@ impl Connection {
                         },
                     )
                     .await;
+                let (kind, escrow) = self.store.opened(organization).await?;
                 Ok(ServerMessage::OrganizationOpened {
                     request,
                     organization,
                     role,
+                    kind,
+                    escrow,
                 })
             }
 
@@ -883,7 +882,15 @@ impl Connection {
                     .store
                     .set_access(identity, block, account, access)
                     .await?;
-                self.reannounce(identity, vec![block], true, before).await;
+                self.revoked(
+                    &[contacts::Granted {
+                        organization: identity.organization,
+                        block,
+                        before,
+                    }],
+                    &[account],
+                )
+                .await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListAccess { request, block } => Ok(ServerMessage::AccessList {
@@ -971,6 +978,12 @@ impl Connection {
             } => {
                 self.identity()?;
                 let participants = self.registry.participants(block).await;
+                if !participants.contains(&self.client) {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "join the session before speaking in it".into(),
+                    ));
+                }
                 let message = ServerMessage::Relayed {
                     block,
                     from: self.client,
@@ -1055,9 +1068,64 @@ impl Connection {
                 organization,
                 account,
             } => {
-                self.store
+                let revoked = self
+                    .store
                     .remove_agent(self.account()?, organization, account)
                     .await?;
+                self.hub.drop_member(organization, account).await;
+                self.revoked(&revoked, &[account]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::GetKeyWork { request } => Ok(ServerMessage::KeyWork {
+                request,
+                work: self.store.key_work(self.identity()?).await?,
+            }),
+            ClientMessage::Rotate {
+                request,
+                roots,
+                keys,
+            } => {
+                let identity = self.identity()?;
+                self.store.rotate(identity, roots.clone(), keys).await?;
+                self.reannounce(identity, roots, true, BTreeSet::new())
+                    .await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::CreateEscrow {
+                request,
+                escrow,
+                keys,
+            } => {
+                self.store
+                    .create_escrow(self.identity()?, escrow, keys)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListMembers { request } => Ok(ServerMessage::Members {
+                request,
+                members: self.store.list_members(self.identity()?).await?,
+            }),
+            ClientMessage::SetRole {
+                request,
+                account,
+                role,
+            } => {
+                let identity = self.identity()?;
+                self.store.set_role(identity, account, role).await?;
+                if account != identity.account {
+                    self.hub.drop_member(identity.organization, account).await;
+                }
+                self.key_work_changed(identity.organization, BTreeSet::new())
+                    .await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::RemoveMember { request, account } => {
+                let identity = self.identity()?;
+                let revoked = self.store.remove_member(identity, account).await?;
+                self.hub.drop_member(identity.organization, account).await;
+                self.revoked(&revoked, &[account]).await;
+                self.key_work_changed(identity.organization, BTreeSet::new())
+                    .await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::Pair {
@@ -1081,6 +1149,62 @@ impl Connection {
                     ));
                 }
                 Ok(ServerMessage::Ok { request })
+            }
+        }
+    }
+
+    async fn revoked(&self, revoked: &[contacts::Granted], accounts: &[Uuid]) {
+        let mut organizations = BTreeSet::new();
+        for granted in revoked {
+            self.reannounce_in(
+                granted.organization,
+                vec![granted.block],
+                true,
+                granted.before.clone(),
+            )
+            .await;
+            self.key_work_changed(granted.organization, granted.before.clone())
+                .await;
+            organizations.insert(granted.organization);
+        }
+        for organization in organizations {
+            for account in accounts {
+                self.evict_sessions(organization, *account).await;
+            }
+        }
+    }
+
+    async fn key_work_changed(&self, organization: Uuid, accounts: BTreeSet<Uuid>) {
+        for (client, _) in self.hub.audience(organization, &accounts).await {
+            if client != self.client {
+                self.hub
+                    .send_to(client, ServerMessage::KeyWorkChanged)
+                    .await;
+            }
+        }
+    }
+
+    async fn evict_sessions(&self, organization: Uuid, account: Uuid) {
+        for (client, identity) in self.hub.clients_of(organization, account).await {
+            for block in self.registry.blocks_of(client).await {
+                if self.store.read_block(identity, block).await.is_ok() {
+                    continue;
+                }
+                self.hub.unwatch(block, client).await;
+                if let Some(state) = self.registry.leave(block, client).await {
+                    let mut told = state.participants.clone();
+                    told.push(client);
+                    self.hub
+                        .send_all(
+                            &told,
+                            0,
+                            &ServerMessage::SessionChanged {
+                                block,
+                                state: state.clone(),
+                            },
+                        )
+                        .await;
+                }
             }
         }
     }

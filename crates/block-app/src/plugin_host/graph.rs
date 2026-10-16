@@ -60,6 +60,7 @@ pub(crate) fn grants_of(
                     author: entry.author,
                     granted: entry.granted.map(level_of),
                     effective: level_of(entry.effective),
+                    waiting: entry.waiting,
                 })
                 .collect(),
         ),
@@ -88,6 +89,7 @@ pub(crate) fn info_of(node: &Node) -> BlockInfo {
             defined: wire_entries(&node.metadata.defined),
             derived: wire_entries(&node.metadata.derived),
         },
+        locked: node.locked,
     }
 }
 

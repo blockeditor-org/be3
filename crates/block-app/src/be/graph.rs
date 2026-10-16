@@ -20,6 +20,7 @@ pub(crate) struct Node {
     pub(crate) metadata: BlockMetadata,
     pub(crate) head: Option<CommitId>,
     pub(crate) version: u64,
+    pub(crate) locked: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

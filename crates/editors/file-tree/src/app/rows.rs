@@ -6,6 +6,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::be_block::{
     BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, ViewState, WorkspaceContent,
 };
+use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -43,6 +44,8 @@ pub(crate) struct Row {
     pub(crate) can_add: bool,
     pub(crate) can_edit: bool,
     pub(crate) can_delete: bool,
+    pub(crate) can_leave: bool,
+    pub(crate) locked: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) inspection: Option<Inspection>,
 }
@@ -86,6 +89,8 @@ impl Row {
             can_add: false,
             can_edit: false,
             can_delete: false,
+            can_leave: false,
+            locked: false,
             unlink: Err("Loading…"),
             inspection: None,
         }
@@ -241,6 +246,7 @@ impl Tree {
                     .or_insert_with(|| building.watch(BlockQuery::References(*id)));
             }
             let mut builder = Builder {
+                account: host.account_id(),
                 client: &building,
                 types: types.as_ref(),
                 watched: &mut watched,
@@ -431,6 +437,7 @@ impl Tree {
 }
 
 struct Builder<'a> {
+    account: Uuid,
     client: &'a Blocks,
     types: &'a dyn BlockTypes,
     watched: &'a mut Watched,
@@ -493,6 +500,7 @@ impl Builder<'_> {
         row.section = true;
         row.expandable = true;
         row.expanded = open;
+        row.can_leave = section.author != self.account;
         self.rows.push(row);
         if !open {
             return;
@@ -540,7 +548,10 @@ impl Builder<'_> {
             return;
         }
         for block in shared {
+            let at = self.rows.len();
+            let leavable = block.author != self.account;
             self.push(block, 1, None, &mut Vec::new());
+            self.rows[at].can_leave = leavable;
         }
     }
 
@@ -644,6 +655,13 @@ pub(crate) fn describe(
     let unlink = unlink_permission(client, types, block_types, container);
     let expandable = !is_reference && !reference.references.is_empty();
     let label = reference.label(types);
+    let (name, glyph) = match reference.locked {
+        true => ("Locked".to_owned(), ICON_LOCK.to_owned()),
+        false => (
+            label.name.clone(),
+            label.icon.map(str::to_owned).unwrap_or_default(),
+        ),
+    };
     let inspection = inspect(
         types,
         reference,
@@ -656,9 +674,9 @@ pub(crate) fn describe(
         key,
         id: Some(reference.id),
         block_type: reference.block_type,
-        label: label.name,
-        glyph: label.icon.map(str::to_owned).unwrap_or_default(),
-        automatic: label.automatic,
+        label: name,
+        glyph,
+        automatic: label.automatic || reference.locked,
         depth,
         section: false,
         expandable,
@@ -672,6 +690,8 @@ pub(crate) fn describe(
         can_add,
         can_edit,
         can_delete,
+        can_leave: false,
+        locked: reference.locked,
         unlink,
         inspection: Some(inspection),
     }

@@ -148,6 +148,38 @@ pub struct WrappedKey {
     pub sealed: Vec<u8>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EscrowKey {
+    pub id: Uuid,
+    pub epoch: u64,
+    pub public: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct Unsealed {
+    pub key: Uuid,
+    pub account: Uuid,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeyWork {
+    pub rotations: Vec<Uuid>,
+    pub escrow_rotation: bool,
+    pub unsealed: Vec<Unsealed>,
+    pub unescrowed: Vec<Uuid>,
+    pub escrow: Option<EscrowKey>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Member {
+    pub account: Uuid,
+    pub email: String,
+    pub display_name: String,
+    pub role: OrganizationRole,
+    pub agent: bool,
+    pub contact: bool,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct KeySet {
     pub keys: Vec<KeyRow>,
@@ -191,6 +223,7 @@ pub struct AccessEntry {
     pub granted: Option<Access>,
     pub effective: Access,
     pub contact: bool,
+    pub waiting: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -214,6 +247,7 @@ pub enum ErrorCode {
     KeyMissing,
     NotAContact,
     LinkNotFound,
+    LastAdministrator,
 }
 
 impl fmt::Display for ErrorCode {
@@ -494,6 +528,31 @@ pub enum ClientMessage {
         organization: Uuid,
         account: Uuid,
     },
+    GetKeyWork {
+        request: u64,
+    },
+    Rotate {
+        request: u64,
+        roots: Vec<Uuid>,
+        keys: KeySet,
+    },
+    CreateEscrow {
+        request: u64,
+        escrow: EscrowKey,
+        keys: KeySet,
+    },
+    ListMembers {
+        request: u64,
+    },
+    SetRole {
+        request: u64,
+        account: Uuid,
+        role: OrganizationRole,
+    },
+    RemoveMember {
+        request: u64,
+        account: Uuid,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -565,7 +624,13 @@ impl ClientMessage {
             | Self::Pair { request, .. }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }
-            | Self::RemoveAgent { request, .. } => *request,
+            | Self::RemoveAgent { request, .. }
+            | Self::GetKeyWork { request }
+            | Self::Rotate { request, .. }
+            | Self::CreateEscrow { request, .. }
+            | Self::ListMembers { request }
+            | Self::SetRole { request, .. }
+            | Self::RemoveMember { request, .. } => *request,
         }
     }
 }
@@ -607,6 +672,8 @@ pub enum ServerMessage {
         request: u64,
         organization: Uuid,
         role: OrganizationRole,
+        kind: OrganizationKind,
+        escrow: Option<EscrowKey>,
     },
     Stored {
         request: u64,
@@ -717,6 +784,15 @@ pub enum ServerMessage {
         request: u64,
         agents: Vec<Agent>,
     },
+    KeyWork {
+        request: u64,
+        work: KeyWork,
+    },
+    Members {
+        request: u64,
+        members: Vec<Member>,
+    },
+    KeyWorkChanged,
 }
 
 impl ServerMessage {
@@ -745,7 +821,9 @@ impl ServerMessage {
             | Self::ContactLinks { request, .. }
             | Self::Contacts { request, .. }
             | Self::AgentCreated { request, .. }
-            | Self::Agents { request, .. } => Some(*request),
+            | Self::Agents { request, .. }
+            | Self::KeyWork { request, .. }
+            | Self::Members { request, .. } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
             | Self::BlockChanged { .. }
@@ -753,7 +831,8 @@ impl ServerMessage {
             | Self::SessionChanged { .. }
             | Self::Relayed { .. }
             | Self::Paired { .. }
-            | Self::ContactsChanged => None,
+            | Self::ContactsChanged
+            | Self::KeyWorkChanged => None,
         }
     }
 }

@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use be_graph::BlockGraph;
 use be_protocol::{
-    ErrorCode, KeyKind, KeyRow, KeySet, OwnKind, OwnSealed, SealedKey, WrappedBy, WrappedKey,
+    ErrorCode, EscrowKey, KeyKind, KeyRow, KeySet, KeyWork, OrganizationKind, OwnKind, OwnSealed,
+    SealedKey, Unsealed, WrappedBy, WrappedKey,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -155,6 +156,11 @@ pub(crate) fn served_keys(
             keys.insert(row.id, row);
         }
     }
+    if seen.administrator() {
+        for row in keys_of_block(connection, identity.organization, identity.organization)? {
+            keys.insert(row.id, row);
+        }
+    }
     let mut wrapped = Vec::new();
     for key in keys.keys() {
         for wrap in wraps_of(connection, identity.organization, *key)? {
@@ -181,9 +187,18 @@ pub(crate) fn store_keys(
     set: &KeySet,
     allowed: impl Fn(&BlockGraph, Uuid) -> bool,
 ) -> Result<(), ServerError> {
+    let administrator = crate::contacts::role_in(connection, caller, organization)?
+        .is_some_and(|role| role == be_protocol::OrganizationRole::Administrator);
+    let allowed = |graph: &BlockGraph, row: &KeyRow| match row.kind {
+        KeyKind::Escrow => administrator && row.block == organization,
+        KeyKind::Data | KeyKind::Scope => graph.contains(row.block) && allowed(graph, row.block),
+    };
     let mut fresh: BTreeMap<Uuid, KeyRow> = BTreeMap::new();
     for row in &set.keys {
-        if !graph.contains(row.block) || !allowed(graph, row.block) {
+        if row.kind == KeyKind::Escrow {
+            return Err(refused("an escrow key is made with CreateEscrow"));
+        }
+        if !allowed(graph, row) {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
                 format!(
@@ -207,7 +222,7 @@ pub(crate) fn store_keys(
     for wrap in &set.wrapped {
         let row =
             known(wrap.key)?.ok_or_else(|| refused(format!("key {} does not exist", wrap.key)))?;
-        if !fresh.contains_key(&row.id) && !allowed(graph, row.block) {
+        if !fresh.contains_key(&row.id) && !allowed(graph, &row) {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
                 format!("key {} may not be wrapped by this account", row.id),
@@ -229,6 +244,17 @@ pub(crate) fn store_keys(
                     return Err(ServerError::Refused(
                         ErrorCode::NotAContact,
                         format!("a key may be sealed only to a contact, and {account} is not one"),
+                    ));
+                }
+                if row.kind == KeyKind::Escrow
+                    && crate::contacts::role_in(connection, account, organization)?
+                        != Some(be_protocol::OrganizationRole::Administrator)
+                {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!(
+                            "the escrow key is sealed only to administrators, and {account} is not one"
+                        ),
                     ));
                 }
             }
@@ -307,6 +333,183 @@ pub(crate) fn store_keys(
     Ok(())
 }
 
+pub(crate) fn current_escrow(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Option<EscrowKey>, ServerError> {
+    let row = connection
+        .query_row(
+            "SELECT id, epoch, public FROM keys
+             WHERE organization_id = ?1 AND block_id = ?1 AND kind = 'escrow'
+             ORDER BY epoch DESC LIMIT 1",
+            [organization.to_string()],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, Vec<u8>>(2)?,
+                ))
+            },
+        )
+        .optional()?;
+    row.map(|(id, epoch, public)| {
+        Ok(EscrowKey {
+            id: parse_uuid(&id)?,
+            epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
+            public: public.try_into().map_err(|_| ServerError::Corrupt)?,
+        })
+    })
+    .transpose()
+}
+
+pub(crate) fn organization_kind(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<OrganizationKind, ServerError> {
+    let kind: String = connection.query_row(
+        "SELECT kind FROM organizations WHERE id = ?1",
+        [organization.to_string()],
+        |row| row.get(0),
+    )?;
+    crate::store::decode_kind(&kind)
+}
+
+fn latest_scope_key(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Option<Uuid>, ServerError> {
+    Ok(keys_of_block(connection, organization, block)?
+        .into_iter()
+        .filter(|row| row.kind == KeyKind::Scope)
+        .max_by_key(|row| row.epoch)
+        .map(|row| row.id))
+}
+
+pub(crate) fn is_viewer(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    account: Uuid,
+    block: Uuid,
+) -> Result<bool, ServerError> {
+    Ok(
+        match crate::contacts::role_in(connection, account, organization)? {
+            None => false,
+            Some(be_protocol::OrganizationRole::Administrator) => graph.contains(block),
+            Some(be_protocol::OrganizationRole::Editor) => {
+                graph.inherited(block, account).can_view()
+            }
+        },
+    )
+}
+
+pub(crate) fn sealed_to(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<BTreeSet<Uuid>, ServerError> {
+    let Some(node) = graph.get(block) else {
+        return Ok(BTreeSet::new());
+    };
+    let mut accounts: BTreeSet<Uuid> = node
+        .grants
+        .iter()
+        .filter(|(_, level)| level.can_view())
+        .map(|(account, _)| *account)
+        .collect();
+    if !matches!(node.parent, be_graph::BlockParent::Block(_)) {
+        accounts.insert(node.author);
+    }
+    let mut viewers = BTreeSet::new();
+    for account in accounts {
+        if is_viewer(connection, graph, organization, account, block)? {
+            viewers.insert(account);
+        }
+    }
+    Ok(viewers)
+}
+
+pub(crate) fn waiting_for_key(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+) -> Result<bool, ServerError> {
+    let Some(key) = latest_scope_key(connection, organization, block)? else {
+        return Ok(false);
+    };
+    Ok(!wraps_of(connection, organization, key)?
+        .iter()
+        .any(|wrap| wrap.wrapped_by == WrappedBy::Account(account)))
+}
+
+pub(crate) fn lost_view(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+) -> Result<(), ServerError> {
+    connection.execute(
+        "INSERT OR IGNORE INTO rotations (organization_id, block_id) VALUES (?1, ?2)",
+        params![organization.to_string(), block.to_string()],
+    )?;
+    connection.execute(
+        "DELETE FROM wrapped_keys
+         WHERE organization_id = ?1 AND wrapped_by = ?3
+            AND key_id IN (SELECT id FROM keys WHERE organization_id = ?1 AND block_id = ?2)",
+        params![
+            organization.to_string(),
+            block.to_string(),
+            encode_wrapped_by(WrappedBy::Account(account))
+        ],
+    )?;
+    Ok(())
+}
+
+pub(crate) fn rotate_escrow_later(
+    connection: &Connection,
+    organization: Uuid,
+    account: Uuid,
+) -> Result<(), ServerError> {
+    lost_view(connection, organization, organization, account)
+}
+
+fn administrators(connection: &Connection, organization: Uuid) -> Result<Vec<Uuid>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT account_id FROM memberships WHERE organization_id = ?1 AND role = 'administrator'",
+    )?;
+    let rows = statement.query_map([organization.to_string()], |row| row.get::<_, String>(0))?;
+    let mut found = Vec::new();
+    for row in rows {
+        found.push(parse_uuid(&row?)?);
+    }
+    Ok(found)
+}
+
+fn pending_rotations(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Vec<Uuid>, ServerError> {
+    let mut statement =
+        connection.prepare_cached("SELECT block_id FROM rotations WHERE organization_id = ?1")?;
+    let rows = statement.query_map([organization.to_string()], |row| row.get::<_, String>(0))?;
+    let mut found = Vec::new();
+    for row in rows {
+        found.push(parse_uuid(&row?)?);
+    }
+    Ok(found)
+}
+
+fn rotated(connection: &Connection, organization: Uuid, block: Uuid) -> Result<(), ServerError> {
+    connection.execute(
+        "DELETE FROM rotations WHERE organization_id = ?1 AND block_id = ?2",
+        params![organization.to_string(), block.to_string()],
+    )?;
+    Ok(())
+}
+
 pub(crate) fn forget_block_keys(
     connection: &Connection,
     organization: Uuid,
@@ -370,6 +573,238 @@ impl ServerStore {
         .await
     }
 
+    pub async fn key_work(&self, identity: Identity) -> Result<KeyWork, ServerError> {
+        self.with_graph(identity.organization, move |graph, database| {
+            let organization = identity.organization;
+            let seen = visibility(identity);
+            let escrow = current_escrow(database, organization)?;
+            let mut work = KeyWork {
+                escrow,
+                ..KeyWork::default()
+            };
+            let pending = pending_rotations(database, organization)?;
+            for block in &pending {
+                if *block == organization {
+                    work.escrow_rotation = seen.administrator();
+                } else if !graph.contains(*block) {
+                    rotated(database, organization, *block)?;
+                } else if seen.can_edit(graph, *block) {
+                    work.rotations.push(*block);
+                }
+            }
+            let rotating: BTreeSet<Uuid> = work.rotations.iter().copied().collect();
+            work.rotations.retain(|block| {
+                !graph
+                    .ancestors(*block)
+                    .any(|above| rotating.contains(&above))
+            });
+            let candidates: Vec<Uuid> = match seen.administrator() {
+                true => graph.ids(),
+                false => graph.visible(identity.account).into_keys().collect(),
+            };
+            for block in candidates {
+                if !graph.is_scope_root(block) || !seen.can_edit(graph, block) {
+                    continue;
+                }
+                let Some(key) = latest_scope_key(database, organization, block)? else {
+                    continue;
+                };
+                let wraps = wraps_of(database, organization, key)?;
+                for account in sealed_to(database, graph, organization, block)? {
+                    if !wraps
+                        .iter()
+                        .any(|wrap| wrap.wrapped_by == WrappedBy::Account(account))
+                    {
+                        work.unsealed.push(Unsealed { key, account });
+                    }
+                }
+                if let Some(escrow) = escrow
+                    && !wraps
+                        .iter()
+                        .any(|wrap| wrap.wrapped_by == WrappedBy::Key(escrow.id))
+                {
+                    work.unescrowed.push(key);
+                }
+            }
+            if seen.administrator()
+                && let Some(escrow) = escrow
+            {
+                let wraps = wraps_of(database, organization, escrow.id)?;
+                for account in administrators(database, organization)? {
+                    if !wraps
+                        .iter()
+                        .any(|wrap| wrap.wrapped_by == WrappedBy::Account(account))
+                    {
+                        work.unsealed.push(Unsealed {
+                            key: escrow.id,
+                            account,
+                        });
+                    }
+                }
+            }
+            Ok(work)
+        })
+        .await
+    }
+
+    pub async fn rotate(
+        &self,
+        identity: Identity,
+        roots: Vec<Uuid>,
+        set: KeySet,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |graph, database| {
+            let organization = identity.organization;
+            let seen = visibility(identity);
+            let data: BTreeSet<Uuid> = set
+                .keys
+                .iter()
+                .filter(|row| row.kind == KeyKind::Data)
+                .map(|row| row.block)
+                .collect();
+            let scopes: BTreeSet<Uuid> = set
+                .keys
+                .iter()
+                .filter(|row| row.kind == KeyKind::Scope)
+                .map(|row| row.block)
+                .collect();
+            let mut covered = BTreeSet::new();
+            for root in &roots {
+                if !seen.can_edit(graph, *root) {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("block {root} is not editable by this account"),
+                    ));
+                }
+                for block in graph.subtree(*root) {
+                    if !data.contains(&block) {
+                        return Err(refused(format!(
+                            "a rotation gives every block below it a new data key, and {block} has none"
+                        )));
+                    }
+                    if graph.is_scope_root(block) && !scopes.contains(&block) {
+                        return Err(refused(format!(
+                            "a rotation gives every scope below it a new key, and {block} has none"
+                        )));
+                    }
+                    covered.insert(block);
+                }
+            }
+            let transaction = database.unchecked_transaction()?;
+            store_keys(
+                graph,
+                &transaction,
+                organization,
+                identity.account,
+                &set,
+                |graph, block| seen.can_edit(graph, block),
+            )?;
+            for block in pending_rotations(&transaction, organization)? {
+                if covered.contains(&block) {
+                    rotated(&transaction, organization, block)?;
+                }
+            }
+            for block in &covered {
+                if !graph.is_scope_root(*block) {
+                    continue;
+                }
+                for row in keys_of_block(&transaction, organization, *block)? {
+                    if row.kind != KeyKind::Scope {
+                        continue;
+                    }
+                    for wrap in wraps_of(&transaction, organization, row.id)? {
+                        let WrappedBy::Account(account) = wrap.wrapped_by else {
+                            continue;
+                        };
+                        if !is_viewer(&transaction, graph, organization, account, *block)? {
+                            transaction.execute(
+                                "DELETE FROM wrapped_keys
+                                 WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
+                                params![
+                                    organization.to_string(),
+                                    row.id.to_string(),
+                                    encode_wrapped_by(wrap.wrapped_by)
+                                ],
+                            )?;
+                        }
+                    }
+                }
+            }
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn create_escrow(
+        &self,
+        identity: Identity,
+        escrow: EscrowKey,
+        set: KeySet,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |graph, database| {
+            let organization = identity.organization;
+            let seen = visibility(identity);
+            if !seen.administrator()
+                || organization_kind(database, organization)? != OrganizationKind::Company
+            {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "only an administrator of a company organization makes its escrow key".into(),
+                ));
+            }
+            let previous = current_escrow(database, organization)?;
+            if previous.is_some_and(|previous| previous.epoch >= escrow.epoch) {
+                return Err(refused("a newer escrow key already exists"));
+            }
+            let transaction = database.unchecked_transaction()?;
+            transaction.execute(
+                "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created, public)
+                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5)",
+                params![
+                    organization.to_string(),
+                    escrow.id.to_string(),
+                    i64::try_from(escrow.epoch).map_err(|_| refused("that epoch is too large"))?,
+                    now_milliseconds(),
+                    escrow.public.to_vec()
+                ],
+            )?;
+            store_keys(
+                graph,
+                &transaction,
+                organization,
+                identity.account,
+                &set,
+                |graph, block| seen.can_edit(graph, block),
+            )?;
+            let older: Vec<Uuid> = keys_of_block(&transaction, organization, organization)?
+                .into_iter()
+                .filter(|row| row.id != escrow.id)
+                .map(|row| row.id)
+                .collect();
+            for wrap in &set.wrapped {
+                if wrap.wrapped_by != WrappedBy::Key(escrow.id) {
+                    continue;
+                }
+                for old in &older {
+                    transaction.execute(
+                        "DELETE FROM wrapped_keys
+                         WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
+                        params![
+                            organization.to_string(),
+                            wrap.key.to_string(),
+                            old.to_string()
+                        ],
+                    )?;
+                }
+            }
+            rotated(&transaction, organization, organization)?;
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn recovery_key(
         &self,
         account: Uuid,
@@ -421,7 +856,10 @@ impl ServerStore {
                     let mut found = Vec::new();
                     for row in rows {
                         let (key, block, bytes) = row?;
-                        if seen.can_view(graph, parse_uuid(&block)?) {
+                        let block = parse_uuid(&block)?;
+                        if seen.can_view(graph, block)
+                            || (block == identity.organization && seen.administrator())
+                        {
                             found.push(SealedKey {
                                 organization: identity.organization,
                                 key: parse_uuid(&key)?,

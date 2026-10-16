@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::app::FileTreeApp;
 
+mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
 mod a_new_workspace_is_made_at_the_top_and_named_by_hand;
 mod a_phone_lists_what_is_shared_with_it;

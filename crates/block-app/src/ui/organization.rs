@@ -1,8 +1,8 @@
 use beui::NodeId;
 use beui::icons::{
-    ICON_BUG_REPORT, ICON_CHECK, ICON_CONTACTS, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS,
-    ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY, ICON_SWAP_HORIZ, ICON_SYNC,
-    ICON_VIEW_QUILT,
+    ICON_BUG_REPORT, ICON_CHECK, ICON_CONTACTS, ICON_GROUP, ICON_INFO, ICON_KEY,
+    ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY,
+    ICON_SWAP_HORIZ, ICON_SYNC, ICON_VIEW_QUILT,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -73,6 +73,7 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
     let can_close = create_memo(move || status.get().can_close);
     let company = create_memo(move || status.get().company);
+    let administrator = create_memo(move || status.get().administrator);
     view! {
         <ContextMenu
             disabled=true
@@ -99,6 +100,14 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                         glyph={ICON_PERSON_ADD.to_owned()}
                         detail={organization}
                         on_click={|| pick(UiCommand::InviteMember)}
+                    />
+                </Show>
+                <Show condition={administrator}>
+                    <MenuItem
+                        row_test_id={"app.menu.members".to_owned()}
+                        label="Members"
+                        glyph={ICON_GROUP.to_owned()}
+                        on_click={|| pick(UiCommand::OpenMembers)}
                     />
                 </Show>
                 <Show condition={company}>

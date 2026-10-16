@@ -4,7 +4,7 @@ use std::{
 };
 
 use be_keys::{RecoveryPublic, RecoverySecret};
-use be_protocol::{KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
+use be_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_store::{ContentKey, Keyring, StoreError};
 use uuid::Uuid;
 
@@ -13,6 +13,8 @@ pub struct KeyBook {
     identity: RecoverySecret,
     ring: Keyring,
     rows: Mutex<Rows>,
+    contacts: Mutex<HashMap<Uuid, RecoveryPublic>>,
+    escrow: Mutex<Option<EscrowKey>>,
 }
 
 #[derive(Default)]
@@ -57,7 +59,91 @@ impl KeyBook {
             identity,
             ring,
             rows: Mutex::new(Rows::default()),
+            contacts: Mutex::new(HashMap::new()),
+            escrow: Mutex::new(None),
         }
+    }
+
+    pub fn set_contacts(&self, verified: impl IntoIterator<Item = (Uuid, RecoveryPublic)>) {
+        *self.contacts.lock().unwrap() = verified.into_iter().collect();
+    }
+
+    pub fn contact(&self, account: Uuid) -> Option<RecoveryPublic> {
+        match account == self.account {
+            true => Some(self.identity.public()),
+            false => self.contacts.lock().unwrap().get(&account).copied(),
+        }
+    }
+
+    pub fn set_escrow(&self, escrow: Option<EscrowKey>) {
+        if let Some(escrow) = escrow {
+            let mut rows = self.rows.lock().unwrap();
+            if !rows.keys.contains_key(&escrow.id) {
+                rows.add_row(KeyRow {
+                    id: escrow.id,
+                    block: Uuid::nil(),
+                    kind: KeyKind::Escrow,
+                    epoch: escrow.epoch,
+                });
+            }
+        }
+        *self.escrow.lock().unwrap() = escrow;
+    }
+
+    pub fn escrow(&self) -> Option<EscrowKey> {
+        *self.escrow.lock().unwrap()
+    }
+
+    pub fn escrow_wrap(&self, key: Uuid) -> Result<Option<WrappedKey>, StoreError> {
+        let Some(escrow) = self.escrow() else {
+            return Ok(None);
+        };
+        let plain = self.ring.get(key).ok_or(StoreError::MissingKey(key))?;
+        Ok(Some(WrappedKey {
+            key,
+            wrapped_by: WrappedBy::Key(escrow.id),
+            sealed: RecoveryPublic(escrow.public).seal(plain.as_bytes()),
+        }))
+    }
+
+    pub fn mint_escrow(&self, organization: Uuid) -> Result<(EscrowKey, KeySet), StoreError> {
+        let epoch = self
+            .keys_of(organization, KeyKind::Escrow)
+            .last()
+            .map_or(1, |row| row.epoch + 1)
+            .max(self.escrow().map_or(1, |escrow| escrow.epoch + 1));
+        let secret = ContentKey::random();
+        let escrow = EscrowKey {
+            id: Uuid::new_v4(),
+            epoch,
+            public: RecoverySecret::from_bytes(*secret.as_bytes()).public().0,
+        };
+        self.ring.insert(escrow.id, secret);
+        self.rows.lock().unwrap().add_row(KeyRow {
+            id: escrow.id,
+            block: organization,
+            kind: KeyKind::Escrow,
+            epoch,
+        });
+        let wrapped = vec![self.seal_to(escrow.id, self.account, &self.identity.public())?];
+        Ok((
+            escrow,
+            KeySet {
+                keys: Vec::new(),
+                wrapped,
+            },
+        ))
+    }
+
+    pub fn keys_of_kind(&self, kind: KeyKind) -> Vec<KeyRow> {
+        self.rows
+            .lock()
+            .unwrap()
+            .keys
+            .values()
+            .filter(|row| row.kind == kind)
+            .copied()
+            .collect()
     }
 
     pub fn account(&self) -> Uuid {
@@ -84,6 +170,12 @@ impl KeyBook {
         for wrap in set.wrapped {
             rows.add_wrap(wrap);
         }
+        let escrows: HashSet<Uuid> = rows
+            .keys
+            .values()
+            .filter(|row| row.kind == KeyKind::Escrow)
+            .map(|row| row.id)
+            .collect();
         let mut opened = 0;
         loop {
             let mut progress = false;
@@ -91,7 +183,7 @@ impl KeyBook {
                 if self.ring.contains(*key) {
                     continue;
                 }
-                if let Some(bytes) = wraps.iter().find_map(|wrap| self.unwrap(wrap)) {
+                if let Some(bytes) = wraps.iter().find_map(|wrap| self.unwrap(wrap, &escrows)) {
                     self.ring.insert(*key, ContentKey::from_bytes(bytes));
                     opened += 1;
                     progress = true;
@@ -103,12 +195,18 @@ impl KeyBook {
         }
     }
 
-    fn unwrap(&self, wrap: &WrappedKey) -> Option<[u8; 32]> {
+    fn unwrap(&self, wrap: &WrappedKey, escrows: &HashSet<Uuid>) -> Option<[u8; 32]> {
         let bytes = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
                 self.identity.open(&wrap.sealed).ok()?
             }
             WrappedBy::Account(_) => return None,
+            WrappedBy::Key(by) if escrows.contains(&by) => {
+                let secret = self.ring.get(by)?;
+                RecoverySecret::from_bytes(*secret.as_bytes())
+                    .open(&wrap.sealed)
+                    .ok()?
+            }
             WrappedBy::Key(by) => {
                 if be_store::sealed_key(&wrap.sealed).ok()? != by || !self.ring.contains(by) {
                     return None;
@@ -218,6 +316,7 @@ impl KeyBook {
         if let Some(parent) = parent_scope {
             wrapped.push(self.wrap(row.id, parent)?);
         }
+        wrapped.extend(self.escrow_wrap(row.id)?);
         Ok((
             row.id,
             KeySet {

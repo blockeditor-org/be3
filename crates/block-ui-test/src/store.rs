@@ -400,6 +400,7 @@ impl ContentStore {
                         defined: defined.clone(),
                         ..block_plugin_api::BlockMetadata::default()
                     },
+                    locked: false,
                 });
                 {
                     let mut inner = self.0.borrow_mut();

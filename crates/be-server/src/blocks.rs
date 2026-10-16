@@ -675,7 +675,17 @@ impl ServerStore {
         access: Access,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
-            require_edit(graph, &visibility(identity), block)?;
+            let leaving = account == identity.account && access == Access::None;
+            match leaving {
+                true if !graph.contains(block) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::BlockNotFound,
+                        format!("block {block} does not exist"),
+                    ));
+                }
+                true => {}
+                false => require_edit(graph, &visibility(identity), block)?,
+            }
             if access > Access::None && account != identity.account {
                 if !crate::store::is_member_of(database, account, identity.organization)? {
                     return Err(ServerError::Refused(
@@ -691,14 +701,16 @@ impl ServerStore {
                 }
             }
             let before = graph.audience(block);
-            write_grant(
+            let transaction = database.unchecked_transaction()?;
+            revoke_or_grant(
                 graph,
-                database,
+                &transaction,
                 identity.organization,
                 block,
                 account,
                 access,
             )?;
+            transaction.commit()?;
             Ok(before)
         })
         .await
@@ -759,12 +771,38 @@ impl ServerStore {
                         OrganizationRole::Editor => graph.effective_access(block, account),
                     },
                     contact: contacts.contains(&account),
+                    waiting: node
+                        .grants
+                        .get(&account)
+                        .is_some_and(|level| level.can_view())
+                        && crate::keys::waiting_for_key(
+                            database,
+                            identity.organization,
+                            block,
+                            account,
+                        )?,
                 });
             }
             Ok(entries)
         })
         .await
     }
+}
+
+pub(crate) fn revoke_or_grant(
+    graph: &mut BlockGraph,
+    database: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+    access: Access,
+) -> Result<(), ServerError> {
+    let viewed = crate::keys::is_viewer(database, graph, organization, account, block)?;
+    write_grant(graph, database, organization, block, account, access)?;
+    if viewed && !crate::keys::is_viewer(database, graph, organization, account, block)? {
+        crate::keys::lost_view(database, organization, block, account)?;
+    }
+    Ok(())
 }
 
 pub(crate) fn write_grant(

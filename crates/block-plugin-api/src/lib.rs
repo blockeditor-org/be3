@@ -416,6 +416,7 @@ pub struct AccessGrant {
     pub author: bool,
     pub granted: Option<AccessLevel>,
     pub effective: AccessLevel,
+    pub waiting: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1392,6 +1393,7 @@ pub struct BlockInfo {
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
+    pub locked: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1473,6 +1475,7 @@ pub struct HistoryState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockCommand {
     Share,
+    Leave,
     Rename,
     Undo,
     Redo,

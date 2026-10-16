@@ -184,6 +184,9 @@ fn member(grant: &AccessGrant, me: Uuid) -> Member {
         fixed: fixed.map(str::to_owned),
         note: match fixed {
             Some(_) => None,
+            None if grant.waiting => Some(
+                "Opens for them once you have both confirmed each other as contacts".to_owned(),
+            ),
             None => (grant.granted != Some(grant.effective))
                 .then(|| format!("Inherited: {}", grant.effective.label())),
         },

@@ -154,6 +154,7 @@ pub async fn accept_link(
 pub async fn finish_links(
     connection: &Connection,
     identity: &RecoverySecret,
+    organization: Uuid,
 ) -> Result<Vec<Finished>, ClientError> {
     let ServerMessage::ContactLinks { links, .. } = connection
         .request(|request| ClientMessage::ListContactLinks { request })
@@ -186,6 +187,13 @@ pub async fn finish_links(
                 Err(ClientError::Refused(ErrorCode::NotAContact, _)) => kept = false,
                 Err(error) => return Err(error),
             }
+        }
+        let elsewhere = link
+            .grant
+            .as_ref()
+            .is_some_and(|grant| grant.organization != organization);
+        if kept && elsewhere {
+            continue;
         }
         connection
             .request(|request| ClientMessage::DeleteContactLink {

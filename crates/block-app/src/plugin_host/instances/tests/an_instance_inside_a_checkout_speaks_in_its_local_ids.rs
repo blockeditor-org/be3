@@ -15,6 +15,7 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
         references: references.into_iter().map(Uuid::into_bytes).collect(),
         access: block_plugin_api::AccessLevel::Edit,
         metadata: block_plugin_api::BlockMetadata::default(),
+        locked: false,
     }
 }
 

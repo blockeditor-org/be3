@@ -613,34 +613,148 @@ impl ServerStore {
         caller: Uuid,
         organization: Uuid,
         agent: Uuid,
-    ) -> Result<(), ServerError> {
+    ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
         if self.membership(caller, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
                 "only an organization administrator can remove an agent".into(),
             ));
         }
+        self.with_graph(organization, move |graph, database| {
+            let is_agent = database
+                .query_row(
+                    "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2",
+                    params![agent.to_string(), organization.to_string()],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some();
+            if !is_agent {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "that account is not an agent of this organization".into(),
+                ));
+            }
+            let transaction = database.unchecked_transaction()?;
+            let revoked = remove_from(graph, &transaction, organization, agent)?;
+            transaction.execute("DELETE FROM accounts WHERE id = ?1", [agent.to_string()])?;
+            transaction.execute(
+                "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
+                [crate::keys::encode_wrapped_by(
+                    be_protocol::WrappedBy::Account(agent),
+                )],
+            )?;
+            transaction.commit()?;
+            Ok(revoked)
+        })
+        .await
+    }
+
+    pub async fn list_members(
+        &self,
+        identity: Identity,
+    ) -> Result<Vec<be_protocol::Member>, ServerError> {
+        require_administrator(identity)?;
         let database = self.database.lock().await;
-        let transaction = database.unchecked_transaction()?;
-        let removed = transaction.execute(
-            "DELETE FROM accounts WHERE id = ?1
-             AND id IN (SELECT account_id FROM agents WHERE organization_id = ?2)",
-            params![agent.to_string(), organization.to_string()],
+        let contacts = crate::contacts::contacts_of(&database, identity.account)?;
+        let mut statement = database.prepare(
+            "SELECT accounts.id, accounts.email, accounts.display_name, memberships.role,
+                    agents.account_id IS NOT NULL
+             FROM memberships
+             JOIN accounts ON accounts.id = memberships.account_id
+             LEFT JOIN agents ON agents.account_id = memberships.account_id
+                AND agents.organization_id = memberships.organization_id
+             WHERE memberships.organization_id = ?1
+             ORDER BY accounts.display_name, accounts.email",
         )?;
-        transaction.execute(
-            "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
-            [crate::keys::encode_wrapped_by(
-                be_protocol::WrappedBy::Account(agent),
-            )],
-        )?;
-        transaction.commit()?;
-        if removed == 0 {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "that account is not an agent of this organization".into(),
-            ));
+        let rows = statement.query_map([identity.organization.to_string()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, bool>(4)?,
+            ))
+        })?;
+        let mut members = Vec::new();
+        for row in rows {
+            let (account, email, display_name, role, agent) = row?;
+            let account = parse_uuid(&account)?;
+            members.push(be_protocol::Member {
+                account,
+                email,
+                display_name,
+                role: decode_role(&role)?,
+                agent,
+                contact: contacts.contains(&account),
+            });
         }
+        Ok(members)
+    }
+
+    pub async fn set_role(
+        &self,
+        identity: Identity,
+        account: Uuid,
+        role: OrganizationRole,
+    ) -> Result<(), ServerError> {
+        require_administrator(identity)?;
+        let organization = identity.organization;
+        let database = self.database.lock().await;
+        let current =
+            crate::contacts::role_in(&database, account, organization)?.ok_or_else(not_a_member)?;
+        if current == role {
+            return Ok(());
+        }
+        if current == OrganizationRole::Administrator {
+            refuse_last_administrator(&database, organization)?;
+        }
+        let transaction = database.unchecked_transaction()?;
+        transaction.execute(
+            "UPDATE memberships SET role = ?3 WHERE organization_id = ?1 AND account_id = ?2",
+            params![
+                organization.to_string(),
+                account.to_string(),
+                encode_role(role)
+            ],
+        )?;
+        if current == OrganizationRole::Administrator {
+            crate::keys::rotate_escrow_later(&transaction, organization, account)?;
+        }
+        transaction.commit()?;
         Ok(())
+    }
+
+    pub async fn remove_member(
+        &self,
+        identity: Identity,
+        account: Uuid,
+    ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+        require_administrator(identity)?;
+        let organization = identity.organization;
+        self.with_graph(organization, move |graph, database| {
+            let role = crate::contacts::role_in(database, account, organization)?
+                .ok_or_else(not_a_member)?;
+            if role == OrganizationRole::Administrator {
+                refuse_last_administrator(database, organization)?;
+            }
+            let transaction = database.unchecked_transaction()?;
+            let revoked = remove_from(graph, &transaction, organization, account)?;
+            transaction.commit()?;
+            Ok(revoked)
+        })
+        .await
+    }
+
+    pub async fn opened(
+        &self,
+        organization: Uuid,
+    ) -> Result<(OrganizationKind, Option<be_protocol::EscrowKey>), ServerError> {
+        let database = self.database.lock().await;
+        Ok((
+            crate::keys::organization_kind(&database, organization)?,
+            crate::keys::current_escrow(&database, organization)?,
+        ))
     }
 
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
@@ -958,6 +1072,85 @@ fn is_member(
         )
         .optional()?
         .is_some())
+}
+
+fn require_administrator(identity: Identity) -> Result<(), ServerError> {
+    match identity.is_administrator() {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "only an organization administrator can manage its members".into(),
+        )),
+    }
+}
+
+fn refuse_last_administrator(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<(), ServerError> {
+    let administrators: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM memberships WHERE organization_id = ?1 AND role = 'administrator'",
+        [organization.to_string()],
+        |row| row.get(0),
+    )?;
+    match administrators > 1 {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::LastAdministrator,
+            "an organization keeps at least one administrator".into(),
+        )),
+    }
+}
+
+fn remove_from(
+    graph: &mut BlockGraph,
+    connection: &Connection,
+    organization: Uuid,
+    account: Uuid,
+) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+    let role = crate::contacts::role_in(connection, account, organization)?;
+    let mut revoked = Vec::new();
+    for block in graph.entry_points(account) {
+        let Some(node) = graph.get(block) else {
+            continue;
+        };
+        let held = node.grants.contains_key(&account);
+        let shared = node.grants.keys().any(|other| *other != account);
+        let before = graph.audience(block);
+        if held {
+            crate::blocks::write_grant(
+                graph,
+                connection,
+                organization,
+                block,
+                account,
+                Access::None,
+            )?;
+        }
+        if held || shared {
+            crate::keys::lost_view(connection, organization, block, account)?;
+            revoked.push(crate::contacts::Granted {
+                organization,
+                block,
+                before,
+            });
+        }
+    }
+    connection.execute(
+        "DELETE FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
+        params![organization.to_string(), account.to_string()],
+    )?;
+    connection.execute(
+        "DELETE FROM wrapped_keys WHERE organization_id = ?1 AND wrapped_by = ?2",
+        params![
+            organization.to_string(),
+            crate::keys::encode_wrapped_by(be_protocol::WrappedBy::Account(account))
+        ],
+    )?;
+    if role == Some(OrganizationRole::Administrator) {
+        crate::keys::rotate_escrow_later(connection, organization, account)?;
+    }
+    Ok(revoked)
 }
 
 fn not_a_member() -> ServerError {

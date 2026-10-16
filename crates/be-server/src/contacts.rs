@@ -145,7 +145,7 @@ pub(crate) fn reseal_own(
     Ok(())
 }
 
-fn role_in(
+pub(crate) fn role_in(
     connection: &Connection,
     account: Uuid,
     organization: Uuid,
@@ -577,7 +577,7 @@ impl ServerStore {
                     let mut revoked = Vec::new();
                     for (block, grantee) in grants {
                         let before = graph.audience(block);
-                        write_grant(
+                        crate::blocks::revoke_or_grant(
                             graph,
                             &transaction,
                             organization,

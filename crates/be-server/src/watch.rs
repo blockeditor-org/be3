@@ -186,6 +186,47 @@ impl WatchHub {
             .collect()
     }
 
+    pub async fn identity(&self, client: u64) -> Option<Identity> {
+        self.joined.lock().await.organizations.get(&client).copied()
+    }
+
+    pub async fn clients_of(&self, organization: Uuid, account: Uuid) -> Vec<(u64, Identity)> {
+        let joined = self.joined.lock().await;
+        joined
+            .by_member
+            .get(&(organization, account))
+            .into_iter()
+            .flatten()
+            .filter_map(|client| {
+                joined
+                    .organizations
+                    .get(client)
+                    .map(|identity| (*client, *identity))
+            })
+            .collect()
+    }
+
+    pub async fn drop_member(&self, organization: Uuid, account: Uuid) {
+        let clients: Vec<u64> = {
+            let mut joined = self.joined.lock().await;
+            let clients: Vec<u64> = joined
+                .by_member
+                .get(&(organization, account))
+                .into_iter()
+                .flatten()
+                .copied()
+                .collect();
+            for client in &clients {
+                joined.leave_organization(*client);
+            }
+            clients
+        };
+        let mut senders = self.clients.lock().await;
+        for client in clients {
+            senders.remove(&client);
+        }
+    }
+
     pub async fn announce(&self, organization: Uuid, message: ServerMessage) {
         let targets: Vec<u64> = self
             .joined

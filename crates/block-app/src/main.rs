@@ -18,6 +18,7 @@ mod keys;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod media;
+mod members;
 mod notices;
 #[cfg(target_os = "linux")]
 mod notifications;
@@ -432,6 +433,7 @@ struct BlockApp {
     agents: Vec<be_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
+    members: members::Members,
     scheduled_organization_list: bool,
     server_url: String,
     account: Account,
@@ -676,6 +678,7 @@ impl BlockApp {
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
+            members: members::Members::default(),
             scheduled_organization_list: false,
             server_url,
             account,
@@ -1444,6 +1447,7 @@ impl BlockApp {
         self.agents_open = false;
         self.agent_created = None;
         self.contacts.close();
+        self.members.close();
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
@@ -2185,6 +2189,7 @@ impl BlockApp {
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            BlockCommand::Leave => be::leave(id),
             BlockCommand::Rename => self.show_dialog(from, id, ShellDialog::Rename),
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
@@ -2382,6 +2387,7 @@ impl BlockApp {
             .is_some_and(|organization| be::installed_for(self.account.id, organization.id));
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
+        self.members.poll();
         self.poll_organization_request();
         self.poll_reauth_request();
         if self.choosing_session {
@@ -2662,6 +2668,12 @@ impl BlockApp {
                 }
             }
             UiCommand::OpenContacts => self.contacts.show(),
+            UiCommand::OpenMembers => self.members.show(),
+            UiCommand::CloseMembers => self.members.close(),
+            UiCommand::SetMemberRole(account, role) => self.members.set_role(account, role),
+            UiCommand::RemoveMember(account) => self.members.ask_remove(account),
+            UiCommand::ConfirmRemoveMember => self.members.confirm_remove(),
+            UiCommand::CancelRemoveMember => self.members.cancel_remove(),
             UiCommand::CloseContacts => self.contacts.close(),
             UiCommand::NewContactLink => self.contacts.new_link(),
             UiCommand::OpenContactLink(text) => self
@@ -2854,6 +2866,10 @@ impl BlockApp {
                 company: self.organization.as_ref().is_some_and(|organization| {
                     organization.kind == be_protocol::OrganizationKind::Company
                 }),
+                administrator: self.organization.as_ref().is_some_and(|organization| {
+                    organization.kind == be_protocol::OrganizationKind::Company
+                        && organization.role == OrganizationRole::Administrator
+                }),
             },
             agents: self.agents_open.then(|| ui::AgentsView {
                 organization: organization_name.clone(),
@@ -2876,6 +2892,7 @@ impl BlockApp {
                 }),
             }),
             contacts: self.contacts.view(),
+            members: self.members.view(self.account.id),
             invite: self.invite_open.then(|| ui::InviteView {
                 organization: organization_name,
                 busy: self.pending_organization_request.is_some(),

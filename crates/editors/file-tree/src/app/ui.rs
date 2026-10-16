@@ -5,8 +5,8 @@ use block_editor_beui::be_block::WorkspaceContent;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE, ICON_DELETE,
-    ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_INFO, ICON_LINK_OFF, ICON_MOVE_UP,
-    ICON_NOTE_ADD, ICON_OPEN_WITH, ICON_SHARE, ICON_WORKSPACES,
+    ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_INFO, ICON_LINK_OFF, ICON_LOGOUT,
+    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_WITH, ICON_SHARE, ICON_WORKSPACES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -408,6 +408,12 @@ fn TreeRow(
         );
     };
     let chose = menu_action(editor, picker, inspect, row);
+    let leavable = create_memo(move || row.get().is_some_and(|row| row.can_leave));
+    let leave = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().leave_block(id);
+        }
+    };
     let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let unlinkable = create_memo(move || {
@@ -523,6 +529,15 @@ fn TreeRow(
                 />
                 <MenuItem label="Inspect" glyph={ICON_INFO.to_owned()} disabled={uninspectable} />
                 <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
+                <Show condition={leavable}>
+                    <MenuItem
+                        label="Leave"
+                        glyph={ICON_LOGOUT.to_owned()}
+                        danger=true
+                        row_test_id={"file-tree.leave".to_owned()}
+                        on_click={leave}
+                    />
+                </Show>
             }}
             on_select={chose}
         >
@@ -579,6 +594,12 @@ fn SectionRow(
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
+    let leavable = create_memo(move || row.get().is_some_and(|row| row.can_leave));
+    let leave = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().leave_block(id);
+        }
+    };
     let add_child = move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
@@ -628,6 +649,15 @@ fn SectionRow(
                     danger=true
                     row_test_id={"file-tree.section.delete".to_owned()}
                 />
+                <Show condition={leavable}>
+                    <MenuItem
+                        label="Leave"
+                        glyph={ICON_LOGOUT.to_owned()}
+                        danger=true
+                        row_test_id={"file-tree.section.leave".to_owned()}
+                        on_click={leave}
+                    />
+                </Show>
             }}
             on_select={chose}
         >

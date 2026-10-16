@@ -21,11 +21,13 @@ mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
 mod a_large_image_streams_without_downloading_all_of_it;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_to_edited_text_types_where_it_sees_the_caret;
+mod a_reader_taken_off_a_workspace_cannot_read_what_is_written_after;
 mod a_rename_and_an_unsaved_edit_both_reach_the_head;
 mod a_reordered_reference_list_keeps_its_new_order;
 mod a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_metadata;
 mod a_second_follower_keeps_following_after_the_owner_leaves;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
+mod an_administrator_reads_a_workspace_nobody_shared_with_them;
 mod an_edit_too_large_to_relay_is_saved_as_a_commit;
 mod an_idle_session_catches_up_with_a_publish_from_outside_it;
 mod an_image_round_trips_without_being_re_encoded;
@@ -35,10 +37,12 @@ mod an_unsaved_edit_survives_a_publish_from_outside_the_session;
 mod an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod large_pastes_behind_an_unconfirmed_edit_go_out_in_relayable_pieces;
+mod leaving_a_shared_workspace_leaves_its_rotation_to_who_can_edit_it;
 mod metadata_is_sealed_on_the_server_and_opened_by_members;
 mod metadata_that_does_not_decode_is_an_error_rather_than_blank;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod references_declared_by_content_reach_the_graph;
+mod removing_a_member_shuts_them_out_and_rotates_what_they_could_read;
 mod the_journal_says_how_each_peer_saw_its_content_change;
 mod two_peers_converge_through_the_session_owner;
 mod two_peers_of_one_account_read_each_others_blocks;
@@ -113,6 +117,50 @@ impl Harness {
         .unwrap()
     }
 
+    async fn member(&self, admin: &Peer<MemoryStore>, email: &str) -> Peer<MemoryStore> {
+        let own = self.owner(email).await;
+        let card = crate::contacts::card(
+            admin.account(),
+            admin.keys().identity(),
+            "Admin",
+            "admin@example.com",
+        );
+        let code = crate::contacts::invite(
+            admin.connection(),
+            admin.keys().identity(),
+            &card,
+            admin.organization(),
+            email.into(),
+            be_protocol::OrganizationRole::Editor,
+        )
+        .await
+        .unwrap();
+        let theirs = crate::contacts::card(own.account(), own.keys().identity(), email, email);
+        crate::contacts::accept_invitation(own.connection(), own.keys().identity(), &theirs, &code)
+            .await
+            .unwrap();
+        crate::contacts::finish_links(
+            admin.connection(),
+            admin.keys().identity(),
+            admin.organization(),
+        )
+        .await
+        .unwrap();
+        admin.refresh_contacts().await.unwrap();
+        Peer::connect(
+            PeerConfig::new(
+                &self.url,
+                own.keys().identity().clone(),
+                Credentials::Token(own.token().to_owned()),
+            )
+            .organization(Some(admin.organization()))
+            .chunker(ChunkerConfig::SMALL),
+            MemoryStore::new(),
+        )
+        .await
+        .unwrap()
+    }
+
     async fn stop(mut self) {
         if let Some(shutdown) = self.shutdown.take() {
             let _ = shutdown.send(());
@@ -123,6 +171,27 @@ impl Harness {
         }
         let _ = std::fs::remove_dir_all(&self.directory);
     }
+}
+
+async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
+    peer.create_block(
+        Uuid::now_v7(),
+        be_block::WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        &be_block::BlockMetadata::named(name),
+    )
+    .await
+    .unwrap()
+    .id
+}
+
+async fn text(peer: &Peer<MemoryStore>, block: Uuid) -> String {
+    let opened = peer
+        .open::<be_block::TextContent>(block)
+        .await
+        .unwrap()
+        .expect("the block has content");
+    be_block::TextBlock::text(&opened)
 }
 
 fn identity(email: &str) -> be_keys::RecoverySecret {

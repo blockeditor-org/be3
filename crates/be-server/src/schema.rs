@@ -143,7 +143,14 @@ const SCHEMA: &str = "
         kind            TEXT NOT NULL,
         epoch           INTEGER NOT NULL,
         created         INTEGER NOT NULL,
+        public          BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (organization_id, id)
+    );
+
+    CREATE TABLE rotations (
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        block_id        TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id)
     );
 
     CREATE INDEX keys_block

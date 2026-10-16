@@ -18,6 +18,8 @@ use uuid::Uuid;
 
 use crate::{ClientError, connection::Connection, keys::KeyBook};
 
+mod rotation;
+
 #[derive(Clone)]
 pub enum Credentials {
     Register {
@@ -110,6 +112,7 @@ pub struct Peer<S: ObjectStore> {
     account: Uuid,
     organization: Uuid,
     role: OrganizationRole,
+    kind: be_protocol::OrganizationKind,
     heads: Mutex<HashMap<Uuid, CommitId>>,
     resolver: Mutex<Option<Resolver>>,
     keys: KeyBook,
@@ -159,9 +162,13 @@ impl<S: ObjectStore> Peer<S> {
                 organization,
             })
             .await?;
-        let ServerMessage::OrganizationOpened { role, .. } = response else {
+        let ServerMessage::OrganizationOpened {
+            role, kind, escrow, ..
+        } = response
+        else {
             return Err(ClientError::Unexpected);
         };
+        let verified = crate::contacts::contacts(&connection, &config.identity).await?;
         let ServerMessage::RecoveryKey { public, .. } = connection
             .request(|request| ClientMessage::GetRecoveryKey { request })
             .await?
@@ -186,14 +193,35 @@ impl<S: ObjectStore> Peer<S> {
             account,
             organization,
             role,
+            kind,
             heads: Mutex::new(HashMap::new()),
             resolver: Mutex::new(None),
             keys: KeyBook::new(account, config.identity, ring),
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
         };
+        peer.keys.set_escrow(escrow);
+        peer.keys.set_contacts(
+            verified
+                .into_iter()
+                .filter_map(|contact| Some((contact.account, contact.public?))),
+        );
         peer.refresh_keys(None).await?;
+        if escrow.is_none()
+            && kind == be_protocol::OrganizationKind::Company
+            && role == OrganizationRole::Administrator
+        {
+            let _ = peer.make_escrow().await;
+        }
         Ok(peer)
+    }
+
+    pub fn kind(&self) -> be_protocol::OrganizationKind {
+        self.kind
+    }
+
+    pub fn current_key(&self, block: Uuid) -> Option<Uuid> {
+        self.current.lock().unwrap().get(&block).copied()
     }
 
     pub fn keys(&self) -> &KeyBook {

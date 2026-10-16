@@ -95,6 +95,7 @@ pub struct BlockInfo {
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
+    pub locked: bool,
 }
 
 impl BlockInfo {
@@ -107,6 +108,7 @@ impl BlockInfo {
             references: Vec::new(),
             access: AccessLevel::Edit,
             metadata: BlockMetadata::default(),
+            locked: false,
         }
     }
 
@@ -164,6 +166,7 @@ impl BlockInfo {
                 defined: wire_entries(&self.metadata.defined),
                 derived: wire_entries(&self.metadata.derived),
             },
+            locked: self.locked,
         }
     }
 
@@ -179,6 +182,7 @@ impl BlockInfo {
                 defined: entries_of(info.metadata.defined),
                 derived: entries_of(info.metadata.derived),
             },
+            locked: info.locked,
         }
     }
 }

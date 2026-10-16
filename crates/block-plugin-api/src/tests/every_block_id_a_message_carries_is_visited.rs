@@ -16,6 +16,7 @@ fn every_block_id_a_message_carries_is_visited() {
                 references: vec![[1; 16]],
                 access: AccessLevel::Edit,
                 metadata: crate::BlockMetadata::default(),
+                locked: false,
             }],
         }),
         Message::Editor(EditorMessage::VersionControl {

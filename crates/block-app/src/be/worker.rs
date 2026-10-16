@@ -103,6 +103,23 @@ pub(super) enum Command {
     },
     DismissPairing(u64),
     Contact(ContactCommand),
+    Leave(Uuid),
+    Members(MembersCommand),
+}
+
+type MembersReply = Box<dyn FnOnce(Result<Vec<be_protocol::Member>, String>) + Send>;
+
+pub(super) enum MembersCommand {
+    List(MembersReply),
+    SetRole {
+        account: Uuid,
+        role: be_protocol::OrganizationRole,
+        reply: MembersReply,
+    },
+    Remove {
+        account: Uuid,
+        reply: MembersReply,
+    },
 }
 
 type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
@@ -277,6 +294,8 @@ pub(super) trait Session {
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
+    fn rekey(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn show(
@@ -425,6 +444,10 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
+    }
+
+    fn rekey(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { rekey(&mut self.live).await })
     }
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -611,6 +634,10 @@ where
         Box::pin(async move { seal(&mut self.live).await })
     }
 
+    fn rekey(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { rekey(&mut self.live).await })
+    }
+
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move {
             let Ok(content) = C::decode(&bytes) else {
@@ -652,6 +679,20 @@ where
     C: LiveEdit + Merge + Clone + Default,
 {
     if !live.is_owner() || live.is_clean() {
+        return Ok(());
+    }
+    if matches!(live.seal().await?, Saved::Rejected { .. }) {
+        live.reconcile().await?;
+        live.seal().await?;
+    }
+    Ok(())
+}
+
+async fn rekey<C>(live: &mut Live<Store, C>) -> Result<(), ClientError>
+where
+    C: LiveEdit + Merge + Clone + Default,
+{
+    if !live.is_owner() || live.is_diverged() {
         return Ok(());
     }
     if matches!(live.seal().await?, Saved::Rejected { .. }) {
@@ -812,6 +853,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut unsealed_since: Option<Instant> = None;
     let mut flushes = Vec::new();
+    let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
     loop {
         let deadline = unsealed_since.map(|since| since + SEAL_INTERVAL);
         let woken = match deadline {
@@ -837,6 +879,10 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 let applied = match command {
                     Command::Contact(command) => {
                         contact(&peer, shared, config, command).await;
+                        false
+                    }
+                    Command::Members(command) => {
+                        members(&peer, shared, command).await;
                         false
                     }
                     command => {
@@ -878,6 +924,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                         asked_to_pair(shared, from, &payload);
                     }
                     Some(ServerMessage::ContactsChanged) => sync_contacts(&peer, shared).await,
+                    Some(ServerMessage::KeyWorkChanged) => tend(&peer, shared).await,
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
                 }
@@ -896,6 +943,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 due
             }
         };
+        rekey_changed(&peer, &mut sessions, &mut keyed, shared).await;
         if sealed {
             unsealed_since = None;
         }
@@ -921,6 +969,27 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         changed.notify_all();
         if moved {
             crate::host::wake();
+        }
+    }
+}
+
+async fn rekey_changed(
+    peer: &Peer<Store>,
+    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
+    keyed: &mut HashMap<Uuid, Uuid>,
+    shared: &Arc<Mutex<Shared>>,
+) {
+    keyed.retain(|block, _| sessions.contains_key(block));
+    for (block, session) in sessions.iter_mut() {
+        let Some(key) = peer.current_key(*block) else {
+            continue;
+        };
+        if keyed
+            .insert(*block, key)
+            .is_some_and(|previous| previous != key)
+            && let Err(error) = session.rekey().await
+        {
+            record(shared, error);
         }
     }
 }
@@ -1009,7 +1078,8 @@ async fn approve_pairing(
 
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     let identity = peer.keys().identity();
-    match be_client::contacts::finish_links(peer.connection(), identity).await {
+    match be_client::contacts::finish_links(peer.connection(), identity, peer.organization()).await
+    {
         Ok(finished) => {
             for done in finished {
                 let Some(grant) = done
@@ -1029,10 +1099,38 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         }
         Err(error) => record(shared, error),
     }
-    match be_client::contacts::contacts(peer.connection(), identity).await {
+    match peer.refresh_contacts().await {
         Ok(contacts) => shared.lock().unwrap().contacts = contacts,
         Err(error) => record(shared, error),
     }
+    tend(peer, shared).await;
+    crate::host::wake();
+}
+
+async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    if let Err(error) = peer.tend().await {
+        record(shared, error);
+    }
+}
+
+async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: MembersCommand) {
+    let (changed, reply) = match command {
+        MembersCommand::List(reply) => (Ok(()), reply),
+        MembersCommand::SetRole {
+            account,
+            role,
+            reply,
+        } => (peer.set_role(account, role).await, reply),
+        MembersCommand::Remove { account, reply } => (peer.remove_member(account).await, reply),
+    };
+    if changed.is_ok() {
+        tend(peer, shared).await;
+    }
+    let listed = match changed {
+        Ok(()) => peer.members().await,
+        Err(error) => Err(error),
+    };
+    reply(listed.map_err(|error| error.to_string()));
     crate::host::wake();
 }
 
@@ -1220,7 +1318,14 @@ async fn apply(
     command: Command,
 ) -> bool {
     match command {
-        Command::Contact(_) => false,
+        Command::Contact(_) | Command::Members(_) => false,
+        Command::Leave(block) => {
+            if let Err(error) = peer.leave(block).await {
+                record(shared, error);
+            }
+            refresh(peer, shared, block).await;
+            true
+        }
         Command::WatchVersion(block) => {
             Versions::watch(shared, block);
             false
@@ -1450,6 +1555,7 @@ async fn apply(
             if let Err(error) = granted {
                 record(shared, error);
             }
+            tend(peer, shared).await;
             true
         }
         Command::ListAccess { block, reply } => {
@@ -1568,11 +1674,10 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
 }
 
 pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
-    let metadata = match peer.metadata(summary) {
-        Err(ClientError::Locked(_)) => Ok(BlockMetadata::named("Locked")),
-        other => other,
-    };
+    let metadata = peer.metadata(summary);
+    let locked = matches!(metadata, Err(ClientError::Locked(_)));
     Node {
+        locked,
         id: summary.id,
         content_type: summary.content_type,
         author: summary.author,

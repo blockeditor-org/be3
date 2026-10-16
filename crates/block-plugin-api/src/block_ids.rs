@@ -127,6 +127,7 @@ impl EditorMessage {
                     }
                     BlockCommand::Place { parent, .. } => existing(parent),
                     BlockCommand::Share
+                    | BlockCommand::Leave
                     | BlockCommand::Rename
                     | BlockCommand::Undo
                     | BlockCommand::Redo

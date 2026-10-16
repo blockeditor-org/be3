@@ -305,7 +305,10 @@ pub(crate) enum Stale {
 }
 
 pub(crate) fn locked(block: Uuid) -> bool {
-    with_shared(|shared| shared.locked.contains(&block)).unwrap_or_default()
+    with_shared(|shared| {
+        shared.locked.contains(&block) || shared.graph.get(block).is_some_and(|node| node.locked)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn staleness(block: Uuid) -> Option<Stale> {
@@ -583,6 +586,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             metadata: metadata.clone(),
             head: None,
             version: 0,
+            locked: false,
         });
     });
     send(Command::Duplicate {
@@ -846,6 +850,7 @@ pub(crate) fn create(
             metadata: metadata.clone(),
             head: None,
             version: 0,
+            locked: false,
         });
     });
     send(Command::Create {
@@ -895,6 +900,31 @@ pub(crate) fn set_access(block: Uuid, account: Uuid, access: be_graph::Access) {
         account,
         access,
     });
+}
+
+pub(crate) fn leave(block: Uuid) {
+    send(Command::Leave(block));
+}
+
+type MembersReply = Box<dyn FnOnce(Result<Vec<be_protocol::Member>, String>) + Send>;
+
+pub(crate) fn list_members(reply: MembersReply) {
+    send(Command::Members(worker::MembersCommand::List(reply)));
+}
+
+pub(crate) fn set_role(account: Uuid, role: be_protocol::OrganizationRole, reply: MembersReply) {
+    send(Command::Members(worker::MembersCommand::SetRole {
+        account,
+        role,
+        reply,
+    }));
+}
+
+pub(crate) fn remove_member(account: Uuid, reply: MembersReply) {
+    send(Command::Members(worker::MembersCommand::Remove {
+        account,
+        reply,
+    }));
 }
 
 pub(crate) fn list_access(
@@ -992,6 +1022,7 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 metadata: block.metadata.clone(),
                 head: None,
                 version: 0,
+                locked: false,
             });
         });
         send(Command::Import {

@@ -1,6 +1,6 @@
 use be_protocol::OrganizationRole;
 use beui::NodeId;
-use beui::icons::{ICON_CONTENT_COPY, ICON_DELETE};
+use beui::icons::{ICON_CONTENT_COPY, ICON_DELETE, ICON_PERSON_REMOVE};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
@@ -18,6 +18,7 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
             <InviteDialog view={view} />
             <AgentsDialog view={view} />
             <ContactsDialog view={view} />
+            <MembersDialog view={view} />
             <AboutDialog view={view} />
         </List>
     }
@@ -63,6 +64,135 @@ fn ContactsDialog(view: AppViewStore) -> NodeId {
         >
             <ContactsPanel view />
         </Dialog>
+    }
+}
+
+#[component]
+fn MembersDialog(view: AppViewStore) -> NodeId {
+    let members = view.members;
+    let open = create_memo(move || members.get().is_some());
+    view! {
+        <Dialog
+            open={open}
+            title="Members"
+            width=480.0
+            on_dismiss={|| send(UiCommand::CloseMembers)}
+        >
+            <MembersPanel view />
+        </Dialog>
+    }
+}
+
+#[component]
+fn MembersPanel(view: AppViewStore) -> NodeId {
+    let members = view.members;
+    let shown = create_memo(move || members.get().unwrap_or_default());
+    let busy = create_memo(move || shown.get().busy);
+    let error = create_memo(move || shown.get().error);
+    let keys = create_memo(move || {
+        shown
+            .get()
+            .members
+            .iter()
+            .map(|member| member.account)
+            .collect::<Vec<Uuid>>()
+    });
+    let removing = create_memo(move || shown.get().removing.unwrap_or_default());
+    let asks_removal = create_memo(move || !removing.get().is_empty());
+    view! {
+        <Frame>
+            <List spacing=8.0>
+                <Text
+                    style=TextStyle::CAPTION
+                    string="Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
+                    wrap=true
+                />
+                <ForEach keys={keys}>
+                    {move |account: Uuid| {
+                        let row = create_memo(move || {
+                            shown
+                                .get()
+                                .members
+                                .into_iter()
+                                .find(|member| member.account == account)
+                                .unwrap_or_default()
+                        });
+                        let name = create_memo(move || row.get().name);
+                        let detail = create_memo(move || row.get().detail);
+                        let fixed = create_memo(move || {
+                            let row = row.get();
+                            row.me || row.agent || busy.get()
+                        });
+                        let role_label = create_memo(move || match row.get().administrator {
+                            true => "Make editor".to_owned(),
+                            false => "Make administrator".to_owned(),
+                        });
+                        let next_role = move || match row.get_untracked().administrator {
+                            true => OrganizationRole::Editor,
+                            false => OrganizationRole::Administrator,
+                        };
+                        let unremovable = create_memo(move || row.get().me || busy.get());
+                        view! {
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                                    <Text string={name} />
+                                    <Text style=TextStyle::CAPTION string={detail} />
+                                </List>
+                                <Button
+                                    label={role_label}
+                                    variant=ButtonVariant::Secondary
+                                    disabled={fixed}
+                                    @test_id={format!("app.members.role.{account}")}
+                                    on_click={move || send(UiCommand::SetMemberRole(account, next_role()))}
+                                />
+                                <IconButton
+                                    glyph={ICON_PERSON_REMOVE.to_owned()}
+                                    label="Remove member"
+                                    disabled={unremovable}
+                                    @test_id={format!("app.members.remove.{account}")}
+                                    on_click={move || send(UiCommand::RemoveMember(account))}
+                                />
+                            </List>
+                        }
+                    }}
+                </ForEach>
+                <Show condition={asks_removal}>
+                    {move || view! {
+                        <List spacing=6.0>
+                            <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
+                            <List direction=Direction::Horizontal spacing=8.0>
+                                <Button
+                                    label="Remove"
+                                    variant=ButtonVariant::Primary
+                                    @test_id={"app.members.remove.confirm"}
+                                    on_click={|| send(UiCommand::ConfirmRemoveMember)}
+                                />
+                                <Button
+                                    label="Keep"
+                                    variant=ButtonVariant::Secondary
+                                    on_click={|| send(UiCommand::CancelRemoveMember)}
+                                />
+                            </List>
+                        </List>
+                    }}
+                </Show>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Button
+                        label="Invite member"
+                        variant=ButtonVariant::Primary
+                        @test_id={"app.members.invite"}
+                        on_click={|| {
+                            send(UiCommand::CloseMembers);
+                            send(UiCommand::InviteMember);
+                        }}
+                    />
+                    <Show condition={busy}>
+                        <Spinner />
+                    </Show>
+                </List>
+                <ErrorText text={error} />
+            </List>
+        </Frame>
     }
 }
 

@@ -193,8 +193,15 @@ time, so notifications wait for the next post.
   point, which the app lists under Shared with me. `SetAccess` grants, and only
   someone who may edit a block may grant on it; a grant above `None` must also
   name a member of the organization who is a contact of the granter (see
-  Contacts). `ListAccess` lists the block's author, grantees and viewers and
-  the caller's contacts who are members, never the rest of the membership.
+  Contacts). Anyone may revoke their own grant (leaving a block). `ListAccess`
+  lists the block's author, grantees and viewers and the caller's contacts who
+  are members, never the rest of the membership, and marks a grantee still
+  `waiting` for the block's scope key. An administrator lists the members
+  (`ListMembers`), changes a role (`SetRole`) and removes a member
+  (`RemoveMember`, which revokes their grants and drops their wrapped keys);
+  the organization always keeps one administrator, and the affected account's
+  connections to it are closed (`WatchHub::drop_member`), so they reconnect
+  with what they now are.
 - Nothing that runs per request or per publish maps the whole graph.
   `BlockGraph` indexes children by parent and blocks by the accounts that
   authored them or hold a grant on them (their entry points).
@@ -684,7 +691,8 @@ what it needs.
 
 The app keeps a mirror of the server's graph, as the account sees it, in
 `be/graph.rs`: a `Node` per block with its content type, author, parent, access,
-references and unsealed `BlockMetadata`. The worker loads it with
+references, unsealed `BlockMetadata` and whether no key it holds opens it
+(`locked`). The worker loads it with
 `Peer::list_blocks` whenever it connects and keeps it current from the server's
 `BlockChanged` and `BlockRemoved` events, reloading it whole when it has fallen
 behind the event broadcast. `Query` (`Roots`, `Detached`, `Shared`,
@@ -804,7 +812,10 @@ list of `BlockQuery`s the host answers from its mirror with `Blocks { query,
 blocks }` whenever the answer changes (`plugin_host/graph.rs`). A `BlockInfo`
 carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
 a block), name and whether it was named by hand, references, the account's
-access and the artifact source. It changes the graph with
+access, the artifact source and whether it is `locked`: the account may view
+it but holds no key that opens it yet, so its metadata is empty. The files
+pane shows a locked block as "Locked" with a lock icon, and the frame says so
+in place of an editor. It changes the graph with
 `CreateBlock { block_id, content_type, parent, name, artifact, content }`,
 `SetParent` and `SetName`, which the host takes only when the account may edit
 the block and the parent it names, and hands to `be::create`, `be::set_parent`
@@ -931,7 +942,8 @@ The files pane (crates/editors/file-tree) shows a section per workspace the
 account can see (My files first, then by name; another account's My files is
 never listed), then Shared with me (`BlockQuery::Shared`, plus any root block
 that is not a workspace, never a settings block), then Recently Deleted. A
-section's header has its own menu (rename, share, delete), New workspace makes
+section's header has its own menu (rename, share, delete, and leave on a
+workspace someone else made), New workspace makes
 one at the root and opens the rename dialog, and the add button and every
 picker place a new block in a workspace, My files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
@@ -1100,6 +1112,44 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   subtree rewrapped under it) sealed to the grantee's identity key, which is
   only ever a contact's verified key (below). The server refuses to store a
   key sealed to any account but the caller's own and its contacts'.
+- **Rotation.** When an account stops being able to view a block (a grant
+  revoked or left, a contact removed, a member removed), the server records
+  the block in `rotations`, drops that account's wraps of the block's keys and
+  ends its sessions on what it can no longer see (a client must be in a
+  session to speak in it). `GetKeyWork` tells a client what it can do about
+  keys: the rotations on blocks it may edit, scope keys (and the escrow key)
+  not yet sealed to someone who should have them (`unsealed`), and scope keys
+  not yet wrapped under the escrow key (`unescrowed`). `Peer::tend` does all of
+  it; the app's worker calls it on connect, on `ContactsChanged`, on
+  `KeyWorkChanged` (sent to a block's audience when a revocation records a
+  rotation) and after its own changes. `Peer::rotate` walks the block's
+  subtree and sends one `Rotate`: a new epoch of every scope key in it, each
+  wrapped under its parent scope's new (or, above the block, current) key and
+  sealed to whoever may still open it (grantees, and the author of a root
+  block, by their verified keys), every data key of every block (old epochs
+  too) rewrapped under its scope's new key, and a new data key per block. The
+  server takes it only whole: every block below the root a new data key, every
+  scope root a new scope key, in one transaction, and drops the account wraps
+  of the old scope keys for anyone who can no longer view them. Content is
+  never sealed again, except that the worker has the owner of a live session
+  on a block whose key changed seal it once more (`Session::rekey`), so the
+  head is under the new key. A rotation nobody could do yet (the one who
+  left cannot edit, or lacks a contact's key) waits in `rotations` until a
+  client that may edit the block tends; grantees it could not seal to are
+  listed as `unsealed` for any device that holds the key and the contact.
+- **Escrow** (company organizations). The escrow key is an X25519 pair whose
+  secret is a key row of kind `escrow` (its block is the organization id, its
+  public half in `keys.public`), sealed to each administrator. The first
+  administrator device to open the organization makes it (`CreateEscrow`),
+  `OrganizationOpened` hands every member the current one, and `mint_scope`
+  seals every new scope key to its public half too, so administrators open
+  every scope key and with them everything. Only administrators are served the
+  escrow rows. Promoting someone leaves the escrow key unsealed to them until
+  an administrator who has them as a contact tends; demoting or removing an
+  administrator records an escrow rotation, which an administrator does with
+  a new `CreateEscrow`: a new epoch sealed to the remaining administrators,
+  with every scope key it holds wrapped under it and the old escrow wraps of
+  those keys dropped.
 - **Identity.** Each account has a twelve-word recovery phrase, shown once and
   checked by typing three of its words. The phrase derives an X25519 key pair;
   the server stores only the public half (`SetRecoveryKey`, `GetRecoveryKey`),
@@ -1164,13 +1214,19 @@ public key it verified this way, never to one the server hands it.
   applies the grant and stores that wrap at once, so the share works while the
   maker is offline; when it finishes, it seals the scope again
   (`Peer::seal_share`), which also covers blocks made inside it meanwhile. The
-  grant is applied only if the accepter is a member of that organization.
+  grant is applied only if the accepter is a member of that organization. A link whose grant is in another
+  organization than the one the maker's device has open stays until a device
+  of the maker opens that one. A grant to a contact whose key the granter has
+  not verified yet works on the server at once, and the key is sealed to them
+  (`unsealed`, above) when the granter's device verifies it; the share dialog
+  says so meanwhile.
 - **On the server** `contact_links` (lookup id, owner, card, code, the pending
   grant, the accepter and its card) and `contacts` (account, contact, the
   contact's card sealed for the account). Contacts are per account, across
   organizations; a grant needs both to be members of the block's organization
   too. `RemoveContact` deletes both rows and, in every organization they share,
-  revokes each one's grants on blocks the other may edit.
+  revokes each one's grants on blocks the other may edit, which records their
+  rotations.
 - **In the app** the Contacts dialog (app menu) lists contacts, removes them,
   makes a link shown once with a copy button, and opens a pasted one; the web
   app takes `#contact/` from the address bar like `#invite/`. The worker keeps
@@ -1178,7 +1234,8 @@ public key it verified this way, never to one the server hands it.
   finishes) and seals a share only to those keys. The share dialog lists
   contacts and current grantees, and its "Invite someone new" makes a link
   carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
-  member and Agents show only in a company organization.
+  member and Agents show only in a company organization, and Members (list,
+  change a role, remove, invite) only to its administrators.
 
 ### Presence
 

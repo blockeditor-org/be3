@@ -171,6 +171,7 @@ pub(crate) struct StatusView {
     pub(crate) session_type: Uuid,
     pub(crate) can_close: bool,
     pub(crate) company: bool,
+    pub(crate) administrator: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -211,6 +212,24 @@ pub(crate) struct ContactsView {
     pub(crate) link: Option<String>,
     pub(crate) offer: Option<String>,
     pub(crate) connected: Option<String>,
+    pub(crate) removing: Option<String>,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct MemberRow {
+    pub(crate) account: Uuid,
+    pub(crate) name: String,
+    pub(crate) detail: String,
+    pub(crate) administrator: bool,
+    pub(crate) me: bool,
+    pub(crate) agent: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct MembersView {
+    pub(crate) members: Vec<MemberRow>,
     pub(crate) removing: Option<String>,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
@@ -274,6 +293,7 @@ pub(crate) struct AppView {
     pub(crate) invite: Option<InviteView>,
     pub(crate) agents: Option<AgentsView>,
     pub(crate) contacts: Option<ContactsView>,
+    pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
@@ -336,6 +356,12 @@ pub(crate) enum UiCommand {
     RemoveContact(Uuid),
     ConfirmRemoveContact,
     CancelRemoveContact,
+    OpenMembers,
+    CloseMembers,
+    SetMemberRole(Uuid, OrganizationRole),
+    RemoveMember(Uuid),
+    ConfirmRemoveMember,
+    CancelRemoveMember,
     CreateAgent(String),
     RemoveAgent(Uuid),
     Discard,
