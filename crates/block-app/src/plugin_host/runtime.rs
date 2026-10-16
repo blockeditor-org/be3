@@ -127,6 +127,8 @@ pub(super) struct Runtime {
     pub(super) backend: Backend,
     session: HostSession,
     queued: Vec<Message>,
+    held: Vec<Message>,
+    taking_in: bool,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -245,6 +247,8 @@ impl Runtime {
             backend,
             session,
             queued: Vec::new(),
+            held: Vec::new(),
+            taking_in: false,
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -282,6 +286,7 @@ impl Runtime {
         self.stop();
         self.session = session();
         self.queued.clear();
+        self.held.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
@@ -572,6 +577,22 @@ impl Runtime {
                 return;
             }
         }
+        let forwarded = match self.taking_in {
+            true => {
+                let mut taken = std::mem::take(&mut self.held);
+                taken.extend(forwarded);
+                taken
+            }
+            false => {
+                let (drawing, held): (Vec<_>, Vec<_>) =
+                    forwarded.into_iter().partition(draws_the_frame);
+                if !held.is_empty() {
+                    host::request_repaint();
+                }
+                self.held.extend(held);
+                drawing
+            }
+        };
         self.apply(forwarded);
         if let Some(took) = self.backend.took() {
             let id = &self.plugin.identity.id;
@@ -1017,7 +1038,9 @@ pub(crate) fn poll() {
             runtime.contain(|runtime| {
                 runtime.instances.touch(&touched);
                 runtime.detect_error();
+                runtime.taking_in = true;
                 runtime.pump();
+                runtime.taking_in = false;
                 runtime.begin_frame(pass);
             });
         }
@@ -1533,6 +1556,16 @@ pub(crate) fn take_crashed() -> Vec<String> {
 
 pub(crate) fn crash(plugin_id: &str, error: String) {
     with(plugin_id, |runtime| runtime.crashed(error));
+}
+
+fn draws_the_frame(message: &Message) -> bool {
+    match message {
+        Message::Layout(_) | Message::Frames(_) | Message::FrameNeeded | Message::FrameReady(_) => {
+            true
+        }
+        Message::Extension { key, .. } => *key == beui::painting::PAINTING_EXTENSION,
+        _ => false,
+    }
 }
 
 pub(super) fn mark(plugin_id: &str) {
