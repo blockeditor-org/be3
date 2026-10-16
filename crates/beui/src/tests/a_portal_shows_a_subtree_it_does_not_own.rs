@@ -22,8 +22,8 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
                     </Frame>
                     <Show condition={kept}>
                         <Frame @test_id="second" height=40.0>
-                                <Portal node={second} />
-                            </Frame>
+                            <Portal node={second} />
+                        </Frame>
                     </Show>
                 </List>
             }

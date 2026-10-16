@@ -144,41 +144,39 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=0.0>
-                        <Dynamic value={mode}>
-                            |shown: CalendarView| {
-                                match shown {
-                                    CalendarView::Month => view! {
-                                        <MonthGrid
-                                            anchor={anchor}
-                                            events={events}
-                                            on_pick_day={pick_day}
-                                            on_pick_event={pick_event}
-                                        />
-                                    },
-                                    CalendarView::Week => {
-                                        let first = create_memo(move || week_start(anchor.get()));
-                                        view! {
-                                            <Timeline
-                                                first_day={first}
-                                                days=7
-                                                events={events}
-                                                on_pick_slot={pick_slot}
-                                                on_pick_event={pick_event}
-                                            />
-                                        }
-                                    }
-                                    CalendarView::Day => view! {
+                        <Dynamic value={mode}>|shown: CalendarView| {
+                            match shown {
+                                CalendarView::Month => view! {
+                                    <MonthGrid
+                                        anchor={anchor}
+                                        events={events}
+                                        on_pick_day={pick_day}
+                                        on_pick_event={pick_event}
+                                    />
+                                },
+                                CalendarView::Week => {
+                                    let first = create_memo(move || week_start(anchor.get()));
+                                    view! {
                                         <Timeline
-                                            first_day={anchor}
-                                            days=1
+                                            first_day={first}
+                                            days=7
                                             events={events}
                                             on_pick_slot={pick_slot}
                                             on_pick_event={pick_event}
                                         />
-                                    },
+                                    }
                                 }
+                                CalendarView::Day => view! {
+                                    <Timeline
+                                        first_day={anchor}
+                                        days=1
+                                        events={events}
+                                        on_pick_slot={pick_slot}
+                                        on_pick_event={pick_event}
+                                    />
+                                },
                             }
-                        </Dynamic>
+                        }</Dynamic>
                     </List>
                 </Frame>
                 <EventDialog

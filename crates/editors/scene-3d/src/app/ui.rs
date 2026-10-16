@@ -111,16 +111,16 @@ pub(crate) fn Scene3DView() -> NodeId {
             on_change={released}
             on_motion={look}
             on_key={walked}
-        >
-            |_: PointerLockHandle| <List spacing=0.0>
-                    <Drawing
-                        draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
-                        @sizing=ItemSize::Percent(100.0)
-                    />
-                    <Floating anchor={anchor} edge=Edge::Bottom open={idle} interactive=false>
-                        <Hint />
-                    </Floating>
-                </List>
+        >|_: PointerLockHandle|
+            <List spacing=0.0>
+                <Drawing
+                    draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
+                    @sizing=ItemSize::Percent(100.0)
+                />
+                <Floating anchor={anchor} edge=Edge::Bottom open={idle} interactive=false>
+                    <Hint />
+                </Floating>
+            </List>
         </PointerLock>
     }
 }

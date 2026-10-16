@@ -160,28 +160,26 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                 <Show condition={!session}>
                     <LinkedBar workspace={workspace} info={info} />
                 </Show>
-                <Dynamic value={content}>
-                    |content: Content| {
-                        match content {
-                            Content::Denied => view! {
-                                <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
-                            },
-                            Content::Block => view! {
-                                <BlockChild
-                                    @sizing=ItemSize::Percent(100.0)
-                                    editor={editor}
-                                    info={info}
-                                    top_bar={top_bar}
-                                    on_bar={move |action: BarAction| match action {
-                                        BarAction::Details => {
-                                            workspace.set_sheet(PhoneSheet::Details(tab))
-                                        }
-                                    }}
-                                />
-                            },
-                        }
+                <Dynamic value={content}>|content: Content| {
+                    match content {
+                        Content::Denied => view! {
+                            <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
+                        },
+                        Content::Block => view! {
+                            <BlockChild
+                                @sizing=ItemSize::Percent(100.0)
+                                editor={editor}
+                                info={info}
+                                top_bar={top_bar}
+                                on_bar={move |action: BarAction| match action {
+                                    BarAction::Details => {
+                                        workspace.set_sheet(PhoneSheet::Details(tab))
+                                    }
+                                }}
+                            />
+                        },
                     }
-                </Dynamic>
+                }</Dynamic>
                 <Show condition={desktop}>
                     <StatusBar workspace={workspace} info={info} />
                 </Show>
@@ -221,14 +219,12 @@ fn BlockChild(
             on_bar={on_bar}
             on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
             @test_id={"workspace.block"}
-        >
-            |handle: ChildBlockHandle| {
-                dock_menu(handle.menu);
-                view! {
-                    <PanelStatus state={handle.state} loading="This block is loading…" />
-                }
+        >|handle: ChildBlockHandle| {
+            dock_menu(handle.menu);
+            view! {
+                <PanelStatus state={handle.state} loading="This block is loading…" />
             }
-        </ChildBlock>
+        }</ChildBlock>
     }
 }
 

@@ -15,12 +15,10 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
                         <VirtualList
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            |_: ReadSignal<usize>| <Frame
-                                        padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
-                                    >
-                                        <Spacer />
-                                    </Frame>
+                        >|_: ReadSignal<usize>|
+                            <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                                <Spacer />
+                            </Frame>
                         </VirtualList>
                     </Scroll>
                 </List>

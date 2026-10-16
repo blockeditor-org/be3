@@ -14,8 +14,8 @@ fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_a
                 <List spacing=0.0>
                     <Frame height=200.0>
                         <Scroll @test_id="scroll">
-                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>
-                                |row: usize| <Row watched={row == 2} seen={set_seen} />
+                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                                <Row watched={row == 2} seen={set_seen} />
                             </ForEach>
                         </Scroll>
                     </Frame>
@@ -51,18 +51,16 @@ fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_a
 #[component]
 fn Row(watched: bool, seen: WriteSignal<Rect>) -> NodeId {
     view! {
-        <PlacementBuilder>
-            |rect: ReadSignal<Rect>| {
-                create_effect(move || {
-                    let placed = rect.get();
-                    if watched {
-                        seen.set(placed);
-                    }
-                });
-                view! {
-                    <Frame height=40.0 fill=Color32::WHITE radius=0.0 />
+        <PlacementBuilder>|rect: ReadSignal<Rect>| {
+            create_effect(move || {
+                let placed = rect.get();
+                if watched {
+                    seen.set(placed);
                 }
+            });
+            view! {
+                <Frame height=40.0 fill=Color32::WHITE radius=0.0 />
             }
-        </PlacementBuilder>
+        }</PlacementBuilder>
     }
 }

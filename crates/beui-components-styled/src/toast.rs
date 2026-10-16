@@ -87,26 +87,24 @@ pub fn Toasts(
         >
             <Frame padding=MARGIN width={WIDTH + 2.0 * MARGIN}>
                 <List spacing=SPACING>
-                    <ForEach keys={toasts}>
-                        |toast: Toast| {
-                            let on_dismiss = on_dismiss;
-                            let on_action = on_action;
-                            let on_activate = on_activate;
-                            let duration = match toast.sticky || toast.danger {
-                                true => None,
-                                false => duration.peek(),
-                            };
-                            view! {
-                                <ToastCard
-                                    toast
-                                    duration
-                                    on_dismiss={move |id: u64| on_dismiss.call(id)}
-                                    on_action={move |chosen: (u64, String)| on_action.call(chosen)}
-                                    on_activate={move |id: u64| on_activate.call(id)}
-                                />
-                            }
+                    <ForEach keys={toasts}>|toast: Toast| {
+                        let on_dismiss = on_dismiss;
+                        let on_action = on_action;
+                        let on_activate = on_activate;
+                        let duration = match toast.sticky || toast.danger {
+                            true => None,
+                            false => duration.peek(),
+                        };
+                        view! {
+                            <ToastCard
+                                toast
+                                duration
+                                on_dismiss={move |id: u64| on_dismiss.call(id)}
+                                on_action={move |chosen: (u64, String)| on_action.call(chosen)}
+                                on_activate={move |id: u64| on_activate.call(id)}
+                            />
                         }
-                    </ForEach>
+                    }</ForEach>
                 </List>
             </Frame>
         </Overlay>
@@ -246,20 +244,18 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, on_action: Callback<(u64, St
             justify=Justify::End
             spacing=SPACING
         >
-            <ForEach keys={actions}>
-                |action: ToastAction| {
-                    let on_action = on_action;
-                    let key = action.key.clone();
-                    view! {
-                        <Button
-                            @test_id={format!("toast.{id}.action.{}", action.key)}
-                            label={action.label}
-                            variant=ButtonVariant::Secondary
-                            on_click={move || on_action.call((id, key.clone()))}
-                        />
-                    }
+            <ForEach keys={actions}>|action: ToastAction| {
+                let on_action = on_action;
+                let key = action.key.clone();
+                view! {
+                    <Button
+                        @test_id={format!("toast.{id}.action.{}", action.key)}
+                        label={action.label}
+                        variant=ButtonVariant::Secondary
+                        on_click={move || on_action.call((id, key.clone()))}
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }

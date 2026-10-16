@@ -61,32 +61,32 @@ pub fn TextArea(
                 menu={menu_style()}
                 masked
                 child_size=ItemSize::Percent(100.0)
-            >
-                |open_menu: Callback<Option<Rect>>| <unstyled::TextArea
-                        @node_ref=&surface
-                        state={state}
-                        widgets
-                        colors
-                        remote_cursors
-                        drop_caret
-                        placeholder
-                        password
-                        show_runs
-                        client_colors
-                        on_widget_press={on_widget_press}
-                        on_focus_change={on_focus_change}
-                        pastes_images
-                        on_image_paste={on_image_paste}
-                        on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
-                        block={block}
-                        selected_widget={selected_widget}
-                        checkbox={inline_checkbox()}
-                        completer={match emoji {
-                            true => unstyled::emoji_completer(),
-                            false => Completer::none(),
-                        }}
-                        completion_menu={emoji_menu()}
-                    />
+            >|open_menu: Callback<Option<Rect>>|
+                <unstyled::TextArea
+                    @node_ref=&surface
+                    state={state}
+                    widgets
+                    colors
+                    remote_cursors
+                    drop_caret
+                    placeholder
+                    password
+                    show_runs
+                    client_colors
+                    on_widget_press={on_widget_press}
+                    on_focus_change={on_focus_change}
+                    pastes_images
+                    on_image_paste={on_image_paste}
+                    on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
+                    block={block}
+                    selected_widget={selected_widget}
+                    checkbox={inline_checkbox()}
+                    completer={match emoji {
+                        true => unstyled::emoji_completer(),
+                        false => Completer::none(),
+                    }}
+                    completion_menu={emoji_menu()}
+                />
             </unstyled::TextContextMenu>
         </List>
     }

@@ -15,10 +15,10 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
                     @test_id="strip"
                     direction=Direction::Horizontal
                 >
-                    <ForEach keys={indices(20)}>
-                        |index: usize| <Frame width=120.0>
-                                <Text string={format!("Card {index}")} color=Color32::WHITE />
-                            </Frame>
+                    <ForEach keys={indices(20)}>|index: usize|
+                        <Frame width=120.0>
+                            <Text string={format!("Card {index}")} color=Color32::WHITE />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </List>

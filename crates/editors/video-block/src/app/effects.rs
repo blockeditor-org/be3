@@ -117,48 +117,46 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 <Text style=TextStyle::CAPTION string={parent_name} color={parent_color} />
                 <Show condition={hanging_row}>
                     <IconButton
-                            glyph={ICON_LINK_OFF.to_owned()}
-                            label="Move this clip onto the base track"
-                            @test_id={"video.detach"}
-                            on_click={move || {
-                                let Some(mut clip) = detached_clip.get_untracked() else {
-                                    return;
-                                };
-                                clip.attachment = None;
-                                state.update_clip(clip);
-                            }}
-                        />
+                        glyph={ICON_LINK_OFF.to_owned()}
+                        label="Move this clip onto the base track"
+                        @test_id={"video.detach"}
+                        on_click={move || {
+                            let Some(mut clip) = detached_clip.get_untracked() else {
+                                return;
+                            };
+                            clip.attachment = None;
+                            state.update_clip(clip);
+                        }}
+                    />
                 </Show>
             </List>
             <Show condition={hanging}>
                 <NumberInput
-                        value={offset}
-                        label="Offset"
-                        on_change={move |value: f64| {
-                            let Some(mut clip) = moved_clip.get_untracked() else {
-                                return;
-                            };
-                            let Some(attachment) = clip.attachment else {
-                                return;
-                            };
-                            clip.attachment =
-                                Some(VideoAttachment::new(attachment.clip_id, value.round() as i64));
-                            state.update_clip(clip);
-                        }}
-                    />
+                    value={offset}
+                    label="Offset"
+                    on_change={move |value: f64| {
+                        let Some(mut clip) = moved_clip.get_untracked() else {
+                            return;
+                        };
+                        let Some(attachment) = clip.attachment else {
+                            return;
+                        };
+                        clip.attachment =
+                            Some(VideoAttachment::new(attachment.clip_id, value.round() as i64));
+                        state.update_clip(clip);
+                    }}
+                />
             </Show>
             <Text string="Effect stack" />
             <Show condition={bare}>
                 <Text style=TextStyle::CAPTION string="No effects yet." color={bare_color} />
             </Show>
-            <ForEach keys={effect_ids}>
-                |id: Uuid| {
-                    let effects = effects;
-                    view! {
-                        <EffectRow effects id />
-                    }
+            <ForEach keys={effect_ids}>|id: Uuid| {
+                let effects = effects;
+                view! {
+                    <EffectRow effects id />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }

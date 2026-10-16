@@ -13,13 +13,13 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
     let document = build(move || {
         view! {
             <Container>|_size|
-            <DateTimeField
-                value={Some(DateTime::new(Date::new(2026, 2, 27), Time::new(8, 45)))}
-                today={Some(Date::new(2026, 1, 1))}
-                parts=DateTimeParts::Date
-                label="Due"
-                on_change={move |value| set_reported.update(|reported| reported.push(value))}
-            />
+                <DateTimeField
+                    value={Some(DateTime::new(Date::new(2026, 2, 27), Time::new(8, 45)))}
+                    today={Some(Date::new(2026, 1, 1))}
+                    parts=DateTimeParts::Date
+                    label="Due"
+                    on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                />
             </Container>
         }
     });

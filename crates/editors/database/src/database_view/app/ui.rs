@@ -53,8 +53,8 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
             <List spacing=0.0>
                 <Show condition={spreadsheet}>
                     <Toolbar shown={toolbar_chrome}>
-                            <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
-                        </Toolbar>
+                        <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
+                    </Toolbar>
                 </Show>
                 <Show condition={header_shown}>
                     <ViewHeader data={data} />
@@ -88,24 +88,22 @@ fn Content(data: Data, panels: bool) -> NodeId {
     view! {
         <RowBeside data={data} enabled={panels}>
             <List spacing=0.0>
-                <Dynamic value={kind}>
-                    |kind: DatabaseViewKind| {
-                        match kind {
-                            DatabaseViewKind::Spreadsheet => view! {
-                                <Spreadsheet @sizing=ItemSize::Percent(100.0) data={data} />
-                            },
-                            DatabaseViewKind::Kanban => view! {
-                                <Kanban @sizing=ItemSize::Percent(100.0) data={data} />
-                            },
-                            DatabaseViewKind::Scatter => view! {
-                                <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
-                            },
-                            DatabaseViewKind::List => view! {
-                                <ListView @sizing=ItemSize::Percent(100.0) data={data} />
-                            },
-                        }
+                <Dynamic value={kind}>|kind: DatabaseViewKind| {
+                    match kind {
+                        DatabaseViewKind::Spreadsheet => view! {
+                            <Spreadsheet @sizing=ItemSize::Percent(100.0) data={data} />
+                        },
+                        DatabaseViewKind::Kanban => view! {
+                            <Kanban @sizing=ItemSize::Percent(100.0) data={data} />
+                        },
+                        DatabaseViewKind::Scatter => view! {
+                            <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
+                        },
+                        DatabaseViewKind::List => view! {
+                            <ListView @sizing=ItemSize::Percent(100.0) data={data} />
+                        },
                     }
-                </Dynamic>
+                }</Dynamic>
             </List>
         </RowBeside>
     }

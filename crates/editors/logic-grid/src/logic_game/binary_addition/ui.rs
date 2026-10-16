@@ -143,9 +143,9 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                 </Show>
                 <Show condition={done}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
-                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
-                            "Every problem is correct."
-                        </Text>
+                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                        "Every problem is correct."
+                    </Text>
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -206,22 +206,20 @@ fn OperandRows(operands: Memo<Vec<String>>) -> NodeId {
     let rows = create_memo(move || (0..operands.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
-            <ForEach keys={rows}>
-                |index: usize| {
-                    let operand = create_memo(move || {
-                        operands.with(|operands| operands.get(index).cloned().unwrap_or_default())
-                    });
-                    let sign = create_memo(move || {
-                        match index + 1 == operands.with(Vec::len) {
-                            true => "+".to_owned(),
-                            false => String::new(),
-                        }
-                    });
-                    view! {
-                        <OperandRow sign={sign} operand={operand} />
+            <ForEach keys={rows}>|index: usize| {
+                let operand = create_memo(move || {
+                    operands.with(|operands| operands.get(index).cloned().unwrap_or_default())
+                });
+                let sign = create_memo(move || {
+                    match index + 1 == operands.with(Vec::len) {
+                        true => "+".to_owned(),
+                        false => String::new(),
                     }
+                });
+                view! {
+                    <OperandRow sign={sign} operand={operand} />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -234,20 +232,18 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
             <Frame width=LABEL_WIDTH>
                 <Text style=TextStyle::CAPTION string={sign} align=TextAlign::End />
             </Frame>
-            <ForEach keys={bits}>
-                |column: usize| {
-                    let bit = create_memo(move || {
-                        operand.with(|operand| {
-                            operand.chars().nth(column).map(String::from).unwrap_or_default()
-                        })
-                    });
-                    view! {
-                        <Frame width=CELL>
-                            <Text style=TextStyle::CODE string={bit} align=TextAlign::Center />
-                        </Frame>
-                    }
+            <ForEach keys={bits}>|column: usize| {
+                let bit = create_memo(move || {
+                    operand.with(|operand| {
+                        operand.chars().nth(column).map(String::from).unwrap_or_default()
+                    })
+                });
+                view! {
+                    <Frame width=CELL>
+                        <Text style=TextStyle::CODE string={bit} align=TextAlign::Center />
+                    </Frame>
                 }
-            </ForEach>
+            }</ForEach>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
     }
@@ -269,34 +265,32 @@ fn BitRow(
             <Frame width=LABEL_WIDTH>
                 <Text style=TextStyle::CAPTION string={label} align=TextAlign::End />
             </Frame>
-            <ForEach keys={columns}>
-                |column: usize| {
-                    let answer = create_memo(move || {
-                        answers.with(|answers| answers.get(column).copied().flatten())
-                    });
-                    let wrong = create_memo(move || {
-                        checked.get()
-                            && answers.with(|answers| answers.get(column).copied().flatten())
-                                != expected.with(|expected| expected.get(column).copied())
-                    });
-                    let cycle = move || {
-                        let mut values = answers.get_untracked();
-                        if let Some(value) = values.get_mut(column) {
-                            *value = next_answer(*value);
-                        }
-                        on_change.call(values);
-                    };
-                    view! {
-                        <BitCell
-                            answer={answer}
-                            wrong={wrong}
-                            read_only={read_only}
-                            @test_id={format!("{prefix}.{column}")}
-                            on_click={cycle}
-                        />
+            <ForEach keys={columns}>|column: usize| {
+                let answer = create_memo(move || {
+                    answers.with(|answers| answers.get(column).copied().flatten())
+                });
+                let wrong = create_memo(move || {
+                    checked.get()
+                        && answers.with(|answers| answers.get(column).copied().flatten())
+                            != expected.with(|expected| expected.get(column).copied())
+                });
+                let cycle = move || {
+                    let mut values = answers.get_untracked();
+                    if let Some(value) = values.get_mut(column) {
+                        *value = next_answer(*value);
                     }
+                    on_change.call(values);
+                };
+                view! {
+                    <BitCell
+                        answer={answer}
+                        wrong={wrong}
+                        read_only={read_only}
+                        @test_id={format!("{prefix}.{column}")}
+                        on_click={cycle}
+                    />
                 }
-            </ForEach>
+            }</ForEach>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
     }

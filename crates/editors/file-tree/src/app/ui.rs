@@ -171,59 +171,57 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         </Show>
                         <Show condition={failed}>
                             <Frame padding=PADDING>
-                                    <Text
-                                        style=TextStyle::CAPTION
-                                        string={reason}
-                                        color=TextColor::Danger
-                                    />
-                                </Frame>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={reason}
+                                    color=TextColor::Danger
+                                />
+                            </Frame>
                         </Show>
                         <Show condition={wide}>
                             <Tree
-                                    @sizing=ItemSize::Percent(100.0)
-                                    @node_ref={&tree_ref}
-                                    keys={keys}
-                                    item={item}
-                                    selected={focused}
-                                    ancestors={move |key: RowKey| ancestors(&key)}
-                                    spacing=2.0
-                                    padding=PADDING
-                                    row_test_id={move |key: RowKey| row_test_id(&key)}
-                                    reveal_test_id={"file-tree.reveal".to_owned()}
-                                    outline={outline}
-                                    on_select={open}
-                                    on_expand={expand}
-                                    on_reveal={reveal}
-                                    on_drag_start={start}
-                                >
-                                    |face: TreeRowFace<RowKey>| {
-                                        let row = tree.row(face.key.clone());
-                                        let workspace = row.get_untracked().is_some_and(|row| {
-                                            row.section && is_workspace(row.block_type)
-                                        });
-                                        if workspace {
-                                            return view! {
-                                                <SectionRow
-                                                    editor={editor}
-                                                    picker={picker}
-                                                    row={row}
-                                                    face={face}
-                                                />
-                                            };
-                                        }
-                                        view! {
-                                            <TreeRow
-                                                editor={editor}
-                                                tree={tree}
-                                                picker={picker}
-                                                exporter={exporter}
-                                                inspect={inspect}
-                                                row={row}
-                                                face={face}
-                                            />
-                                        }
-                                    }
-                                </Tree>
+                                @sizing=ItemSize::Percent(100.0)
+                                @node_ref={&tree_ref}
+                                keys={keys}
+                                item={item}
+                                selected={focused}
+                                ancestors={move |key: RowKey| ancestors(&key)}
+                                spacing=2.0
+                                padding=PADDING
+                                row_test_id={move |key: RowKey| row_test_id(&key)}
+                                reveal_test_id={"file-tree.reveal".to_owned()}
+                                outline={outline}
+                                on_select={open}
+                                on_expand={expand}
+                                on_reveal={reveal}
+                                on_drag_start={start}
+                            >|face: TreeRowFace<RowKey>| {
+                                let row = tree.row(face.key.clone());
+                                let workspace = row.get_untracked().is_some_and(|row| {
+                                    row.section && is_workspace(row.block_type)
+                                });
+                                if workspace {
+                                    return view! {
+                                        <SectionRow
+                                            editor={editor}
+                                            picker={picker}
+                                            row={row}
+                                            face={face}
+                                        />
+                                    };
+                                }
+                                view! {
+                                    <TreeRow
+                                        editor={editor}
+                                        tree={tree}
+                                        picker={picker}
+                                        exporter={exporter}
+                                        inspect={inspect}
+                                        row={row}
+                                        face={face}
+                                    />
+                                }
+                            }</Tree>
                         </Show>
                     </List>
                 </Frame>
@@ -461,38 +459,36 @@ fn TreeRow(
                     disabled={rooted}
                     row_test_id={"file-tree.move-to".to_owned()}
                 >
-                    <ForEach keys={destination_keys}>
-                        |target: Uuid| {
-                            let label = create_memo(move || {
-                                destinations.with(|shown| {
-                                    shown
-                                        .iter()
-                                        .find(|(id, _)| *id == target)
-                                        .map(|(_, name)| name.clone())
-                                        .unwrap_or_default()
-                                })
-                            });
-                            view! {
-                                <MenuItem
-                                    label={label}
-                                    row_test_id={format!("file-tree.move-to.{target}")}
-                                    on_click={move || {
-                                        if let Some(shown) = row.get_untracked()
-                                            && let Some(id) = shown.id
-                                        {
-                                            editor.host().move_block(
-                                                id,
-                                                shown.block_type,
-                                                shown.source,
-                                                target,
-                                                shown.is_reference,
-                                            );
-                                        }
-                                    }}
-                                />
-                            }
+                    <ForEach keys={destination_keys}>|target: Uuid| {
+                        let label = create_memo(move || {
+                            destinations.with(|shown| {
+                                shown
+                                    .iter()
+                                    .find(|(id, _)| *id == target)
+                                    .map(|(_, name)| name.clone())
+                                    .unwrap_or_default()
+                            })
+                        });
+                        view! {
+                            <MenuItem
+                                label={label}
+                                row_test_id={format!("file-tree.move-to.{target}")}
+                                on_click={move || {
+                                    if let Some(shown) = row.get_untracked()
+                                        && let Some(id) = shown.id
+                                    {
+                                        editor.host().move_block(
+                                            id,
+                                            shown.block_type,
+                                            shown.source,
+                                            target,
+                                            shown.is_reference,
+                                        );
+                                    }
+                                }}
+                            />
                         }
-                    </ForEach>
+                    }</ForEach>
                     <MenuItem
                         label="Recently Deleted"
                         disabled={orphaned}
@@ -544,17 +540,17 @@ fn TreeRow(
                 />
                 <Show condition={generated}>
                     <Tooltip label="Generated from another block">
-                            <Text size=TextSize::Xs color={generated_color} align=TextAlign::Center>
-                                <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
-                            </Text>
-                        </Tooltip>
+                        <Text size=TextSize::Xs color={generated_color} align=TextAlign::Center>
+                            <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
+                        </Text>
+                    </Tooltip>
                 </Show>
                 <Show condition={restricted}>
                     <Tooltip label={access_label}>
-                            <Text size=TextSize::Xs color={access_color} align=TextAlign::Center>
-                                <Icon glyph={access} />
-                            </Text>
-                        </Tooltip>
+                        <Text size=TextSize::Xs color={access_color} align=TextAlign::Center>
+                            <Icon glyph={access} />
+                        </Text>
+                    </Tooltip>
                 </Show>
                 <Show condition={can_add}>
                     <AddChild
@@ -712,30 +708,28 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             disabled={none}
             row_test_id={"file-tree.open-with".to_owned()}
         >
-            <ForEach keys={keys}>
-                |chosen: Uuid| {
-                    let label = create_memo(move || {
-                        editors.with(|editors| {
-                            editors
-                                .iter()
-                                .find(|(id, _)| *id == chosen)
-                                .map(|(_, name)| name.clone())
-                                .unwrap_or_default()
-                        })
-                    });
-                    view! {
-                        <MenuItem
-                            label={label}
-                            row_test_id={format!("file-tree.open-with.{chosen}")}
-                            on_click={move || {
-                                if let Some((id, block_type)) = block.get_untracked() {
-                                    editor.host().open_block_with(id, block_type, chosen);
-                                }
-                            }}
-                        />
-                    }
+            <ForEach keys={keys}>|chosen: Uuid| {
+                let label = create_memo(move || {
+                    editors.with(|editors| {
+                        editors
+                            .iter()
+                            .find(|(id, _)| *id == chosen)
+                            .map(|(_, name)| name.clone())
+                            .unwrap_or_default()
+                    })
+                });
+                view! {
+                    <MenuItem
+                        label={label}
+                        row_test_id={format!("file-tree.open-with.{chosen}")}
+                        on_click={move || {
+                            if let Some((id, block_type)) = block.get_untracked() {
+                                editor.host().open_block_with(id, block_type, chosen);
+                            }
+                        }}
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </MenuItem>
     }
 }
@@ -768,34 +762,32 @@ pub(crate) fn ExportAs(
             disabled={none}
             row_test_id={row_test_id}
         >
-            <ForEach keys={keys}>
-                |format: ExportFormat| {
-                    let label = create_memo(move || {
-                        shown.with(|shown| {
-                            shown
-                                .iter()
-                                .find(|(shown, _)| *shown == format)
-                                .map(|(_, label)| (*label).to_owned())
-                                .unwrap_or_default()
-                        })
-                    });
-                    let named = match format {
-                        ExportFormat::Own => format!("{prefix}.own"),
-                        ExportFormat::BlockFile => format!("{prefix}.block"),
-                    };
-                    view! {
-                        <MenuItem
-                            label={label}
-                            row_test_id={named}
-                            on_click={move || {
-                                if let Some((id, block_type, name)) = block.get_untracked() {
-                                    exporter.export(Export { id, block_type, name, format });
-                                }
-                            }}
-                        />
-                    }
+            <ForEach keys={keys}>|format: ExportFormat| {
+                let label = create_memo(move || {
+                    shown.with(|shown| {
+                        shown
+                            .iter()
+                            .find(|(shown, _)| *shown == format)
+                            .map(|(_, label)| (*label).to_owned())
+                            .unwrap_or_default()
+                    })
+                });
+                let named = match format {
+                    ExportFormat::Own => format!("{prefix}.own"),
+                    ExportFormat::BlockFile => format!("{prefix}.block"),
+                };
+                view! {
+                    <MenuItem
+                        label={label}
+                        row_test_id={named}
+                        on_click={move || {
+                            if let Some((id, block_type, name)) = block.get_untracked() {
+                                exporter.export(Export { id, block_type, name, format });
+                            }
+                        }}
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </MenuItem>
     }
 }

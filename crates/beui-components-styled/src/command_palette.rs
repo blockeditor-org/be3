@@ -41,8 +41,8 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
             row={|handle| view! {
                 <PaletteRow handle />
             }}
-        >
-            |content| <PalettePanel>{content}</PalettePanel>
+        >|content|
+            <PalettePanel>{content}</PalettePanel>
         </unstyled::CommandPalette>
     }
 }

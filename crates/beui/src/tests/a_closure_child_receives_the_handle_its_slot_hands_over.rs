@@ -16,16 +16,14 @@ fn a_closure_child_receives_the_handle_its_slot_hands_over() {
         move || {
             view! {
                 <Frame width=PANEL_WIDTH>
-                    <Container>
-                        |size: ReadSignal<Vec2>| {
-                            set_measured.update(|measured| *measured = Some(size));
-                            view! {
-                                <Frame @node_ref=&item height=ITEM_HEIGHT>
-                                    <Spacer />
-                                </Frame>
-                            }
+                    <Container>|size: ReadSignal<Vec2>| {
+                        set_measured.update(|measured| *measured = Some(size));
+                        view! {
+                            <Frame @node_ref=&item height=ITEM_HEIGHT>
+                                <Spacer />
+                            </Frame>
                         }
-                    </Container>
+                    }</Container>
                 </Frame>
             }
         }

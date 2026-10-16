@@ -105,24 +105,20 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                         <Text style=TextStyle::CAPTION string="Loading…" />
                     </Show>
                     <Show condition={described}>
-                        <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=SPACING
-                            >
-                                <Text style=TextStyle::CAPTION string="Generated from" />
-                                <Button
-                                    @test_id={"workspace.artifact.source"}
-                                    label={source_name}
-                                    variant=ButtonVariant::Ghost
-                                    on_click={move || {
-                                        if let Some(source) = source.get_untracked() {
-                                            workspace.open(source, None);
-                                        }
-                                    }}
-                                />
-                                <Text style=TextStyle::CAPTION string={summary} />
-                            </List>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Text style=TextStyle::CAPTION string="Generated from" />
+                            <Button
+                                @test_id={"workspace.artifact.source"}
+                                label={source_name}
+                                variant=ButtonVariant::Ghost
+                                on_click={move || {
+                                    if let Some(source) = source.get_untracked() {
+                                        workspace.open(source, None);
+                                    }
+                                }}
+                            />
+                            <Text style=TextStyle::CAPTION string={summary} />
+                        </List>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={running}>

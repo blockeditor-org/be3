@@ -58,22 +58,20 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=ROW_SPACING>
-                        <ForEach keys={keys}>
-                            |index: usize| {
-                                let row = create_memo(move || {
-                                    rows.with(|rows| rows.get(index).cloned())
-                                });
-                                view! {
-                                    <SlotRow
-                                        index={index}
-                                        editor={editor}
-                                        hotbar={hotbar}
-                                        row={row}
-                                        read_only={read_only}
-                                    />
-                                }
+                        <ForEach keys={keys}>|index: usize| {
+                            let row = create_memo(move || {
+                                rows.with(|rows| rows.get(index).cloned())
+                            });
+                            view! {
+                                <SlotRow
+                                    index={index}
+                                    editor={editor}
+                                    hotbar={hotbar}
+                                    row={row}
+                                    read_only={read_only}
+                                />
                             }
-                        </ForEach>
+                        }</ForEach>
                     </List>
                 </Scroll>
             </List>

@@ -137,8 +137,8 @@ pub fn CommandPalette(
                         reveal
                         scrollbar={scrollbar}
                     >
-                        <ForEach keys={keys}>
-                            |key: u64| <CommandRow state={state} key row={row} highlight={highlight} />
+                        <ForEach keys={keys}>|key: u64|
+                            <CommandRow state={state} key row={row} highlight={highlight} />
                         </ForEach>
                     </unstyled::Scroll>
                 </List>

@@ -83,8 +83,8 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                             <TerminalPane pane />
                         </Frame>
                     </DockTab>
-                    <ForEach keys={opened}>
-                        |number: u64| <PullRequestTab model number />
+                    <ForEach keys={opened}>|number: u64|
+                        <PullRequestTab model number />
                     </ForEach>
                 </DockPane>
             </Docking>
@@ -196,20 +196,18 @@ fn TargetList(model: Model) -> NodeId {
                 </List>
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
-                <VirtualList keys item_size=TARGET_ROW>
-                    |label: ReadSignal<String>| {
-                        let target = create_memo(move || {
-                            label.with(|label| {
-                                shown.with(|shown| {
-                                    shown.iter().find(|target| &target.label == label).cloned()
-                                })
+                <VirtualList keys item_size=TARGET_ROW>|label: ReadSignal<String>| {
+                    let target = create_memo(move || {
+                        label.with(|label| {
+                            shown.with(|shown| {
+                                shown.iter().find(|target| &target.label == label).cloned()
                             })
-                        });
-                        view! {
-                            <TargetRow model={model} target />
-                        }
+                        })
+                    });
+                    view! {
+                        <TargetRow model={model} target />
                     }
-                </VirtualList>
+                }</VirtualList>
             </Scroll>
         </List>
     }
@@ -312,8 +310,8 @@ pub(crate) fn Actions(
                 menu_label="Pick what to run"
                 disabled={busy}
                 items={view! {
-                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                        |index: usize| <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>|index: usize|
+                        <MenuItem label={format!("Run {}", COMMON[index].title)} />
                     </ForEach>
                     <MenuItem label="All targets" />
                 }}
@@ -347,21 +345,21 @@ pub(crate) fn Notes(
     view! {
         <Show condition={shown}>
             <List spacing=8.0>
-                    <Show condition={fork}>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="This pull request comes from a fork, so scripts/switch cannot check it out."
-                            wrap=true
-                        />
-                    </Show>
-                    <Show condition={deleted}>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Its branch was deleted, so there is nothing to check out."
-                            wrap=true
-                        />
-                    </Show>
-                </List>
+                <Show condition={fork}>
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="This pull request comes from a fork, so scripts/switch cannot check it out."
+                        wrap=true
+                    />
+                </Show>
+                <Show condition={deleted}>
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Its branch was deleted, so there is nothing to check out."
+                        wrap=true
+                    />
+                </Show>
+            </List>
         </Show>
     }
 }
@@ -386,8 +384,8 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
             menu_label="Pick what to run on main"
             disabled={busy}
             items={view! {
-                <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                    |index: usize| <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>|index: usize|
+                    <MenuItem label={format!("Run {}", COMMON[index].title)} />
                 </ForEach>
                 <MenuItem label="Check out main" />
             }}

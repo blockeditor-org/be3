@@ -111,8 +111,8 @@ pub fn TimeList(
         <TimeListBox label>
             <unstyled::Scroll @sizing=ItemSize::Percent(100.0) offset={shown} scrollbar>
                 <List spacing>
-                    <ForEach keys={rows}>
-                        |row: usize| <TimeRow state={state} row spacing hour_cycle face={option} />
+                    <ForEach keys={rows}>|row: usize|
+                        <TimeRow state={state} row spacing hour_cycle face={option} />
                     </ForEach>
                 </List>
             </unstyled::Scroll>
@@ -142,14 +142,14 @@ fn TimeRow(
     });
     view! {
         <List direction=Direction::Horizontal spacing>
-            <ForEach keys={cells}>
-                |minutes: u32| <TimeOption
-                        @sizing=ItemSize::Percent(100.0)
-                        state={state}
-                        minutes
-                        hour_cycle
-                        face={face}
-                    />
+            <ForEach keys={cells}>|minutes: u32|
+                <TimeOption
+                    @sizing=ItemSize::Percent(100.0)
+                    state={state}
+                    minutes
+                    hour_cycle
+                    face={face}
+                />
             </ForEach>
         </List>
     }

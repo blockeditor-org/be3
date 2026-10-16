@@ -18,21 +18,21 @@ fn tab_skips_virtual_rows_without_a_control() {
                             @node_ref=&list
                             keys={indices(ROWS)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            |key: ReadSignal<usize>| <List spacing=0.0>
-                                    <Dynamic value={key}>
-                                        |key: usize| { match key == FOCUSABLE {
-                                            true => view! {
-                                                <Interactive focusable=true @node_ref=&target>
-                                                    <Frame height=VIRTUAL_ITEM_HEIGHT />
-                                                </Interactive>
-                                            },
-                                            false => view! {
+                        >|key: ReadSignal<usize>|
+                            <List spacing=0.0>
+                                <Dynamic value={key}>|key: usize| {
+                                    match key == FOCUSABLE {
+                                        true => view! {
+                                            <Interactive focusable=true @node_ref=&target>
                                                 <Frame height=VIRTUAL_ITEM_HEIGHT />
-                                            },
-                                        } }
-                                    </Dynamic>
-                                </List>
+                                            </Interactive>
+                                        },
+                                        false => view! {
+                                            <Frame height=VIRTUAL_ITEM_HEIGHT />
+                                        },
+                                    }
+                                }</Dynamic>
+                            </List>
                         </VirtualList>
                     </Offset>
                 </List>

@@ -28,8 +28,8 @@ pub(crate) fn VolumeButton(editor: Editor, levels: Memo<MediaLevels>) -> NodeId 
     });
     let label = create_memo(move || output.get().map(percent).unwrap_or_default());
     view! {
-        <BarPopup label glyph width=VOLUME_WIDTH @test_id={"desktop.volume"}>
-            |_: PopoverHandle| <VolumePanel editor={editor} levels={levels} />
+        <BarPopup label glyph width=VOLUME_WIDTH @test_id={"desktop.volume"}>|_: PopoverHandle|
+            <VolumePanel editor={editor} levels={levels} />
         </BarPopup>
     }
 }
@@ -99,22 +99,20 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <Text style=TextStyle::CAPTION string="Output" />
             <Select
                 options={view! {
-                    <ForEach keys={keys}>
-                        |id: String| {
-                            let label = create_memo(move || {
-                                named.with(|outputs| {
-                                    outputs
-                                        .iter()
-                                        .find(|output| output.id == id)
-                                        .map(|output| output.name.clone())
-                                        .unwrap_or_default()
-                                })
-                            });
-                            view! {
-                                <ChoiceOption label />
-                            }
+                    <ForEach keys={keys}>|id: String| {
+                        let label = create_memo(move || {
+                            named.with(|outputs| {
+                                outputs
+                                    .iter()
+                                    .find(|output| output.id == id)
+                                    .map(|output| output.name.clone())
+                                    .unwrap_or_default()
+                            })
+                        });
+                        view! {
+                            <ChoiceOption label />
                         }
-                    </ForEach>
+                    }</ForEach>
                 }}
                 selected={selected}
                 label="Output"

@@ -12,8 +12,8 @@ fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
         view! {
             <List spacing=0.0>
                 <Frame width=20.0 height=20.0 fill=color />
-                <Keyed value={key} key={|key: u32| key}>
-                    |_: ReadSignal<u32>| <Frame width=300.0 height=200.0 fill={Color32::from_gray(128)} />
+                <Keyed value={key} key={|key: u32| key}>|_: ReadSignal<u32>|
+                    <Frame width=300.0 height=200.0 fill={Color32::from_gray(128)} />
                 </Keyed>
             </List>
         }

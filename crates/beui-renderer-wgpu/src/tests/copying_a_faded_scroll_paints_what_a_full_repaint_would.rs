@@ -20,12 +20,8 @@ fn scrolling() -> Document {
                             @test_id="scroll"
                             scrollbar={ScrollbarStyle::default().fading(12.0)}
                         >
-                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>
-                                |row: usize| <Frame
-                                        height=10.0
-                                        radius=0.0
-                                        fill={SHADES[row % SHADES.len()]}
-                                    />
+                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                                <Frame height=10.0 radius=0.0 fill={SHADES[row % SHADES.len()]} />
                             </ForEach>
                         </Scroll>
                     </Frame>

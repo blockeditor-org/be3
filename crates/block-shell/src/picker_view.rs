@@ -32,8 +32,8 @@ pub fn PickerDialogs(workspace: Workspace) -> NodeId {
     });
     view! {
         <List spacing=0.0>
-            <ForEach keys={ids}>
-                |pick: u64| <PickerDialog workspace pick />
+            <ForEach keys={ids}>|pick: u64|
+                <PickerDialog workspace pick />
             </ForEach>
         </List>
     }
@@ -215,53 +215,49 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                 <List spacing=8.0>
                     <Show condition={tiling}>
                         <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
-                                <List spacing=16.0>
-                                    <Show condition={no_sections}>
-                                        <Text style=TextStyle::CAPTION string={tab_empty} />
-                                    </Show>
-                                    <ForEach keys={section_keys}>
-                                        |key: String| {
-                                            let section = create_memo(move || {
-                                                sections.get().into_iter().find(|section| section.key == key)
-                                            });
-                                            view! {
-                                                <TileSectionView act={tile_act} section />
-                                            }
-                                        }
-                                    </ForEach>
-                                </List>
-                            </PickerArea>
+                            <List spacing=16.0>
+                                <Show condition={no_sections}>
+                                    <Text style=TextStyle::CAPTION string={tab_empty} />
+                                </Show>
+                                <ForEach keys={section_keys}>|key: String| {
+                                    let section = create_memo(move || {
+                                        sections.get().into_iter().find(|section| section.key == key)
+                                    });
+                                    view! {
+                                        <TileSectionView act={tile_act} section />
+                                    }
+                                }</ForEach>
+                            </List>
+                        </PickerArea>
                     </Show>
                     <Show condition={linking}>
                         <TextInput
-                                value={search}
-                                placeholder="Search by name or UUID"
-                                label="Search"
-                                @test_id={"picker.search"}
-                                on_change={move |value: String| search_act.call(PickAction::Search(value))}
-                            />
+                            value={search}
+                            placeholder="Search by name or UUID"
+                            label="Search"
+                            @test_id={"picker.search"}
+                            on_change={move |value: String| search_act.call(PickAction::Search(value))}
+                        />
                     </Show>
                     <Show condition={importing}>
                         <ImportArea held act={import_act} />
                     </Show>
                     <Show condition={linking}>
                         <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
-                                <List spacing=0.0>
-                                    <Show condition={no_links}>
-                                        <Text style=TextStyle::CAPTION string={empty} />
-                                    </Show>
-                                    <ForEach keys={link_keys}>
-                                        |block: Uuid| {
-                                            let link = create_memo(move || {
-                                                links.get().into_iter().find(|link| link.id == block)
-                                            });
-                                            view! {
-                                                <LinkButton act={link_act} link />
-                                            }
-                                        }
-                                    </ForEach>
-                                </List>
-                            </PickerArea>
+                            <List spacing=0.0>
+                                <Show condition={no_links}>
+                                    <Text style=TextStyle::CAPTION string={empty} />
+                                </Show>
+                                <ForEach keys={link_keys}>|block: Uuid| {
+                                    let link = create_memo(move || {
+                                        links.get().into_iter().find(|link| link.id == block)
+                                    });
+                                    view! {
+                                        <LinkButton act={link_act} link />
+                                    }
+                                }</ForEach>
+                            </List>
+                        </PickerArea>
                     </Show>
                 </List>
             </Frame>
@@ -284,20 +280,20 @@ fn ImportArea(held: Memo<Option<Pick>>, act: Act) -> NodeId {
             />
             <Show condition={ready}>
                 <List direction=Direction::Horizontal spacing=8.0>
-                        <Button
-                            label="Choose a block file"
-                            glyph={ICON_UPLOAD_FILE.to_owned()}
-                            variant=ButtonVariant::Primary
-                            @test_id={"picker.import"}
-                            on_click={move || act.call(PickAction::Import)}
-                        />
-                    </List>
+                    <Button
+                        label="Choose a block file"
+                        glyph={ICON_UPLOAD_FILE.to_owned()}
+                        variant=ButtonVariant::Primary
+                        @test_id={"picker.import"}
+                        on_click={move || act.call(PickAction::Import)}
+                    />
+                </List>
             </Show>
             <Show condition={waiting}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Spinner />
-                        <Text style=TextStyle::CAPTION string="Importing..." />
-                    </List>
+                    <Spinner />
+                    <Text style=TextStyle::CAPTION string="Importing..." />
+                </List>
             </Show>
         </List>
     }
@@ -308,16 +304,16 @@ fn PickerArea(scrolls: bool, children: Child) -> NodeId {
     let scrolls = create_memo(move || scrolls);
     view! {
         <List spacing=0.0>
-            <Dynamic value={scrolls}>
-                |scrolls: bool| { match scrolls {
+            <Dynamic value={scrolls}>|scrolls: bool| {
+                match scrolls {
                     true => view! {
                         <Scroll @sizing=ItemSize::Percent(100.0)>{children}</Scroll>
                     },
                     false => view! {
                         <List @sizing=ItemSize::Intrinsic spacing=0.0>{children}</List>
                     },
-                } }
-            </Dynamic>
+                }
+            }</Dynamic>
         </List>
     }
 }
@@ -358,35 +354,27 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=8.0>
-                        <Text style=TextStyle::CAPTION string="Name" />
-                        <TextInput
-                            @test_id={"picker.name"}
-                            value={name}
-                            placeholder="Untitled"
-                            label="Name"
-                            on_change={move |value: String| act.call(PickAction::Name(value))}
-                        />
-                        <Text style=TextStyle::CAPTION string="Location" />
-                        <Scroll direction=Direction::Horizontal>
-                            <ForEach keys={keys}>
-                                |parent: BlockParent| {
-                                    let place = create_memo(move || {
-                                        places.get().into_iter().find(|place| place.parent == parent)
-                                    });
-                                    view! {
-                                        <PlaceButton
-                                            act={act}
-                                            chosen={chosen}
-                                            importing
-                                            parent
-                                            place
-                                        />
-                                    }
-                                }
-                            </ForEach>
-                        </Scroll>
-                        <Text style=TextStyle::CAPTION string="Choose a type to create it" />
-                    </List>
+                    <Text style=TextStyle::CAPTION string="Name" />
+                    <TextInput
+                        @test_id={"picker.name"}
+                        value={name}
+                        placeholder="Untitled"
+                        label="Name"
+                        on_change={move |value: String| act.call(PickAction::Name(value))}
+                    />
+                    <Text style=TextStyle::CAPTION string="Location" />
+                    <Scroll direction=Direction::Horizontal>
+                        <ForEach keys={keys}>|parent: BlockParent| {
+                            let place = create_memo(move || {
+                                places.get().into_iter().find(|place| place.parent == parent)
+                            });
+                            view! {
+                                <PlaceButton act={act} chosen={chosen} importing parent place />
+                            }
+                        }</ForEach>
+                    </Scroll>
+                    <Text style=TextStyle::CAPTION string="Choose a type to create it" />
+                </List>
             </Show>
         </List>
     }
@@ -454,16 +442,14 @@ fn TileSectionView(act: Act, section: Memo<Option<TileSection>>) -> NodeId {
                 <Text style=TextStyle::HEADING string={title} />
             </List>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
-                <ForEach keys={keys}>
-                    |key: String| {
-                        let tile = create_memo({ let key = key.clone(); move || {
-                            tiles.get().into_iter().find(|tile| tile_key(tile) == key)
-                        } });
-                        view! {
-                            <TileButton act={act} key tile />
-                        }
+                <ForEach keys={keys}>|key: String| {
+                    let tile = create_memo({ let key = key.clone(); move || {
+                        tiles.get().into_iter().find(|tile| tile_key(tile) == key)
+                    } });
+                    view! {
+                        <TileButton act={act} key tile />
                     }
-                </ForEach>
+                }</ForEach>
             </List>
         </List>
     }
@@ -720,18 +706,18 @@ fn CreateBody(
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Show condition={options}>
                     <Button
-                            label="Create"
-                            variant=ButtonVariant::Primary
-                            disabled={not_ready}
-                            @test_id={"picker.create"}
-                            on_click={move || act.call(PickAction::Create)}
-                        />
+                        label="Create"
+                        variant=ButtonVariant::Primary
+                        disabled={not_ready}
+                        @test_id={"picker.create"}
+                        on_click={move || act.call(PickAction::Create)}
+                    />
                 </Show>
                 <Show condition={working}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner />
-                            <Text style=TextStyle::CAPTION string={waiting_label} />
-                        </List>
+                        <Spinner />
+                        <Text style=TextStyle::CAPTION string={waiting_label} />
+                    </List>
                 </Show>
                 <Button
                     label="Cancel"

@@ -231,15 +231,13 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
     let count = formats.len();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <ForEach keys={(0..count).collect::<Vec<usize>>()}>
-                |index: usize| {
-                    let action = formats[index].clone();
-                    let id = action.id().to_owned();
-                    view! {
-                        <IconButton @test_id={id} action />
-                    }
+            <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                let action = formats[index].clone();
+                let id = action.id().to_owned();
+                view! {
+                    <IconButton @test_id={id} action />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -300,10 +298,10 @@ fn TextSettings(state: State) -> NodeId {
                         selected={language_index}
                         @test_id={"text.language"}
                         options={view! {
-                            <ForEach keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}>
-                                |index: usize| <ChoiceOption
-                                        label={TextLanguage::ALL[index].label().to_owned()}
-                                    />
+                            <ForEach
+                                keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
+                            >|index: usize|
+                                <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
                             </ForEach>
                         }}
                         on_change={move |index: Option<usize>| {
@@ -337,28 +335,24 @@ fn TextSettings(state: State) -> NodeId {
                 </Frame>
             </List>
             <Show condition={spaces}>
-                <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=SETTINGS_SPACING
-                    >
-                        <Text @sizing=ItemSize::Percent(100.0) string="Indentation width" />
-                        <Frame width=NUMBER_WIDTH>
-                            <NumberInput
-                                label="Indentation width"
-                                value={width}
-                                min=1.0
-                                max=8.0
-                                @test_id={"text.indentation-width"}
-                                on_change={move |value: f64| {
-                                    let width = value.round().clamp(1.0, 8.0) as u8;
-                                    state.text.execute(EditorCommand::SetIndentation(
-                                        TextIndentation::Spaces { width },
-                                    ));
-                                }}
-                            />
-                        </Frame>
-                    </List>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
+                    <Text @sizing=ItemSize::Percent(100.0) string="Indentation width" />
+                    <Frame width=NUMBER_WIDTH>
+                        <NumberInput
+                            label="Indentation width"
+                            value={width}
+                            min=1.0
+                            max=8.0
+                            @test_id={"text.indentation-width"}
+                            on_change={move |value: f64| {
+                                let width = value.round().clamp(1.0, 8.0) as u8;
+                                state.text.execute(EditorCommand::SetIndentation(
+                                    TextIndentation::Spaces { width },
+                                ));
+                            }}
+                        />
+                    </Frame>
+                </List>
             </Show>
         </List>
     }

@@ -278,7 +278,7 @@ mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_split_divider_takes_presses_only_in_its_gap;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
-mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
+mod a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions;
 mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
@@ -1470,16 +1470,18 @@ pub(crate) fn PanZoomStage(
     on_change: crate::reactive::Callback<unstyled::PanZoomView>,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom @test_id="stage" view on_change={on_change}>
-            |handle: unstyled::PanZoomHandle| {
-                let unstyled::PanZoomHandle { view, .. } = handle;
-                view! {
-                    <Canvas view>
-                        <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
-                    </Canvas>
-                }
+        <unstyled::PanZoom
+            @test_id="stage"
+            view
+            on_change={on_change}
+        >|handle: unstyled::PanZoomHandle| {
+            let unstyled::PanZoomHandle { view, .. } = handle;
+            view! {
+                <Canvas view>
+                    <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
+                </Canvas>
             }
-        </unstyled::PanZoom>
+        }</unstyled::PanZoom>
     }
 }
 
@@ -1500,21 +1502,17 @@ pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
                             @node_ref=&list
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            |index: ReadSignal<usize>| {
-                                create_binding(move || {
-                                    let index = index.get();
-                                    built.update(|built| built.push(index));
-                                });
-                                view! {
-                                    <Frame
-                                        padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
-                                    >
-                                        <Spacer />
-                                    </Frame>
-                                }
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let index = index.get();
+                                built.update(|built| built.push(index));
+                            });
+                            view! {
+                                <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                                    <Spacer />
+                                </Frame>
                             }
-                        </VirtualList>
+                        }</VirtualList>
                     </Offset>
                 </List>
             }
@@ -1544,19 +1542,21 @@ pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtual
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
-                            |key: ReadSignal<usize>| {
-                                create_binding(move || {
-                                    let key = key.get();
-                                    built.update(|built| built.push(key));
-                                });
-                                view! {
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                        <Spacer />
-                                    </Frame>
-                                }
+                        <VirtualList
+                            @node_ref=&list
+                            keys={keys}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|key: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let key = key.get();
+                                built.update(|built| built.push(key));
+                            });
+                            view! {
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Spacer />
+                                </Frame>
                             }
-                        </VirtualList>
+                        }</VirtualList>
                     </Offset>
                 </List>
             }
@@ -1710,8 +1710,8 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: WriteSignal<usize
                     on_close={move || closed.update(|closed| *closed += 1)}
                 >
                     <List spacing=0.0>
-                        <ForEach keys={indices(SHEET_ROWS)}>
-                            |_: usize| <Frame height=SHEET_ROW_HEIGHT />
+                        <ForEach keys={indices(SHEET_ROWS)}>|_: usize|
+                            <Frame height=SHEET_ROW_HEIGHT />
                         </ForEach>
                     </List>
                 </styled::Sheet>
@@ -1743,14 +1743,14 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
-                    <ForEach keys={open}>
-                        |id: u64| <unstyled::DockTab
-                                id
-                                title={format!("Tab {id}")}
-                                on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
-                            >
-                                <Frame @test_id={format!("content.{id}")} />
-                            </unstyled::DockTab>
+                    <ForEach keys={open}>|id: u64|
+                        <unstyled::DockTab
+                            id
+                            title={format!("Tab {id}")}
+                            on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
+                        >
+                            <Frame @test_id={format!("content.{id}")} />
+                        </unstyled::DockTab>
                     </ForEach>
                 </unstyled::DockPane>
             </styled::Docking>
@@ -2061,12 +2061,12 @@ fn nested() -> Document {
 #[component]
 fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
-        <ForEach keys={indices(count)}>
-            |index: usize| <Text
-                    string={format!("Row {index}")}
-                    color=Color32::WHITE
-                    font={FontId::proportional(20.0)}
-                />
+        <ForEach keys={indices(count)}>|index: usize|
+            <Text
+                string={format!("Row {index}")}
+                color=Color32::WHITE
+                font={FontId::proportional(20.0)}
+            />
         </ForEach>
     }
 }
@@ -2302,44 +2302,42 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
-                    <ForEach keys={tabs.clone()}>
-                        |id: u64| <unstyled::DockTab id title={format!("Tab {id}")}>
-                                    <FocusPanel
-                                        name={format!("content.{id}")}
-                                        owner=id
-                                        pressed={set_pressed}
-                                        keyed={set_keyed}
-                                        attended={None}
-                                        size={None}
-                                    />
-                                </unstyled::DockTab>
+                    <ForEach keys={tabs.clone()}>|id: u64|
+                        <unstyled::DockTab id title={format!("Tab {id}")}>
+                            <FocusPanel
+                                name={format!("content.{id}")}
+                                owner=id
+                                pressed={set_pressed}
+                                keyed={set_keyed}
+                                attended={None}
+                                size={None}
+                            />
+                        </unstyled::DockTab>
                     </ForEach>
                 </unstyled::DockPane>
-                <ForEach keys>
-                    |(id, parent): (u64, u64)| {
-                        let modal = crate::reactive::create_memo(move || {
-                            listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
-                        });
-                        view! {
-                            <unstyled::DockDialog
-                                id
-                                parent
-                                modal
-                                title={format!("Dialog {id}")}
-                                size={dialog_size(id)}
-                            >
-                                <FocusPanel
-                                    name={format!("dialog.{id}.field")}
-                                    owner=id
-                                    pressed={set_pressed}
-                                    keyed={set_keyed}
-                                    attended={Some(set_attended)}
-                                    size={Some(dialog_size(id))}
-                                />
-                            </unstyled::DockDialog>
-                        }
+                <ForEach keys>|(id, parent): (u64, u64)| {
+                    let modal = crate::reactive::create_memo(move || {
+                        listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
+                    });
+                    view! {
+                        <unstyled::DockDialog
+                            id
+                            parent
+                            modal
+                            title={format!("Dialog {id}")}
+                            size={dialog_size(id)}
+                        >
+                            <FocusPanel
+                                name={format!("dialog.{id}.field")}
+                                owner=id
+                                pressed={set_pressed}
+                                keyed={set_keyed}
+                                attended={Some(set_attended)}
+                                size={Some(dialog_size(id))}
+                            />
+                        </unstyled::DockDialog>
                     }
-                </ForEach>
+                }</ForEach>
             </styled::Docking>
         }
     });

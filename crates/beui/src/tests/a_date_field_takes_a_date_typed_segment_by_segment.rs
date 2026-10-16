@@ -11,12 +11,12 @@ fn a_date_field_takes_a_date_typed_segment_by_segment() {
     let document = build(move || {
         view! {
             <Container>|_size|
-            <DateTimeField
-                value=None
-                parts=DateTimeParts::Date
-                label="Due"
-                on_change={move |value| set_reported.update(|reported| reported.push(value))}
-            />
+                <DateTimeField
+                    value=None
+                    parts=DateTimeParts::Date
+                    label="Due"
+                    on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                />
             </Container>
         }
     });

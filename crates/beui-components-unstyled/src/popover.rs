@@ -149,9 +149,7 @@ pub fn Popover(
             >
                 <PopoverSurface label>
                     <List spacing=0.0>
-                        <ShowKeepAlive condition={built}>
-                            || { content.call(handle) }
-                        </ShowKeepAlive>
+                        <ShowKeepAlive condition={built}>|| { content.call(handle) }</ShowKeepAlive>
                     </List>
                 </PopoverSurface>
             </Overlay>

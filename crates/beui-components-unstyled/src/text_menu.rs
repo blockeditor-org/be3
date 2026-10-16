@@ -80,8 +80,8 @@ pub fn TextContextMenu(
             opens_on_hold=false
             on_toolbar_close={move || set_requested.set(None)}
             items={view! {
-                <ForEach keys={actions}>
-                    |action: MenuAction| <MenuItem label={action.label().to_owned()} />
+                <ForEach keys={actions}>|action: MenuAction|
+                    <MenuItem label={action.label().to_owned()} />
                 </ForEach>
             }}
             on_select={move |path: Vec<usize>| {

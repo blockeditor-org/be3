@@ -36,8 +36,8 @@ pub fn Switch(
             disabled
             role=Role::Switch
             on_change={on_change}
-        >
-            |handle: ToggleHandle| <SwitchTrack handle />
+        >|handle: ToggleHandle|
+            <SwitchTrack handle />
         </Toggle>
     }
 }

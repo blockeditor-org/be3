@@ -150,8 +150,8 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
 fn SquareCheckbox() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <unstyled::Toggle checked=false>
-                |handle: ToggleHandle| <SquareCheckboxFace handle label="Remember me" />
+            <unstyled::Toggle checked=false>|handle: ToggleHandle|
+                <SquareCheckboxFace handle label="Remember me" />
             </unstyled::Toggle>
         </List>
     }
@@ -246,8 +246,11 @@ fn VolumeMeter() -> NodeId {
     let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
-            <unstyled::Slider value={volume} on_change={move |value| set_volume.set(value)}>
-                |handle: SliderHandle| <MeterFace handle />
+            <unstyled::Slider
+                value={volume}
+                on_change={move |value| set_volume.set(value)}
+            >|handle: SliderHandle|
+                <MeterFace handle />
             </unstyled::Slider>
             <Text string={volume_text} color=TextColor::Muted />
         </List>
@@ -301,8 +304,8 @@ fn UnderlinedInput() -> NodeId {
                     ..TextInputStyle::default()
                 }}
                 on_submit={move |value: String| set_submitted.set(format!("Searched for {value}"))}
-            >
-                |handle: TextInputHandle| <UnderlinedField handle />
+            >|handle: TextInputHandle|
+                <UnderlinedField handle />
             </unstyled::TextInput>
             <Text string={submitted} color=TextColor::Muted />
         </List>
@@ -419,8 +422,8 @@ fn SegmentedControl() -> NodeId {
                     selected=Some(0)
                     kind=ChoiceKind::Tabs
                     direction=Direction::Horizontal
-                >
-                    |handle: ChoiceOptionHandle| <SegmentFace handle />
+                >|handle: ChoiceOptionHandle|
+                    <SegmentFace handle />
                 </unstyled::Choice>
             </Frame>
         </List>
@@ -482,8 +485,8 @@ fn SizeRadios() -> NodeId {
                         set_chosen.set(sizes[index].to_owned());
                     }
                 }}
-            >
-                |handle: ChoiceOptionHandle| <RadioFace handle />
+            >|handle: ChoiceOptionHandle|
+                <RadioFace handle />
             </unstyled::Choice>
             <Text string={chosen} color=TextColor::Muted />
         </List>
@@ -638,27 +641,25 @@ fn InfoPopover() -> NodeId {
                 trigger={move |handle: PopoverTriggerHandle| view! {
                     <PillFace handle={handle.button} label="About" />
                 }}
-            >
-                |handle: PopoverHandle| {
-                    let close = handle.close;
-                    view! {
-                        <PopupPanel>
-                            <List spacing=SECTION_SPACING>
-                                <Text
-                                    string="A popover places its content below the trigger and closes on Escape or a click outside."
-                                    wrap=true
-                                />
-                                <unstyled::Button
-                                    on_click={move || close.call(())}
-                                    content={move |handle: ButtonHandle| view! {
-                                        <PillFace handle label="Got it" />
-                                    }}
-                                />
-                            </List>
-                        </PopupPanel>
-                    }
+            >|handle: PopoverHandle| {
+                let close = handle.close;
+                view! {
+                    <PopupPanel>
+                        <List spacing=SECTION_SPACING>
+                            <Text
+                                string="A popover places its content below the trigger and closes on Escape or a click outside."
+                                wrap=true
+                            />
+                            <unstyled::Button
+                                on_click={move || close.call(())}
+                                content={move |handle: ButtonHandle| view! {
+                                    <PillFace handle label="Got it" />
+                                }}
+                            />
+                        </List>
+                    </PopupPanel>
                 }
-            </unstyled::Popover>
+            }</unstyled::Popover>
         </List>
     }
 }
@@ -832,37 +833,35 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
     view! {
         <unstyled::DropTarget
             on_drop={move |(fruit, _): (usize, DragPoint)| set_bins.update(|bins| bins[fruit] = bin)}
-        >
-            |handle: DropHandle| {
-                let DropHandle { over, .. } = handle;
-                let edge = create_memo(move || match over.get() {
-                    true => theme.accent.get(),
-                    false => theme.border.get(),
-                });
-                view! {
-                    <Frame
-                        height=BIN_HEIGHT
-                        border={create_memo(move || Some(Border::new(ColorRole::Custom(edge.get())).width(2.0)))}
-                        radius=Radius::Lg
-                        padding=12.0
-                    >
-                        <List spacing=8.0>
-                            <Text string={BINS[bin].to_owned()} color=TextColor::Muted />
-                            <ForEach keys={fruits}>
-                                |fruit: usize| <unstyled::Draggable
-                                        payload={Some(fruit)}
-                                        preview={move |fruit: usize| view! {
-                                            <FruitChip fruit lifted=true />
-                                        }}
-                                    >
-                                        |handle: DragHandle| <FruitChip fruit lifted={handle.dragging} />
-                                    </unstyled::Draggable>
-                            </ForEach>
-                        </List>
-                    </Frame>
-                }
+        >|handle: DropHandle| {
+            let DropHandle { over, .. } = handle;
+            let edge = create_memo(move || match over.get() {
+                true => theme.accent.get(),
+                false => theme.border.get(),
+            });
+            view! {
+                <Frame
+                    height=BIN_HEIGHT
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(edge.get())).width(2.0)))}
+                    radius=Radius::Lg
+                    padding=12.0
+                >
+                    <List spacing=8.0>
+                        <Text string={BINS[bin].to_owned()} color=TextColor::Muted />
+                        <ForEach keys={fruits}>|fruit: usize|
+                            <unstyled::Draggable
+                                payload={Some(fruit)}
+                                preview={move |fruit: usize| view! {
+                                    <FruitChip fruit lifted=true />
+                                }}
+                            >|handle: DragHandle|
+                                <FruitChip fruit lifted={handle.dragging} />
+                            </unstyled::Draggable>
+                        </ForEach>
+                    </List>
+                </Frame>
             }
-        </unstyled::DropTarget>
+        }</unstyled::DropTarget>
     }
 }
 
@@ -911,8 +910,8 @@ fn ThinScroll() -> NodeId {
                 >
                     <Frame padding=12.0>
                         <List spacing=6.0>
-                            <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>
-                                |line: usize| <Text string={format!("Line {line}")} />
+                            <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>|line: usize|
+                                <Text string={format!("Line {line}")} />
                             </ForEach>
                         </List>
                     </Frame>
@@ -936,8 +935,8 @@ fn thin_scrollbar() -> ScrollbarStyle {
                 position
                 direction
                 on_scroll_to={move |offset: f32| scroll_to.call(offset)}
-            >
-                |bar: ScrollbarHandle| <ThinThumb bar />
+            >|bar: ScrollbarHandle|
+                <ThinThumb bar />
             </unstyled::Scrollbar>
         }
     })
@@ -976,8 +975,8 @@ fn OpenableFiles() -> NodeId {
                 selected={selected}
                 on_click={move || choose.set(index)}
                 on_activate={move || open.set(format!("Opened {name}"))}
-            >
-                |handle: ButtonHandle| <FileRowFace handle selected name />
+            >|handle: ButtonHandle|
+                <FileRowFace handle selected name />
             </unstyled::ListRow>
         }
     };
@@ -1100,8 +1099,8 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
-        >
-            |handle: TextInputHandle| <UnderlinedField handle />
+        >|handle: TextInputHandle|
+            <UnderlinedField handle />
         </unstyled::TextInput>
     }
 }
@@ -1136,14 +1135,14 @@ fn HueAndHex() -> NodeId {
     );
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorPickerArea picker>
-                |handle: ColorAreaHandle| <PadFace handle />
+            <ColorPickerArea picker>|handle: ColorAreaHandle|
+                <PadFace handle />
             </ColorPickerArea>
-            <HueSlider picker={picker}>
-                |handle: SliderHandle| <MeterFace handle />
+            <HueSlider picker={picker}>|handle: SliderHandle|
+                <MeterFace handle />
             </HueSlider>
-            <Swatches picker={picker} swatches={SWATCHES.to_vec()}>
-                |handle: SwatchHandle| <SwatchDot handle />
+            <Swatches picker={picker} swatches={SWATCHES.to_vec()}>|handle: SwatchHandle|
+                <SwatchDot handle />
             </Swatches>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Frame
@@ -1159,8 +1158,8 @@ fn HueAndHex() -> NodeId {
                     style={underlined_style()}
                     on_change={move |typed: String| hex.edit(typed)}
                     on_submit={move |typed: String| hex.submit(typed)}
-                >
-                    |handle: TextInputHandle| <UnderlinedField handle />
+                >|handle: TextInputHandle|
+                    <UnderlinedField handle />
                 </unstyled::TextInput>
             </List>
         </List>
@@ -1256,8 +1255,8 @@ fn FolderTree() -> NodeId {
                                 false => expanded.retain(|held| *held != key),
                             });
                         }}
-                    >
-                        |handle: TreeRowHandle<usize>| <FolderRow handle />
+                    >|handle: TreeRowHandle<usize>|
+                        <FolderRow handle />
                     </unstyled::Tree>
                 </unstyled::Scroll>
                 <unstyled::TreeReveal
@@ -1311,17 +1310,15 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
             <Spacer @sizing={indent} />
             <Frame width=16.0>
                 <List spacing=0.0>
-                    <unstyled::TreeToggle item={item} toggle={toggle}>
-                        |handle: TreeToggleHandle| {
-                            let marker = create_memo(move || match handle.expanded.get() {
-                                true => "-".to_owned(),
-                                false => "+".to_owned(),
-                            });
-                            view! {
-                                <Text string={marker} color=TextColor::Muted />
-                            }
+                    <unstyled::TreeToggle item={item} toggle={toggle}>|handle: TreeToggleHandle| {
+                        let marker = create_memo(move || match handle.expanded.get() {
+                            true => "-".to_owned(),
+                            false => "+".to_owned(),
+                        });
+                        view! {
+                            <Text string={marker} color=TextColor::Muted />
                         }
-                    </unstyled::TreeToggle>
+                    }</unstyled::TreeToggle>
                 </List>
             </Frame>
             <Frame
@@ -1415,20 +1412,20 @@ fn PlainNote() -> NodeId {
                     },
                 )}
                 child_size=ItemSize::Percent(100.0)
-            >
-                |open_menu: Callback<Option<Rect>>| <unstyled::TextArea
-                        state
-                        completer={emoji_completer()}
-                        completion_menu={CompletionMenu::new(
-                            |handle: CompletionRowHandle| view! {
-                                <CompletionRow handle />
-                            },
-                            |rows: Child| view! {
-                                <PopupPanel>{rows}</PopupPanel>
-                            },
-                        )}
-                        on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
-                    />
+            >|open_menu: Callback<Option<Rect>>|
+                <unstyled::TextArea
+                    state
+                    completer={emoji_completer()}
+                    completion_menu={CompletionMenu::new(
+                        |handle: CompletionRowHandle| view! {
+                            <CompletionRow handle />
+                        },
+                        |rows: Child| view! {
+                            <PopupPanel>{rows}</PopupPanel>
+                        },
+                    )}
+                    on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
+                />
             </unstyled::TextContextMenu>
         </Frame>
     }

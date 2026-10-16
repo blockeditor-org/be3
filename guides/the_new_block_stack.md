@@ -994,7 +994,12 @@ nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
 each made one before seeing the other's, both are read as one
 (`Settings::merged`, the lowest id winning a clash) and written through the
 lowest. The settings editor shows someone else's `Settings` or settings profile
-with a notice, and makes and changes nothing in it.
+with a notice, and makes and changes nothing in it. The editors of the kinds lay out
+their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
+card of rows per section, each a label and description beside its control,
+stacked once the row is narrow, and a section runs edge to edge once it is. A
+`modified` row has an accent bar at its edge and, given `on_reset`, a small
+Reset link after its label.
 
 Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:

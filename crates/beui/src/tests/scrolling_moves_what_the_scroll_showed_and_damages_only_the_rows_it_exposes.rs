@@ -12,10 +12,10 @@ fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes()
                 <List spacing=0.0>
                     <Frame height=200.0>
                         <Scroll @test_id="scroll">
-                            <ForEach keys={(0..30).collect::<Vec<usize>>()}>
-                                |row: usize| <Frame height=40.0>
-                                        <Text string={format!("row {row}")} />
-                                    </Frame>
+                            <ForEach keys={(0..30).collect::<Vec<usize>>()}>|row: usize|
+                                <Frame height=40.0>
+                                    <Text string={format!("row {row}")} />
+                                </Frame>
                             </ForEach>
                         </Scroll>
                     </Frame>

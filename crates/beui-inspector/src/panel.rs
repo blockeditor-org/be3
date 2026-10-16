@@ -253,10 +253,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                         <PickToggle state={state} picking />
                                     </ShowKeepAlive>
                                     <Show condition={create_memo(move || !compact.get())}>
-                                        <CloseButton
-                                                @test_id={"inspector.close"}
-                                                state={state}
-                                            />
+                                        <CloseButton @test_id={"inspector.close"} state={state} />
                                     </Show>
                                 </List>
                                 <Tabs
@@ -301,11 +298,8 @@ pub fn build(state: Stored<State>) -> Panel {
                                             on_hover_change={move |(key, hovered): (Key, bool)| {
                                                 state.get().hover(key.node(), hovered);
                                             }}
-                                        >
-                                            |row: TreeRowFace<Key>| <TreeCells
-                                                    row_key={row.key}
-                                                    entries={row_entries}
-                                                />
+                                        >|row: TreeRowFace<Key>|
+                                            <TreeCells row_key={row.key} entries={row_entries} />
                                         </Tree>
                                         <Frame
                                             @sizing={properties_size}
@@ -477,8 +471,8 @@ fn SimulationPanel(
                         <RadioGroup
                             @test_id={"inspector.simulation.pixel_ratio"}
                             options={view! {
-                                <ForEach keys={labels(&PIXEL_RATIOS)}>
-                                    |label: &'static str| <ChoiceOption label />
+                                <ForEach keys={labels(&PIXEL_RATIOS)}>|label: &'static str|
+                                    <ChoiceOption label />
                                 </ForEach>
                             }}
                             selected={Some(selected)}
@@ -501,8 +495,8 @@ fn SimulationPanel(
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
                             options={view! {
-                                <ForEach keys={labels(&Theme::BUILT_IN)}>
-                                    |label: &'static str| <ChoiceOption label />
+                                <ForEach keys={labels(&Theme::BUILT_IN)}>|label: &'static str|
+                                    <ChoiceOption label />
                                 </ForEach>
                             }}
                             selected={Some(selected_theme)}
@@ -643,8 +637,8 @@ fn FilterSection(state: Stored<State>) -> NodeId {
             <RadioGroup
                 @test_id={"inspector.simulation.color_vision"}
                 options={view! {
-                    <ForEach keys={vision_labels}>
-                        |label: &'static str| <ChoiceOption label />
+                    <ForEach keys={vision_labels}>|label: &'static str|
+                        <ChoiceOption label />
                     </ForEach>
                 }}
                 selected={Some(selected_vision)}
@@ -704,8 +698,8 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
     view! {
         <List spacing=FOOTER_SPACING>
             <Text style=TextStyle::CAPTION string={title.to_owned()} color=TextColor::Default />
-            <ForEach keys={lines.to_vec()}>
-                |line: &'static str| <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
+            <ForEach keys={lines.to_vec()}>|line: &'static str|
+                <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
             </ForEach>
         </List>
     }
@@ -837,8 +831,8 @@ fn RendererSection(
                 <RadioGroup
                     @test_id={"inspector.performance.renderer.choice"}
                     options={view! {
-                        <ForEach keys={names}>
-                            |label: &'static str| <ChoiceOption label />
+                        <ForEach keys={names}>|label: &'static str|
+                            <ChoiceOption label />
                         </ForEach>
                     }}
                     selected={active}
@@ -852,8 +846,8 @@ fn RendererSection(
             <Show condition={missing}>
                 <Text style=TextStyle::CAPTION string="Not reported by this host" />
             </Show>
-            <ForEach keys={rows}>
-                |(label, value): (&'static str, String)| <LabeledRow label={label.to_owned()} value />
+            <ForEach keys={rows}>|(label, value): (&'static str, String)|
+                <LabeledRow label={label.to_owned()} value />
             </ForEach>
         </List>
     }
@@ -868,8 +862,8 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
                 <Frame padding=BODY_PADDING>
                     <List spacing=TIMING_SPACING>
                         <Text style=TextStyle::HEADING string="Properties" />
-                        <ForEach keys={properties}>
-                            |(label, value): (String, String)| <LabeledRow label value />
+                        <ForEach keys={properties}>|(label, value): (String, String)|
+                            <LabeledRow label value />
                         </ForEach>
                     </List>
                 </Frame>

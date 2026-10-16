@@ -104,31 +104,29 @@ pub fn KeepChanges(
             content={move || view! {
                 <Frame width=width height=height>
                     <Layers>
-                        <ForEach keys={places}>
-                            |index: usize| {
-                                let place = create_memo(move || {
-                                    let origin = bounds.get().min.to_vec2();
-                                    screens.with(|screens| {
-                                        screens
-                                            .get(index)
-                                            .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
-                                    })
-                                });
-                                let card = view! {
-                                    <KeepChangesCard
-                                        place={place}
-                                        title={title}
-                                        message={message}
-                                        focused={create_memo(move || index == 0 && open.get())}
-                                        id={format!("{}.{index}", id)}
-                                        on_keep={keep}
-                                        on_revert={revert}
-                                    />
-                                };
-                                let layer: Layer = card.into_child();
-                                layer
-                            }
-                        </ForEach>
+                        <ForEach keys={places}>|index: usize| {
+                            let place = create_memo(move || {
+                                let origin = bounds.get().min.to_vec2();
+                                screens.with(|screens| {
+                                    screens
+                                        .get(index)
+                                        .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
+                                })
+                            });
+                            let card = view! {
+                                <KeepChangesCard
+                                    place={place}
+                                    title={title}
+                                    message={message}
+                                    focused={create_memo(move || index == 0 && open.get())}
+                                    id={format!("{}.{index}", id)}
+                                    on_keep={keep}
+                                    on_revert={revert}
+                                />
+                            };
+                            let layer: Layer = card.into_child();
+                            layer
+                        }</ForEach>
                     </Layers>
                 </Frame>
             }}

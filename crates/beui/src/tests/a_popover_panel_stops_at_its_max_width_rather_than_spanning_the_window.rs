@@ -12,10 +12,10 @@ fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Popover label="Filters">
-                    |_: PopoverHandle| <Frame @node_ref={&content}>
-                            <Checkbox label="Only starred" checked=false />
-                        </Frame>
+                <Popover label="Filters">|_: PopoverHandle|
+                    <Frame @node_ref={&content}>
+                        <Checkbox label="Only starred" checked=false />
+                    </Frame>
                 </Popover>
             </List>
         }

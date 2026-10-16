@@ -205,25 +205,25 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     on_change={retitled}
                                 />
                                 <List spacing=2.0>
-                                    <ForEach keys={properties}>
-                                        |field: Uuid| <Property data={data} row={row} field={field} />
+                                    <ForEach keys={properties}>|field: Uuid|
+                                        <Property data={data} row={row} field={field} />
                                     </ForEach>
                                 </List>
-                                <ForEach keys={link_fields}>
-                                    |field: Uuid| <LinkSection data={data} row={row} field={field} />
+                                <ForEach keys={link_fields}>|field: Uuid|
+                                    <LinkSection data={data} row={row} field={field} />
                                 </ForEach>
                                 <Separator />
                                 <Show condition={missing}>
                                     <List direction=Direction::Horizontal spacing=0.0>
-                                            <Button
-                                                glyph={ICON_NOTE_ADD.to_owned()}
-                                                label="Write a description"
-                                                variant=ButtonVariant::Ghost
-                                                disabled={page_off}
-                                                @test_id={"database-view.detail.add-page"}
-                                                on_click={add_page}
-                                            />
-                                        </List>
+                                        <Button
+                                            glyph={ICON_NOTE_ADD.to_owned()}
+                                            label="Write a description"
+                                            variant=ButtonVariant::Ghost
+                                            disabled={page_off}
+                                            @test_id={"database-view.detail.add-page"}
+                                            on_click={add_page}
+                                        />
+                                    </List>
                                 </Show>
                             </List>
                         </Frame>
@@ -309,24 +309,24 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                 <List spacing=0.0>
                     <Show condition={choice}>
                         <ChoicePicker
-                                field={known}
-                                chosen={chosen}
-                                disabled={choice_off}
-                                picker_id={format!("database-view.detail.field.{field}")}
-                                on_pick={picked}
-                            />
+                            field={known}
+                            chosen={chosen}
+                            disabled={choice_off}
+                            picker_id={format!("database-view.detail.field.{field}")}
+                            on_pick={picked}
+                        />
                     </Show>
                     <Show condition={other}>
                         <DatabaseValueEditor
-                                fields={fields}
-                                values={values}
-                                labels={labels}
-                                disabled={value_off}
-                                prefix="database-view.detail"
-                                headings=false
-                                on_change={changed}
-                                on_pick={pick_block}
-                            />
+                            fields={fields}
+                            values={values}
+                            labels={labels}
+                            disabled={value_off}
+                            prefix="database-view.detail"
+                            headings=false
+                            on_change={changed}
+                            on_pick={pick_block}
+                        />
                     </Show>
                 </List>
             </Frame>
@@ -408,20 +408,18 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                 <Frame @sizing=ItemSize::Fixed(180.0)>
                     <Select
                         options={view! {
-                            <ForEach keys={add_keys}>
-                                |link: RowRef| {
-                                    let label = create_memo(move || {
-                                        names.with(|rows| {
-                                            rows.iter()
-                                                .find(|(held, _)| *held == link)
-                                                .map_or_else(String::new, |(_, label)| label.clone())
-                                        })
-                                    });
-                                    view! {
-                                        <ChoiceOption label={label} />
-                                    }
+                            <ForEach keys={add_keys}>|link: RowRef| {
+                                let label = create_memo(move || {
+                                    names.with(|rows| {
+                                        rows.iter()
+                                            .find(|(held, _)| *held == link)
+                                            .map_or_else(String::new, |(_, label)| label.clone())
+                                    })
+                                });
+                                view! {
+                                    <ChoiceOption label={label} />
                                 }
-                            </ForEach>
+                            }</ForEach>
                         }}
                         selected={None}
                         label="Link a row"
@@ -432,14 +430,12 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     />
                 </Frame>
             </List>
-            <ForEach keys={links}>
-                |link: RowRef| {
-                    let links = links;
-                    view! {
-                        <LinkedRow data={data} row={row} field={field} link={link} links={links} />
-                    }
+            <ForEach keys={links}>|link: RowRef| {
+                let links = links;
+                view! {
+                    <LinkedRow data={data} row={row} field={field} link={link} links={links} />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }

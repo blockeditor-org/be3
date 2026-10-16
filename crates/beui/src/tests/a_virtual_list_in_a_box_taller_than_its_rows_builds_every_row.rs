@@ -21,10 +21,10 @@ fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
                                     @node_ref=&list
                                     keys={indices(ROWS)}
                                     item_size=ESTIMATE
-                                >
-                                    |_: ReadSignal<usize>| <Frame height=ACTUAL>
-                                            <Spacer />
-                                        </Frame>
+                                >|_: ReadSignal<usize>|
+                                    <Frame height=ACTUAL>
+                                        <Spacer />
+                                    </Frame>
                                 </VirtualList>
                             </List>
                         </Frame>

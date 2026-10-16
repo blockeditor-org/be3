@@ -39,8 +39,8 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
     let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
         <Loaded loaded={loaded} label="Loading the workspace">
-            <Container>
-                |_| <WorkspaceBody workspace />
+            <Container>|_|
+                <WorkspaceBody workspace />
             </Container>
         </Loaded>
     }
@@ -75,7 +75,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
         <Frame @node_ref={&surface} fill=ColorRole::Background>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
                         <DockPane id="files">
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
@@ -91,19 +91,19 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                                 <EmptyPanel />
                             }}
                         >
-                            <ForEach keys={block_tabs}>
-                                |tab: TabId| <BlockTab workspace tab />
+                            <ForEach keys={block_tabs}>|tab: TabId|
+                                <BlockTab workspace tab />
                             </ForEach>
-                            <ForEach keys={top_windows}>
-                                |window: HostWindowId| <WindowTab workspace key={window} />
+                            <ForEach keys={top_windows}>|window: HostWindowId|
+                                <WindowTab workspace key={window} />
                             </ForEach>
                         </DockPane>
                     </DockSplit>
-                    <ForEach keys={panels}>
-                        |panel: HostPanel| <PanelWindow workspace panel />
+                    <ForEach keys={panels}>|panel: HostPanel|
+                        <PanelWindow workspace panel />
                     </ForEach>
-                    <ForEach keys={dialog_windows}>
-                        |(window, parent): (HostWindowId, HostWindowId)| <AttachedWindow workspace window parent />
+                    <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
+                        <AttachedWindow workspace window parent />
                     </ForEach>
                 </Docking>
                 <PickerDialogs workspace />
@@ -163,8 +163,8 @@ fn SidePanel(
                 top_bar={top_bar}
                 on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
                 @test_id={id}
-            >
-                |handle: ChildBlockHandle| <PanelStatus state={handle.state} loading={loading.to_owned()} />
+            >|handle: ChildBlockHandle|
+                <PanelStatus state={handle.state} loading={loading.to_owned()} />
             </ChildBlock>
         </List>
     }

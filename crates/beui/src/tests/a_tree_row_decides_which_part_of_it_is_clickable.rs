@@ -26,22 +26,20 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                     selected=None
                     on_select={move |key: usize| set_chosen.update(|chosen| chosen.push(key))}
                     on_expand={move |_: (usize, bool)| {}}
-                >
-                    |handle: TreeRowHandle<usize>| {
-                        let TreeRowHandle { key, select, .. } = handle;
-                        view! {
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Spacer @sizing=ItemSize::Fixed(MARGIN) />
-                                <Interactive @sizing=ItemSize::Percent(100.0) on_click={select}>
-                                    <Text
-                                        @test_id={format!("name.{key}")}
-                                        string={format!("row {key}")}
-                                    />
-                                </Interactive>
-                            </List>
-                        }
+                >|handle: TreeRowHandle<usize>| {
+                    let TreeRowHandle { key, select, .. } = handle;
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Spacer @sizing=ItemSize::Fixed(MARGIN) />
+                            <Interactive @sizing=ItemSize::Percent(100.0) on_click={select}>
+                                <Text
+                                    @test_id={format!("name.{key}")}
+                                    string={format!("row {key}")}
+                                />
+                            </Interactive>
+                        </List>
                     }
-                </unstyled::Tree>
+                }</unstyled::Tree>
             }
         }
     });

@@ -17,18 +17,16 @@ fn a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view() {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0)>
                         <Grid columns={vec![Track::Fraction(1.0); 2]}>
-                            <ForEach keys={indices(CELLS)}>
-                                |index: usize| {
-                                    let (cell, inside) = (cells[index], insides[index]);
-                                    view! {
-                                        <Frame @node_ref=&cell height=CELL_HEIGHT>
-                                            <Frame @node_ref=&inside>
-                                                <Spacer />
-                                            </Frame>
+                            <ForEach keys={indices(CELLS)}>|index: usize| {
+                                let (cell, inside) = (cells[index], insides[index]);
+                                view! {
+                                    <Frame @node_ref=&cell height=CELL_HEIGHT>
+                                        <Frame @node_ref=&inside>
+                                            <Spacer />
                                         </Frame>
-                                    }
+                                    </Frame>
                                 }
-                            </ForEach>
+                            }</ForEach>
                         </Grid>
                     </Offset>
                 </List>

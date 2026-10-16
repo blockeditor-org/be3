@@ -102,10 +102,10 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                 </Frame>
                 <Show condition={show_replace}>
                     <ReplaceRow
-                            state={state}
-                            no_current={no_current}
-                            no_matches={replace_no_matches}
-                        />
+                        state={state}
+                        no_current={no_current}
+                        no_matches={replace_no_matches}
+                    />
                 </Show>
             </List>
         </Frame>

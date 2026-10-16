@@ -17,10 +17,10 @@ fn touch_overscroll_bands_without_hovering_a_row() {
                             <Spacer />
                         </Frame>
                     </Interactive>
-                    <ForEach keys={indices(20)}>
-                        |_: usize| <Frame padding={Sides::symmetric(0.0, 20.0)}>
-                                <Spacer />
-                            </Frame>
+                    <ForEach keys={indices(20)}>|_: usize|
+                        <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                            <Spacer />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </List>

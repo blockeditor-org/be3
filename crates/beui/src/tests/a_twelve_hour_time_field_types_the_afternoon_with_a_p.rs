@@ -11,14 +11,14 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
     let document = build(move || {
         view! {
             <Container>|_size|
-            <DateTimeField
-                value=None
-                parts=DateTimeParts::Time
-                hour_cycle=HourCycle::H12
-                on_change={move |value: Option<crate::datetime::DateTime>| {
-                    set_reported.update(|reported| reported.push(value.map(|value| value.time)))
-                }}
-            />
+                <DateTimeField
+                    value=None
+                    parts=DateTimeParts::Time
+                    hour_cycle=HourCycle::H12
+                    on_change={move |value: Option<crate::datetime::DateTime>| {
+                        set_reported.update(|reported| reported.push(value.map(|value| value.time)))
+                    }}
+                />
             </Container>
         }
     });

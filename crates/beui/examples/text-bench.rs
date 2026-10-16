@@ -131,8 +131,8 @@ fn resize_paragraphs(frames: usize) -> Report {
             view! {
                 <Frame width={create_memo(move || Some(read.get()))}>
                     <List spacing=8.0>
-                        <ForEach keys={(0..20).collect::<Vec<usize>>()}>
-                            |_: usize| <Text string={text.clone()} wrap=true />
+                        <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize|
+                            <Text string={text.clone()} wrap=true />
                         </ForEach>
                     </List>
                 </Frame>
@@ -163,8 +163,8 @@ fn resize_labels(frames: usize) -> Report {
             view! {
                 <Frame width={create_memo(move || Some(read.get()))}>
                     <List spacing=0.0>
-                        <ForEach keys={(0..2000).collect::<Vec<usize>>()}>
-                            |index: usize| <Text string={format!("label number {index}")} ellipsis=true />
+                        <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
+                            <Text string={format!("label number {index}")} ellipsis=true />
                         </ForEach>
                     </List>
                 </Frame>
@@ -234,16 +234,14 @@ fn edit_one_span(frames: usize) -> Report {
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
                 <Text wrap=true>
-                    <ForEach keys={keys}>
-                        |index: usize| {
-                            let word = create_memo(move || {
-                                read.get().get(index).cloned().unwrap_or_default()
-                            });
-                            view! {
-                                <Span text={word} />
-                            }
+                    <ForEach keys={keys}>|index: usize| {
+                        let word = create_memo(move || {
+                            read.get().get(index).cloned().unwrap_or_default()
+                        });
+                        view! {
+                            <Span text={word} />
                         }
-                    </ForEach>
+                    }</ForEach>
                 </Text>
             }
         }

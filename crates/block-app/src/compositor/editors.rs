@@ -495,14 +495,12 @@ pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
     let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>
-                |block: Uuid| {
-                    provide_context(Nesting::root());
-                    view! {
-                        <TabFrame block top_bar=TopBar::Hidden />
-                    }
+            <ForEach keys={keys}>|block: Uuid| {
+                provide_context(Nesting::root());
+                view! {
+                    <TabFrame block top_bar=TopBar::Hidden />
                 }
-            </ForEach>
+            }</ForEach>
         </Layers>
     }
 }
@@ -541,24 +539,22 @@ pub(crate) fn PresentingSurface() -> NodeId {
             }}
         >
             <Layers>
-                <ForEach keys={keys}>
-                    |block: Uuid| {
-                        provide_context(Nesting::root());
-                        crate::host::set_fullscreen(true);
-                        on_cleanup(|| crate::host::set_fullscreen(false));
-                        view! {
-                            <BlockFrame
-                                block
-                                chrome=Chrome::Drawn
-                                content=None
-                                top_bar=TopBar::Hidden
-                                embedded=false
-                                passive=false
-                                presented=true
-                            />
-                        }
+                <ForEach keys={keys}>|block: Uuid| {
+                    provide_context(Nesting::root());
+                    crate::host::set_fullscreen(true);
+                    on_cleanup(|| crate::host::set_fullscreen(false));
+                    view! {
+                        <BlockFrame
+                            block
+                            chrome=Chrome::Drawn
+                            content=None
+                            top_bar=TopBar::Hidden
+                            embedded=false
+                            passive=false
+                            presented=true
+                        />
                     }
-                </ForEach>
+                }</ForEach>
             </Layers>
         </Overlay>
     }
@@ -603,23 +599,21 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
     let child_view = child_view(block, region);
     view! {
         <Layers>
-            <ForEach keys={keys}>
-                |_key: RegionKey| {
-                    let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
-                        return view! {
-                            <Frame />
-                        };
+            <ForEach keys={keys}>|_key: RegionKey| {
+                let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+                    return view! {
+                        <Frame />
                     };
-                    view! {
-                        <PluginRegion
-                            editor={region_editor}
-                            region
-                            frame={Some(FrameSpec::default())}
-                            child_view
-                        />
-                    }
+                };
+                view! {
+                    <PluginRegion
+                        editor={region_editor}
+                        region
+                        frame={Some(FrameSpec::default())}
+                        child_view
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </Layers>
     }
 }
@@ -685,18 +679,16 @@ fn TabFrame(
                 passive=false
                 reporter
             />
-            <ForEach keys={shown}>
-                |id: Uuid| {
-                    let node = create_memo(move || {
-                        portals.with(|held| {
-                            held.iter().find(|(block, _)| *block == id).map(|(_, node)| *node)
-                        })
-                    });
-                    view! {
-                        <Portal node={node} />
-                    }
+            <ForEach keys={shown}>|id: Uuid| {
+                let node = create_memo(move || {
+                    portals.with(|held| {
+                        held.iter().find(|(block, _)| *block == id).map(|(_, node)| *node)
+                    })
+                });
+                view! {
+                    <Portal node={node} />
                 }
-            </ForEach>
+            }</ForEach>
         </Layers>
     }
 }
@@ -860,16 +852,16 @@ fn BlockFrame(
     let keys = create_memo(move || shown.get().then_some(block).into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>
-                |block: Uuid| <BlockFrameBody
-                            block
-                            chrome={chrome}
-                            content={content}
-                            top_bar={top_bar}
-                            embedded
-                            passive={passive}
-                            reporter={reporter}
-                        />
+            <ForEach keys={keys}>|block: Uuid|
+                <BlockFrameBody
+                    block
+                    chrome={chrome}
+                    content={content}
+                    top_bar={top_bar}
+                    embedded
+                    passive={passive}
+                    reporter={reporter}
+                />
             </ForEach>
         </Layers>
     }
@@ -947,72 +939,70 @@ fn BlockFrameBody(
     });
     view! {
         <Layers>
-            <Dynamic value={resolution}>
-                |resolution: Resolution| {
-                    match resolution {
-                        Resolution::NoAccess => {
-                            let item = HostItem::Notice {
-                                text: "No access".to_owned(),
-                                spinner: false,
-                                icon: Some(beui::icons::ICON_LOCK),
-                            };
-                            view! {
-                                <Notice item />
-                            }
+            <Dynamic value={resolution}>|resolution: Resolution| {
+                match resolution {
+                    Resolution::NoAccess => {
+                        let item = HostItem::Notice {
+                            text: "No access".to_owned(),
+                            spinner: false,
+                            icon: Some(beui::icons::ICON_LOCK),
+                        };
+                        view! {
+                            <Notice item />
                         }
-                        Resolution::Missing => view! {
-                            <Frame />
-                        },
-                        Resolution::Locked => {
-                            let item = HostItem::Notice {
-                                text: "Locked: its key has not been shared with you yet"
-                                    .to_owned(),
-                                spinner: false,
-                                icon: Some(beui::icons::ICON_LOCK),
-                            };
-                            view! {
-                                <Notice item />
-                            }
+                    }
+                    Resolution::Missing => view! {
+                        <Frame />
+                    },
+                    Resolution::Locked => {
+                        let item = HostItem::Notice {
+                            text: "Locked: its key has not been shared with you yet"
+                                .to_owned(),
+                            spinner: false,
+                            icon: Some(beui::icons::ICON_LOCK),
+                        };
+                        view! {
+                            <Notice item />
                         }
-                        Resolution::Unsupported(block_type) => {
-                            let item = HostItem::Unsupported { block, block_type };
-                            view! {
-                                <Notice item />
-                            }
+                    }
+                    Resolution::Unsupported(block_type) => {
+                        let item = HostItem::Unsupported { block, block_type };
+                        view! {
+                            <Notice item />
                         }
-                        Resolution::Stale(block_type, stale) => view! {
-                            <StaleBlock block block_type stale />
-                        },
-                        Resolution::Ready { access, .. } => {
-                            let editors = self::editors();
-                            let Some(handle) = editors.handle(block) else {
-                                return view! {
-                                    <Frame />
-                                };
+                    }
+                    Resolution::Stale(block_type, stale) => view! {
+                        <StaleBlock block block_type stale />
+                    },
+                    Resolution::Ready { access, .. } => {
+                        let editors = self::editors();
+                        let Some(handle) = editors.handle(block) else {
+                            return view! {
+                                <Frame />
                             };
-                            let Some(region_editor) = editors.region(&handle) else {
-                                return view! {
-                                    <Frame />
-                                };
+                        };
+                        let Some(region_editor) = editors.region(&handle) else {
+                            return view! {
+                                <Frame />
                             };
-                            view! {
-                                <BlockFrameView
-                                    block
-                                    access
-                                    handle
-                                    region_editor
-                                    chrome={chrome}
-                                    content={content}
-                                    top_bar={top_bar}
-                                    embedded
-                                    passive={passive}
-                                    reporter={reporter}
-                                />
-                            }
+                        };
+                        view! {
+                            <BlockFrameView
+                                block
+                                access
+                                handle
+                                region_editor
+                                chrome={chrome}
+                                content={content}
+                                top_bar={top_bar}
+                                embedded
+                                passive={passive}
+                                reporter={reporter}
+                            />
                         }
                     }
                 }
-            </Dynamic>
+            }</Dynamic>
         </Layers>
     }
 }
@@ -1047,235 +1037,233 @@ fn BlockFrameView(
     });
     let revision = super::listen(&plugin_id.get());
     view! {
-        <PlacementBuilder>
-            |rect: ReadSignal<Rect>| {
-                let read_only = !access.can_edit();
-                let placed = embedded || content.peek().is_some();
-                let pan_and_zoom = handle.pan_and_zoom && !placed;
-                let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
-                let (viewport, set_viewport) = create_signal(
-                    VIEWPORTS
-                        .with(|viewports| viewports.borrow().get(&block).copied())
-                        .unwrap_or_default(),
-                );
-                create_effect(move || {
-                    let state = viewport.get();
-                    VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
-                });
-                let viewport_rect = create_memo(move || {
-                    revision.get();
-                    let rect = rect.get();
-                    plugin_host::frame_rects(&plugin_id.get(), instance)
-                        .map(|rects| rects.content.translate(rect.min.to_vec2()))
-                        .filter(Rect::is_positive)
-                        .unwrap_or(rect)
-                });
-                let content_size = create_memo(move || {
-                    revision.get();
-                    let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-                    let intrinsic = plugin_host::intrinsic_size(&plugin_id.get(), instance)
-                        .unwrap_or(vec2(420.0, 240.0));
-                    vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
-                });
-                let command = move |command: Command| {
-                        if !pan_and_zoom {
-                            if !on_view_change.is_empty() {
-                                on_view_change.call(match command {
-                                    Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
-                                    Command::Zoom { factor, anchor } => ViewChange::Zoom {
-                                        factor,
-                                        anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
-                                    },
-                                    Command::Fit => ViewChange::Fit,
-                                    Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
-                                });
-                            }
-                            return;
-                        }
-                        let mut state = viewport.get_untracked();
-                        settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
-                        if state != viewport.get_untracked() {
-                            set_viewport.set(state);
-                        }
-                };
-                create_effect(
-                    move || {
-                        if !pan_and_zoom {
-                            return;
-                        }
-                        let rect = viewport_rect.get();
-                        let content = content_size.get();
-                        let covered = chrome.get() == Chrome::None;
-                        let mut state = viewport.get_untracked();
-                        if let Some(previous) = state.center.replace(rect.center()) {
-                            state.pan += previous - rect.center();
-                        }
-                        if state.auto_fit.is_none() {
-                            state.auto_fit = Some(true);
-                        }
-                        if state.auto_fit == Some(true) && !covered {
-                            fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
-                        }
-                        if state != viewport.get_untracked() {
-                            set_viewport.set(state);
-                        }
-                    },
-                );
-                create_effect(
-                    move || {
-                        revision.get();
-                        let rect = rect.get_untracked();
-                        for change in plugin_host::take_view_changes(&plugin_id.get(), instance) {
-                            command(match change {
-                                ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
-                                ViewChange::Zoom { factor, anchor } => Command::Zoom {
+        <PlacementBuilder>|rect: ReadSignal<Rect>| {
+            let read_only = !access.can_edit();
+            let placed = embedded || content.peek().is_some();
+            let pan_and_zoom = handle.pan_and_zoom && !placed;
+            let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
+            let (viewport, set_viewport) = create_signal(
+                VIEWPORTS
+                    .with(|viewports| viewports.borrow().get(&block).copied())
+                    .unwrap_or_default(),
+            );
+            create_effect(move || {
+                let state = viewport.get();
+                VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
+            });
+            let viewport_rect = create_memo(move || {
+                revision.get();
+                let rect = rect.get();
+                plugin_host::frame_rects(&plugin_id.get(), instance)
+                    .map(|rects| rects.content.translate(rect.min.to_vec2()))
+                    .filter(Rect::is_positive)
+                    .unwrap_or(rect)
+            });
+            let content_size = create_memo(move || {
+                revision.get();
+                let size = viewport_rect.get().size().max(Vec2::splat(1.0));
+                let intrinsic = plugin_host::intrinsic_size(&plugin_id.get(), instance)
+                    .unwrap_or(vec2(420.0, 240.0));
+                vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
+            });
+            let command = move |command: Command| {
+                    if !pan_and_zoom {
+                        if !on_view_change.is_empty() {
+                            on_view_change.call(match command {
+                                Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
+                                Command::Zoom { factor, anchor } => ViewChange::Zoom {
                                     factor,
-                                    anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
+                                    anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
                                 },
-                                ViewChange::Fit => Command::Fit,
-                                ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
+                                Command::Fit => ViewChange::Fit,
+                                Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
                             });
                         }
-                        let actions = plugin_host::take_bar_actions(&plugin_id.get(), instance);
-                        for action in actions {
-                            on_bar_action.call(action);
-                        }
-                    },
-                );
-                if let Some(tab) = use_context::<TabContext>() {
-                    create_effect(move || {
-                        revision.get();
-                        if plugin_host::take_leaving(&plugin_id.get(), instance) {
-                            tab.exit.call();
-                        }
-                    });
-                }
-                let content_rect = create_memo(move || {
-                    let state = viewport.get();
-                    Rect::from_center_size(
-                        viewport_rect.get().center() + state.pan,
-                        content_size.get() * state.zoom,
-                    )
-                });
-                let editor_view = create_memo(
-                    move || {
-                        if !handle.pan_and_zoom {
-                            return None;
-                        }
-                        let origin = rect.get().min;
-                        if !placed {
-                            return Some(EditorView {
-                                rect: content_rect.get().translate(-origin.to_vec2()),
-                                scale: viewport.get().zoom,
-                            });
-                        }
-                        revision.get();
-                        let shown = content.get().unwrap_or(rect.get());
-                        let scale = plugin_host::intrinsic_size(&plugin_id.get(), instance)
-                            .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
-                            .map_or(1.0, |intrinsic| {
-                                (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
-                            });
-                        Some(EditorView {
-                            rect: shown.translate(-origin.to_vec2()),
-                            scale,
-                        })
-                    },
-                );
-                let frame = create_memo(move || {
-                    let origin = rect.get().min;
-                    Some(FrameSpec {
-                        chrome: match chrome.get() {
-                            Chrome::Drawn => FrameChrome::Drawn,
-                            Chrome::None => FrameChrome::None,
-                        },
-                        content: content.get().map(|content| {
-                            let content = content.translate(-origin.to_vec2());
-                            ChildRect {
-                                x: content.min.x,
-                                y: content.min.y,
-                                width: content.width(),
-                                height: content.height(),
-                            }
-                        }),
-                        top_bar: top_bar.get(),
-                    })
-                });
-                let gestures = pan_and_zoom || !on_view_change.is_empty() && handle.pan_and_zoom;
-                let steered = create_memo(move || {
-                    (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
-                });
-                let scroll = move |gesture: ScrollGesture| {
-                    if !gestures || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos)) {
                         return;
                     }
-                    match gesture.modifiers.ctrl && gesture.delta.y != 0.0 {
-                        true => command(Command::Zoom {
-                            factor: (gesture.delta.y * 0.002).exp(),
-                            anchor: Some(gesture.pos),
-                        }),
-                        false => command(Command::Pan(gesture.delta)),
+                    let mut state = viewport.get_untracked();
+                    settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
+                    if state != viewport.get_untracked() {
+                        set_viewport.set(state);
                     }
-                };
-                let zoom = move |gesture: ZoomGesture| {
-                    if gestures {
-                        command(Command::Zoom {
-                            factor: gesture.factor,
-                            anchor: Some(gesture.pos),
+            };
+            create_effect(
+                move || {
+                    if !pan_and_zoom {
+                        return;
+                    }
+                    let rect = viewport_rect.get();
+                    let content = content_size.get();
+                    let covered = chrome.get() == Chrome::None;
+                    let mut state = viewport.get_untracked();
+                    if let Some(previous) = state.center.replace(rect.center()) {
+                        state.pan += previous - rect.center();
+                    }
+                    if state.auto_fit.is_none() {
+                        state.auto_fit = Some(true);
+                    }
+                    if state.auto_fit == Some(true) && !covered {
+                        fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
+                    }
+                    if state != viewport.get_untracked() {
+                        set_viewport.set(state);
+                    }
+                },
+            );
+            create_effect(
+                move || {
+                    revision.get();
+                    let rect = rect.get_untracked();
+                    for change in plugin_host::take_view_changes(&plugin_id.get(), instance) {
+                        command(match change {
+                            ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
+                            ViewChange::Zoom { factor, anchor } => Command::Zoom {
+                                factor,
+                                anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
+                            },
+                            ViewChange::Fit => Command::Fit,
+                            ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
                         });
                     }
-                };
-                let pan = move |delta: Vec2| {
-                    if gestures {
-                        command(Command::Pan(delta));
+                    let actions = plugin_host::take_bar_actions(&plugin_id.get(), instance);
+                    for action in actions {
+                        on_bar_action.call(action);
                     }
-                };
-                let gestures_at = move |pos: Pos2| {
-                    let origin = rect.get_untracked().min.to_vec2();
-                    gestures
-                        && viewport_rect.get_untracked().contains(pos)
-                        && !steered.get_untracked().is_some_and(|rect| rect.contains(pos))
-                        && !plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
-                            frame
-                                .floating
-                                .iter()
-                                .any(|floating| floating.translate(origin).contains(pos))
-                        })
-                };
-                let placed_zoom = create_memo(move || {
-                    if handle.pan_and_zoom || !embedded || content.get().is_some() {
-                        return 1.0;
+                },
+            );
+            if let Some(tab) = use_context::<TabContext>() {
+                create_effect(move || {
+                    revision.get();
+                    if plugin_host::take_leaving(&plugin_id.get(), instance) {
+                        tab.exit.call();
+                    }
+                });
+            }
+            let content_rect = create_memo(move || {
+                let state = viewport.get();
+                Rect::from_center_size(
+                    viewport_rect.get().center() + state.pan,
+                    content_size.get() * state.zoom,
+                )
+            });
+            let editor_view = create_memo(
+                move || {
+                    if !handle.pan_and_zoom {
+                        return None;
+                    }
+                    let origin = rect.get().min;
+                    if !placed {
+                        return Some(EditorView {
+                            rect: content_rect.get().translate(-origin.to_vec2()),
+                            scale: viewport.get().zoom,
+                        });
                     }
                     revision.get();
-                    let shown = rect.get();
-                    plugin_host::assigned_size(&plugin_id.get(), instance)
-                        .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
-                        .map_or(1.0, |assigned| {
-                            (shown.width() / assigned.x).min(shown.height() / assigned.y)
-                        })
-                });
-                let child_view = child_view(block, EditorRegion::Frame);
-                view! {
-                    <Interactive
-                        on_scroll={scroll}
-                        on_zoom={zoom}
-                        on_pan_drag={pan}
-                        gestures_at={gestures_at}
-                    >
-                        <PluginRegion
-                            editor={region_editor}
-                            region=EditorRegion::Frame
-                            frame={frame}
-                            view={editor_view}
-                            zoom={placed_zoom}
-                            passive={passive}
-                            on_focus
-                            child_view
-                        />
-                    </Interactive>
+                    let shown = content.get().unwrap_or(rect.get());
+                    let scale = plugin_host::intrinsic_size(&plugin_id.get(), instance)
+                        .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
+                        .map_or(1.0, |intrinsic| {
+                            (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
+                        });
+                    Some(EditorView {
+                        rect: shown.translate(-origin.to_vec2()),
+                        scale,
+                    })
+                },
+            );
+            let frame = create_memo(move || {
+                let origin = rect.get().min;
+                Some(FrameSpec {
+                    chrome: match chrome.get() {
+                        Chrome::Drawn => FrameChrome::Drawn,
+                        Chrome::None => FrameChrome::None,
+                    },
+                    content: content.get().map(|content| {
+                        let content = content.translate(-origin.to_vec2());
+                        ChildRect {
+                            x: content.min.x,
+                            y: content.min.y,
+                            width: content.width(),
+                            height: content.height(),
+                        }
+                    }),
+                    top_bar: top_bar.get(),
+                })
+            });
+            let gestures = pan_and_zoom || !on_view_change.is_empty() && handle.pan_and_zoom;
+            let steered = create_memo(move || {
+                (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
+            });
+            let scroll = move |gesture: ScrollGesture| {
+                if !gestures || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos)) {
+                    return;
                 }
+                match gesture.modifiers.ctrl && gesture.delta.y != 0.0 {
+                    true => command(Command::Zoom {
+                        factor: (gesture.delta.y * 0.002).exp(),
+                        anchor: Some(gesture.pos),
+                    }),
+                    false => command(Command::Pan(gesture.delta)),
+                }
+            };
+            let zoom = move |gesture: ZoomGesture| {
+                if gestures {
+                    command(Command::Zoom {
+                        factor: gesture.factor,
+                        anchor: Some(gesture.pos),
+                    });
+                }
+            };
+            let pan = move |delta: Vec2| {
+                if gestures {
+                    command(Command::Pan(delta));
+                }
+            };
+            let gestures_at = move |pos: Pos2| {
+                let origin = rect.get_untracked().min.to_vec2();
+                gestures
+                    && viewport_rect.get_untracked().contains(pos)
+                    && !steered.get_untracked().is_some_and(|rect| rect.contains(pos))
+                    && !plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+                        frame
+                            .floating
+                            .iter()
+                            .any(|floating| floating.translate(origin).contains(pos))
+                    })
+            };
+            let placed_zoom = create_memo(move || {
+                if handle.pan_and_zoom || !embedded || content.get().is_some() {
+                    return 1.0;
+                }
+                revision.get();
+                let shown = rect.get();
+                plugin_host::assigned_size(&plugin_id.get(), instance)
+                    .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
+                    .map_or(1.0, |assigned| {
+                        (shown.width() / assigned.x).min(shown.height() / assigned.y)
+                    })
+            });
+            let child_view = child_view(block, EditorRegion::Frame);
+            view! {
+                <Interactive
+                    on_scroll={scroll}
+                    on_zoom={zoom}
+                    on_pan_drag={pan}
+                    gestures_at={gestures_at}
+                >
+                    <PluginRegion
+                        editor={region_editor}
+                        region=EditorRegion::Frame
+                        frame={frame}
+                        view={editor_view}
+                        zoom={placed_zoom}
+                        passive={passive}
+                        on_focus
+                        child_view
+                    />
+                </Interactive>
             }
-        </PlacementBuilder>
+        }</PlacementBuilder>
     }
 }
 
@@ -1456,112 +1444,106 @@ fn HostedChild(
         <Canvas>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
-                    <ForEach keys={keys}>
-                        |(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
-                            let reporter = reporter_for(parent, region, key, within);
-                            match kind {
-                                Kind::Missing | Kind::Unavailable => view! {
+                    <ForEach keys={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
+                        let reporter = reporter_for(parent, region, key, within);
+                        match kind {
+                            Kind::Missing | Kind::Unavailable => view! {
+                                <Frame />
+                            },
+                            Kind::Panel(panel) => view! {
+                                <HostPanelSurface panel={panel} />
+                            },
+                            Kind::Window(window) => view! {
+                                <WindowSurface window={window} />
+                            },
+                            Kind::ArtifactSettings(_) => view! {
+                                <HostedSurface id=SurfaceId::ArtifactSettings />
+                            },
+                            Kind::Creation => match editors.creation_region(&creation_key) {
+                                Some(hosted) => view! {
+                                    <CreationSurface hosted />
+                                },
+                                None => view! {
                                     <Frame />
                                 },
-                                Kind::Panel(panel) => view! {
-                                    <HostPanelSurface panel={panel} />
-                                },
-                                Kind::Window(window) => view! {
-                                    <WindowSurface window={window} />
-                                },
-                                Kind::ArtifactSettings(_) => view! {
-                                    <HostedSurface id=SurfaceId::ArtifactSettings />
-                                },
-                                Kind::Creation => match editors.creation_region(&creation_key) {
-                                    Some(hosted) => view! {
-                                        <CreationSurface hosted />
-                                    },
-                                    None => view! {
+                            },
+                            Kind::Preview => {
+                                let rotation = create_memo(move || {
+                                    child.get().map_or(0.0, |child| child.rotation)
+                                });
+                                let opacity = create_memo(move || {
+                                    child.get().map_or(1.0, |child| child.opacity)
+                                });
+                                view! {
+                                    <BlockPreview block=id rotation={rotation} opacity={opacity} />
+                                }
+                            }
+                            Kind::OwnFrame => {
+                                let top_bar = create_memo(move || {
+                                    child.get().map_or(TopBar::Hidden, |child| child.top_bar)
+                                });
+                                view! {
+                                    <TabFrame block=id top_bar={top_bar} reporter />
+                                }
+                            }
+                            Kind::FrameChild => {
+                                let Some(tab) = use_context::<TabContext>() else {
+                                    return view! {
                                         <Frame />
-                                    },
-                                },
-                                Kind::Preview => {
-                                    let rotation = create_memo(move || {
-                                        child.get().map_or(0.0, |child| child.rotation)
-                                    });
-                                    let opacity = create_memo(move || {
-                                        child.get().map_or(1.0, |child| child.opacity)
-                                    });
-                                    view! {
-                                        <BlockPreview
-                                            block=id
-                                            rotation={rotation}
-                                            opacity={opacity}
-                                        />
-                                    }
-                                }
-                                Kind::OwnFrame => {
-                                    let top_bar = create_memo(move || {
-                                        child.get().map_or(TopBar::Hidden, |child| child.top_bar)
-                                    });
-                                    view! {
-                                        <TabFrame block=id top_bar={top_bar} reporter />
-                                    }
-                                }
-                                Kind::FrameChild => {
-                                    let Some(tab) = use_context::<TabContext>() else {
-                                        return view! {
-                                            <Frame />
-                                        };
                                     };
-                                    let content = create_memo(move || {
-                                        child.get().map(|child| child.rect.intersect(child.clip))
-                                    });
-                                    let chrome = create_memo(move || {
-                                        match tab.stack.get().last() == Some(&id) {
-                                            true => Chrome::Drawn,
-                                            false => Chrome::None,
-                                        }
-                                    });
-                                    let top_bar = tab.top_bar;
-                                    let node = view! {
-                                        <BlockFrame
-                                            block=id
-                                            chrome={chrome}
-                                            content={content}
-                                            top_bar={top_bar}
-                                            embedded=false
-                                            passive=false
-                                            reporter
-                                        />
-                                    };
+                                };
+                                let content = create_memo(move || {
+                                    child.get().map(|child| child.rect.intersect(child.clip))
+                                });
+                                let chrome = create_memo(move || {
+                                    match tab.stack.get().last() == Some(&id) {
+                                        true => Chrome::Drawn,
+                                        false => Chrome::None,
+                                    }
+                                });
+                                let top_bar = tab.top_bar;
+                                let node = view! {
+                                    <BlockFrame
+                                        block=id
+                                        chrome={chrome}
+                                        content={content}
+                                        top_bar={top_bar}
+                                        embedded=false
+                                        passive=false
+                                        reporter
+                                    />
+                                };
+                                tab.portals.update(|held| {
+                                    held.retain(|(block, _)| *block != id);
+                                    held.push((id, node));
+                                });
+                                on_cleanup(move || {
                                     tab.portals.update(|held| {
-                                        held.retain(|(block, _)| *block != id);
-                                        held.push((id, node));
+                                        held.retain(|entry| *entry != (id, node));
                                     });
-                                    on_cleanup(move || {
-                                        tab.portals.update(|held| {
-                                            held.retain(|entry| *entry != (id, node));
-                                        });
-                                    });
-                                    view! {
-                                        <Frame />
-                                    }
+                                });
+                                view! {
+                                    <Frame />
                                 }
-                                Kind::Embedded => {
-                                    let passive = create_memo(move || {
-                                        child.get().is_none_or(|child| child.mode == ChildMode::Passive)
-                                    });
-                                    view! {
-                                        <BlockFrame
-                                            block=id
-                                            chrome=Chrome::None
-                                            content=None
-                                            top_bar=TopBar::Hidden
-                                            embedded=true
-                                            passive={passive}
-                                            reporter
-                                        />
-                                    }
+                            }
+                            Kind::Embedded => {
+                                let passive = create_memo(move || {
+                                    child.get().is_none_or(|child| child.mode == ChildMode::Passive)
+                                });
+                                view! {
+                                    <BlockFrame
+                                        block=id
+                                        chrome=Chrome::None
+                                        content=None
+                                        top_bar=TopBar::Hidden
+                                        embedded=true
+                                        passive={passive}
+                                        reporter
+                                    />
                                 }
                             }
                         }
-                    </ForEach>
+                    }</ForEach>
                 </Layers>
             </CanvasItem>
         </Canvas>
@@ -1729,25 +1711,23 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
             <Show condition={fallback}>
                 <HostItemFace content={label} />
             </Show>
-            <ForEach keys={keys}>
-                |_key: RegionKey| {
-                    let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
-                        return view! {
-                            <Frame />
-                        };
+            <ForEach keys={keys}>|_key: RegionKey| {
+                let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+                    return view! {
+                        <Frame />
                     };
-                    view! {
-                        <PluginRegion
-                            editor={region_editor}
-                            region=EditorRegion::Preview
-                            passive=true
-                            rotation={rotation}
-                            opacity={opacity}
-                            child_view
-                        />
-                    }
+                };
+                view! {
+                    <PluginRegion
+                        editor={region_editor}
+                        region=EditorRegion::Preview
+                        passive=true
+                        rotation={rotation}
+                        opacity={opacity}
+                        child_view
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </Layers>
     }
 }

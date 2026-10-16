@@ -45,12 +45,12 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
                 </Show>
                 <Show condition={any}>
                     <Frame aspect_ratio={ratio} fill={ColorRole::Custom(Color32::BLACK)}>
-                            <List spacing=0.0>
-                                <ForEach keys={visible}>
-                                    |id: Uuid| <Layer state id />
-                                </ForEach>
-                            </List>
-                        </Frame>
+                        <List spacing=0.0>
+                            <ForEach keys={visible}>|id: Uuid|
+                                <Layer state id />
+                            </ForEach>
+                        </List>
+                    </Frame>
                 </Show>
             </List>
         </Frame>

@@ -47,10 +47,10 @@ pub(crate) fn Detail(model: Model, number: u64) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <PullRequestView
-                        @sizing=ItemSize::Percent(100.0)
-                        model={model}
-                        pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
-                    />
+                    @sizing=ItemSize::Percent(100.0)
+                    model={model}
+                    pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
+                />
             </Show>
         </List>
     }
@@ -167,14 +167,12 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame padding={Sides::horizontal(PADDING).top(8.0).bottom(PADDING)}>
                         <List spacing=0.0>
-                            <ForEach keys>
-                                |index: usize| {
-                                    let entry = create_memo(move || entries.get().get(index).cloned());
-                                    view! {
-                                        <TimelineEntry model={model} entry />
-                                    }
+                            <ForEach keys>|index: usize| {
+                                let entry = create_memo(move || entries.get().get(index).cloned());
+                                view! {
+                                    <TimelineEntry model={model} entry />
                                 }
-                            </ForEach>
+                            }</ForEach>
                         </List>
                     </Frame>
                 </Scroll>
@@ -221,8 +219,8 @@ fn StateBadge(state: Memo<State>) -> NodeId {
 fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
     view! {
         <List spacing=0.0>
-            <Dynamic value={entry}>
-                |entry: Option<Entry>| { match entry {
+            <Dynamic value={entry}>|entry: Option<Entry>| {
+                match entry {
                     Some(Entry::Comment { author, verb, tone, when, url, body, inline }) => view! {
                         <CommentCard model={model} author verb tone when url body inline />
                     },
@@ -235,8 +233,8 @@ fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
                     None => view! {
                         <Spacer />
                     },
-                } }
-            </Dynamic>
+                }
+            }</Dynamic>
         </List>
     }
 }
@@ -284,14 +282,12 @@ fn CommentCard(
                     <Frame padding=CARD_PADDING>
                         <List spacing=10.0>
                             <Blocks model={model} blocks={body} />
-                            <ForEach keys={inline_keys}>
-                                |index: usize| {
-                                    let comment = inline[index].clone();
-                                    view! {
-                                        <InlineCommentView model={model} comment />
-                                    }
+                            <ForEach keys={inline_keys}>|index: usize| {
+                                let comment = inline[index].clone();
+                                view! {
+                                    <InlineCommentView model={model} comment />
                                 }
-                            </ForEach>
+                            }</ForEach>
                         </List>
                     </Frame>
                 </List>
@@ -370,14 +366,12 @@ fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
     let keys: Vec<usize> = (0..blocks.len()).collect();
     view! {
         <List spacing=8.0>
-            <ForEach keys>
-                |index: usize| {
-                    let block = blocks[index].clone();
-                    view! {
-                        <BlockView model={model} block />
-                    }
+            <ForEach keys>|index: usize| {
+                let block = blocks[index].clone();
+                view! {
+                    <BlockView model={model} block />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -386,8 +380,8 @@ fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
 fn BlockView(model: Model, block: Block) -> NodeId {
     view! {
         <List spacing=0.0>
-            <Dynamic value={block}>
-                |block: Block| { match block {
+            <Dynamic value={block}>|block: Block| {
+                match block {
                     Block::Heading(text) => view! {
                         <Text string={text} size=TextSize::Lg weight=Weight::Bold wrap=true />
                     },
@@ -412,8 +406,8 @@ fn BlockView(model: Model, block: Block) -> NodeId {
                     Block::Rule => view! {
                         <Separator />
                     },
-                } }
-            </Dynamic>
+                }
+            }</Dynamic>
         </List>
     }
 }
@@ -427,14 +421,12 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
     view! {
         <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md padding=8.0>
             <Grid columns={vec![Track::Fraction(1.0); columns]} column_spacing=8.0 row_spacing=8.0>
-                <ForEach keys>
-                    |(row, column): (usize, usize)| {
-                        let blocks = rows[row].get(column).cloned().unwrap_or_default();
-                        view! {
-                            <Blocks model={model} blocks />
-                        }
+                <ForEach keys>|(row, column): (usize, usize)| {
+                    let blocks = rows[row].get(column).cloned().unwrap_or_default();
+                    view! {
+                        <Blocks model={model} blocks />
                     }
-                </ForEach>
+                }</ForEach>
             </Grid>
         </Frame>
     }
@@ -511,14 +503,14 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
     let accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
     view! {
         <List spacing=4.0>
-            <Show condition={waiting}>
-                || { let described = described.clone(); view! {
+            <Show condition={waiting}>|| {
+                let described = described.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner width=18.0 label="Loading an image" />
                         <Text style=TextStyle::CAPTION string={described} />
                     </List>
-                } }
-            </Show>
+                }
+            }</Show>
             <Show condition={failed}>
                 <Link label={missing.clone()} on_click={open.clone()} />
             </Show>

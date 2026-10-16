@@ -62,14 +62,8 @@ pub fn TextInput(
             on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
-        >
-            |handle| <TextInputFrame
-                    handle
-                    plain={plain}
-                    glyph={glyph}
-                    clearable={clearable}
-                    multiline
-                />
+        >|handle|
+            <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} multiline />
         </unstyled::TextInput>
     }
 }

@@ -90,30 +90,30 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         </List>
                         <Show condition={unversioned}>
                             <Card>
-                                    <List spacing=10.0>
-                                        <Text string="Nothing is versioned here yet." />
-                                        <Text
-                                            style=TextStyle::CAPTION
-                                            string="Choose a block and everything below it becomes this repository's first commit, with a checkout around it to edit it in."
-                                            wrap=true
-                                        />
-                                        <Button
-                                            label="Choose what to version"
-                                            variant=ButtonVariant::Primary
-                                            disabled={adopt_blocked}
-                                            @test_id={"repository.adopt"}
-                                            on_click={choose}
-                                        />
-                                    </List>
-                                </Card>
+                                <List spacing=10.0>
+                                    <Text string="Nothing is versioned here yet." />
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string="Choose a block and everything below it becomes this repository's first commit, with a checkout around it to edit it in."
+                                        wrap=true
+                                    />
+                                    <Button
+                                        label="Choose what to version"
+                                        variant=ButtonVariant::Primary
+                                        disabled={adopt_blocked}
+                                        @test_id={"repository.adopt"}
+                                        on_click={choose}
+                                    />
+                                </List>
+                            </Card>
                         </Show>
                         <Show condition={versioned}>
                             <Card>
-                                    <List spacing=10.0>
-                                        <Text style=TextStyle::HEADING string="Branches" />
-                                        <ForEach keys={branches} view={rows} />
-                                    </List>
-                                </Card>
+                                <List spacing=10.0>
+                                    <Text style=TextStyle::HEADING string="Branches" />
+                                    <ForEach keys={branches} view={rows} />
+                                </List>
+                            </Card>
                         </Show>
                         <Card>
                             <List spacing=10.0>

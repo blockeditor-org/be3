@@ -119,119 +119,117 @@ pub fn DateTimePicker(
         }
     });
     view! {
-        <LayoutBuilder>
-            |size: ReadSignal<Vec2>| {
-                let width = create_memo(move || size.get().x);
-                let field = Field {
-                    current,
-                    report,
-                    parts,
-                    hour_cycle,
-                    label,
-                    disabled,
-                    segment,
-                    literal,
-                    segments,
-                    frame: field,
-                };
-                let (open, set_open) = create_signal(false);
-                let (from_field, set_from_field) = create_signal(false);
-                let (inner_focus, set_inner_focus) = create_signal(None::<DateSegment>);
-                let (outer_focus, set_outer_focus) = create_signal(None::<DateSegment>);
-                let (last_inner, set_last_inner) = create_signal(None::<DateSegment>);
-                let (outer_segment, set_outer_segment) = create_signal(None::<DateSegment>);
-                let first = match parts.has_date() {
-                    true => DateSegment::Year,
-                    false => DateSegment::Hour,
-                };
-                let open_at = Callback::new(
-                    move |segment: DateSegment| {
-                        if disabled.get_untracked() {
-                            return;
-                        }
-                        set_from_field.set(true);
-                        set_inner_focus.set(Some(segment));
-                        set_open.set(true);
-                    },
-                );
-                let pressed = create_timer(move || {
-                    open_at.call(outer_segment.get_untracked().unwrap_or(first));
-                    None
-                });
-                let refocus_trigger = create_memo(move || !from_field.get());
-                let opened = move |now_open: bool| {
-                    if now_open {
+        <LayoutBuilder>|size: ReadSignal<Vec2>| {
+            let width = create_memo(move || size.get().x);
+            let field = Field {
+                current,
+                report,
+                parts,
+                hour_cycle,
+                label,
+                disabled,
+                segment,
+                literal,
+                segments,
+                frame: field,
+            };
+            let (open, set_open) = create_signal(false);
+            let (from_field, set_from_field) = create_signal(false);
+            let (inner_focus, set_inner_focus) = create_signal(None::<DateSegment>);
+            let (outer_focus, set_outer_focus) = create_signal(None::<DateSegment>);
+            let (last_inner, set_last_inner) = create_signal(None::<DateSegment>);
+            let (outer_segment, set_outer_segment) = create_signal(None::<DateSegment>);
+            let first = match parts.has_date() {
+                true => DateSegment::Year,
+                false => DateSegment::Hour,
+            };
+            let open_at = Callback::new(
+                move |segment: DateSegment| {
+                    if disabled.get_untracked() {
                         return;
                     }
-                    set_open.set(false);
-                    set_inner_focus.set(None);
-                    if from_field.get_untracked() {
-                        set_from_field.set(false);
-                        set_outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
-                    }
-                };
-                let picker_label = create_memo(move || {
-                    let what = match parts {
-                        DateTimeParts::Time => "Choose a time",
-                        DateTimeParts::Date => "Choose a date",
-                        DateTimeParts::DateTime => "Choose a date and time",
-                    };
-                    match label.get() {
-                        label if label.is_empty() => what.to_owned(),
-                        label => format!("{what} for {label}"),
-                    }
-                });
-                let anchor = NodeRef::new();
-                let popover_anchor = anchor;
-                let trigger_label = picker_label;
-                view! {
-                    <Frame @node_ref=&anchor>
-                        <FieldBox
-                            field
-                            focus={outer_focus}
-                            trigger={view! {
-                                <Popover
-                                    label={picker_label}
-                                    disabled={disabled}
-                                    open={open}
-                                    anchor=popover_anchor
-                                    placement
-                                    refocus_trigger
-                                    on_open_change={opened}
-                                    trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
-                                        popover: handle,
-                                        label: trigger_label,
-                                    })}
-                                >
-                                    |popover: PopoverHandle| <PickerPanel
-                                            popover
-                                            field={field}
-                                            width
-                                            from_field
-                                            inner_focus
-                                            set_inner_focus
-                                            set_last_inner
-                                            paged
-                                            min
-                                            max
-                                            today
-                                            panel
-                                        />
-                                </Popover>
-                            }}
-                            on_segment_focus={move |segment: Option<DateSegment>| {
-                                set_outer_segment.set(segment);
-                                if segment.is_some() {
-                                    set_outer_focus.set(None);
-                                }
-                            }}
-                            on_open={open_at}
-                            on_press={move || pressed.restart(Duration::ZERO)}
-                        />
-                    </Frame>
+                    set_from_field.set(true);
+                    set_inner_focus.set(Some(segment));
+                    set_open.set(true);
+                },
+            );
+            let pressed = create_timer(move || {
+                open_at.call(outer_segment.get_untracked().unwrap_or(first));
+                None
+            });
+            let refocus_trigger = create_memo(move || !from_field.get());
+            let opened = move |now_open: bool| {
+                if now_open {
+                    return;
                 }
+                set_open.set(false);
+                set_inner_focus.set(None);
+                if from_field.get_untracked() {
+                    set_from_field.set(false);
+                    set_outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
+                }
+            };
+            let picker_label = create_memo(move || {
+                let what = match parts {
+                    DateTimeParts::Time => "Choose a time",
+                    DateTimeParts::Date => "Choose a date",
+                    DateTimeParts::DateTime => "Choose a date and time",
+                };
+                match label.get() {
+                    label if label.is_empty() => what.to_owned(),
+                    label => format!("{what} for {label}"),
+                }
+            });
+            let anchor = NodeRef::new();
+            let popover_anchor = anchor;
+            let trigger_label = picker_label;
+            view! {
+                <Frame @node_ref=&anchor>
+                    <FieldBox
+                        field
+                        focus={outer_focus}
+                        trigger={view! {
+                            <Popover
+                                label={picker_label}
+                                disabled={disabled}
+                                open={open}
+                                anchor=popover_anchor
+                                placement
+                                refocus_trigger
+                                on_open_change={opened}
+                                trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
+                                    popover: handle,
+                                    label: trigger_label,
+                                })}
+                            >|popover: PopoverHandle|
+                                <PickerPanel
+                                    popover
+                                    field={field}
+                                    width
+                                    from_field
+                                    inner_focus
+                                    set_inner_focus
+                                    set_last_inner
+                                    paged
+                                    min
+                                    max
+                                    today
+                                    panel
+                                />
+                            </Popover>
+                        }}
+                        on_segment_focus={move |segment: Option<DateSegment>| {
+                            set_outer_segment.set(segment);
+                            if segment.is_some() {
+                                set_outer_focus.set(None);
+                            }
+                        }}
+                        on_open={open_at}
+                        on_press={move || pressed.restart(Duration::ZERO)}
+                    />
+                </Frame>
             }
-        </LayoutBuilder>
+        }</LayoutBuilder>
     }
 }
 

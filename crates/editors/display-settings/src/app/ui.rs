@@ -1,7 +1,6 @@
 use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -11,12 +10,6 @@ use super::modes::{
     LOCK_AFTER, SCREEN_OFF, Size, effective, lock_after_label, mode_label, rate_label, rates,
     saved, screen_off_label, size_label, size_of, sizes,
 };
-
-const PADDING: f32 = 20.0;
-const SECTION_SPACING: f32 = 18.0;
-const ROW_SPACING: f32 = 8.0;
-const LABEL_SPACING: f32 = 4.0;
-const COLUMN_SPACING: f32 = 12.0;
 
 type Settings = ContentProjection<DisplaySettingsContent>;
 
@@ -38,47 +31,32 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     });
     let none = create_memo(move || displays.with(Vec::is_empty));
     view! {
-        <Frame fill=ColorRole::Background>
-            <Scroll>
-                <Frame padding=PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <List spacing=ROW_SPACING>
-                            <Text style=TextStyle::HEADING string="Displays" />
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="Each display keeps its own mode. A display without one uses its preferred resolution at its fastest refresh rate."
-                            />
-                            <Show condition={none}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string="No display is connected to this session."
-                                />
-                            </Show>
-                        </List>
-                        <ScreenOffSection
-                            settings={settings}
-                            merged={merged}
-                            read_only={read_only}
-                        />
-                        <ForEach keys={ids}>
-                            |id: String| {
-                                let (displays, read_only) = (displays, read_only);
-                                view! {
-                                    <DisplaySection
-                                        id={id}
-                                        settings={settings}
-                                        root={root}
-                                        merged={merged}
-                                        displays={displays}
-                                        read_only={read_only}
-                                    />
-                                }
-                            }
-                        </ForEach>
-                    </List>
-                </Frame>
-            </Scroll>
-        </Frame>
+        <SettingsPage>
+            <ScreenOffSection
+                settings={settings}
+                root={root}
+                merged={merged}
+                read_only={read_only}
+            />
+            <Show condition={none}>
+                <SettingsSection title="Displays">
+                    <SettingsRow label="No display is connected to this session." />
+                </SettingsSection>
+            </Show>
+            <ForEach keys={ids}>|id: String| {
+                let (displays, read_only) = (displays, read_only);
+                view! {
+                    <DisplaySection
+                        id={id}
+                        settings={settings}
+                        root={root}
+                        merged={merged}
+                        displays={displays}
+                        read_only={read_only}
+                    />
+                }
+            }</ForEach>
+        </SettingsPage>
     }
 }
 
@@ -163,66 +141,78 @@ fn DisplaySection(
     let (size_off, rate_off) = (read_only, read_only);
     let picked_size = size_list;
     let picked_rate = rate_list;
+    let modified = create_memo(move || !unset.get());
+    let fastest = create_memo(move || rate_list.with(|rates| rates.first().copied()));
+    let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
     view! {
-        <List spacing=ROW_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
-                <List @sizing=ItemSize::Percent(100.0) spacing=LABEL_SPACING>
-                    <Text string={name} />
-                    <Text style=TextStyle::CAPTION string={showing} />
-                </List>
-                <ResetButton
-                    unset={unset}
-                    read_only={read_only}
-                    id={connector}
-                    on_reset={move |_: ()| set.call(None)}
-                />
-            </List>
-            <Text style=TextStyle::CAPTION string="Resolution" />
-            <Select
-                options={view! {
-                    <ForEach keys={size_list}>
-                        |size: Size| <ChoiceOption label={size_label(size)} />
-                    </ForEach>
-                }}
-                selected={size_selected}
+        <SettingsSection title={name} description={showing}>
+            <SettingsRow
                 label="Resolution"
-                disabled={size_off}
-                @test_id={resolution_id}
-                on_change={move |index: Option<usize>| {
-                    let Some(size) = index.and_then(|index| picked_size.with_untracked(|sizes| sizes.get(index).copied())) else {
-                        return;
-                    };
-                    let fastest = offered.with_untracked(|modes| rates(modes, size).first().copied());
-                    if fastest.is_some() {
-                        set.call(fastest);
-                    }
-                }}
-            />
-            <Text style=TextStyle::CAPTION string="Refresh rate" />
-            <Select
-                options={view! {
-                    <ForEach keys={rate_list}>
-                        |mode: HostDisplayMode| <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
-                    </ForEach>
-                }}
-                selected={rate_selected}
+                description="Until one is chosen, its preferred resolution at its fastest refresh rate."
+                modified={modified}
+                locked={read_only}
+                reset_test_id={format!("display-settings.{connector}.reset")}
+                on_reset={move || set.call(None)}
+            >
+                <Select
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ForEach keys={size_list}>|size: Size|
+                            <ChoiceOption label={size_label(size)} />
+                        </ForEach>
+                    }}
+                    selected={size_selected}
+                    label="Resolution"
+                    disabled={size_off}
+                    @test_id={resolution_id}
+                    on_change={move |index: Option<usize>| {
+                        let Some(size) = index.and_then(|index| picked_size.with_untracked(|sizes| sizes.get(index).copied())) else {
+                            return;
+                        };
+                        let fastest = offered.with_untracked(|modes| rates(modes, size).first().copied());
+                        if fastest.is_some() {
+                            set.call(fastest);
+                        }
+                    }}
+                />
+            </SettingsRow>
+            <SettingsRow
                 label="Refresh rate"
-                disabled={rate_off}
-                @test_id={refresh_id}
-                on_change={move |index: Option<usize>| {
-                    let mode = index.and_then(|index| picked_rate.with_untracked(|rates| rates.get(index).copied()));
-                    if mode.is_some() {
-                        set.call(mode);
-                    }
-                }}
-            />
-        </List>
+                separated=true
+                modified={slower}
+                locked={read_only}
+                reset_test_id={format!("display-settings.{connector}.refresh.reset")}
+                on_reset={move || set.call(fastest.get_untracked())}
+            >
+                <Select
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ForEach keys={rate_list}>|mode: HostDisplayMode|
+                            <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
+                        </ForEach>
+                    }}
+                    selected={rate_selected}
+                    label="Refresh rate"
+                    disabled={rate_off}
+                    @test_id={refresh_id}
+                    on_change={move |index: Option<usize>| {
+                        let mode = index.and_then(|index| picked_rate.with_untracked(|rates| rates.get(index).copied()));
+                        if mode.is_some() {
+                            set.call(mode);
+                        }
+                    }}
+                />
+            </SettingsRow>
+        </SettingsSection>
     }
 }
 
 #[component]
 fn ScreenOffSection(
     settings: Settings,
+    root: ReadSignal<DisplaySettings>,
     merged: Memo<DisplaySettings>,
     read_only: Memo<bool>,
 ) -> NodeId {
@@ -235,61 +225,64 @@ fn ScreenOffSection(
         LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
     let lock_off = read_only;
+    let screen_off_set = create_memo(move || root.get().screen_off.is_some());
+    let lock_set = create_memo(move || root.get().lock_after.is_some());
     view! {
-        <List spacing=ROW_SPACING>
-            <Text style=TextStyle::CAPTION string="Turn off screens after" />
-            <Select
-                options={view! {
-                    <ForEach keys={SCREEN_OFF.to_vec()}>
-                        |screen_off: ScreenOff| <ChoiceOption label={screen_off_label(screen_off)} />
-                    </ForEach>
-                }}
-                selected={selected}
+        <SettingsSection title="Power and lock">
+            <SettingsRow
                 label="Turn off screens after"
-                disabled={read_only}
-                @test_id={"display-settings.screen-off"}
-                on_change={move |index: Option<usize>| {
-                    if let Some(screen_off) = index.and_then(|index| SCREEN_OFF.get(index)) {
-                        settings.operate(DisplaySettings::set_screen_off(Some(*screen_off)));
-                    }
-                }}
-            />
-            <Text style=TextStyle::CAPTION string="Lock the screen after" />
-            <Select
-                options={view! {
-                    <ForEach keys={LOCK_AFTER.to_vec()}>
-                        |lock_after: LockAfter| <ChoiceOption label={lock_after_label(lock_after)} />
-                    </ForEach>
-                }}
-                selected={locks}
+                description="How long the session can go without input before every screen goes dark."
+                modified={screen_off_set}
+                locked={read_only}
+                reset_test_id="display-settings.screen-off.reset"
+                on_reset={move || settings.operate(DisplaySettings::set_screen_off(None))}
+            >
+                <Select
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ForEach keys={SCREEN_OFF.to_vec()}>|screen_off: ScreenOff|
+                            <ChoiceOption label={screen_off_label(screen_off)} />
+                        </ForEach>
+                    }}
+                    selected={selected}
+                    label="Turn off screens after"
+                    disabled={read_only}
+                    @test_id={"display-settings.screen-off"}
+                    on_change={move |index: Option<usize>| {
+                        if let Some(screen_off) = index.and_then(|index| SCREEN_OFF.get(index)) {
+                            settings.operate(DisplaySettings::set_screen_off(Some(*screen_off)));
+                        }
+                    }}
+                />
+            </SettingsRow>
+            <SettingsRow
                 label="Lock the screen after"
-                disabled={lock_off}
-                @test_id={"display-settings.lock-after"}
-                on_change={move |index: Option<usize>| {
-                    if let Some(lock_after) = index.and_then(|index| LOCK_AFTER.get(index)) {
-                        settings.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
-                    }
-                }}
-            />
-        </List>
-    }
-}
-
-#[component]
-fn ResetButton(
-    unset: Memo<bool>,
-    read_only: Memo<bool>,
-    id: String,
-    on_reset: Callback<()>,
-) -> NodeId {
-    let disabled = create_memo(move || unset.get() || read_only.get());
-    view! {
-        <IconButton
-            glyph={ICON_RESET_SETTINGS.to_owned()}
-            label="Use the default"
-            disabled={disabled}
-            @test_id={format!("display-settings.{id}.reset")}
-            on_click={move || on_reset.call(())}
-        />
+                separated=true
+                modified={lock_set}
+                locked={read_only}
+                reset_test_id="display-settings.lock-after.reset"
+                on_reset={move || settings.operate(DisplaySettings::set_lock_after(None))}
+            >
+                <Select
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
+                    options={view! {
+                        <ForEach keys={LOCK_AFTER.to_vec()}>|lock_after: LockAfter|
+                            <ChoiceOption label={lock_after_label(lock_after)} />
+                        </ForEach>
+                    }}
+                    selected={locks}
+                    label="Lock the screen after"
+                    disabled={lock_off}
+                    @test_id={"display-settings.lock-after"}
+                    on_change={move |index: Option<usize>| {
+                        if let Some(lock_after) = index.and_then(|index| LOCK_AFTER.get(index)) {
+                            settings.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
+                        }
+                    }}
+                />
+            </SettingsRow>
+        </SettingsSection>
     }
 }

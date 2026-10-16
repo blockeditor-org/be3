@@ -40,8 +40,8 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             width=NOTIFICATIONS_WIDTH
             @test_id={"desktop.notifications"}
             on_open_change={move |open: bool| notifications.browse(open)}
-        >
-            |handle: PopoverHandle| <NotificationList notifications={notifications} listed={listed} popover={handle} />
+        >|handle: PopoverHandle|
+            <NotificationList notifications={notifications} listed={listed} popover={handle} />
         </BarPopup>
     }
 }
@@ -94,8 +94,8 @@ fn NotificationRows(
 ) -> NodeId {
     view! {
         <Scroll max_length=LIST_HEIGHT>
-            <ForEach keys={listed}>
-                |shown: Listed| <NotificationRow notifications={notifications} shown popover={popover} />
+            <ForEach keys={listed}>|shown: Listed|
+                <NotificationRow notifications={notifications} shown popover={popover} />
             </ForEach>
         </Scroll>
     }

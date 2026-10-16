@@ -151,34 +151,32 @@ fn PageCanvas(
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                     <Frame fill={ColorRole::Custom(PAGE_FILL)} />
                 </CanvasItem>
-                <ForEach keys={keys}>
-                    |index: usize| {
-                        let tile = create_memo(move || {
-                            shown.with(|shown| shown.tiles.get(index).cloned())
-                        });
-                        let x = create_memo(move || {
-                            tile.get().map_or(0.0, |(rect, _)| rect.min.x)
-                        });
-                        let y = create_memo(move || {
-                            tile.get().map_or(0.0, |(rect, _)| rect.min.y)
-                        });
-                        let width = create_memo(move || {
-                            tile.get().map_or(0.0, |(rect, _)| rect.width())
-                        });
-                        let height = create_memo(move || {
-                            tile.get().map_or(0.0, |(rect, _)| rect.height())
-                        });
-                        let image = create_memo(move || {
-                            tile.get().map(|(_, image)| image)
-                        });
-                        let test_id = format!("pdf.tile.{index}");
-                        view! {
-                            <CanvasItem x={x} y={y} width={width} height={height}>
-                                <Picture image={image} fit=ImageFit::Fill @test_id={test_id} />
-                            </CanvasItem>
-                        }
+                <ForEach keys={keys}>|index: usize| {
+                    let tile = create_memo(move || {
+                        shown.with(|shown| shown.tiles.get(index).cloned())
+                    });
+                    let x = create_memo(move || {
+                        tile.get().map_or(0.0, |(rect, _)| rect.min.x)
+                    });
+                    let y = create_memo(move || {
+                        tile.get().map_or(0.0, |(rect, _)| rect.min.y)
+                    });
+                    let width = create_memo(move || {
+                        tile.get().map_or(0.0, |(rect, _)| rect.width())
+                    });
+                    let height = create_memo(move || {
+                        tile.get().map_or(0.0, |(rect, _)| rect.height())
+                    });
+                    let image = create_memo(move || {
+                        tile.get().map(|(_, image)| image)
+                    });
+                    let test_id = format!("pdf.tile.{index}");
+                    view! {
+                        <CanvasItem x={x} y={y} width={width} height={height}>
+                            <Picture image={image} fit=ImageFit::Fill @test_id={test_id} />
+                        </CanvasItem>
                     }
-                </ForEach>
+                }</ForEach>
             </Canvas>
             <Show condition={failed}>
                 <Text

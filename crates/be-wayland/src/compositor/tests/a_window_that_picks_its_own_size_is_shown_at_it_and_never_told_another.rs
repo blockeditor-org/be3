@@ -5,25 +5,23 @@ fn Floating(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     view! {
         <List spacing=0.0>
-            <ForEach keys={ids}>
-                |id: WindowId| {
-                    let list = windows.list();
-                    let size = create_memo(move || {
-                        list.with(|list| {
-                            list.iter()
-                                .find(|info| info.id == id)
-                                .map_or(Vec2::ZERO, |info| info.size)
-                        })
-                    });
-                    let width = create_memo(move || Some(size.get().x));
-                    let height = create_memo(move || Some(size.get().y));
-                    view! {
-                        <Frame width=width height=height>
-                            <WindowView windows id />
-                        </Frame>
-                    }
+            <ForEach keys={ids}>|id: WindowId| {
+                let list = windows.list();
+                let size = create_memo(move || {
+                    list.with(|list| {
+                        list.iter()
+                            .find(|info| info.id == id)
+                            .map_or(Vec2::ZERO, |info| info.size)
+                    })
+                });
+                let width = create_memo(move || Some(size.get().x));
+                let height = create_memo(move || Some(size.get().y));
+                view! {
+                    <Frame width=width height=height>
+                        <WindowView windows id />
+                    </Frame>
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }

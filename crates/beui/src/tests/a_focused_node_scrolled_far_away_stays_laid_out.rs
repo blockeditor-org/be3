@@ -17,10 +17,10 @@ fn a_focused_node_scrolled_far_away_stays_laid_out() {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <List spacing=0.0>
-                            <ForEach keys={indices(ROWS)}>
-                                |index: usize| <Frame @node_ref={&rows[index]} height=ROW_HEIGHT>
-                                        <LabelledButton label={format!("Row {index}")} />
-                                    </Frame>
+                            <ForEach keys={indices(ROWS)}>|index: usize|
+                                <Frame @node_ref={&rows[index]} height=ROW_HEIGHT>
+                                    <LabelledButton label={format!("Row {index}")} />
+                                </Frame>
                             </ForEach>
                         </List>
                     </Offset>

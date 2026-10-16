@@ -16,8 +16,8 @@ fn a_for_each_places_the_items_of_a_canvas() {
                         <Text string="add" />
                     </Button>
                     <Canvas @sizing=ItemSize::Percent(100.0) @node_ref=&canvas>
-                        <ForEach keys={keys}>
-                            |index: u32| <CanvasItem x={index as f32 * 100.0} y=0.0 width=20.0 height=10.0 />
+                        <ForEach keys={keys}>|index: u32|
+                            <CanvasItem x={index as f32 * 100.0} y=0.0 width=20.0 height=10.0 />
                         </ForEach>
                     </Canvas>
                 </List>

@@ -22,8 +22,8 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
                         >
                             <Frame height=100.0 />
                         </Interactive>
-                        <ForEach keys={indices(20)}>
-                            |_: usize| <Frame height=100.0 />
+                        <ForEach keys={indices(20)}>|_: usize|
+                            <Frame height=100.0 />
                         </ForEach>
                     </Scroll>
                 </List>

@@ -233,12 +233,10 @@ than values:
 
 ```rust
 <List spacing=8.0>
-    <ForEach keys={visible}>
-        {move |id: Uuid| {
-            let item = items.get(&id);
-            view! { <ItemRow item /> }
-        }}
-    </ForEach>
+    <ForEach keys={visible}>|id: Uuid| {
+        let item = items.get(&id);
+        view! { <ItemRow item /> }
+    }</ForEach>
 </List>
 ```
 
@@ -659,25 +657,31 @@ a component has at most one, and a component with both keeps `children`.
 #[component]
 fn Checkbox(label: Prop<String>, checked: Prop<bool>) -> NodeId {
     view! {
-        <Toggle checked>
-            {move |handle| view! { <CheckboxFace handle label /> }}
+        <Toggle checked>|handle|
+            <CheckboxFace handle label />
         </Toggle>
     }
 }
 ```
 
 A slot that hands something over — `toggle`'s `content` above, `for_each`'s
-`view`, `container`'s `content` — takes one closure as its only child, and that
-closure receives the handle, its type inferred from the slot. `let:name` on the
-tag is the shorter way to write that closure: the tags between it and its
-closing tag become the closure's body, with the handle bound to `name` (any
-pattern, `_` included), so `<Container let:size><Card size /></Container>` is
-`<Container>{move |size| view! { <Card size /> }}</Container>`. A slot whose
-handle is `()`, like `show`'s `then`, takes tags without `let:`: `view!` wraps
-them in the closure itself, so they stay unbuilt until the component asks for
-them. A `RenderFn` slot, like `Show`'s,
-may run that closure more than once, so the block clones what it hands on
-rather than moving it: `{move || { let a = a.clone(); view! { ... } }}`.
+`view`, `container`'s `content`, `dynamic`'s and `keyed`'s `view` — names the
+value right after the opening tag, the way a closure names its argument:
+`<Container>|size| <Card size /></Container>`. Everything up to the closing tag
+is the closure's body, which `view!` builds each time the component calls it.
+The value's type comes from the slot, and may be written out (`|key: Uuid|`);
+the closure is always `move`. When the body needs statements before its tags,
+it is a block instead, the only thing before the closing tag:
+`<Container>|size| { let narrow = narrower_than(W); view! { <Card narrow /> } }</Container>`.
+
+A slot whose value is `()`, like `show`'s `then`, takes its tags as they are:
+`view!` wraps them in the closure itself, so they stay unbuilt until the
+component asks for them, and naming a value there is a compile error. Its
+block form is `|| { ... }`. A `RenderFn` slot, like `Show`'s or `ForEach`'s,
+may run that closure more than once, so the body clones what it hands on
+rather than moving it: `<Show condition>|| { let a = a.clone(); view! { ... } }</Show>`.
+A closure written in braces between the tags, `{move |x| ...}`, is a compile
+error pointing at this form.
 
 ```rust
 <Show condition={tab.memo(0)}><ListControls rows={list_rows.clone()} /></Show>
@@ -754,7 +758,9 @@ need the value itself rather than a boolean, like a panel whose fields come from
 the kind of thing it is inspecting.
 
 ```rust
-<Dynamic value={shape}>{move |shape: Shape| view! { <ShapeFields shape /> }}</Dynamic>
+<Dynamic value={shape}>|shape: Shape|
+    <ShapeFields shape />
+</Dynamic>
 ```
 
 `dynamic` rebuilds on every change of its value, which is right when the value
@@ -764,8 +770,8 @@ the two: it rebuilds when its `key` changes and hands its `view` a
 while the branch itself stays put.
 
 ```rust
-<Keyed value={state} key={|state: State| state.shape()}>
-    {|state: ReadSignal<State>| view! { <Screen state /> }}
+<Keyed value={state} key={|state: State| state.shape()}>|state: ReadSignal<State>|
+    <Screen state />
 </Keyed>
 ```
 
@@ -794,7 +800,7 @@ one child per row without saying so.
 
 ```rust
 <ForEach spacing=0.0 keys>
-    {move |key: Uuid| view! { <ItemRow @sizing={row_size(key)} key /> }}
+    |key: Uuid| <ItemRow @sizing={row_size(key)} key />
 </ForEach>
 ```
 
@@ -865,7 +871,7 @@ children as a `Children<T>` prop would:
 #[component]
 fn Page(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
     view! {
-        <Container let:_size>
+        <Container>|_size|
             <List spacing=0.0 children={sections.call(())} />
         </Container>
     }

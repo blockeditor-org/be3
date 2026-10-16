@@ -197,22 +197,20 @@ pub fn TextInput(
                     true => ItemSize::Intrinsic,
                     false => ItemSize::Percent(100.0),
                 }}
-            >
-                |open: Callback<Option<Rect>>| {
-                    opener.with(|opener| opener.set(Some(open)));
-                    match content {
-                        Some(build) => build.call(TextInputHandle {
-                            field,
-                            hovered,
-                            focused: handle_focused,
-                            disabled: field_disabled,
-                            empty,
-                            clear,
-                        }),
-                        None => field,
-                    }
+            >|open: Callback<Option<Rect>>| {
+                opener.with(|opener| opener.set(Some(open)));
+                match content {
+                    Some(build) => build.call(TextInputHandle {
+                        field,
+                        hovered,
+                        focused: handle_focused,
+                        disabled: field_disabled,
+                        empty,
+                        clear,
+                    }),
+                    None => field,
                 }
-            </TextContextMenu>
+            }</TextContextMenu>
         }
     };
     let surround = store(RefCell::new(Some(surround)));

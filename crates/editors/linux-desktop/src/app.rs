@@ -54,8 +54,8 @@ fn DesktopShell(editor: Editor) -> NodeId {
     let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
         <Loaded loaded={loaded} label="Loading the desktop">
-            <Container>
-                |_| <DesktopBody workspace />
+            <Container>|_|
+                <DesktopBody workspace />
             </Container>
         </Loaded>
     }
@@ -98,17 +98,17 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     layout
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
-                    <ForEach keys={block_tabs}>
-                        |tab: TabId| <BlockWindow workspace tab />
+                    <ForEach keys={block_tabs}>|tab: TabId|
+                        <BlockWindow workspace tab />
                     </ForEach>
-                    <ForEach keys={desk}>
-                        |key: HostWindowId| <FloatingWindow workspace key placeholder />
+                    <ForEach keys={desk}>|key: HostWindowId|
+                        <FloatingWindow workspace key placeholder />
                     </ForEach>
-                    <ForEach keys={dialog_windows}>
-                        |(window, parent): (HostWindowId, HostWindowId)| <AttachedWindow workspace window parent />
+                    <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
+                        <AttachedWindow workspace window parent />
                     </ForEach>
-                    <ForEach keys={panels}>
-                        |panel: HostPanel| <PanelWindow workspace panel />
+                    <ForEach keys={panels}>|panel: HostPanel|
+                        <PanelWindow workspace panel />
                     </ForEach>
                 </Docking>
                 <DesktopBar

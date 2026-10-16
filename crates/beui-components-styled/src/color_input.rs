@@ -54,19 +54,19 @@ pub fn ColorInput(
                 trigger={move |handle: PopoverTriggerHandle| view! {
                     <SwatchTrigger handle color={shown} label={picker_label} />
                 }}
-            >
-                |popover: PopoverHandle| <PopoverPanel>
-                        <ColorPicker
-                            value={current}
-                            alpha
-                            focused={popover.open}
-                            on_change={report}
-                            on_preview={move |preview: Option<Color32>| {
-                                set_previewed.set(preview);
-                                on_preview.call(preview);
-                            }}
-                        />
-                    </PopoverPanel>
+            >|popover: PopoverHandle|
+                <PopoverPanel>
+                    <ColorPicker
+                        value={current}
+                        alpha
+                        focused={popover.open}
+                        on_change={report}
+                        on_preview={move |preview: Option<Color32>| {
+                            set_previewed.set(preview);
+                            on_preview.call(preview);
+                        }}
+                    />
+                </PopoverPanel>
             </unstyled::Popover>
             <TextInput
                 @sizing=ItemSize::Percent(100.0)

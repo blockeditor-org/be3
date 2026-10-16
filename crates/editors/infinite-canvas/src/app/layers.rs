@@ -35,8 +35,8 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION string="Nothing on the canvas yet." wrap=true />
                 </Show>
-                <ForEach keys={ids}>
-                    |id: Uuid| <LayerRow state id />
+                <ForEach keys={ids}>|id: Uuid|
+                    <LayerRow state id />
                 </ForEach>
             </List>
         </Accordion>
@@ -85,45 +85,43 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
         }
     };
     view! {
-        <DropTarget on_drop={dropped}>
-            |handle: DropHandle| {
-                let fill = create_memo(move || match selected.get() {
-                    true => theme.accent_soft.get(),
-                    false => Color32::TRANSPARENT,
-                });
-                view! {
-                    <Frame
-                        fill={ColorRole::custom(fill)}
-                        radius={Radius::custom(ROW_RADIUS)}
-                        border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent).width(1.0)))}
-                    >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                            <IconButton
-                                glyph={glyph}
-                                label={toggle_label}
-                                size=IconButtonSize::Compact
-                                variant=ButtonVariant::Ghost
-                                capture_presses=true
-                                @test_id={format!("infinite-canvas.layer.{id}.visibility")}
-                                on_click={toggle}
-                            />
-                            <Draggable
-                                @sizing=ItemSize::Percent(100.0)
-                                payload={Some(Layer(id))}
-                                cursor=CursorIcon::PointingHand
-                                preview={ghost}
-                                on_click={select}
-                                @test_id={format!("infinite-canvas.layer.{id}")}
-                            >
-                                |_: DragHandle| <Frame padding={Sides::vertical(ROW_PADDING)}>
-                                        <Text string={label} color={text} />
-                                    </Frame>
-                            </Draggable>
-                        </List>
-                    </Frame>
-                }
+        <DropTarget on_drop={dropped}>|handle: DropHandle| {
+            let fill = create_memo(move || match selected.get() {
+                true => theme.accent_soft.get(),
+                false => Color32::TRANSPARENT,
+            });
+            view! {
+                <Frame
+                    fill={ColorRole::custom(fill)}
+                    radius={Radius::custom(ROW_RADIUS)}
+                    border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent).width(1.0)))}
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                        <IconButton
+                            glyph={glyph}
+                            label={toggle_label}
+                            size=IconButtonSize::Compact
+                            variant=ButtonVariant::Ghost
+                            capture_presses=true
+                            @test_id={format!("infinite-canvas.layer.{id}.visibility")}
+                            on_click={toggle}
+                        />
+                        <Draggable
+                            @sizing=ItemSize::Percent(100.0)
+                            payload={Some(Layer(id))}
+                            cursor=CursorIcon::PointingHand
+                            preview={ghost}
+                            on_click={select}
+                            @test_id={format!("infinite-canvas.layer.{id}")}
+                        >|_: DragHandle|
+                            <Frame padding={Sides::vertical(ROW_PADDING)}>
+                                <Text string={label} color={text} />
+                            </Frame>
+                        </Draggable>
+                    </List>
+                </Frame>
             }
-        </DropTarget>
+        }</DropTarget>
     }
 }
 

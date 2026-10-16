@@ -31,8 +31,8 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
                     row_test_id={|key: usize| format!("tree.{key}")}
                     on_select={move |key: usize| set_chosen.update(|chosen| chosen.push(key))}
                     on_expand={move |(_, open): (usize, bool)| set_expanded.set(open)}
-                >
-                    |row: TreeRowFace<usize>| <Text string={format!("row {}", row.key)} />
+                >|row: TreeRowFace<usize>|
+                    <Text string={format!("row {}", row.key)} />
                 </Tree>
             }
         }

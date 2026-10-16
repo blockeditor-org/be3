@@ -74,34 +74,29 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=0.0>
-                <Dynamic value={shown}>
-                    |panel: HostPanel| {
-                        let debug = debug;
-                        match panel {
-                            HostPanel::BlockStack => {
-                                let client = create_memo(move || debug.get().client);
-                                view! {
-                                    <ClientPanel @sizing=ItemSize::Percent(100.0) client />
-                                }
+                <Dynamic value={shown}>|panel: HostPanel| {
+                    let debug = debug;
+                    match panel {
+                        HostPanel::BlockStack => {
+                            let client = create_memo(move || debug.get().client);
+                            view! {
+                                <ClientPanel @sizing=ItemSize::Percent(100.0) client />
                             }
-                            HostPanel::Performance => {
-                                let performance = create_memo(move || debug.get().performance);
-                                view! {
-                                    <PerformancePanel
-                                        @sizing=ItemSize::Percent(100.0)
-                                        performance
-                                    />
-                                }
+                        }
+                        HostPanel::Performance => {
+                            let performance = create_memo(move || debug.get().performance);
+                            view! {
+                                <PerformancePanel @sizing=ItemSize::Percent(100.0) performance />
                             }
-                            HostPanel::Plugins => {
-                                let plugins = create_memo(move || debug.get().plugins);
-                                view! {
-                                    <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
-                                }
+                        }
+                        HostPanel::Plugins => {
+                            let plugins = create_memo(move || debug.get().plugins);
+                            view! {
+                                <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
                             }
                         }
                     }
-                </Dynamic>
+                }</Dynamic>
             </List>
         </Frame>
     }
@@ -120,15 +115,13 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     view! {
         <Scroll>
-            <VirtualList keys={keys} item_size=LINE_HEIGHT>
-                |index: ReadSignal<usize>| {
-                    let lines = lines;
-                    let line = create_memo(move || lines.with(|lines| lines.get(index.get()).cloned()));
-                    view! {
-                        <LineView line />
-                    }
+            <VirtualList keys={keys} item_size=LINE_HEIGHT>|index: ReadSignal<usize>| {
+                let lines = lines;
+                let line = create_memo(move || lines.with(|lines| lines.get(index.get()).cloned()));
+                view! {
+                    <LineView line />
                 }
-            </VirtualList>
+            }</VirtualList>
         </Scroll>
     }
 }
@@ -196,15 +189,13 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
                         peak: "Peak".to_owned(),
                     }))}
                 />
-                <ForEach keys={keys}>
-                    |index: usize| {
-                        let rows = rows;
-                        let row = create_memo(move || rows.get().get(index).cloned());
-                        view! {
-                            <PerformanceLine row />
-                        }
+                <ForEach keys={keys}>|index: usize| {
+                    let rows = rows;
+                    let row = create_memo(move || rows.get().get(index).cloned());
+                    view! {
+                        <PerformanceLine row />
                     }
-                </ForEach>
+                }</ForEach>
             </Scroll>
         </Frame>
     }
@@ -283,31 +274,27 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
     view! {
         <Frame padding=PANEL_PADDING>
             <Scroll>
-                <ForEach keys={line_keys}>
-                    |index: usize| {
-                        let lines = lines;
-                        let line = create_memo(move || lines.get().get(index).cloned());
-                        view! {
-                            <LineView line />
-                        }
+                <ForEach keys={line_keys}>|index: usize| {
+                    let lines = lines;
+                    let line = create_memo(move || lines.get().get(index).cloned());
+                    view! {
+                        <LineView line />
                     }
-                </ForEach>
+                }</ForEach>
                 <Text style=TextStyle::HEADING string={running} />
                 <Show condition={idle}>
                     <Text style=TextStyle::CAPTION string="no editor plugins are running" />
                 </Show>
-                <ForEach keys={runtime_keys}>
-                    |id: String| {
-                        let runtimes = runtimes;
-                        let key = id.clone();
-                        let runtime = create_memo(move || {
-                            runtimes.get().into_iter().find(|runtime| runtime.id == key)
-                        });
-                        view! {
-                            <RuntimeBlock id runtime />
-                        }
+                <ForEach keys={runtime_keys}>|id: String| {
+                    let runtimes = runtimes;
+                    let key = id.clone();
+                    let runtime = create_memo(move || {
+                        runtimes.get().into_iter().find(|runtime| runtime.id == key)
+                    });
+                    view! {
+                        <RuntimeBlock id runtime />
                     }
-                </ForEach>
+                }</ForEach>
             </Scroll>
         </Frame>
     }
@@ -353,15 +340,13 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                         on_click={move || debug(DebugCommand::CrashPlugin(crash.clone()))}
                     />
                 </List>
-                <ForEach keys={keys}>
-                    |index: usize| {
-                        let lines = lines;
-                        let line = create_memo(move || lines.get().get(index).cloned());
-                        view! {
-                            <LineView line />
-                        }
+                <ForEach keys={keys}>|index: usize| {
+                    let lines = lines;
+                    let line = create_memo(move || lines.get().get(index).cloned());
+                    view! {
+                        <LineView line />
                     }
-                </ForEach>
+                }</ForEach>
             </List>
         </Frame>
     }

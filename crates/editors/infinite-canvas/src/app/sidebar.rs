@@ -111,15 +111,15 @@ fn Inspector(state: CanvasState) -> NodeId {
             </Show>
             <Show condition={chosen}>
                 <List spacing=SPACING>
-                        <Show condition={styled}>
-                            <AppearanceSection state={state} />
-                        </Show>
-                        <TransformSection state={state} />
-                        <ArrangeSection state={state} />
-                        <ArtboardSection state={state} />
-                        <BlockSection state={state} />
-                        <CanvasComponents state={state} />
-                    </List>
+                    <Show condition={styled}>
+                        <AppearanceSection state={state} />
+                    </Show>
+                    <TransformSection state={state} />
+                    <ArrangeSection state={state} />
+                    <ArtboardSection state={state} />
+                    <BlockSection state={state} />
+                    <CanvasComponents state={state} />
+                </List>
             </Show>
             <LayersSection state={state} />
             <Show condition={roomy}>
@@ -166,29 +166,25 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion
-                        title="Artboard"
-                        open={open}
-                        on_toggle={move |open| set_open.set(open)}
-                    >
-                        <List spacing=6.0>
-                            <TextInput
-                                label="Name"
-                                value={name}
-                                disabled={locked}
-                                @test_id={"infinite-canvas.artboard.name"}
-                                on_change={renamed}
+                <Accordion title="Artboard" open={open} on_toggle={move |open| set_open.set(open)}>
+                    <List spacing=6.0>
+                        <TextInput
+                            label="Name"
+                            value={name}
+                            disabled={locked}
+                            @test_id={"infinite-canvas.artboard.name"}
+                            on_change={renamed}
+                        />
+                        <Show condition={first}>
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="The first artboard is what other editors show when they embed this canvas."
+                                wrap=true
                             />
-                            <Show condition={first}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string="The first artboard is what other editors show when they embed this canvas."
-                                    wrap=true
-                                />
-                            </Show>
-                            <ArtboardBackground artboard={artboard} locked={locked} state={state} />
-                        </List>
-                    </Accordion>
+                        </Show>
+                        <ArtboardBackground artboard={artboard} locked={locked} state={state} />
+                    </List>
+                </Accordion>
             </Show>
         </List>
     }
@@ -265,20 +261,18 @@ fn ArtboardBackground(
                     @test_id={"infinite-canvas.background.theme"}
                     on_change={move |_: bool| set(None)}
                 />
-                <ForEach keys={(0..count).collect::<Vec<usize>>()}>
-                    |index: usize| {
-                        let (name, color) = swatches[index];
-                        view! {
-                            <Swatch
-                                kind="background"
-                                name
-                                color
-                                value
-                                on_pick={move |color| set(Some(color))}
-                            />
-                        }
+                <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                    let (name, color) = swatches[index];
+                    view! {
+                        <Swatch
+                            kind="background"
+                            name
+                            color
+                            value
+                            on_pick={move |color| set(Some(color))}
+                        />
                     }
-                </ForEach>
+                }</ForEach>
             </List>
             <ColorInput
                 label="Background color"
@@ -500,19 +494,19 @@ fn BlockSection(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
-                        <List spacing=6.0>
-                            <Button
-                                label={label}
-                                variant=ButtonVariant::Secondary
-                                disabled={unavailable}
-                                @test_id={"infinite-canvas.block-mode"}
-                                on_click={toggled}
-                            />
-                            <Show condition={direct}>
-                                <EditorScale state={state} />
-                            </Show>
-                        </List>
-                    </Accordion>
+                    <List spacing=6.0>
+                        <Button
+                            label={label}
+                            variant=ButtonVariant::Secondary
+                            disabled={unavailable}
+                            @test_id={"infinite-canvas.block-mode"}
+                            on_click={toggled}
+                        />
+                        <Show condition={direct}>
+                            <EditorScale state={state} />
+                        </Show>
+                    </List>
+                </Accordion>
             </Show>
         </List>
     }
@@ -596,20 +590,18 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
         <Accordion title="Arrange" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
-                    <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>
-                        |index: usize| {
-                            let (label, alignment) = ALIGNMENTS[index];
-                            view! {
-                                <Button
-                                    label={label}
-                                    variant=ButtonVariant::Secondary
-                                    disabled={cannot_align}
-                                    @test_id={format!("infinite-canvas.align.{label}")}
-                                    on_click={move || state.align_selection(alignment)}
-                                />
-                            }
+                    <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                        let (label, alignment) = ALIGNMENTS[index];
+                        view! {
+                            <Button
+                                label={label}
+                                variant=ButtonVariant::Secondary
+                                disabled={cannot_align}
+                                @test_id={format!("infinite-canvas.align.{label}")}
+                                on_click={move || state.align_selection(alignment)}
+                            />
                         }
-                    </ForEach>
+                    }</ForEach>
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                     <Button
@@ -628,23 +620,21 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                     />
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
-                    <ForEach keys={(0..LAYERS.len()).collect::<Vec<usize>>()}>
-                        |index: usize| {
-                            let (label, movement) = LAYERS[index];
-                            let blocked = create_memo(move || {
-                                !state.can_reorder(movement)
-                            });
-                            view! {
-                                <Button
-                                    label={label}
-                                    variant=ButtonVariant::Secondary
-                                    disabled={blocked}
-                                    @test_id={format!("infinite-canvas.layer.{label}")}
-                                    on_click={move || state.reorder(movement)}
-                                />
-                            }
+                    <ForEach keys={(0..LAYERS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                        let (label, movement) = LAYERS[index];
+                        let blocked = create_memo(move || {
+                            !state.can_reorder(movement)
+                        });
+                        view! {
+                            <Button
+                                label={label}
+                                variant=ButtonVariant::Secondary
+                                disabled={blocked}
+                                @test_id={format!("infinite-canvas.layer.{label}")}
+                                on_click={move || state.reorder(movement)}
+                            />
                         }
-                    </ForEach>
+                    }</ForEach>
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                     <Button
@@ -740,14 +730,14 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
-                        <Text style=TextStyle::CAPTION string="Color" />
-                        <ColorInput
-                            label="Custom color"
-                            value={custom}
-                            @test_id={"infinite-canvas.color"}
-                            on_change={typed}
-                        />
-                    </List>
+                    <Text style=TextStyle::CAPTION string="Color" />
+                    <ColorInput
+                        label="Custom color"
+                        value={custom}
+                        @test_id={"infinite-canvas.color"}
+                        on_change={typed}
+                    />
+                </List>
             </Show>
         </List>
     }
@@ -806,16 +796,16 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=4.0>
-                        <MixedLabel label="Line width" mixed={mixed} />
-                        <Slider
-                            label="Line width"
-                            min=0.5
-                            max=20.0
-                            value={width}
-                            @test_id={"infinite-canvas.line-width"}
-                            on_change={changed}
-                        />
-                    </List>
+                    <MixedLabel label="Line width" mixed={mixed} />
+                    <Slider
+                        label="Line width"
+                        min=0.5
+                        max=20.0
+                        value={width}
+                        @test_id={"infinite-canvas.line-width"}
+                        on_change={changed}
+                    />
+                </List>
             </Show>
         </List>
     }
@@ -869,27 +859,27 @@ fn LineOptions(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
-                        <Separator />
-                        <Text style=TextStyle::CAPTION string="Line" />
-                        <Checkbox
-                            label="Dashed"
-                            checked={dashed}
-                            @test_id={"infinite-canvas.dashed"}
-                            on_change={dash}
-                        />
-                        <Checkbox
-                            label="Start arrow"
-                            checked={start}
-                            @test_id={"infinite-canvas.arrow-start"}
-                            on_change={arrow_start}
-                        />
-                        <Checkbox
-                            label="End arrow"
-                            checked={end}
-                            @test_id={"infinite-canvas.arrow-end"}
-                            on_change={arrow_end}
-                        />
-                    </List>
+                    <Separator />
+                    <Text style=TextStyle::CAPTION string="Line" />
+                    <Checkbox
+                        label="Dashed"
+                        checked={dashed}
+                        @test_id={"infinite-canvas.dashed"}
+                        on_change={dash}
+                    />
+                    <Checkbox
+                        label="Start arrow"
+                        checked={start}
+                        @test_id={"infinite-canvas.arrow-start"}
+                        on_change={arrow_start}
+                    />
+                    <Checkbox
+                        label="End arrow"
+                        checked={end}
+                        @test_id={"infinite-canvas.arrow-end"}
+                        on_change={arrow_end}
+                    />
+                </List>
             </Show>
         </List>
     }
@@ -954,59 +944,52 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
-                        <Separator />
-                        <Text style=TextStyle::CAPTION string="Rectangle" />
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=4.0
-                            wrap=true
-                        >
-                            <ToggleButton
-                                label="No fill"
-                                glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                                pressed={none}
-                                @test_id={"infinite-canvas.fill.none"}
-                                on_change={clearing}
-                            />
-                            <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                                |index: usize| {
-                                    let (name, color) = PRESETS[index];
-                                    let value = create_memo(move || match fill.get() {
-                                        CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
-                                        CommonValue::Uniform(None) | CommonValue::None => {
-                                            CommonValue::None
-                                        }
-                                        CommonValue::Mixed => CommonValue::Mixed,
-                                    });
-                                    view! {
-                                        <Swatch
-                                            kind="fill"
-                                            name
-                                            color
-                                            value
-                                            on_pick={move |color| set_fill(state, Some(color))}
-                                        />
-                                    }
+                    <Separator />
+                    <Text style=TextStyle::CAPTION string="Rectangle" />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                        <ToggleButton
+                            label="No fill"
+                            glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
+                            pressed={none}
+                            @test_id={"infinite-canvas.fill.none"}
+                            on_change={clearing}
+                        />
+                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                            let (name, color) = PRESETS[index];
+                            let value = create_memo(move || match fill.get() {
+                                CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
+                                CommonValue::Uniform(None) | CommonValue::None => {
+                                    CommonValue::None
                                 }
-                            </ForEach>
-                        </List>
-                        <ColorInput
-                            label="Fill color"
-                            value={custom}
-                            @test_id={"infinite-canvas.fill"}
-                            on_change={typed}
-                        />
-                        <MixedLabel label="Corner radius" mixed={mixed} />
-                        <Slider
-                            label="Corner radius"
-                            min=0.0
-                            max=100.0
-                            value={corner}
-                            @test_id={"infinite-canvas.corner-radius"}
-                            on_change={rounded}
-                        />
+                                CommonValue::Mixed => CommonValue::Mixed,
+                            });
+                            view! {
+                                <Swatch
+                                    kind="fill"
+                                    name
+                                    color
+                                    value
+                                    on_pick={move |color| set_fill(state, Some(color))}
+                                />
+                            }
+                        }</ForEach>
                     </List>
+                    <ColorInput
+                        label="Fill color"
+                        value={custom}
+                        @test_id={"infinite-canvas.fill"}
+                        on_change={typed}
+                    />
+                    <MixedLabel label="Corner radius" mixed={mixed} />
+                    <Slider
+                        label="Corner radius"
+                        min=0.0
+                        max=100.0
+                        value={corner}
+                        @test_id={"infinite-canvas.corner-radius"}
+                        on_change={rounded}
+                    />
+                </List>
             </Show>
         </List>
     }
@@ -1148,109 +1131,97 @@ fn TextOptions(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
-                        <Separator />
-                        <Text style=TextStyle::CAPTION string="Text" />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                            <Text style=TextStyle::CAPTION string="Font size" />
-                            <NumberInput
-                                @sizing=ItemSize::Percent(100.0)
-                                label="Font size"
-                                min=4.0
-                                max=256.0
-                                value={font_size}
-                                decimals={Some(2)}
-                                @test_id={"infinite-canvas.font-size"}
-                                on_change={sized}
-                            />
-                        </List>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                            <Text style=TextStyle::CAPTION string="Line height" />
-                            <NumberInput
-                                @sizing=ItemSize::Percent(100.0)
-                                label="Line height"
-                                min=0.5
-                                max=4.0
-                                value={line_height}
-                                decimals={Some(2)}
-                                drag={NumberDrag::Linear { speed: 0.05 }}
-                                @test_id={"infinite-canvas.line-height"}
-                                on_change={spaced}
-                            />
-                        </List>
-                        <Checkbox
-                            label="Bold"
-                            checked={bold}
-                            @test_id={"infinite-canvas.bold"}
-                            on_change={weighted}
-                        />
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=4.0
-                            wrap=true
-                        >
-                            <ForEach keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}>
-                                |index: usize| {
-                                    let (label, wanted) = ALIGN_OPTIONS[index];
-                                    let pressed = create_memo(move || {
-                                        alignment.get() == CommonValue::Uniform(wanted)
-                                    });
-                                    view! {
-                                        <ToggleButton
-                                            label={label}
-                                            pressed={pressed}
-                                            @test_id={format!("infinite-canvas.align-text.{label}")}
-                                            on_change={move |_: bool| {
-                                                state.update_selected_text(move |style| {
-                                                    style.alignment = wanted;
-                                                });
-                                            }}
-                                        />
-                                    }
-                                }
-                            </ForEach>
-                        </List>
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=4.0
-                            wrap=true
-                        >
-                            <ForEach
-                                keys={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
-                            >
-                                |index: usize| {
-                                    let (label, wanted) = VERTICAL_ALIGN_OPTIONS[index];
-                                    let pressed = create_memo(move || {
-                                        vertical_alignment.get() == CommonValue::Uniform(wanted)
-                                    });
-                                    view! {
-                                        <ToggleButton
-                                            label={label}
-                                            pressed={pressed}
-                                            @test_id={format!("infinite-canvas.align-text.{label}")}
-                                            on_change={move |_: bool| {
-                                                state.update_selected_text(move |style| {
-                                                    style.vertical_alignment = wanted;
-                                                });
-                                            }}
-                                        />
-                                    }
-                                }
-                            </ForEach>
-                        </List>
-                        <Checkbox
-                            label="Wrap text"
-                            checked={wrap}
-                            @test_id={"infinite-canvas.wrap"}
-                            on_change={wrapped}
-                        />
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Resize to wrap; hold Alt while resizing to scale text."
-                            wrap=true
+                    <Separator />
+                    <Text style=TextStyle::CAPTION string="Text" />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                        <Text style=TextStyle::CAPTION string="Font size" />
+                        <NumberInput
+                            @sizing=ItemSize::Percent(100.0)
+                            label="Font size"
+                            min=4.0
+                            max=256.0
+                            value={font_size}
+                            decimals={Some(2)}
+                            @test_id={"infinite-canvas.font-size"}
+                            on_change={sized}
                         />
                     </List>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                        <Text style=TextStyle::CAPTION string="Line height" />
+                        <NumberInput
+                            @sizing=ItemSize::Percent(100.0)
+                            label="Line height"
+                            min=0.5
+                            max=4.0
+                            value={line_height}
+                            decimals={Some(2)}
+                            drag={NumberDrag::Linear { speed: 0.05 }}
+                            @test_id={"infinite-canvas.line-height"}
+                            on_change={spaced}
+                        />
+                    </List>
+                    <Checkbox
+                        label="Bold"
+                        checked={bold}
+                        @test_id={"infinite-canvas.bold"}
+                        on_change={weighted}
+                    />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                        <ForEach
+                            keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
+                        >|index: usize| {
+                            let (label, wanted) = ALIGN_OPTIONS[index];
+                            let pressed = create_memo(move || {
+                                alignment.get() == CommonValue::Uniform(wanted)
+                            });
+                            view! {
+                                <ToggleButton
+                                    label={label}
+                                    pressed={pressed}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
+                                    on_change={move |_: bool| {
+                                        state.update_selected_text(move |style| {
+                                            style.alignment = wanted;
+                                        });
+                                    }}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                        <ForEach
+                            keys={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
+                        >|index: usize| {
+                            let (label, wanted) = VERTICAL_ALIGN_OPTIONS[index];
+                            let pressed = create_memo(move || {
+                                vertical_alignment.get() == CommonValue::Uniform(wanted)
+                            });
+                            view! {
+                                <ToggleButton
+                                    label={label}
+                                    pressed={pressed}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
+                                    on_change={move |_: bool| {
+                                        state.update_selected_text(move |style| {
+                                            style.vertical_alignment = wanted;
+                                        });
+                                    }}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
+                    <Checkbox
+                        label="Wrap text"
+                        checked={wrap}
+                        @test_id={"infinite-canvas.wrap"}
+                        on_change={wrapped}
+                    />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string="Resize to wrap; hold Alt while resizing to scale text."
+                        wrap=true
+                    />
+                </List>
             </Show>
         </List>
     }
@@ -1275,14 +1246,12 @@ fn ShortcutsSection() -> NodeId {
     view! {
         <Accordion title="Shortcuts" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=4.0>
-                <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>
-                    |index: usize| {
-                        let (action, keys) = SHORTCUTS[index];
-                        view! {
-                            <Shortcut keys={keys} description={action} />
-                        }
+                <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                    let (action, keys) = SHORTCUTS[index];
+                    view! {
+                        <Shortcut keys={keys} description={action} />
                     }
-                </ForEach>
+                }</ForEach>
             </List>
         </Accordion>
     }

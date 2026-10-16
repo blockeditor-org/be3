@@ -19,14 +19,12 @@ use crate::surfaces::MainSurface;
 #[component]
 pub(super) fn OrganizationScreen(view: AppViewStore) -> NodeId {
     view! {
-        <Container>
-            |_| {
-                let view = view;
-                view! {
-                    <OrganizationBody view />
-                }
+        <Container>|_| {
+            let view = view;
+            view! {
+                <OrganizationBody view />
             }
-        </Container>
+        }</Container>
     }
 }
 
@@ -168,14 +166,14 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                         on_click={|| pick(UiCommand::CloseApp)}
                     />
                 </Show>
-                <ForEach keys={HostPanel::ALL.to_vec()}>
-                    |shown: HostPanel| <MenuItem
-                            row_test_id={format!("app.menu.panel.{shown:?}")}
-                            label={shown.title().to_owned()}
-                            glyph={panel_icon(shown).to_owned()}
-                            separated={shown == HostPanel::ALL[0]}
-                            on_click={panel(shown)}
-                        />
+                <ForEach keys={HostPanel::ALL.to_vec()}>|shown: HostPanel|
+                    <MenuItem
+                        row_test_id={format!("app.menu.panel.{shown:?}")}
+                        label={shown.title().to_owned()}
+                        glyph={panel_icon(shown).to_owned()}
+                        separated={shown == HostPanel::ALL[0]}
+                        on_click={panel(shown)}
+                    />
                 </ForEach>
                 <MenuItem
                     label="Inspector"

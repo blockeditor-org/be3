@@ -15,18 +15,18 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
                 <Button on_click={move || set_rows.set(Vec::new())}>
                     <Text string="remove" />
                 </Button>
-                <ForEach keys={rows}>
-                    |row: i64| <Tooltip
-                            label="Add a root block"
-                            delay={Duration::ZERO}
-                            content={move |handle: TooltipHandle| {
-                                view! {
-                                    <Text @test_id={format!("tip.{row}")} string={handle.label} />
-                                }
-                            }}
-                        >
-                            <Text @test_id={format!("row.{row}")} string="described" />
-                        </Tooltip>
+                <ForEach keys={rows}>|row: i64|
+                    <Tooltip
+                        label="Add a root block"
+                        delay={Duration::ZERO}
+                        content={move |handle: TooltipHandle| {
+                            view! {
+                                <Text @test_id={format!("tip.{row}")} string={handle.label} />
+                            }
+                        }}
+                    >
+                        <Text @test_id={format!("row.{row}")} string="described" />
+                    </Tooltip>
                 </ForEach>
             </List>
         }

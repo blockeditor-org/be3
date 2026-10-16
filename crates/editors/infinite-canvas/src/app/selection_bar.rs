@@ -46,30 +46,28 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Show condition={colored}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                            <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                                |index: usize| {
-                                    let (name, color) = PRESETS[index];
-                                    let value = value;
-                                    view! {
-                                        <Swatch
-                                            kind="color"
-                                            name
-                                            color
-                                            value
-                                            on_pick={move |color| set_foreground(state, color)}
-                                        />
-                                    }
-                                }
-                            </ForEach>
-                        </List>
+                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                            let (name, color) = PRESETS[index];
+                            let value = value;
+                            view! {
+                                <Swatch
+                                    kind="color"
+                                    name
+                                    color
+                                    value
+                                    on_pick={move |color| set_foreground(state, color)}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
                 </Show>
                 <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
                 <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />
-                <Show condition={embedded}>
-                    || { let open = open.clone(); view! {
+                <Show condition={embedded}>|| {
+                    let open = open.clone(); view! {
                         <IconButton label="Open" @test_id={"infinite-canvas.open"} action={open} />
-                    } }
-                </Show>
+                    }
+                }</Show>
                 <Show condition={narrow}>
                     <IconButton
                         glyph={ICON_TUNE.to_owned()}

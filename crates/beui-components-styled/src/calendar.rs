@@ -106,11 +106,11 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
             >
                 <Show condition={month_shown}>
                     <HeaderToggle
-                            label={month_label}
-                            accessibility={month_toggle}
-                            open={months_open}
-                            on_click={move || show_months.call(())}
-                        />
+                        label={month_label}
+                        accessibility={month_toggle}
+                        open={months_open}
+                        on_click={move || show_months.call(())}
+                    />
                 </Show>
                 <HeaderToggle
                     label={year_label}

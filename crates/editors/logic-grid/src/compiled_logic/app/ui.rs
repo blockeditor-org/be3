@@ -107,18 +107,16 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
     let keys = create_memo(move || calls.get());
     view! {
         <List spacing=4.0>
-            <ForEach keys={keys}>
-                |called: Uuid| {
-                    let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
-                    view! {
-                        <BlockLink
-                            editor={editor}
-                            block={block}
-                            @test_id={format!("compiled-logic.call.{called}")}
-                        />
-                    }
+            <ForEach keys={keys}>|called: Uuid| {
+                let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
+                view! {
+                    <BlockLink
+                        editor={editor}
+                        block={block}
+                        @test_id={format!("compiled-logic.call.{called}")}
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -128,20 +126,18 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
     let keys = create_memo(move || (0..lines.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=2.0>
-            <ForEach keys={keys}>
-                |index: usize| {
-                    let line = create_memo(move || {
-                        lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
-                    });
-                    view! {
-                        <Text
-                            string={line}
-                            size=TextSize::Sm
-                            family={if monospace { Family::Mono } else { Family::Sans }}
-                        />
-                    }
+            <ForEach keys={keys}>|index: usize| {
+                let line = create_memo(move || {
+                    lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
+                });
+                view! {
+                    <Text
+                        string={line}
+                        size=TextSize::Sm
+                        family={if monospace { Family::Mono } else { Family::Sans }}
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }

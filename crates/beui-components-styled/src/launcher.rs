@@ -292,8 +292,8 @@ pub fn Launcher(
                                 reveal
                                 scrollbar={scrollbar_style()}
                             >
-                                <ForEach keys={rows}>
-                                    |row: Row| <LauncherRow state={state} items={items.clone()} row />
+                                <ForEach keys={rows}>|row: Row|
+                                    <LauncherRow state={state} items={items.clone()} row />
                                 </ForEach>
                             </unstyled::Scroll>
                         </List>

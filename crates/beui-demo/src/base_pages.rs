@@ -278,22 +278,20 @@ fn Tile(label: Prop<String>) -> NodeId {
 #[component]
 fn ColumnsForWidth() -> NodeId {
     view! {
-        <LayoutBuilder>
-            |size: ReadSignal<Vec2>| {
-                let wide = create_memo(move || size.get().x >= 480.0);
-                let direction = create_memo(move || match wide.get() {
-                    true => Direction::Horizontal,
-                    false => Direction::Vertical,
-                });
-                let label = create_memo(move || format!("{:.0} wide", size.get().x));
-                view! {
-                    <List direction spacing=8.0>
-                        <Tile @sizing=ItemSize::Percent(100.0) label />
-                        <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
-                    </List>
-                }
+        <LayoutBuilder>|size: ReadSignal<Vec2>| {
+            let wide = create_memo(move || size.get().x >= 480.0);
+            let direction = create_memo(move || match wide.get() {
+                true => Direction::Horizontal,
+                false => Direction::Vertical,
+            });
+            let label = create_memo(move || format!("{:.0} wide", size.get().x));
+            view! {
+                <List direction spacing=8.0>
+                    <Tile @sizing=ItemSize::Percent(100.0) label />
+                    <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
+                </List>
             }
-        </LayoutBuilder>
+        }</LayoutBuilder>
     }
 }
 
@@ -338,8 +336,8 @@ fn ListJustify() -> NodeId {
                 <Tile label="B" />
             </List>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
-                <ForEach keys={PLANETS.to_vec()}>
-                    |planet: &'static str| <Tile label={planet.to_owned()} />
+                <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
+                    <Tile label={planet.to_owned()} />
                 </ForEach>
             </List>
         </List>
@@ -417,8 +415,8 @@ fn PlanetList() -> NodeId {
                     on_click={move || set_count.update(|count| *count = (*count + 1).min(PLANETS.len()))}
                 />
             </List>
-            <ForEach keys={planets}>
-                |planet: &'static str| <Tile label={planet.to_owned()} />
+            <ForEach keys={planets}>|planet: &'static str|
+                <Tile label={planet.to_owned()} />
             </ForEach>
         </List>
     }
@@ -432,16 +430,16 @@ fn DynamicShape() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <LabelledSwitch label="Round" on={round} on_change={move |on| set_round.set(on)} />
-            <Dynamic value={round}>
-                |round: bool| { match round {
+            <Dynamic value={round}>|round: bool| {
+                match round {
                     true => view! {
                         <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                     },
                     false => view! {
                         <Text string="Rebuilt whenever its value changes" color={theme.text} />
                     },
-                } }
-            </Dynamic>
+                }
+            }</Dynamic>
         </List>
     }
 }
@@ -606,8 +604,8 @@ fn FadedStrip() -> NodeId {
         <Fade edges>
             <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
-                    <ForEach keys={PLANETS.to_vec()}>
-                        |planet: &'static str| <Tile label={planet.to_owned()} />
+                    <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
+                        <Tile label={planet.to_owned()} />
                     </ForEach>
                 </List>
             </Scroll>

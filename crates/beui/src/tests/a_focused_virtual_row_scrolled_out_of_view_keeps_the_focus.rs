@@ -15,18 +15,16 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
                             @node_ref=&list
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            |key: ReadSignal<usize>| {
-                                let label = create_memo(move || format!("Row {}", key.get()));
-                                view! {
-                                    <Interactive focusable=true>
-                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                            <Text string={label} />
-                                        </Frame>
-                                    </Interactive>
-                                }
+                        >|key: ReadSignal<usize>| {
+                            let label = create_memo(move || format!("Row {}", key.get()));
+                            view! {
+                                <Interactive focusable=true>
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                        <Text string={label} />
+                                    </Frame>
+                                </Interactive>
                             }
-                        </VirtualList>
+                        }</VirtualList>
                     </Offset>
                 </List>
             }

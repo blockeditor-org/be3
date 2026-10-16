@@ -16,8 +16,8 @@ fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
                         <Text string="shuffle" />
                     </Button>
                     <List @node_ref=&list spacing=0.0>
-                        <ForEach keys={items}>
-                            |value: i64| <Text string={value.to_string()} />
+                        <ForEach keys={items}>|value: i64|
+                            <Text string={value.to_string()} />
                         </ForEach>
                     </List>
                 </List>

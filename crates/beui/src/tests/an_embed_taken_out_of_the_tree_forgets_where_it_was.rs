@@ -11,8 +11,8 @@ fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Dynamic value={shown}>
-                    |shown: bool| { match shown {
+                <Dynamic value={shown}>|shown: bool| {
+                    match shown {
                         true => {
                             let slot = held;
                             view! {
@@ -24,8 +24,8 @@ fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
                         false => view! {
                             <Frame height=100.0 />
                         },
-                    } }
-                </Dynamic>
+                    }
+                }</Dynamic>
             </List>
         }
     });

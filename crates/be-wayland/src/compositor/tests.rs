@@ -135,26 +135,24 @@ fn Shown(windows: Windows) -> NodeId {
                         value={text}
                         on_change={move |line: String| set_text.set(line)}
                     />
-                    <ForEach keys={ids}>
-                        |id: WindowId| {
-                            let list = windows.list();
-                            let size = create_memo(move || {
-                                list.with(|list| {
-                                    list.iter()
-                                        .find(|info| info.id == id)
-                                        .and_then(|info| info.fullscreen)
-                                        .map_or(SHOWN, |area| area.size())
-                                })
-                            });
-                            let width = create_memo(move || Some(size.get().x));
-                            let height = create_memo(move || Some(size.get().y));
-                            view! {
-                                <Frame width=width height=height>
-                                    <WindowView windows id />
-                                </Frame>
-                            }
+                    <ForEach keys={ids}>|id: WindowId| {
+                        let list = windows.list();
+                        let size = create_memo(move || {
+                            list.with(|list| {
+                                list.iter()
+                                    .find(|info| info.id == id)
+                                    .and_then(|info| info.fullscreen)
+                                    .map_or(SHOWN, |area| area.size())
+                            })
+                        });
+                        let width = create_memo(move || Some(size.get().x));
+                        let height = create_memo(move || Some(size.get().y));
+                        view! {
+                            <Frame width=width height=height>
+                                <WindowView windows id />
+                            </Frame>
                         }
-                    </ForEach>
+                    }</ForEach>
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Fill

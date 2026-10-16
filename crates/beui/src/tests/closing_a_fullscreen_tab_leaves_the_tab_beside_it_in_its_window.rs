@@ -28,10 +28,10 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
                         rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
                     >
                         <DockPane id="program">
-                            <ForEach keys>
-                                |id: u64| <DockTab id title={format!("Tab {id}")}>
-                                        <Panel id />
-                                    </DockTab>
+                            <ForEach keys>|id: u64|
+                                <DockTab id title={format!("Tab {id}")}>
+                                    <Panel id />
+                                </DockTab>
                             </ForEach>
                         </DockPane>
                     </DockWindow>
@@ -86,18 +86,16 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
 #[component]
 fn Panel(id: u64) -> NodeId {
     view! {
-        <PlacementBuilder>
-            |rect: ReadSignal<Rect>| {
-                let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
-                view! {
-                    <Layers>
-                        <Frame @test_id={format!("content.{id}")} />
-                        <Overlay anchor traps_focus=false open=false>
-                            <Frame width=40.0 height=20.0 />
-                        </Overlay>
-                    </Layers>
-                }
+        <PlacementBuilder>|rect: ReadSignal<Rect>| {
+            let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
+            view! {
+                <Layers>
+                    <Frame @test_id={format!("content.{id}")} />
+                    <Overlay anchor traps_focus=false open=false>
+                        <Frame width=40.0 height=20.0 />
+                    </Overlay>
+                </Layers>
             }
-        </PlacementBuilder>
+        }</PlacementBuilder>
     }
 }

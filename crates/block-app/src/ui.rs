@@ -404,40 +404,38 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     view! {
         <Frame @node_ref=&area fill=ColorRole::Background>
             <List spacing=0.0>
-                <Dynamic value={screen}>
-                    |screen: Screen| {
-                        let view = view;
-                        match screen {
-                            Screen::Error => view! {
-                                <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Accounts => view! {
-                                <onboarding::AccountsScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Organizations => view! {
-                                <onboarding::OrganizationsScreen
-                                    @sizing=ItemSize::Percent(100.0)
-                                    view
-                                />
-                            },
-                            Screen::Recovery => view! {
-                                <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Unlock => view! {
-                                <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Sessions => view! {
-                                <onboarding::SessionsScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Organization => view! {
-                                <organization::OrganizationScreen
-                                    @sizing=ItemSize::Percent(100.0)
-                                    view
-                                />
-                            },
-                        }
+                <Dynamic value={screen}>|screen: Screen| {
+                    let view = view;
+                    match screen {
+                        Screen::Error => view! {
+                            <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />
+                        },
+                        Screen::Accounts => view! {
+                            <onboarding::AccountsScreen @sizing=ItemSize::Percent(100.0) view />
+                        },
+                        Screen::Organizations => view! {
+                            <onboarding::OrganizationsScreen
+                                @sizing=ItemSize::Percent(100.0)
+                                view
+                            />
+                        },
+                        Screen::Recovery => view! {
+                            <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
+                        },
+                        Screen::Unlock => view! {
+                            <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
+                        },
+                        Screen::Sessions => view! {
+                            <onboarding::SessionsScreen @sizing=ItemSize::Percent(100.0) view />
+                        },
+                        Screen::Organization => view! {
+                            <organization::OrganizationScreen
+                                @sizing=ItemSize::Percent(100.0)
+                                view
+                            />
+                        },
                     }
-                </Dynamic>
+                }</Dynamic>
                 <Toasts
                     anchor={area}
                     edge=Edge::TopEnd

@@ -11,10 +11,10 @@ fn dragging_again_during_overscroll_continues_from_the_band() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(40)}>
-                        |_: usize| <Frame padding={Sides::symmetric(0.0, 20.0)}>
-                                <Spacer />
-                            </Frame>
+                    <ForEach keys={indices(40)}>|_: usize|
+                        <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                            <Spacer />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </List>

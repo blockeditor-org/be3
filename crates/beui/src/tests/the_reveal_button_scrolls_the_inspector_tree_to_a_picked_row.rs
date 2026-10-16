@@ -14,8 +14,8 @@ fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <ForEach keys={indices(ROWS)}>
-                        |index: usize| <Frame @node_ref={&frames[index]} height=6.0 />
+                    <ForEach keys={indices(ROWS)}>|index: usize|
+                        <Frame @node_ref={&frames[index]} height=6.0 />
                     </ForEach>
                 </List>
             }

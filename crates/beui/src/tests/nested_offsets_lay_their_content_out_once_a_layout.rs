@@ -23,12 +23,15 @@ fn nested_offsets_lay_their_content_out_once_a_layout() {
                                 <Offset fit=true>
                                     <Offset fit=true>
                                         <Offset fit=true>
-                                            <VirtualList keys={indices(ROWS)} item_size=ESTIMATE>
-                                                |index: ReadSignal<usize>| <Frame
-                                                        height={create_memo(move || height(index.get()))}
-                                                    >
-                                                        <Spacer />
-                                                    </Frame>
+                                            <VirtualList
+                                                keys={indices(ROWS)}
+                                                item_size=ESTIMATE
+                                            >|index: ReadSignal<usize>|
+                                                <Frame
+                                                    height={create_memo(move || height(index.get()))}
+                                                >
+                                                    <Spacer />
+                                                </Frame>
                                             </VirtualList>
                                         </Offset>
                                     </Offset>

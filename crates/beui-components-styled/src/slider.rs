@@ -40,8 +40,8 @@ pub fn Slider(
             label
             on_change={on_change}
             on_drag_change={on_drag_change}
-        >
-            |handle: SliderHandle| <SliderTrack handle />
+        >|handle: SliderHandle|
+            <SliderTrack handle />
         </unstyled::Slider>
     }
 }

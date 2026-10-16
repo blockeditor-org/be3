@@ -57,9 +57,9 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </Show>
             <Show condition={listed}>
                 <List spacing=SPACING>
-                        <Separator />
-                        <ShownFields data={data} />
-                    </List>
+                    <Separator />
+                    <ShownFields data={data} />
+                </List>
             </Show>
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -93,34 +93,32 @@ fn KindSwitch(data: Data) -> NodeId {
     let keys = create_memo(|| (0..KINDS.len()).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap=true>
-            <ForEach keys={keys}>
-                |index: usize| {
-                    let (wanted, label, glyph) = KINDS[index];
-                    let pressed = create_memo(move || data.kind.get() == wanted);
-                    let choose = move |_: bool| {
-                        if data.kind.get_untracked() != wanted {
-                            data.operate_view(DatabaseView::set_kind(wanted));
-                        }
-                        if wanted == DatabaseViewKind::Kanban && data.group_by.get_untracked().is_none() {
-                            let status = data.fields.with_untracked(|fields| {
-                                fields.iter().find(|field| field.field_type == DatabaseFieldType::Enum).map(|field| field.id)
-                            });
-                            if status.is_some() {
-                                data.operate_view(DatabaseView::set_group_by(status));
-                            }
-                        }
-                    };
-                    view! {
-                        <ToggleButton
-                            label={label}
-                            glyph={glyph.to_owned()}
-                            pressed={pressed}
-                            @test_id={format!("database-view.kind.{label}")}
-                            on_change={choose}
-                        />
+            <ForEach keys={keys}>|index: usize| {
+                let (wanted, label, glyph) = KINDS[index];
+                let pressed = create_memo(move || data.kind.get() == wanted);
+                let choose = move |_: bool| {
+                    if data.kind.get_untracked() != wanted {
+                        data.operate_view(DatabaseView::set_kind(wanted));
                     }
+                    if wanted == DatabaseViewKind::Kanban && data.group_by.get_untracked().is_none() {
+                        let status = data.fields.with_untracked(|fields| {
+                            fields.iter().find(|field| field.field_type == DatabaseFieldType::Enum).map(|field| field.id)
+                        });
+                        if status.is_some() {
+                            data.operate_view(DatabaseView::set_group_by(status));
+                        }
+                    }
+                };
+                view! {
+                    <ToggleButton
+                        label={label}
+                        glyph={glyph.to_owned()}
+                        pressed={pressed}
+                        @test_id={format!("database-view.kind.{label}")}
+                        on_change={choose}
+                    />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -325,34 +323,32 @@ fn ShownFields(data: Data) -> NodeId {
         <List spacing=6.0>
             <Text style=TextStyle::CAPTION string="Shown on each row" />
             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
-                <ForEach keys={keys}>
-                    |field: Uuid| {
-                        let name = create_memo(move || {
-                            data.fields.with(|fields| {
-                                fields.iter().find(|known| known.id == field).map_or_else(String::new, |known| known.name.clone())
-                            })
-                        });
-                        let pressed = create_memo(move || {
-                            data.hidden_fields.with(|hidden| !hidden.contains(&field))
-                        });
-                        let toggle = move |shown: bool| {
-                            let mut hidden = data.hidden_fields.get_untracked();
-                            hidden.retain(|held| *held != field);
-                            if !shown {
-                                hidden.push(field);
-                            }
-                            data.operate_view(DatabaseView::set_hidden_fields(hidden));
-                        };
-                        view! {
-                            <ToggleButton
-                                label={name}
-                                pressed={pressed}
-                                @test_id={format!("database-view.shown.{field}")}
-                                on_change={toggle}
-                            />
+                <ForEach keys={keys}>|field: Uuid| {
+                    let name = create_memo(move || {
+                        data.fields.with(|fields| {
+                            fields.iter().find(|known| known.id == field).map_or_else(String::new, |known| known.name.clone())
+                        })
+                    });
+                    let pressed = create_memo(move || {
+                        data.hidden_fields.with(|hidden| !hidden.contains(&field))
+                    });
+                    let toggle = move |shown: bool| {
+                        let mut hidden = data.hidden_fields.get_untracked();
+                        hidden.retain(|held| *held != field);
+                        if !shown {
+                            hidden.push(field);
                         }
+                        data.operate_view(DatabaseView::set_hidden_fields(hidden));
+                    };
+                    view! {
+                        <ToggleButton
+                            label={name}
+                            pressed={pressed}
+                            @test_id={format!("database-view.shown.{field}")}
+                            on_change={toggle}
+                        />
                     }
-                </ForEach>
+                }</ForEach>
             </List>
         </List>
     }
@@ -403,19 +399,17 @@ pub fn FieldPicker(
     view! {
         <Select
             options={view! {
-                <ForEach keys={keys}>
-                    |index: usize| {
-                        let name = create_memo(move || match index {
-                            0 => none.to_owned(),
-                            index => names.with(|options| {
-                                options.get(index - 1).map_or_else(String::new, |field| field.name.clone())
-                            }),
-                        });
-                        view! {
-                            <ChoiceOption label={name} />
-                        }
+                <ForEach keys={keys}>|index: usize| {
+                    let name = create_memo(move || match index {
+                        0 => none.to_owned(),
+                        index => names.with(|options| {
+                            options.get(index - 1).map_or_else(String::new, |field| field.name.clone())
+                        }),
+                    });
+                    view! {
+                        <ChoiceOption label={name} />
                     }
-                </ForEach>
+                }</ForEach>
             }}
             selected={selected}
             label={label}

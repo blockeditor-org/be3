@@ -116,8 +116,8 @@ fn ResponsiveToolbar(
                             @node_ref=&device
                             @test_id={"inspector.responsive.device"}
                             options={view! {
-                                <ForEach keys={labels(&DEVICES)}>
-                                    |label: &'static str| <ChoiceOption label />
+                                <ForEach keys={labels(&DEVICES)}>|label: &'static str|
+                                    <ChoiceOption label />
                                 </ForEach>
                             }}
                             selected={selected_device}
@@ -172,8 +172,8 @@ fn ResponsiveToolbar(
                             @node_ref=&zoom
                             @test_id={"inspector.responsive.zoom"}
                             options={view! {
-                                <ForEach keys={labels(&ZOOMS)}>
-                                    |label: &'static str| <ChoiceOption label />
+                                <ForEach keys={labels(&ZOOMS)}>|label: &'static str|
+                                    <ChoiceOption label />
                                 </ForEach>
                             }}
                             selected={selected_zoom}

@@ -17,8 +17,8 @@ fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
                     set_changes.update(|changes| changes.push(locked));
                     set_locked.set(locked);
                 }}
-            >
-                |_: PointerLockHandle| <Frame width=100.0 height=100.0 />
+            >|_: PointerLockHandle|
+                <Frame width=100.0 height=100.0 />
             </PointerLock>
         }
     });

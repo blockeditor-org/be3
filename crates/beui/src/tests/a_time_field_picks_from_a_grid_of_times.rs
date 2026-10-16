@@ -11,13 +11,13 @@ fn a_time_field_picks_from_a_grid_of_times() {
     let document = build(move || {
         view! {
             <Container>|_size|
-            <DateTimeField
-                value={Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0)))}
-                parts=DateTimeParts::Time
-                on_change={move |value: Option<DateTime>| {
-                    set_reported.update(|reported| reported.push(value.map(|value| value.time)))
-                }}
-            />
+                <DateTimeField
+                    value={Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0)))}
+                    parts=DateTimeParts::Time
+                    on_change={move |value: Option<DateTime>| {
+                        set_reported.update(|reported| reported.push(value.map(|value| value.time)))
+                    }}
+                />
             </Container>
         }
     });

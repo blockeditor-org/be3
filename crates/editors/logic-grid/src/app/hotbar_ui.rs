@@ -152,12 +152,12 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                 </List>
             </HotbarHeader>
             <List direction=Direction::Horizontal spacing=COLUMN_GAP>
-                <ForEach keys={columns}>
-                    |column: usize| <HotbarColumn
-                                @sizing=ItemSize::Fixed(COLUMN_WIDTH)
-                                session={session}
-                                column={column}
-                            />
+                <ForEach keys={columns}>|column: usize|
+                    <HotbarColumn
+                        @sizing=ItemSize::Fixed(COLUMN_WIDTH)
+                        session={session}
+                        column={column}
+                    />
                 </ForEach>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -184,19 +184,17 @@ fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: 
         });
     };
     view! {
-        <DropTarget accepts={accepts} on_drop={dropped}>
-            |handle: DropHandle| {
-                let DropHandle { over, .. } = handle;
-                view! {
-                    <Frame
-                        border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0).offset(2.0)))}
-                        radius=Radius::Sm
-                    >
-                        {children}
-                    </Frame>
-                }
+        <DropTarget accepts={accepts} on_drop={dropped}>|handle: DropHandle| {
+            let DropHandle { over, .. } = handle;
+            view! {
+                <Frame
+                    border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0).offset(2.0)))}
+                    radius=Radius::Sm
+                >
+                    {children}
+                </Frame>
             }
-        </DropTarget>
+        }</DropTarget>
     }
 }
 
@@ -234,8 +232,8 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
                     <Show condition={empty}>
                         <Frame width=SLOT_SIZE height=SLOT_SIZE />
                     </Show>
-                    <ForEach keys={entries}>
-                        |path: Vec<usize>| <HotbarSlotButton session={session} path={path} />
+                    <ForEach keys={entries}>|path: Vec<usize>|
+                        <HotbarSlotButton session={session} path={path} />
                     </ForEach>
                 </List>
             </Frame>
@@ -323,8 +321,8 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                             preview={ghost}
                             on_click={clicked}
                             on_drag_change={carried}
-                        >
-                            |_: DragHandle| <SlotFace shown={shown} hovered={hovered} />
+                        >|_: DragHandle|
+                            <SlotFace shown={shown} hovered={hovered} />
                         </Draggable>
                     </Interactive>
                 </Tooltip>
@@ -476,17 +474,17 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
         <List spacing=SPACING>
             <Show condition={single}>
                 <List spacing=4.0>
-                        <Text style=TextStyle::CAPTION string="Scale" />
-                        <ScalePicker session={session} output=false />
-                    </List>
+                    <Text style=TextStyle::CAPTION string="Scale" />
+                    <ScalePicker session={session} output=false />
+                </List>
             </Show>
             <Show condition={merger}>
                 <List spacing=4.0>
-                        <Text style=TextStyle::CAPTION string="Input scale" />
-                        <ScalePicker session={session} output=false />
-                        <Text style=TextStyle::CAPTION string="Output scale" />
-                        <ScalePicker session={session} output=true />
-                    </List>
+                    <Text style=TextStyle::CAPTION string="Input scale" />
+                    <ScalePicker session={session} output=false />
+                    <Text style=TextStyle::CAPTION string="Output scale" />
+                    <ScalePicker session={session} output=true />
+                </List>
             </Show>
             <Show condition={labelled}>
                 <TextInput
@@ -540,8 +538,8 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
         <Select
             label
             options={view! {
-                <ForEach keys={SCALES.to_vec()}>
-                    |value: u8| <ChoiceOption label={format!("{value}x")} />
+                <ForEach keys={SCALES.to_vec()}>|value: u8|
+                    <ChoiceOption label={format!("{value}x")} />
                 </ForEach>
             }}
             selected={selected}

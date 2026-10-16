@@ -49,14 +49,14 @@ pub fn Kanban(data: Data) -> NodeId {
                 </Show>
                 <Show condition={ready}>
                     <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
-                            <Frame padding=PADDING>
-                                <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
-                                    <ForEach keys={columns}>
-                                        |key: GroupKey| <Column data={data} key={key} />
-                                    </ForEach>
-                                </List>
-                            </Frame>
-                        </Scroll>
+                        <Frame padding=PADDING>
+                            <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
+                                <ForEach keys={columns}>|key: GroupKey|
+                                    <Column data={data} key={key} />
+                                </ForEach>
+                            </List>
+                        </Frame>
+                    </Scroll>
                 </Show>
             </List>
         </Frame>
@@ -181,53 +181,49 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         data.set_cell(row, field_id, value.get_untracked());
     };
     view! {
-        <DropTarget on_drop={dropped}>
-            |handle: DropHandle| {
-                let DropHandle { over, .. } = handle;
-                view! {
-                    <Frame
-                        width=COLUMN_WIDTH
-                        fill=ColorRole::Surface
-                        border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
-                        radius=Radius::Lg
-                        padding={Sides::horizontal(8.0).bottom(8.0)}
-                    >
-                        <List spacing=CARD_SPACING>
-                            <Frame padding={Sides::vertical(4.0).left(4.0)}>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=8.0
-                                >
-                                    <ChoiceMark option={option} size=MARK />
-                                    <Text string={label} />
-                                    <Text style=TextStyle::CAPTION string={count} />
-                                    <Frame @sizing=ItemSize::Percent(100.0) />
-                                    <IconButton
-                                        glyph={ICON_ADD.to_owned()}
-                                        label="Add card"
-                                        variant=ButtonVariant::Ghost
-                                        size=IconButtonSize::Compact
-                                        disabled={read_only}
-                                        @test_id={format!("database-view.kanban.add.{test_key}")}
-                                        on_click={add}
-                                    />
-                                </List>
-                            </Frame>
-                            <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <VirtualList keys={keys} item_size=CARD_HEIGHT overscan=CARD_HEIGHT>
-                                    |row: ReadSignal<usize>| <Frame
-                                                padding={Sides::new(0.0, 0.0, 0.0, CARD_SPACING)}
-                                            >
-                                                <KanbanCard data={data} row={row} />
-                                            </Frame>
-                                </VirtualList>
-                            </Scroll>
-                        </List>
-                    </Frame>
-                }
+        <DropTarget on_drop={dropped}>|handle: DropHandle| {
+            let DropHandle { over, .. } = handle;
+            view! {
+                <Frame
+                    width=COLUMN_WIDTH
+                    fill=ColorRole::Surface
+                    border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                    radius=Radius::Lg
+                    padding={Sides::horizontal(8.0).bottom(8.0)}
+                >
+                    <List spacing=CARD_SPACING>
+                        <Frame padding={Sides::vertical(4.0).left(4.0)}>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <ChoiceMark option={option} size=MARK />
+                                <Text string={label} />
+                                <Text style=TextStyle::CAPTION string={count} />
+                                <Frame @sizing=ItemSize::Percent(100.0) />
+                                <IconButton
+                                    glyph={ICON_ADD.to_owned()}
+                                    label="Add card"
+                                    variant=ButtonVariant::Ghost
+                                    size=IconButtonSize::Compact
+                                    disabled={read_only}
+                                    @test_id={format!("database-view.kanban.add.{test_key}")}
+                                    on_click={add}
+                                />
+                            </List>
+                        </Frame>
+                        <Scroll @sizing=ItemSize::Percent(100.0)>
+                            <VirtualList
+                                keys={keys}
+                                item_size=CARD_HEIGHT
+                                overscan=CARD_HEIGHT
+                            >|row: ReadSignal<usize>|
+                                <Frame padding={Sides::new(0.0, 0.0, 0.0, CARD_SPACING)}>
+                                    <KanbanCard data={data} row={row} />
+                                </Frame>
+                            </VirtualList>
+                        </Scroll>
+                    </List>
+                </Frame>
             }
-        </DropTarget>
+        }</DropTarget>
     }
 }
 
@@ -250,10 +246,10 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
         }
     };
     view! {
-        <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>
-            |_: DragHandle| <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
-                    <CardLines data={data} row={row} />
-                </ListRow>
+        <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>|_: DragHandle|
+            <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
+                <CardLines data={data} row={row} />
+            </ListRow>
         </Draggable>
     }
 }

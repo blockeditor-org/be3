@@ -15,8 +15,8 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
                 locked
                 on_change={move |locked: bool| set_locked.set(locked)}
                 on_motion={move |motion: Vec2| set_moved.update(|moved| *moved += motion)}
-            >
-                |_: PointerLockHandle| <Frame width=100.0 height=100.0 />
+            >|_: PointerLockHandle|
+                <Frame width=100.0 height=100.0 />
             </PointerLock>
         }
     });

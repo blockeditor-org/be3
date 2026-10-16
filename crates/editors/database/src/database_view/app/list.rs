@@ -81,11 +81,11 @@ pub fn ListView(data: Data) -> NodeId {
                     <List spacing=0.0>
                         <Show condition={empty}>
                             <Frame padding={Sides::symmetric(GUTTER * 1.5, GUTTER)}>
-                                    <Text style=TextStyle::CAPTION string={blank} />
-                                </Frame>
+                                <Text style=TextStyle::CAPTION string={blank} />
+                            </Frame>
                         </Show>
-                        <VirtualList keys={lines} item_size=LINE_HEIGHT>
-                            |line: ReadSignal<Line>| <AnyLine data={data} groups={groups} line={line} />
+                        <VirtualList keys={lines} item_size=LINE_HEIGHT>|line: ReadSignal<Line>|
+                            <AnyLine data={data} groups={groups} line={line} />
                         </VirtualList>
                     </List>
                 </Frame>
@@ -125,11 +125,11 @@ pub fn RowBeside(
             </Layers>
             <Show condition={beside}>
                 <Frame @sizing=ItemSize::Fixed(PANEL_WIDTH)>
-                        <List direction=Direction::Horizontal spacing=0.0>
-                            <Separator direction=Direction::Vertical />
-                            <OpenRow @sizing=ItemSize::Percent(100.0) data={data} row={side_row} />
-                        </List>
-                    </Frame>
+                    <List direction=Direction::Horizontal spacing=0.0>
+                        <Separator direction=Direction::Vertical />
+                        <OpenRow @sizing=ItemSize::Percent(100.0) data={data} row={side_row} />
+                    </List>
+                </Frame>
             </Show>
         </List>
     }
@@ -139,18 +139,16 @@ pub fn RowBeside(
 fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     view! {
         <List spacing=0.0>
-            <Dynamic value={row}>
-                |row: Option<ObjectId>| {
-                    match row {
-                        Some(row) => view! {
-                            <RowPanel @sizing=ItemSize::Percent(100.0) data={data} row={row} />
-                        },
-                        None => view! {
-                            <Frame @sizing=ItemSize::Percent(100.0) />
-                        },
-                    }
+            <Dynamic value={row}>|row: Option<ObjectId>| {
+                match row {
+                    Some(row) => view! {
+                        <RowPanel @sizing=ItemSize::Percent(100.0) data={data} row={row} />
+                    },
+                    None => view! {
+                        <Frame @sizing=ItemSize::Percent(100.0) />
+                    },
                 }
-            </Dynamic>
+            }</Dynamic>
         </List>
     }
 }
@@ -277,27 +275,27 @@ fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> Node
     });
     view! {
         <List spacing=0.0>
-            <Dynamic value={kind}>
-                |kind: LineKind| { match kind {
+            <Dynamic value={kind}>|kind: LineKind| {
+                match kind {
                     LineKind::Header => view! {
                         <List spacing=0.0>
-                            <Dynamic value={header}>
-                                |key: Option<GroupKey>| { match key {
+                            <Dynamic value={header}>|key: Option<GroupKey>| {
+                                match key {
                                     Some(key) => view! {
                                         <GroupHeader data={data} groups={groups} key={key} />
                                     },
                                     None => view! {
                                         <Frame />
                                     },
-                                } }
-                            </Dynamic>
+                                }
+                            }</Dynamic>
                         </List>
                     },
                     LineKind::Row => view! {
                         <RowLine data={data} row={row} />
                     },
-                } }
-            </Dynamic>
+                }
+            }</Dynamic>
         </List>
     }
 }
@@ -375,38 +373,34 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
             <List spacing=0.0>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
-                                <Text style=TextStyle::CAPTION string={wide_code} ellipsis=true />
-                            </Frame>
-                            <Marks data={data} entry={wide_entry} marks={wide_marks} />
-                            <Text
-                                @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                                string={wide_title}
-                                ellipsis=true
-                            />
-                            <Parts parts={wide_parts} keys={wide_keys} />
-                        </List>
+                        <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
+                            <Text style=TextStyle::CAPTION string={wide_code} ellipsis=true />
+                        </Frame>
+                        <Marks data={data} entry={wide_entry} marks={wide_marks} />
+                        <Text
+                            @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                            string={wide_title}
+                            ellipsis=true
+                        />
+                        <Parts parts={wide_parts} keys={wide_keys} />
+                    </List>
                 </Show>
                 <Show condition={narrow}>
                     <List spacing=4.0>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Start
-                                spacing=SPACING
-                            >
-                                <Marks data={data} entry={narrow_entry} marks={marks} />
-                                <Text @sizing=ItemSize::Percent(100.0) string={title} wrap=true />
-                            </List>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=8.0
-                                wrap=true
-                            >
-                                <Text style=TextStyle::CAPTION string={code} />
-                                <Parts parts={parts} keys={part_keys} />
-                            </List>
+                        <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
+                            <Marks data={data} entry={narrow_entry} marks={marks} />
+                            <Text @sizing=ItemSize::Percent(100.0) string={title} wrap=true />
                         </List>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=8.0
+                            wrap=true
+                        >
+                            <Text style=TextStyle::CAPTION string={code} />
+                            <Parts parts={parts} keys={part_keys} />
+                        </List>
+                    </List>
                 </Show>
             </List>
         </ListRow>
@@ -417,30 +411,28 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
 fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <ForEach keys={marks}>
-                |field: Uuid| {
-                    let option = create_memo(move || {
-                        let chosen = entry.with(|entry| match entry.as_ref()?.get(field) {
-                            Some(DatabaseValue::Enum(option)) => Some(option),
-                            _ => None,
-                        })?;
-                        data.fields.with(|fields| {
-                            fields
-                                .iter()
-                                .find(|known| known.id == field)
-                                .and_then(|known| known.option(chosen).cloned())
-                        })
-                    });
-                    let set = create_memo(move || option.with(Option::is_some));
-                    view! {
-                        <Frame width=MARK_SIZE height=MARK_SIZE>
-                            <Frame visible={set}>
-                                <ChoiceMark option={option} size=MARK />
-                            </Frame>
+            <ForEach keys={marks}>|field: Uuid| {
+                let option = create_memo(move || {
+                    let chosen = entry.with(|entry| match entry.as_ref()?.get(field) {
+                        Some(DatabaseValue::Enum(option)) => Some(option),
+                        _ => None,
+                    })?;
+                    data.fields.with(|fields| {
+                        fields
+                            .iter()
+                            .find(|known| known.id == field)
+                            .and_then(|known| known.option(chosen).cloned())
+                    })
+                });
+                let set = create_memo(move || option.with(Option::is_some));
+                view! {
+                    <Frame width=MARK_SIZE height=MARK_SIZE>
+                        <Frame visible={set}>
+                            <ChoiceMark option={option} size=MARK />
                         </Frame>
-                    }
+                    </Frame>
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -453,18 +445,16 @@ pub fn Parts(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap={wrap}>
-            <ForEach keys={keys}>
-                |key: Uuid| {
-                    let part = create_memo(move || {
-                        parts.with(|parts| {
-                            parts.iter().find(|(held, _)| *held == key).map(|(_, part)| part.clone())
-                        })
-                    });
-                    view! {
-                        <RowPart part={part} />
-                    }
+            <ForEach keys={keys}>|key: Uuid| {
+                let part = create_memo(move || {
+                    parts.with(|parts| {
+                        parts.iter().find(|(held, _)| *held == key).map(|(_, part)| part.clone())
+                    })
+                });
+                view! {
+                    <RowPart part={part} />
                 }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -495,8 +485,8 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Dynamic value={kind}>
-                |kind: PartKind| { match kind {
+            <Dynamic value={kind}>|kind: PartKind| {
+                match kind {
                     PartKind::Page => view! {
                         <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph={ICON_DESCRIPTION.to_owned()} />
@@ -508,8 +498,8 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                     PartKind::Chip => view! {
                         <Chip part={part} text={text} />
                     },
-                } }
-            </Dynamic>
+                }
+            }</Dynamic>
         </List>
     }
 }
@@ -531,17 +521,12 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
         <Frame border={Border::DEFAULT} radius=Radius::Lg padding={Sides::symmetric(8.0, 1.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
                 <Show condition={dotted}>
-                    <Frame
-                            width=8.0
-                            height=8.0
-                            radius=Radius::Xs
-                            fill={ColorRole::custom(dot)}
-                        />
+                    <Frame width=8.0 height=8.0 radius=Radius::Xs fill={ColorRole::custom(dot)} />
                 </Show>
                 <Show condition={linked}>
                     <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
-                            <Icon glyph={ICON_LINK.to_owned()} />
-                        </Text>
+                        <Icon glyph={ICON_LINK.to_owned()} />
+                    </Text>
                 </Show>
                 <Text style=TextStyle::CAPTION string={text} align=TextAlign::Start />
             </List>

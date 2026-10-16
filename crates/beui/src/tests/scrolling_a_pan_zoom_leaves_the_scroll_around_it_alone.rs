@@ -21,12 +21,12 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
                     <Frame height=200.0>
                         <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
                     </Frame>
-                    <ForEach keys={indices(20)}>
-                        |index: usize| <Text
-                                string={format!("Row {index}")}
-                                color=Color32::WHITE
-                                font={FontId::proportional(20.0)}
-                            />
+                    <ForEach keys={indices(20)}>|index: usize|
+                        <Text
+                            string={format!("Row {index}")}
+                            color=Color32::WHITE
+                            font={FontId::proportional(20.0)}
+                        />
                     </ForEach>
                 </Scroll>
             </List>

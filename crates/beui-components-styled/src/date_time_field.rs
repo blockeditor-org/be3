@@ -262,23 +262,21 @@ fn PickerPanel(
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Frame width=field_width>{field}</Frame>
                 </List>
-                <Dynamic value={layout}>
-                    |shape: DateTimePanelLayout| {
-                        let (page, show_page) = (page, show_page);
-                        view! {
-                            <PanelBody
-                                shape
-                                calendar
-                                times
-                                page
-                                show_page={show_page}
-                                width={width}
-                                first_weekday
-                                step_minutes
-                            />
-                        }
+                <Dynamic value={layout}>|shape: DateTimePanelLayout| {
+                    let (page, show_page) = (page, show_page);
+                    view! {
+                        <PanelBody
+                            shape
+                            calendar
+                            times
+                            page
+                            show_page={show_page}
+                            width={width}
+                            first_weekday
+                            step_minutes
+                        />
                     }
-                </Dynamic>
+                }</Dynamic>
                 <List
                     direction=Direction::Horizontal
                     align=Align::Center
@@ -317,53 +315,53 @@ fn PanelBody(
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
                 <List direction=Direction::Horizontal spacing=PANEL_SPACING>
-                        <CalendarPane handle={calendar} width={beside} first_weekday />
-                        <TimePane
-                            @sizing=ItemSize::Percent(100.0)
-                            handle={times}
-                            step_minutes
-                            max_columns=1
-                            height=TIME_LIST_HEIGHT
-                        />
-                    </List>
+                    <CalendarPane handle={calendar} width={beside} first_weekday />
+                    <TimePane
+                        @sizing=ItemSize::Percent(100.0)
+                        handle={times}
+                        step_minutes
+                        max_columns=1
+                        height=TIME_LIST_HEIGHT
+                    />
+                </List>
             </Show>
             <Show condition={shape == DateTimePanelLayout::Date}>
                 <Centred>
-                        <CalendarPane handle={calendar} width={alone_date} first_weekday />
-                    </Centred>
+                    <CalendarPane handle={calendar} width={alone_date} first_weekday />
+                </Centred>
             </Show>
             <Show condition={shape == DateTimePanelLayout::Time}>
                 <TimePane
-                        handle={times}
-                        step_minutes
-                        max_columns=MAX_GRID_COLUMNS
-                        height=TIME_GRID_HEIGHT
-                    />
+                    handle={times}
+                    step_minutes
+                    max_columns=MAX_GRID_COLUMNS
+                    height=TIME_GRID_HEIGHT
+                />
             </Show>
             <Show condition={shape == DateTimePanelLayout::Paged}>
                 <List spacing=PANEL_SPACING>
-                        <Tabs
-                            options={view! {
-                                <ChoiceOption label="Date" />
-                                <ChoiceOption label="Time" />
-                            }}
-                            selected={page}
-                            on_change={show_page}
+                    <Tabs
+                        options={view! {
+                            <ChoiceOption label="Date" />
+                            <ChoiceOption label="Time" />
+                        }}
+                        selected={page}
+                        on_change={show_page}
+                    />
+                    <Show condition={dates}>
+                        <Centred>
+                            <CalendarPane handle={calendar} width={alone} first_weekday />
+                        </Centred>
+                    </Show>
+                    <Show condition={times_shown}>
+                        <TimePane
+                            handle={times}
+                            step_minutes
+                            max_columns=MAX_GRID_COLUMNS
+                            height=TIME_GRID_HEIGHT
                         />
-                        <Show condition={dates}>
-                            <Centred>
-                                    <CalendarPane handle={calendar} width={alone} first_weekday />
-                                </Centred>
-                        </Show>
-                        <Show condition={times_shown}>
-                            <TimePane
-                                    handle={times}
-                                    step_minutes
-                                    max_columns=MAX_GRID_COLUMNS
-                                    height=TIME_GRID_HEIGHT
-                                />
-                        </Show>
-                    </List>
+                    </Show>
+                </List>
             </Show>
         </List>
     }
