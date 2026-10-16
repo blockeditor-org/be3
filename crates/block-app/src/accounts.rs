@@ -126,7 +126,7 @@ pub(crate) async fn logout(server_url: String, token: String) -> Result<(), Acco
 pub(crate) async fn workspaces(
     server_url: String,
     token: String,
-) -> Result<(Vec<Workspace>, Vec<WorkspaceInvitation>), AccountError> {
+) -> Result<Vec<Workspace>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let ServerMessage::Workspaces { workspaces, .. } = connection
         .request(|request| ClientMessage::ListWorkspaces { request })
@@ -134,13 +134,7 @@ pub(crate) async fn workspaces(
     else {
         return Err(ClientError::Unexpected.into());
     };
-    let ServerMessage::Invitations { invitations, .. } = connection
-        .request(|request| ClientMessage::ListInvitations { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    Ok((workspaces, invitations))
+    Ok(workspaces)
 }
 
 pub(crate) async fn create_workspace(
@@ -160,61 +154,54 @@ pub(crate) async fn create_workspace(
     }
 }
 
-pub(crate) async fn respond_invitation(
+pub(crate) async fn invitation(
     server_url: String,
     token: String,
     invitation: Uuid,
-    accept: bool,
-) -> Result<(), AccountError> {
+) -> Result<WorkspaceInvitation, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    connection
-        .request(|request| ClientMessage::RespondInvitation {
+    let ServerMessage::Invitation { invitation, .. } = connection
+        .request(|request| ClientMessage::GetInvitation {
             request,
             invitation,
-            accept,
         })
-        .await?;
-    Ok(())
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
+    Ok(invitation)
 }
 
 pub(crate) async fn accept_invitation(
     server_url: String,
     token: String,
-    invitation: Uuid,
-    code: String,
+    code: be_keys::InviteCode,
     recovery: Option<be_keys::RecoveryPublic>,
 ) -> Result<(Uuid, [u8; 32]), AccountError> {
-    let refused = |message: &str| AccountError {
-        message: message.to_owned(),
-        invalid_token: false,
-    };
-    let code = be_keys::InviteCode::parse(&code).map_err(|_| {
-        refused("That is not an invite code. Copy the whole code from the person who invited you.")
-    })?;
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Invitations { invitations, .. } = connection
-        .request(|request| ClientMessage::ListInvitations { request })
+    let id = Uuid::from_bytes(code.lookup());
+    let ServerMessage::Invitation { invitation, .. } = connection
+        .request(|request| ClientMessage::GetInvitation {
+            request,
+            invitation: id,
+        })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
     };
-    let invitation = invitations
-        .into_iter()
-        .find(|found| found.id == invitation)
-        .ok_or_else(|| refused("That invitation is gone."))?;
     let workspace = invitation.workspace;
     let key: [u8; 32] = code
         .open(workspace.as_bytes(), &invitation.sealed)
         .ok()
         .and_then(|key| key.try_into().ok())
-        .ok_or_else(|| {
-            refused("That code does not open this invitation. Check it with the person who invited you.")
+        .ok_or_else(|| AccountError {
+            message: "This invite link does not open its workspace. Ask for a new one.".into(),
+            invalid_token: false,
         })?;
     connection
-        .request(|request| ClientMessage::RespondInvitation {
+        .request(|request| ClientMessage::AcceptInvitation {
             request,
-            invitation: invitation.id,
-            accept: true,
+            invitation: id,
         })
         .await?;
     if let Some(recovery) = recovery {
@@ -243,13 +230,14 @@ pub(crate) async fn invite(
     connection
         .request(|request| ClientMessage::Invite {
             request,
+            invitation: Uuid::from_bytes(code.lookup()),
             workspace,
             email,
             role,
             sealed,
         })
         .await?;
-    Ok(code.to_string())
+    Ok(crate::invite_link::link(&link_base(&server_url), &code))
 }
 
 #[derive(Clone, Debug, PartialEq)]

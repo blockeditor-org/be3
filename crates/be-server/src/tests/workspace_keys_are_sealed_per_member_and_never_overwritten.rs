@@ -81,23 +81,17 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
     owner
         .send(|request| ClientMessage::Invite {
             request,
+            invitation: Uuid::from_u128(1),
             workspace,
             email: "guest@example.com".into(),
             role: WorkspaceRole::Editor,
             sealed: Vec::new(),
         })
         .await;
-    let ServerMessage::Invitations { invitations, .. } = guest
-        .send(|request| ClientMessage::ListInvitations { request })
-        .await
-    else {
-        panic!("listing invitations failed");
-    };
     guest
-        .send(|request| ClientMessage::RespondInvitation {
+        .send(|request| ClientMessage::AcceptInvitation {
             request,
-            invitation: invitations[0].id,
-            accept: true,
+            invitation: Uuid::from_u128(1),
         })
         .await;
     let response = guest

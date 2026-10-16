@@ -142,19 +142,20 @@ pub enum ClientMessage {
     },
     Invite {
         request: u64,
+        invitation: Uuid,
         workspace: Uuid,
         email: String,
         role: WorkspaceRole,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
     },
-    ListInvitations {
-        request: u64,
-    },
-    RespondInvitation {
+    GetInvitation {
         request: u64,
         invitation: Uuid,
-        accept: bool,
+    },
+    AcceptInvitation {
+        request: u64,
+        invitation: Uuid,
     },
 
     PutObject {
@@ -352,8 +353,8 @@ impl ClientMessage {
             | Self::Authenticate { request, .. }
             | Self::Logout { request }
             | Self::Invite { request, .. }
-            | Self::ListInvitations { request }
-            | Self::RespondInvitation { request, .. }
+            | Self::GetInvitation { request, .. }
+            | Self::AcceptInvitation { request, .. }
             | Self::ListWorkspaces { request }
             | Self::CreateWorkspace { request, .. }
             | Self::OpenWorkspace { request, .. }
@@ -423,9 +424,9 @@ pub enum ServerMessage {
         request: u64,
         workspaces: Vec<Workspace>,
     },
-    Invitations {
+    Invitation {
         request: u64,
-        invitations: Vec<WorkspaceInvitation>,
+        invitation: WorkspaceInvitation,
     },
     WorkspaceOpened {
         request: u64,
@@ -533,7 +534,7 @@ impl ServerMessage {
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
             | Self::Workspaces { request, .. }
-            | Self::Invitations { request, .. }
+            | Self::Invitation { request, .. }
             | Self::WorkspaceOpened { request, .. }
             | Self::Stored { request, .. }
             | Self::Object { request, .. }

@@ -17,6 +17,7 @@ const RECOVERY_INFO: &[u8] = b"be3.recovery.v1";
 const SEAL_INFO: &[u8] = b"be3.seal.v1";
 const PAIRING_CONTEXT: &[u8] = b"be3.pairing.v1";
 const INVITE_INFO: &[u8] = b"be3.invite.v1";
+const INVITE_LOOKUP_INFO: &[u8] = b"be3.invite.lookup.v1";
 const INVITE_ENTROPY: usize = 25;
 const INVITE_LEN: usize = INVITE_ENTROPY * 8 / 5;
 const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -231,6 +232,12 @@ impl InviteCode {
             }
         }
         Ok(Self(entropy))
+    }
+
+    pub fn lookup(&self) -> [u8; 16] {
+        let mut lookup = [0u8; 16];
+        lookup.copy_from_slice(&expand(&self.0, INVITE_LOOKUP_INFO, INVITE_LOOKUP_INFO)[..16]);
+        lookup
     }
 
     pub fn seal(&self, workspace: &[u8], plain: &[u8]) -> Vec<u8> {

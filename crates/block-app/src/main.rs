@@ -12,6 +12,7 @@ mod display;
 mod editors;
 mod host;
 mod input;
+mod invite_link;
 mod keys;
 mod local_settings;
 #[cfg(target_os = "linux")]
@@ -63,6 +64,7 @@ use editors::{
     ArtifactSession, ArtifactStatus, BlockOpen, EditorAction, EditorRegistry, PluginEditor,
     SidebarDragSource, plugin::PickSource,
 };
+use invite_link::InviteLink;
 use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
@@ -154,6 +156,10 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     let page = web_sys::Url::new(&location.href()?)?;
     if page.search_params().has("dev-workspace") {
         app.open_dev_workspace(Some(location.origin()?));
+    }
+    if location.hash()?.starts_with("#invite/") {
+        app.open_invite(&location.href()?);
+        location.replace("#")?;
     }
     if page.search_params().has("automation") {
         let inbox = beui::automation::Inbox::default();
@@ -405,7 +411,7 @@ struct BlockApp {
     account_error: Option<String>,
     workspace: Option<Workspace>,
     workspaces: Vec<Workspace>,
-    invitations: Vec<WorkspaceInvitation>,
+    joining: Option<Joining>,
     workspaces_loaded: bool,
     workspaces_load_failed: bool,
     pending_workspace_request:
@@ -416,7 +422,7 @@ struct BlockApp {
     reauth: Option<ReauthState>,
     invite_open: bool,
     invite_sent: u64,
-    invite_code: Option<String>,
+    invite_link: Option<String>,
     agents_open: bool,
     agents: Vec<be_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
@@ -489,11 +495,16 @@ struct PendingAccountRequest {
     authorization: Option<String>,
 }
 
+struct Joining {
+    link: InviteLink,
+    invitation: Option<WorkspaceInvitation>,
+}
+
 enum WorkspaceOperation {
     Load,
     Create(String),
-    Decline(Uuid),
-    Accept(Uuid, String, Option<be_keys::RecoveryPublic>),
+    LookUp(Uuid),
+    Join(be_keys::InviteCode, Option<be_keys::RecoveryPublic>),
     Invite(Uuid, String, WorkspaceRole, [u8; 32]),
     ListAgents(Uuid),
     CreateAgent(Uuid, String, [u8; 32]),
@@ -501,10 +512,10 @@ enum WorkspaceOperation {
 }
 
 enum WorkspaceResult {
-    Loaded(Vec<Workspace>, Vec<WorkspaceInvitation>, accounts::Keys),
+    Loaded(Vec<Workspace>, accounts::Keys),
     Created(Workspace),
-    Responded,
-    Accepted(Uuid, [u8; 32]),
+    Invitation(WorkspaceInvitation),
+    Joined(Uuid, [u8; 32]),
     Invited(String),
     Agents(
         Option<Vec<be_protocol::Agent>>,
@@ -641,7 +652,7 @@ impl BlockApp {
             account_error: None,
             workspace: None,
             workspaces: Vec::new(),
-            invitations: Vec::new(),
+            joining: None,
             workspaces_loaded: false,
             workspaces_load_failed: false,
             pending_workspace_request: None,
@@ -650,7 +661,7 @@ impl BlockApp {
             reauth: None,
             invite_open: false,
             invite_sent: 0,
-            invite_code: None,
+            invite_link: None,
             agents_open: false,
             agents: Vec::new(),
             agent_created: None,
@@ -889,6 +900,43 @@ impl BlockApp {
         });
     }
 
+    fn open_invite(&mut self, text: &str) {
+        let Some(link) = InviteLink::parse(text) else {
+            self.workspace_error = Some(
+                "That is not an invite link. Copy the whole link from the person who invited you."
+                    .to_owned(),
+            );
+            return;
+        };
+        self.workspace_error = None;
+        self.joining = Some(Joining {
+            link,
+            invitation: None,
+        });
+        if self.signed_in && self.workspaces_loaded && !self.keys.needs_recovery() {
+            self.look_up_invite();
+        }
+    }
+
+    fn look_up_invite(&mut self) {
+        let Some(joining) = &self.joining else {
+            return;
+        };
+        if joining.invitation.is_some() {
+            return;
+        }
+        if !joining.link.is_for(&accounts::link_base(&self.server_url)) {
+            self.workspace_error = Some(format!(
+                "This invite link is for {}. Switch to an account on that server to join.",
+                joining.link.server.clone().unwrap_or_default()
+            ));
+            self.joining = None;
+            return;
+        }
+        let invitation = joining.link.invitation();
+        self.begin_workspace_request(WorkspaceOperation::LookUp(invitation));
+    }
+
     fn open_any_workspace(&mut self) {
         if !std::mem::take(&mut self.dev_workspace) || self.workspace.is_some() {
             return;
@@ -1043,23 +1091,22 @@ impl BlockApp {
         let receiver = platform::spawn_request(async move {
             match operation {
                 WorkspaceOperation::Load => {
-                    let (workspaces, invitations) =
-                        accounts::workspaces(url.clone(), token.clone()).await?;
+                    let workspaces = accounts::workspaces(url.clone(), token.clone()).await?;
                     let keys = accounts::keys(url, token).await?;
-                    Ok(WorkspaceResult::Loaded(workspaces, invitations, keys))
+                    Ok(WorkspaceResult::Loaded(workspaces, keys))
                 }
                 WorkspaceOperation::Create(name) => accounts::create_workspace(url, token, name)
                     .await
                     .map(WorkspaceResult::Created),
-                WorkspaceOperation::Decline(invitation) => {
-                    accounts::respond_invitation(url, token, invitation, false)
+                WorkspaceOperation::LookUp(invitation) => {
+                    accounts::invitation(url, token, invitation)
                         .await
-                        .map(|()| WorkspaceResult::Responded)
+                        .map(WorkspaceResult::Invitation)
                 }
-                WorkspaceOperation::Accept(invitation, code, recovery) => {
-                    accounts::accept_invitation(url, token, invitation, code, recovery)
+                WorkspaceOperation::Join(code, recovery) => {
+                    accounts::accept_invitation(url, token, code, recovery)
                         .await
-                        .map(|(workspace, key)| WorkspaceResult::Accepted(workspace, key))
+                        .map(|(workspace, key)| WorkspaceResult::Joined(workspace, key))
                 }
                 WorkspaceOperation::Invite(workspace, email, role, key) => {
                     accounts::invite(url, token, workspace, email, role, key)
@@ -1099,9 +1146,8 @@ impl BlockApp {
         };
         self.pending_workspace_request = None;
         match result {
-            Ok(WorkspaceResult::Loaded(workspaces, invitations, keys)) => {
+            Ok(WorkspaceResult::Loaded(workspaces, keys)) => {
                 self.workspaces = workspaces;
-                self.invitations = invitations;
                 self.workspaces_loaded = true;
                 self.workspaces_load_failed = false;
                 self.keys.loaded(keys);
@@ -1114,6 +1160,10 @@ impl BlockApp {
                             held,
                         );
                     }
+                    return;
+                }
+                if self.joining.is_some() {
+                    self.look_up_invite();
                     return;
                 }
                 if let Some(last_workspace_id) = self.account.last_workspace_id
@@ -1140,25 +1190,27 @@ impl BlockApp {
                 }
                 self.open_workspace(workspace);
             }
-            Ok(WorkspaceResult::Responded) => {
-                self.workspaces_loaded = false;
-                self.workspaces_load_failed = false;
-                self.begin_workspace_request(WorkspaceOperation::Load);
+            Ok(WorkspaceResult::Invitation(invitation)) => {
+                if let Some(joining) = &mut self.joining {
+                    joining.invitation = Some(invitation);
+                }
             }
-            Ok(WorkspaceResult::Accepted(workspace, key)) => {
+            Ok(WorkspaceResult::Joined(workspace, key)) => {
+                self.joining = None;
                 if let Err(error) = self
                     .app_state
                     .set_workspace_key(&self.account, workspace, key)
                 {
                     self.workspace_error = Some(error.to_string());
                 }
+                self.account.last_workspace_id = Some(workspace);
                 self.workspaces_loaded = false;
                 self.workspaces_load_failed = false;
                 self.begin_workspace_request(WorkspaceOperation::Load);
             }
-            Ok(WorkspaceResult::Invited(code)) => {
+            Ok(WorkspaceResult::Invited(link)) => {
                 self.invite_sent += 1;
-                self.invite_code = Some(code);
+                self.invite_link = Some(link);
             }
             Ok(WorkspaceResult::Agents(agents, created)) => {
                 if let Some(agents) = agents {
@@ -1170,6 +1222,10 @@ impl BlockApp {
             }
             Err(error) if error.invalid_token => self.begin_reauth(),
             Err(error) => {
+                self.joining = self
+                    .joining
+                    .take()
+                    .filter(|joining| joining.invitation.is_some());
                 if !self.workspaces_loaded {
                     self.workspaces_load_failed = true;
                 }
@@ -1402,14 +1458,13 @@ impl BlockApp {
         self.allow_close = false;
         self.workspace = None;
         self.workspaces.clear();
-        self.invitations.clear();
         self.workspaces_loaded = false;
         self.workspaces_load_failed = false;
         self.pending_workspace_request = None;
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
-        self.invite_code = None;
+        self.invite_link = None;
         self.agents_open = false;
         self.agent_created = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
@@ -2523,13 +2578,17 @@ impl BlockApp {
                 self.root_settings.use_profile(self.client_id, profile);
             }
             UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
-            UiCommand::DeclineInvitation(id) => {
-                self.begin_workspace_request(WorkspaceOperation::Decline(id));
+            UiCommand::OpenInvite(text) => self.open_invite(&text),
+            UiCommand::JoinInvited => {
+                if let Some(joining) = &self.joining
+                    && joining.invitation.is_some()
+                {
+                    let code = joining.link.code.clone();
+                    let recovery = self.trusted_recovery();
+                    self.begin_workspace_request(WorkspaceOperation::Join(code, recovery));
+                }
             }
-            UiCommand::AcceptInvitation(id, code) => {
-                let recovery = self.trusted_recovery();
-                self.begin_workspace_request(WorkspaceOperation::Accept(id, code, recovery));
-            }
+            UiCommand::CancelJoin => self.joining = None,
             UiCommand::CreateWorkspace(name) => {
                 if !name.trim().is_empty() {
                     self.begin_workspace_request(WorkspaceOperation::Create(name));
@@ -2556,7 +2615,7 @@ impl BlockApp {
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => {
                 self.invite_open = true;
-                self.invite_code = None;
+                self.invite_link = None;
             }
             UiCommand::SwitchWorkspace => {
                 if be::status().unsealed == 0 {
@@ -2601,13 +2660,13 @@ impl BlockApp {
                     && !email.trim().is_empty()
                 {
                     let id = workspace.id;
-                    self.invite_code = None;
+                    self.invite_link = None;
                     self.begin_workspace_request(WorkspaceOperation::Invite(id, email, role, key));
                 }
             }
             UiCommand::CloseInvite => {
                 self.invite_open = false;
-                self.invite_code = None;
+                self.invite_link = None;
             }
             UiCommand::OpenAgents => {
                 self.agents_open = true;
@@ -2755,15 +2814,15 @@ impl BlockApp {
                     .iter()
                     .map(|workspace| (workspace.id, workspace.name.clone()))
                     .collect(),
-                invitations: self
-                    .invitations
-                    .iter()
-                    .map(|invitation| ui::InvitationRow {
-                        id: invitation.id,
+                joining: self
+                    .joining
+                    .as_ref()
+                    .and_then(|joining| joining.invitation.as_ref())
+                    .map(|invitation| ui::JoiningRow {
                         workspace: invitation.workspace_name.clone(),
                         role: invitation.role.label().to_lowercase(),
-                    })
-                    .collect(),
+                        email: invitation.email.clone(),
+                    }),
                 busy: self.pending_workspace_request.is_some(),
                 error: self.workspace_error.clone(),
                 created: self.workspace_created,
@@ -2829,7 +2888,7 @@ impl BlockApp {
                 busy: self.pending_workspace_request.is_some(),
                 error: self.workspace_error.clone(),
                 sent: self.invite_sent,
-                code: self.invite_code.clone(),
+                link: self.invite_link.clone(),
             }),
             about: self.about_open,
             app_menu: self.app_menu_open,

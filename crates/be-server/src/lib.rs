@@ -517,27 +517,30 @@ impl Connection {
             }
             ClientMessage::Invite {
                 request,
+                invitation,
                 workspace,
                 email,
                 role,
                 sealed,
             } => {
                 self.store
-                    .invite(self.account()?, workspace, &email, role, sealed)
+                    .invite(self.account()?, invitation, workspace, &email, role, sealed)
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::ListInvitations { request } => Ok(ServerMessage::Invitations {
-                request,
-                invitations: self.store.list_invitations(self.account()?).await?,
-            }),
-            ClientMessage::RespondInvitation {
+            ClientMessage::GetInvitation {
                 request,
                 invitation,
-                accept,
+            } => Ok(ServerMessage::Invitation {
+                request,
+                invitation: self.store.invitation(self.account()?, invitation).await?,
+            }),
+            ClientMessage::AcceptInvitation {
+                request,
+                invitation,
             } => {
                 self.store
-                    .respond_invitation(self.account()?, invitation, accept)
+                    .accept_invitation(self.account()?, invitation)
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }

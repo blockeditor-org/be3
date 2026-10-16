@@ -195,26 +195,20 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     else {
         return Err("the editor was not registered".to_owned());
     };
+    let code = InviteCode::generate();
+    let invitation = Uuid::from_bytes(code.lookup());
     request(owner.connection(), |request| ClientMessage::Invite {
         request,
+        invitation,
         workspace,
         email: scene::EDITOR_EMAIL.into(),
         role: WorkspaceRole::Editor,
-        sealed: InviteCode::generate().seal(workspace.as_bytes(), key.as_bytes()),
+        sealed: code.seal(workspace.as_bytes(), key.as_bytes()),
     })
     .await?;
-    let ServerMessage::Invitations { invitations, .. } = request(&editor, |request| {
-        ClientMessage::ListInvitations { request }
-    })
-    .await?
-    else {
-        return Err("the editor's invitations were not listed".to_owned());
-    };
-    let invitation = invitations.first().ok_or("the editor was not invited")?.id;
-    request(&editor, |request| ClientMessage::RespondInvitation {
+    request(&editor, |request| ClientMessage::AcceptInvitation {
         request,
         invitation,
-        accept: true,
     })
     .await?;
     let editor_phrase = RecoveryPhrase::generate();
@@ -231,12 +225,14 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         sealed: editor_public.seal(key.as_bytes()),
     })
     .await?;
+    let code = InviteCode::generate();
     request(owner.connection(), |request| ClientMessage::Invite {
         request,
+        invitation: Uuid::from_bytes(code.lookup()),
         workspace,
         email: scene::INVITED_EMAIL.into(),
         role: WorkspaceRole::Editor,
-        sealed: InviteCode::generate().seal(workspace.as_bytes(), key.as_bytes()),
+        sealed: code.seal(workspace.as_bytes(), key.as_bytes()),
     })
     .await?;
 

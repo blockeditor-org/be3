@@ -28,6 +28,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     let response = owner
         .send(|request| ClientMessage::Invite {
             request,
+            invitation: Uuid::from_u128(1),
             workspace,
             email: "guest@example.com".into(),
             role: WorkspaceRole::Editor,
@@ -35,17 +36,10 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    let ServerMessage::Invitations { invitations, .. } = guest
-        .send(|request| ClientMessage::ListInvitations { request })
-        .await
-    else {
-        panic!("the guest could not list invitations");
-    };
     guest
-        .send(|request| ClientMessage::RespondInvitation {
+        .send(|request| ClientMessage::AcceptInvitation {
             request,
-            invitation: invitations[0].id,
-            accept: true,
+            invitation: Uuid::from_u128(1),
         })
         .await;
     guest.open(workspace).await;

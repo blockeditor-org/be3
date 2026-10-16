@@ -7,18 +7,23 @@ fn runtime() -> tokio::runtime::Runtime {
         .expect("a test runtime starts")
 }
 
-#[test]
-fn an_invite_code_hands_the_workspace_key_to_the_invited_account() {
-    let harness = Harness::start();
-    let url = harness.url.clone();
-    let guest = runtime()
+fn register(url: &str, email: &str) -> crate::accounts::Session {
+    runtime()
         .block_on(crate::accounts::register(
-            url.clone(),
-            "guest@example.com".to_owned(),
-            "Guest".to_owned(),
+            url.to_owned(),
+            email.to_owned(),
+            "Someone".to_owned(),
             "correct horse battery".to_owned(),
         ))
-        .expect("the guest registers");
+        .expect("the account registers")
+}
+
+#[test]
+fn an_invite_link_hands_the_workspace_key_to_the_invited_account() {
+    let harness = Harness::start();
+    let url = harness.url.clone();
+    let guest = register(&url, "guest@example.com");
+    let outsider = register(&url, "outsider@example.com");
     let phrase = be_keys::RecoveryPhrase::generate();
     runtime()
         .block_on(crate::accounts::set_recovery_key(
@@ -28,7 +33,7 @@ fn an_invite_code_hands_the_workspace_key_to_the_invited_account() {
             Vec::new(),
         ))
         .expect("the guest saves a recovery phrase");
-    let code = runtime()
+    let link = runtime()
         .block_on(crate::accounts::invite(
             url.clone(),
             harness.token.clone(),
@@ -38,46 +43,43 @@ fn an_invite_code_hands_the_workspace_key_to_the_invited_account() {
             harness.content_key,
         ))
         .expect("the owner invites the guest");
-    let (_, invitations) = runtime()
-        .block_on(crate::accounts::workspaces(
+    let parsed = crate::invite_link::InviteLink::parse(&link).expect("the link parses");
+    assert!(parsed.is_for(&crate::accounts::link_base(&url)), "{link}");
+
+    let invitation = runtime()
+        .block_on(crate::accounts::invitation(
             url.clone(),
             guest.token.clone(),
+            parsed.invitation(),
         ))
-        .expect("the guest lists invitations");
-    let invitation = invitations[0].id;
+        .expect("the guest reads the invitation");
+    assert_eq!(invitation.workspace, harness.workspace);
     assert!(
-        !invitations[0]
+        !invitation
             .sealed
             .windows(harness.content_key.len())
             .any(|window| window == harness.content_key),
         "the invitation carries the workspace key in the clear"
     );
 
-    let accept = |code: String| {
+    let join = |token: &str| {
         runtime().block_on(crate::accounts::accept_invitation(
             url.clone(),
-            guest.token.clone(),
-            invitation,
-            code,
+            token.to_owned(),
+            parsed.code.clone(),
             Some(phrase.secret().public()),
         ))
     };
     assert!(
-        accept(be_keys::InviteCode::generate().to_string()).is_err(),
-        "another code accepted the invitation"
+        join(&outsider.token).is_err(),
+        "an account with another email joined with the link"
     );
-    let (_, invitations) = runtime()
-        .block_on(crate::accounts::workspaces(
-            url.clone(),
-            guest.token.clone(),
-        ))
-        .expect("the guest lists invitations again");
-    assert_eq!(invitations.len(), 1, "a wrong code used up the invitation");
-
     assert_eq!(
-        accept(code.to_lowercase()).expect("the right code accepts"),
+        join(&guest.token).expect("the guest joins with the link"),
         (harness.workspace, harness.content_key)
     );
+    assert!(join(&guest.token).is_err(), "the link worked twice");
+
     let keys = runtime()
         .block_on(crate::accounts::keys(url, guest.token.clone()))
         .expect("the guest's keys load");

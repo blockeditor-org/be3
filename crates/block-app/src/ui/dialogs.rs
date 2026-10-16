@@ -197,13 +197,13 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
     let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
     let error = create_memo(move || invite.get().and_then(|invite| invite.error));
     let sent = create_memo(move || invite.get().map(|invite| invite.sent));
-    let code = create_memo(move || {
+    let link = create_memo(move || {
         invite
             .get()
-            .and_then(|invite| invite.code)
+            .and_then(|invite| invite.link)
             .unwrap_or_default()
     });
-    let has_code = create_memo(move || !code.get().is_empty());
+    let has_link = create_memo(move || !link.get().is_empty());
     let (email, set_email) = create_signal(String::new());
     let (administrator, set_administrator) = create_signal(false);
     create_effect(move || {
@@ -245,7 +245,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                 <Text style=TextStyle::CAPTION string={description} />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
-                        label="Send invitation"
+                        label="Create invite link"
                         variant=ButtonVariant::Primary
                         disabled={cannot}
                         @test_id={"app.invite.send"}
@@ -258,19 +258,19 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                     </Show>
                 </List>
                 <ErrorText text={error} />
-                <Show condition={has_code}>
+                <Show condition={has_link}>
                     {move || view! {
                         <List spacing=6.0>
                             <Text
                                 style=TextStyle::PARAGRAPH
                                 @test_id={"app.invite.help"}
-                                string="Send them this invite code yourself, in person or through an app you trust. It opens the workspace's key, which never reaches the server unsealed, so don't send it by email to the same address. It is shown only once."
+                                string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It carries the workspace's key, which the server never sees, so don't email it to the same address. It is shown only once."
                                 wrap=true
                             />
                             <TextInput
-                                value={code}
-                                label="Invite code"
-                                @test_id={"app.invite.code"}
+                                value={link}
+                                label="Invite link"
+                                @test_id={"app.invite.link"}
                             />
                         </List>
                     }}

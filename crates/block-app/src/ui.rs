@@ -137,17 +137,17 @@ pub(crate) enum WorkspacesState {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct InvitationRow {
-    pub(crate) id: Uuid,
+pub(crate) struct JoiningRow {
     pub(crate) workspace: String,
     pub(crate) role: String,
+    pub(crate) email: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct WorkspacesView {
     pub(crate) state: WorkspacesState,
     pub(crate) workspaces: Vec<(Uuid, String)>,
-    pub(crate) invitations: Vec<InvitationRow>,
+    pub(crate) joining: Option<JoiningRow>,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
     pub(crate) created: u64,
@@ -194,7 +194,7 @@ pub(crate) struct InviteView {
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
     pub(crate) sent: u64,
-    pub(crate) code: Option<String>,
+    pub(crate) link: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -287,8 +287,9 @@ pub(crate) enum UiCommand {
     EverySessionType(bool),
     UseProfile(Uuid),
     NewProfile,
-    AcceptInvitation(Uuid, String),
-    DeclineInvitation(Uuid),
+    OpenInvite(String),
+    JoinInvited,
+    CancelJoin,
     CreateWorkspace(String),
     SwitchAccount,
     LogOutCurrent,
