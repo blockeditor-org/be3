@@ -554,25 +554,58 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                             .unwrap_or_default()
                     });
                     let busy = row_busy;
+                    let (code, set_code) = create_signal(String::new());
+                    let cannot = create_memo(move || busy.get() || code.get().trim().is_empty());
+                    let accept = move || {
+                        if !cannot.get_untracked() {
+                            send(UiCommand::AcceptInvitation(id, code.get_untracked()));
+                        }
+                    };
+                    let submit = accept;
                     view! {
                         <Card>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                                    <Text style=TextStyle::HEADING string={workspace} />
-                                    <Text style=TextStyle::CAPTION string={role} />
+                            <List spacing=8.0>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=8.0
+                                >
+                                    <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                                        <Text style=TextStyle::HEADING string={workspace} />
+                                        <Text style=TextStyle::CAPTION string={role} />
+                                    </List>
+                                    <Button
+                                        label="Decline"
+                                        variant=ButtonVariant::Secondary
+                                        disabled={busy}
+                                        on_click={move || send(UiCommand::DeclineInvitation(id))}
+                                    />
                                 </List>
-                                <Button
-                                    label="Accept"
-                                    variant=ButtonVariant::Primary
-                                    disabled={busy}
-                                    on_click={move || send(UiCommand::RespondInvitation(id, true))}
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string="Type the invite code the person who invited you gave you."
+                                    wrap=true
                                 />
-                                <Button
-                                    label="Decline"
-                                    variant=ButtonVariant::Secondary
-                                    disabled={busy}
-                                    on_click={move || send(UiCommand::RespondInvitation(id, false))}
-                                />
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=8.0
+                                >
+                                    <TextInput
+                                        @sizing=ItemSize::Percent(100.0)
+                                        value={code}
+                                        label="Invite code"
+                                        placeholder="XXXXX-XXXXX-…"
+                                        on_change={move |value: String| set_code.set(value)}
+                                        on_submit={move |_value: String| submit()}
+                                    />
+                                    <Button
+                                        label="Accept"
+                                        variant=ButtonVariant::Primary
+                                        disabled={cannot}
+                                        on_click={accept}
+                                    />
+                                </List>
                             </List>
                         </Card>
                     }

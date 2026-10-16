@@ -44,7 +44,7 @@ fn a_device_answers_pairing_for_a_workspace_it_is_not_showing() {
     assert_eq!(request.workspace, other.id);
     approve_pairing(request.from, code);
     assert_eq!(
-        paired.join().unwrap().expect("the right code pairs"),
+        paired.join().unwrap().expect("the right code pairs").key,
         other_key,
         "the device handed over the key of the workspace it had open instead"
     );

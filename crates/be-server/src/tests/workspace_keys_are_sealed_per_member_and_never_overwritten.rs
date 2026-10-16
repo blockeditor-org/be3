@@ -1,19 +1,18 @@
 use super::*;
 
-use be_protocol::{MemberKey, SealedKey};
+use be_protocol::SealedKey;
 
 #[tokio::test]
 async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
-    let owner_account = owner.register("owner@example.com").await;
+    owner.register("owner@example.com").await;
     let workspace = owner.workspace("notes").await;
 
     let refused = owner
         .send(|request| ClientMessage::PutWorkspaceKey {
             request,
             workspace,
-            account: owner_account,
             sealed: b"sealed for the owner".to_vec(),
         })
         .await;
@@ -35,7 +34,6 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
             .send(|request| ClientMessage::PutWorkspaceKey {
                 request,
                 workspace,
-                account: owner_account,
                 sealed: sealed.clone(),
             })
             .await;
@@ -61,16 +59,23 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
     );
 
     let mut guest = harness.member("guest@example.com").await;
-    let guest_account = guest
-        .send(|request| ClientMessage::ListWorkspaces { request })
+    guest
+        .send(|request| ClientMessage::SetRecoveryKey {
+            request,
+            public: [2; 32],
+            sealed: Vec::new(),
+        })
         .await;
-    assert!(matches!(guest_account, ServerMessage::Workspaces { .. }));
     let refused = guest
-        .send(|request| ClientMessage::ListMemberKeys { request, workspace })
+        .send(|request| ClientMessage::PutWorkspaceKey {
+            request,
+            workspace,
+            sealed: b"sealed by an outsider".to_vec(),
+        })
         .await;
     assert!(
         matches!(refused, ServerMessage::Failed { .. }),
-        "an outsider listed a workspace's members: {refused:?}"
+        "an outsider stored a key for a workspace: {refused:?}"
     );
 
     owner
@@ -79,6 +84,7 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
             workspace,
             email: "guest@example.com".into(),
             role: WorkspaceRole::Editor,
+            sealed: Vec::new(),
         })
         .await;
     let ServerMessage::Invitations { invitations, .. } = guest
@@ -94,43 +100,10 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
             accept: true,
         })
         .await;
-    guest
-        .send(|request| ClientMessage::SetRecoveryKey {
-            request,
-            public: [2; 32],
-            sealed: Vec::new(),
-        })
-        .await;
-
-    let listed = owner
-        .send(|request| ClientMessage::ListMemberKeys { request, workspace })
-        .await;
-    let ServerMessage::MemberKeys { mut members, .. } = listed else {
-        panic!("listing member keys failed: {listed:?}");
-    };
-    members.sort_by_key(|member| member.recovery);
-    let guest_id = members[1].account;
-    assert_eq!(
-        members,
-        vec![
-            MemberKey {
-                account: owner_account,
-                recovery: Some([1; 32]),
-                sealed: true,
-            },
-            MemberKey {
-                account: guest_id,
-                recovery: Some([2; 32]),
-                sealed: false,
-            },
-        ]
-    );
-
-    let response = owner
+    let response = guest
         .send(|request| ClientMessage::PutWorkspaceKey {
             request,
             workspace,
-            account: guest_id,
             sealed: b"sealed for the guest".to_vec(),
         })
         .await;

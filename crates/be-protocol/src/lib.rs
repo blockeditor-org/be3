@@ -38,6 +38,8 @@ pub struct WorkspaceInvitation {
     pub email: String,
     pub role: WorkspaceRole,
     pub invited_by: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -143,6 +145,8 @@ pub enum ClientMessage {
         workspace: Uuid,
         email: String,
         role: WorkspaceRole,
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
     },
     ListInvitations {
         request: u64,
@@ -297,13 +301,8 @@ pub enum ClientMessage {
     PutWorkspaceKey {
         request: u64,
         workspace: Uuid,
-        account: Uuid,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
-    },
-    ListMemberKeys {
-        request: u64,
-        workspace: Uuid,
     },
     Pair {
         request: u64,
@@ -343,13 +342,6 @@ pub struct SealedKey {
     pub workspace: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct MemberKey {
-    pub account: Uuid,
-    pub recovery: Option<[u8; 32]>,
-    pub sealed: bool,
 }
 
 impl ClientMessage {
@@ -394,7 +386,6 @@ impl ClientMessage {
             | Self::GetKeys { request }
             | Self::SetRecoveryKey { request, .. }
             | Self::PutWorkspaceKey { request, .. }
-            | Self::ListMemberKeys { request, .. }
             | Self::Pair { request, .. }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }
@@ -518,10 +509,6 @@ pub enum ServerMessage {
         recovery: Option<[u8; 32]>,
         sealed: Vec<SealedKey>,
     },
-    MemberKeys {
-        request: u64,
-        members: Vec<MemberKey>,
-    },
     Paired {
         from: ClientId,
         workspace: Uuid,
@@ -536,12 +523,6 @@ pub enum ServerMessage {
     Agents {
         request: u64,
         agents: Vec<Agent>,
-    },
-    KeyWanted {
-        workspace: Uuid,
-    },
-    KeySealed {
-        workspace: Uuid,
     },
 }
 
@@ -566,7 +547,6 @@ impl ServerMessage {
             | Self::AccessList { request, .. }
             | Self::Session { request, .. }
             | Self::Keys { request, .. }
-            | Self::MemberKeys { request, .. }
             | Self::AgentCreated { request, .. }
             | Self::Agents { request, .. } => Some(*request),
             Self::HeadChanged { .. }
@@ -575,9 +555,7 @@ impl ServerMessage {
             | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
             | Self::Relayed { .. }
-            | Self::Paired { .. }
-            | Self::KeyWanted { .. }
-            | Self::KeySealed { .. } => None,
+            | Self::Paired { .. } => None,
         }
     }
 }

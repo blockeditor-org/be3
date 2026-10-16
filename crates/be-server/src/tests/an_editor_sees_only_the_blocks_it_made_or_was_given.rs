@@ -31,6 +31,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
             workspace,
             email: "guest@example.com".into(),
             role: WorkspaceRole::Editor,
+            sealed: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");

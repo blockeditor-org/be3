@@ -10,15 +10,7 @@ pub(crate) struct KeyState {
     setup: Option<RecoverySetup>,
     saving: Option<platform::RequestResult<Result<(), AccountError>>>,
     pairing: Option<PairingWait>,
-    awaiting: Option<SealWait>,
-    secret: Option<be_keys::RecoverySecret>,
     error: Option<String>,
-}
-
-struct SealWait {
-    workspace: Uuid,
-    receiver: Option<platform::RequestResult<Result<Vec<u8>, AccountError>>>,
-    _cancel: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 struct RecoverySetup {
@@ -30,13 +22,17 @@ struct RecoverySetup {
 struct PairingWait {
     workspace: Uuid,
     code: String,
-    receiver: platform::RequestResult<Result<[u8; 32], AccountError>>,
+    receiver: platform::RequestResult<Result<accounts::Paired, AccountError>>,
     _cancel: tokio::sync::oneshot::Sender<()>,
 }
 
 pub(crate) enum KeyEvent {
-    RecoverySaved,
-    Unlocked(Uuid, [u8; 32]),
+    RecoverySaved(be_keys::RecoveryPublic),
+    Unlocked {
+        workspace: Uuid,
+        key: [u8; 32],
+        recovery: Option<be_keys::RecoveryPublic>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -156,7 +152,11 @@ impl KeyState {
         )));
     }
 
-    pub(crate) fn unlock_with_phrase(&mut self, workspace: Uuid, typed: &str) -> Option<[u8; 32]> {
+    pub(crate) fn unlock_with_phrase(
+        &mut self,
+        workspace: Uuid,
+        typed: &str,
+    ) -> Option<([u8; 32], be_keys::RecoveryPublic)> {
         let opened = (|| {
             let phrase = RecoveryPhrase::parse(typed).map_err(|error| error.to_string())?;
             let keys = self
@@ -174,13 +174,12 @@ impl KeyState {
             let key = secret.open(sealed).map_err(|error| error.to_string())?;
             let key =
                 <[u8; 32]>::try_from(key).map_err(|_| "The sealed key is corrupt.".to_owned())?;
-            Ok((key, secret))
+            Ok((key, secret.public()))
         })();
         match opened {
-            Ok((key, secret)) => {
+            Ok(opened) => {
                 self.error = None;
-                self.secret = Some(secret);
-                Some(key)
+                Some(opened)
             }
             Err(error) => {
                 self.error = Some(error);
@@ -215,54 +214,6 @@ impl KeyState {
         self.pairing = None;
     }
 
-    pub(crate) fn want(
-        &mut self,
-        server_url: String,
-        token: String,
-        workspace: Uuid,
-    ) -> Option<KeyEvent> {
-        let keys = self.keys.as_ref()?;
-        if self
-            .awaiting
-            .as_ref()
-            .is_some_and(|wait| wait.workspace == workspace)
-        {
-            return None;
-        }
-        if let Some(sealed) = keys.sealed.get(&workspace).cloned() {
-            self.awaiting = Some(SealWait {
-                workspace,
-                receiver: None,
-                _cancel: None,
-            });
-            return self.open_sealed(workspace, &sealed);
-        }
-        let (cancel, cancelled) = tokio::sync::oneshot::channel::<()>();
-        self.awaiting = Some(SealWait {
-            workspace,
-            receiver: Some(platform::spawn_request(accounts::sealed_key(
-                server_url,
-                token,
-                workspace,
-                Box::pin(async move {
-                    let _ = cancelled.await;
-                }),
-            ))),
-            _cancel: Some(cancel),
-        });
-        None
-    }
-
-    pub(crate) fn stop_waiting(&mut self) {
-        self.awaiting = None;
-    }
-
-    fn open_sealed(&mut self, workspace: Uuid, sealed: &[u8]) -> Option<KeyEvent> {
-        let opened = self.secret.as_ref()?.open(sealed).ok()?;
-        let key = <[u8; 32]>::try_from(opened).ok()?;
-        Some(KeyEvent::Unlocked(workspace, key))
-    }
-
     pub(crate) fn poll(&mut self) -> Option<KeyEvent> {
         if let Some(saving) = &self.saving
             && let Ok(result) = saving.try_recv()
@@ -270,11 +221,10 @@ impl KeyState {
             self.saving = None;
             match result {
                 Ok(()) => {
-                    if let Some(setup) = self.setup.take() {
-                        self.secret = Some(setup.phrase.secret());
-                    }
                     self.keys = None;
-                    return Some(KeyEvent::RecoverySaved);
+                    if let Some(setup) = self.setup.take() {
+                        return Some(KeyEvent::RecoverySaved(setup.phrase.secret().public()));
+                    }
                 }
                 Err(error) if self.replacing() => {
                     self.error = Some(format!(
@@ -291,24 +241,12 @@ impl KeyState {
             let workspace = pairing.workspace;
             self.pairing = None;
             match result {
-                Ok(key) => return Some(KeyEvent::Unlocked(workspace, key)),
-                Err(error) => self.error = Some(error.message),
-            }
-        }
-        if let Some(wait) = &mut self.awaiting
-            && let Some(result) = wait
-                .receiver
-                .as_ref()
-                .and_then(|receiver| receiver.try_recv().ok())
-        {
-            let workspace = wait.workspace;
-            wait.receiver = None;
-            match result {
-                Ok(sealed) => {
-                    if let Some(keys) = &mut self.keys {
-                        keys.sealed.insert(workspace, sealed.clone());
-                    }
-                    return self.open_sealed(workspace, &sealed);
+                Ok(paired) => {
+                    return Some(KeyEvent::Unlocked {
+                        workspace,
+                        key: paired.key,
+                        recovery: paired.recovery.map(be_keys::RecoveryPublic),
+                    });
                 }
                 Err(error) => self.error = Some(error.message),
             }

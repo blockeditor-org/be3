@@ -416,6 +416,7 @@ struct BlockApp {
     reauth: Option<ReauthState>,
     invite_open: bool,
     invite_sent: u64,
+    invite_code: Option<String>,
     agents_open: bool,
     agents: Vec<be_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
@@ -491,8 +492,9 @@ struct PendingAccountRequest {
 enum WorkspaceOperation {
     Load,
     Create(String),
-    Respond(Uuid, bool),
-    Invite(Uuid, String, WorkspaceRole),
+    Decline(Uuid),
+    Accept(Uuid, String, Option<be_keys::RecoveryPublic>),
+    Invite(Uuid, String, WorkspaceRole, [u8; 32]),
     ListAgents(Uuid),
     CreateAgent(Uuid, String, [u8; 32]),
     RemoveAgent(Uuid, Uuid),
@@ -502,7 +504,8 @@ enum WorkspaceResult {
     Loaded(Vec<Workspace>, Vec<WorkspaceInvitation>, accounts::Keys),
     Created(Workspace),
     Responded,
-    Invited,
+    Accepted(Uuid, [u8; 32]),
+    Invited(String),
     Agents(
         Option<Vec<be_protocol::Agent>>,
         Option<accounts::AgentCredentials>,
@@ -647,6 +650,7 @@ impl BlockApp {
             reauth: None,
             invite_open: false,
             invite_sent: 0,
+            invite_code: None,
             agents_open: false,
             agents: Vec::new(),
             agent_created: None,
@@ -1047,15 +1051,20 @@ impl BlockApp {
                 WorkspaceOperation::Create(name) => accounts::create_workspace(url, token, name)
                     .await
                     .map(WorkspaceResult::Created),
-                WorkspaceOperation::Respond(invitation, accept) => {
-                    accounts::respond_invitation(url, token, invitation, accept)
+                WorkspaceOperation::Decline(invitation) => {
+                    accounts::respond_invitation(url, token, invitation, false)
                         .await
                         .map(|()| WorkspaceResult::Responded)
                 }
-                WorkspaceOperation::Invite(workspace, email, role) => {
-                    accounts::invite(url, token, workspace, email, role)
+                WorkspaceOperation::Accept(invitation, code, recovery) => {
+                    accounts::accept_invitation(url, token, invitation, code, recovery)
                         .await
-                        .map(|()| WorkspaceResult::Invited)
+                        .map(|(workspace, key)| WorkspaceResult::Accepted(workspace, key))
+                }
+                WorkspaceOperation::Invite(workspace, email, role, key) => {
+                    accounts::invite(url, token, workspace, email, role, key)
+                        .await
+                        .map(WorkspaceResult::Invited)
                 }
                 WorkspaceOperation::ListAgents(workspace) => {
                     accounts::agents(url, token, workspace)
@@ -1136,9 +1145,20 @@ impl BlockApp {
                 self.workspaces_load_failed = false;
                 self.begin_workspace_request(WorkspaceOperation::Load);
             }
-            Ok(WorkspaceResult::Invited) => {
+            Ok(WorkspaceResult::Accepted(workspace, key)) => {
+                if let Err(error) = self
+                    .app_state
+                    .set_workspace_key(&self.account, workspace, key)
+                {
+                    self.workspace_error = Some(error.to_string());
+                }
+                self.workspaces_loaded = false;
+                self.workspaces_load_failed = false;
+                self.begin_workspace_request(WorkspaceOperation::Load);
+            }
+            Ok(WorkspaceResult::Invited(code)) => {
                 self.invite_sent += 1;
-                self.invite_open = false;
+                self.invite_code = Some(code);
             }
             Ok(WorkspaceResult::Agents(agents, created)) => {
                 if let Some(agents) = agents {
@@ -1266,7 +1286,6 @@ impl BlockApp {
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys.cancel_pairing();
-        self.keys.stop_waiting();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
             Err(error) => {
@@ -1298,26 +1317,40 @@ impl BlockApp {
     }
 
     fn poll_keys(&mut self) {
-        let mut event = self.keys.poll();
-        if event.is_none()
-            && self.workspace_key.is_none()
-            && let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id)
-        {
-            event = self.keys.want(
-                self.server_url.clone(),
-                self.account.token.clone(),
-                workspace,
-            );
-        }
-        match event {
-            Some(keys::KeyEvent::RecoverySaved) if self.workspace.is_some() => {}
-            Some(keys::KeyEvent::RecoverySaved) => {
-                self.workspaces_loaded = false;
-                self.workspaces_load_failed = false;
-                self.begin_workspace_request(WorkspaceOperation::Load);
+        match self.keys.poll() {
+            Some(keys::KeyEvent::RecoverySaved(public)) => {
+                self.trust_recovery(public);
+                if self.workspace.is_none() {
+                    self.workspaces_loaded = false;
+                    self.workspaces_load_failed = false;
+                    self.begin_workspace_request(WorkspaceOperation::Load);
+                }
             }
-            Some(keys::KeyEvent::Unlocked(workspace, key)) => self.unlocked(workspace, key),
+            Some(keys::KeyEvent::Unlocked {
+                workspace,
+                key,
+                recovery,
+            }) => {
+                if let Some(recovery) = recovery {
+                    self.trust_recovery(recovery);
+                }
+                self.unlocked(workspace, key);
+            }
             None => {}
+        }
+    }
+
+    fn trusted_recovery(&self) -> Option<be_keys::RecoveryPublic> {
+        self.app_state
+            .recovery_key(&self.account)
+            .ok()
+            .flatten()
+            .map(be_keys::RecoveryPublic)
+    }
+
+    fn trust_recovery(&mut self, public: be_keys::RecoveryPublic) {
+        if let Err(error) = self.app_state.set_recovery_key(&self.account, public.0) {
+            self.workspace_error = Some(error.to_string());
         }
     }
 
@@ -1376,6 +1409,7 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
+        self.invite_code = None;
         self.agents_open = false;
         self.agent_created = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
@@ -2350,6 +2384,7 @@ impl BlockApp {
                 .into_iter()
                 .filter(|(held, _)| *held != workspace)
                 .collect(),
+            recovery: self.trusted_recovery().map(|public| public.0),
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
@@ -2488,8 +2523,12 @@ impl BlockApp {
                 self.root_settings.use_profile(self.client_id, profile);
             }
             UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
-            UiCommand::RespondInvitation(id, accept) => {
-                self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
+            UiCommand::DeclineInvitation(id) => {
+                self.begin_workspace_request(WorkspaceOperation::Decline(id));
+            }
+            UiCommand::AcceptInvitation(id, code) => {
+                let recovery = self.trusted_recovery();
+                self.begin_workspace_request(WorkspaceOperation::Accept(id, code, recovery));
             }
             UiCommand::CreateWorkspace(name) => {
                 if !name.trim().is_empty() {
@@ -2515,7 +2554,10 @@ impl BlockApp {
             }
             UiCommand::ReauthClose => self.close_reauth(),
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
-            UiCommand::InviteMember => self.invite_open = true,
+            UiCommand::InviteMember => {
+                self.invite_open = true;
+                self.invite_code = None;
+            }
             UiCommand::SwitchWorkspace => {
                 if be::status().unsealed == 0 {
                     self.scheduled_workspace_list = true;
@@ -2555,13 +2597,18 @@ impl BlockApp {
             UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
+                    && let Some(key) = self.workspace_key
                     && !email.trim().is_empty()
                 {
                     let id = workspace.id;
-                    self.begin_workspace_request(WorkspaceOperation::Invite(id, email, role));
+                    self.invite_code = None;
+                    self.begin_workspace_request(WorkspaceOperation::Invite(id, email, role, key));
                 }
             }
-            UiCommand::CloseInvite => self.invite_open = false,
+            UiCommand::CloseInvite => {
+                self.invite_open = false;
+                self.invite_code = None;
+            }
             UiCommand::OpenAgents => {
                 self.agents_open = true;
                 self.agent_created = None;
@@ -2603,8 +2650,9 @@ impl BlockApp {
             }
             UiCommand::UnlockWithPhrase(phrase) => {
                 if let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id)
-                    && let Some(key) = self.keys.unlock_with_phrase(workspace, &phrase)
+                    && let Some((key, public)) = self.keys.unlock_with_phrase(workspace, &phrase)
                 {
+                    self.trust_recovery(public);
                     self.unlocked(workspace, key);
                 }
             }
@@ -2781,6 +2829,7 @@ impl BlockApp {
                 busy: self.pending_workspace_request.is_some(),
                 error: self.workspace_error.clone(),
                 sent: self.invite_sent,
+                code: self.invite_code.clone(),
             }),
             about: self.about_open,
             app_menu: self.app_menu_open,

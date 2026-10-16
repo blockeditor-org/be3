@@ -194,6 +194,7 @@ pub(crate) struct InviteView {
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
     pub(crate) sent: u64,
+    pub(crate) code: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -286,7 +287,8 @@ pub(crate) enum UiCommand {
     EverySessionType(bool),
     UseProfile(Uuid),
     NewProfile,
-    RespondInvitation(Uuid, bool),
+    AcceptInvitation(Uuid, String),
+    DeclineInvitation(Uuid),
     CreateWorkspace(String),
     SwitchAccount,
     LogOutCurrent,

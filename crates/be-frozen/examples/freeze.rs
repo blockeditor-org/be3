@@ -15,7 +15,7 @@ use be_cli::{cli, tracker::Tracker};
 use be_client::{Connection, Credentials, Peer, PeerConfig};
 use be_frozen::scene;
 use be_graph::{Access, BlockParent};
-use be_keys::RecoveryPhrase;
+use be_keys::{InviteCode, RecoveryPhrase};
 use be_protocol::{ClientMessage, SealedKey, ServerMessage, WorkspaceRole};
 use be_server::{
     ServerConfig,
@@ -200,6 +200,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         workspace,
         email: scene::EDITOR_EMAIL.into(),
         role: WorkspaceRole::Editor,
+        sealed: InviteCode::generate().seal(workspace.as_bytes(), key.as_bytes()),
     })
     .await?;
     let ServerMessage::Invitations { invitations, .. } = request(&editor, |request| {
@@ -224,13 +225,10 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         sealed: Vec::new(),
     })
     .await?;
-    request(owner.connection(), |request| {
-        ClientMessage::PutWorkspaceKey {
-            request,
-            workspace,
-            account: editor_account,
-            sealed: editor_public.seal(key.as_bytes()),
-        }
+    request(&editor, |request| ClientMessage::PutWorkspaceKey {
+        request,
+        workspace,
+        sealed: editor_public.seal(key.as_bytes()),
     })
     .await?;
     request(owner.connection(), |request| ClientMessage::Invite {
@@ -238,6 +236,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         workspace,
         email: scene::INVITED_EMAIL.into(),
         role: WorkspaceRole::Editor,
+        sealed: InviteCode::generate().seal(workspace.as_bytes(), key.as_bytes()),
     })
     .await?;
 

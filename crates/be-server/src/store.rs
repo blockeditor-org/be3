@@ -11,7 +11,7 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, MemberKey, SealedKey, Workspace,
+    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, SealedKey, Workspace,
     WorkspaceInvitation, WorkspaceRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
@@ -287,6 +287,7 @@ impl ServerStore {
         workspace: Uuid,
         email: &str,
         role: WorkspaceRole,
+        sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
         if self.membership(account, workspace).await? != WorkspaceRole::Administrator {
             return Err(ServerError::Refused(
@@ -301,14 +302,15 @@ impl ServerStore {
             params![workspace.to_string(), email],
         )?;
         database.execute(
-            "INSERT INTO invitations (id, workspace_id, email, role, invited_by)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO invitations (id, workspace_id, email, role, invited_by, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 Uuid::new_v4().to_string(),
                 workspace.to_string(),
                 email,
                 encode_role(role),
-                account.to_string()
+                account.to_string(),
+                sealed
             ],
         )?;
         Ok(())
@@ -322,7 +324,7 @@ impl ServerStore {
         let database = self.database.lock().await;
         let mut statement = database.prepare(
             "SELECT invitations.id, invitations.workspace_id, workspaces.name, invitations.role,
-                    invitations.invited_by
+                    invitations.invited_by, invitations.sealed
              FROM invitations JOIN workspaces ON workspaces.id = invitations.workspace_id
              WHERE invitations.email = ?1
                AND NOT EXISTS (SELECT 1 FROM memberships
@@ -337,11 +339,12 @@ impl ServerStore {
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, Vec<u8>>(5)?,
             ))
         })?;
         let mut invitations = Vec::new();
         for row in rows {
-            let (id, workspace, workspace_name, role, invited_by) = row?;
+            let (id, workspace, workspace_name, role, invited_by, sealed) = row?;
             invitations.push(WorkspaceInvitation {
                 id: parse_uuid(&id)?,
                 workspace: parse_uuid(&workspace)?,
@@ -349,6 +352,7 @@ impl ServerStore {
                 email: email.clone(),
                 role: decode_role(&role)?,
                 invited_by: parse_uuid(&invited_by)?,
+                sealed,
             });
         }
         Ok(invitations)
@@ -517,19 +521,18 @@ impl ServerStore {
 
     pub async fn put_workspace_key(
         &self,
-        caller: Uuid,
-        workspace: Uuid,
         account: Uuid,
+        workspace: Uuid,
         sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
         let database = self.database.lock().await;
-        if !is_member(&database, caller, workspace)? || !is_member(&database, account, workspace)? {
+        if !is_member(&database, account, workspace)? {
             return Err(not_a_member());
         }
         if recovery_key(&database, account)?.is_none() {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
-                "that account has no recovery key to seal to".into(),
+                "this account has no recovery key to seal to".into(),
             ));
         }
         database.execute(
@@ -537,74 +540,6 @@ impl ServerStore {
             params![workspace.to_string(), account.to_string(), sealed],
         )?;
         Ok(())
-    }
-
-    pub async fn awaiting_keys(
-        &self,
-        account: Uuid,
-    ) -> Result<Vec<(Uuid, Vec<Uuid>)>, ServerError> {
-        let database = self.database.lock().await;
-        if recovery_key(&database, account)?.is_none() {
-            return Ok(Vec::new());
-        }
-        let mut statement = database.prepare(
-            "SELECT memberships.workspace_id FROM memberships
-             LEFT JOIN workspace_keys ON workspace_keys.account_id = memberships.account_id
-                AND workspace_keys.workspace_id = memberships.workspace_id
-             WHERE memberships.account_id = ?1 AND workspace_keys.sealed IS NULL",
-        )?;
-        let workspaces = statement
-            .query_map([account.to_string()], |row| row.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut members =
-            database.prepare("SELECT account_id FROM memberships WHERE workspace_id = ?1")?;
-        let mut awaiting = Vec::new();
-        for workspace in workspaces {
-            let accounts = members
-                .query_map([&workspace], |row| row.get::<_, String>(0))?
-                .collect::<Result<Vec<_>, _>>()?
-                .iter()
-                .map(|account| parse_uuid(account))
-                .collect::<Result<Vec<_>, _>>()?;
-            awaiting.push((parse_uuid(&workspace)?, accounts));
-        }
-        Ok(awaiting)
-    }
-
-    pub async fn member_keys(
-        &self,
-        caller: Uuid,
-        workspace: Uuid,
-    ) -> Result<Vec<MemberKey>, ServerError> {
-        let database = self.database.lock().await;
-        if !is_member(&database, caller, workspace)? {
-            return Err(not_a_member());
-        }
-        let mut statement = database.prepare(
-            "SELECT memberships.account_id, recovery_keys.public, workspace_keys.sealed IS NOT NULL
-             FROM memberships
-             LEFT JOIN recovery_keys ON recovery_keys.account_id = memberships.account_id
-             LEFT JOIN workspace_keys ON workspace_keys.account_id = memberships.account_id
-                AND workspace_keys.workspace_id = memberships.workspace_id
-             WHERE memberships.workspace_id = ?1",
-        )?;
-        let rows = statement.query_map([workspace.to_string()], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<Vec<u8>>>(1)?,
-                row.get::<_, bool>(2)?,
-            ))
-        })?;
-        let mut members = Vec::new();
-        for row in rows {
-            let (account, recovery, sealed) = row?;
-            members.push(MemberKey {
-                account: parse_uuid(&account)?,
-                recovery: recovery.map(|public| public_key(&public)).transpose()?,
-                sealed,
-            });
-        }
-        Ok(members)
     }
 
     pub async fn create_agent(

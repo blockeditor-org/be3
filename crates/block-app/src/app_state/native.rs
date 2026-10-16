@@ -32,6 +32,12 @@ const SCHEMA: &str = "
         key          BLOB NOT NULL,
         PRIMARY KEY (server_key, account_id, workspace_id)
     );
+    CREATE TABLE recovery_keys (
+        server_key TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        public     BLOB NOT NULL,
+        PRIMARY KEY (server_key, account_id)
+    );
     CREATE TABLE input_settings (
         id      INTEGER PRIMARY KEY CHECK (id = 0),
         content BLOB NOT NULL
@@ -184,6 +190,10 @@ impl AppStateStore {
             "DELETE FROM workspace_keys WHERE server_key = ?1 AND account_id = ?2",
             params![saved.server.key(), saved.id.to_string()],
         )?;
+        self.connection.execute(
+            "DELETE FROM recovery_keys WHERE server_key = ?1 AND account_id = ?2",
+            params![saved.server.key(), saved.id.to_string()],
+        )?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -291,6 +301,37 @@ impl AppStateStore {
                 workspace.to_string(),
                 key.to_vec()
             ],
+        )?;
+        Ok(())
+    }
+
+    pub fn recovery_key(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
+        let public: Option<Vec<u8>> = self
+            .connection
+            .query_row(
+                "SELECT public FROM recovery_keys WHERE server_key = ?1 AND account_id = ?2",
+                params![saved.server.key(), saved.id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()?;
+        public
+            .map(|public| {
+                public
+                    .try_into()
+                    .map_err(|_| AppStateError::from("a stored recovery key is corrupt".to_owned()))
+            })
+            .transpose()
+    }
+
+    pub fn set_recovery_key(
+        &self,
+        saved: &SavedAccount,
+        public: [u8; 32],
+    ) -> Result<(), AppStateError> {
+        self.connection.execute(
+            "INSERT OR REPLACE INTO recovery_keys (server_key, account_id, public)
+             VALUES (?1, ?2, ?3)",
+            params![saved.server.key(), saved.id.to_string(), public.to_vec()],
         )?;
         Ok(())
     }

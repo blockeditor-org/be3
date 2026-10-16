@@ -22,6 +22,7 @@ async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() 
             workspace,
             email: "guest@example.com".into(),
             role: WorkspaceRole::Editor,
+            sealed: b"sealed to the invite code".to_vec(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -34,6 +35,7 @@ async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() 
     };
     assert_eq!(invitations.len(), 1);
     assert_eq!(invitations[0].workspace_name, "shared");
+    assert_eq!(invitations[0].sealed, b"sealed to the invite code");
 
     let response = guest
         .send(|request| ClientMessage::RespondInvitation {

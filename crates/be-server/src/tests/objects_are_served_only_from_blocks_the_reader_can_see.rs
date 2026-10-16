@@ -17,6 +17,7 @@ async fn join(owner: &mut TestClient, guest: &mut TestClient, workspace: Uuid, e
             workspace,
             email: email.into(),
             role: WorkspaceRole::Editor,
+            sealed: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
