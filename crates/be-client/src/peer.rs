@@ -267,7 +267,18 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn note(&self, summary: &BlockSummary) {
         if let Some(key) = summary.key {
-            self.current.lock().unwrap().insert(summary.id, key);
+            self.make_current(summary.id, key);
+        }
+    }
+
+    fn make_current(&self, block: Uuid, key: Uuid) {
+        let mut current = self.current.lock().unwrap();
+        let older = current.get(&block).is_some_and(|known| {
+            let epoch = |id| self.keys.row(id).map(|row| row.epoch);
+            matches!((epoch(key), epoch(*known)), (Some(new), Some(old)) if new < old)
+        });
+        if !older {
+            current.insert(block, key);
         }
     }
 
@@ -320,10 +331,17 @@ impl<S: ObjectStore> Peer<S> {
         if !self.keys.trusted(key) {
             self.refresh_keys(Some(vec![block])).await?;
         }
-        match self.keys.trusted(key) {
-            true => Ok(key),
-            false => Err(ClientError::Locked(key)),
+        if !self.keys.trusted(key) {
+            return Err(ClientError::Locked(key));
         }
+        let epoch = self.keys.row(key).map_or(0, |row| row.epoch);
+        let newest = self
+            .keys
+            .keys_of(block, KeyKind::Data)
+            .into_iter()
+            .rev()
+            .find(|row| row.epoch > epoch && self.keys.trusted(row.id));
+        Ok(newest.map_or(key, |row| row.id))
     }
 
     async fn scope_key(&self, scope: Uuid) -> Result<Uuid, ClientError> {
@@ -1065,9 +1083,8 @@ impl<S: ObjectStore> Peer<S> {
 
     fn recorded(&self, keys: &KeySet) {
         self.keys.record(keys);
-        let mut current = self.current.lock().unwrap();
         for row in keys.keys.iter().filter(|row| row.kind == KeyKind::Data) {
-            current.insert(row.block, row.id);
+            self.make_current(row.block, row.id);
         }
     }
 
