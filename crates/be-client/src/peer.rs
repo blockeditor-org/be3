@@ -174,6 +174,7 @@ impl<S: ObjectStore> Peer<S> {
                     request,
                     public: config.identity.public().0,
                     sealed: Vec::new(),
+                    own: Vec::new(),
                 })
                 .await?;
         }
@@ -1001,7 +1002,7 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
         let keys = match parent {
             BlockParent::Detached => KeySet::default(),
-            BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent).await?,
+            BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent, false).await?,
         };
         self.connection
             .request(|request| ClientMessage::SetParent {
@@ -1034,14 +1035,59 @@ impl<S: ObjectStore> Peer<S> {
         if !access.can_view() {
             return Ok(());
         }
-        let parent = self.summary(block).await?.parent;
-        let mut keys = self.rescope(block, parent).await?;
+        self.seal_share(block, account, public).await
+    }
+
+    pub async fn seal_share(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        public: &be_keys::RecoveryPublic,
+    ) -> Result<(), ClientError> {
+        let mut keys = self.own_scope(block).await?;
         let scope = self
             .keys
             .scope_key(block)
             .ok_or(ClientError::Locked(block))?;
         keys.wrapped
             .push(self.keys.seal_to(scope, account, public)?);
+        self.put_keys(keys).await
+    }
+
+    pub async fn offer(
+        &self,
+        block: Uuid,
+        access: Access,
+    ) -> Result<crate::GrantOffer, ClientError> {
+        let keys = self.own_scope(block).await?;
+        self.put_keys(keys).await?;
+        let key = self
+            .keys
+            .scope_key(block)
+            .ok_or(ClientError::Locked(block))?;
+        let secret = self
+            .keys
+            .ring()
+            .get(key)
+            .ok_or(ClientError::Locked(block))?;
+        Ok(crate::GrantOffer {
+            organization: self.organization,
+            block,
+            access,
+            key,
+            secret: *secret.as_bytes(),
+        })
+    }
+
+    async fn own_scope(&self, block: Uuid) -> Result<KeySet, ClientError> {
+        let parent = self.summary(block).await?.parent;
+        self.rescope(block, parent, true).await
+    }
+
+    async fn put_keys(&self, keys: KeySet) -> Result<(), ClientError> {
+        if keys.is_empty() {
+            return Ok(());
+        }
         self.connection
             .request(|request| ClientMessage::PutKeys {
                 request,
@@ -1052,9 +1098,14 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    async fn rescope(&self, block: Uuid, parent: BlockParent) -> Result<KeySet, ClientError> {
+    async fn rescope(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+        own: bool,
+    ) -> Result<KeySet, ClientError> {
         let moved = self.summary(block).await?;
-        let shared = moved.scope == block && matches!(moved.parent, BlockParent::Block(_));
+        let shared = own || (moved.scope == block && matches!(moved.parent, BlockParent::Block(_)));
         let parent_scope = match parent {
             BlockParent::Block(parent) => Some(self.scope_key_under(parent).await?),
             BlockParent::Root | BlockParent::Detached => None,

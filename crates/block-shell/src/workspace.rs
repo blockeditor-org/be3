@@ -448,12 +448,10 @@ impl Workspace {
     }
 
     fn forget_share(&self) {
-        if let Some(Share {
-            request: Some(request),
-            ..
-        }) = self.share.get_untracked()
-        {
-            self.host().forget_request(request);
+        if let Some(share) = self.share.get_untracked() {
+            for request in share.request.into_iter().chain(share.inviting) {
+                self.host().forget_request(request);
+            }
         }
         self.set_share.set(None);
     }
@@ -469,6 +467,15 @@ impl Workspace {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        if let ShareAction::InviteNew = action {
+            if share.inviting.is_none() {
+                share.invite_link = None;
+                share.error = None;
+                share.inviting = Some(self.host().contact_link(share.block, share.pending_access));
+            }
+            self.set_share.set(Some(share));
+            return;
+        }
         let (grants, mut reload) = share.act(action, self.host().account_id());
         for (account, access) in grants {
             self.host().set_access(share.block, account, access);
@@ -488,6 +495,17 @@ impl Workspace {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        if let Some(made) = share
+            .inviting
+            .and_then(|request| self.host().take_contact_link(request))
+        {
+            share.inviting = None;
+            match made {
+                block_editor_beui::ContactLinkResult::Made(link) => share.invite_link = Some(link),
+                block_editor_beui::ContactLinkResult::Failed(error) => share.error = Some(error),
+            }
+            self.set_share.set(Some(share.clone()));
+        }
         let Some(listing) = share
             .request
             .and_then(|request| self.host().take_access_listing(request))

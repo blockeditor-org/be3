@@ -11,10 +11,10 @@ use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildRect, ChildStatus, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostAction,
-    HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
-    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
-    decode_host, encode_host,
+    ChildRect, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
+    FileSave, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry,
+    Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent,
+    WebViewId, decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -1215,6 +1215,20 @@ impl EditorHost {
     pub fn take_access_listing(&self, request: u64) -> Option<AccessListing> {
         match self.take_reply(request)? {
             HostReply::AccessListed(listing) => Some(listing),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn contact_link(&self, block_id: Uuid, access: AccessLevel) -> u64 {
+        self.ask(HostRequest::ContactLink {
+            block_id: block_id.into_bytes(),
+            access,
+        })
+    }
+
+    pub fn take_contact_link(&self, request: u64) -> Option<ContactLinkResult> {
+        match self.take_reply(request)? {
+            HostReply::ContactLinkMade(made) => Some(made),
             reply => self.mismatched(request, reply),
         }
     }

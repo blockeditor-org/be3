@@ -5,6 +5,7 @@ mod arguments;
 mod be;
 mod block_label;
 mod compositor;
+mod contacts;
 #[cfg(target_os = "linux")]
 mod dbus;
 mod debug;
@@ -159,6 +160,10 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     }
     if location.hash()?.starts_with("#invite/") {
         app.open_invite(&location.href()?);
+        location.replace("#")?;
+    }
+    if location.hash()?.starts_with("#contact/") {
+        app.contacts.open_from_address(&location.href()?);
         location.replace("#")?;
     }
     if page.search_params().has("automation") {
@@ -426,6 +431,7 @@ struct BlockApp {
     agents_open: bool,
     agents: Vec<be_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
+    contacts: contacts::Contacts,
     scheduled_organization_list: bool,
     server_url: String,
     account: Account,
@@ -503,7 +509,7 @@ struct Joining {
 enum OrganizationOperation {
     Load,
     Create(String),
-    LookUp(Uuid),
+    LookUp(be_keys::InviteCode),
     Join(be_keys::InviteCode),
     Invite(Uuid, String, OrganizationRole),
     ListAgents(Uuid),
@@ -669,6 +675,7 @@ impl BlockApp {
             agents_open: false,
             agents: Vec::new(),
             agent_created: None,
+            contacts: contacts::Contacts::default(),
             scheduled_organization_list: false,
             server_url,
             account,
@@ -937,8 +944,17 @@ impl BlockApp {
             self.joining = None;
             return;
         }
-        let invitation = joining.link.invitation();
-        self.begin_organization_request(OrganizationOperation::LookUp(invitation));
+        let code = joining.link.code.clone();
+        self.begin_organization_request(OrganizationOperation::LookUp(code));
+    }
+
+    fn me(&self) -> Option<accounts::Me> {
+        Some(accounts::Me {
+            account: self.account.id,
+            identity: self.identity?,
+            display_name: self.account.name.clone(),
+            email: self.account.email.clone(),
+        })
     }
 
     fn open_any_organization(&mut self) {
@@ -1088,7 +1104,14 @@ impl BlockApp {
         }
         let url = self.server_url.clone();
         let token = self.account.token.clone();
+        let me = self.me();
         let receiver = platform::spawn_request(async move {
+            let me = || {
+                me.clone().ok_or_else(|| AccountError {
+                    message: "Unlock this account with its recovery phrase first.".to_owned(),
+                    invalid_token: false,
+                })
+            };
             match operation {
                 OrganizationOperation::Load => {
                     let organizations = accounts::organizations(url.clone(), token.clone()).await?;
@@ -1100,16 +1123,16 @@ impl BlockApp {
                         .await
                         .map(OrganizationResult::Created)
                 }
-                OrganizationOperation::LookUp(invitation) => {
-                    accounts::invitation(url, token, invitation)
-                        .await
-                        .map(OrganizationResult::Invitation)
-                }
-                OrganizationOperation::Join(code) => accounts::accept_invitation(url, token, code)
+                OrganizationOperation::LookUp(code) => accounts::invitation(url, token, code)
                     .await
-                    .map(OrganizationResult::Joined),
+                    .map(OrganizationResult::Invitation),
+                OrganizationOperation::Join(code) => {
+                    accounts::accept_invitation(url, token, me()?, code)
+                        .await
+                        .map(OrganizationResult::Joined)
+                }
                 OrganizationOperation::Invite(organization, email, role) => {
-                    accounts::invite(url, token, organization, email, role)
+                    accounts::invite(url, token, me()?, organization, email, role)
                         .await
                         .map(OrganizationResult::Invited)
                 }
@@ -1119,9 +1142,14 @@ impl BlockApp {
                         .map(|agents| OrganizationResult::Agents(Some(agents), None))
                 }
                 OrganizationOperation::CreateAgent(organization, name) => {
-                    let created =
-                        accounts::create_agent(url.clone(), token.clone(), organization, name)
-                            .await?;
+                    let created = accounts::create_agent(
+                        url.clone(),
+                        token.clone(),
+                        me()?,
+                        organization,
+                        name,
+                    )
+                    .await?;
                     let agents = accounts::agents(url, token, organization).await.ok();
                     Ok(OrganizationResult::Agents(agents, Some(created)))
                 }
@@ -1204,15 +1232,6 @@ impl BlockApp {
             Ok(OrganizationResult::Agents(agents, created)) => {
                 if let Some(agents) = agents {
                     self.agents = agents;
-                }
-                if let Some(created) = &created {
-                    if let Err(error) =
-                        self.app_state
-                            .trust(&self.account, created.account, created.public)
-                    {
-                        self.organization_error = Some(error.to_string());
-                    }
-                    be::trust(created.account, created.public);
                 }
                 if created.is_some() {
                     self.agent_created = created;
@@ -1424,6 +1443,7 @@ impl BlockApp {
         self.invite_link = None;
         self.agents_open = false;
         self.agent_created = None;
+        self.contacts.close();
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
@@ -2356,6 +2376,12 @@ impl BlockApp {
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
+        let ready = self
+            .organization
+            .as_ref()
+            .is_some_and(|organization| be::installed_for(self.account.id, organization.id));
+        self.contacts
+            .poll(&accounts::link_base(&self.server_url), ready);
         self.poll_organization_request();
         self.poll_reauth_request();
         if self.choosing_session {
@@ -2399,10 +2425,8 @@ impl BlockApp {
             account: self.account.id,
             organization,
             identity,
-            trusted: self
-                .app_state
-                .trusted_keys(&self.account)
-                .unwrap_or_default(),
+            display_name: self.account.name.clone(),
+            email: self.account.email.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
@@ -2637,6 +2661,17 @@ impl BlockApp {
                     self.begin_organization_request(OrganizationOperation::ListAgents(id));
                 }
             }
+            UiCommand::OpenContacts => self.contacts.show(),
+            UiCommand::CloseContacts => self.contacts.close(),
+            UiCommand::NewContactLink => self.contacts.new_link(),
+            UiCommand::OpenContactLink(text) => self
+                .contacts
+                .paste(&text, &accounts::link_base(&self.server_url)),
+            UiCommand::AcceptContact => self.contacts.accept(),
+            UiCommand::DeclineContact => self.contacts.decline(),
+            UiCommand::RemoveContact(account) => self.contacts.ask_remove(account),
+            UiCommand::ConfirmRemoveContact => self.contacts.confirm_remove(),
+            UiCommand::CancelRemoveContact => self.contacts.cancel_remove(),
             UiCommand::CloseAgents => {
                 self.agents_open = false;
                 self.agent_created = None;
@@ -2816,6 +2851,9 @@ impl BlockApp {
                 every_session_type: self.every_session_type,
                 session_type: self.root_settings.shell(),
                 can_close: !cfg!(target_arch = "wasm32"),
+                company: self.organization.as_ref().is_some_and(|organization| {
+                    organization.kind == be_protocol::OrganizationKind::Company
+                }),
             },
             agents: self.agents_open.then(|| ui::AgentsView {
                 organization: organization_name.clone(),
@@ -2837,6 +2875,7 @@ impl BlockApp {
                     phrase: created.phrase.clone(),
                 }),
             }),
+            contacts: self.contacts.view(),
             invite: self.invite_open.then(|| ui::InviteView {
                 organization: organization_name,
                 busy: self.pending_organization_request.is_some(),

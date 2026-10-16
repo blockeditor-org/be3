@@ -37,6 +37,7 @@ pub(crate) enum ShareAction {
     AddPending,
     SetAccess(Uuid, AccessLevel),
     Refresh,
+    InviteNew,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -49,6 +50,8 @@ pub(crate) struct Share {
     pub(crate) query: String,
     pub(crate) pending: Vec<Person>,
     pub(crate) pending_access: AccessLevel,
+    pub(crate) inviting: Option<u64>,
+    pub(crate) invite_link: Option<String>,
 }
 
 impl Share {
@@ -62,6 +65,8 @@ impl Share {
             query: String::new(),
             pending: Vec::new(),
             pending_access: AccessLevel::Edit,
+            inviting: None,
+            invite_link: None,
         }
     }
 
@@ -114,6 +119,7 @@ impl Share {
             }
             ShareAction::SetAccess(account, access) => grants.push((account, access)),
             ShareAction::Refresh => reload = true,
+            ShareAction::InviteNew => {}
         }
         (grants, reload)
     }

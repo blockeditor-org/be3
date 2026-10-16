@@ -42,7 +42,32 @@ const SCHEMA: &str = "
         email           TEXT NOT NULL,
         role            TEXT NOT NULL,
         invited_by      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        sealed          BLOB NOT NULL DEFAULT x''
+        sealed          BLOB NOT NULL DEFAULT x'',
+        code            BLOB NOT NULL DEFAULT x''
+    );
+
+    CREATE TABLE contact_links (
+        id              TEXT PRIMARY KEY,
+        owner_id        TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        card            BLOB NOT NULL,
+        code            BLOB NOT NULL,
+        grant_organization TEXT NOT NULL DEFAULT '',
+        grant_block     TEXT NOT NULL DEFAULT '',
+        grant_access    TEXT NOT NULL DEFAULT '',
+        grant_key       TEXT NOT NULL DEFAULT '',
+        grant_sealed    BLOB NOT NULL DEFAULT x'',
+        accepter_id     TEXT NOT NULL DEFAULT '',
+        accepter_card   BLOB NOT NULL DEFAULT x''
+    );
+
+    CREATE INDEX contact_links_owner
+        ON contact_links (owner_id);
+
+    CREATE TABLE contacts (
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        contact_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        sealed          BLOB NOT NULL DEFAULT x'',
+        PRIMARY KEY (account_id, contact_id)
     );
 
     CREATE TABLE blocks (

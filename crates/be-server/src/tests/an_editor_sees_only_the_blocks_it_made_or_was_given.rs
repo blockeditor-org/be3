@@ -33,6 +33,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
             email: "guest@example.com".into(),
             role: OrganizationRole::Editor,
             sealed: Vec::new(),
+            code: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -40,6 +41,8 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
         .send(|request| ClientMessage::AcceptInvitation {
             request,
             invitation: Uuid::from_u128(1),
+            card: Vec::new(),
+            contact: Vec::new(),
         })
         .await;
     guest.open(organization).await;

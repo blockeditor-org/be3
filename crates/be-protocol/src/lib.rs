@@ -51,6 +51,59 @@ pub struct OrganizationInvitation {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PendingGrant {
+    pub organization: Uuid,
+    pub block: Uuid,
+    pub access: Access,
+    pub key: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContactLink {
+    pub id: Uuid,
+    pub owner: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub card: Vec<u8>,
+    pub grant: Option<PendingGrant>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OwnContactLink {
+    pub id: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub code: Vec<u8>,
+    pub accepter: Option<Uuid>,
+    #[serde(with = "serde_bytes")]
+    pub card: Vec<u8>,
+    pub grant: Option<PendingGrant>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContactRow {
+    pub account: Uuid,
+    pub email: String,
+    pub display_name: String,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum OwnKind {
+    Contact,
+    Link,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OwnSealed {
+    pub kind: OwnKind,
+    pub id: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct BlockSummary {
     pub id: Uuid,
     pub content_type: Uuid,
@@ -137,6 +190,7 @@ pub struct AccessEntry {
     pub author: bool,
     pub granted: Option<Access>,
     pub effective: Access,
+    pub contact: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -158,6 +212,8 @@ pub enum ErrorCode {
     LoginDisabled,
     BlockHasContent,
     KeyMissing,
+    NotAContact,
+    LinkNotFound,
 }
 
 impl fmt::Display for ErrorCode {
@@ -205,6 +261,8 @@ pub enum ClientMessage {
         role: OrganizationRole,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        code: Vec<u8>,
     },
     GetInvitation {
         request: u64,
@@ -213,6 +271,53 @@ pub enum ClientMessage {
     AcceptInvitation {
         request: u64,
         invitation: Uuid,
+        #[serde(with = "serde_bytes")]
+        card: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        contact: Vec<u8>,
+    },
+    CreateContactLink {
+        request: u64,
+        link: Uuid,
+        #[serde(with = "serde_bytes")]
+        card: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        code: Vec<u8>,
+        grant: Option<PendingGrant>,
+    },
+    GetContactLink {
+        request: u64,
+        link: Uuid,
+    },
+    AcceptContactLink {
+        request: u64,
+        link: Uuid,
+        #[serde(with = "serde_bytes")]
+        card: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        contact: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        key: Vec<u8>,
+    },
+    ListContactLinks {
+        request: u64,
+    },
+    DeleteContactLink {
+        request: u64,
+        link: Uuid,
+    },
+    PutContact {
+        request: u64,
+        contact: Uuid,
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
+    },
+    ListContacts {
+        request: u64,
+    },
+    RemoveContact {
+        request: u64,
+        account: Uuid,
     },
 
     PutObject {
@@ -366,6 +471,7 @@ pub enum ClientMessage {
         request: u64,
         public: [u8; 32],
         sealed: Vec<SealedKey>,
+        own: Vec<OwnSealed>,
     },
     Pair {
         request: u64,
@@ -415,6 +521,14 @@ impl ClientMessage {
             | Self::Invite { request, .. }
             | Self::GetInvitation { request, .. }
             | Self::AcceptInvitation { request, .. }
+            | Self::CreateContactLink { request, .. }
+            | Self::GetContactLink { request, .. }
+            | Self::AcceptContactLink { request, .. }
+            | Self::ListContactLinks { request }
+            | Self::DeleteContactLink { request, .. }
+            | Self::PutContact { request, .. }
+            | Self::ListContacts { request }
+            | Self::RemoveContact { request, .. }
             | Self::ListOrganizations { request }
             | Self::CreateOrganization { request, .. }
             | Self::OpenOrganization { request, .. }
@@ -574,7 +688,21 @@ pub enum ServerMessage {
         request: u64,
         public: Option<[u8; 32]>,
         sealed: Vec<SealedKey>,
+        own: Vec<OwnSealed>,
     },
+    ContactLink {
+        request: u64,
+        link: ContactLink,
+    },
+    ContactLinks {
+        request: u64,
+        links: Vec<OwnContactLink>,
+    },
+    Contacts {
+        request: u64,
+        contacts: Vec<ContactRow>,
+    },
+    ContactsChanged,
     Paired {
         from: ClientId,
         #[serde(with = "serde_bytes")]
@@ -613,6 +741,9 @@ impl ServerMessage {
             | Self::Session { request, .. }
             | Self::Keys { request, .. }
             | Self::RecoveryKey { request, .. }
+            | Self::ContactLink { request, .. }
+            | Self::ContactLinks { request, .. }
+            | Self::Contacts { request, .. }
             | Self::AgentCreated { request, .. }
             | Self::Agents { request, .. } => Some(*request),
             Self::HeadChanged { .. }
@@ -621,7 +752,8 @@ impl ServerMessage {
             | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
             | Self::Relayed { .. }
-            | Self::Paired { .. } => None,
+            | Self::Paired { .. }
+            | Self::ContactsChanged => None,
         }
     }
 }

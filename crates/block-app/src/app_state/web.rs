@@ -8,21 +8,12 @@ const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
 const IDENTITY_KEY: &str = "block.identity-secrets";
-const TRUSTED_KEY: &str = "block.trusted-keys";
 
 #[derive(serde::Deserialize, serde::Serialize)]
 struct StoredIdentity {
     server: String,
     account: Uuid,
     secret: [u8; 32],
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-struct StoredTrust {
-    server: String,
-    account: Uuid,
-    trusted: Uuid,
-    public: [u8; 32],
 }
 
 pub struct AppStateStore {
@@ -81,9 +72,6 @@ impl AppStateStore {
         identities
             .retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
         self.write(IDENTITY_KEY, &identities)?;
-        let mut trusted = self.stored_trust()?;
-        trusted.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        self.write(TRUSTED_KEY, &trusted)?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -114,7 +102,6 @@ impl AppStateStore {
             DISPLAY_SETTINGS_KEY,
             INPUT_SETTINGS_KEY,
             IDENTITY_KEY,
-            TRUSTED_KEY,
         ] {
             self.storage
                 .remove_item(key)
@@ -170,43 +157,6 @@ impl AppStateStore {
             secret,
         });
         self.write(IDENTITY_KEY, &identities)
-    }
-
-    fn stored_trust(&self) -> Result<Vec<StoredTrust>, AppStateError> {
-        Ok(self.read(TRUSTED_KEY)?.unwrap_or_default())
-    }
-
-    pub fn trusted_keys(
-        &self,
-        saved: &SavedAccount,
-    ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
-        Ok(self
-            .stored_trust()?
-            .into_iter()
-            .filter(|stored| stored.server == saved.server.key() && stored.account == saved.id)
-            .map(|stored| (stored.trusted, stored.public))
-            .collect())
-    }
-
-    pub fn trust(
-        &self,
-        saved: &SavedAccount,
-        account: Uuid,
-        public: [u8; 32],
-    ) -> Result<(), AppStateError> {
-        let mut trusted = self.stored_trust()?;
-        trusted.retain(|stored| {
-            stored.server != saved.server.key()
-                || stored.account != saved.id
-                || stored.trusted != account
-        });
-        trusted.push(StoredTrust {
-            server: saved.server.key().to_owned(),
-            account: saved.id,
-            trusted: account,
-            public,
-        });
-        self.write(TRUSTED_KEY, &trusted)
     }
 
     pub fn client_id(&self) -> Result<Uuid, AppStateError> {

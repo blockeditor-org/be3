@@ -2413,6 +2413,15 @@ impl Instances {
                     reply(HostReply::AccessListed(super::graph::grants_of(listed)));
                 });
             }
+            HostRequest::ContactLink { block_id, access } => {
+                let offer = (Uuid::from_bytes(block_id), super::graph::access_of(access));
+                crate::be::make_contact_link(Some(offer), move |made| {
+                    reply(HostReply::ContactLinkMade(match made {
+                        Ok(link) => block_plugin_api::ContactLinkResult::Made(link),
+                        Err(error) => block_plugin_api::ContactLinkResult::Failed(error),
+                    }));
+                });
+            }
             HostRequest::ExportBlock(block) => {
                 let block = Uuid::from_bytes(block);
                 if !self.can_view(block) {

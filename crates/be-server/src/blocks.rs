@@ -157,6 +157,7 @@ impl ServerStore {
                 graph,
                 &transaction,
                 identity.organization,
+                identity.account,
                 &keys,
                 |_, owner| owner == block,
             )?;
@@ -485,6 +486,7 @@ impl ServerStore {
                 graph,
                 &transaction,
                 identity.organization,
+                identity.account,
                 &keys,
                 |graph, owner| {
                     (owner == block || graph.ancestors(owner).any(|above| above == block))
@@ -674,36 +676,29 @@ impl ServerStore {
     ) -> Result<BTreeSet<Uuid>, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
-            let before = graph.audience(block);
-            graph.grant(block, account, access)?;
-            graph.touch(block)?;
-            let organization = identity.organization.to_string();
-            database.execute(
-                "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
-                params![organization, block.to_string()],
-            )?;
-            match encode_access(access) {
-                None => {
-                    database.execute(
-                        "DELETE FROM block_access
-                         WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
-                        params![organization, block.to_string(), account.to_string()],
-                    )?;
+            if access > Access::None && account != identity.account {
+                if !crate::store::is_member_of(database, account, identity.organization)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "that account is not a member of this organization".into(),
+                    ));
                 }
-                Some(encoded) => {
-                    database.execute(
-                        "INSERT OR REPLACE INTO block_access
-                            (organization_id, block_id, account_id, access)
-                         VALUES (?1, ?2, ?3, ?4)",
-                        params![
-                            organization,
-                            block.to_string(),
-                            account.to_string(),
-                            encoded
-                        ],
-                    )?;
+                if !crate::contacts::is_contact(database, identity.account, account)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::NotAContact,
+                        "share only with your contacts: send them a contact link first".into(),
+                    ));
                 }
             }
+            let before = graph.audience(block);
+            write_grant(
+                graph,
+                database,
+                identity.organization,
+                block,
+                account,
+                access,
+            )?;
             Ok(before)
         })
         .await
@@ -717,25 +712,40 @@ impl ServerStore {
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
-            let audience = graph.audience(block);
-            let mut entries = Vec::new();
-            let mut statement = database.prepare(
-                "SELECT accounts.id, accounts.email, accounts.display_name, memberships.role
+            let contacts = crate::contacts::contacts_of(database, identity.account)?;
+            let mut listed: BTreeSet<Uuid> = node.grants.keys().copied().collect();
+            listed.insert(node.author);
+            listed.insert(identity.account);
+            listed.extend(
+                graph
+                    .audience(block)
+                    .into_iter()
+                    .filter(|account| graph.effective_access(block, *account).can_view()),
+            );
+            listed.extend(contacts.iter().copied());
+            let mut statement = database.prepare_cached(
+                "SELECT accounts.email, accounts.display_name, memberships.role
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
-                 WHERE memberships.organization_id = ?1",
+                 WHERE memberships.organization_id = ?1 AND memberships.account_id = ?2",
             )?;
-            let rows = statement.query_map([identity.organization.to_string()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            })?;
-            for row in rows {
-                let (account, email, display_name, role) = row?;
-                let account = parse_uuid(&account)?;
+            let mut entries = Vec::new();
+            for account in listed {
+                let row = statement
+                    .query_row(
+                        params![identity.organization.to_string(), account.to_string()],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                            ))
+                        },
+                    )
+                    .optional()?;
+                let Some((email, display_name, role)) = row else {
+                    continue;
+                };
                 let role = crate::store::decode_role(&role)?;
                 entries.push(AccessEntry {
                     account,
@@ -744,17 +754,57 @@ impl ServerStore {
                     role,
                     author: node.author == account,
                     granted: node.grants.get(&account).copied(),
-                    effective: match (role, audience.contains(&account)) {
-                        (OrganizationRole::Administrator, _) => Access::Edit,
-                        (_, true) => graph.effective_access(block, account),
-                        (_, false) => Access::None,
+                    effective: match role {
+                        OrganizationRole::Administrator => Access::Edit,
+                        OrganizationRole::Editor => graph.effective_access(block, account),
                     },
+                    contact: contacts.contains(&account),
                 });
             }
             Ok(entries)
         })
         .await
     }
+}
+
+pub(crate) fn write_grant(
+    graph: &mut BlockGraph,
+    database: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+    access: Access,
+) -> Result<(), ServerError> {
+    graph.grant(block, account, access)?;
+    graph.touch(block)?;
+    let organization = organization.to_string();
+    database.execute(
+        "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
+        params![organization, block.to_string()],
+    )?;
+    match encode_access(access) {
+        None => {
+            database.execute(
+                "DELETE FROM block_access
+                 WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
+                params![organization, block.to_string(), account.to_string()],
+            )?;
+        }
+        Some(encoded) => {
+            database.execute(
+                "INSERT OR REPLACE INTO block_access
+                    (organization_id, block_id, account_id, access)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    organization,
+                    block.to_string(),
+                    account.to_string(),
+                    encoded
+                ],
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn read_history(

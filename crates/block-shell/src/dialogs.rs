@@ -1,7 +1,8 @@
 use block_editor_beui::be_block::metadata::MAX_NAME_BYTES;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD, ICON_REFRESH,
+    ICON_ADD_LINK, ICON_CLOSE, ICON_CONTENT_COPY, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD,
+    ICON_REFRESH,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -341,6 +342,18 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
         state.with(|share| share.as_ref().is_some_and(|share| share.loaded))
             && members.get().is_empty()
     });
+    let inviting = create_memo(move || {
+        state.with(|share| share.as_ref().is_some_and(|share| share.inviting.is_some()))
+    });
+    let invite_link = create_memo(move || {
+        state.with(|share| {
+            share
+                .as_ref()
+                .and_then(|share| share.invite_link.clone())
+                .unwrap_or_default()
+        })
+    });
+    let invited = create_memo(move || !invite_link.get().is_empty());
     let act = Callback::new(move |action: ShareAction| workspace.share_action(action));
     view! {
         <Dialog open={open} title={title} width=460.0 on_dismiss={move || workspace.close_dialog()}>
@@ -356,8 +369,8 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 </Show>
                 <TextInput
                     value={query}
-                    placeholder="Add people by name or email"
-                    label="Add people"
+                    placeholder="Add contacts by name or email"
+                    label="Add contacts"
                     @test_id={"share.query"}
                     on_change={move |value: String| act.call(ShareAction::Query(value))}
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
@@ -367,10 +380,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         <Card>
                             <List spacing=4.0>
                                 <Show condition={unmatched}>
-                                    <Text
-                                        style=TextStyle::CAPTION
-                                        string="No matching workspace members."
-                                    />
+                                    <Text style=TextStyle::CAPTION string="No matching contacts." />
                                 </Show>
                                 <ForEach keys={suggestion_keys}>
                                     {move |id: Uuid| {
@@ -444,6 +454,44 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                     variant=ButtonVariant::Primary
                                     @test_id={"share.add"}
                                     on_click={move || act.call(ShareAction::AddPending)}
+                                />
+                            </List>
+                        </List>
+                    }}
+                </Show>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Button
+                        label="Invite someone new"
+                        glyph={ICON_ADD_LINK.to_owned()}
+                        variant=ButtonVariant::Secondary
+                        disabled={inviting}
+                        @test_id={"share.invite"}
+                        on_click={move || act.call(ShareAction::InviteNew)}
+                    />
+                    <Show condition={inviting}>
+                        <Spinner />
+                    </Show>
+                </List>
+                <Show condition={invited}>
+                    {move || view! {
+                        <List spacing=6.0>
+                            <Text
+                                style=TextStyle::CAPTION
+                                @test_id={"share.invite.help"}
+                                string="Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
+                                wrap=true
+                            />
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <TextInput
+                                    @sizing=ItemSize::Percent(100.0)
+                                    value={invite_link}
+                                    label="Contact link"
+                                    @test_id={"share.invite.link"}
+                                />
+                                <IconButton
+                                    glyph={ICON_CONTENT_COPY.to_owned()}
+                                    label="Copy link"
+                                    on_click={move || copy_text(invite_link.get_untracked())}
                                 />
                             </List>
                         </List>

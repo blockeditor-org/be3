@@ -102,6 +102,27 @@ pub(super) enum Command {
         code: String,
     },
     DismissPairing(u64),
+    Contact(ContactCommand),
+}
+
+type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
+
+type CardReply = Box<dyn FnOnce(Result<be_keys::ContactCard, String>) + Send>;
+
+pub(super) enum ContactCommand {
+    Link {
+        offer: Option<(Uuid, Access)>,
+        reply: LinkReply,
+    },
+    Open {
+        code: be_keys::InviteCode,
+        reply: CardReply,
+    },
+    Accept {
+        code: be_keys::InviteCode,
+        reply: CardReply,
+    },
+    Remove(Uuid),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -127,7 +148,7 @@ pub(crate) struct Shared {
     pub(crate) error: Option<String>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
-    pub(crate) trusted: HashMap<Uuid, [u8; 32]>,
+    pub(crate) contacts: Vec<be_client::Contact>,
     pub(crate) locked: std::collections::HashSet<Uuid>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
@@ -773,6 +794,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
     load_graph(&peer, shared).await;
+    sync_contacts(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
         rejoin(&peer, &mut sessions, shared, block, content_type).await;
@@ -812,16 +834,24 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             Woken::Disconnected => return Outcome::Lost,
             Woken::Command(command) => {
-                let applied = apply(
-                    &peer,
-                    &mut sessions,
-                    shared,
-                    open,
-                    &mut versions,
-                    &mut flushes,
-                    command,
-                )
-                .await;
+                let applied = match command {
+                    Command::Contact(command) => {
+                        contact(&peer, shared, config, command).await;
+                        false
+                    }
+                    command => {
+                        apply(
+                            &peer,
+                            &mut sessions,
+                            shared,
+                            open,
+                            &mut versions,
+                            &mut flushes,
+                            command,
+                        )
+                        .await
+                    }
+                };
                 {
                     let mut held = shared.lock().unwrap();
                     held.pending = held.pending.saturating_sub(1);
@@ -847,6 +877,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     Some(ServerMessage::Paired { from, payload }) => {
                         asked_to_pair(shared, from, &payload);
                     }
+                    Some(ServerMessage::ContactsChanged) => sync_contacts(&peer, shared).await,
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
                 }
@@ -976,6 +1007,93 @@ async fn approve_pairing(
     Ok(())
 }
 
+async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    let identity = peer.keys().identity();
+    match be_client::contacts::finish_links(peer.connection(), identity).await {
+        Ok(finished) => {
+            for done in finished {
+                let Some(grant) = done
+                    .grant
+                    .filter(|grant| grant.organization == peer.organization())
+                else {
+                    continue;
+                };
+                let account = Uuid::from_bytes(done.card.account);
+                if let Err(error) = peer
+                    .seal_share(grant.block, account, &done.card.public)
+                    .await
+                {
+                    record(shared, error);
+                }
+            }
+        }
+        Err(error) => record(shared, error),
+    }
+    match be_client::contacts::contacts(peer.connection(), identity).await {
+        Ok(contacts) => shared.lock().unwrap().contacts = contacts,
+        Err(error) => record(shared, error),
+    }
+    crate::host::wake();
+}
+
+async fn contact(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    config: &Config,
+    command: ContactCommand,
+) {
+    let identity = peer.keys().identity();
+    let me = be_client::contacts::card(
+        peer.account(),
+        identity,
+        &config.display_name,
+        &config.email,
+    );
+    match command {
+        ContactCommand::Link { offer, reply } => {
+            let made = async {
+                let offer = match offer {
+                    Some((block, access)) => Some(peer.offer(block, access).await?),
+                    None => None,
+                };
+                be_client::contacts::make_link(peer.connection(), identity, &me, offer.as_ref())
+                    .await
+            }
+            .await;
+            reply(
+                made.map(|code| {
+                    crate::invite_link::contact_link(
+                        &crate::accounts::link_base(&config.server_url),
+                        &code,
+                    )
+                })
+                .map_err(|error| error.to_string()),
+            );
+        }
+        ContactCommand::Open { code, reply } => {
+            let opened = be_client::contacts::open_link(peer.connection(), &code)
+                .await
+                .map(|(_, card)| card);
+            reply(opened.map_err(|error| error.to_string()));
+        }
+        ContactCommand::Accept { code, reply } => {
+            let accepted =
+                be_client::contacts::accept_link(peer.connection(), identity, &me, &code).await;
+            if accepted.is_ok() {
+                sync_contacts(peer, shared).await;
+            }
+            reply(accepted.map_err(|error| error.to_string()));
+        }
+        ContactCommand::Remove(account) => {
+            match be_client::contacts::remove_contact(peer.connection(), account).await {
+                Ok(()) => sync_contacts(peer, shared).await,
+                Err(error) => record(shared, error),
+            }
+        }
+    }
+    crate::host::wake();
+}
+
 async fn rejoin(
     peer: &Arc<Peer<Store>>,
     sessions: &mut HashMap<Uuid, Box<dyn Session>>,
@@ -1102,6 +1220,7 @@ async fn apply(
     command: Command,
 ) -> bool {
     match command {
+        Command::Contact(_) => false,
         Command::WatchVersion(block) => {
             Versions::watch(shared, block);
             false
@@ -1317,12 +1436,15 @@ async fn apply(
             account,
             access,
         } => {
-            let trusted = shared.lock().unwrap().trusted.get(&account).copied();
-            let granted = match trusted {
-                Some(public) => {
-                    peer.share(block, account, access, &be_keys::RecoveryPublic(public))
-                        .await
-                }
+            let verified = shared
+                .lock()
+                .unwrap()
+                .contacts
+                .iter()
+                .find(|contact| contact.account == account)
+                .and_then(|contact| contact.public);
+            let granted = match verified {
+                Some(public) => peer.share(block, account, access, &public).await,
                 None => peer.grant(block, account, access).await,
             };
             if let Err(error) = granted {

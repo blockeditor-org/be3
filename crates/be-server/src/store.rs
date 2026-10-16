@@ -297,6 +297,7 @@ impl ServerStore {
         email: &str,
         role: OrganizationRole,
         sealed: Vec<u8>,
+        code: Vec<u8>,
     ) -> Result<(), ServerError> {
         if self.membership(account, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
@@ -311,15 +312,17 @@ impl ServerStore {
             params![organization.to_string(), email],
         )?;
         let inserted = database.execute(
-            "INSERT OR IGNORE INTO invitations (id, organization_id, email, role, invited_by, sealed)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR IGNORE INTO invitations
+                (id, organization_id, email, role, invited_by, sealed, code)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 invitation.to_string(),
                 organization.to_string(),
                 email,
                 encode_role(role),
                 account.to_string(),
-                sealed
+                sealed,
+                code
             ],
         )?;
         if inserted == 0 {
@@ -384,10 +387,30 @@ impl ServerStore {
         &self,
         account: Uuid,
         invitation: Uuid,
-    ) -> Result<(), ServerError> {
+        card: Vec<u8>,
+        contact: Vec<u8>,
+    ) -> Result<Uuid, ServerError> {
         let found = self.invitation(account, invitation).await?;
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
+        let code: Vec<u8> = transaction.query_row(
+            "SELECT code FROM invitations WHERE id = ?1",
+            [invitation.to_string()],
+            |row| row.get(0),
+        )?;
+        transaction.execute(
+            "INSERT OR REPLACE INTO contact_links (id, owner_id, card, code, accepter_id, accepter_card)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                invitation.to_string(),
+                found.invited_by.to_string(),
+                found.sealed,
+                code,
+                account.to_string(),
+                card
+            ],
+        )?;
+        crate::contacts::befriend(&transaction, found.invited_by, &[], account, &contact)?;
         transaction.execute(
             "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
              VALUES (?1, ?2, ?3)",
@@ -408,7 +431,7 @@ impl ServerStore {
             ));
         }
         transaction.commit()?;
-        Ok(())
+        Ok(found.invited_by)
     }
 
     pub async fn list_organizations(
@@ -538,6 +561,7 @@ impl ServerStore {
             "INSERT INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
             params![account.to_string(), recovery.to_vec()],
         )?;
+        crate::contacts::befriend(&transaction, caller, &[], account, &[])?;
         let token = issue_token(&transaction, account)?;
         transaction.commit()?;
         Ok((

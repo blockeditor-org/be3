@@ -18,6 +18,7 @@ async fn join(
             email: email.into(),
             role: OrganizationRole::Editor,
             sealed: Vec::new(),
+            code: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -25,6 +26,8 @@ async fn join(
         .send(|request| ClientMessage::AcceptInvitation {
             request,
             invitation: Uuid::from_u128(invitation),
+            card: Vec::new(),
+            contact: Vec::new(),
         })
         .await;
     member.open(organization).await;

@@ -28,6 +28,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             email: "guest@example.com".into(),
             role: OrganizationRole::Editor,
             sealed: b"sealed to the invite code".to_vec(),
+            code: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -44,6 +45,8 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             .send(|request| ClientMessage::AcceptInvitation {
                 request,
                 invitation,
+                card: Vec::new(),
+                contact: Vec::new(),
             })
             .await,
     ] {
@@ -72,6 +75,8 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
         .send(|request| ClientMessage::AcceptInvitation {
             request,
             invitation,
+            card: Vec::new(),
+            contact: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");

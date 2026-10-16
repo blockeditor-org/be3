@@ -34,6 +34,7 @@ use uuid::Uuid;
 
 pub mod backup;
 pub mod blocks;
+pub mod contacts;
 mod http;
 pub mod keys;
 pub mod schema;
@@ -524,6 +525,7 @@ impl Connection {
                 email,
                 role,
                 sealed,
+                code,
             } => {
                 self.store
                     .invite(
@@ -533,6 +535,7 @@ impl Connection {
                         &email,
                         role,
                         sealed,
+                        code,
                     )
                     .await?;
                 Ok(ServerMessage::Ok { request })
@@ -547,10 +550,93 @@ impl Connection {
             ClientMessage::AcceptInvitation {
                 request,
                 invitation,
+                card,
+                contact,
+            } => {
+                let account = self.account()?;
+                let inviter = self
+                    .store
+                    .accept_invitation(account, invitation, card, contact)
+                    .await?;
+                self.contacts_changed(&[account, inviter]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::CreateContactLink {
+                request,
+                link,
+                card,
+                code,
+                grant,
             } => {
                 self.store
-                    .accept_invitation(self.account()?, invitation)
+                    .create_contact_link(self.account()?, link, card, code, grant)
                     .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::GetContactLink { request, link } => Ok(ServerMessage::ContactLink {
+                request,
+                link: self.store.contact_link(self.account()?, link).await?,
+            }),
+            ClientMessage::AcceptContactLink {
+                request,
+                link,
+                card,
+                contact,
+                key,
+            } => {
+                let account = self.account()?;
+                let accepted = self
+                    .store
+                    .accept_contact_link(account, link, card, contact, key)
+                    .await?;
+                if let Some(granted) = accepted.granted {
+                    self.reannounce_in(
+                        granted.organization,
+                        vec![granted.block],
+                        true,
+                        granted.before,
+                    )
+                    .await;
+                }
+                self.contacts_changed(&[account, accepted.owner]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListContactLinks { request } => Ok(ServerMessage::ContactLinks {
+                request,
+                links: self.store.contact_links(self.account()?).await?,
+            }),
+            ClientMessage::DeleteContactLink { request, link } => {
+                self.store
+                    .delete_contact_link(self.account()?, link)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::PutContact {
+                request,
+                contact,
+                sealed,
+            } => {
+                let account = self.account()?;
+                self.store.put_contact(account, contact, sealed).await?;
+                self.contacts_changed(&[account]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListContacts { request } => Ok(ServerMessage::Contacts {
+                request,
+                contacts: self.store.list_contacts(self.account()?).await?,
+            }),
+            ClientMessage::RemoveContact { request, account } => {
+                let caller = self.account()?;
+                for revoked in self.store.remove_contact(caller, account).await? {
+                    self.reannounce_in(
+                        revoked.organization,
+                        vec![revoked.block],
+                        true,
+                        revoked.before,
+                    )
+                    .await;
+                }
+                self.contacts_changed(&[caller, account]).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListOrganizations { request } => Ok(ServerMessage::Organizations {
@@ -917,20 +1003,22 @@ impl Connection {
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::GetRecoveryKey { request } => {
-                let (public, sealed) = self.store.recovery_key(self.account()?).await?;
+                let (public, sealed, own) = self.store.recovery_key(self.account()?).await?;
                 Ok(ServerMessage::RecoveryKey {
                     request,
                     public,
                     sealed,
+                    own,
                 })
             }
             ClientMessage::SetRecoveryKey {
                 request,
                 public,
                 sealed,
+                own,
             } => {
                 self.store
-                    .set_recovery_key(self.account()?, public, sealed)
+                    .set_recovery_key(self.account()?, public, sealed, own)
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
@@ -940,10 +1028,12 @@ impl Connection {
                 name,
                 recovery,
             } => {
+                let account = self.account()?;
                 let (agent, token) = self
                     .store
-                    .create_agent(self.account()?, organization, &name, recovery)
+                    .create_agent(account, organization, &name, recovery)
                     .await?;
+                self.contacts_changed(&[account]).await;
                 Ok(ServerMessage::AgentCreated {
                     request,
                     agent,
@@ -995,6 +1085,14 @@ impl Connection {
         }
     }
 
+    async fn contacts_changed(&self, accounts: &[Uuid]) {
+        for account in accounts {
+            self.hub
+                .send_account(*account, self.client, None, &ServerMessage::ContactsChanged)
+                .await;
+        }
+    }
+
     async fn reannounce(
         &self,
         identity: Identity,
@@ -1002,19 +1100,26 @@ impl Connection {
         subtree: bool,
         before: BTreeSet<Uuid>,
     ) {
-        let Ok(mut accounts) = self
-            .store
-            .audience(identity.organization, blocks.clone())
-            .await
-        else {
+        self.reannounce_in(identity.organization, blocks, subtree, before)
+            .await;
+    }
+
+    async fn reannounce_in(
+        &self,
+        organization: Uuid,
+        blocks: Vec<Uuid>,
+        subtree: bool,
+        before: BTreeSet<Uuid>,
+    ) {
+        let Ok(mut accounts) = self.store.audience(organization, blocks.clone()).await else {
             return;
         };
         accounts.extend(before);
-        let members = self.hub.audience(identity.organization, &accounts).await;
+        let members = self.hub.audience(organization, &accounts).await;
         let identities = members.iter().map(|(_, member)| *member).collect();
         let Ok(views) = self
             .store
-            .graph_views(identity.organization, identities, blocks, subtree)
+            .graph_views(organization, identities, blocks, subtree)
             .await
         else {
             return;

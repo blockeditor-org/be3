@@ -1,6 +1,6 @@
 use be_protocol::OrganizationRole;
 use beui::NodeId;
-use beui::icons::ICON_DELETE;
+use beui::icons::{ICON_CONTENT_COPY, ICON_DELETE};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
@@ -17,6 +17,7 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
             <DiscardDialog view={view} />
             <InviteDialog view={view} />
             <AgentsDialog view={view} />
+            <ContactsDialog view={view} />
             <AboutDialog view={view} />
         </List>
     }
@@ -46,6 +47,207 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
         <Dialog open={open} title="Agents" width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
             <AgentsPanel view />
         </Dialog>
+    }
+}
+
+#[component]
+fn ContactsDialog(view: AppViewStore) -> NodeId {
+    let contacts = view.contacts;
+    let open = create_memo(move || contacts.get().is_some());
+    view! {
+        <Dialog
+            open={open}
+            title="Contacts"
+            width=460.0
+            on_dismiss={|| send(UiCommand::CloseContacts)}
+        >
+            <ContactsPanel view />
+        </Dialog>
+    }
+}
+
+#[component]
+fn ContactsPanel(view: AppViewStore) -> NodeId {
+    let contacts = view.contacts;
+    let shown = create_memo(move || contacts.get().unwrap_or_default());
+    let busy = create_memo(move || shown.get().busy);
+    let error = create_memo(move || shown.get().error);
+    let keys = create_memo(move || {
+        shown
+            .get()
+            .contacts
+            .iter()
+            .map(|contact| contact.account)
+            .collect::<Vec<Uuid>>()
+    });
+    let none = create_memo(move || keys.with(Vec::is_empty));
+    let link = create_memo(move || shown.get().link.unwrap_or_default());
+    let has_link = create_memo(move || !link.get().is_empty());
+    let offer = create_memo(move || shown.get().offer.unwrap_or_default());
+    let offered = create_memo(move || !offer.get().is_empty());
+    let connected = create_memo(move || shown.get().connected.unwrap_or_default());
+    let has_connected = create_memo(move || !connected.get().is_empty());
+    let removing = create_memo(move || shown.get().removing.unwrap_or_default());
+    let asks_removal = create_memo(move || !removing.get().is_empty());
+    let (pasted, set_pasted) = create_signal(String::new());
+    create_effect(move || {
+        if offered.get() {
+            untrack(|| set_pasted.set(String::new()));
+        }
+    });
+    let cannot_open = create_memo(move || busy.get() || pasted.get().trim().is_empty());
+    view! {
+        <Frame>
+            <List spacing=8.0>
+                <Text
+                    style=TextStyle::CAPTION
+                    string="You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
+                    wrap=true
+                />
+                <Show condition={none}>
+                    <Text style=TextStyle::CAPTION string="No contacts yet." />
+                </Show>
+                <ForEach keys={keys}>
+                    {move |account: Uuid| {
+                        let row = create_memo(move || {
+                            shown
+                                .get()
+                                .contacts
+                                .into_iter()
+                                .find(|contact| contact.account == account)
+                                .unwrap_or_default()
+                        });
+                        let name = create_memo(move || row.get().name);
+                        let detail = create_memo(move || {
+                            let row = row.get();
+                            match row.verified {
+                                true => row.email,
+                                false => format!("{}, not confirmed yet", row.email),
+                            }
+                        });
+                        view! {
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                                    <Text string={name} />
+                                    <Text style=TextStyle::CAPTION string={detail} />
+                                </List>
+                                <IconButton
+                                    glyph={ICON_DELETE.to_owned()}
+                                    label="Remove contact"
+                                    @test_id={format!("app.contacts.remove.{account}")}
+                                    on_click={move || send(UiCommand::RemoveContact(account))}
+                                />
+                            </List>
+                        }
+                    }}
+                </ForEach>
+                <Show condition={asks_removal}>
+                    {move || view! {
+                        <List spacing=6.0>
+                            <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
+                            <List direction=Direction::Horizontal spacing=8.0>
+                                <Button
+                                    label="Remove"
+                                    variant=ButtonVariant::Primary
+                                    @test_id={"app.contacts.remove.confirm"}
+                                    on_click={|| send(UiCommand::ConfirmRemoveContact)}
+                                />
+                                <Button
+                                    label="Keep"
+                                    variant=ButtonVariant::Secondary
+                                    on_click={|| send(UiCommand::CancelRemoveContact)}
+                                />
+                            </List>
+                        </List>
+                    }}
+                </Show>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Button
+                        label="New contact link"
+                        variant=ButtonVariant::Primary
+                        disabled={busy}
+                        @test_id={"app.contacts.new-link"}
+                        on_click={|| send(UiCommand::NewContactLink)}
+                    />
+                    <Show condition={busy}>
+                        <Spinner />
+                    </Show>
+                </List>
+                <Show condition={has_link}>
+                    {move || view! {
+                        <List spacing=6.0>
+                            <Text
+                                style=TextStyle::PARAGRAPH
+                                @test_id={"app.contacts.link-help"}
+                                string="Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
+                                wrap=true
+                            />
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <TextInput
+                                    @sizing=ItemSize::Percent(100.0)
+                                    value={link}
+                                    label="Contact link"
+                                    @test_id={"app.contacts.link"}
+                                />
+                                <IconButton
+                                    glyph={ICON_CONTENT_COPY.to_owned()}
+                                    label="Copy link"
+                                    @test_id={"app.contacts.copy"}
+                                    on_click={move || copy_text(link.get_untracked())}
+                                />
+                            </List>
+                        </List>
+                    }}
+                </Show>
+                <Text style=TextStyle::CAPTION string="Open a contact link someone sent you" />
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <TextInput
+                        @sizing=ItemSize::Percent(100.0)
+                        value={pasted}
+                        label="Contact link"
+                        @test_id={"app.contacts.paste"}
+                        on_change={move |value: String| set_pasted.set(value)}
+                        on_submit={move |value: String| send(UiCommand::OpenContactLink(value))}
+                    />
+                    <Button
+                        label="Open"
+                        variant=ButtonVariant::Secondary
+                        disabled={cannot_open}
+                        @test_id={"app.contacts.open"}
+                        on_click={move || send(UiCommand::OpenContactLink(pasted.get_untracked()))}
+                    />
+                </List>
+                <Show condition={offered}>
+                    {move || view! {
+                        <List spacing=6.0>
+                            <Text
+                                style=TextStyle::PARAGRAPH
+                                @test_id={"app.contacts.offer"}
+                                string={offer}
+                                wrap=true
+                            />
+                            <List direction=Direction::Horizontal spacing=8.0>
+                                <Button
+                                    label="Connect"
+                                    variant=ButtonVariant::Primary
+                                    @test_id={"app.contacts.accept"}
+                                    on_click={|| send(UiCommand::AcceptContact)}
+                                />
+                                <Button
+                                    label="Cancel"
+                                    variant=ButtonVariant::Secondary
+                                    on_click={|| send(UiCommand::DeclineContact)}
+                                />
+                            </List>
+                        </List>
+                    }}
+                </Show>
+                <Show condition={has_connected}>
+                    <Text style=TextStyle::PARAGRAPH string={connected} wrap=true />
+                </Show>
+                <ErrorText text={error} />
+            </List>
+        </Frame>
     }
 }
 

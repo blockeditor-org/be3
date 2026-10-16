@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use be_graph::BlockGraph;
-use be_protocol::{ErrorCode, KeyKind, KeyRow, KeySet, SealedKey, WrappedBy, WrappedKey};
+use be_protocol::{
+    ErrorCode, KeyKind, KeyRow, KeySet, OwnKind, OwnSealed, SealedKey, WrappedBy, WrappedKey,
+};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
@@ -54,7 +56,7 @@ fn now_milliseconds() -> i64 {
         })
 }
 
-fn key_row(
+pub(crate) fn key_row(
     connection: &Connection,
     organization: Uuid,
     key: Uuid,
@@ -175,6 +177,7 @@ pub(crate) fn store_keys(
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
+    caller: Uuid,
     set: &KeySet,
     allowed: impl Fn(&BlockGraph, Uuid) -> bool,
 ) -> Result<(), ServerError> {
@@ -221,6 +224,12 @@ pub(crate) fn store_keys(
                     return Err(refused(format!(
                         "account {account} is not a member of this organization"
                     )));
+                }
+                if account != caller && !crate::contacts::is_contact(connection, caller, account)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::NotAContact,
+                        format!("a key may be sealed only to a contact, and {account} is not one"),
+                    ));
                 }
             }
         }
@@ -351,6 +360,7 @@ impl ServerStore {
                 graph,
                 &transaction,
                 identity.organization,
+                identity.account,
                 &set,
                 |graph, block| seen.can_edit(graph, block),
             )?;
@@ -363,7 +373,7 @@ impl ServerStore {
     pub async fn recovery_key(
         &self,
         account: Uuid,
-    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>), ServerError> {
+    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>, Vec<OwnSealed>), ServerError> {
         let (public, memberships) = {
             let database = self.database().lock().await;
             let public = recovery_key_of(&database, account)?;
@@ -424,7 +434,8 @@ impl ServerStore {
                 .await?;
             sealed.extend(found);
         }
-        Ok((public, sealed))
+        let own = crate::contacts::own_sealed(&*self.database().lock().await, account)?;
+        Ok((public, sealed, own))
     }
 
     pub async fn set_recovery_key(
@@ -432,8 +443,12 @@ impl ServerStore {
         account: Uuid,
         public: [u8; 32],
         sealed: Vec<SealedKey>,
+        own: Vec<OwnSealed>,
     ) -> Result<(), ServerError> {
-        let (_, held) = self.recovery_key(account).await?;
+        let (previous, held, mut held_own) = self.recovery_key(account).await?;
+        if previous.is_none() {
+            held_own.clear();
+        }
         let resealed: BTreeMap<(Uuid, Uuid), &SealedKey> = sealed
             .iter()
             .map(|key| ((key.organization, key.key), key))
@@ -447,9 +462,29 @@ impl ServerStore {
                 missing.key
             )));
         }
+        let resealed_own: BTreeMap<(OwnKind, Uuid), &OwnSealed> = own
+            .iter()
+            .map(|sealed| ((sealed.kind, sealed.id), sealed))
+            .collect();
+        if let Some(missing) = held_own
+            .iter()
+            .find(|held| !resealed_own.contains_key(&(held.kind, held.id)))
+        {
+            return Err(refused(format!(
+                "a new recovery key must reseal every contact and link the old one did, and {} is missing",
+                missing.id
+            )));
+        }
         let by = encode_wrapped_by(WrappedBy::Account(account));
         let database = self.database().lock().await;
         let transaction = database.unchecked_transaction()?;
+        for held in &held_own {
+            crate::contacts::reseal_own(
+                &transaction,
+                account,
+                resealed_own[&(held.kind, held.id)],
+            )?;
+        }
         transaction.execute(
             "INSERT OR REPLACE INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
             params![account.to_string(), public.to_vec()],

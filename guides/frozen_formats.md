@@ -29,8 +29,8 @@ else may still change freely.
 
 The server's data, its backups and the sealed objects broke with the old ones
 on purpose when workspaces became organizations and keys moved to blocks (a
-clean break agreed with the user: data moves across in block files), and grow
-again as contacts arrive. Until `crates/be-frozen` holds a snapshot of the new
+clean break agreed with the user: data moves across in block files), and grew
+again with contacts. Until `crates/be-frozen` holds a snapshot of the new
 formats, nothing checks them, so take one as soon as they settle.
 
 Not frozen yet: every other block type, the network protocol (server and

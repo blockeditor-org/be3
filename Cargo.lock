@@ -831,6 +831,7 @@ dependencies = [
  "argon2",
  "be-commit",
  "be-graph",
+ "be-keys",
  "be-protocol",
  "be-session",
  "be-store",

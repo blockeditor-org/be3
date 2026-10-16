@@ -154,68 +154,69 @@ pub(crate) async fn create_organization(
     }
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct Me {
+    pub(crate) account: Uuid,
+    pub(crate) identity: [u8; 32],
+    pub(crate) display_name: String,
+    pub(crate) email: String,
+}
+
+impl Me {
+    pub(crate) fn secret(&self) -> be_keys::RecoverySecret {
+        be_keys::RecoverySecret::from_bytes(self.identity)
+    }
+
+    pub(crate) fn card(&self) -> be_keys::ContactCard {
+        be_client::contacts::card(
+            self.account,
+            &self.secret(),
+            &self.display_name,
+            &self.email,
+        )
+    }
+}
+
 pub(crate) async fn invitation(
     server_url: String,
     token: String,
-    invitation: Uuid,
+    code: be_keys::InviteCode,
 ) -> Result<OrganizationInvitation, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Invitation { invitation, .. } = connection
-        .request(|request| ClientMessage::GetInvitation {
-            request,
-            invitation,
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    Ok(invitation)
+    Ok(be_client::contacts::invitation(&connection, &code).await?.0)
 }
 
 pub(crate) async fn accept_invitation(
     server_url: String,
     token: String,
+    me: Me,
     code: be_keys::InviteCode,
 ) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let id = Uuid::from_bytes(code.lookup());
-    let ServerMessage::Invitation { invitation, .. } = connection
-        .request(|request| ClientMessage::GetInvitation {
-            request,
-            invitation: id,
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    connection
-        .request(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: id,
-        })
-        .await?;
+    let invitation =
+        be_client::contacts::accept_invitation(&connection, &me.secret(), &me.card(), &code)
+            .await?;
     Ok(invitation.organization)
 }
 
 pub(crate) async fn invite(
     server_url: String,
     token: String,
+    me: Me,
     organization: Uuid,
     email: String,
     role: be_protocol::OrganizationRole,
 ) -> Result<String, AccountError> {
-    let code = be_keys::InviteCode::generate();
     let connection = authenticated(&server_url, token).await?;
-    connection
-        .request(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_bytes(code.lookup()),
-            organization,
-            email,
-            role,
-            sealed: Vec::new(),
-        })
-        .await?;
+    let code = be_client::contacts::invite(
+        &connection,
+        &me.secret(),
+        &me.card(),
+        organization,
+        email,
+        role,
+    )
+    .await?;
     Ok(crate::invite_link::link(&link_base(&server_url), &code))
 }
 
@@ -226,13 +227,12 @@ pub(crate) struct AgentCredentials {
     pub(crate) organization: Uuid,
     pub(crate) token: String,
     pub(crate) phrase: String,
-    pub(crate) account: Uuid,
-    pub(crate) public: [u8; 32],
 }
 
 pub(crate) async fn create_agent(
     server_url: String,
     token: String,
+    me: Me,
     organization: Uuid,
     name: String,
 ) -> Result<AgentCredentials, AccountError> {
@@ -250,14 +250,25 @@ pub(crate) async fn create_agent(
     else {
         return Err(ClientError::Unexpected.into());
     };
+    let card = be_keys::ContactCard {
+        account: agent.account.into_bytes(),
+        public,
+        display_name: agent.name.clone(),
+        email: agent.email.clone(),
+    };
+    connection
+        .request(|request| ClientMessage::PutContact {
+            request,
+            contact: agent.account,
+            sealed: card.seal_own(&me.secret()),
+        })
+        .await?;
     Ok(AgentCredentials {
         name: agent.name,
         server: server_url,
         organization,
         token,
         phrase: phrase.to_string(),
-        account: agent.account,
-        public: public.0,
     })
 }
 
@@ -300,11 +311,17 @@ pub(crate) async fn remove_agent(
 pub(crate) struct Keys {
     pub(crate) recovery: Option<be_keys::RecoveryPublic>,
     pub(crate) sealed: Vec<be_protocol::SealedKey>,
+    pub(crate) own: Vec<be_protocol::OwnSealed>,
 }
 
 pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::RecoveryKey { public, sealed, .. } = connection
+    let ServerMessage::RecoveryKey {
+        public,
+        sealed,
+        own,
+        ..
+    } = connection
         .request(|request| ClientMessage::GetRecoveryKey { request })
         .await?
     else {
@@ -313,6 +330,7 @@ pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, Acco
     Ok(Keys {
         recovery: public.map(be_keys::RecoveryPublic),
         sealed,
+        own,
     })
 }
 
@@ -321,6 +339,7 @@ pub(crate) async fn set_recovery_key(
     token: String,
     public: be_keys::RecoveryPublic,
     sealed: Vec<be_protocol::SealedKey>,
+    own: Vec<be_protocol::OwnSealed>,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
     connection
@@ -328,6 +347,7 @@ pub(crate) async fn set_recovery_key(
             request,
             public: public.0,
             sealed,
+            own,
         })
         .await?;
     Ok(())

@@ -24,6 +24,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
             request,
             public: [1; 32],
             sealed: Vec::new(),
+            own: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -64,6 +65,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
             request,
             public: [2; 32],
             sealed: Vec::new(),
+            own: Vec::new(),
         })
         .await;
     assert!(
@@ -81,6 +83,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
                 key: workspace.scope,
                 sealed: b"resealed to the new phrase".to_vec(),
             }],
+            own: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");

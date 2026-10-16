@@ -193,11 +193,14 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         email: scene::EDITOR_EMAIL.into(),
         role: OrganizationRole::Editor,
         sealed: Vec::new(),
+        code: Vec::new(),
     })
     .await?;
     request(&editor, |request| ClientMessage::AcceptInvitation {
         request,
         invitation,
+        card: Vec::new(),
+        contact: Vec::new(),
     })
     .await?;
     let editor_phrase = RecoveryPhrase::generate();
@@ -206,6 +209,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         request,
         public: editor_public.0,
         sealed: Vec::new(),
+        own: Vec::new(),
     })
     .await?;
     let code = InviteCode::generate();
@@ -216,6 +220,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         email: scene::INVITED_EMAIL.into(),
         role: OrganizationRole::Editor,
         sealed: Vec::new(),
+        code: Vec::new(),
     })
     .await?;
 

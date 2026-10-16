@@ -31,7 +31,8 @@ pub(crate) struct Config {
     pub(crate) account: Uuid,
     pub(crate) organization: Uuid,
     pub(crate) identity: [u8; 32],
-    pub(crate) trusted: Vec<(Uuid, [u8; 32])>,
+    pub(crate) display_name: String,
+    pub(crate) email: String,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
 }
@@ -405,10 +406,7 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
-    let shared = Arc::new(Mutex::new(Shared {
-        trusted: config.trusted.iter().copied().collect(),
-        ..Shared::default()
-    }));
+    let shared = Arc::new(Mutex::new(Shared::default()));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
@@ -636,8 +634,46 @@ pub(crate) fn dismiss_pairing(from: u64) {
     send(Command::DismissPairing(from));
 }
 
-pub(crate) fn trust(account: Uuid, public: [u8; 32]) {
-    with_shared_mut(|shared| shared.trusted.insert(account, public));
+pub(crate) fn contacts() -> Vec<be_client::Contact> {
+    with_shared(|shared| shared.contacts.clone()).unwrap_or_default()
+}
+
+pub(crate) fn make_contact_link(
+    offer: Option<(Uuid, be_graph::Access)>,
+    reply: impl FnOnce(Result<String, String>) + Send + 'static,
+) {
+    if stack().lock().unwrap().is_none() {
+        reply(Err("Open an organization first.".to_owned()));
+        return;
+    }
+    send(Command::Contact(worker::ContactCommand::Link {
+        offer,
+        reply: Box::new(reply),
+    }));
+}
+
+pub(crate) fn open_contact_link(
+    code: be_keys::InviteCode,
+    reply: impl FnOnce(Result<be_keys::ContactCard, String>) + Send + 'static,
+) {
+    send(Command::Contact(worker::ContactCommand::Open {
+        code,
+        reply: Box::new(reply),
+    }));
+}
+
+pub(crate) fn accept_contact_link(
+    code: be_keys::InviteCode,
+    reply: impl FnOnce(Result<be_keys::ContactCard, String>) + Send + 'static,
+) {
+    send(Command::Contact(worker::ContactCommand::Accept {
+        code,
+        reply: Box::new(reply),
+    }));
+}
+
+pub(crate) fn remove_contact(account: Uuid) {
+    send(Command::Contact(worker::ContactCommand::Remove(account)));
 }
 
 pub(crate) fn status() -> Status {

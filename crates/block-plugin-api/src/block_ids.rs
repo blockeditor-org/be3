@@ -155,9 +155,9 @@ impl EditorMessage {
                         location(place, &mut existing);
                     }
                 }
-                HostRequest::ListAccess(block_id) | HostRequest::ExportBlock(block_id) => {
-                    existing(block_id)
-                }
+                HostRequest::ListAccess(block_id)
+                | HostRequest::ExportBlock(block_id)
+                | HostRequest::ContactLink { block_id, .. } => existing(block_id),
                 HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
@@ -177,6 +177,7 @@ impl EditorMessage {
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
                 | HostReply::AccessListed(_)
+                | HostReply::ContactLinkMade(_)
                 | HostReply::BlocksImported(BlockImport::Cancelled | BlockImport::Failed(_)) => {}
             },
             Self::CreationBlock { outcome, .. } => match outcome {

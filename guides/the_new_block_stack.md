@@ -191,7 +191,10 @@ time, so notifications wait for the next post.
   A block they can view references gives them `KnowExists` on it. Ancestors
   are not shown: a block someone can see whose parent they cannot is an entry
   point, which the app lists under Shared with me. `SetAccess` grants, and only
-  someone who may edit a block may grant on it.
+  someone who may edit a block may grant on it; a grant above `None` must also
+  name a member of the organization who is a contact of the granter (see
+  Contacts). `ListAccess` lists the block's author, grantees and viewers and
+  the caller's contacts who are members, never the rest of the membership.
 - Nothing that runs per request or per publish maps the whole graph.
   `BlockGraph` indexes children by parent and blocks by the accounts that
   authored them or hold a grant on them (their entry points).
@@ -213,7 +216,8 @@ time, so notifications wait for the next post.
   on the internet takes only the tokens of devices already signed in),
   `Authenticate` with a token and `Logout`; organizations are created
   through it, and an administrator can `Invite` an email under an id the
-  inviting client picks. Only an account with that email can read the
+  inviting client picks. Accepting an invitation makes inviter and invitee
+  contacts. Only an account with that email can read the
   invitation (`GetInvitation`) or join with it (`AcceptInvitation`), once;
   inviting the same email again replaces it. There is no list of an account's
   invitations: the id only reaches the invitee in the link (see Keys).
@@ -225,7 +229,8 @@ time, so notifications wait for the next post.
   The server never reads `Authorization`, which is left to a gateway in front
   of it. An administrator's `CreateAgent` makes an agent: an
   editor account with no password, with the recovery public key the caller made
-  for it, and a token, answered once (guides/tracker.md).
+  for it, and a token, answered once (guides/tracker.md); the agent and its
+  creator become contacts.
 - An object is served only to a member who can view a block that holds it, by
   a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
   missing. A merge commit holds its extra parents' objects, so a `stash` that
@@ -1092,11 +1097,9 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   and wraps any scope root inside it under that KEK, all in the `SetParent`
   request. A move within a scope, or to Recently Deleted, changes no keys.
   `Peer::share` grants and makes the block a scope root of its own (a KEK, its
-  subtree rewrapped under it) sealed to the grantee's identity key, which only a
-  key the device trusts may be: the app trusts only the agents it made
-  (`AppStateStore::trusted_keys`). A grant to anyone else leaves the block
-  visible but locked to them (the host shows it as locked) until contacts
-  exist.
+  subtree rewrapped under it) sealed to the grantee's identity key, which is
+  only ever a contact's verified key (below). The server refuses to store a
+  key sealed to any account but the caller's own and its contacts'.
 - **Identity.** Each account has a twelve-word recovery phrase, shown once and
   checked by typing three of its words. The phrase derives an X25519 key pair;
   the server stores only the public half (`SetRecoveryKey`, `GetRecoveryKey`),
@@ -1105,14 +1108,17 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   lacks it, or holds one the server's public key does not match, opens on the
   unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`): the phrase, or
   a pairing code. A new phrase (the organization menu's New recovery phrase)
-  must reseal every row sealed to the account, which the server checks, so only
-  a device holding the old secret can make one; the account's other devices
-  then ask to be unlocked again.
+  must reseal every row sealed to the account, and everything the account
+  sealed for itself (contact rows and link codes, `OwnSealed`), which the
+  server checks, so only a device holding the old secret can make one; the
+  account's other devices then ask to be unlocked again.
 - **Inviting.** Joining an organization takes an invite link, the only way in,
   and hands over no key: keys come with what is shared. The inviting device
   makes a random invite code (`be_keys::InviteCode`, 200 bits) and names the
   invitation by an id derived from it (`InviteCode::lookup`), so the link only
-  needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The dialog shows
+  needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The invitation
+  carries the inviter's contact card sealed with the code, and accepting it
+  sends the invitee's back, exactly like a contact link (below). The dialog shows
   the link once. The invitee pastes it on the Organizations screen, or opens it
   in the web app, which takes it from the address bar on load and replaces it
   with `#`. The server never sees the part of the link after `#`.
@@ -1123,6 +1129,56 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   open device seals the identity secret under the agreed key, so the server
   would have to guess the code to read or replace it. It gets one guess,
   because a wrong code ends the request.
+
+### Contacts
+
+Nobody reaches a stranger from inside the app: every sharing relationship
+starts with a link one person passes to another outside it. A contact is what
+that exchange leaves behind, and a device seals a key only to a contact's
+public key it verified this way, never to one the server hands it.
+
+- **A contact card** (`be_keys::ContactCard`) is an account id, its identity
+  public key, a display name and an email. A contact link is an `InviteCode`
+  like an invite's, `{server}/#contact/{CODE}`; the card is sealed with the
+  code (`ContactCard::seal`, keyed by the code and by the side, owner or
+  accepter, so one cannot stand in for the other), and the server, which never
+  sees the code, can neither read nor replace it. What an account keeps for
+  itself (its contacts' cards, its links' codes) is sealed with a key derived
+  from its identity secret (`RecoverySecret::seal_own`): sealing to the public
+  key would let anyone, the server included, make a row the owner would trust.
+- **The exchange** (`be_client::contacts`). The maker posts
+  `CreateContactLink` under `InviteCode::lookup`: its card sealed with the code,
+  and the code sealed for itself, so any of its devices can finish. The other
+  person reads it (`GetContactLink`), opens the card, which only the code
+  opens, and on "Connect with NAME (EMAIL)?" accepts (`AcceptContactLink`),
+  posting its own card sealed with the code and its row for the maker. The
+  server records both `contacts` rows (the maker's empty), marks the link used
+  and sends `ContactsChanged` to both accounts. The maker's device then lists
+  its links (`ListContactLinks`), opens the accepter's card with the code,
+  writes its row (`PutContact`) and deletes the link (`finish_links`; the app's
+  worker does it on connect and on `ContactsChanged`). Organization invites
+  finish the same way: accepting one leaves a used link behind for the inviter.
+- **A pending grant.** A link may carry a block, an access level and that
+  block's own scope key sealed with the code (`Peer::offer` makes the block a
+  scope root first). Accepting it seals the key to the accepter, and the server
+  applies the grant and stores that wrap at once, so the share works while the
+  maker is offline; when it finishes, it seals the scope again
+  (`Peer::seal_share`), which also covers blocks made inside it meanwhile. The
+  grant is applied only if the accepter is a member of that organization.
+- **On the server** `contact_links` (lookup id, owner, card, code, the pending
+  grant, the accepter and its card) and `contacts` (account, contact, the
+  contact's card sealed for the account). Contacts are per account, across
+  organizations; a grant needs both to be members of the block's organization
+  too. `RemoveContact` deletes both rows and, in every organization they share,
+  revokes each one's grants on blocks the other may edit.
+- **In the app** the Contacts dialog (app menu) lists contacts, removes them,
+  makes a link shown once with a copy button, and opens a pasted one; the web
+  app takes `#contact/` from the address bar like `#invite/`. The worker keeps
+  `Shared::contacts` (each with its verified key, or none until the exchange
+  finishes) and seals a share only to those keys. The share dialog lists
+  contacts and current grantees, and its "Invite someone new" makes a link
+  carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
+  member and Agents show only in a company organization.
 
 ### Presence
 
@@ -1214,11 +1270,13 @@ pixel art export regenerate this way.
   that wants.
 - Reconnecting rejoins from the server's head, so operations a session had not
   sealed when the socket dropped are gone.
-- Keys reach only the account's own devices and the agents a device made.
-  Sharing with another account grants access but seals no key, so the block is
-  locked to them until contacts give devices identity keys they can trust, and
-  revoking a grant or removing a member rotates nothing yet. A company
-  organization has no escrow key.
+- Revoking a grant, removing a contact or removing a member rotates nothing
+  yet, so a key the removed account already opened stays open to it. A company
+  organization has no escrow key. A grant to a contact whose card this device
+  has not verified yet (the exchange not finished) grants without sealing a
+  key, so the block stays locked to them until it is shared again.
+- A link's pending grant in another organization than the one the maker's
+  device has open is never sealed again when the link finishes.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.

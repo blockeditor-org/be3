@@ -1,7 +1,8 @@
 use beui::NodeId;
 use beui::icons::{
-    ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
-    ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY, ICON_SWAP_HORIZ, ICON_SYNC, ICON_VIEW_QUILT,
+    ICON_BUG_REPORT, ICON_CHECK, ICON_CONTACTS, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS,
+    ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY, ICON_SWAP_HORIZ, ICON_SYNC,
+    ICON_VIEW_QUILT,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -71,6 +72,7 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
     let signed_in_as = create_memo(move || status.get().signed_in_as);
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
     let can_close = create_memo(move || status.get().can_close);
+    let company = create_memo(move || status.get().company);
     view! {
         <ContextMenu
             disabled=true
@@ -84,19 +86,29 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     disabled=true
                 />
                 <MenuItem
-                    row_test_id={"app.menu.invite".to_owned()}
-                    label="Invite member"
-                    glyph={ICON_PERSON_ADD.to_owned()}
-                    detail={organization}
+                    row_test_id={"app.menu.contacts".to_owned()}
+                    label="Contacts"
+                    glyph={ICON_CONTACTS.to_owned()}
                     separated=true
-                    on_click={|| pick(UiCommand::InviteMember)}
+                    on_click={|| pick(UiCommand::OpenContacts)}
                 />
-                <MenuItem
-                    row_test_id={"app.menu.agents".to_owned()}
-                    label="Agents"
-                    glyph={ICON_SMART_TOY.to_owned()}
-                    on_click={|| pick(UiCommand::OpenAgents)}
-                />
+                <Show condition={company}>
+                    <MenuItem
+                        row_test_id={"app.menu.invite".to_owned()}
+                        label="Invite member"
+                        glyph={ICON_PERSON_ADD.to_owned()}
+                        detail={organization}
+                        on_click={|| pick(UiCommand::InviteMember)}
+                    />
+                </Show>
+                <Show condition={company}>
+                    <MenuItem
+                        row_test_id={"app.menu.agents".to_owned()}
+                        label="Agents"
+                        glyph={ICON_SMART_TOY.to_owned()}
+                        on_click={|| pick(UiCommand::OpenAgents)}
+                    />
+                </Show>
                 <MenuItem
                     row_test_id={"app.menu.switch-session".to_owned()}
                     label="Sessions and profiles"

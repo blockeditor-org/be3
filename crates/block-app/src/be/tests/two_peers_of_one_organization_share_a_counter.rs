@@ -19,7 +19,8 @@ fn two_peers_of_one_organization_share_a_counter() {
         account: harness.account,
         organization: harness.organization,
         identity: harness.identity(),
-        trusted: Vec::new(),
+        display_name: "Counter".to_owned(),
+        email: "counter@example.com".to_owned(),
         data_dir: elsewhere.clone(),
     });
     open(block, CounterContent::CONTENT_TYPE);

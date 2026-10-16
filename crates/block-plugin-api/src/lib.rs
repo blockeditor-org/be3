@@ -425,6 +425,12 @@ pub enum AccessListing {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContactLinkResult {
+    Made(String),
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CreationProgress {
     Options { ready: bool },
     Working,
@@ -1586,6 +1592,10 @@ pub enum HostRequest {
     ReadData(String),
     ExportBlock([u8; 16]),
     ImportBlocks(BlockLocation),
+    ContactLink {
+        block_id: [u8; 16],
+        access: AccessLevel,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1598,6 +1608,7 @@ pub enum HostReply {
     DataRead(FetchResult),
     AccessListed(AccessListing),
     BlocksImported(BlockImport),
+    ContactLinkMade(ContactLinkResult),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2837,7 +2848,9 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
-        HostRequest::ExportBlock(_) | HostRequest::ImportBlocks(_) => Ok(()),
+        HostRequest::ExportBlock(_)
+        | HostRequest::ImportBlocks(_)
+        | HostRequest::ContactLink { .. } => Ok(()),
     }
 }
 
@@ -2859,7 +2872,10 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::DataRead(FetchResult::Failed(message))
         | HostReply::DataListed(DataListing::Failed(message))
         | HostReply::AccessListed(AccessListing::Failed(message))
-        | HostReply::BlocksImported(BlockImport::Failed(message)) => string(message),
+        | HostReply::BlocksImported(BlockImport::Failed(message))
+        | HostReply::ContactLinkMade(
+            ContactLinkResult::Made(message) | ContactLinkResult::Failed(message),
+        ) => string(message),
         HostReply::AccessListed(AccessListing::Listed(grants)) => {
             collection(grants.len())?;
             for grant in grants {

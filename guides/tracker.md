@@ -126,12 +126,13 @@ them in the handoff.
   (`Root::FROZEN`): be-block's tests hold the format the first tracker build
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
   these types only adds fields, variants and kinds (guides/frozen_formats.md).
-- **Agents.** An administrator adds one from the app menu (Agents). The app
-  makes a recovery phrase for it and keeps its public key as one it trusts, the
-  server makes an editor account with no password and a token (`CreateAgent`),
-  and the dialog shows the token and phrase once. An agent sees and opens only
-  what is shared with it: sharing a block with it from the device that made it
-  (`Peer::share`) makes the block a scope of its own and seals that scope's key
+- **Agents.** An administrator adds one from the app menu (Agents, in a
+  company organization). The app makes a recovery phrase for it, the server
+  makes an editor account with no password and a token (`CreateAgent`) and
+  records the agent and its creator as contacts, and the app writes the agent's
+  public key into its contact row, so every device of the creator can share
+  with it; the dialog shows the token and phrase once. An agent sees and opens
+  only what is shared with it: sharing a block with it (`Peer::share`) makes the block a scope of its own and seals that scope's key
   to the agent (the stack guide's Keys), and `be` opens that key with the
   phrase, refusing a phrase that is not the account's. Removing the agent
   deletes its account, its tokens and what was sealed to it.

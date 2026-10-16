@@ -21,9 +21,12 @@ mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
+mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
+mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
+mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
@@ -33,6 +36,7 @@ mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
+mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod history_records_each_commits_parents;
@@ -47,6 +51,7 @@ mod pruning_history_keeps_pinned_commits;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
 mod relayed_session_traffic_passes_through_the_server_sealed;
+mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 
@@ -502,4 +507,77 @@ async fn next_binary(socket: &mut Socket) -> Option<Vec<u8>> {
             Ok(_) => {}
         }
     }
+}
+
+impl TestClient {
+    async fn personal(&mut self) -> Uuid {
+        let response = self
+            .send(|request| ClientMessage::ListOrganizations { request })
+            .await;
+        let ServerMessage::Organizations { organizations, .. } = response else {
+            panic!("listing organizations failed: {response:?}");
+        };
+        let personal = organizations
+            .iter()
+            .find(|organization| organization.kind == be_protocol::OrganizationKind::Personal)
+            .expect("registering joined the personal organization")
+            .id;
+        self.open(personal).await;
+        personal
+    }
+
+    async fn link(&mut self, grant: Option<be_protocol::PendingGrant>) -> Uuid {
+        let link = Uuid::new_v4();
+        let response = self
+            .send(|request| ClientMessage::CreateContactLink {
+                request,
+                link,
+                card: b"the owner's card".to_vec(),
+                code: b"the code, sealed for the owner".to_vec(),
+                grant,
+            })
+            .await;
+        assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+        link
+    }
+
+    async fn accept(&mut self, link: Uuid, key: &[u8]) -> ServerMessage {
+        self.send(|request| ClientMessage::AcceptContactLink {
+            request,
+            link,
+            card: b"the accepter's card".to_vec(),
+            contact: b"the owner's key, sealed for the accepter".to_vec(),
+            key: key.to_vec(),
+        })
+        .await
+    }
+
+    async fn contacts(&mut self) -> Vec<be_protocol::ContactRow> {
+        let response = self
+            .send(|request| ClientMessage::ListContacts { request })
+            .await;
+        let ServerMessage::Contacts { contacts, .. } = response else {
+            panic!("listing contacts failed: {response:?}");
+        };
+        contacts
+    }
+
+    async fn grant(
+        &mut self,
+        block: Uuid,
+        account: Uuid,
+        access: be_graph::Access,
+    ) -> ServerMessage {
+        self.send(|request| ClientMessage::SetAccess {
+            request,
+            block,
+            account,
+            access,
+        })
+        .await
+    }
+}
+
+fn refused_as(response: &ServerMessage, expected: ErrorCode) -> bool {
+    matches!(response, ServerMessage::Failed { code, .. } if *code == expected)
 }

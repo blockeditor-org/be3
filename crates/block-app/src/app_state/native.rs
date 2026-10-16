@@ -31,13 +31,6 @@ const SCHEMA: &str = "
         secret     BLOB NOT NULL,
         PRIMARY KEY (server_key, account_id)
     );
-    CREATE TABLE trusted_keys (
-        server_key TEXT NOT NULL,
-        account_id TEXT NOT NULL,
-        trusted_id TEXT NOT NULL,
-        public     BLOB NOT NULL,
-        PRIMARY KEY (server_key, account_id, trusted_id)
-    );
     CREATE TABLE input_settings (
         id      INTEGER PRIMARY KEY CHECK (id = 0),
         content BLOB NOT NULL
@@ -190,10 +183,6 @@ impl AppStateStore {
             "DELETE FROM identity_secrets WHERE server_key = ?1 AND account_id = ?2",
             params![saved.server.key(), saved.id.to_string()],
         )?;
-        self.connection.execute(
-            "DELETE FROM trusted_keys WHERE server_key = ?1 AND account_id = ?2",
-            params![saved.server.key(), saved.id.to_string()],
-        )?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -266,47 +255,6 @@ impl AppStateStore {
             "INSERT OR REPLACE INTO identity_secrets (server_key, account_id, secret)
              VALUES (?1, ?2, ?3)",
             params![saved.server.key(), saved.id.to_string(), secret.to_vec()],
-        )?;
-        Ok(())
-    }
-
-    pub fn trusted_keys(
-        &self,
-        saved: &SavedAccount,
-    ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
-        let mut statement = self.connection.prepare(
-            "SELECT trusted_id, public FROM trusted_keys WHERE server_key = ?1 AND account_id = ?2",
-        )?;
-        let rows = statement
-            .query_map(params![saved.server.key(), saved.id.to_string()], |row| {
-                Ok((parse_uuid(row.get(0)?)?, row.get::<_, Vec<u8>>(1)?))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        rows.into_iter()
-            .map(|(account, public)| {
-                let public = public.try_into().map_err(|_| {
-                    AppStateError::from("a stored trusted key is corrupt".to_owned())
-                })?;
-                Ok((account, public))
-            })
-            .collect()
-    }
-
-    pub fn trust(
-        &self,
-        saved: &SavedAccount,
-        account: Uuid,
-        public: [u8; 32],
-    ) -> Result<(), AppStateError> {
-        self.connection.execute(
-            "INSERT OR REPLACE INTO trusted_keys (server_key, account_id, trusted_id, public)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![
-                saved.server.key(),
-                saved.id.to_string(),
-                account.to_string(),
-                public.to_vec()
-            ],
         )?;
         Ok(())
     }

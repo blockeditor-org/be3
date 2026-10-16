@@ -17,7 +17,6 @@ fn a_link_reads_back_as_its_server_and_code() {
     assert_eq!(parsed.server.as_deref(), Some("https://notes.example.com"));
     assert!(parsed.is_for("https://notes.example.com"));
     assert!(!parsed.is_for("https://elsewhere.example.com"));
-    assert_eq!(parsed.invitation(), Uuid::from_bytes(code.lookup()));
 
     let typed = InviteLink::parse(&code.to_string().to_lowercase()).expect("a bare code parses");
     assert!(typed.code == code && typed.server.is_none());

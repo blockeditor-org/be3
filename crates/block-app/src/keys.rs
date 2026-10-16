@@ -139,18 +139,20 @@ impl KeyState {
         if self.saving.is_some() {
             return;
         }
-        let public = setup.phrase.secret().public();
-        let held = self
+        let fresh = setup.phrase.secret();
+        let public = fresh.public();
+        let (held, own) = self
             .keys
             .as_ref()
-            .map(|keys| keys.sealed.clone())
+            .map(|keys| (keys.sealed.clone(), keys.own.clone()))
             .unwrap_or_default();
-        let resealed = match (held.is_empty(), identity) {
-            (true, _) => Ok(Vec::new()),
+        let resealed = match (held.is_empty() && own.is_empty(), identity) {
+            (true, _) => Ok((Vec::new(), Vec::new())),
             (false, None) => Err(()),
             (false, Some(identity)) => {
                 let old = RecoverySecret::from_bytes(identity);
-                held.into_iter()
+                let sealed = held
+                    .into_iter()
                     .map(|key| {
                         let plain = old.open(&key.sealed).map_err(|_| ())?;
                         Ok(be_protocol::SealedKey {
@@ -158,10 +160,21 @@ impl KeyState {
                             ..key
                         })
                     })
-                    .collect()
+                    .collect::<Result<Vec<_>, ()>>();
+                let own = own
+                    .into_iter()
+                    .map(|held| {
+                        let plain = old.open_own(&held.sealed).map_err(|_| ())?;
+                        Ok(be_protocol::OwnSealed {
+                            sealed: fresh.seal_own(&plain),
+                            ..held
+                        })
+                    })
+                    .collect::<Result<Vec<_>, ()>>();
+                sealed.and_then(|sealed| own.map(|own| (sealed, own)))
             }
         };
-        let Ok(sealed) = resealed else {
+        let Ok((sealed, own)) = resealed else {
             self.error = Some(
                 "This device cannot open what the old phrase sealed. Unlock this account with \
                  the old phrase first, so the new one can seal it."
@@ -171,7 +184,7 @@ impl KeyState {
         };
         self.error = None;
         self.saving = Some(platform::spawn_request(accounts::set_recovery_key(
-            server_url, token, public, sealed,
+            server_url, token, public, sealed, own,
         )));
     }
 
