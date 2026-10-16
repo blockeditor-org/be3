@@ -61,9 +61,8 @@ fn canvas_children_are_removed_repointed_or_merged() {
         ),
         tagged,
     ] {
-        let edit = content
-            .root()
-            .edit_for(&InfiniteCanvasOperation::Add { entity });
+        let edit =
+            crate::canvas::Canvas::edit_for(&content, 1, &InfiniteCanvasOperation::Add { entity });
         content.apply(&edit);
     }
     assert_eq!(

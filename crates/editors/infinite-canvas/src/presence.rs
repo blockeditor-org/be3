@@ -9,7 +9,15 @@ const CANVAS_CURSOR: Uuid = Uuid::from_u128(0x6361_6e76_6173_5f63_7572_736f_725f
 pub struct CanvasCursor {
     pub pointer: Option<CanvasPoint>,
     pub selection: Vec<Uuid>,
+    pub text: Option<TextCaret>,
     pub color: PresenceColor,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct TextCaret {
+    pub entity: Uuid,
+    pub anchor: usize,
+    pub focus: usize,
 }
 
 impl PresenceKind for CanvasCursor {

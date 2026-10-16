@@ -3,14 +3,14 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::presence::CanvasCursor;
+use crate::presence::{CanvasCursor, TextCaret};
 use block_editor_beui::BlockList;
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
+    Canvas, CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
     CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation,
     first_artboard,
 };
@@ -246,6 +246,7 @@ pub(crate) struct RemoteSelection {
 pub(crate) struct Presence {
     pub(crate) cursors: Vec<RemoteCursor>,
     pub(crate) selections: Vec<RemoteSelection>,
+    pub(crate) carets: Vec<(TextCaret, PresenceColor)>,
 }
 
 #[derive(Clone)]
@@ -274,6 +275,7 @@ struct CanvasCells {
     shown: RefCell<Option<CanvasCursor>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
+    client: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -309,6 +311,8 @@ pub(crate) struct CanvasState {
     pub(crate) presence: ReadSignal<Presence>,
     set_presence: WriteSignal<Presence>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
+    pub(crate) caret: ReadSignal<Option<TextCaret>>,
+    set_caret: WriteSignal<Option<TextCaret>>,
 }
 
 impl CanvasState {
@@ -328,6 +332,7 @@ impl CanvasState {
         let (child_states, set_child_states) = create_signal(HashMap::new());
         let (presence, set_presence) = create_signal(Presence::default());
         let (pointer, set_pointer) = create_signal(None);
+        let (caret, set_caret) = create_signal(None);
         let cells = store(CanvasCells {
             dependencies: editor
                 .blocks()
@@ -350,6 +355,7 @@ impl CanvasState {
             shown: RefCell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
+            client: Uuid::new_v4().as_u64_pair().0 | 1 << 63,
         });
         Self {
             cells,
@@ -383,6 +389,8 @@ impl CanvasState {
             presence,
             set_presence,
             peers: editor.peers::<CanvasCursor>(),
+            caret,
+            set_caret,
         }
     }
 
@@ -621,10 +629,11 @@ impl CanvasState {
     }
 
     fn operate_all(&self, operations: &[InfiniteCanvasOperation]) {
+        let client = self.cells.get().client;
         if let Some(edit) = self.cells.get().content.read(|canvas| {
             operations
                 .iter()
-                .flat_map(|operation| canvas.root().edit_for(operation).0)
+                .flat_map(|operation| Canvas::edit_for(canvas, client, operation).0)
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {
@@ -774,6 +783,12 @@ impl CanvasState {
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
         self.cells.get().context_position.set(at);
+    }
+
+    pub(crate) fn note_caret(&self, caret: Option<TextCaret>) {
+        if self.caret.get_untracked() != caret {
+            self.set_caret.set(caret);
+        }
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
@@ -1949,6 +1964,7 @@ impl CanvasState {
             visible.with(|_| ());
             state.pointer.with(|_| ());
             state.selection.with(|_| ());
+            state.caret.with(|_| ());
             untrack(|| state.publish_presence());
         });
         let state = self;
@@ -2104,6 +2120,7 @@ impl CanvasState {
             CanvasCursor {
                 pointer: self.pointer.get_untracked(),
                 selection: self.selection.get_untracked().iter().copied().collect(),
+                text: self.caret.get_untracked(),
                 color,
             }
         });
@@ -2132,6 +2149,9 @@ impl CanvasState {
                         color,
                     });
                 }
+            }
+            if let Some(caret) = cursor.text {
+                presence.carets.push((caret, color));
             }
             if cursor.pointer.is_some() {
                 presence.cursors.push(RemoteCursor {

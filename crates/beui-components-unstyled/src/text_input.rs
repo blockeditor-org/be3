@@ -14,6 +14,7 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2};
 
 use crate::Prose;
+use crate::RemoteTextCursor;
 use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaColors;
@@ -93,6 +94,7 @@ pub fn TextInput(
     placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
@@ -240,6 +242,7 @@ pub fn TextInput(
             font_size
             padding
             prose
+            remote_cursors
             accessibility
             on_menu={open_menu}
             on_submit={move || on_submit.call(text_of(state))}

@@ -1047,9 +1047,17 @@ plugin side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
 signal of every peer's value of one `PresenceKind` (`be_block::presence`). The
 framework shows a `UserActive` value of its own, with a colour picked by
 `pick_free_color` against the colours already showing, whenever the host says the
-block is visible. The text editor's cursors and the canvas's pointers and
-selections work the same way, and each carries a colour of its own picked the
+block is visible. The text editor's cursors and the canvas's pointers,
+selections and text carets work the same way, and each carries a colour of its own picked the
 same way rather than joining it to the peer's `UserActive` entry.
+
+Canvas text is a `Text` on its entity rather than part of the `kind` register,
+so two people typing into one text merge character by character: an update
+diffs the typed string against the sequence and sends one replace. The field
+showing it adopts a change from elsewhere through `ReplaceWholeFile`, which
+diffs too and keeps the caret on its character. A canvas text caret is shared
+as byte offsets, which are only as current as the text the peer had when it
+sent them.
 
 ### Editors with their own model
 

@@ -26,6 +26,7 @@ mod a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_cli
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
+mod a_peer_types_into_the_text_being_edited_and_their_caret_is_drawn;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_preview_with_no_camera_fits_its_artboard;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
@@ -149,10 +150,7 @@ fn phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
 }
 
 fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {
-    let edit = editor
-        .content::<CanvasContent>(None)
-        .root()
-        .edit_for(&operation);
+    let edit = Canvas::edit_for(&editor.content::<CanvasContent>(None), 1, &operation);
     editor.edit::<CanvasContent>(None, &edit);
 }
 

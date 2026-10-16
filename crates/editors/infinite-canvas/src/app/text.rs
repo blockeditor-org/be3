@@ -5,7 +5,9 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::text_input::text_input_style;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, Prose, TextInputStyle};
+use block_editor_beui::beui::unstyled::{
+    self, Prose, RemoteTextCursor, TextAreaState, TextInputStyle,
+};
 use block_editor_beui::beui::{
     Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
 };
@@ -13,6 +15,7 @@ use block_editor_beui::beui::{
 use uuid::Uuid;
 
 use crate::geometry::TEXT_INSET;
+use crate::presence::TextCaret;
 
 use super::paint::{resolve_color, with_opacity};
 use super::state::{CanvasState, TextEntry};
@@ -160,6 +163,24 @@ pub(crate) fn EntityText(
         prose: Prop::dynamic(move || Some(prose(text_style.get(), font_size.get()))),
         ..text_input_style()
     };
+    let remote_cursors = create_memo(move || {
+        let length = text.get().len();
+        state.presence.with(|presence| {
+            presence
+                .carets
+                .iter()
+                .filter(|(caret, _)| caret.entity == id)
+                .map(|(caret, color)| {
+                    let (anchor, focus) = (caret.anchor.min(length), caret.focus.min(length));
+                    RemoteTextCursor {
+                        selection: anchor.min(focus)..anchor.max(focus),
+                        caret: focus,
+                        color: block_editor_beui::presence_color(*color),
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+    });
     let field = NodeRef::new();
     create_effect(move || {
         if !editing.get() {
@@ -211,7 +232,7 @@ pub(crate) fn EntityText(
             state.finish_text();
         }
     };
-    view! {
+    let shown = view! {
         <Frame padding={padding}>
             <unstyled::TextInput
                 @node_ref=&field
@@ -223,11 +244,46 @@ pub(crate) fn EntityText(
                 focused={editing}
                 multiline=true
                 style={style}
+                remote_cursors={remote_cursors}
                 on_change={changed}
                 on_focus_change={left}
             />
         </Frame>
-    }
+    };
+    let input = with_document(|document| unstyled::text_input_state(document, field.get()));
+    create_effect(move || {
+        let caret = match editing.get() {
+            true => {
+                input.cursors().get();
+                input.content().get();
+                untrack(|| caret_of(input, id))
+            }
+            false => None,
+        };
+        untrack(|| match caret {
+            Some(caret) => state.note_caret(Some(caret)),
+            None if state
+                .caret
+                .get_untracked()
+                .is_some_and(|held| held.entity == id) =>
+            {
+                state.note_caret(None)
+            }
+            None => {}
+        });
+    });
+    shown
+}
+
+fn caret_of(input: TextAreaState, entity: Uuid) -> Option<TextCaret> {
+    input.with_core(|core| {
+        let cursor = core.cursor_positions().first()?;
+        Some(TextCaret {
+            entity,
+            anchor: core.position_index(cursor.pos.anchor)?,
+            focus: core.position_index(cursor.pos.focus)?,
+        })
+    })
 }
 
 fn enter(node: NodeId, entry: TextEntry) {

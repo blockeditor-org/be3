@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use be_model::{Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId};
+use be_model::{Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, Text};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -230,6 +230,7 @@ pub struct Entity {
     pub size: CanvasPoint,
     pub rotation: f32,
     pub kind: Option<CanvasEntityKind>,
+    pub text: Text,
     pub style: CanvasEntityStyle,
     pub group_id: Option<Uuid>,
     pub locked: bool,
@@ -245,11 +246,13 @@ pub struct Component {
 
 impl Entity {
     fn of(entity: &CanvasEntity) -> Self {
+        let (kind, text) = stored_kind(&entity.kind);
         Self {
             center: entity.transform.center,
             size: entity.transform.size,
             rotation: entity.transform.rotation,
-            kind: Some(entity.kind.clone()),
+            kind: Some(kind),
+            text: Text::from(text.unwrap_or_default()),
             style: entity.style,
             group_id: entity.group_id,
             locked: entity.locked,
@@ -258,10 +261,14 @@ impl Entity {
     }
 
     fn view(&self, id: ObjectId) -> Option<CanvasEntity> {
+        let mut kind = self.kind.clone()?;
+        if let CanvasEntityKind::Text { text, .. } = &mut kind {
+            *text = self.text.to_str_lossy().into_owned();
+        }
         Some(CanvasEntity {
             id: id.as_uuid(),
             transform: CanvasTransform::new(self.center, self.size, self.rotation),
-            kind: self.kind.clone()?,
+            kind,
             style: self.style,
             group_id: self.group_id,
             locked: self.locked,
@@ -329,10 +336,15 @@ impl Canvas {
             .filter(move |held| held.id == ObjectId::from_uuid(id))
     }
 
-    pub fn edit_for(&self, operation: &InfiniteCanvasOperation) -> Edit {
+    pub fn edit_for(
+        content: &CanvasContent,
+        client: u64,
+        operation: &InfiniteCanvasOperation,
+    ) -> Edit {
+        let canvas = content.root();
         match operation {
             InfiniteCanvasOperation::Add { entity } => {
-                if entity.id.is_nil() || self.holding(entity.id).next().is_some() {
+                if entity.id.is_nil() || canvas.holding(entity.id).next().is_some() {
                     return Edit::default();
                 }
                 Self::ENTITIES
@@ -348,24 +360,33 @@ impl Canvas {
                 .iter()
                 .flat_map(|update| {
                     let update = normalized_entity(update.clone());
-                    self.holding(update.id)
-                        .flat_map(|held| update_entity(held, &update))
+                    canvas
+                        .holding(update.id)
+                        .flat_map(|held| update_entity(content, client, held, &update))
                         .collect::<Vec<_>>()
                 })
                 .collect(),
-            InfiniteCanvasOperation::Remove { ids } => self
+            InfiniteCanvasOperation::Remove { ids } => canvas
                 .entities
                 .iter()
                 .filter(|held| ids.contains(&held.id.as_uuid()))
                 .map(|held| Change::remove(held.id))
                 .collect(),
             InfiniteCanvasOperation::Reorder { ids, movement } => {
-                let order: Vec<Uuid> = self.entities.iter().map(|held| held.id.as_uuid()).collect();
-                self.reorder_to(&reordered(&order, ids, *movement), ids)
+                let order: Vec<Uuid> = canvas
+                    .entities
+                    .iter()
+                    .map(|held| held.id.as_uuid())
+                    .collect();
+                canvas.reorder_to(&reordered(&order, ids, *movement), ids)
             }
             InfiniteCanvasOperation::ExactOrder { ids } => {
-                let order: Vec<Uuid> = self.entities.iter().map(|held| held.id.as_uuid()).collect();
-                self.reorder_to(&exactly_ordered(&order, ids), ids)
+                let order: Vec<Uuid> = canvas
+                    .entities
+                    .iter()
+                    .map(|held| held.id.as_uuid())
+                    .collect();
+                canvas.reorder_to(&exactly_ordered(&order, ids), ids)
             }
         }
     }
@@ -419,9 +440,27 @@ impl Canvas {
     }
 }
 
-fn update_entity(held: &be_model::Item<Entity>, update: &CanvasEntity) -> Vec<Change> {
+fn stored_kind(kind: &CanvasEntityKind) -> (CanvasEntityKind, Option<&str>) {
+    let mut stored = kind.clone();
+    let text = match (&mut stored, kind) {
+        (CanvasEntityKind::Text { text: emptied, .. }, CanvasEntityKind::Text { text, .. }) => {
+            emptied.clear();
+            Some(text.as_str())
+        }
+        _ => None,
+    };
+    (stored, text)
+}
+
+fn update_entity(
+    content: &CanvasContent,
+    client: u64,
+    held: &be_model::Item<Entity>,
+    update: &CanvasEntity,
+) -> Vec<Change> {
     let id = held.id;
     let mut changes = Vec::new();
+    let (kind, text) = stored_kind(&update.kind);
     if held.center != update.transform.center {
         changes.push(Entity::CENTER.set(id, &update.transform.center));
     }
@@ -431,8 +470,11 @@ fn update_entity(held: &be_model::Item<Entity>, update: &CanvasEntity) -> Vec<Ch
     if held.rotation != update.transform.rotation {
         changes.push(Entity::ROTATION.set(id, &update.transform.rotation));
     }
-    if held.kind.as_ref() != Some(&update.kind) {
-        changes.push(Entity::KIND.set(id, &Some(update.kind.clone())));
+    if held.kind.as_ref() != Some(&kind) {
+        changes.push(Entity::KIND.set(id, &Some(kind)));
+    }
+    if let Some(op) = text.and_then(|text| retyped(content, client, id, text.as_bytes())) {
+        changes.push(Entity::TEXT.edit(id, op));
     }
     if held.style != update.style {
         changes.push(Entity::STYLE.set(id, &update.style));
@@ -445,6 +487,33 @@ fn update_entity(held: &be_model::Item<Entity>, update: &CanvasEntity) -> Vec<Ch
     }
     changes.extend(update_components(held, &update.components));
     changes
+}
+
+fn retyped(
+    content: &CanvasContent,
+    client: u64,
+    id: ObjectId,
+    typed: &[u8],
+) -> Option<be_model::SeqOp<u8>> {
+    let held = content.text(id, Entity::TEXT)?;
+    let old = held.items();
+    let prefix = old
+        .iter()
+        .zip(typed)
+        .take_while(|(before, after)| before == after)
+        .count();
+    let suffix = old[prefix..]
+        .iter()
+        .rev()
+        .zip(typed[prefix..].iter().rev())
+        .take_while(|(before, after)| before == after)
+        .count();
+    let range = prefix..old.len() - suffix;
+    let inserted = typed[prefix..typed.len() - suffix].to_vec();
+    match inserted.is_empty() {
+        true => held.delete(range),
+        false => held.replace(client, range, inserted),
+    }
 }
 
 fn update_components(held: &be_model::Item<Entity>, wanted: &[CanvasComponent]) -> Vec<Change> {
