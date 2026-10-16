@@ -805,7 +805,7 @@ impl<S: ObjectStore> Tracker<S> {
         if !prefix.is_empty() && self.database_with_prefix(&prefix).await?.is_some() {
             return Err(format!("another database already uses the prefix {prefix}"));
         }
-        let (view, database, schema) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let (view, database, schema) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
         let named = BlockMetadata::named(name);
         self.peer
             .create_block(view, DatabaseViewContent::CONTENT_TYPE, parent, &named)
@@ -1541,7 +1541,7 @@ impl<S: ObjectStore> Tracker<S> {
             }
             edits.push(add);
             if !page_text.trim().is_empty() {
-                let page = Uuid::new_v4();
+                let page = Uuid::now_v7();
                 self.peer
                     .create_block(
                         page,
@@ -1600,7 +1600,7 @@ impl<S: ObjectStore> Tracker<S> {
         let page = match current.rows.get(row).and_then(|row| row.page()) {
             Some(page) => page,
             None => {
-                let page = Uuid::new_v4();
+                let page = Uuid::now_v7();
                 self.peer
                     .create_block(
                         page,

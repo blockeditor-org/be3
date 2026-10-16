@@ -194,7 +194,7 @@ pub fn file_name(name: &str) -> String {
 pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
     let ids: HashMap<Uuid, Uuid> = blocks
         .iter()
-        .map(|block| (block.id, Uuid::new_v4()))
+        .map(|block| (block.id, Uuid::now_v7()))
         .collect();
     blocks
         .into_iter()
