@@ -773,8 +773,11 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
-    if let Err(error) = seal_for_members(&peer).await {
-        record(shared, error);
+    let held: Vec<Uuid> = std::iter::once(peer.workspace())
+        .chain(shared.lock().unwrap().other_keys.keys().copied())
+        .collect();
+    for workspace in held {
+        seal_for_members(&peer, shared, workspace).await;
     }
     load_graph(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
@@ -852,6 +855,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     }) => {
                         asked_to_pair(&peer, shared, from, workspace, &payload);
                     }
+                    Some(ServerMessage::KeyWanted { workspace }) => {
+                        seal_for_members(&peer, shared, workspace).await;
+                    }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
                 }
@@ -927,8 +933,24 @@ async fn wait(
     }
 }
 
-async fn seal_for_members(peer: &Peer<Store>) -> Result<(), ClientError> {
-    let workspace = peer.workspace();
+async fn seal_for_members(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, workspace: Uuid) {
+    let key = match workspace == peer.workspace() {
+        true => *peer.commits().vault().key().as_bytes(),
+        false => match shared.lock().unwrap().other_keys.get(&workspace) {
+            Some(key) => *key,
+            None => return,
+        },
+    };
+    if let Err(error) = seal_to_members(peer, workspace, &key).await {
+        record(shared, error);
+    }
+}
+
+async fn seal_to_members(
+    peer: &Peer<Store>,
+    workspace: Uuid,
+    key: &[u8; 32],
+) -> Result<(), ClientError> {
     let listed = peer
         .connection()
         .request(|request| ClientMessage::ListMemberKeys { request, workspace })
@@ -936,12 +958,11 @@ async fn seal_for_members(peer: &Peer<Store>) -> Result<(), ClientError> {
     let ServerMessage::MemberKeys { members, .. } = listed else {
         return Err(ClientError::Unexpected);
     };
-    let key = peer.commits().vault().key();
     for member in members {
         let Some(recovery) = member.recovery.filter(|_| !member.sealed) else {
             continue;
         };
-        let sealed = be_keys::RecoveryPublic(recovery).seal(key.as_bytes());
+        let sealed = be_keys::RecoveryPublic(recovery).seal(key);
         peer.connection()
             .request(|request| ClientMessage::PutWorkspaceKey {
                 request,

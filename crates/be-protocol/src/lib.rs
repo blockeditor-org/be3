@@ -537,6 +537,12 @@ pub enum ServerMessage {
         request: u64,
         agents: Vec<Agent>,
     },
+    KeyWanted {
+        workspace: Uuid,
+    },
+    KeySealed {
+        workspace: Uuid,
+    },
 }
 
 impl ServerMessage {
@@ -569,7 +575,9 @@ impl ServerMessage {
             | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
             | Self::Relayed { .. }
-            | Self::Paired { .. } => None,
+            | Self::Paired { .. }
+            | Self::KeyWanted { .. }
+            | Self::KeySealed { .. } => None,
         }
     }
 }
