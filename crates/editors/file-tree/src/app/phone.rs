@@ -8,7 +8,7 @@ use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF, ICON_LOGOUT,
     ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_SEARCH,
-    ICON_SEARCH_OFF, ICON_SHARE,
+    ICON_SEARCH_OFF, ICON_SETTINGS, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -19,8 +19,8 @@ use uuid::Uuid;
 
 use super::export::Exporter;
 use super::rows::{
-    Inspection, Placement, Row, RowKey, Tree as FileTree, describe, is_workspace, shared_with_me,
-    workspaces,
+    Inspection, Placement, Row, RowKey, Tree as FileTree, describe, is_workspace, own_settings,
+    shared_with_me, workspaces,
 };
 use super::ui::{ExportAs, OpenWith, Picker, leavable, menu_action, new_workspace};
 use block_editor_beui::beui::TextAlign;
@@ -48,6 +48,7 @@ pub(crate) enum Level {
     Folder(Vec<Crumb>),
     Shared,
     Deleted,
+    Settings,
 }
 
 impl Level {
@@ -59,13 +60,14 @@ impl Level {
                 .map_or(BlockQuery::Roots, |crumb| BlockQuery::References(crumb.id)),
             Self::Shared => BlockQuery::Shared,
             Self::Deleted => BlockQuery::Detached,
+            Self::Settings => BlockQuery::Roots,
         }
     }
 
     fn container(&self) -> Option<&Crumb> {
         match self {
             Self::Folder(crumbs) => crumbs.last(),
-            Self::Root | Self::Shared | Self::Deleted => None,
+            Self::Root | Self::Shared | Self::Deleted | Self::Settings => None,
         }
     }
 
@@ -74,7 +76,9 @@ impl Level {
             Self::Folder(crumbs) if crumbs.len() > 1 => {
                 Self::Folder(crumbs[..crumbs.len() - 1].to_vec())
             }
-            Self::Root | Self::Folder(_) | Self::Shared | Self::Deleted => Self::Root,
+            Self::Root | Self::Folder(_) | Self::Shared | Self::Deleted | Self::Settings => {
+                Self::Root
+            }
         }
     }
 
@@ -91,7 +95,7 @@ impl Level {
                 crumbs.push(crumb);
                 Self::Folder(crumbs)
             }
-            Self::Root | Self::Shared | Self::Deleted => Self::Folder(vec![crumb]),
+            Self::Root | Self::Shared | Self::Deleted | Self::Settings => Self::Folder(vec![crumb]),
         })
     }
 }
@@ -117,7 +121,12 @@ pub(crate) fn PhoneFiles(
     let at_root = create_memo(move || browsing.get() && level.get() == Level::Root);
     let nested = create_memo(move || level.get() != Level::Root);
     let can_create = create_memo(move || {
-        browsing.get() && !matches!(level.get(), Level::Deleted | Level::Shared) && !covered.get()
+        browsing.get()
+            && !matches!(
+                level.get(),
+                Level::Deleted | Level::Shared | Level::Settings
+            )
+            && !covered.get()
     });
     let page = NodeRef::new();
     let creating = move || {
@@ -131,7 +140,7 @@ pub(crate) fn PhoneFiles(
                 .map(|crumb| crumb.id)
                 .or_else(|| match level {
                     Level::Root => tree.my_files(),
-                    Level::Folder(_) | Level::Shared | Level::Deleted => None,
+                    Level::Folder(_) | Level::Shared | Level::Deleted | Level::Settings => None,
                 })
         });
         let Some(parent) = parent else {
@@ -287,6 +296,7 @@ fn Header(
             .unwrap_or_default(),
         Level::Shared => "Shared with me".to_owned(),
         Level::Deleted => "Recently deleted".to_owned(),
+        Level::Settings => "Settings".to_owned(),
     });
     let path = create_memo(move || match level.get() {
         Level::Folder(crumbs) => std::iter::once("Files".to_owned())
@@ -297,7 +307,7 @@ fn Header(
             )
             .collect::<Vec<_>>()
             .join(" / "),
-        Level::Root | Level::Shared | Level::Deleted => "Files".to_owned(),
+        Level::Root | Level::Shared | Level::Deleted | Level::Settings => "Files".to_owned(),
     });
     let up = move || set_level.set(level.get_untracked().up());
     let typed = query;
@@ -486,7 +496,7 @@ fn LevelRows(
     let listed = editor.watch_blocks(level.query());
     let roots = match level {
         Level::Shared => Some(editor.watch_blocks(BlockQuery::Roots)),
-        Level::Root | Level::Folder(_) | Level::Deleted => None,
+        Level::Root | Level::Folder(_) | Level::Deleted | Level::Settings => None,
     };
     let described_level = level.clone();
     let account = editor.host().account_id();
@@ -496,6 +506,7 @@ fn LevelRows(
         let listed = match &described_level {
             Level::Root => workspaces(listed, account, types.as_ref()),
             Level::Shared => shared_with_me(roots.as_ref()?.get()?, listed),
+            Level::Settings => own_settings(listed, account),
             Level::Folder(_) | Level::Deleted => listed,
         };
         let mut block_types: HashMap<Uuid, Uuid> = tree.block_types();
@@ -505,7 +516,7 @@ fn LevelRows(
         block_types.extend(listed.iter().map(|info| (info.id, info.block_type)));
         let path: Vec<Uuid> = match &described_level {
             Level::Folder(crumbs) => crumbs.iter().map(|crumb| crumb.id).collect(),
-            Level::Root | Level::Shared | Level::Deleted => Vec::new(),
+            Level::Root | Level::Shared | Level::Deleted | Level::Settings => Vec::new(),
         };
         let container = described_level.container().map(|crumb| crumb.id);
         let entry = matches!(described_level, Level::Root | Level::Shared);
@@ -549,6 +560,7 @@ fn LevelRows(
         Level::Folder(_) => "This folder is empty. Tap New to add a file to it.",
         Level::Shared => "Nothing has been shared with you.",
         Level::Deleted => "Nothing has been deleted.",
+        Level::Settings => "No settings yet.",
     };
     let at_root = level == Level::Root;
     let deleting = set_level;
@@ -606,6 +618,16 @@ fn LevelRows(
                         label="Recently deleted"
                         glyph={ICON_HISTORY.to_owned()}
                         on_click={move || deleting.set(Level::Deleted)}
+                    />
+                }}
+            </Show>
+            <Show condition={at_root}>
+                {move || view! {
+                    <ActionRow
+                        @test_id={"file-tree.settings"}
+                        label="Settings"
+                        glyph={ICON_SETTINGS.to_owned()}
+                        on_click={move || deleting.set(Level::Settings)}
                     />
                 }}
             </Show>

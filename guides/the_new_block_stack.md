@@ -955,14 +955,17 @@ workspace it authored, marked with the `MY_FILES` metadata key
 The files pane (crates/editors/file-tree) shows a section per workspace the
 account can see (My files first, then by name; another account's My files is
 never listed), then Shared with me (`BlockQuery::Shared`, plus any root block
-that is not a workspace, never a settings block), then Recently Deleted. A
+that is not a workspace or a settings block), then Recently Deleted, then
+Settings: the account's own root `Settings` (and settings profile) blocks, which
+open in the settings editor and expand to their kinds, profiles and sessions;
+another account's are never listed. A
 section's header has its own menu (rename, share, delete, and leave on a
 workspace someone else made), New workspace makes
 one at the root and opens the rename dialog, and the add button and every
 picker place a new block in a workspace, My files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
 or from its Move to menu. The phone layout has the same levels: the workspaces,
-then Shared with me and Recently deleted as rows of their own. The folder
+then Shared with me, Recently deleted and Settings as rows of their own. The folder
 editor (crates/editors/workspace-index) opens a workspace too.
 
 ### Settings, settings profiles and sessions

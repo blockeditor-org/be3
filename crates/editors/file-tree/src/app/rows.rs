@@ -5,6 +5,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::{
     BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, ViewState, WorkspaceContent,
 };
+use block_editor_beui::beui::icons::ICON_SETTINGS;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -17,9 +18,11 @@ pub(crate) enum RowKey {
     Block(Vec<Uuid>),
     Shared,
     Orphans,
+    Settings,
     Note(Vec<Uuid>),
     SharedNote,
     OrphansNote,
+    SettingsNote,
 }
 
 #[derive(Clone, PartialEq)]
@@ -103,12 +106,14 @@ struct Opened {
     orphans: bool,
     collapsed: Vec<Uuid>,
     shared_closed: bool,
+    settings: bool,
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
 struct Folded {
     orphans_open: bool,
     shared_closed: bool,
+    settings_open: bool,
 }
 
 #[derive(Default)]
@@ -118,6 +123,7 @@ struct Watched {
     orphans: Option<BlockList>,
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
+    settings: HashSet<Uuid>,
     my_files: Option<Uuid>,
 }
 
@@ -168,6 +174,15 @@ pub(crate) fn shared_with_me(roots: Vec<BlockInfo>, shared: Vec<BlockInfo>) -> V
         .collect()
 }
 
+pub(crate) fn own_settings(roots: Vec<BlockInfo>, account: Uuid) -> Vec<BlockInfo> {
+    let mut found: Vec<BlockInfo> = roots
+        .into_iter()
+        .filter(|block| is_settings(block.block_type) && block.author == Some(account))
+        .collect();
+    found.sort_by_key(|block| (block.block_type != SettingsContent::CONTENT_TYPE, block.id));
+    found
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct Tree {
     inner: Stored<Inner>,
@@ -208,6 +223,7 @@ impl Tree {
             let Folded {
                 orphans_open: showing,
                 shared_closed,
+                settings_open,
             } = folded.get();
             watched.expanded.retain(|id, _| open.contains(id));
             for id in &open {
@@ -226,7 +242,9 @@ impl Tree {
             let types = host.block_types();
             let listed = roots.read();
             let sections = workspaces(listed.clone(), host.account_id(), types.as_ref());
+            let settings = own_settings(listed.clone(), host.account_id());
             let loose = shared_with_me(listed, shared.read());
+            watched.settings = settings.iter().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
             watched.my_files = sections
                 .first()
@@ -262,6 +280,7 @@ impl Tree {
             }
             builder.push_shared(loose, !shared_closed, shared.is_loaded());
             builder.push_orphans(showing);
+            builder.push_settings(settings, settings_open, roots.is_loaded());
             let rows = builder.rows;
             drop(watched);
             set_rows.set(rows);
@@ -291,6 +310,7 @@ impl Tree {
                     set_folded.set(Folded {
                         orphans_open: opened.orphans,
                         shared_closed: opened.shared_closed,
+                        settings_open: opened.settings,
                     });
                 });
             }
@@ -301,6 +321,7 @@ impl Tree {
             let Folded {
                 orphans_open,
                 shared_closed,
+                settings_open,
             } = folded.get();
             if !restored.get() {
                 return;
@@ -313,6 +334,7 @@ impl Tree {
                     orphans: orphans_open,
                     collapsed,
                     shared_closed,
+                    settings: settings_open,
                 },
                 Vec::new(),
             );
@@ -389,6 +411,13 @@ impl Tree {
                     ..folded
                 });
             }
+            RowKey::Settings => {
+                let folded = untrack(|| self.folded.get());
+                self.set_folded.set(Folded {
+                    settings_open: !folded.settings_open,
+                    ..folded
+                });
+            }
             RowKey::Block(path)
                 if path.len() == 1 && id.is_some_and(|id| self.workspaces().contains(&id)) =>
             {
@@ -417,7 +446,7 @@ impl Tree {
                     }
                 });
             }
-            RowKey::Note(_) | RowKey::SharedNote | RowKey::OrphansNote => {}
+            RowKey::Note(_) | RowKey::SharedNote | RowKey::OrphansNote | RowKey::SettingsNote => {}
         }
     }
 
@@ -432,6 +461,19 @@ impl Tree {
             orphans_open: true,
             ..folded
         });
+    }
+
+    pub(crate) fn reveal_settings(&self, root: Option<Uuid>) {
+        let held = self
+            .inner
+            .with(|inner| root.is_some_and(|id| inner.watched.borrow().settings.contains(&id)));
+        let folded = untrack(|| self.folded.get());
+        if held && !folded.settings_open {
+            self.set_folded.set(Folded {
+                settings_open: true,
+                ..folded
+            });
+        }
     }
 }
 
@@ -474,6 +516,32 @@ impl Builder<'_> {
             return;
         }
         for block in listed {
+            self.push(block, 1, None, &mut Vec::new());
+        }
+    }
+
+    fn push_settings(&mut self, settings: Vec<BlockInfo>, open: bool, loaded: bool) {
+        self.rows.push(Row {
+            section: true,
+            expandable: true,
+            expanded: open,
+            glyph: ICON_SETTINGS.to_owned(),
+            ..Row::note_at(RowKey::Settings, 0, "Settings")
+        });
+        if !open {
+            return;
+        }
+        if !loaded {
+            self.rows
+                .push(Row::note_at(RowKey::SettingsNote, 1, "Loading…"));
+            return;
+        }
+        if settings.is_empty() {
+            self.rows
+                .push(Row::note_at(RowKey::SettingsNote, 1, "No settings yet"));
+            return;
+        }
+        for block in settings {
             self.push(block, 1, None, &mut Vec::new());
         }
     }

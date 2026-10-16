@@ -79,16 +79,20 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             RowKey::Block(path) => path.last().copied(),
             RowKey::Shared
             | RowKey::Orphans
+            | RowKey::Settings
             | RowKey::Note(_)
             | RowKey::SharedNote
-            | RowKey::OrphansNote => None,
+            | RowKey::OrphansNote
+            | RowKey::SettingsNote => None,
         };
         tree.toggle(&key, id, !expanded);
     };
 
     let reveal = move |_: RowKey| {
+        let focused = editor.host().focused_block();
         tree.show_orphans();
-        tree.expand(editor.host().focused_block().via.iter().rev().copied());
+        tree.reveal_settings(focused.via.last().copied().or(focused.block_id));
+        tree.expand(focused.via.iter().rev().copied());
     };
     let app_menu = move || editor.host().show_app_menu(editor.block_id());
     let add_root = move || {
@@ -343,9 +347,11 @@ fn ancestors(key: &RowKey) -> Vec<RowKey> {
             .collect(),
         RowKey::Shared
         | RowKey::Orphans
+        | RowKey::Settings
         | RowKey::Note(_)
         | RowKey::SharedNote
-        | RowKey::OrphansNote => Vec::new(),
+        | RowKey::OrphansNote
+        | RowKey::SettingsNote => Vec::new(),
     }
 }
 
@@ -356,9 +362,11 @@ fn row_test_id(key: &RowKey) -> String {
             .map_or_else(|| "block".to_owned(), Uuid::to_string),
         RowKey::Shared => "shared".to_owned(),
         RowKey::Orphans => "orphans".to_owned(),
+        RowKey::Settings => "settings".to_owned(),
         RowKey::Note(path) => format!("note.{}", path.len()),
         RowKey::SharedNote => "note.shared".to_owned(),
         RowKey::OrphansNote => "note.orphans".to_owned(),
+        RowKey::SettingsNote => "note.settings".to_owned(),
     };
     format!("file-tree.{named}")
 }
