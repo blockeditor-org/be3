@@ -228,11 +228,18 @@ settings and summarises what it would produce, and committing that child
 stores the copy.
 
 The instance that draws the window may ask the host who can open a block,
-answered once with every member of the organization - their account, email, name,
-whether they administer the organization, the access granted to them on that
-block if any and the access they end up with - or with why it could not be
-listed, and may grant a member a level of access to a block. A grant is not
-answered; the instance lists the block again to see it.
+answered once with the people the account may share it with: whoever already
+reaches it and the account's contacts in the organization, never the rest of
+its members - their account, email, name, whether they administer the
+organization, whether they made the block, the access granted to them on it if
+any, the access they end up with and whether they still wait for its key - or
+with why it could not be listed. It may grant one of them a level of access to
+a block, which reaches the host before any request the instance makes in the
+same turn, so a listing asked for after a grant includes it, and it may ask for
+a contact link carrying a grant of the block, answered with the link or why it
+could not be made. A grant is not answered; the instance lists the block again
+to see it, and lists it again when the account's contacts, a value the host
+publishes to that instance, change.
 
 An editor instance may ask the host to choose a file for it, which only the
 host can do on every platform the app runs on. The request carries the filter

@@ -75,10 +75,11 @@ or dump stacks to fold them yourself:
   splits the report by plugin and `--comms 'plugin be3.data'` keeps one plugin's samples.
   Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
   scroll's or resize's samples; leave them out when judging the app's own work.
-- To fill an organization with data, add an agent from the dev app's menu (Agents) and point a
-  `be` built from the checkout at it with the `BE3_*` values the dialog shows
-  (guides/tracker.md): `be new-database`, `add-column` and `import` a generated CSV make
-  a tracker of any size.
+- To fill an organization with data, create a company organization on the dev app's
+  Organizations screen (the personal one has no agents), add an agent from its app menu
+  (Agents), share a workspace with it, and point a `be` built from the checkout at it with
+  the `BE3_*` values the dialog shows (guides/tracker.md): `be new-database`, `add-column`
+  and `import` a generated CSV make a tracker of any size.
 
 4. Ideas tried and set aside
 

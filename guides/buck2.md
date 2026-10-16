@@ -148,7 +148,9 @@ runs, serves or installs here, with `-dist` the build CI publishes, and `:dev`
 the app headless for an agent to drive.
 
 **A dependency**: `cargo add` (or edit `Cargo.toml`), then
-`./scripts/buck run //:buckify` to regenerate the rules. A build script runs
+`./scripts/buck run //:buckify` to regenerate the rules. That includes a
+dev-dependency on another crate of the workspace: until it runs, the crate's
+`:test` cannot see it. A build script runs
 as it does under cargo, and the libraries it links or compiles reach the link;
 one that needs something from the build, such as a sysroot's pkg-config, gets
 it from a fixup.

@@ -627,7 +627,7 @@ store of its own: history is be-store objects and be-commit commits.
 ## Running it
 
 ```
-./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" hunter2hunter2 Organization
+echo hunter2hunter2 | ./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" Organization
 ./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
 ```
 
@@ -1290,6 +1290,8 @@ key a device will seal with:
 
 - every key sealed to an account is authenticated by its sender, and a device
   takes it only from itself or a contact it verified through a link;
+- a contact's key is replaced only by a key change sealed with the key the
+  device verified;
 - contact cards, link codes, pending grants and the escrow key in an
   invitation are sealed with codes the server never sees;
 - a key wrapped under another key is AEAD under that key, and a device wraps
@@ -1400,13 +1402,6 @@ pixel art export regenerate this way.
   that wants.
 - Reconnecting rejoins from the server's head, so operations a session had not
   sealed when the socket dropped are gone.
-- Revoking a grant, removing a contact or removing a member rotates nothing
-  yet, so a key the removed account already opened stays open to it. A company
-  organization has no escrow key. A grant to a contact whose card this device
-  has not verified yet (the exchange not finished) grants without sealing a
-  key, so the block stays locked to them until it is shared again.
-- A link's pending grant in another organization than the one the maker's
-  device has open is never sealed again when the link finishes.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.
