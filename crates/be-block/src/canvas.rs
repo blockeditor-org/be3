@@ -87,6 +87,15 @@ pub enum CanvasTextAlign {
     Right,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasTextVerticalAlign {
+    #[default]
+    Top,
+    Middle,
+    Bottom,
+}
+
 fn one() -> f32 {
     1.0
 }
@@ -97,6 +106,7 @@ pub struct CanvasTextStyle {
     pub font_size: f32,
     pub weight: CanvasTextWeight,
     pub alignment: CanvasTextAlign,
+    pub vertical_alignment: CanvasTextVerticalAlign,
     pub line_height: f32,
     pub wrap: bool,
 }
@@ -107,6 +117,7 @@ impl Default for CanvasTextStyle {
             font_size: 18.0,
             weight: CanvasTextWeight::Regular,
             alignment: CanvasTextAlign::Left,
+            vertical_alignment: CanvasTextVerticalAlign::Top,
             line_height: 1.2,
             wrap: false,
         }
