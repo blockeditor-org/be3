@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use block_plugin_api::{
-    Administrator, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, LinkBase,
-    Message, WindowAction,
+    Administrator, Contacts, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows,
+    LinkBase, Message, WindowAction,
 };
 #[cfg(target_os = "linux")]
 use block_plugin_api::{
@@ -31,6 +31,7 @@ const VALUES: &[(&str, Access)] = &[
     (Tray::KEY, Access::Shell),
     (LinkBase::KEY, Access::Anyone),
     (Administrator::KEY, Access::Anyone),
+    (Contacts::KEY, Access::Shell),
 ];
 
 #[cfg(not(target_os = "linux"))]
@@ -38,6 +39,7 @@ const VALUES: &[(&str, Access)] = &[
     (HostWindows::KEY, Access::Shell),
     (LinkBase::KEY, Access::Anyone),
     (Administrator::KEY, Access::Anyone),
+    (Contacts::KEY, Access::Shell),
 ];
 
 #[cfg(target_os = "linux")]

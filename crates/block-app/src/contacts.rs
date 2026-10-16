@@ -27,6 +27,7 @@ pub(crate) struct Contacts {
     error: Option<String>,
     connected: Option<String>,
     replies: (Sender<Reply>, Receiver<Reply>),
+    published: Option<(Option<(Uuid, Uuid)>, u64)>,
 }
 
 impl Default for Contacts {
@@ -41,6 +42,7 @@ impl Default for Contacts {
             error: None,
             connected: None,
             replies: channel(),
+            published: None,
         }
     }
 }
@@ -131,6 +133,24 @@ impl Contacts {
         if let Some(account) = self.removing.take() {
             crate::be::remove_contact(account);
         }
+    }
+
+    pub(crate) fn publish(&mut self) {
+        let seen = Some((crate::be::identity(), crate::be::contacts_revision()));
+        if self.published == seen {
+            return;
+        }
+        self.published = seen;
+        let contacts: Vec<block_plugin_api::HostContact> = crate::be::contacts()
+            .into_iter()
+            .map(|contact| block_plugin_api::HostContact {
+                account: contact.account.into_bytes(),
+                display_name: contact.display_name,
+                email: contact.email,
+                verified: contact.public.is_some(),
+            })
+            .collect();
+        crate::plugin_host::publish::<block_plugin_api::Contacts>(&contacts);
     }
 
     pub(crate) fn poll(&mut self, base: &str, ready: bool) {

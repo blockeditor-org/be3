@@ -166,6 +166,7 @@ pub(crate) struct Shared {
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
     pub(crate) contacts: Vec<be_client::Contact>,
+    pub(crate) contacts_revision: u64,
     pub(crate) escrow_warning: Option<&'static str>,
     pub(crate) locked: std::collections::HashSet<Uuid>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
@@ -1102,8 +1103,15 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     }
     match peer.refresh_contacts().await {
         Ok(contacts) => {
-            let changed = shared.lock().unwrap().contacts != contacts;
-            shared.lock().unwrap().contacts = contacts;
+            let changed = {
+                let mut shared = shared.lock().unwrap();
+                let changed = shared.contacts != contacts;
+                if changed {
+                    shared.contacts = contacts;
+                    shared.contacts_revision += 1;
+                }
+                changed
+            };
             if changed {
                 load_graph(peer, shared).await;
             }

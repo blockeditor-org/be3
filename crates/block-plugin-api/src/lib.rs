@@ -11,7 +11,8 @@ mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
-    Administrator, HostAction, HostImage, HostValue, LinkBase, decode_host, encode_host,
+    Administrator, Contacts, HostAction, HostContact, HostImage, HostValue, LinkBase, decode_host,
+    encode_host,
 };
 pub use linux::{
     AudioOutput, Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction,

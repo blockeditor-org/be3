@@ -642,6 +642,10 @@ pub(crate) fn contacts() -> Vec<be_client::Contact> {
     with_shared(|shared| shared.contacts.clone()).unwrap_or_default()
 }
 
+pub(crate) fn contacts_revision() -> u64 {
+    with_shared(|shared| shared.contacts_revision).unwrap_or_default()
+}
+
 pub(crate) fn make_contact_link(
     offer: Option<(Uuid, be_graph::Access)>,
     reply: impl FnOnce(Result<String, String>) + Send + 'static,

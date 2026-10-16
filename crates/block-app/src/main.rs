@@ -2389,6 +2389,7 @@ impl BlockApp {
             .is_some_and(|organization| be::installed_for(self.account.id, organization.id));
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
+        self.contacts.publish();
         self.members.poll();
         self.poll_organization_request();
         self.poll_reauth_request();

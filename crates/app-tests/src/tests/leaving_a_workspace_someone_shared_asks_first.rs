@@ -60,7 +60,6 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.type_text("dev");
     app.click("Button \"Dev (dev@localhost)\"");
     app.click("#share.add");
-    app.click("Button \"Refresh\"");
     app.wait("Label value=\"dev@localhost\"");
     app.click("Button \"Done\"");
 

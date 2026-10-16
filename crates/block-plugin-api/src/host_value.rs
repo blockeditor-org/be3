@@ -26,6 +26,21 @@ impl HostValue for LinkBase {
     type Value = String;
 }
 
+pub enum Contacts {}
+
+impl HostValue for Contacts {
+    const KEY: &'static str = "contacts";
+    type Value = Vec<HostContact>;
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostContact {
+    pub account: [u8; 16],
+    pub display_name: String,
+    pub email: String,
+    pub verified: bool,
+}
+
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostImage {
     pub width: u32,

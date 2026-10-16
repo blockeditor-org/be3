@@ -561,6 +561,14 @@ impl EditorSession {
                 replaced,
             }));
         }
+        for (block_id, account, access) in self.host.take_access_changes() {
+            messages.push(Message::Editor(EditorMessage::SetAccess {
+                instance,
+                block_id: block_id.into_bytes(),
+                account: account.into_bytes(),
+                access,
+            }));
+        }
         for (request_id, request) in self.host.take_requests() {
             messages.push(Message::Editor(EditorMessage::Request {
                 instance,
@@ -580,14 +588,6 @@ impl EditorSession {
                 instance,
                 key,
                 action,
-            }));
-        }
-        for (block_id, account, access) in self.host.take_access_changes() {
-            messages.push(Message::Editor(EditorMessage::SetAccess {
-                instance,
-                block_id: block_id.into_bytes(),
-                account: account.into_bytes(),
-                access,
             }));
         }
         for commit in self.host.take_child_commits() {

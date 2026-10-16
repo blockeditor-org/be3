@@ -16,8 +16,9 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, BlockPick, ChildState, Editor, EditorHost, FocusedBlock, HostPanel,
-    HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog, WindowAction,
+    AccessLevel, BlockFilter, BlockPick, ChildState, Contacts, Editor, EditorHost, FocusedBlock,
+    HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog,
+    WindowAction,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -187,6 +188,11 @@ impl Workspace {
         });
         create_effect(move || {
             workspace.report_focus();
+        });
+        let contacts = workspace.editor.host_value::<Contacts>();
+        create_effect(move || {
+            contacts.with(|_| ());
+            untrack(|| workspace.relist_share());
         });
         workspace.editor.on_reply(move || {
             if workspace.state.is_alive() {
@@ -489,6 +495,12 @@ impl Workspace {
             share.request = Some(self.host().list_access(share.block));
         }
         self.set_share.set(Some(share));
+    }
+
+    fn relist_share(&self) {
+        if self.share.with_untracked(Option::is_some) {
+            self.share_action(ShareAction::Refresh);
+        }
     }
 
     fn share_listed(&self) {

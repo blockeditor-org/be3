@@ -1275,8 +1275,9 @@ public key it verified this way, never to one the server hands it.
   app takes `#contact/` from the address bar like `#invite/`. The worker keeps
   `Shared::contacts` (each with its verified key, or none until the exchange
   finishes) and seals a share only to those keys. The share dialog lists
-  contacts and current grantees, and its "Invite someone new" makes a link
-  carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
+  contacts and current grantees, lists them again when the `Contacts` host
+  value changes and after each grant it makes, and its "Invite someone new"
+  makes a link carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
   member and Agents show only in a company organization, and Members (list,
   change a role, remove, invite) only to its administrators.
 

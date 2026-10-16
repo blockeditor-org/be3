@@ -2,7 +2,6 @@ use block_editor_beui::be_block::metadata::MAX_NAME_BYTES;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ADD_LINK, ICON_CLOSE, ICON_CONTENT_COPY, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD,
-    ICON_REFRESH,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -265,9 +264,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     let loading = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.loading()))
     });
-    let refreshing = create_memo(move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.request.is_some()))
-    });
     let error = create_memo(move || {
         state.with(|share| share.as_ref().and_then(|share| share.error.clone()))
     });
@@ -521,16 +517,9 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 <List
                     direction=Direction::Horizontal
                     align=Align::Center
-                    justify=Justify::SpaceBetween
+                    justify=Justify::End
                     spacing=8.0
                 >
-                    <Button
-                        label="Refresh"
-                        glyph={ICON_REFRESH.to_owned()}
-                        variant=ButtonVariant::Secondary
-                        disabled={refreshing}
-                        on_click={move || act.call(ShareAction::Refresh)}
-                    />
                     <Button
                         label="Done"
                         variant=ButtonVariant::Primary
