@@ -734,6 +734,130 @@ refresh_namespace_cluster() {
     fi
 }
 
+# Namespace's executor now and then stops running actions: they sit at
+# re_queued (or re_execute) for hours while nothing else moves, and the cluster
+# does not recover until every instance in the workspace is destroyed, after
+# which `nsc reapi setup` starts a fresh one. While a command builds on
+# Namespace, watch_namespace_stall asks the daemon every minute how many remote
+# executions it has started and finished (`buck2 status --snapshot`). When some
+# are waiting and none has finished for BE3_NAMESPACE_STALL_MINUTES (30 unless
+# set; 0 turns this off), it stops the daemon and leaves
+# target/namespace/stalled for `retrying` in ./scripts/buck, which destroys the
+# instances and tries the command again. Actions that run here, such as the
+# plugin tests, are not remote executions, so one of them hanging is not
+# taken for a stall.
+#
+# Listing and destroying instances takes a token of its own, since the one
+# buck2 builds with is only granted remote execution: BE3_NAMESPACE_ADMIN_TOKEN,
+# or else .namespace-admin-token.json at the root of the checkout or
+# ~/.config/be3/namespace-admin-token.json. Without one a stalled command is
+# still stopped, and fails, rather than left to wait.
+namespace_stall_marker="$namespace_directory/stalled"
+
+namespace_stall_seconds() {
+    local minutes="${BE3_NAMESPACE_STALL_MINUTES:-30}"
+    if [[ ! "$minutes" =~ ^[0-9]+$ ]]; then
+        echo "BE3_NAMESPACE_STALL_MINUTES is a number of minutes, not '$minutes'." >&2
+        minutes=30
+    fi
+    echo $((minutes * 60))
+}
+
+# The daemon's count of remote executions started and of those finished, on
+# one line, or nothing when it cannot be asked.
+remote_executions() {
+    local buck2="$1" snapshot started successes errors
+    snapshot="$("$buck2" status --snapshot 2> /dev/null)" || return 0
+    started="$(sed -n 's/.*"re_executes_started": *\([0-9]*\).*/\1/p' <<< "$snapshot")"
+    successes="$(sed -n 's/.*"re_executes_finished_successfully": *\([0-9]*\).*/\1/p' <<< "$snapshot")"
+    errors="$(sed -n 's/.*"re_executes_finished_with_error": *\([0-9]*\).*/\1/p' <<< "$snapshot")"
+    [[ -n "$started" && -n "$successes" && -n "$errors" ]] || return 0
+    echo "$started $((successes + errors))"
+}
+
+# Runs in the background beside a buck2 command until it is killed. The counts
+# are the daemon's since it started, so executions an earlier command left
+# unfinished, which this one is not waiting on, are not counted.
+watch_namespace_stall() {
+    local buck2="$1" limit counts started finished waiting last='' since now
+    local earlier=0
+    limit="$(namespace_stall_seconds)"
+    [[ $limit -gt 0 ]] || return 0
+    counts="$(remote_executions "$buck2")"
+    if [[ -n "$counts" ]]; then
+        read -r started finished <<< "$counts"
+        earlier=$((started - finished))
+    fi
+    since="$(date +%s)"
+    while sleep 60; do
+        counts="$(remote_executions "$buck2")"
+        [[ -n "$counts" ]] || continue
+        read -r started finished <<< "$counts"
+        waiting=$((started - finished - earlier))
+        if [[ $waiting -lt 0 ]]; then
+            earlier=0
+            waiting=$((started - finished))
+        fi
+        now="$(date +%s)"
+        if [[ $waiting -le 0 || "$finished" != "$last" ]]; then
+            last="$finished"
+            since="$now"
+        elif [[ $((now - since)) -ge $limit ]]; then
+            echo "$waiting remote executions have waited on Namespace for $(((now - since) / 60)) minutes with none finishing, so its executor has stalled; stopping buck2." >&2
+            mkdir -p "$namespace_directory"
+            touch "$namespace_stall_marker"
+            "$buck2" kill > /dev/null 2>&1 || true
+            return 0
+        fi
+    done
+}
+
+# The token file nsc lists and destroys instances with, or nothing.
+namespace_admin_token_file() {
+    local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/namespace-admin-token.json"
+    if [[ -n "${BE3_NAMESPACE_ADMIN_TOKEN:-}" ]]; then
+        local file="$namespace_directory/admin-token.json" token
+        token="$(printf '%s' "$BE3_NAMESPACE_ADMIN_TOKEN" | tr -d '\r\n')"
+        if [[ "$token" != '{'* ]]; then
+            token="{\"bearer_token\":\"$token\"}"
+        fi
+        mkdir -p "$namespace_directory"
+        (umask 077 && printf '%s\n' "$token" > "$file")
+        echo "$file"
+    elif [[ -f "$repository/.namespace-admin-token.json" ]]; then
+        echo "$repository/.namespace-admin-token.json"
+    elif [[ -f "$saved" ]]; then
+        echo "$saved"
+    fi
+}
+
+# Destroys every instance in the Namespace workspace, the remote execution
+# cluster's among them, and forgets the cluster's hosts so that the next
+# command starts a new one. Fails when there is no token that may.
+reset_namespace() {
+    local token nsc ids id status=0
+    token="$(namespace_admin_token_file)"
+    if [[ -z "$token" ]]; then
+        echo 'There is no Namespace admin token to destroy the stalled cluster with, so' >&2
+        echo 'the command is not tried again. Set BE3_NAMESPACE_ADMIN_TOKEN, or destroy every' >&2
+        echo 'instance at https://cloud.namespace.so, or build with BE3_BUILD_SERVER=blocks.pfg.pw' >&2
+        echo '(guides/build_server.md).' >&2
+        return 1
+    fi
+    nsc="$(nsc_path)"
+    if ! ids="$(NS_DO_NOT_UPDATE=1 NSC_TOKEN_FILE="$(native_path "$token")" "$nsc" list --all -o json)"; then
+        echo 'nsc could not list the Namespace instances (guides/build_server.md).' >&2
+        return 1
+    fi
+    ids="$(printf '%s\n' "$ids" | grep -o '"cluster_id": *"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/' | sort -u)"
+    for id in $ids; do
+        echo "Destroying the Namespace instance $id..." >&2
+        NS_DO_NOT_UPDATE=1 NSC_TOKEN_FILE="$(native_path "$token")" "$nsc" destroy --force "$id" >&2 || status=1
+    done
+    rm -f "$namespace_directory/asked"
+    return $status
+}
+
 configure_build_server() {
     local buck2="$1"
     local path="$repository/.buckconfig.local"

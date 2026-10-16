@@ -27,6 +27,10 @@ env:
   # runs every buck2 action. A pull request from a fork sees an empty value,
   # and ./scripts/buck says so rather than building.
   BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
+  # The token that may list and destroy the workspace's instances, which
+  # ./scripts/buck uses when Namespace's executor stalls
+  # (guides/build_server.md, "When it stalls").
+  BE3_NAMESPACE_ADMIN_TOKEN: ${{ secrets.BE3_NAMESPACE_ADMIN_TOKEN }}
 
 # One job does the work: ci is ./scripts/ci, which verifies, builds
 # the Android app and launcher, and on a pull request renders the paint
@@ -34,7 +38,8 @@ env:
 # the one check the ruleset on main requires, on the pull request and on the
 # merge group GitHub's merge queue builds from it. It runs the pull
 # request's code, so it holds no credentials beyond Namespace's token and the
-# Android keystore, both of which a build can already read.
+# Android keystore, both of which a build can already read, and Namespace's
+# admin token, which can do no more than list and destroy instances.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-summary
 # comments with the summary, publish-android puts the Android build where the
