@@ -1192,7 +1192,16 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   (others are dropped), and everything the account sealed for itself (contact
   rows, link codes and pinned escrow keys, `OwnSealed`), which the server
   checks, so only a device holding the old secret can make one; the account's
-  other devices then ask to be unlocked again.
+  other devices then ask to be unlocked again. Contacts keep working across
+  it: the new phrase sends each verified contact a key change
+  (`be_client::contacts::new_identity`, `RecoverySecret::seal_key_change`: the
+  account id and new public key, sealed from the old secret to the contact),
+  which the server keeps in `key_changes` and hands out with `ListContacts`.
+  A contact's device follows the changes one at a time from the key it holds
+  (`contacts::contacts`), so a change not sealed by that key is ignored; when
+  it reaches a newer key it seals the keys that account had sealed to it again
+  for itself (`ResealKeys`, since they were sealed by the old key) and then
+  replaces its contact row (`PutContact`).
 - **Inviting.** Joining an organization takes an invite link, the only way in,
   and hands over no key: keys come with what is shared. The inviting device
   makes a random invite code (`be_keys::InviteCode`, 200 bits) and names the

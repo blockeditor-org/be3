@@ -356,16 +356,16 @@ pub(crate) async fn set_recovery_key(
     server_url: String,
     token: String,
     public: be_keys::RecoveryPublic,
-    sealed: Vec<be_protocol::SealedKey>,
-    own: Vec<be_protocol::OwnSealed>,
+    resealed: be_client::contacts::NewIdentity,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
     connection
         .request(|request| ClientMessage::SetRecoveryKey {
             request,
             public: public.0,
-            sealed,
-            own,
+            sealed: resealed.sealed,
+            own: resealed.own,
+            changes: resealed.changes,
         })
         .await?;
     Ok(())

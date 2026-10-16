@@ -173,6 +173,19 @@ pub(crate) fn reseal_own(
     Ok(())
 }
 
+fn key_changes(
+    connection: &Connection,
+    account: &str,
+    caller: Uuid,
+) -> Result<Vec<Vec<u8>>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT sealed FROM key_changes WHERE account_id = ?1 AND contact_id = ?2
+         ORDER BY position",
+    )?;
+    let rows = statement.query_map(params![account, caller.to_string()], |row| row.get(0))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
 pub(crate) fn role_in(
     connection: &Connection,
     account: Uuid,
@@ -521,11 +534,13 @@ impl ServerStore {
         let mut contacts = Vec::new();
         for row in rows {
             let (account, email, display_name, sealed) = row?;
+            let changes = key_changes(&database, &account, caller)?;
             contacts.push(ContactRow {
                 account: parse_uuid(&account)?,
                 email,
                 display_name,
                 sealed,
+                changes,
             });
         }
         Ok(contacts)
@@ -541,6 +556,11 @@ impl ServerStore {
             let transaction = database.unchecked_transaction()?;
             transaction.execute(
                 "DELETE FROM contacts WHERE (account_id = ?1 AND contact_id = ?2)
+                    OR (account_id = ?2 AND contact_id = ?1)",
+                params![caller.to_string(), other.to_string()],
+            )?;
+            transaction.execute(
+                "DELETE FROM key_changes WHERE (account_id = ?1 AND contact_id = ?2)
                     OR (account_id = ?2 AND contact_id = ?1)",
                 params![caller.to_string(), other.to_string()],
             )?;

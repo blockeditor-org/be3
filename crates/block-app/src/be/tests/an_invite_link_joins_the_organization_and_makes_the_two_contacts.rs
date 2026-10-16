@@ -58,6 +58,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
     let theirs = runtime
         .block_on(be_client::contacts::contacts(
             peer.connection(),
+            peer.account(),
             &guest.phrase.secret(),
         ))
         .expect("the guest lists its contacts");

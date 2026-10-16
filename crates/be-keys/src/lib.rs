@@ -25,6 +25,7 @@ const GRANT_INFO: &[u8] = b"be3.contact.grant.v1";
 const FROM_INFO: &[u8] = b"be3.from.v1";
 const ESCROW_SIGNING_INFO: &[u8] = b"be3.escrow.signing.v1";
 const ESCROW_PIN_INFO: &[u8] = b"be3.escrow.pin.v1";
+const KEY_CHANGE_INFO: &[u8] = b"be3.key.change.v1";
 const INVITE_ENTROPY: usize = 25;
 const INVITE_LEN: usize = INVITE_ENTROPY * 8 / 5;
 const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -525,6 +526,30 @@ impl InviteCode {
 }
 
 impl RecoverySecret {
+    pub fn seal_key_change(&self, from: [u8; 16], to: &Party, new: RecoveryPublic) -> Vec<u8> {
+        self.seal_for(
+            from,
+            to,
+            KEY_CHANGE_INFO,
+            &[from.as_slice(), &new.0].concat(),
+        )
+    }
+
+    pub fn open_key_change(
+        &self,
+        from: &Party,
+        to: [u8; 16],
+        sealed: &[u8],
+    ) -> Result<RecoveryPublic, KeyError> {
+        let plain = self.open_from(from, to, KEY_CHANGE_INFO, sealed)?;
+        match plain.split_at_checked(16) {
+            Some((account, public)) if account == from.account => Ok(RecoveryPublic(
+                public.try_into().map_err(|_| KeyError::Sender)?,
+            )),
+            _ => Err(KeyError::Sender),
+        }
+    }
+
     pub fn seal_pin(&self, organization: [u8; 16], escrow: &[u8]) -> Vec<u8> {
         self.seal_own(&[organization.as_slice(), escrow].concat())
     }

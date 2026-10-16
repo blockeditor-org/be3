@@ -212,6 +212,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         public: editor_public.0,
         sealed: Vec::new(),
         own: Vec::new(),
+        changes: Vec::new(),
     })
     .await?;
     let code = InviteCode::generate();

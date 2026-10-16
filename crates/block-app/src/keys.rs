@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use be_keys::{ContactCard, Party, RecoveryPhrase, RecoverySecret};
+use be_keys::{RecoveryPhrase, RecoverySecret};
 use uuid::Uuid;
 
 use crate::accounts::{self, AccountError, Keys};
@@ -149,53 +147,21 @@ impl KeyState {
             .map(|keys| (keys.account, keys.sealed.clone(), keys.own.clone()))
             .unwrap_or_default();
         let resealed = match (held.is_empty() && own.is_empty(), identity) {
-            (true, _) => Ok((Vec::new(), Vec::new())),
-            (false, None) => Err(()),
-            (false, Some(identity)) => {
-                let old = RecoverySecret::from_bytes(identity);
-                let senders = senders(account, &old, &own);
-                let mine = Party {
-                    account: account.into_bytes(),
-                    public,
-                };
-                let sealed = Ok(held
-                    .into_iter()
-                    .filter_map(|key| {
-                        let sender = senders.get(&key.sender)?;
-                        let plain = old
-                            .open_from(
-                                sender,
-                                account.into_bytes(),
-                                key.key.as_bytes(),
-                                &key.sealed,
-                            )
-                            .ok()?;
-                        Some(be_protocol::SealedKey {
-                            sealed: fresh.seal_for(
-                                account.into_bytes(),
-                                &mine,
-                                key.key.as_bytes(),
-                                &plain,
-                            ),
-                            sender: account,
-                            ..key
-                        })
-                    })
-                    .collect::<Vec<_>>());
-                let own = own
-                    .into_iter()
-                    .map(|held| {
-                        let plain = old.open_own(&held.sealed).map_err(|_| ())?;
-                        Ok(be_protocol::OwnSealed {
-                            sealed: fresh.seal_own(&plain),
-                            ..held
-                        })
-                    })
-                    .collect::<Result<Vec<_>, ()>>();
-                sealed.and_then(|sealed| own.map(|own| (sealed, own)))
-            }
+            (true, _) => Some(be_client::contacts::NewIdentity {
+                sealed: Vec::new(),
+                own: Vec::new(),
+                changes: Vec::new(),
+            }),
+            (false, None) => None,
+            (false, Some(identity)) => be_client::contacts::new_identity(
+                account,
+                &RecoverySecret::from_bytes(identity),
+                &fresh,
+                held,
+                own,
+            ),
         };
-        let Ok((sealed, own)) = resealed else {
+        let Some(resealed) = resealed else {
             self.error = Some(
                 "This device cannot open what the old phrase sealed. Unlock this account with \
                  the old phrase first, so the new one can seal it."
@@ -205,7 +171,7 @@ impl KeyState {
         };
         self.error = None;
         self.saving = Some(platform::spawn_request(accounts::set_recovery_key(
-            server_url, token, public, sealed, own,
+            server_url, token, public, resealed,
         )));
     }
 
@@ -332,33 +298,4 @@ impl KeyState {
             error: self.error.clone(),
         }
     }
-}
-
-fn senders(
-    account: Uuid,
-    old: &RecoverySecret,
-    own: &[be_protocol::OwnSealed],
-) -> HashMap<Uuid, Party> {
-    let mut senders: HashMap<Uuid, Party> = own
-        .iter()
-        .filter(|held| held.kind == be_protocol::OwnKind::Contact)
-        .filter_map(|held| {
-            let card = ContactCard::open_own(old, &held.sealed).ok()?;
-            (card.account == held.id.into_bytes()).then_some((
-                held.id,
-                Party {
-                    account: card.account,
-                    public: card.public,
-                },
-            ))
-        })
-        .collect();
-    senders.insert(
-        account,
-        Party {
-            account: account.into_bytes(),
-            public: old.public(),
-        },
-    );
-    senders
 }

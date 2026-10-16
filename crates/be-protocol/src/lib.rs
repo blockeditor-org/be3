@@ -89,6 +89,14 @@ pub struct ContactRow {
     pub display_name: String,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
+    pub changes: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeyChange {
+    pub contact: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -540,6 +548,11 @@ pub enum ClientMessage {
         public: [u8; 32],
         sealed: Vec<SealedKey>,
         own: Vec<OwnSealed>,
+        changes: Vec<KeyChange>,
+    },
+    ResealKeys {
+        request: u64,
+        keys: Vec<SealedKey>,
     },
     Pair {
         request: u64,
@@ -665,6 +678,7 @@ impl ClientMessage {
             | Self::PutKeys { request, .. }
             | Self::GetRecoveryKey { request }
             | Self::SetRecoveryKey { request, .. }
+            | Self::ResealKeys { request, .. }
             | Self::Pair { request, .. }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }

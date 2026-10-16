@@ -36,6 +36,7 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
     let theirs = runtime
         .block_on(be_client::contacts::contacts(
             peer.connection(),
+            peer.account(),
             &guest.phrase.secret(),
         ))
         .expect("the guest lists its contacts");

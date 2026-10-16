@@ -1,8 +1,10 @@
 use be_graph::Access;
 use be_keys::{CardRole, ContactCard, InviteCode, Party, RecoveryPublic, RecoverySecret};
+use std::collections::HashMap;
+
 use be_protocol::{
-    ClientMessage, ContactLink, ErrorCode, EscrowKey, OrganizationInvitation, OrganizationRole,
-    PendingGrant, ServerMessage,
+    ClientMessage, ContactLink, ErrorCode, EscrowKey, KeyChange, OrganizationInvitation,
+    OrganizationRole, OwnKind, OwnSealed, PendingGrant, SealedKey, ServerMessage,
 };
 use uuid::Uuid;
 
@@ -94,6 +96,7 @@ fn tampered() -> ClientError {
 
 pub async fn contacts(
     connection: &Connection,
+    account: Uuid,
     identity: &RecoverySecret,
 ) -> Result<Vec<Contact>, ClientError> {
     let ServerMessage::Contacts { contacts, .. } = connection
@@ -102,18 +105,190 @@ pub async fn contacts(
     else {
         return Err(ClientError::Unexpected);
     };
-    Ok(contacts
-        .into_iter()
-        .map(|row| Contact {
-            public: ContactCard::open_own(identity, &row.sealed)
-                .ok()
-                .filter(|card| card.account == row.account.into_bytes())
-                .map(|card| card.public),
+    let mut held = None;
+    let mut listed = Vec::with_capacity(contacts.len());
+    for row in contacts {
+        let mut card = ContactCard::open_own(identity, &row.sealed)
+            .ok()
+            .filter(|card| card.account == row.account.into_bytes());
+        if let Some(verified) = &mut card
+            && let Some(public) = changed_key(account, identity, verified, &row.changes)
+        {
+            if held.is_none() {
+                held = Some(sealed_to_me(connection).await?);
+            }
+            reseal_from(
+                connection,
+                account,
+                identity,
+                verified,
+                held.as_deref().unwrap_or_default(),
+            )
+            .await?;
+            verified.public = public;
+            connection
+                .request(|request| ClientMessage::PutContact {
+                    request,
+                    contact: row.account,
+                    sealed: verified.seal_own(identity),
+                })
+                .await?;
+        }
+        listed.push(Contact {
+            public: card.map(|card| card.public),
             account: row.account,
             email: row.email,
             display_name: row.display_name,
+        });
+    }
+    Ok(listed)
+}
+
+fn changed_key(
+    account: Uuid,
+    identity: &RecoverySecret,
+    card: &ContactCard,
+    changes: &[Vec<u8>],
+) -> Option<RecoveryPublic> {
+    let mut current = card.public;
+    for sealed in changes {
+        let from = Party {
+            account: card.account,
+            public: current,
+        };
+        if let Ok(next) = identity.open_key_change(&from, account.into_bytes(), sealed) {
+            current = next;
+        }
+    }
+    (current != card.public).then_some(current)
+}
+
+async fn sealed_to_me(connection: &Connection) -> Result<Vec<SealedKey>, ClientError> {
+    let ServerMessage::RecoveryKey { sealed, .. } = connection
+        .request(|request| ClientMessage::GetRecoveryKey { request })
+        .await?
+    else {
+        return Err(ClientError::Unexpected);
+    };
+    Ok(sealed)
+}
+
+async fn reseal_from(
+    connection: &Connection,
+    account: Uuid,
+    identity: &RecoverySecret,
+    card: &ContactCard,
+    held: &[SealedKey],
+) -> Result<(), ClientError> {
+    let from = Party {
+        account: card.account,
+        public: card.public,
+    };
+    let mine = Party {
+        account: account.into_bytes(),
+        public: identity.public(),
+    };
+    let keys: Vec<SealedKey> = held
+        .iter()
+        .filter(|key| key.sender.into_bytes() == card.account)
+        .filter_map(|key| {
+            let plain = identity
+                .open_from(&from, account.into_bytes(), key.key.as_bytes(), &key.sealed)
+                .ok()?;
+            Some(SealedKey {
+                sealed: identity.seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain),
+                sender: account,
+                ..key.clone()
+            })
         })
-        .collect())
+        .collect();
+    if !keys.is_empty() {
+        connection
+            .request(|request| ClientMessage::ResealKeys { request, keys })
+            .await?;
+    }
+    Ok(())
+}
+
+pub struct NewIdentity {
+    pub sealed: Vec<SealedKey>,
+    pub own: Vec<OwnSealed>,
+    pub changes: Vec<KeyChange>,
+}
+
+pub fn new_identity(
+    account: Uuid,
+    old: &RecoverySecret,
+    fresh: &RecoverySecret,
+    held: Vec<SealedKey>,
+    own: Vec<OwnSealed>,
+) -> Option<NewIdentity> {
+    let me = Party {
+        account: account.into_bytes(),
+        public: old.public(),
+    };
+    let contacts: HashMap<Uuid, Party> = own
+        .iter()
+        .filter(|held| held.kind == OwnKind::Contact)
+        .filter_map(|held| {
+            let card = ContactCard::open_own(old, &held.sealed).ok()?;
+            (card.account == held.id.into_bytes()).then_some((
+                held.id,
+                Party {
+                    account: card.account,
+                    public: card.public,
+                },
+            ))
+        })
+        .collect();
+    let mine = Party {
+        account: account.into_bytes(),
+        public: fresh.public(),
+    };
+    let sealed = held
+        .into_iter()
+        .filter_map(|key| {
+            let sender = match key.sender == account {
+                true => &me,
+                false => contacts.get(&key.sender)?,
+            };
+            let plain = old
+                .open_from(
+                    sender,
+                    account.into_bytes(),
+                    key.key.as_bytes(),
+                    &key.sealed,
+                )
+                .ok()?;
+            Some(SealedKey {
+                sealed: fresh.seal_for(account.into_bytes(), &mine, key.key.as_bytes(), &plain),
+                sender: account,
+                ..key
+            })
+        })
+        .collect();
+    let own = own
+        .into_iter()
+        .map(|held| {
+            let plain = old.open_own(&held.sealed).ok()?;
+            Some(OwnSealed {
+                sealed: fresh.seal_own(&plain),
+                ..held
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let changes = contacts
+        .iter()
+        .map(|(contact, party)| KeyChange {
+            contact: *contact,
+            sealed: old.seal_key_change(account.into_bytes(), party, fresh.public()),
+        })
+        .collect();
+    Some(NewIdentity {
+        sealed,
+        own,
+        changes,
+    })
 }
 
 pub async fn make_link(

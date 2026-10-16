@@ -172,7 +172,7 @@ impl<S: ObjectStore> Peer<S> {
         else {
             return Err(ClientError::Unexpected);
         };
-        let verified = crate::contacts::contacts(&connection, &config.identity).await?;
+        let verified = crate::contacts::contacts(&connection, account, &config.identity).await?;
         let ServerMessage::RecoveryKey { public, .. } = connection
             .request(|request| ClientMessage::GetRecoveryKey { request })
             .await?
@@ -186,6 +186,7 @@ impl<S: ObjectStore> Peer<S> {
                     public: config.identity.public().0,
                     sealed: Vec::new(),
                     own: Vec::new(),
+                    changes: Vec::new(),
                 })
                 .await?;
         }

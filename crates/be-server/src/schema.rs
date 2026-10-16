@@ -71,6 +71,17 @@ const SCHEMA: &str = "
         PRIMARY KEY (account_id, contact_id)
     );
 
+    CREATE TABLE key_changes (
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        contact_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        position        INTEGER NOT NULL,
+        sealed          BLOB NOT NULL,
+        PRIMARY KEY (account_id, contact_id, position)
+    );
+
+    CREATE INDEX key_changes_contact
+        ON key_changes (contact_id);
+
     CREATE TABLE blocks (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         id              TEXT NOT NULL,

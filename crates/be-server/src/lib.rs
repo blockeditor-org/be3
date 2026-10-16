@@ -1033,10 +1033,18 @@ impl Connection {
                 public,
                 sealed,
                 own,
+                changes,
             } => {
+                let account = self.account()?;
+                let told: Vec<Uuid> = changes.iter().map(|change| change.contact).collect();
                 self.store
-                    .set_recovery_key(self.account()?, public, sealed, own)
+                    .set_recovery_key(account, public, sealed, own, changes)
                     .await?;
+                self.contacts_changed(&told).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ResealKeys { request, keys } => {
+                self.store.reseal_keys(self.account()?, keys).await?;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::CreateAgent {
