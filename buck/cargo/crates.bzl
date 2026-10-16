@@ -56553,6 +56553,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "linux-arm64": {
@@ -56566,6 +56567,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "linux-x86_64": {
@@ -56579,6 +56581,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "macos-arm64": {
@@ -56592,6 +56595,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "macos-x86_64": {
@@ -56605,6 +56609,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "wasi": {
@@ -56618,6 +56623,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "wasi-guest": {
@@ -56631,6 +56637,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "wasm32": {
@@ -56652,6 +56659,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "windows-x86_64": {
@@ -56665,6 +56673,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
         },

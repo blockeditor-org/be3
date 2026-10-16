@@ -17,7 +17,7 @@ futures-util = "0.3"
 # carry no runtime of their own, and the socket and the executor come from
 # transport/ instead.
 tokio = { version = "1", features = ["sync"] }
-uuid = { version = "1", features = ["serde", "v4"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 httparse = "1"
