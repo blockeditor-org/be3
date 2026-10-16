@@ -28,7 +28,7 @@ fn a_floating_overlay_follows_an_anchor_that_only_moves() {
         harness.rect(stage.get()).top()
     );
 
-    with_reactive_scope(harness.document_mut(), move || banner.set(50.0));
+    banner.set(50.0);
     harness.frame(Vec::new());
     let stage = harness.rect(stage.get());
     assert_eq!(stage.top(), 50.0, "the banner pushes the stage down");

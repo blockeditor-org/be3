@@ -38,7 +38,7 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
         "a portal lays the subtree it was given out where it stands"
     );
 
-    with_reactive_scope(harness.document_mut(), move || second.set(Some(held)));
+    second.set(Some(held));
     harness.frame(Vec::new());
 
     assert_eq!(
@@ -47,7 +47,7 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
         "the portal that takes the subtree is the one that lays it out"
     );
 
-    with_reactive_scope(harness.document_mut(), move || kept.set(false));
+    kept.set(false);
     harness.frame(Vec::new());
 
     assert!(

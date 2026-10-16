@@ -778,8 +778,7 @@ impl Document {
             return;
         }
         self.arena.invalidate();
-        let write = self.motion.handle();
-        crate::current::with_reactive_scope(self, move || write.set(motion));
+        self.motion.set(motion);
     }
 
     pub fn track_damage(&mut self, enabled: bool) {
@@ -1187,6 +1186,13 @@ impl Document {
             match only_moved {
                 true => self.relay_for_viewport(),
                 false => self.arena.invalidate(),
+            }
+            if self
+                .viewport
+                .as_ref()
+                .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx))
+            {
+                ::reactive::wake_zone_with(self.zone, ctx.zone_waker(self.zone));
             }
             self.viewport = Some((ctx.clone(), rect, scale));
         }

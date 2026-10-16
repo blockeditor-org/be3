@@ -95,8 +95,8 @@ pub fn with_reactive_scope<R>(document: &mut Document, f: impl FnOnce() -> R) ->
 
 pub fn with_document<R>(f: impl FnOnce(&mut Document) -> R) -> R {
     try_with_document(f).expect(
-        "beui::reactive binding used without an active document; \
-         call it from inside build(), or from inside event dispatch",
+        "with_document called with no document installed; call it from build(), an event \
+         handler or one of the document's effects, or wrap it in with_reactive_scope",
     )
 }
 

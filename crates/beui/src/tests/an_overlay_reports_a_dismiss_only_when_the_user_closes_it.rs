@@ -51,7 +51,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     let inner = kind_of::<OverlayNode>(harness.document(), inner.get());
 
     let set = |harness: &mut Harness, signal: Signal<bool>, value: bool| {
-        with_reactive_scope(harness.document_mut(), move || signal.set(value));
+        signal.set(value);
         harness.frame(Vec::new());
     };
     let open_outer = |harness: &mut Harness| {

@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
+use crate::app::Waker;
 use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::clipboard::{PasteKind, PasteRequest};
 use crate::damage::{self, Region};
@@ -81,6 +82,9 @@ struct Inner {
     accessibility_requested: Cell<bool>,
     automated: Cell<bool>,
     unhurried: Cell<bool>,
+    waker: RefCell<Option<Waker>>,
+    in_frame: Cell<bool>,
+    zones_woken_in_frame: RefCell<Vec<u64>>,
     seen: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<String>>,
@@ -288,6 +292,9 @@ impl Context {
                 accessibility_requested: Cell::new(false),
                 automated: Cell::new(false),
                 unhurried: Cell::new(false),
+                waker: RefCell::new(None),
+                in_frame: Cell::new(false),
+                zones_woken_in_frame: RefCell::new(Vec::new()),
                 seen: Cell::new(true),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
@@ -494,6 +501,7 @@ impl Context {
     }
 
     pub fn begin_frame(&self, raw: RawInput) {
+        self.inner.in_frame.set(true);
         let now = self.inner.clock.get().unwrap_or_else(Instant::now);
         self.inner.now.set(now);
         self.apply_pixels_per_point();
@@ -538,6 +546,11 @@ impl Context {
     }
 
     pub fn end_frame(&self) -> FrameOutput {
+        self.inner.in_frame.set(false);
+        let woken = std::mem::take(&mut *self.inner.zones_woken_in_frame.borrow_mut());
+        if woken.into_iter().any(::reactive::zone_pending) {
+            self.request_repaint();
+        }
         if let Some(viewport) = self.inner.mouse_viewport.take() {
             self.paint_mouse_simulation(viewport);
         }
@@ -886,6 +899,27 @@ impl Context {
             });
         }
         *self.inner.input_simulation.borrow_mut() = Some(simulation);
+    }
+
+    pub fn set_waker(&self, waker: Waker) {
+        *self.inner.waker.borrow_mut() = Some(waker);
+    }
+
+    pub(crate) fn zone_waker(&self, zone: u64) -> impl Fn() + 'static {
+        let inner = Rc::downgrade(&self.inner);
+        move || {
+            let Some(inner) = inner.upgrade() else {
+                return;
+            };
+            if inner.in_frame.get() {
+                inner.zones_woken_in_frame.borrow_mut().push(zone);
+                return;
+            }
+            let waker = inner.waker.borrow().clone();
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        }
     }
 
     pub fn request_repaint(&self) {

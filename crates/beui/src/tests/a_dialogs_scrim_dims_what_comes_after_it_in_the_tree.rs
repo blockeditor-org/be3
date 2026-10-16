@@ -24,7 +24,7 @@ fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || open.set(true));
+    open.set(true);
     let output = harness.frame(Vec::new());
     let shapes = output.shapes();
     let viewport = Rect::from_min_size(Pos2::ZERO, VIEWPORT);

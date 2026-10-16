@@ -30,7 +30,7 @@ fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
     harness.frame(Vec::new());
     let was = harness.rect(bottom);
 
-    with_reactive_scope(harness.document_mut(), move || tall.set(true));
+    tall.set(true);
     let damage = harness
         .frame(Vec::new())
         .damage()

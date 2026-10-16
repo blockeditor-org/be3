@@ -241,7 +241,7 @@ impl Harness {
         let document = &mut self.document;
         let output = self.context.run(RawInput { events }, |context| {
             let rect = Rect::from_min_size(Pos2::ZERO, SCREEN);
-            app.before(context, rect, document);
+            app.before(context, rect);
             document.show(context, rect);
             app.after(context, document);
         });
@@ -253,7 +253,7 @@ impl Harness {
         let set = LOCK
             .with(|lock| *lock.borrow())
             .expect("the harness has a lock");
-        with_reactive_scope(&mut self.document, move || set.set(locked));
+        set.set(locked);
         self.app.set_locked(locked);
         self.settle();
     }
@@ -262,7 +262,7 @@ impl Harness {
         let set = DIALOG
             .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
-        with_reactive_scope(&mut self.document, move || set.set(open));
+        set.set(open);
         self.settle();
     }
 

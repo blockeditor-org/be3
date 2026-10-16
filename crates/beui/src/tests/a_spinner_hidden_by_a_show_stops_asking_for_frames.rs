@@ -19,10 +19,10 @@ fn a_spinner_hidden_by_a_show_stops_asking_for_frames() {
     harness.frame(Vec::new());
     assert!(harness.frame(Vec::new()).repaint_after <= Duration::from_millis(16));
 
-    with_reactive_scope(harness.document_mut(), move || shown.set(false));
+    shown.set(false);
     harness.frame(Vec::new());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
 
-    with_reactive_scope(harness.document_mut(), move || shown.set(true));
+    shown.set(true);
     assert!(harness.frame(Vec::new()).repaint_after <= Duration::from_millis(16));
 }

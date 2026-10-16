@@ -48,15 +48,15 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     });
     let (first, second) = controls.expect("the controls were built");
     let mut harness = Harness::new(document);
-    with_reactive_scope(harness.document_mut(), move || shown.set(Some(second)));
+    shown.set(Some(second));
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || shown.set(Some(first)));
+    shown.set(Some(first));
     harness.frame(Vec::new());
     harness.click(harness.center(first));
     assert_eq!(harness.document().focused_node(), Some(first));
     heard.borrow_mut().clear();
 
-    with_reactive_scope(harness.document_mut(), move || shown.set(Some(second)));
+    shown.set(Some(second));
     harness.frame(Vec::new());
     assert_eq!(*heard.borrow(), [("first", false)]);
     assert_eq!(
@@ -69,7 +69,7 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     harness.click(harness.center(removable));
     assert_eq!(harness.document().focused_node(), Some(removable));
     heard.borrow_mut().clear();
-    with_reactive_scope(harness.document_mut(), move || kept.set(false));
+    kept.set(false);
     harness.frame(Vec::new());
     assert_eq!(
         *heard.borrow(),

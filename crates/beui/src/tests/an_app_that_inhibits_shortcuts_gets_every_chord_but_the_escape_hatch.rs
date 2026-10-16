@@ -72,7 +72,7 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
     );
     assert_eq!(ran.get_untracked(), ["hatch"]);
 
-    with_reactive_scope(&mut harness.document, || inhibits.set(false));
+    inhibits.set(false);
     harness.key(Key::H, Modifiers::LOGO);
     assert_eq!(
         ran.get_untracked(),
@@ -80,7 +80,7 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
         "once it lets go, the intercepting action answers again"
     );
 
-    with_reactive_scope(&mut harness.document, || inhibits.set(true));
+    inhibits.set(true);
     harness.click(pos2(250.0, 50.0));
     harness.key(Key::H, Modifiers::LOGO);
     assert_eq!(

@@ -61,7 +61,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
             .get_untracked()
             .expect("the view published its setter")
             .shown;
-        with_reactive_scope(harness.document_mut(), || set.set(shown));
+        set.set(shown);
         harness.frame(Vec::new());
     };
     hide(&mut harness, false);
