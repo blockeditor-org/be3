@@ -1,3 +1,4 @@
+use block_editor_beui::beui::icons::ICON_UPLOAD_FILE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, ChoiceOption};
@@ -127,9 +128,11 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
         PickerTab::Add => 0,
         PickerTab::Templates => 1,
         PickerTab::LinkExisting => 2,
+        PickerTab::Import => 3,
     });
     let linking = create_memo(move || tab.get() == PickerTab::LinkExisting);
-    let tiling = create_memo(move || !linking.get());
+    let importing = create_memo(move || tab.get() == PickerTab::Import);
+    let tiling = create_memo(move || !linking.get() && !importing.get());
     let sections = create_memo(move || {
         let types = workspace.types();
         held.with(|held| {
@@ -190,7 +193,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
         true => None,
         false => Some(PICKER_HEIGHT),
     };
-    let (tab_act, search_act, tile_act, link_act) = (act, act, act, act);
+    let (tab_act, search_act, tile_act, link_act, import_act) = (act, act, act, act, act);
     view! {
         <List spacing=10.0>
             <PlacingFields workspace held act />
@@ -200,7 +203,8 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     let tab = match index {
                         0 => PickerTab::Add,
                         1 => PickerTab::Templates,
-                        _ => PickerTab::LinkExisting,
+                        2 => PickerTab::LinkExisting,
+                        _ => PickerTab::Import,
                     };
                     tab_act.call(PickAction::Tab(tab));
                 }}
@@ -208,6 +212,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     <ChoiceOption label="Add" />
                     <ChoiceOption label="Templates" />
                     <ChoiceOption label="Link existing" />
+                    <ChoiceOption label="Import" />
                 }}
             />
             <Frame height=height>
@@ -244,6 +249,11 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                             />
                         }}
                     </Show>
+                    <Show condition={importing}>
+                        {move || view! {
+                            <ImportArea held act={import_act} />
+                        }}
+                    </Show>
                     <Show condition={linking}>
                         {move || view! {
                             <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
@@ -267,6 +277,44 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     </Show>
                 </List>
             </Frame>
+        </List>
+    }
+}
+
+#[component]
+fn ImportArea(held: Memo<Option<Pick>>, act: Act) -> NodeId {
+    let waiting = create_memo(move || {
+        held.with(|held| held.as_ref().is_some_and(|held| held.importing.is_some()))
+    });
+    let ready = create_memo(move || !waiting.get());
+    view! {
+        <List spacing=10.0>
+            <Text
+                style=TextStyle::CAPTION
+                wrap=true
+                string="Add a block and everything inside it from a .block file. The files pane saves one with Export as, then Block file."
+            />
+            <Show condition={ready}>
+                {move || view! {
+                    <List direction=Direction::Horizontal spacing=8.0>
+                        <Button
+                            label="Choose a block file"
+                            glyph={ICON_UPLOAD_FILE.to_owned()}
+                            variant=ButtonVariant::Primary
+                            @test_id={"picker.import"}
+                            on_click={move || act.call(PickAction::Import)}
+                        />
+                    </List>
+                }}
+            </Show>
+            <Show condition={waiting}>
+                {move || view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Spinner />
+                        <Text style=TextStyle::CAPTION string="Importing..." />
+                    </List>
+                }}
+            </Show>
         </List>
     }
 }
@@ -319,6 +367,9 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
             .collect::<Vec<BlockParent>>()
     });
     let chosen = create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.place)));
+    let importing = create_memo(move || {
+        held.with(|held| held.as_ref().is_some_and(|held| held.importing.is_some()))
+    });
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
@@ -340,7 +391,13 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
                                         places.get().into_iter().find(|place| place.parent == parent)
                                     });
                                     view! {
-                                        <PlaceButton act={act} chosen={chosen} parent place />
+                                        <PlaceButton
+                                            act={act}
+                                            chosen={chosen}
+                                            importing
+                                            parent
+                                            place
+                                        />
                                     }
                                 }}
                             </ForEach>
@@ -357,6 +414,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
 fn PlaceButton(
     act: Act,
     chosen: Memo<Option<BlockParent>>,
+    importing: Memo<bool>,
     parent: BlockParent,
     place: Memo<Option<Place>>,
 ) -> NodeId {
@@ -374,6 +432,7 @@ fn PlaceButton(
                 label
                 glyph
                 pressed
+                disabled={importing}
                 on_change={move |_: bool| act.call(PickAction::Place(parent))}
             />
         </Frame>

@@ -407,7 +407,7 @@ impl Blocks {
         parent: BlockParent,
         metadata: BlockMetadata,
     ) -> Uuid {
-        let id = Uuid::new_v4();
+        let id = Uuid::now_v7();
         self.graph.push(GraphCommand::Create {
             id,
             block_type,

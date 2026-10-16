@@ -2,10 +2,10 @@ use be_block::BlockContent as _;
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
-    ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
-    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, ChildContent, ChildId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
+    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
+    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewId,
 };
@@ -2387,6 +2387,59 @@ impl Instances {
             HostRequest::ListAccess(block) => {
                 crate::be::list_access(Uuid::from_bytes(block), move |listed| {
                     reply(HostReply::AccessListed(super::graph::grants_of(listed)));
+                });
+            }
+            HostRequest::ExportBlock(block) => {
+                let block = Uuid::from_bytes(block);
+                if !self.can_view(block) {
+                    reply(HostReply::FileSaved(FileSave::Failed(
+                        "You can't view this block.".to_owned(),
+                    )));
+                    return true;
+                }
+                crate::be::export(block, move |exported| match exported {
+                    Ok((name, data)) => {
+                        let file = SavedFile {
+                            name,
+                            mime_type: be_client::transfer::MIME_TYPE.to_owned(),
+                            data,
+                        };
+                        save_file(file, move |saved| {
+                            reply(HostReply::FileSaved(match saved {
+                                Ok(true) => FileSave::Saved,
+                                Ok(false) => FileSave::Cancelled,
+                                Err(error) => FileSave::Failed(error),
+                            }));
+                        });
+                    }
+                    Err(error) => reply(HostReply::FileSaved(FileSave::Failed(error))),
+                });
+            }
+            HostRequest::ImportBlocks(parent) => {
+                let parent = super::graph::parent_of(parent);
+                if parent.block().is_some_and(|parent| !self.editable(parent)) {
+                    reply(HostReply::BlocksImported(BlockImport::Failed(
+                        "You can't add blocks here.".to_owned(),
+                    )));
+                    return true;
+                }
+                let filter = beui::FileFilter {
+                    name: "Block file".to_owned(),
+                    extensions: vec![be_client::transfer::EXTENSION.to_owned()],
+                    mime_types: vec![be_client::transfer::MIME_TYPE.to_owned()],
+                };
+                host::pick_file(filter, move |picked| {
+                    reply(HostReply::BlocksImported(match picked {
+                        Ok(Some(file)) => match crate::be::import(&file.data, parent) {
+                            Ok((block, block_type)) => BlockImport::Imported {
+                                block_id: block.into_bytes(),
+                                block_type: block_type.into_bytes(),
+                            },
+                            Err(error) => BlockImport::Failed(error),
+                        },
+                        Ok(None) => BlockImport::Cancelled,
+                        Err(error) => BlockImport::Failed(error),
+                    }));
                 });
             }
             HostRequest::PickBlock(filter) => {

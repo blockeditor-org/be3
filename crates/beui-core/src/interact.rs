@@ -109,9 +109,9 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
         doc.set_modifiers(modifiers);
     }
     match event {
-        Event::Focus(true) => doc.keyboard = true,
+        Event::Focus(true) => doc.set_keyboard(true),
         Event::Focus(false) => {
-            doc.keyboard = false;
+            doc.set_keyboard(false);
             doc.pointers.space = false;
             doc.keys.held.clear();
             doc.cancel_focus_activation();

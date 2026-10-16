@@ -6,7 +6,7 @@ use block_editor_beui::beui::icons::ICON_FOLDER;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
+    Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than, use_dock_tab,
 };
 use block_editor_beui::{
     ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
@@ -135,6 +135,7 @@ fn FilesPanel(workspace: Workspace) -> NodeId {
             .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
     });
     let editor = workspace.editor();
+    let tab = use_dock_tab();
     view! {
         <List spacing=0.0>
             <ChildBlock
@@ -144,6 +145,7 @@ fn FilesPanel(workspace: Workspace) -> NodeId {
                 mode=ChildMode::Live
                 own_frame=true
                 top_bar={top_bar}
+                on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
                 @test_id={"workspace.files"}
             >
                 {move |handle: ChildBlockHandle| view! {

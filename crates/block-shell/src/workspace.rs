@@ -190,6 +190,7 @@ impl Workspace {
         workspace.editor.on_reply(move || {
             if workspace.state.is_alive() {
                 workspace.share_listed();
+                workspace.imports_answered();
             }
         });
         create_effect(move || {
@@ -509,15 +510,40 @@ impl Workspace {
     }
 
     pub(crate) fn pick_action(&self, pick: u64, action: PickAction) {
-        let Some(held) = self.pick(pick) else {
+        let Some(mut held) = self.pick(pick) else {
             return;
         };
+        if let PickAction::Import = action {
+            if held.importing.is_none() {
+                held.importing = Some(self.host().import_blocks(held.created_parent()));
+                self.resolve(PickOutcome::Open(Box::new(held)));
+            }
+            return;
+        }
         match held.act(action) {
             PickOutcome::Open(mut held) => {
                 self.send_commit(&mut held);
                 self.resolve(PickOutcome::Open(held));
             }
             answered => self.resolve(answered),
+        }
+    }
+
+    fn imports_answered(&self) {
+        let importing = self.picks.with_untracked(|picks| {
+            picks
+                .iter()
+                .filter_map(|held| Some((held.pick, held.importing?)))
+                .collect::<Vec<_>>()
+        });
+        let host = self.host();
+        for (pick, request) in importing {
+            let Some(imported) = host.take_import(request) else {
+                continue;
+            };
+            if let Some(held) = self.pick(pick) {
+                self.resolve(held.imported(imported));
+            }
         }
     }
 

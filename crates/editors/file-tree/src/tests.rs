@@ -12,6 +12,7 @@ mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
+mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
@@ -53,6 +54,16 @@ impl Fixture {
             .root()
             .and_then(|root| open_item(document, root, label, false))
             .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
+        self.test.click_at(item);
+        self.settle();
+    }
+
+    fn click_item(&mut self, label: &str) {
+        let document = self.test.document();
+        let item = document
+            .root()
+            .and_then(|root| open_item(document, root, label, false))
+            .unwrap_or_else(|| panic!("an open menu offers {label}"));
         self.test.click_at(item);
         self.settle();
     }
