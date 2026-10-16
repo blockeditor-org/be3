@@ -1,35 +1,46 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use be_block::InputSettings;
-use be_block::input_settings::RemapGroup;
+use be_block::be_model::Document;
+use be_block::{BlockContent, InputRemapper, InputSettings, Root};
 use be_remap_host::Remapper;
+use be_remap_host::be_remap::protocol::{decode, encode};
 use be_remap_host::be_remap::rules::exe_name;
-use be_remap_host::be_remap::{Input, Output, Source, Window, protocol};
+use be_remap_host::be_remap::{Input, Output, Source, Window};
 use beui_adapter_drm::{InputControl, InputFilter, RawInput};
-use block_plugin_api::{RemapRequest, RemapState, Remaps};
+use block_plugin_api::{RemapState, Remaps};
+use uuid::Uuid;
 
-use crate::ui::RemapsPrompt;
-use approval::Approval;
+use crate::app_state::AppStateStore;
+use crate::editors::plugin::discovery;
+use loader::{Loader, Step, Wanted};
 
-mod approval;
+mod loader;
 
-const MODULE: &[u8] = include_bytes!(env!("BE_REMAP_WASM"));
 const BUTTON_FIRST: u32 = 0x100;
+
+type Fetched = Arc<Mutex<Option<(String, String, Result<Vec<u8>, String>)>>>;
 
 #[derive(Default)]
 struct State {
     control: Option<InputControl>,
     filter: Option<Rc<RefCell<Filter>>>,
-    approval: Approval,
-    text: String,
-    groups: usize,
+    chosen: Option<Uuid>,
+    seen: Option<u64>,
+    loader: Loader,
+    fetched: Fetched,
+    window: Option<Window>,
+    locked: bool,
+    save: Option<Option<Vec<u8>>>,
+    module: Vec<u8>,
     published: Option<RemapState>,
 }
 
+#[derive(Default)]
 struct Filter {
-    remapper: Remapper,
+    remapper: Option<Remapper>,
     now: Duration,
 }
 
@@ -40,33 +51,46 @@ thread_local! {
 impl InputFilter for Filter {
     fn input(&mut self, input: RawInput, now: Duration) -> Vec<RawInput> {
         self.now = now;
-        let Some(remapped) = remap_input(input) else {
+        let (Some(remapper), Some(remapped)) = (self.remapper.as_mut(), remap_input(input)) else {
             return vec![input];
         };
-        let outputs = self.remapper.input(remapped, micros(now));
+        let outputs = remapper.input(remapped, micros(now));
         self.report();
         outputs.into_iter().map(raw).collect()
     }
 
     fn timer(&mut self, now: Duration) -> Vec<RawInput> {
         self.now = now;
-        let outputs = self.remapper.timer(micros(now));
+        let Some(remapper) = self.remapper.as_mut() else {
+            return Vec::new();
+        };
+        let outputs = remapper.timer(micros(now));
         self.report();
         outputs.into_iter().map(raw).collect()
     }
 
     fn deadline(&self) -> Option<Duration> {
-        self.remapper.deadline().map(Duration::from_micros)
+        self.remapper
+            .as_ref()
+            .and_then(Remapper::deadline)
+            .map(Duration::from_micros)
     }
 
     fn forget_held(&mut self) {
-        self.remapper.forget_held();
+        if let Some(remapper) = self.remapper.as_mut() {
+            remapper.forget_held();
+        }
     }
 }
 
 impl Filter {
     fn report(&mut self) {
-        for problem in self.remapper.take_problems() {
+        let problems = self
+            .remapper
+            .as_mut()
+            .map(Remapper::take_problems)
+            .unwrap_or_default();
+        for problem in problems {
             crate::notices::report(problem);
         }
     }
@@ -76,52 +100,46 @@ pub(crate) fn start(control: Option<InputControl>) {
     let Some(control) = control else {
         return;
     };
-    let remapper = match Remapper::new(MODULE) {
-        Ok(remapper) => remapper,
-        Err(error) => {
-            crate::notices::report(format!("The input remaps could not be loaded: {error}"));
-            return;
-        }
-    };
-    let filter = Rc::new(RefCell::new(Filter {
-        remapper,
-        now: Duration::ZERO,
-    }));
+    let filter = Rc::new(RefCell::new(Filter::default()));
     control.set_filter(Some(filter.clone()));
     STATE.with_borrow_mut(|state| {
         state.control = Some(control);
         state.filter = Some(filter);
     });
-    refresh();
 }
 
-pub(crate) fn load_approved(approved: Option<Vec<u8>>) {
-    STATE.with_borrow_mut(|state| state.approval.load(approved));
-    refresh();
+pub(crate) fn load_cached(cached: Option<Vec<u8>>) {
+    let Some((wanted, module)) = cached.and_then(|cached| {
+        decode::<(String, String, Vec<u8>, Vec<u8>)>(&cached).ok()
+    })
+    .map(|(plugin, module_path, module, config)| {
+        (
+            Wanted {
+                plugin,
+                module: module_path,
+                config,
+            },
+            module,
+        )
+    }) else {
+        return;
+    };
+    install(&wanted, &module);
+    STATE.with_borrow_mut(|state| state.loader.installed(wanted));
 }
 
 pub(crate) fn configure(settings: &InputSettings) {
-    let groups: Vec<RemapGroup> = match settings.remap_groups() {
-        Ok(groups) => groups,
-        Err(problem) => {
-            crate::notices::report(format!(
-                "The remaps in the input settings could not be read, so none run: {problem}"
-            ));
-            Vec::new()
+    let chosen = settings.remapper.map(|choice| choice.block);
+    let cleared = STATE.with_borrow_mut(|state| {
+        if state.chosen == chosen {
+            return false;
         }
-    }
-    .into_iter()
-    .filter(|group| !group.rules.is_empty())
-    .collect();
-    let wanted = (!groups.is_empty()).then(|| protocol::config(&groups));
-    let changed = STATE.with_borrow_mut(|state| {
-        let changed = state.approval.want(wanted);
-        state.text = settings.remaps.clone().unwrap_or_default();
-        state.groups = groups.len();
-        changed
+        state.chosen = chosen;
+        state.seen = None;
+        chosen.is_none()
     });
-    if changed {
-        refresh();
+    if cleared {
+        want(None);
     }
 }
 
@@ -131,32 +149,42 @@ pub(crate) fn focus(window: Option<be_wayland::WindowInfo>) {
         app_id: window.app_id,
         title: window.title,
     });
-    with_filter(|filter| {
-        let now = micros(filter.now);
-        let outputs = filter.remapper.focus(window, now);
-        filter.report();
-        outputs
+    let changed = STATE.with_borrow_mut(|state| {
+        if state.window == window {
+            return false;
+        }
+        state.window.clone_from(&window);
+        true
     });
+    if changed {
+        with_remapper(|remapper, now| remapper.focus(window, now));
+    }
 }
 
 pub(crate) fn set_locked(locked: bool) {
-    with_filter(|filter| filter.remapper.set_locked(locked));
+    STATE.with_borrow_mut(|state| state.locked = locked);
+    with_remapper(|remapper, _| remapper.set_locked(locked));
 }
 
-pub(crate) fn frame() {
-    for request in crate::plugin_host::take_actions::<RemapRequest>() {
-        match request {
-            RemapRequest::Review => STATE.with_borrow_mut(|state| state.approval.review()),
-        }
+pub(crate) fn frame(store: &AppStateStore) {
+    read_chosen();
+    take_fetched();
+    if let Some(save) = STATE.with_borrow_mut(|state| state.save.take())
+        && let Err(error) = store.set_remapper(save.as_deref())
+    {
+        eprintln!("block-app: the input remapper was not kept for the next session: {error}");
     }
     let shown = STATE.with_borrow(|state| {
-        let stopped = state
-            .filter
-            .as_ref()
-            .is_some_and(|filter| filter.borrow().remapper.stopped());
-        let value = match state.filter.is_some() {
-            true => state.approval.state(stopped),
-            false => RemapState::Off,
+        let value = match state.filter.as_ref().map(|filter| {
+            filter
+                .borrow()
+                .remapper
+                .as_ref()
+                .map(Remapper::stopped)
+        }) {
+            Some(Some(false)) => RemapState::On,
+            Some(Some(true)) => RemapState::Stopped,
+            _ => RemapState::Off,
         };
         (state.published != Some(value)).then_some(value)
     });
@@ -166,28 +194,160 @@ pub(crate) fn frame() {
     }
 }
 
-pub(crate) fn prompt() -> Option<RemapsPrompt> {
-    STATE.with_borrow(|state| {
-        (state.filter.is_some() && state.approval.asking()).then(|| RemapsPrompt {
-            text: state.text.clone(),
-            groups: state.groups,
-        })
+fn read_chosen() {
+    let Some(block) = STATE.with_borrow(|state| state.chosen) else {
+        return;
+    };
+    crate::be::hold(block, InputRemapper::CONTENT_TYPE);
+    let Some(revision) = crate::be::content_revision(block) else {
+        return;
+    };
+    if STATE.with_borrow(|state| state.seen == Some(revision)) {
+        return;
+    }
+    let Some(content) = crate::be::content(block) else {
+        return;
+    };
+    STATE.with_borrow_mut(|state| state.seen = Some(revision));
+    let wanted = Document::<InputRemapper>::decode(&content.bytes)
+        .ok()
+        .and_then(|content| {
+            let remapper = content.root();
+            let (plugin, module, config) = remapper.runs()?;
+            Some(Wanted {
+                plugin: plugin.to_owned(),
+                module: module.to_owned(),
+                config: config.to_vec(),
+            })
+        });
+    want(wanted);
+}
+
+fn want(wanted: Option<Wanted>) {
+    let step = STATE.with_borrow_mut(|state| state.loader.want(wanted.clone()));
+    match step {
+        Step::Nothing => {}
+        Step::Stop => {
+            with_filter(|filter| {
+                let outputs = filter
+                    .remapper
+                    .as_mut()
+                    .map(|remapper| remapper.configure(None))
+                    .unwrap_or_default();
+                filter.remapper = None;
+                outputs
+            });
+            STATE.with_borrow_mut(|state| state.save = Some(None));
+        }
+        Step::Configure(config) => {
+            with_remapper(|remapper, _| remapper.configure(Some(config)));
+            remember();
+        }
+        Step::Fetch { plugin, module } => fetch(plugin, module),
+    }
+}
+
+fn fetch(plugin: String, module: String) {
+    if !offers_remapper(&plugin) {
+        crate::notices::report(format!(
+            "The input remaps name {plugin}, which is not a plugin that remaps input here."
+        ));
+        return;
+    }
+    let fetched = STATE.with_borrow(|state| Arc::clone(&state.fetched));
+    let path = module.clone();
+    discovery::data(&plugin.clone(), &path, move |read| {
+        if let Ok(mut slot) = fetched.lock() {
+            *slot = Some((plugin, module, read));
+        }
+        crate::host::wake();
+    });
+}
+
+fn offers_remapper(plugin: &str) -> bool {
+    let remapper = *InputRemapper::CONTENT_TYPE.as_bytes();
+    discovery::manifests().iter().any(|manifest| {
+        manifest.identity.id == plugin
+            && manifest
+                .editors
+                .iter()
+                .any(|editor| editor.block_type == remapper)
     })
 }
 
-pub(crate) fn turn_on() -> Option<Vec<u8>> {
-    let approved = STATE.with_borrow_mut(|state| state.approval.turn_on());
-    refresh();
-    approved
+fn take_fetched() {
+    let fetched = STATE.with_borrow(|state| state.fetched.lock().ok().and_then(|mut slot| slot.take()));
+    let Some((plugin, module, read)) = fetched else {
+        return;
+    };
+    let bytes = match read {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            crate::notices::report(format!("The input remapper could not be read: {error}"));
+            return;
+        }
+    };
+    let Some(wanted) = STATE.with_borrow_mut(|state| state.loader.fetched(&plugin, &module)) else {
+        return;
+    };
+    if install(&wanted, &bytes) {
+        remember();
+    }
 }
 
-pub(crate) fn keep_off() {
-    STATE.with_borrow_mut(|state| state.approval.keep_off());
+fn remember() {
+    STATE.with_borrow_mut(|state| {
+        let Some(wanted) = state.loader.wanted().cloned() else {
+            return;
+        };
+        state.save = Some(Some(encode(&(
+            wanted.plugin,
+            wanted.module,
+            state.module.clone(),
+            wanted.config,
+        ))));
+    });
 }
 
-fn refresh() {
-    let running = STATE.with_borrow(|state| state.approval.running());
-    with_filter(|filter| filter.remapper.configure(running));
+fn install(wanted: &Wanted, module: &[u8]) -> bool {
+    let mut remapper = match Remapper::new(module) {
+        Ok(remapper) => remapper,
+        Err(error) => {
+            crate::notices::report(format!("The input remapper could not be loaded: {error}"));
+            return false;
+        }
+    };
+    let (window, locked) = STATE.with_borrow_mut(|state| {
+        state.module = module.to_vec();
+        (state.window.clone(), state.locked)
+    });
+    remapper.configure(Some(wanted.config.clone()));
+    remapper.set_locked(locked);
+    with_filter(|filter| {
+        let now = micros(filter.now);
+        let mut outputs = filter
+            .remapper
+            .as_mut()
+            .map(|old| old.configure(None))
+            .unwrap_or_default();
+        outputs.extend(remapper.focus(window, now));
+        filter.remapper = Some(remapper);
+        outputs
+    });
+    true
+}
+
+fn with_remapper(change: impl FnOnce(&mut Remapper, u64) -> Vec<Output>) {
+    with_filter(|filter| {
+        let now = micros(filter.now);
+        let outputs = filter
+            .remapper
+            .as_mut()
+            .map(|remapper| change(remapper, now))
+            .unwrap_or_default();
+        filter.report();
+        outputs
+    });
 }
 
 fn with_filter(change: impl FnOnce(&mut Filter) -> Vec<Output>) {

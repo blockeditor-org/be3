@@ -138,6 +138,14 @@ impl Remapper {
         {
             return self.deliver(vec![input]);
         }
+        if let Err(error) = self.start(now) {
+            let mut out = self.fail(&error, now);
+            out.extend(self.deliver(vec![input]));
+            return out;
+        }
+        if !self.active() {
+            return self.deliver(vec![input]);
+        }
         match self.call(&Request::Input { input, now }, now) {
             Ok(outputs) => outputs,
             Err(error) => {
@@ -227,6 +235,13 @@ impl Remapper {
             pressed: self.pressed.iter().copied().collect(),
         };
         let reply = running.call(&encode(&request), START_FUEL)?;
+        if let Some(problem) = reply.problem {
+            self.stopped = true;
+            self.problems.push(format!(
+                "The input remaps could not be read, so they stay off until they change: {problem}"
+            ));
+            return Ok(());
+        }
         self.running = Some(running);
         let outputs = self.settle(reply, now);
         if outputs.is_empty() {

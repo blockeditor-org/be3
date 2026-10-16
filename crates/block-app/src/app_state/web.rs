@@ -7,7 +7,7 @@ const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
-const APPROVED_REMAPS_KEY: &str = "block.approved-remaps";
+const REMAPPER_KEY: &str = "block.remapper";
 const IDENTITY_KEY: &str = "block.identity-secrets";
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -102,7 +102,7 @@ impl AppStateStore {
             CLIENT_ID_KEY,
             DISPLAY_SETTINGS_KEY,
             INPUT_SETTINGS_KEY,
-            APPROVED_REMAPS_KEY,
+            REMAPPER_KEY,
             IDENTITY_KEY,
         ] {
             self.storage
@@ -178,12 +178,12 @@ impl AppStateStore {
         self.write(INPUT_SETTINGS_KEY, &content)
     }
 
-    pub fn approved_remaps(&self) -> Result<Option<Vec<u8>>, AppStateError> {
-        self.read(APPROVED_REMAPS_KEY)
+    pub fn remapper(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+        self.read(REMAPPER_KEY)
     }
 
-    pub fn set_approved_remaps(&self, content: Option<&[u8]>) -> Result<(), AppStateError> {
-        self.write(APPROVED_REMAPS_KEY, &content)
+    pub fn set_remapper(&self, content: Option<&[u8]>) -> Result<(), AppStateError> {
+        self.write(REMAPPER_KEY, &content)
     }
 
     pub fn display_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {

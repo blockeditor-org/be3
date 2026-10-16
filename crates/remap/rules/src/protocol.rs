@@ -1,9 +1,11 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::engine::{Engine, Input, Output};
+#[cfg(feature = "text")]
+use crate::engine::Engine;
+use crate::engine::{Input, Output};
 use crate::names::Source;
-use crate::rules::{Group, Window};
+use crate::rules::Window;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum Request {
@@ -27,6 +29,7 @@ pub enum Request {
 pub struct Reply {
     pub outputs: Vec<Output>,
     pub deadline: Option<u64>,
+    pub problem: Option<String>,
 }
 
 pub fn encode<T: Serialize>(value: &T) -> Vec<u8> {
@@ -37,15 +40,13 @@ pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
     bincode::deserialize(bytes).map_err(|error| error.to_string())
 }
 
-pub fn config(groups: &[Group]) -> Vec<u8> {
-    encode(&groups)
-}
-
+#[cfg(feature = "text")]
 #[derive(Default)]
 pub struct Module {
     engine: Option<Engine>,
 }
 
+#[cfg(feature = "text")]
 impl Module {
     pub fn handle(&mut self, request: &[u8]) -> Vec<u8> {
         let request: Request = match decode(request) {
@@ -63,11 +64,18 @@ impl Module {
                 held,
                 pressed,
             } => {
-                let groups: Vec<Group> = match decode(&config) {
-                    Ok(groups) => groups,
-                    Err(error) => panic!("the remaps are not readable: {error}"),
-                };
-                self.engine = Some(Engine::new(groups, window, &held, &pressed));
+                let groups = String::from_utf8(config)
+                    .map_err(|_| "the remaps are not text".to_owned())
+                    .and_then(|text| crate::text::parse(&text));
+                match groups {
+                    Ok(groups) => self.engine = Some(Engine::new(groups, window, &held, &pressed)),
+                    Err(problem) => {
+                        return Reply {
+                            problem: Some(problem),
+                            ..Reply::default()
+                        };
+                    }
+                }
                 Vec::new()
             }
             Request::Focus(window) => {
@@ -80,6 +88,7 @@ impl Module {
         Reply {
             outputs,
             deadline: self.engine.as_ref().and_then(Engine::deadline),
+            problem: None,
         }
     }
 

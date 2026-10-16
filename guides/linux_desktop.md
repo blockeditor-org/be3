@@ -250,51 +250,53 @@ and change them from outside the app with `pactl set-sink-volume`, `set-sink-mut
 ## Input remaps
 
 Under `--session` the keys, mouse buttons and wheel notches libinput reports can be remapped before
-anything else sees them, the way AutoHotkey does on Windows: a button that presses a key while it is
-held, a wheel notch or key that taps a key for some milliseconds or plays a sequence of taps, in every
-window or only while a window whose executable, app id or title matches has the keyboard. The rules
-are the input settings' `remaps`: TOML text (`be_remap::text` reads it into
-`be_block::input_settings::RemapGroup`s and names the group and rule it cannot read), stored exactly as
-written, comments and layout included, so it is kept in the workspace like the rest: in the shared
-input settings for every device or in a profile's for its devices. The layers' texts are read one
-after the other, the profile's last, and a group replaces an earlier one of its name, so a profile adds
-groups to the shared ones and can replace one. The input settings editor shows the text of the block
-it has open, stores it when Apply is pressed and it reads, and keys are named the way
-`be_remap::names` does (evdev's names, AutoHotkey's for the common ones, and `Key:CODE` or
-`Button:CODE` for any other). What the module is given, and what a device approves (below), is the
-rules read from the text, so a change to a comment asks nothing.
+anything else sees them, the way AutoHotkey does on Windows. What remaps them is a remapper: a
+WebAssembly module a plugin ships as its data, given a config the plugin's editor writes.
 
-The rules run as a WebAssembly module, `crates/remap/module` (`be-remap`'s engine behind two
-exports, `be_remap_buffer` and `be_remap_handle`, trading `be_remap::protocol` requests and replies
-in bincode), compiled into block-app (`BE_REMAP_WASM`) and run by `be-remap-host` on wasmi: each call
-gets a fixed amount of fuel and the instance a capped memory, so a module that loops, traps or
-answers with nonsense only stops itself. The host fails open: on any failure it lets go of every key
-and button the module held down, passes the input that failed through unchanged, says so with a
-toast, and starts the module again on the next input; after three failures in a minute it stays off
-until the remaps change. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L and Super+Escape never reach the
-module (the modifiers they need are pressed for them if the module held them back), and while the
+A remapper's settings are a block of the `InputRemapper` type (`be_block::InputRemapper`), which any
+plugin can edit by declaring an editor for that block type. Its content is an envelope the host reads
+without the plugin running: the plugin's id, the module's path in that plugin's data, and the config,
+bytes only the module reads. The input settings' `remapper` (`RemapperChoice`: the block and the
+editor that made it) picks one, in the shared input settings for every device or in a profile's for
+its devices, the profile's replacing the shared one. The input settings editor offers every editor of
+the `InputRemapper` type ("None" turns remapping off); choosing one makes a block of it and opens it
+with that editor.
+
+The remapper that ships is `editors/input-remaps`: its block's config is TOML text, stored exactly as
+written, comments and layout included, and its module is `crates/remap/module`, staged as its data
+(`remapper.wasm`). The module is `be-remap`'s engine and text reader (`be_remap::text`, whose errors
+name the group and rule): rules apply in every window or only while a window whose executable, app id
+or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
+milliseconds or play a sequence of taps. Keys are named the way `be_remap::names` does (evdev's names,
+AutoHotkey's for the common ones, and `Key:CODE` or `Button:CODE` for any other). The editor stores
+the text when Apply is pressed and it reads.
+
+A module exports `memory`, `be_remap_buffer` and `be_remap_handle`, and trades `be_remap::protocol`
+requests (start with the config, focus, input, timer) and replies in bincode; a start can answer with a
+problem instead, such as a config it cannot read. `be-remap-host` runs it on wasmi: each call gets a
+fixed amount of fuel and the instance a capped memory, so a module that loops, traps or answers with
+nonsense only stops itself. The host fails open: on any failure it lets go of every key and button the
+module held down, passes the input that failed through unchanged, says so with a toast, and starts the
+module again on the next input; after three failures in a minute, or a config it cannot read, it stays
+off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L and Super+Escape never reach
+the module (the modifiers they need are pressed for them if the module held them back), and while the
 screen is locked nothing does, so a module can neither keep the session from ending nor read the
 password. Locking lets go of what the module held, too.
 
-The DRM adapter hands every key, button and wheel notch to the `InputFilter` block-app sets on its
-`InputControl` (`src/remap/linux.rs`) after the `WakeGate`, delivers what the filter returns as if
-libinput had sent it (so a remapped `VolumeUp` reaches linux-desktop's media keys and shows the
-level, and a remapped key goes to the window with the keyboard), and runs a timer for the filter's
-next deadline, on its monotonic clock. Changes the filter makes outside input, such as the releases
-when the focus, the lock or the remaps change, go through `InputControl::inject`. block-app tells the
-filter which window has the keyboard (`Compositor::keyboard_window`) every frame; its executable is
-the last part of the first argument of its process's command line, which for a Proton or Wine game
-is the Windows path of its `.exe`.
-
-Since remaps can press keys in any window, the workspace cannot turn them on by itself: block-app
-runs only remaps this device approved, which it keeps in its own database (`approved_remaps`), never
-in the workspace. When the input settings ask for different remaps, the session keeps running the
-ones it approved and the host shows a dialog of its own over either shell ("Turn on these input
-remaps?", with their text); Turn on approves them, and Keep them off leaves them off without
-asking again until they change. The `Remaps` host value tells the input settings editor whether this
-device runs the remaps, waits to turn them on (its Review button sends `RemapRequest::Review`, which
-shows the dialog again) or stopped them after failures. Turning remaps off never asks. Outside a
-session nothing runs and nothing asks.
+block-app (`src/remap/linux.rs`) holds the chosen block, reads the envelope whenever it changes, fetches
+the module from the plugin's data (`discovery::data`, only from a plugin that has an `InputRemapper`
+editor) when the plugin or path changes and only reconfigures the running one when only the config
+does, and keeps the last module and config it ran in its own database (`remapper`), so the session
+remaps from its first input, before the workspace is open. The `Remaps` host value says whether this
+device runs a remapper, runs none, or stopped it. The DRM adapter hands every key, button and wheel
+notch to the `InputFilter` block-app sets on its `InputControl`, after the `WakeGate`, delivers what the
+filter returns as if libinput had sent it (so a remapped `VolumeUp` reaches linux-desktop's media keys
+and shows the level, and a remapped key goes to the window with the keyboard), and runs a timer for
+the filter's next deadline, on its monotonic clock. Changes the filter makes outside input, such as
+the releases when the focus, the lock or the remapper change, go through `InputControl::inject`.
+block-app tells the filter which window has the keyboard (`Compositor::keyboard_window`); its
+executable is the last part of the first argument of its process's command line, which for a Proton
+or Wine game is the Windows path of its `.exe`. Outside a session nothing runs.
 
 ## The lock screen
 

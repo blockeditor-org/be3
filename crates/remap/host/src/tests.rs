@@ -1,8 +1,8 @@
 use super::*;
-use be_remap::text;
 
 mod a_failure_releases_what_the_remaps_held_down;
 mod a_module_that_never_answers_runs_out_of_fuel_and_input_passes_through;
+mod remaps_that_do_not_read_stay_off_until_they_change;
 mod remaps_that_keep_failing_stop_until_they_change;
 mod the_module_remaps_input;
 mod the_session_chords_and_the_lock_screen_are_never_remapped;
@@ -24,11 +24,7 @@ fn release(name: &str) -> Input {
 
 fn remapper(rules: &str) -> Remapper {
     let mut remapper = Remapper::new(MODULE).expect("the module loads");
-    let groups = text::parse(rules).expect("the rules parse");
-    assert_eq!(
-        remapper.configure(Some(be_remap::protocol::config(&groups))),
-        vec![]
-    );
+    assert_eq!(remapper.configure(Some(rules.as_bytes().to_vec())), vec![]);
     remapper
 }
 
@@ -38,8 +34,8 @@ fn hostile(handle: &str) -> Remapper {
         (module
             (memory (export "memory") 1)
             (global $calls (mut i32) (i32.const 0))
-            (data (i32.const 64) "\00\00\00\00\00\00\00\00\00")
-            (data (i32.const 128) "\01\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\2d\00\00")
+            (data (i32.const 64) "\00\00\00\00\00\00\00\00\00\00")
+            (data (i32.const 128) "\01\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\2d\00\00\00")
             (func (export "be_remap_buffer") (param i32) (result i32) (i32.const 1024))
             (func (export "be_remap_handle") (param i32) (result i64)
                 (global.set $calls (i32.add (global.get $calls) (i32.const 1)))

@@ -10,13 +10,9 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "src/**/*.pam", "assets/**/*"])
 
-# The input remaps a Linux session runs, compiled into the app (src/remap).
-remap_env = {"BE_REMAP_WASM": "$(location //crates/remap/module:module)"}
-
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
-    env = remap_env,
     rustc_flags = select({
         "DEFAULT": [],
         "root//buck/platforms:wasi_setting": wasi_app_flags,
@@ -37,12 +33,11 @@ cargo_test(
         "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
         "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
-    }
-    | remap_env,
+    },
     srcs = app_srcs,
 )
 
-cargo_binary(env = remap_env, srcs = app_srcs)
+cargo_binary(srcs = app_srcs)
 
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.

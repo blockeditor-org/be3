@@ -1,5 +1,4 @@
 use be_model::{Change, Document, Edit, Map, Model, ObjectId};
-pub use be_remap::Group as RemapGroup;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -115,6 +114,12 @@ impl PointerSettings {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RemapperChoice {
+    pub block: Uuid,
+    pub editor: Uuid,
+}
+
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct InputSettings {
     pub keyboard_layout: Option<String>,
@@ -125,7 +130,7 @@ pub struct InputSettings {
     pub every_pointer: PointerSettings,
     pub pointers: Map<InputDevice, PointerSettings>,
     pub middle_click_paste: Option<bool>,
-    pub remaps: Option<String>,
+    pub remapper: Option<RemapperChoice>,
 }
 
 impl InputSettings {
@@ -147,21 +152,8 @@ impl InputSettings {
         Self::MIDDLE_CLICK_PASTE.set(ObjectId::ROOT, &on).into()
     }
 
-    pub fn remap_groups(&self) -> Result<Vec<RemapGroup>, String> {
-        let parsed = be_remap::text::parse(self.remaps.as_deref().unwrap_or_default())?;
-        let mut groups: Vec<RemapGroup> = Vec::with_capacity(parsed.len());
-        for group in parsed {
-            groups.retain(|earlier| earlier.name != group.name);
-            groups.push(group);
-        }
-        Ok(groups)
-    }
-
-    pub fn set_remaps(text: Option<&str>) -> Edit {
-        let text = text
-            .filter(|text| !text.trim().is_empty())
-            .map(str::to_owned);
-        Self::REMAPS.set(ObjectId::ROOT, &text).into()
+    pub fn set_remapper(choice: Option<RemapperChoice>) -> Edit {
+        Self::REMAPPER.set(ObjectId::ROOT, &choice).into()
     }
 
     pub fn device_pointer(&self, device: &InputDevice) -> PointerSettings {
@@ -262,10 +254,7 @@ impl Layered for InputSettings {
             every_pointer: self.every_pointer.or(lower.every_pointer),
             pointers,
             middle_click_paste: self.middle_click_paste.or(lower.middle_click_paste),
-            remaps: match (&lower.remaps, &self.remaps) {
-                (Some(lower), Some(upper)) => Some(format!("{}\n{upper}", lower.trim_end())),
-                (lower, upper) => upper.clone().or_else(|| lower.clone()),
-            },
+            remapper: self.remapper.or(lower.remapper),
         }
     }
 }

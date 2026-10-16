@@ -5,9 +5,9 @@ fn a_failure_releases_what_the_remaps_held_down() {
     let mut remapper = hostile(
         r#"
         (if (result i64) (i32.le_u (global.get $calls) (i32.const 1))
-            (then (i64.const 0x4000000009))
+            (then (i64.const 0x400000000a))
             (else (if (result i64) (i32.eq (global.get $calls) (i32.const 2))
-                (then (i64.const 0x8000000013))
+                (then (i64.const 0x8000000014))
                 (else (unreachable)))))
         "#,
     );

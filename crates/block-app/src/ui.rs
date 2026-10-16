@@ -303,14 +303,7 @@ pub(crate) struct AppView {
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,
     pub(crate) keep_display: Option<u64>,
-    pub(crate) remaps: Option<RemapsPrompt>,
     pub(crate) lock: LockView,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct RemapsPrompt {
-    pub(crate) text: String,
-    pub(crate) groups: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -390,62 +383,11 @@ pub(crate) enum UiCommand {
     DismissToast(u64),
     KeepDisplay(u64),
     RevertDisplay(u64),
-    TurnOnRemaps,
-    KeepRemapsOff,
     LockScreen,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Unlock(crate::password::Password),
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     LockPower(block_plugin_api::PowerAction),
-}
-
-#[component]
-fn RemapsDialog(view: AppViewStore) -> NodeId {
-    let prompt = view.remaps;
-    let open = create_memo(move || prompt.get().is_some());
-    let shown = create_memo(move || prompt.get().unwrap_or_default());
-    let message = create_memo(move || {
-        let groups = shown.get().groups;
-        let groups = match groups {
-            1 => "1 group".to_owned(),
-            groups => format!("{groups} groups"),
-        };
-        format!(
-            "The input settings ask this device to remap keys and buttons ({groups}). Remaps can press keys in any window, so turn them on only if you know where they came from. They stay off on this device until you do."
-        )
-    });
-    let text = create_memo(move || shown.get().text);
-    view! {
-        <Dialog
-            open={open}
-            title="Turn on these input remaps?"
-            width=520.0
-            on_dismiss={|| send(UiCommand::KeepRemapsOff)}
-        >
-            <List spacing=12.0>
-                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
-                <Frame height=240.0>
-                    <Scroll>
-                        <Text style=TextStyle::CODE string={text} wrap=true />
-                    </Scroll>
-                </Frame>
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Turn on"
-                        variant=ButtonVariant::Primary
-                        @test_id={"remaps.turn-on"}
-                        on_click={|| send(UiCommand::TurnOnRemaps)}
-                    />
-                    <Button
-                        label="Keep them off"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"remaps.keep-off"}
-                        on_click={|| send(UiCommand::KeepRemapsOff)}
-                    />
-                </List>
-            </List>
-        </Dialog>
-    }
 }
 
 #[component]
@@ -458,7 +400,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let keeping = round;
     let reverting = round;
     let locking = view;
-    let remaps = view;
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area fill=ColorRole::Background>
@@ -519,7 +460,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     on_keep={move || send(UiCommand::KeepDisplay(keeping.get_untracked()))}
                     on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
                 />
-                <RemapsDialog view={remaps} />
                 <lock::SessionLock view={locking} />
                 <WindowActions />
             </List>

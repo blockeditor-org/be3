@@ -10,7 +10,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, HostInputDevice, InputDevices};
 
-use super::remaps::RemapSettings;
+use super::remapper::RemapperSetting;
 
 const PADDING: f32 = 20.0;
 const VALUE_WIDTH: f32 = 72.0;
@@ -152,10 +152,11 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 string="Lets programs paste the text last selected in them with the middle button."
                             />
                         </List>
-                        <RemapSettings
+                        <RemapperSetting
                             editor={editor}
                             settings={settings}
                             root={root}
+                            effective={effective}
                             read_only={read_only}
                         />
                     </List>

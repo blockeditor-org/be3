@@ -8,7 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-be-remap = { path = "../rules" }
+be-remap = { path = "../rules", features = ["text"] }
 
 [lints]
 workspace = true

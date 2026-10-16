@@ -134,13 +134,7 @@ pub enum RemapState {
     #[default]
     Off,
     On,
-    Waiting,
     Stopped,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RemapRequest {
-    Review,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -394,10 +388,6 @@ impl HostAction for WindowAction {
 
 impl HostAction for PowerAction {
     const KEY: &'static str = "power";
-}
-
-impl HostAction for RemapRequest {
-    const KEY: &'static str = "remaps";
 }
 
 impl HostAction for MediaRequest {
