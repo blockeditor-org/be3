@@ -156,6 +156,24 @@ fn assert_matches_fresh(harness: &Harness, mirror: &Mirror, step: &str) {
     );
 
     let fresh: HashMap<AccessNodeId, AccessNode> = fresh.nodes.into_iter().collect();
+    let full: HashMap<AccessNodeId, AccessNode> = document
+        .accessibility_update(true)
+        .expect("the document has an accessibility tree")
+        .nodes
+        .into_iter()
+        .collect();
+    assert_eq!(
+        full.len(),
+        fresh.len(),
+        "full update's node count after {step}"
+    );
+    for (id, node) in &fresh {
+        assert_eq!(
+            full.get(id),
+            Some(node),
+            "{id:?} in a full update after {step}"
+        );
+    }
     let mut reachable = HashMap::new();
     let mut pending = vec![window.children()[0]];
     while let Some(id) = pending.pop() {
