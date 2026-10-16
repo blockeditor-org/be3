@@ -1,0 +1,21 @@
+{
+  "id": "be3.beui_gallery",
+  "name": "beui demo",
+  "version": "0.1.0",
+  "editors": [
+    {
+      "block_type": "62657569-2d64-656d-6f2d-626c6f636b31",
+      "display_name": "beui demo",
+      "icon": "",
+      "templates": {
+        "main": {
+          "category": "debug"
+        }
+      },
+      "regions": [
+        "Frame"
+      ]
+    }
+  ],
+  "entry_point": "beui_gallery.wasm"
+}

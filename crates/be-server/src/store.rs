@@ -11,7 +11,7 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, MemberKey, SealedKey, Workspace,
+    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, SealedKey, Workspace,
     WorkspaceInvitation, WorkspaceRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
@@ -284,9 +284,11 @@ impl ServerStore {
     pub async fn invite(
         &self,
         account: Uuid,
+        invitation: Uuid,
         workspace: Uuid,
         email: &str,
         role: WorkspaceRole,
+        sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
         if self.membership(account, workspace).await? != WorkspaceRole::Administrator {
             return Err(ServerError::Refused(
@@ -300,92 +302,104 @@ impl ServerStore {
             "DELETE FROM invitations WHERE workspace_id = ?1 AND email = ?2",
             params![workspace.to_string(), email],
         )?;
-        database.execute(
-            "INSERT INTO invitations (id, workspace_id, email, role, invited_by)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+        let inserted = database.execute(
+            "INSERT OR IGNORE INTO invitations (id, workspace_id, email, role, invited_by, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
-                Uuid::new_v4().to_string(),
+                invitation.to_string(),
                 workspace.to_string(),
                 email,
                 encode_role(role),
-                account.to_string()
+                account.to_string(),
+                sealed
             ],
         )?;
+        if inserted == 0 {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "an invitation with that id already exists".into(),
+            ));
+        }
         Ok(())
     }
 
-    pub async fn list_invitations(
-        &self,
-        account: Uuid,
-    ) -> Result<Vec<WorkspaceInvitation>, ServerError> {
-        let email = self.profile(account).await?.email;
-        let database = self.database.lock().await;
-        let mut statement = database.prepare(
-            "SELECT invitations.id, invitations.workspace_id, workspaces.name, invitations.role,
-                    invitations.invited_by
-             FROM invitations JOIN workspaces ON workspaces.id = invitations.workspace_id
-             WHERE invitations.email = ?1
-               AND NOT EXISTS (SELECT 1 FROM memberships
-                               WHERE memberships.workspace_id = invitations.workspace_id
-                                 AND memberships.account_id = ?2)
-             ORDER BY workspaces.name",
-        )?;
-        let rows = statement.query_map(params![email, account.to_string()], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, String>(4)?,
-            ))
-        })?;
-        let mut invitations = Vec::new();
-        for row in rows {
-            let (id, workspace, workspace_name, role, invited_by) = row?;
-            invitations.push(WorkspaceInvitation {
-                id: parse_uuid(&id)?,
-                workspace: parse_uuid(&workspace)?,
-                workspace_name,
-                email: email.clone(),
-                role: decode_role(&role)?,
-                invited_by: parse_uuid(&invited_by)?,
-            });
-        }
-        Ok(invitations)
-    }
-
-    pub async fn respond_invitation(
+    pub async fn invitation(
         &self,
         account: Uuid,
         invitation: Uuid,
-        accept: bool,
-    ) -> Result<(), ServerError> {
+    ) -> Result<WorkspaceInvitation, ServerError> {
         let email = self.profile(account).await?.email;
         let database = self.database.lock().await;
-        let found: Option<(String, String)> = database
+        let found = database
             .query_row(
-                "SELECT workspace_id, role FROM invitations WHERE id = ?1 AND email = ?2",
+                "SELECT invitations.workspace_id, workspaces.name, invitations.role,
+                        invitations.invited_by, invitations.sealed
+                 FROM invitations JOIN workspaces ON workspaces.id = invitations.workspace_id
+                 WHERE invitations.id = ?1 AND invitations.email = ?2",
                 params![invitation.to_string(), email],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, Vec<u8>>(4)?,
+                    ))
+                },
             )
             .optional()?;
-        let Some((workspace, role)) = found else {
+        let Some((workspace, workspace_name, role, invited_by, sealed)) = found else {
             return Err(ServerError::Refused(
                 ErrorCode::InvitationNotFound,
-                "that invitation does not exist".into(),
+                "that invitation does not exist, or was sent to another email address".into(),
             ));
         };
-        if accept {
-            database.execute(
-                "INSERT OR IGNORE INTO memberships (workspace_id, account_id, role)
-                 VALUES (?1, ?2, ?3)",
-                params![workspace, account.to_string(), role],
-            )?;
+        let workspace = parse_uuid(&workspace)?;
+        if is_member(&database, account, workspace)? {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "you are already a member of that workspace".into(),
+            ));
         }
-        database.execute(
+        Ok(WorkspaceInvitation {
+            id: invitation,
+            workspace,
+            workspace_name,
+            email,
+            role: decode_role(&role)?,
+            invited_by: parse_uuid(&invited_by)?,
+            sealed,
+        })
+    }
+
+    pub async fn accept_invitation(
+        &self,
+        account: Uuid,
+        invitation: Uuid,
+    ) -> Result<(), ServerError> {
+        let found = self.invitation(account, invitation).await?;
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        transaction.execute(
+            "INSERT OR IGNORE INTO memberships (workspace_id, account_id, role)
+             VALUES (?1, ?2, ?3)",
+            params![
+                found.workspace.to_string(),
+                account.to_string(),
+                encode_role(found.role)
+            ],
+        )?;
+        let removed = transaction.execute(
             "DELETE FROM invitations WHERE id = ?1",
             [invitation.to_string()],
         )?;
+        if removed == 0 {
+            return Err(ServerError::Refused(
+                ErrorCode::InvitationNotFound,
+                "that invitation was just used".into(),
+            ));
+        }
+        transaction.commit()?;
         Ok(())
     }
 
@@ -517,19 +531,18 @@ impl ServerStore {
 
     pub async fn put_workspace_key(
         &self,
-        caller: Uuid,
-        workspace: Uuid,
         account: Uuid,
+        workspace: Uuid,
         sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
         let database = self.database.lock().await;
-        if !is_member(&database, caller, workspace)? || !is_member(&database, account, workspace)? {
+        if !is_member(&database, account, workspace)? {
             return Err(not_a_member());
         }
         if recovery_key(&database, account)?.is_none() {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
-                "that account has no recovery key to seal to".into(),
+                "this account has no recovery key to seal to".into(),
             ));
         }
         database.execute(
@@ -537,42 +550,6 @@ impl ServerStore {
             params![workspace.to_string(), account.to_string(), sealed],
         )?;
         Ok(())
-    }
-
-    pub async fn member_keys(
-        &self,
-        caller: Uuid,
-        workspace: Uuid,
-    ) -> Result<Vec<MemberKey>, ServerError> {
-        let database = self.database.lock().await;
-        if !is_member(&database, caller, workspace)? {
-            return Err(not_a_member());
-        }
-        let mut statement = database.prepare(
-            "SELECT memberships.account_id, recovery_keys.public, workspace_keys.sealed IS NOT NULL
-             FROM memberships
-             LEFT JOIN recovery_keys ON recovery_keys.account_id = memberships.account_id
-             LEFT JOIN workspace_keys ON workspace_keys.account_id = memberships.account_id
-                AND workspace_keys.workspace_id = memberships.workspace_id
-             WHERE memberships.workspace_id = ?1",
-        )?;
-        let rows = statement.query_map([workspace.to_string()], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<Vec<u8>>>(1)?,
-                row.get::<_, bool>(2)?,
-            ))
-        })?;
-        let mut members = Vec::new();
-        for row in rows {
-            let (account, recovery, sealed) = row?;
-            members.push(MemberKey {
-                account: parse_uuid(&account)?,
-                recovery: recovery.map(|public| public_key(&public)).transpose()?,
-                sealed,
-            });
-        }
-        Ok(members)
     }
 
     pub async fn create_agent(

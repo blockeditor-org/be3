@@ -76,9 +76,8 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     let inside = pos2(top.center().x, top.center().y);
     harness.touch(TouchPhase::Start, inside);
     harness.touch(TouchPhase::End, inside);
-    let overlay = unstyled::context_menu_overlay(harness.document(), region);
     assert!(
-        harness.document().is_overlay_open(overlay),
-        "a tap on the selection opens its menu"
+        unstyled::context_menu_toolbar(harness.document(), region).is_some(),
+        "a tap on the selection shows its toolbar"
     );
 }

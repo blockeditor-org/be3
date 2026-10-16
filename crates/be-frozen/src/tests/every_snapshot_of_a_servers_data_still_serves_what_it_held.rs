@@ -229,20 +229,34 @@ async fn check(snapshot: &Snapshot) {
         password: "a password long enough".into(),
     })
     .await;
-    let ServerMessage::Invitations { invitations, .. } = request(&invited, |request| {
-        ClientMessage::ListInvitations { request }
+    let invitation: String = rusqlite::Connection::open(unpacked.data.join("metadata.sqlite"))
+        .unwrap()
+        .query_row(
+            "SELECT id FROM invitations WHERE email = ?1",
+            [scene::INVITED_EMAIL],
+            |row| row.get(0),
+        )
+        .unwrap_or_else(|error| panic!("{}: the invitation is gone: {error}", snapshot.name));
+    let invitation = id(&invitation);
+    let ServerMessage::Invitation {
+        invitation: found, ..
+    } = request(&invited, |request| ClientMessage::GetInvitation {
+        request,
+        invitation,
     })
     .await
     else {
-        panic!("{}: the invitations were not listed", snapshot.name);
+        panic!("{}: the invitation was not served", snapshot.name);
     };
-    assert_eq!(
-        invitations
-            .iter()
-            .map(|invitation| invitation.workspace)
-            .collect::<Vec<_>>(),
-        [workspace]
-    );
+    assert_eq!(found.workspace, workspace);
+    assert!(matches!(
+        request(&invited, |request| ClientMessage::AcceptInvitation {
+            request,
+            invitation,
+        })
+        .await,
+        ServerMessage::Ok { .. }
+    ));
 
     let mut edited = shopping.clone();
     let end = scene::SHOPPING[2].len();

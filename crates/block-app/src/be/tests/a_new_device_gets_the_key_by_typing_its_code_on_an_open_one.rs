@@ -10,7 +10,7 @@ fn runtime() -> tokio::runtime::Runtime {
 fn pair_in_background(
     harness: &Harness,
     code: String,
-) -> std::thread::JoinHandle<Result<[u8; 32], crate::accounts::AccountError>> {
+) -> std::thread::JoinHandle<Result<crate::accounts::Paired, crate::accounts::AccountError>> {
     let (url, token, workspace) = (
         harness.url.clone(),
         harness.token.clone(),
@@ -33,8 +33,9 @@ fn pair_in_background(
 
 #[test]
 fn a_new_device_gets_the_key_by_typing_its_code_on_an_open_one() {
-    let harness = Harness::start();
+    let mut harness = Harness::start();
     let phrase = be_keys::RecoveryPhrase::generate();
+    harness.recovery = Some(phrase.secret().public().0);
     runtime()
         .block_on(crate::accounts::set_recovery_key(
             harness.url.clone(),
@@ -81,6 +82,10 @@ fn a_new_device_gets_the_key_by_typing_its_code_on_an_open_one() {
     approve_pairing(request.from, code.to_lowercase());
     assert_eq!(
         paired.join().unwrap().expect("the right code pairs"),
-        harness.content_key
+        crate::accounts::Paired {
+            key: harness.content_key,
+            recovery: harness.recovery,
+        },
+        "the new device did not get the key and the recovery key its account trusts"
     );
 }

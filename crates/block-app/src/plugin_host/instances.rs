@@ -31,6 +31,22 @@ use crate::{
     plugin_host::web_view::WebViewHost,
 };
 
+thread_local! {
+    static PRESENCE_WANTED: std::cell::RefCell<std::collections::HashSet<EditorInstanceId>> =
+        std::cell::RefCell::default();
+}
+
+pub(super) fn want_presence(instance: EditorInstanceId, visible: bool) {
+    PRESENCE_WANTED.with_borrow_mut(|wanted| match visible {
+        true => wanted.insert(instance),
+        false => wanted.remove(&instance),
+    });
+}
+
+fn presence_wanted(instance: EditorInstanceId) -> bool {
+    PRESENCE_WANTED.with_borrow(|wanted| wanted.contains(&instance))
+}
+
 const REFUSED: &str = "this plugin's manifest does not allow it to reach";
 
 #[derive(Default)]
@@ -1329,6 +1345,14 @@ impl Instances {
                 statuses.sort_by_key(|status| status.child.0);
                 if !statuses.is_empty() {
                     opened.push(Message::ChildStatuses(statuses));
+                }
+                let visible = presence_wanted(instance);
+                if visible && entry.presence_visible != Some(true) {
+                    entry.presence_visible = Some(true);
+                    opened.push(Message::Editor(EditorMessage::Presence {
+                        instance,
+                        visible,
+                    }));
                 }
             }
             opened.append(&mut entry.deferred);

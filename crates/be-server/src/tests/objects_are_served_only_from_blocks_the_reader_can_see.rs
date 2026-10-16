@@ -14,23 +14,18 @@ async fn join(owner: &mut TestClient, guest: &mut TestClient, workspace: Uuid, e
     let response = owner
         .send(|request| ClientMessage::Invite {
             request,
+            invitation: Uuid::from_u128(1),
             workspace,
             email: email.into(),
             role: WorkspaceRole::Editor,
+            sealed: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    let ServerMessage::Invitations { invitations, .. } = guest
-        .send(|request| ClientMessage::ListInvitations { request })
-        .await
-    else {
-        panic!("the guest could not list invitations");
-    };
     guest
-        .send(|request| ClientMessage::RespondInvitation {
+        .send(|request| ClientMessage::AcceptInvitation {
             request,
-            invitation: invitations[0].id,
-            accept: true,
+            invitation: Uuid::from_u128(1),
         })
         .await;
     guest.open(workspace).await;

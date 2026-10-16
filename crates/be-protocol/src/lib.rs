@@ -38,6 +38,8 @@ pub struct WorkspaceInvitation {
     pub email: String,
     pub role: WorkspaceRole,
     pub invited_by: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -140,17 +142,20 @@ pub enum ClientMessage {
     },
     Invite {
         request: u64,
+        invitation: Uuid,
         workspace: Uuid,
         email: String,
         role: WorkspaceRole,
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
     },
-    ListInvitations {
-        request: u64,
-    },
-    RespondInvitation {
+    GetInvitation {
         request: u64,
         invitation: Uuid,
-        accept: bool,
+    },
+    AcceptInvitation {
+        request: u64,
+        invitation: Uuid,
     },
 
     PutObject {
@@ -297,13 +302,8 @@ pub enum ClientMessage {
     PutWorkspaceKey {
         request: u64,
         workspace: Uuid,
-        account: Uuid,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
-    },
-    ListMemberKeys {
-        request: u64,
-        workspace: Uuid,
     },
     Pair {
         request: u64,
@@ -345,13 +345,6 @@ pub struct SealedKey {
     pub sealed: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct MemberKey {
-    pub account: Uuid,
-    pub recovery: Option<[u8; 32]>,
-    pub sealed: bool,
-}
-
 impl ClientMessage {
     pub fn request(&self) -> u64 {
         match self {
@@ -360,8 +353,8 @@ impl ClientMessage {
             | Self::Authenticate { request, .. }
             | Self::Logout { request }
             | Self::Invite { request, .. }
-            | Self::ListInvitations { request }
-            | Self::RespondInvitation { request, .. }
+            | Self::GetInvitation { request, .. }
+            | Self::AcceptInvitation { request, .. }
             | Self::ListWorkspaces { request }
             | Self::CreateWorkspace { request, .. }
             | Self::OpenWorkspace { request, .. }
@@ -394,7 +387,6 @@ impl ClientMessage {
             | Self::GetKeys { request }
             | Self::SetRecoveryKey { request, .. }
             | Self::PutWorkspaceKey { request, .. }
-            | Self::ListMemberKeys { request, .. }
             | Self::Pair { request, .. }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }
@@ -432,9 +424,9 @@ pub enum ServerMessage {
         request: u64,
         workspaces: Vec<Workspace>,
     },
-    Invitations {
+    Invitation {
         request: u64,
-        invitations: Vec<WorkspaceInvitation>,
+        invitation: WorkspaceInvitation,
     },
     WorkspaceOpened {
         request: u64,
@@ -518,10 +510,6 @@ pub enum ServerMessage {
         recovery: Option<[u8; 32]>,
         sealed: Vec<SealedKey>,
     },
-    MemberKeys {
-        request: u64,
-        members: Vec<MemberKey>,
-    },
     Paired {
         from: ClientId,
         workspace: Uuid,
@@ -546,7 +534,7 @@ impl ServerMessage {
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
             | Self::Workspaces { request, .. }
-            | Self::Invitations { request, .. }
+            | Self::Invitation { request, .. }
             | Self::WorkspaceOpened { request, .. }
             | Self::Stored { request, .. }
             | Self::Object { request, .. }
@@ -560,7 +548,6 @@ impl ServerMessage {
             | Self::AccessList { request, .. }
             | Self::Session { request, .. }
             | Self::Keys { request, .. }
-            | Self::MemberKeys { request, .. }
             | Self::AgentCreated { request, .. }
             | Self::Agents { request, .. } => Some(*request),
             Self::HeadChanged { .. }

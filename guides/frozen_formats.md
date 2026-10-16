@@ -14,9 +14,11 @@ else may still change freely.
   and `objects/` laid out as on the server.
 - **What the objects hold**: chunks sealed with the workspace key
   (`ContentKey::seal`), commits and manifests (CBOR from `Vault::put_value`),
-  `BlockMetadata` (in a commit, and sealed on the block's row), and workspace
+  `BlockMetadata` (in a commit, and sealed on the block's row), workspace
   keys sealed to a recovery phrase (`be_keys`: the phrase's words and the
-  secret derived from them).
+  secret derived from them), and workspace keys sealed to an invite code on an
+  invitation's row (`be_keys::InviteCode`: the code's text, the key derived
+  from it, and the invitation id derived from it).
 - **The content of these blocks** (`Root::FROZEN`): `TextBlock`, `Folder`,
   `Database`, `DatabaseSchema` and `DatabaseView`, and their content type ids.
 

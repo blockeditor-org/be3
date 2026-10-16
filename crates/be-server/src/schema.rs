@@ -40,7 +40,8 @@ const SCHEMA: &str = "
         workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
         email           TEXT NOT NULL,
         role            TEXT NOT NULL,
-        invited_by      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE
+        invited_by      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        sealed          BLOB NOT NULL DEFAULT x''
     );
 
     CREATE TABLE blocks (

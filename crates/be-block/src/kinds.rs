@@ -31,3 +31,8 @@ kind!(
     TriangleContent,
     0x7767_7075_2d74_7269_616e_676c_6530_3031
 );
+kind!(
+    BeuiDemo,
+    BeuiDemoContent,
+    0x6265_7569_2d64_656d_6f2d_626c_6f63_6b31
+);

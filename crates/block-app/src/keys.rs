@@ -22,13 +22,17 @@ struct RecoverySetup {
 struct PairingWait {
     workspace: Uuid,
     code: String,
-    receiver: platform::RequestResult<Result<[u8; 32], AccountError>>,
+    receiver: platform::RequestResult<Result<accounts::Paired, AccountError>>,
     _cancel: tokio::sync::oneshot::Sender<()>,
 }
 
 pub(crate) enum KeyEvent {
-    RecoverySaved,
-    Unlocked(Uuid, [u8; 32]),
+    RecoverySaved(be_keys::RecoveryPublic),
+    Unlocked {
+        workspace: Uuid,
+        key: [u8; 32],
+        recovery: Option<be_keys::RecoveryPublic>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -148,7 +152,11 @@ impl KeyState {
         )));
     }
 
-    pub(crate) fn unlock_with_phrase(&mut self, workspace: Uuid, typed: &str) -> Option<[u8; 32]> {
+    pub(crate) fn unlock_with_phrase(
+        &mut self,
+        workspace: Uuid,
+        typed: &str,
+    ) -> Option<([u8; 32], be_keys::RecoveryPublic)> {
         let opened = (|| {
             let phrase = RecoveryPhrase::parse(typed).map_err(|error| error.to_string())?;
             let keys = self
@@ -164,12 +172,14 @@ impl KeyState {
                 .get(&workspace)
                 .ok_or("No key for this workspace is sealed to your recovery phrase yet.")?;
             let key = secret.open(sealed).map_err(|error| error.to_string())?;
-            <[u8; 32]>::try_from(key).map_err(|_| "The sealed key is corrupt.".to_owned())
+            let key =
+                <[u8; 32]>::try_from(key).map_err(|_| "The sealed key is corrupt.".to_owned())?;
+            Ok((key, secret.public()))
         })();
         match opened {
-            Ok(key) => {
+            Ok(opened) => {
                 self.error = None;
-                Some(key)
+                Some(opened)
             }
             Err(error) => {
                 self.error = Some(error);
@@ -211,9 +221,10 @@ impl KeyState {
             self.saving = None;
             match result {
                 Ok(()) => {
-                    self.setup = None;
                     self.keys = None;
-                    return Some(KeyEvent::RecoverySaved);
+                    if let Some(setup) = self.setup.take() {
+                        return Some(KeyEvent::RecoverySaved(setup.phrase.secret().public()));
+                    }
                 }
                 Err(error) if self.replacing() => {
                     self.error = Some(format!(
@@ -230,7 +241,13 @@ impl KeyState {
             let workspace = pairing.workspace;
             self.pairing = None;
             match result {
-                Ok(key) => return Some(KeyEvent::Unlocked(workspace, key)),
+                Ok(paired) => {
+                    return Some(KeyEvent::Unlocked {
+                        workspace,
+                        key: paired.key,
+                        recovery: paired.recovery.map(be_keys::RecoveryPublic),
+                    });
+                }
                 Err(error) => self.error = Some(error.message),
             }
         }

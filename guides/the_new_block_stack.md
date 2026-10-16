@@ -191,8 +191,11 @@ time, so notifications wait for the next post.
   `Login` (refused unless the server runs with `--allow-login`, so a server
   on the internet takes only the tokens of devices already signed in),
   `Authenticate` with a token and `Logout`; workspaces are created
-  through it, and an administrator can `Invite` an email that the invitee sees
-  with `ListInvitations` and answers with `RespondInvitation`.
+  through it, and an administrator can `Invite` an email under an id the
+  inviting client picks. Only an account with that email can read the
+  invitation (`GetInvitation`) or join with it (`AcceptInvitation`), once;
+  inviting the same email again replaces it. There is no list of an account's
+  invitations: the id only reaches the invitee in the link (see Keys).
   `--add-account EMAIL NAME WORKSPACE` provisions an account and its workspace
   from the command line, reading the password from standard input. Password
   checks run off the database lock, a few at a time, and an email with five
@@ -992,7 +995,7 @@ The app talks to be-server directly. `crates/block-app/src/accounts.rs` is the
 account client: it connects to `{server}/api/be` (be-server accepts the
 websocket on any path, so the suffix only matters behind a proxy that routes on
 it), registers, logs in and out, lists and creates workspaces, and invites and
-answers invitations. What comes back is an account id and a token, and the
+joins with invite links. What comes back is an account id and a token, and the
 app's peer connects with `Credentials::Token` for the workspace it opens.
 
 ### Keys
@@ -1009,15 +1012,33 @@ in the clear. `crates/be-keys` holds the cryptography.
   checked by typing three of its words. The phrase derives an X25519 key pair,
   and the server stores only the public half (`SetRecoveryKey`). Each member's
   copy of a workspace key is sealed to that public key (`PutWorkspaceKey`,
-  `GetKeys`), so a new device opens a workspace with the phrase alone. A new
+  which only seals for the caller's own account, and `GetKeys`), so a new
+  device opens a workspace with the phrase alone. A new
   phrase (the workspace menu's New recovery phrase) has to reseal every key the
   old one sealed, which the server checks, so it can only be made on a device
   that holds all of them.
-- **Sealing for members.** When the worker connects, it seals the workspace key
-  for every member that has a recovery key and no sealed copy
-  (`ListMemberKeys`), which covers the creator and anyone invited since. The
-  server only ever inserts a sealed key, never replaces one, so a member cannot
-  overwrite another's.
+- **Trusting a recovery key.** The server can lie about any account's recovery
+  key, so a device seals only to the public key it learned without the server:
+  from the phrase, when it made one or opened a workspace with one, or from the
+  device that paired it (sealed in the pairing reply). The app keeps it per
+  account (`AppStateStore::recovery_key`). When the worker connects, it seals
+  every key the device holds that has no sealed copy yet, which covers a
+  workspace made on this device, and only while the server's recovery key is
+  the trusted one. The server only ever inserts a sealed key, never replaces
+  one.
+- **Inviting.** Joining a workspace takes an invite link, the only way in. The
+  inviting device makes a random invite code (`be_keys::InviteCode`, 200 bits),
+  seals the workspace key under it (keyed by the workspace id too), and names
+  the invitation by an id derived from the code (`InviteCode::lookup`), so the
+  link only needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The
+  dialog shows the link once, for the person to pass on outside the app. The
+  invitee pastes it on the Workspaces screen, or opens it in the web app, which
+  takes it from the address bar on load and replaces it with `#`. The app reads
+  the invitation, asks to join, and then (`accounts::accept_invitation`) opens
+  the key with the code, accepts, and seals the key to its own trusted recovery
+  key. The server holds only the sealed copy and never sees the part of the
+  link after `#`. No device ever seals a key to another account's recovery
+  key, since the server could have chosen that key.
 - **Adding a device.** The new device shows an eight-character code. The user
   types it on a device that holds the key and has any workspace of the account
   open (the worker gets every key the device holds), and the two run SPAKE2

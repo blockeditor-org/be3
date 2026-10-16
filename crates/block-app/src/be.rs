@@ -32,6 +32,7 @@ pub(crate) struct Config {
     pub(crate) workspace: Uuid,
     pub(crate) content_key: [u8; 32],
     pub(crate) other_keys: Vec<(Uuid, [u8; 32])>,
+    pub(crate) recovery: Option<[u8; 32]>,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
 }
@@ -241,6 +242,7 @@ fn child_operations<C: be_block::LiveEdit>(
 
 const KINDS: &[Kind] = &[
     kind::<be_block::AudioContent>(),
+    kind::<be_block::BeuiDemoContent>(),
     kind_with_history::<be_block::CalendarContent>(),
     kind_with_history::<be_block::ChecklistContent>(),
     kind::<be_block::CompiledLogicContent>(),
@@ -401,6 +403,7 @@ pub(crate) fn start(config: Config) {
     let (commands, receiver) = unbounded_channel();
     let shared = Arc::new(Mutex::new(Shared {
         other_keys: config.other_keys.iter().copied().collect(),
+        recovery: config.recovery,
         ..Shared::default()
     }));
     let changed = Arc::new(Condvar::new());
