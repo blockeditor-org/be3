@@ -59,7 +59,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=ROW_SPACING>
                         <ForEach keys={keys}>
-                            {move |index: usize| {
+                            |index: usize| {
                                 let row = create_memo(move || {
                                     rows.with(|rows| rows.get(index).cloned())
                                 });
@@ -72,7 +72,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                                         read_only={read_only}
                                     />
                                 }
-                            }}
+                            }
                         </ForEach>
                     </List>
                 </Scroll>

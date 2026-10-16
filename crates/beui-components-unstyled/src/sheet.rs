@@ -946,7 +946,7 @@ fn ModalSheetBody(
 ) -> NodeId {
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 let extent = create_memo(move || size.get().y);
                 let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
                 let room = create_memo(move || {
@@ -976,7 +976,7 @@ fn ModalSheetBody(
                         </Sheet>
                     </List>
                 }
-            }}
+            }
         </LayoutBuilder>
     }
 }

@@ -75,7 +75,7 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Dynamic value={shown}>
-                    {move |panel: HostPanel| {
+                    |panel: HostPanel| {
                         let debug = debug;
                         match panel {
                             HostPanel::BlockStack => {
@@ -100,7 +100,7 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                                 }
                             }
                         }
-                    }}
+                    }
                 </Dynamic>
             </List>
         </Frame>
@@ -121,13 +121,13 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
     view! {
         <Scroll>
             <VirtualList keys={keys} item_size=LINE_HEIGHT>
-                {move |index: ReadSignal<usize>| {
+                |index: ReadSignal<usize>| {
                     let lines = lines;
                     let line = create_memo(move || lines.with(|lines| lines.get(index.get()).cloned()));
                     view! {
                         <LineView line />
                     }
-                }}
+                }
             </VirtualList>
         </Scroll>
     }
@@ -197,13 +197,13 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
                     }))}
                 />
                 <ForEach keys={keys}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let rows = rows;
                         let row = create_memo(move || rows.get().get(index).cloned());
                         view! {
                             <PerformanceLine row />
                         }
-                    }}
+                    }
                 </ForEach>
             </Scroll>
         </Frame>
@@ -284,20 +284,20 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
         <Frame padding=PANEL_PADDING>
             <Scroll>
                 <ForEach keys={line_keys}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let lines = lines;
                         let line = create_memo(move || lines.get().get(index).cloned());
                         view! {
                             <LineView line />
                         }
-                    }}
+                    }
                 </ForEach>
                 <Text style=TextStyle::HEADING string={running} />
                 <Show condition={idle}>
                     <Text style=TextStyle::CAPTION string="no editor plugins are running" />
                 </Show>
                 <ForEach keys={runtime_keys}>
-                    {move |id: String| {
+                    |id: String| {
                         let runtimes = runtimes;
                         let key = id.clone();
                         let runtime = create_memo(move || {
@@ -306,7 +306,7 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
                         view! {
                             <RuntimeBlock id runtime />
                         }
-                    }}
+                    }
                 </ForEach>
             </Scroll>
         </Frame>
@@ -354,13 +354,13 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                     />
                 </List>
                 <ForEach keys={keys}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let lines = lines;
                         let line = create_memo(move || lines.get().get(index).cloned());
                         view! {
                             <LineView line />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         </Frame>

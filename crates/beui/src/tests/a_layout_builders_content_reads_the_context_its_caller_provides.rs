@@ -10,12 +10,12 @@ fn Provider(seen: WriteSignal<Option<Color32>>) -> NodeId {
     provide_context(Accent(Color32::WHITE));
     view! {
         <LayoutBuilder>
-            {move |_size: ReadSignal<Vec2>| {
+            |_size: ReadSignal<Vec2>| {
                 seen.set(use_context::<Accent>().map(|Accent(color)| color));
                 view! {
                     <Frame height=20.0 />
                 }
-            }}
+            }
         </LayoutBuilder>
     }
 }

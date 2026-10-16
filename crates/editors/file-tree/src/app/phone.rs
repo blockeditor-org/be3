@@ -202,9 +202,7 @@ pub(crate) fn PhoneFiles(
                                 <SearchSoon @sizing=ItemSize::Percent(100.0) />
                             </Show>
                             <Show condition={browsing}>
-                                {move || view! {
-                                    <Folder @sizing=ItemSize::Percent(100.0) shelf level at_root />
-                                }}
+                                <Folder @sizing=ItemSize::Percent(100.0) shelf level at_root />
                             </Show>
                         </List>
                     </Frame>
@@ -244,7 +242,7 @@ fn Folder(shelf: Shelf, level: ReadSignal<Level>, at_root: Memo<bool>) -> NodeId
                         <Recents editor={recents_editor} />
                     </Show>
                     <Dynamic value={level}>
-                        {move |level: Level| {
+                        |level: Level| {
                             let editor = shelf.editor;
                             let tree = shelf.tree;
                             let set_level = shelf.set_level;
@@ -259,7 +257,7 @@ fn Folder(shelf: Shelf, level: ReadSignal<Level>, at_root: Memo<bool>) -> NodeId
                                     tools
                                 />
                             }
-                        }}
+                        }
                     </Dynamic>
                     <Frame height=DOCK_ROOM />
                 </List>
@@ -324,22 +322,18 @@ fn Header(
                         </Frame>
                     </Show>
                     <Show condition={named}>
-                        {move || view! {
-                            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                        <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                                 <Text style=TextStyle::CAPTION string={path} ellipsis=true />
                                 <Text style=TextStyle::HEADING string={name} />
                             </List>
-                        }}
                     </Show>
                     <Show condition={top}>
-                        {move || view! {
-                            <IconButton
+                        <IconButton
                                 @test_id={"file-tree.app-menu"}
                                 glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
                                 label="Account and settings"
                                 on_click={on_menu}
                             />
-                        }}
                     </Show>
                 </List>
                 <TextInput
@@ -407,14 +401,13 @@ fn Recents(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={any}>
-                {move || view! {
-                    <List spacing=6.0>
+                <List spacing=6.0>
                         <Frame padding={Sides::symmetric(PADDING, 4.0)}>
                             <Text style=TextStyle::CAPTION string="Recent" />
                         </Frame>
                         <Scroll direction=Direction::Horizontal>
                             <ForEach keys={keys}>
-                                {move |id: Uuid| {
+                                |id: Uuid| {
                                     let block_type = recents.with_untracked(|recents| {
                                         recents
                                             .iter()
@@ -424,14 +417,13 @@ fn Recents(editor: Editor) -> NodeId {
                                     view! {
                                         <RecentCard editor id block_type />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </Scroll>
                         <Frame padding={Sides::symmetric(PADDING, 4.0)}>
                             <Text style=TextStyle::CAPTION string="All files" />
                         </Frame>
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -569,7 +561,7 @@ fn LevelRows(
                 </Frame>
             </Show>
             <ForEach keys={keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let row = create_memo(move || {
                         rows.with(|rows| {
                             rows.iter().flatten().find(|row| row.id == Some(id)).cloned()
@@ -581,47 +573,39 @@ fn LevelRows(
                     view! {
                         <PhoneRow editor row level set_level tools />
                     }
-                }}
+                }
             </ForEach>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
+                <ActionRow
                         @test_id={"file-tree.new-workspace"}
                         label="New workspace"
                         glyph={ICON_WORKSPACES.to_owned()}
                         on_click={move || new_workspace(editor)}
                     />
-                }}
             </Show>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
+                <ActionRow
                         @test_id={"file-tree.shared"}
                         label="Shared with me"
                         glyph={ICON_PEOPLE.to_owned()}
                         on_click={move || deleting.set(Level::Shared)}
                     />
-                }}
             </Show>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
+                <ActionRow
                         @test_id={"file-tree.deleted"}
                         label="Recently deleted"
                         glyph={ICON_HISTORY.to_owned()}
                         on_click={move || deleting.set(Level::Deleted)}
                     />
-                }}
             </Show>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
+                <ActionRow
                         @test_id={"file-tree.system"}
                         label="System"
                         glyph={ICON_DATABASE.to_owned()}
                         on_click={move || deleting.set(Level::System)}
                     />
-                }}
             </Show>
         </List>
     }

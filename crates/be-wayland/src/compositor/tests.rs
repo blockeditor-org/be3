@@ -136,7 +136,7 @@ fn Shown(windows: Windows) -> NodeId {
                         on_change={move |line: String| set_text.set(line)}
                     />
                     <ForEach keys={ids}>
-                        {move |id: WindowId| {
+                        |id: WindowId| {
                             let list = windows.list();
                             let size = create_memo(move || {
                                 list.with(|list| {
@@ -153,7 +153,7 @@ fn Shown(windows: Windows) -> NodeId {
                                     <WindowView windows id />
                                 </Frame>
                             }
-                        }}
+                        }
                     </ForEach>
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)

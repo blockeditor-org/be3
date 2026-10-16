@@ -1,8 +1,0 @@
-use beui::NodeId;
-use beui::reactive::*;
-use beui::styled::*;
-
-#[component]
-fn Case(shown: Prop<bool>) -> NodeId {
-    view! { <List spacing=0.0><Show condition={shown} let:value><Spacer /></Show></List> } //~ ERROR this component hands nothing to its children, so `let:` has nothing to name
-}

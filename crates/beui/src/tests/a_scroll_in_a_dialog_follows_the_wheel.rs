@@ -17,15 +17,13 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
                         <Frame height=200.0>
                             <List spacing=8.0>
                                 <Show condition=true>
-                                    {move || view! {
-                                        <Scroll @sizing=ItemSize::Percent(100.0)>
+                                    <Scroll @sizing=ItemSize::Percent(100.0)>
                                             <List spacing=8.0>
                                                 <Frame @node_ref=&first height=120.0 />
                                                 <Frame height=120.0 />
                                                 <Frame height=120.0 />
                                             </List>
                                         </Scroll>
-                                    }}
                                 </Show>
                             </List>
                         </Frame>

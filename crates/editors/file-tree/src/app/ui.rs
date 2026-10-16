@@ -170,19 +170,16 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                             />
                         </Show>
                         <Show condition={failed}>
-                            {move || view! {
-                                <Frame padding=PADDING>
+                            <Frame padding=PADDING>
                                     <Text
                                         style=TextStyle::CAPTION
                                         string={reason}
                                         color=TextColor::Danger
                                     />
                                 </Frame>
-                            }}
                         </Show>
                         <Show condition={wide}>
-                            {move || view! {
-                                <Tree
+                            <Tree
                                     @sizing=ItemSize::Percent(100.0)
                                     @node_ref={&tree_ref}
                                     keys={keys}
@@ -199,7 +196,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     on_reveal={reveal}
                                     on_drag_start={start}
                                 >
-                                    {move |face: TreeRowFace<RowKey>| {
+                                    |face: TreeRowFace<RowKey>| {
                                         let row = tree.row(face.key.clone());
                                         let workspace = row.get_untracked().is_some_and(|row| {
                                             row.section && is_workspace(row.block_type)
@@ -225,9 +222,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                                 face={face}
                                             />
                                         }
-                                    }}
+                                    }
                                 </Tree>
-                            }}
                         </Show>
                     </List>
                 </Frame>
@@ -466,7 +462,7 @@ fn TreeRow(
                     row_test_id={"file-tree.move-to".to_owned()}
                 >
                     <ForEach keys={destination_keys}>
-                        {move |target: Uuid| {
+                        |target: Uuid| {
                             let label = create_memo(move || {
                                 destinations.with(|shown| {
                                     shown
@@ -495,7 +491,7 @@ fn TreeRow(
                                     }}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                     <MenuItem
                         label="Recently Deleted"
@@ -547,22 +543,18 @@ fn TreeRow(
                     weight={weight}
                 />
                 <Show condition={generated}>
-                    {move || view! {
-                        <Tooltip label="Generated from another block">
+                    <Tooltip label="Generated from another block">
                             <Text size=TextSize::Xs color={generated_color} align=TextAlign::Center>
                                 <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
                             </Text>
                         </Tooltip>
-                    }}
                 </Show>
                 <Show condition={restricted}>
-                    {move || view! {
-                        <Tooltip label={access_label}>
+                    <Tooltip label={access_label}>
                             <Text size=TextSize::Xs color={access_color} align=TextAlign::Center>
                                 <Icon glyph={access} />
                             </Text>
                         </Tooltip>
-                    }}
                 </Show>
                 <Show condition={can_add}>
                     <AddChild
@@ -721,7 +713,7 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             row_test_id={"file-tree.open-with".to_owned()}
         >
             <ForEach keys={keys}>
-                {move |chosen: Uuid| {
+                |chosen: Uuid| {
                     let label = create_memo(move || {
                         editors.with(|editors| {
                             editors
@@ -742,7 +734,7 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                             }}
                         />
                     }
-                }}
+                }
             </ForEach>
         </MenuItem>
     }
@@ -777,7 +769,7 @@ pub(crate) fn ExportAs(
             row_test_id={row_test_id}
         >
             <ForEach keys={keys}>
-                {move |format: ExportFormat| {
+                |format: ExportFormat| {
                     let label = create_memo(move || {
                         shown.with(|shown| {
                             shown
@@ -802,7 +794,7 @@ pub(crate) fn ExportAs(
                             }}
                         />
                     }
-                }}
+                }
             </ForEach>
         </MenuItem>
     }

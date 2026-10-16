@@ -241,7 +241,7 @@ pub fn DateTimeField(
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys={items}>
-                {move |index: usize| {
+                |index: usize| {
                     let order = state.order.get();
                     let segment_kind = order[index];
                     let prefix = match index {
@@ -253,7 +253,7 @@ pub fn DateTimeField(
                     view! {
                         <SegmentView state segment=segment_kind prefix literal face />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -331,7 +331,7 @@ fn SegmentView(
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
         >
             <List direction=Direction::Horizontal spacing=0.0>
-                <Show condition=shown>{move || literal.call(text.clone())}</Show>
+                <Show condition=shown>|| { literal.call(text.clone()) }</Show>
                 {content}
             </List>
         </Interactive>

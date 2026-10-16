@@ -18,14 +18,14 @@ fn Pane(windows: Windows) -> NodeId {
     view! {
         <List spacing=0.0>
             <ForEach keys={ids}>
-                {move |id: WindowId| {
+                |id: WindowId| {
                     let (width, height) = (width, height);
                     view! {
                         <Frame width=width height=height>
                             <WindowView windows id />
                         </Frame>
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

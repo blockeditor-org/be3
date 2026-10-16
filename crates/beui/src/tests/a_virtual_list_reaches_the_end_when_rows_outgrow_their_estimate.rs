@@ -18,7 +18,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
-                            {move |index: ReadSignal<usize>| {
+                            |index: ReadSignal<usize>| {
                                 create_binding(move || {
                                     let index = index.get();
                                     set_built.update(|built| built.push(index));
@@ -28,7 +28,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
                                         <Spacer />
                                     </Frame>
                                 }
-                            }}
+                            }
                         </VirtualList>
                     </Offset>
                 </List>

@@ -206,24 +206,15 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 />
                                 <List spacing=2.0>
                                     <ForEach keys={properties}>
-                                        {move |field: Uuid| {
-                                            view! {
-                                                <Property data={data} row={row} field={field} />
-                                            }
-                                        }}
+                                        |field: Uuid| <Property data={data} row={row} field={field} />
                                     </ForEach>
                                 </List>
                                 <ForEach keys={link_fields}>
-                                    {move |field: Uuid| {
-                                        view! {
-                                            <LinkSection data={data} row={row} field={field} />
-                                        }
-                                    }}
+                                    |field: Uuid| <LinkSection data={data} row={row} field={field} />
                                 </ForEach>
                                 <Separator />
                                 <Show condition={missing}>
-                                    {move || view! {
-                                        <List direction=Direction::Horizontal spacing=0.0>
+                                    <List direction=Direction::Horizontal spacing=0.0>
                                             <Button
                                                 glyph={ICON_NOTE_ADD.to_owned()}
                                                 label="Write a description"
@@ -233,7 +224,6 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                                 on_click={add_page}
                                             />
                                         </List>
-                                    }}
                                 </Show>
                             </List>
                         </Frame>
@@ -318,19 +308,16 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <List spacing=0.0>
                     <Show condition={choice}>
-                        {move || view! {
-                            <ChoicePicker
+                        <ChoicePicker
                                 field={known}
                                 chosen={chosen}
                                 disabled={choice_off}
                                 picker_id={format!("database-view.detail.field.{field}")}
                                 on_pick={picked}
                             />
-                        }}
                     </Show>
                     <Show condition={other}>
-                        {move || view! {
-                            <DatabaseValueEditor
+                        <DatabaseValueEditor
                                 fields={fields}
                                 values={values}
                                 labels={labels}
@@ -340,7 +327,6 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                 on_change={changed}
                                 on_pick={pick_block}
                             />
-                        }}
                     </Show>
                 </List>
             </Frame>
@@ -423,7 +409,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     <Select
                         options={view! {
                             <ForEach keys={add_keys}>
-                                {move |link: RowRef| {
+                                |link: RowRef| {
                                     let label = create_memo(move || {
                                         names.with(|rows| {
                                             rows.iter()
@@ -434,7 +420,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                     view! {
                                         <ChoiceOption label={label} />
                                     }
-                                }}
+                                }
                             </ForEach>
                         }}
                         selected={None}
@@ -447,12 +433,12 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                 </Frame>
             </List>
             <ForEach keys={links}>
-                {move |link: RowRef| {
+                |link: RowRef| {
                     let links = links;
                     view! {
                         <LinkedRow data={data} row={row} field={field} link={link} links={links} />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

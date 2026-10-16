@@ -19,8 +19,7 @@ fn Docked() -> NodeId {
         <styled::Docking layout mode={mode} home=1u64 focus=2u64>
             <DockPane id="tabs">
                 <ForEach keys={vec![1u64, 2]}>
-                    {move |id: u64| view! {
-                        <DockTab
+                    |id: u64| <DockTab
                             id
                             title={format!("Tab {id}")}
                             on_close={|| {}}
@@ -37,7 +36,6 @@ fn Docked() -> NodeId {
                                 }
                             }}
                         />
-                    }}
                 </ForEach>
             </DockPane>
         </styled::Docking>
@@ -58,9 +56,7 @@ fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
     let document = build(move || {
         view! {
             <Container>
-                {move |_: ReadSignal<Vec2>| view! {
-                    <Docked />
-                }}
+                |_: ReadSignal<Vec2>| <Docked />
             </Container>
         }
     });

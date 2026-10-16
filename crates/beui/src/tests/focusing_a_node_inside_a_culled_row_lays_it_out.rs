@@ -18,7 +18,7 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
                     <Offset @sizing=ItemSize::Percent(100.0)>
                         <List spacing=0.0>
                             <ForEach keys={indices(ROWS)}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let row = rows[index];
                                     view! {
                                         <Frame @node_ref=&row>
@@ -27,7 +27,7 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
                                             </Frame>
                                         </Frame>
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                     </Offset>

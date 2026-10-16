@@ -363,7 +363,7 @@ fn page(state: State, geometry: &HexGeometry, size: Vec2) -> Page {
 pub(crate) fn HexView(state: State) -> NodeId {
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 let scale = pixels_per_point();
                 let geometry = create_memo(move || {
                     scale.get();
@@ -421,7 +421,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                         </Scroll>
                     </Frame>
                 }
-            }}
+            }
         </LayoutBuilder>
     }
 }

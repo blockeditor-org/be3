@@ -110,8 +110,7 @@ fn Inspector(state: CanvasState) -> NodeId {
                 />
             </Show>
             <Show condition={chosen}>
-                {move || view! {
-                    <List spacing=SPACING>
+                <List spacing=SPACING>
                         <Show condition={styled}>
                             <AppearanceSection state={state} />
                         </Show>
@@ -121,7 +120,6 @@ fn Inspector(state: CanvasState) -> NodeId {
                         <BlockSection state={state} />
                         <CanvasComponents state={state} />
                     </List>
-                }}
             </Show>
             <LayersSection state={state} />
             <Show condition={roomy}>
@@ -168,8 +166,7 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <Accordion
+                <Accordion
                         title="Artboard"
                         open={open}
                         on_toggle={move |open| set_open.set(open)}
@@ -192,7 +189,6 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
                             <ArtboardBackground artboard={artboard} locked={locked} state={state} />
                         </List>
                     </Accordion>
-                }}
             </Show>
         </List>
     }
@@ -270,7 +266,7 @@ fn ArtboardBackground(
                     on_change={move |_: bool| set(None)}
                 />
                 <ForEach keys={(0..count).collect::<Vec<usize>>()}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let (name, color) = swatches[index];
                         view! {
                             <Swatch
@@ -281,7 +277,7 @@ fn ArtboardBackground(
                                 on_pick={move |color| set(Some(color))}
                             />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
             <ColorInput
@@ -503,8 +499,7 @@ fn BlockSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
+                <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
                         <List spacing=6.0>
                             <Button
                                 label={label}
@@ -518,7 +513,6 @@ fn BlockSection(state: CanvasState) -> NodeId {
                             </Show>
                         </List>
                     </Accordion>
-                }}
             </Show>
         </List>
     }
@@ -603,7 +597,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                     <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>
-                        {move |index: usize| {
+                        |index: usize| {
                             let (label, alignment) = ALIGNMENTS[index];
                             view! {
                                 <Button
@@ -614,7 +608,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                                     on_click={move || state.align_selection(alignment)}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
@@ -635,7 +629,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                     <ForEach keys={(0..LAYERS.len()).collect::<Vec<usize>>()}>
-                        {move |index: usize| {
+                        |index: usize| {
                             let (label, movement) = LAYERS[index];
                             let blocked = create_memo(move || {
                                 !state.can_reorder(movement)
@@ -649,7 +643,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                                     on_click={move || state.reorder(movement)}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
@@ -745,8 +739,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <List spacing=6.0>
+                <List spacing=6.0>
                         <Text style=TextStyle::CAPTION string="Color" />
                         <ColorInput
                             label="Custom color"
@@ -755,7 +748,6 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
                             on_change={typed}
                         />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -813,8 +805,7 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <List spacing=4.0>
+                <List spacing=4.0>
                         <MixedLabel label="Line width" mixed={mixed} />
                         <Slider
                             label="Line width"
@@ -825,7 +816,6 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
                             on_change={changed}
                         />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -878,8 +868,7 @@ fn LineOptions(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <List spacing=6.0>
+                <List spacing=6.0>
                         <Separator />
                         <Text style=TextStyle::CAPTION string="Line" />
                         <Checkbox
@@ -901,7 +890,6 @@ fn LineOptions(state: CanvasState) -> NodeId {
                             on_change={arrow_end}
                         />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -965,8 +953,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <List spacing=6.0>
+                <List spacing=6.0>
                         <Separator />
                         <Text style=TextStyle::CAPTION string="Rectangle" />
                         <List
@@ -983,7 +970,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                                 on_change={clearing}
                             />
                             <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let (name, color) = PRESETS[index];
                                     let value = create_memo(move || match fill.get() {
                                         CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
@@ -1001,7 +988,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                                             on_pick={move |color| set_fill(state, Some(color))}
                                         />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                         <ColorInput
@@ -1020,7 +1007,6 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                             on_change={rounded}
                         />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -1161,8 +1147,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <List spacing=6.0>
+                <List spacing=6.0>
                         <Separator />
                         <Text style=TextStyle::CAPTION string="Text" />
                         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -1205,7 +1190,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             wrap=true
                         >
                             <ForEach keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let (label, wanted) = ALIGN_OPTIONS[index];
                                     let pressed = create_memo(move || {
                                         alignment.get() == CommonValue::Uniform(wanted)
@@ -1222,7 +1207,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                                             }}
                                         />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                         <List
@@ -1234,7 +1219,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             <ForEach
                                 keys={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
                             >
-                                {move |index: usize| {
+                                |index: usize| {
                                     let (label, wanted) = VERTICAL_ALIGN_OPTIONS[index];
                                     let pressed = create_memo(move || {
                                         vertical_alignment.get() == CommonValue::Uniform(wanted)
@@ -1251,7 +1236,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                                             }}
                                         />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                         <Checkbox
@@ -1266,7 +1251,6 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             wrap=true
                         />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -1292,12 +1276,12 @@ fn ShortcutsSection() -> NodeId {
         <Accordion title="Shortcuts" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=4.0>
                 <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let (action, keys) = SHORTCUTS[index];
                         view! {
                             <Shortcut keys={keys} description={action} />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         </Accordion>

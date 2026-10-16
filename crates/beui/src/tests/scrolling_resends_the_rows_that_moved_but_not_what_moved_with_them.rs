@@ -18,13 +18,11 @@ fn scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them() {
                 <Frame height=200.0>
                     <Scroll @test_id="scroll">
                         <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>
-                            {|row: u32| view! {
-                                <styled::Button
+                            |row: u32| <styled::Button
                                     variant=styled::ButtonVariant::Primary
                                     label={format!("Row {row}")}
                                     on_click={|| {}}
                                 />
-                            }}
                         </ForEach>
                     </Scroll>
                 </Frame>

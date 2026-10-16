@@ -13,8 +13,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
             <styled::Docking @node_ref=&dock layout>
                 <DockPane id="tabs">
                     <ForEach keys={vec![1u64, 2, 3]}>
-                        {move |id: u64| view! {
-                            <DockTab
+                        |id: u64| <DockTab
                                 id
                                 title={format!("Tab {id}")}
                                 content={move || {
@@ -29,7 +28,6 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
                                     }
                                 }}
                             />
-                        }}
                     </ForEach>
                 </DockPane>
             </styled::Docking>

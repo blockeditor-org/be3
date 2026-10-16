@@ -140,9 +140,7 @@ fn Stage(
                 on_state={report}
                 @test_id={"presentation.stage"}
             >
-                {move |handle: ChildBlockHandle| view! {
-                    <SlideStatus state={handle.state} />
-                }}
+                |handle: ChildBlockHandle| <SlideStatus state={handle.state} />
             </ChildBlock>
         </Frame>
     }
@@ -386,16 +384,14 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
             >
                 <List spacing=6.0>
                     <DropTarget on_over={over}>
-                        {move |_: DropHandle| view! {
-                            <Draggable
+                        |_: DropHandle| <Draggable
                                 payload={payload}
                                 cursor=CursorIcon::PointingHand
                                 preview={ghost}
                                 on_click={select}
                                 @test_id={format!("presentation.slide.{id}")}
                             >
-                                {move |_: DragHandle| view! {
-                                    <Frame width=THUMBNAIL_WIDTH aspect_ratio={ratio}>
+                                |_: DragHandle| <Frame width=THUMBNAIL_WIDTH aspect_ratio={ratio}>
                                         <ChildBlock
                                             editor={editor}
                                             block={target}
@@ -404,14 +400,10 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                                                 set_ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
                                             }}
                                         >
-                                            {move |handle: ChildBlockHandle| view! {
-                                                <SlideStatus state={handle.state} />
-                                            }}
+                                            |handle: ChildBlockHandle| <SlideStatus state={handle.state} />
                                         </ChildBlock>
                                     </Frame>
-                                }}
                             </Draggable>
-                        }}
                     </DropTarget>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                         <Text style=TextStyle::CAPTION string={number} />

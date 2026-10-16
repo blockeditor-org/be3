@@ -89,8 +89,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <Show condition={unversioned}>
-                            {move || view! {
-                                <Card>
+                            <Card>
                                     <List spacing=10.0>
                                         <Text string="Nothing is versioned here yet." />
                                         <Text
@@ -107,17 +106,14 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                         />
                                     </List>
                                 </Card>
-                            }}
                         </Show>
                         <Show condition={versioned}>
-                            {move || view! {
-                                <Card>
+                            <Card>
                                     <List spacing=10.0>
                                         <Text style=TextStyle::HEADING string="Branches" />
                                         <ForEach keys={branches} view={rows} />
                                     </List>
                                 </Card>
-                            }}
                         </Show>
                         <Card>
                             <List spacing=10.0>

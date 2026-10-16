@@ -42,9 +42,7 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
                 <PaletteRow handle />
             }}
         >
-            {|content| view! {
-                <PalettePanel>{content}</PalettePanel>
-            }}
+            |content| <PalettePanel>{content}</PalettePanel>
         </unstyled::CommandPalette>
     }
 }

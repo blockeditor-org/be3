@@ -195,11 +195,7 @@ pub fn FilterBar(data: Data) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
             <ForEach keys={keys}>
-                {move |id: ObjectId| {
-                    view! {
-                        <FilterChip data={data} id={id} />
-                    }
-                }}
+                |id: ObjectId| <FilterChip data={data} id={id} />
             </ForEach>
             <AddFilter data={data} />
         </List>
@@ -239,13 +235,9 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                         }
                     }}
                 >
-                    {move |_: PopoverHandle| {
-                        view! {
-                            <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
+                    |_: PopoverHandle| <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
                                 <FilterEditor data={data} id={id} />
                             </PopoverPanel>
-                        }
-                    }}
                 </unstyled::Popover>
                 <IconButton
                     glyph={ICON_CLOSE.to_owned()}
@@ -290,22 +282,20 @@ fn AddFilter(data: Data) -> NodeId {
                 </ControlFace>
             }}
         >
-            {move |_: PopoverHandle| {
+            |_: PopoverHandle| {
                 let set_adding = set_adding;
                 let editing = editing;
                 view! {
                     <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
                         <List spacing=0.0>
                             <Show condition={choosing}>
-                                {move || view! {
-                                    <FieldChoices
+                                <FieldChoices
                                         data={data}
                                         on_pick={move |id: ObjectId| set_adding.set(Some(id))}
                                     />
-                                }}
                             </Show>
                             <Show condition={has_editing}>
-                                {move || {
+                                || {
                                     let id = editing.get_untracked();
                                     match id {
                                         Some(id) => view! {
@@ -315,12 +305,12 @@ fn AddFilter(data: Data) -> NodeId {
                                             <Frame />
                                         },
                                     }
-                                }}
+                                }
                             </Show>
                         </List>
                     </PopoverPanel>
                 }
-            }}
+            }
         </unstyled::Popover>
     }
 }
@@ -343,7 +333,7 @@ fn FieldChoices(
         <List spacing=2.0>
             <Text style=TextStyle::CAPTION string="Filter by" />
             <ForEach keys={keys}>
-                {move |field: Uuid| {
+                |field: Uuid| {
                     let on_pick = on_pick;
                     let name = create_memo(move || {
                         data.fields.with(|fields| {
@@ -379,7 +369,7 @@ fn FieldChoices(
                             }}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -480,7 +470,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         <Select
                             options={view! {
                                 <ForEach keys={kind_keys}>
-                                    {move |index: usize| {
+                                    |index: usize| {
                                         let label = create_memo(move || {
                                             condition_names.with(|kinds| {
                                                 kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
@@ -489,7 +479,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                                         view! {
                                             <ChoiceOption label={label} />
                                         }
-                                    }}
+                                    }
                                 </ForEach>
                             }}
                             selected={selected}
@@ -501,14 +491,12 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                     </Frame>
                 </List>
                 <Show condition={choosing}>
-                    {move || view! {
-                        <ValueChoices
+                    <ValueChoices
                             data={data}
                             id={id}
                             filter={choice_filter}
                             field={choice_field}
                         />
-                    }}
                 </Show>
                 <Show condition={comparing}>
                     <DatabaseValueEditor
@@ -645,7 +633,7 @@ fn ValueChoices(
             <Scroll max_length=CHOICES_HEIGHT>
                 <List spacing=2.0>
                     <ForEach keys={keys}>
-                        {move |index: usize| {
+                        |index: usize| {
                             let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
                             let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
                             let count = create_memo(move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string());
@@ -695,7 +683,7 @@ fn ValueChoices(
                                     <Text style=TextStyle::CAPTION string={count} />
                                 </List>
                             }
-                        }}
+                        }
                     </ForEach>
                 </List>
             </Scroll>
@@ -729,7 +717,7 @@ pub fn FilterList(data: Data) -> NodeId {
                 <Text style=TextStyle::CAPTION string="Every row is shown." />
             </Show>
             <ForEach keys={keys}>
-                {move |id: ObjectId| {
+                |id: ObjectId| {
                     let remove = move || data.operate_view(DatabaseView::remove_filter(id));
                     let read_only = data.read_only;
                     view! {
@@ -745,7 +733,7 @@ pub fn FilterList(data: Data) -> NodeId {
                             />
                         </List>
                     }
-                }}
+                }
             </ForEach>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text color=TextColor::Muted align=TextAlign::Center>
@@ -755,14 +743,14 @@ pub fn FilterList(data: Data) -> NodeId {
                     <Select
                         options={view! {
                             <ForEach keys={field_keys}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let label = create_memo(move || {
                                         names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
                                     });
                                     view! {
                                         <ChoiceOption label={label} />
                                     }
-                                }}
+                                }
                             </ForEach>
                         }}
                         selected={None}

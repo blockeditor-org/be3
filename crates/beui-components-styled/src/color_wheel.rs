@@ -102,9 +102,7 @@ pub fn ColorWheel(
                 }}
                 on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >
-                {|handle: ColorWheelHandle| view! {
-                    <WheelFace handle model=Model::Hsv />
-                }}
+                |handle: ColorWheelHandle| <WheelFace handle model=Model::Hsv />
             </unstyled::ColorWheel>
         </Frame>
     }
@@ -159,9 +157,7 @@ pub fn OklchColorWheel(
                 }}
                 on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >
-                {|handle: ColorWheelHandle| view! {
-                    <WheelFace handle model=Model::Oklch />
-                }}
+                |handle: ColorWheelHandle| <WheelFace handle model=Model::Oklch />
             </unstyled::ColorWheel>
         </Frame>
     }

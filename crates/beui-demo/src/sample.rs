@@ -61,12 +61,10 @@ fn CodeBlock(source: String) -> NodeId {
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
                 <Text size=TextSize::Sm family=Family::Mono wrap=true>
                     <ForEach keys={tokens}>
-                        {move |(start, end, color): (usize, usize, Color32)| view! {
-                            <Span
+                        |(start, end, color): (usize, usize, Color32)| <Span
                                 text={source[start..end].to_owned()}
                                 color={TextColor::Custom(color)}
                             />
-                        }}
                     </ForEach>
                 </Text>
             </SelectableText>

@@ -95,12 +95,12 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
             {panel.call(view! {
                 <List spacing=0.0>
                     <ForEach keys>
-                        {move |index: usize| {
+                        |index: usize| {
                             let (cx, row) = (cx, row);
                             view! {
                                 <CompletionRow cx index row />
                             }
-                        }}
+                        }
                     </ForEach>
                 </List>
             })}

@@ -14,13 +14,11 @@ fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
                         <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
                     </Frame>
                     <ForEach keys={indices(20)}>
-                        {|index: usize| view! {
-                            <Text
+                        |index: usize| <Text
                                 string={format!("Row {index}")}
                                 color=Color32::WHITE
                                 font={FontId::proportional(20.0)}
                             />
-                        }}
                     </ForEach>
                 </Scroll>
             </List>

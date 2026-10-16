@@ -10,7 +10,7 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
-            <Container let:_size>
+            <Container>|_size|
             <DateTimeField
                 value=None
                 parts=DateTimeParts::Time

@@ -29,8 +29,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
                 <Loading @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
             </Show>
             <Show condition={loaded}>
-                {move || view! {
-                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <GridToolbar session={session} shown={chrome} />
                         <List
                             @sizing=ItemSize::Percent(100.0)
@@ -48,7 +47,6 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
                             </Sidebar>
                         </List>
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -147,7 +145,7 @@ fn GridCanvas(session: Session) -> NodeId {
     let editor = session.editor();
     view! {
         <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
+            |placed: ReadSignal<Rect>| {
                 let view = editor.canvas();
                 let world = editor.world();
                 let camera = create_memo(move || {
@@ -247,7 +245,7 @@ fn GridCanvas(session: Session) -> NodeId {
                                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                     <Canvas view={grid_view}>
                                         <ForEach keys={label_keys}>
-                                            {move |key: LabelKey| {
+                                            |key: LabelKey| {
                                                 let label = create_memo(move || {
                                                     labels.with(|labels| {
                                                         labels.iter().find(|label| label.key == key).cloned()
@@ -256,7 +254,7 @@ fn GridCanvas(session: Session) -> NodeId {
                                                 view! {
                                                     <GridLabel label={label} zoom={zoom} />
                                                 }
-                                            }}
+                                            }
                                         </ForEach>
                                     </Canvas>
                                 </CanvasItem>
@@ -264,7 +262,7 @@ fn GridCanvas(session: Session) -> NodeId {
                         </Interactive>
                     </Frame>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }

@@ -14,7 +14,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
             view! {
                 <List spacing=0.0>
                     <Show condition={shown}>
-                        {move || {
+                        || {
                             component("Outer", move || {
                                 on_cleanup(move || set_cleaned.update(|cleaned| cleaned.push("outer")));
                                 let inner = component("Inner", move || {
@@ -27,7 +27,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
                                     <Frame>{inner}</Frame>
                                 }
                             })
-                        }}
+                        }
                     </Show>
                 </List>
             }

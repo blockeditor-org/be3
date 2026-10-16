@@ -22,7 +22,7 @@ const CLIP_RADIUS: f32 = 4.0;
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
+            |placed: ReadSignal<Rect>| {
                 let fitted = placed;
                 create_effect(move || state.fit_timeline(fitted.get().width().max(1.0)));
 
@@ -176,8 +176,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
 
                 view! {
                     <DropTarget on_over={on_over} on_drop={on_drop}>
-                        {move |_: DropHandle| view! {
-                            <Interactive
+                        |_: DropHandle| <Interactive
                                 cursor=CursorIcon::Default
                                 on_press={on_press}
                                 on_scroll={on_scroll}
@@ -186,26 +185,24 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                             >
                                 <Canvas view={camera}>
                                     <ForEach keys={lane_keys}>
-                                        {move |lane: usize| {
+                                        |lane: usize| {
                                             let content = content;
                                             view! {
                                                 <LaneStrip lane content />
                                             }
-                                        }}
+                                        }
                                     </ForEach>
                                     <ForEach keys={ticks}>
-                                        {move |tick: Tick| view! {
-                                            <RulerTick tick />
-                                        }}
+                                        |tick: Tick| <RulerTick tick />
                                     </ForEach>
                                     <ForEach keys={rows}>
-                                        {move |row: Lane| {
+                                        |row: Lane| {
                                             let selected = selection.memo(Some(row.id));
                                             let scale = row_scale;
                                             view! {
                                                 <Clip state row selected scale />
                                             }
-                                        }}
+                                        }
                                     </ForEach>
                                     <DropMarker target={target} scale={pixels_per_frame} />
                                     <CanvasItem
@@ -218,10 +215,9 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                                     </CanvasItem>
                                 </Canvas>
                             </Interactive>
-                        }}
                     </DropTarget>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }
@@ -333,8 +329,7 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                     }));
                 }}
             >
-                {move |_: DragHandle| view! {
-                    <Interactive
+                |_: DragHandle| <Interactive
                         on_press={move |press: PointerPress| grabbing.set(Some(press.local))}
                     >
                         <Frame
@@ -360,7 +355,6 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                             </List>
                         </Frame>
                     </Interactive>
-                }}
             </Draggable>
         </CanvasItem>
     }

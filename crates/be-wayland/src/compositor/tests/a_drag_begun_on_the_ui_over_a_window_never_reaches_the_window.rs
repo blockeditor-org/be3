@@ -39,13 +39,9 @@ fn Covered(windows: Windows) -> NodeId {
             </Interactive>
             <List spacing=0.0>
                 <ForEach keys={ids}>
-                    {move |id: WindowId| {
-                        view! {
-                            <Frame width={SHOWN.x} height={SHOWN.y}>
+                    |id: WindowId| <Frame width={SHOWN.x} height={SHOWN.y}>
                                 <WindowView windows id occluders={vec![tab()]} />
                             </Frame>
-                        }
-                    }}
                 </ForEach>
             </List>
         </Layers>

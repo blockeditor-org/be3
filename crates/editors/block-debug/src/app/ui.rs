@@ -62,7 +62,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                         });
                     }}
                 >
-                    {move |face: TreeRowFace<String>| {
+                    |face: TreeRowFace<String>| {
                         let path = face.key;
                         let label = create_memo(move || {
                             rows.with(|rows| {
@@ -74,7 +74,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                         view! {
                             <Text style=TextStyle::CODE string={label} />
                         }
-                    }}
+                    }
                 </Tree>
             </List>
         </Frame>

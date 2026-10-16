@@ -20,13 +20,9 @@ fn Stacked(windows: Windows) -> NodeId {
     view! {
         <Layers>
             <ForEach keys={order}>
-                {move |id: WindowId| {
-                    view! {
-                        <Frame width={SHOWN.x} height={SHOWN.y}>
+                |id: WindowId| <Frame width={SHOWN.x} height={SHOWN.y}>
                             <WindowView windows id />
                         </Frame>
-                    }
-                }}
             </ForEach>
         </Layers>
     }

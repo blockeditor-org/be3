@@ -150,7 +150,7 @@ pub fn Popover(
                 <PopoverSurface label>
                     <List spacing=0.0>
                         <ShowKeepAlive condition={built}>
-                            {move || content.call(handle)}
+                            || { content.call(handle) }
                         </ShowKeepAlive>
                     </List>
                 </PopoverSurface>

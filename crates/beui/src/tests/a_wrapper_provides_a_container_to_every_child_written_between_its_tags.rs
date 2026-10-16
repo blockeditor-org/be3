@@ -10,7 +10,7 @@ const BREAKPOINT: f32 = 300.0;
 #[component]
 fn Page(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
     view! {
-        <Container let:_size>
+        <Container>|_size|
             <List spacing=0.0 children={sections.call(())} />
         </Container>
     }

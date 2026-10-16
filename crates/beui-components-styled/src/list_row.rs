@@ -30,9 +30,7 @@ pub fn ListRow(
             on_click={on_click}
             on_activate={on_activate}
         >
-            {move |handle: ButtonHandle| view! {
-                <ListRowFace handle selected={face}>{children}</ListRowFace>
-            }}
+            |handle: ButtonHandle| <ListRowFace handle selected={face}>{children}</ListRowFace>
         </unstyled::ListRow>
     }
 }

@@ -10,7 +10,7 @@ fn arrow_keys_step_a_date_segment_and_keep_the_day_in_its_month() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
-            <Container let:_size>
+            <Container>|_size|
             <DateTimeField
                 value={Some(DateTime::new(Date::new(2026, 12, 31), Time::new(9, 15)))}
                 parts=DateTimeParts::Date

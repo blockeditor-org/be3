@@ -23,8 +23,7 @@ fn scrolling() -> Document {
                     >
                         <Scroll @test_id="scroll">
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>
-                                {|row: usize| view! {
-                                    <Frame height=10.0>
+                                |row: usize| <Frame height=10.0>
                                         <Frame
                                             width=30.0
                                             height=6.0
@@ -32,7 +31,6 @@ fn scrolling() -> Document {
                                             fill={SHADES[row % SHADES.len()]}
                                         />
                                     </Frame>
-                                }}
                             </ForEach>
                         </Scroll>
                     </Frame>

@@ -198,7 +198,7 @@ pub fn TextInput(
                     false => ItemSize::Percent(100.0),
                 }}
             >
-                {move |open: Callback<Option<Rect>>| {
+                |open: Callback<Option<Rect>>| {
                     opener.with(|opener| opener.set(Some(open)));
                     match content {
                         Some(build) => build.call(TextInputHandle {
@@ -211,7 +211,7 @@ pub fn TextInput(
                         }),
                         None => field,
                     }
-                }}
+                }
             </TextContextMenu>
         }
     };

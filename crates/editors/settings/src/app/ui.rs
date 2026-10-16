@@ -89,7 +89,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                             >
                                 <List spacing=ROW_SPACING>
                                     <ForEach keys={profiles}>
-                                        {move |profile: Uuid| {
+                                        |profile: Uuid| {
                                             let label = create_memo(move || {
                                                 children
                                                     .get()
@@ -118,7 +118,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                                     }}
                                                 />
                                             }
-                                        }}
+                                        }
                                     </ForEach>
                                     <Button
                                         label="New settings profile"

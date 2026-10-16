@@ -191,11 +191,7 @@ pub(crate) fn Game(
     view! {
         <List spacing=0.0>
             <Keyed value={snapshot} key={|snapshot: GameSnapshot| snapshot.shape()}>
-                {move |snapshot: ReadSignal<GameSnapshot>| {
-                    view! {
-                        <GameShape editor game snapshot @sizing=ItemSize::Percent(100.0) />
-                    }
-                }}
+                |snapshot: ReadSignal<GameSnapshot>| <GameShape editor game snapshot @sizing=ItemSize::Percent(100.0) />
             </Keyed>
         </List>
     }
@@ -326,7 +322,7 @@ fn GamePlay(
     view! {
         <List spacing=0.0>
             <Keyed value={chrome} key={|shown: bool| shown}>
-                {move |chrome: ReadSignal<bool>| {
+                |chrome: ReadSignal<bool>| {
                                         match chrome.get_untracked() {
                         true => view! {
                             <List
@@ -360,7 +356,7 @@ fn GamePlay(
                             />
                         },
                     }
-                }}
+                }
             </Keyed>
             <Banner anchor={banner_anchor} table />
         </List>
@@ -398,7 +394,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                             <Select
                                 options={view! {
                                     <ForEach keys={seat_keys}>
-                                        {move |seat: usize| {
+                                        |seat: usize| {
                                             let label = create_memo(move || {
                                                 names.with(|names| {
                                                     names.get(seat).cloned().unwrap_or_default()
@@ -407,7 +403,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                                             view! {
                                                 <ChoiceOption label />
                                             }
-                                        }}
+                                        }
                                     </ForEach>
                                 }}
                                 selected={playing}
@@ -439,11 +435,7 @@ fn Controls(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <ForEach keys={controls}>
-                {move |action: Action| {
-                    view! {
-                        <ControlButton game action editable={editable} />
-                    }
-                }}
+                |action: Action| <ControlButton game action editable={editable} />
             </ForEach>
         </List>
     }
@@ -468,18 +460,16 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Show condition={asking}>
-                {move || view! {
-                    <IconButton
+                <IconButton
                         glyph={glyph.to_owned()}
                         label={label.clone()}
                         disabled={asking_disabled}
                         @test_id={format!("game.control.{index}")}
                         on_click={move || ask.set(true)}
                     />
-                }}
             </Show>
             <Show condition={confirming}>
-                {move || { let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
+                || { let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Text style=TextStyle::CAPTION string={question} />
                         <IconButton
@@ -496,7 +486,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                             on_click={move || cancel.set(false)}
                         />
                     </List>
-                } }}
+                } }
             </Show>
         </List>
     }
@@ -571,7 +561,7 @@ fn ChoiceButtons(play: Play) -> NodeId {
     view! {
         <List spacing=6.0>
             <ForEach keys={keys}>
-                {move |action: Action| {
+                |action: Action| {
                     let index = action.index;
                     view! {
                         <Button
@@ -581,7 +571,7 @@ fn ChoiceButtons(play: Play) -> NodeId {
                             on_click={move || play.choose(&action)}
                         />
                     }
-                }}
+                }
             </ForEach>
             <Button
                 label="Cancel"
@@ -653,7 +643,7 @@ pub(crate) fn GameCreation(
         <Frame padding=14.0>
             <List spacing=10.0 align=Align::Start>
                 <ForEach keys={games}>
-                    {move |game: StagedChoice| {
+                    |game: StagedChoice| {
                         let index = game.index;
                         let (variant, disabled, caption) = match &game.state {
                             StagedState::Loading => (ButtonVariant::Secondary, true, String::new()),
@@ -685,7 +675,7 @@ pub(crate) fn GameCreation(
                                 </Show>
                             </List>
                         }
-                    }}
+                    }
                 </ForEach>
                 <Button
                     label="Choose game module…"

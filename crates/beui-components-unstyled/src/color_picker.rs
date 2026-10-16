@@ -392,9 +392,7 @@ pub fn Swatches(
         <Choice
             options={view! {
                 <ForEach keys={indices}>
-                    {move |index: usize| view! {
-                        <ChoiceOption label={labels[index].clone()} />
-                    }}
+                    |index: usize| <ChoiceOption label={labels[index].clone()} />
                 </ForEach>
             }}
             selected={chosen}
@@ -407,10 +405,10 @@ pub fn Swatches(
                 }
             }}
         >
-            {move |option: ChoiceOptionHandle| {
+            |option: ChoiceOptionHandle| {
                 let color = swatches[option.index];
                 content.call(SwatchHandle { color, option })
-            }}
+            }
         </Choice>
     }
 }

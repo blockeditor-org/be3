@@ -198,7 +198,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <Dynamic value={mode}>
-                                {move |shown: FolderView| {
+                                |shown: FolderView| {
                                     match shown {
                                         FolderView::List => view! {
                                             <EntryRows cells={cells} />
@@ -218,7 +218,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                                             />
                                         },
                                     }
-                                }}
+                                }
                             </Dynamic>
                         </Scroll>
                     </List>
@@ -236,7 +236,7 @@ fn EntryRows(cells: Cells) -> NodeId {
     view! {
         <List spacing=2.0>
             <ForEach keys={keys}>
-                {move |key: Uuid| {
+                |key: Uuid| {
                     let entry = cells.entry(key);
                     let open = cells.open(entry);
                     let set_selected = cells.set_selected;
@@ -259,7 +259,7 @@ fn EntryRows(cells: Cells) -> NodeId {
                             </List>
                         </ListRow>
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -273,7 +273,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Start spacing=TILE_SPACING>
             <ForEach keys={keys}>
-                {move |key: Uuid| {
+                |key: Uuid| {
                     let entry = cells.entry(key);
                     let open = cells.open(entry);
                     let set_selected = cells.set_selected;
@@ -303,7 +303,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
                             </Frame>
                         </ListRow>
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

@@ -26,7 +26,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                                     keys={indices(ROWS)}
                                     item_size=VIRTUAL_ITEM_HEIGHT
                                 >
-                                    {move |index: ReadSignal<usize>| {
+                                    |index: ReadSignal<usize>| {
                                         create_binding(move || {
                                             let index = index.get();
                                             set_built.update(|built| built.push(index));
@@ -36,7 +36,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                                                 <Spacer />
                                             </Frame>
                                         }
-                                    }}
+                                    }
                                 </VirtualList>
                             </List>
                             <Frame height=FOOTER>

@@ -35,13 +35,11 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
             <List spacing=0.0>
                 <Text string={create_memo(move || title.get())} />
                 <ForEach keys={rows}>
-                    {|row: u32| view! {
-                        <styled::Button
+                    |row: u32| <styled::Button
                             variant=styled::ButtonVariant::Primary
                             label={format!("Row {row}")}
                             on_click={|| {}}
                         />
-                    }}
                 </ForEach>
                 <Show condition={panel}>
                     <List spacing=0.0>

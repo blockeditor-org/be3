@@ -247,7 +247,7 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                     on_click={move || review.seek(forward_frame.get_untracked() + 1)}
                 />
                 <Dynamic value={count}>
-                    {move |count: usize| {
+                    |count: usize| {
                         let at = at;
                         view! {
                             <Slider
@@ -260,12 +260,11 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                                 }}
                             />
                         }
-                    }}
+                    }
                 </Dynamic>
                 <Text style=TextStyle::CAPTION string={position} />
                 <Show condition={differs}>
-                    {move || view! {
-                        <Button
+                    <Button
                             label="Changed frame"
                             glyph={ICON_DIFFERENCE.to_owned()}
                             variant=ButtonVariant::Secondary
@@ -276,7 +275,6 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                                 }
                             }}
                         />
-                    }}
                 </Show>
             </List>
         </Frame>

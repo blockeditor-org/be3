@@ -293,9 +293,7 @@ pub fn Launcher(
                                 scrollbar={scrollbar_style()}
                             >
                                 <ForEach keys={rows}>
-                                    {move |row: Row| view! {
-                                        <LauncherRow state={state} items={items.clone()} row />
-                                    }}
+                                    |row: Row| <LauncherRow state={state} items={items.clone()} row />
                                 </ForEach>
                             </unstyled::Scroll>
                         </List>

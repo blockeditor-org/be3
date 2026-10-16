@@ -88,7 +88,7 @@ pub fn Toasts(
             <Frame padding=MARGIN width={WIDTH + 2.0 * MARGIN}>
                 <List spacing=SPACING>
                     <ForEach keys={toasts}>
-                        {move |toast: Toast| {
+                        |toast: Toast| {
                             let on_dismiss = on_dismiss;
                             let on_action = on_action;
                             let on_activate = on_activate;
@@ -105,7 +105,7 @@ pub fn Toasts(
                                     on_activate={move |id: u64| on_activate.call(id)}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                 </List>
             </Frame>
@@ -247,7 +247,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, on_action: Callback<(u64, St
             spacing=SPACING
         >
             <ForEach keys={actions}>
-                {move |action: ToastAction| {
+                |action: ToastAction| {
                     let on_action = on_action;
                     let key = action.key.clone();
                     view! {
@@ -258,7 +258,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, on_action: Callback<(u64, St
                             on_click={move || on_action.call((id, key.clone()))}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

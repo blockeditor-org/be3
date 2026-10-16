@@ -10,7 +10,7 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
         view! {
             <List spacing=0.0>
                 <ForEach keys={keys}>
-                    {move |key: usize| {
+                    |key: usize| {
                         let sizing = create_memo(move || match shown.get() == key {
                             true => ItemSize::Percent(100.0),
                             false => ItemSize::Fixed(0.0),
@@ -18,7 +18,7 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
                         view! {
                             <Frame @sizing={sizing} @test_id={format!("row.{key}")} />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         }

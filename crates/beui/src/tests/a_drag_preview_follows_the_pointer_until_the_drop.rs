@@ -11,9 +11,7 @@ fn a_drag_preview_follows_the_pointer_until_the_drop() {
                     <Frame @test_id="ghost" width=20.0 height=20.0 />
                 }}
             >
-                {|_: DragHandle| view! {
-                    <Frame width=40.0 height=40.0 />
-                }}
+                |_: DragHandle| <Frame width=40.0 height=40.0 />
             </Draggable>
         }]
     });

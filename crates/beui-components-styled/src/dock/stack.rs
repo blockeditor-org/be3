@@ -57,15 +57,13 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={away}>
-                        {move || view! {
-                            <IconButton
+                        <IconButton
                                 @test_id={"dock.back"}
                                 glyph=ICON_ARROW_BACK
                                 label="Back"
                                 variant=ButtonVariant::Ghost
                                 on_click={back}
                             />
-                        }}
                     </Show>
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
@@ -92,13 +90,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={counted}>
-                        {move || view! {
-                            <DockTabCount
+                        <DockTabCount
                                 count={others}
                                 label={switch_label}
                                 on_click={open_switcher}
                             />
-                        }}
                     </Show>
                 </List>
             </Frame>
@@ -182,16 +178,13 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                             row_spacing=CARD_SPACING
                         >
                             <ForEach keys={tabs}>
-                                {move |tab: TabId| view! {
-                                    <DockSwitcherCard handle={card.call(tab)} />
-                                }}
+                                |tab: TabId| <DockSwitcherCard handle={card.call(tab)} />
                             </ForEach>
                         </Grid>
                     </List>
                 </Frame>
                 <Show condition={homed}>
-                    {move || view! {
-                        <Frame padding=SHEET_PADDING>
+                    <Frame padding=SHEET_PADDING>
                             <ActionRow
                                 @test_id={"dock.switcher.home"}
                                 label={home_title}
@@ -199,7 +192,6 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                                 on_click={go_home}
                             />
                         </Frame>
-                    }}
                 </Show>
             </List>
         </ModalSheet>
@@ -249,15 +241,13 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     </Frame>
                 </ListRow>
                 <Show condition={closable}>
-                    {move || view! {
-                        <IconButton
+                    <IconButton
                             @test_id={format!("dock.switcher.close.{id}")}
                             glyph=ICON_CLOSE
                             label="Close tab"
                             variant=ButtonVariant::Ghost
                             on_click={close}
                         />
-                    }}
                 </Show>
             </List>
         </Frame>

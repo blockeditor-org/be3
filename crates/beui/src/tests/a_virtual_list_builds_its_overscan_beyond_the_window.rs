@@ -17,13 +17,9 @@ fn a_virtual_list_builds_its_overscan_beyond_the_window() {
                             item_size=VIRTUAL_ITEM_HEIGHT
                             overscan={VIRTUAL_ITEM_HEIGHT * 2.0}
                         >
-                            {move |_: ReadSignal<usize>| {
-                                view! {
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                            |_: ReadSignal<usize>| <Frame height=VIRTUAL_ITEM_HEIGHT>
                                         <Spacer />
                                     </Frame>
-                                }
-                            }}
                         </VirtualList>
                     </Offset>
                 </List>

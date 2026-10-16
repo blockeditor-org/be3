@@ -13,11 +13,9 @@ fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
         view! {
             <List spacing=0.0>
                 <Popover label="Filters">
-                    {move |_: PopoverHandle| view! {
-                        <Frame @node_ref={&content}>
+                    |_: PopoverHandle| <Frame @node_ref={&content}>
                             <Checkbox label="Only starred" checked=false />
                         </Frame>
-                    }}
                 </Popover>
             </List>
         }

@@ -1228,7 +1228,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     } = config;
     view! {
         <PlacementBuilder>
-            {move |dock_rect: ReadSignal<Rect>| {
+            |dock_rect: ReadSignal<Rect>| {
                 let mode = create_memo(move || mode.get());
                 let (dialog_focus, set_dialog_focus) = create_signal(None);
                 let (attention, set_attention) = create_signal((0, None));
@@ -1358,7 +1358,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                         <Frame @sizing=ItemSize::Percent(100.0) padding=inset>
                             <List spacing=0.0>
                                 <Dynamic value={mode}>
-                                    {move |mode: DockMode| {
+                                    |mode: DockMode| {
                                         match mode {
                                             DockMode::Tiled => view! {
                                                 <DockTiles dock @sizing=ItemSize::Percent(100.0) />
@@ -1367,7 +1367,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                                                 <DockStack dock @sizing=ItemSize::Percent(100.0) />
                                             },
                                         }
-                                    }}
+                                    }
                                 </Dynamic>
                             </List>
                         </Frame>
@@ -1376,7 +1376,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                         <DockSwitchView dock={dock} />
                     </List>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }
@@ -1654,10 +1654,9 @@ fn DockTiles(dock: State) -> NodeId {
             on_over={move |point: Option<(DockDragged, DragPoint)>| over.drag_over(point.map(|(_, point)| point))}
             on_drop={move |(dragged, point): (DockDragged, DragPoint)| dropped.drop_at(dragged, point)}
         >
-            {move |_: DropHandle| view! {
-                <List spacing=0.0>
+            |_: DropHandle| <List spacing=0.0>
                     <Dynamic value={main}>
-                        {move |surface: SurfaceId| {
+                        |surface: SurfaceId| {
                             let dock = panes;
                             view! {
                                 <DockTreeView
@@ -1666,19 +1665,18 @@ fn DockTiles(dock: State) -> NodeId {
                                     @sizing=ItemSize::Percent(100.0)
                                 />
                             }
-                        }}
+                        }
                     </Dynamic>
                     <ForEach keys={windows}>
-                        {move |surface: SurfaceId| {
+                        |surface: SurfaceId| {
                             let dock = floating;
                             view! {
                                 <DockWindowView dock surface />
                             }
-                        }}
+                        }
                     </ForEach>
                     <DockDragLayer dock />
                 </List>
-            }}
         </DropTarget>
     }
 }
@@ -1779,10 +1777,8 @@ fn DockTreeView(
     });
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
-                view! {
-                    <PlacementBuilder>
-                        {move |placement: ReadSignal<Rect>| {
+            |size: ReadSignal<Vec2>| <PlacementBuilder>
+                        |placement: ReadSignal<Rect>| {
                         let thickness = dock.thickness;
                         let state = dock.state;
                         let layout = create_memo(move || {
@@ -1811,7 +1807,7 @@ fn DockTreeView(
                         view! {
                             <Canvas @node_ref=&canvas>
                                 <ForEach keys={leaves}>
-                                    {move |leaf: LeafId| {
+                                    |leaf: LeafId| {
                                         let dock = panels;
                                         let layout = panel_layout;
                                         let rect = create_memo(move || {
@@ -1827,10 +1823,10 @@ fn DockTreeView(
                                                 <DockPanelView dock tree leaf hoisted />
                                             </CanvasItem>
                                         }
-                                    }}
+                                    }
                                 </ForEach>
                                 <ForEach keys={splits}>
-                                    {move |split: SplitId| {
+                                    |split: SplitId| {
                                         let dock = splitters;
                                         let layout = splitter_layout;
                                         let rect = create_memo(move || {
@@ -1847,7 +1843,7 @@ fn DockTreeView(
                                                 <DockSplitterView dock tree split />
                                             </CanvasItem>
                                         }
-                                    }}
+                                    }
                                 </ForEach>
                                 <Show condition={marked_surface.is_some()}>
                                     <DockDropMarker
@@ -1858,10 +1854,8 @@ fn DockTreeView(
                                 </Show>
                             </Canvas>
                         }
-                        }}
+                        }
                     </PlacementBuilder>
-                }
-            }}
         </LayoutBuilder>
     }
 }
@@ -1944,7 +1938,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         >
             <List spacing=0.0>
                 <Dynamic value={vertical}>
-                    {move |vertical: bool| {
+                    |vertical: bool| {
                         let dock = built;
                         let bar = (!hoisted).then(|| DockBarHandle {
                             floating,
@@ -1979,7 +1973,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         view! {
                             <DockChrome dock parts @sizing=ItemSize::Percent(100.0) />
                         }
-                    }}
+                    }
                 </Dynamic>
             </List>
         </Interactive>
@@ -2016,11 +2010,9 @@ fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) 
                 false => carried.end_drag(),
             }}
         >
-            {move |_: DragHandle| view! {
-                <GripMenu menu vertical toggle={move || toggled.toggle_vertical(leaf)}>
+            |_: DragHandle| <GripMenu menu vertical toggle={move || toggled.toggle_vertical(leaf)}>
                     {face}
                 </GripMenu>
-            }}
         </Draggable>
     }
 }
@@ -2033,7 +2025,7 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
     view! {
         <List spacing=0.0>
             <Dynamic value={group}>
-                {move |group: Option<GroupId>| {
+                |group: Option<GroupId>| {
                     let inset = dock.group_inset;
                     match group {
                         Some(group) => view! {
@@ -2045,7 +2037,7 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
                             <DockTabBody dock leaf @sizing=ItemSize::Percent(100.0) />
                         },
                     }
-                }}
+                }
             </Dynamic>
         </List>
     }
@@ -2121,13 +2113,13 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 @node_ref=&tab_list
                 options={view! {
                     <ForEach keys={entries}>
-                        {move |entry: Entry| {
+                        |entry: Entry| {
                             let dock = labels;
                             let label = create_memo(move || dock.entry_title(entry));
                             view! {
                                 <ChoiceOption label={label} />
                             }
-                        }}
+                        }
                     </ForEach>
                 }}
                 selected={selected}
@@ -2151,7 +2143,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     }
                 }}
             >
-                {move |handle: ChoiceOptionHandle| {
+                |handle: ChoiceOptionHandle| {
                     let dock = faces;
                     let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
                     match entry {
@@ -2162,7 +2154,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                             <Frame />
                         },
                     }
-                }}
+                }
             </Choice>
         </Scroll>
     }
@@ -2307,8 +2299,7 @@ fn DockTabView(
                 false => carried.end_drag(),
             }}
         >
-            {move |_: DragHandle| view! {
-                <TabMenu
+            |_: DragHandle| <TabMenu
                     menu
                     grouped
                     floating
@@ -2327,7 +2318,6 @@ fn DockTabView(
                 >
                     {face}
                 </TabMenu>
-            }}
         </Draggable>
     }
 }
@@ -2791,7 +2781,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                     >
                                         <List spacing=0.0>
                                             <Dynamic value={vertical}>
-                                                {move |vertical: bool| {
+                                                |vertical: bool| {
                                                     let dock = built;
                                                     let toggled = dock;
                                                     let grip_face = dock.grip.call(DockGripHandle {
@@ -2861,7 +2851,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                             @sizing=ItemSize::Percent(100.0)
                                                         />
                                                     }
-                                                }}
+                                                }
                                             </Dynamic>
                                         </List>
                                     </Interactive>
@@ -2871,7 +2861,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                         </Frame>
                     </CanvasItem>
                     <ForEach keys={GRIPS.to_vec()}>
-                        {move |(grip, upright): (Grip, bool)| {
+                        |(grip, upright): (Grip, bool)| {
                             let dock = grips;
                             let rect = grip_rect;
                             let handle = create_memo(move || grip.rect(upright, size.get()));
@@ -2911,7 +2901,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                     ></Interactive>
                                 </CanvasItem>
                             }
-                        }}
+                        }
                     </ForEach>
                 </Canvas>
             </Frame>

@@ -138,7 +138,7 @@ pub(crate) fn ViewerBar(
 fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 let natural = create_memo(move || {
                     picture.get().map_or(Vec2::ZERO, |image| image.size())
                 });
@@ -173,8 +173,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                 view! {
                     <List spacing=8.0>
                         <Show condition={fitted}>
-                            {move || view! {
-                                <Interactive
+                            <Interactive
                                     @sizing=ItemSize::Percent(100.0)
                                     cursor={cursor}
                                     on_click={zoom_in}
@@ -185,11 +184,9 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                                         smooth={shrunk}
                                     />
                                 </Interactive>
-                            }}
                         </Show>
                         <Show condition={zoomed}>
-                            {move || view! {
-                                <Scroll @sizing=ItemSize::Percent(100.0)>
+                            <Scroll @sizing=ItemSize::Percent(100.0)>
                                     <Scroll direction=Direction::Horizontal>
                                         <Interactive
                                             cursor=CursorIcon::PointingHand
@@ -205,7 +202,6 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                                         </Interactive>
                                     </Scroll>
                                 </Scroll>
-                            }}
                         </Show>
                         <Text
                             style=TextStyle::CAPTION
@@ -215,7 +211,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                         />
                     </List>
                 }
-            }}
+            }
         </LayoutBuilder>
     }
 }

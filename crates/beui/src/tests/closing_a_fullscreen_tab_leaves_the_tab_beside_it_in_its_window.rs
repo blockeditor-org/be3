@@ -29,11 +29,9 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
                     >
                         <DockPane id="program">
                             <ForEach keys>
-                                {move |id: u64| view! {
-                                    <DockTab id title={format!("Tab {id}")}>
+                                |id: u64| <DockTab id title={format!("Tab {id}")}>
                                         <Panel id />
                                     </DockTab>
-                                }}
                             </ForEach>
                         </DockPane>
                     </DockWindow>
@@ -89,7 +87,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
 fn Panel(id: u64) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |rect: ReadSignal<Rect>| {
+            |rect: ReadSignal<Rect>| {
                 let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
                 view! {
                     <Layers>
@@ -99,7 +97,7 @@ fn Panel(id: u64) -> NodeId {
                         </Overlay>
                     </Layers>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }

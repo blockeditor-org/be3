@@ -106,7 +106,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={panel_shown}>
-                {move || {
+                || {
                     let (editor, selected, set_selected, set_open) = panel;
                     view! {
                         <Sidebar
@@ -117,7 +117,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                             set_open
                         />
                     }
-                }}
+                }
             </Show>
             <Show condition={rail_shown}>
                 <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) set_open={rail_open} />
@@ -189,9 +189,7 @@ fn Sidebar(
                 />
                 <List spacing=4.0>
                     <ForEach keys={card_indices()}>
-                        {move |index: usize| view! {
-                            <FocusRow index editor={editor} set_selected={set_selected} />
-                        }}
+                        |index: usize| <FocusRow index editor={editor} set_selected={set_selected} />
                     </ForEach>
                 </List>
                 <Separator />
@@ -251,9 +249,7 @@ fn Stage(
     view! {
         <Canvas view={editor.canvas()}>
             <ForEach keys={card_indices()}>
-                {move |index: usize| view! {
-                    <CardView index scale={scale} selected={selected} set_selected={set_selected} />
-                }}
+                |index: usize| <CardView index scale={scale} selected={selected} set_selected={set_selected} />
             </ForEach>
         </Canvas>
     }

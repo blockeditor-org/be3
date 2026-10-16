@@ -37,11 +37,9 @@ pub fn ToggleButton(
             disabled
             on_change={on_change}
         >
-            {move |handle: ToggleHandle| view! {
-                <Tooltip label={handle.tooltip} disabled={named}>
+            |handle: ToggleHandle| <Tooltip label={handle.tooltip} disabled={named}>
                     <ToggleButtonFace handle icon_only />
                 </Tooltip>
-            }}
         </Toggle>
     }
 }

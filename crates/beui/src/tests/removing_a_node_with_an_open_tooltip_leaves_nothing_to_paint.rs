@@ -16,8 +16,7 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
                     <Text string="remove" />
                 </Button>
                 <ForEach keys={rows}>
-                    {|row: i64| view! {
-                        <Tooltip
+                    |row: i64| <Tooltip
                             label="Add a root block"
                             delay={Duration::ZERO}
                             content={move |handle: TooltipHandle| {
@@ -28,7 +27,6 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
                         >
                             <Text @test_id={format!("row.{row}")} string="described" />
                         </Tooltip>
-                    }}
                 </ForEach>
             </List>
         }

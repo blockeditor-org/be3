@@ -69,7 +69,7 @@ pub(crate) fn ChromeRoot(
     let phone = create_memo(move || phone.get());
     view! {
         <Container>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 let narrow = narrower_than(NARROW_WIDTH);
                 let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
                 let (open, set_open) = create_signal(false);
@@ -112,14 +112,11 @@ pub(crate) fn ChromeRoot(
                             </Frame>
                         </Show>
                         <Show condition={listed}>
-                            {move || view! {
-                                <PanelItem set_open={opener} />
-                            }}
+                            <PanelItem set_open={opener} />
                         </Show>
                         {content} @sizing=ItemSize::Percent(100.0)
                         <Show condition={sheet}>
-                            {move || view! {
-                                <Sheet
+                            <Sheet
                                     extent={extent}
                                     open={sheet}
                                     rest={SHEET_STOPS[0]}
@@ -127,22 +124,17 @@ pub(crate) fn ChromeRoot(
                                 >
                                     <List spacing=0.0>
                                         <ForEach keys={panels}>
-                                            {move |panel: NodeId| {
-                                                view! {
-                                                    <Portal
+                                            |panel: NodeId| <Portal
                                                         @sizing=ItemSize::Percent(100.0)
                                                         node={Some(panel)}
                                                     />
-                                                }
-                                            }}
                                         </ForEach>
                                     </List>
                                 </Sheet>
-                            }}
                         </Show>
                     </List>
                 }
-            }}
+            }
         </Container>
     }
 }
@@ -281,8 +273,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
         <Frame visible={shown} fill=ColorRole::Surface>
             <List spacing=0.0>
                 <Show condition={roomy}>
-                    {move || view! {
-                        <Frame
+                    <Frame
                             padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
@@ -294,11 +285,9 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                    }}
                 </Show>
                 <Show condition={narrow}>
-                    {move || view! {
-                        <Frame padding={Sides::vertical(BAND_PADDING_VERTICAL)}>
+                    <Frame padding={Sides::vertical(BAND_PADDING_VERTICAL)}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Scroll
                                     @sizing=ItemSize::Percent(100.0)
@@ -315,7 +304,6 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                    }}
                 </Show>
                 <Separator />
             </List>

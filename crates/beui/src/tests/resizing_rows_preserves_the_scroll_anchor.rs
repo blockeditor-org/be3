@@ -19,14 +19,12 @@ fn resizing_rows_preserves_the_scroll_anchor() {
                     on_change={move |position| set_reported.set(Some(position))}
                 >
                     <ForEach keys={indices(rows.len())}>
-                        {move |index: usize| view! {
-                            <Frame
+                        |index: usize| <Frame
                                 @node_ref={&rows[index]}
                                 padding={Sides::symmetric(0.0, 10.0 + (index % 3) as f32)}
                             >
                                 <Spacer />
                             </Frame>
-                        }}
                     </ForEach>
                 </Scroll>
             }

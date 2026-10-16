@@ -33,11 +33,7 @@ pub fn PickerDialogs(workspace: Workspace) -> NodeId {
     view! {
         <List spacing=0.0>
             <ForEach keys={ids}>
-                {move |pick: u64| {
-                    view! {
-                        <PickerDialog workspace pick />
-                    }
-                }}
+                |pick: u64| <PickerDialog workspace pick />
             </ForEach>
         </List>
     }
@@ -218,62 +214,54 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
             <Frame height=height>
                 <List spacing=8.0>
                     <Show condition={tiling}>
-                        {move || view! {
-                            <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
+                        <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                                 <List spacing=16.0>
                                     <Show condition={no_sections}>
                                         <Text style=TextStyle::CAPTION string={tab_empty} />
                                     </Show>
                                     <ForEach keys={section_keys}>
-                                        {move |key: String| {
+                                        |key: String| {
                                             let section = create_memo(move || {
                                                 sections.get().into_iter().find(|section| section.key == key)
                                             });
                                             view! {
                                                 <TileSectionView act={tile_act} section />
                                             }
-                                        }}
+                                        }
                                     </ForEach>
                                 </List>
                             </PickerArea>
-                        }}
                     </Show>
                     <Show condition={linking}>
-                        {move || view! {
-                            <TextInput
+                        <TextInput
                                 value={search}
                                 placeholder="Search by name or UUID"
                                 label="Search"
                                 @test_id={"picker.search"}
                                 on_change={move |value: String| search_act.call(PickAction::Search(value))}
                             />
-                        }}
                     </Show>
                     <Show condition={importing}>
-                        {move || view! {
-                            <ImportArea held act={import_act} />
-                        }}
+                        <ImportArea held act={import_act} />
                     </Show>
                     <Show condition={linking}>
-                        {move || view! {
-                            <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
+                        <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                                 <List spacing=0.0>
                                     <Show condition={no_links}>
                                         <Text style=TextStyle::CAPTION string={empty} />
                                     </Show>
                                     <ForEach keys={link_keys}>
-                                        {move |block: Uuid| {
+                                        |block: Uuid| {
                                             let link = create_memo(move || {
                                                 links.get().into_iter().find(|link| link.id == block)
                                             });
                                             view! {
                                                 <LinkButton act={link_act} link />
                                             }
-                                        }}
+                                        }
                                     </ForEach>
                                 </List>
                             </PickerArea>
-                        }}
                     </Show>
                 </List>
             </Frame>
@@ -295,8 +283,7 @@ fn ImportArea(held: Memo<Option<Pick>>, act: Act) -> NodeId {
                 string="Add a block and everything inside it from a .block file. The files pane saves one with Export as, then Block file."
             />
             <Show condition={ready}>
-                {move || view! {
-                    <List direction=Direction::Horizontal spacing=8.0>
+                <List direction=Direction::Horizontal spacing=8.0>
                         <Button
                             label="Choose a block file"
                             glyph={ICON_UPLOAD_FILE.to_owned()}
@@ -305,15 +292,12 @@ fn ImportArea(held: Memo<Option<Pick>>, act: Act) -> NodeId {
                             on_click={move || act.call(PickAction::Import)}
                         />
                     </List>
-                }}
             </Show>
             <Show condition={waiting}>
-                {move || view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner />
                         <Text style=TextStyle::CAPTION string="Importing..." />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -325,14 +309,14 @@ fn PickerArea(scrolls: bool, children: Child) -> NodeId {
     view! {
         <List spacing=0.0>
             <Dynamic value={scrolls}>
-                {move |scrolls: bool| match scrolls {
+                |scrolls: bool| { match scrolls {
                     true => view! {
                         <Scroll @sizing=ItemSize::Percent(100.0)>{children}</Scroll>
                     },
                     false => view! {
                         <List @sizing=ItemSize::Intrinsic spacing=0.0>{children}</List>
                     },
-                }}
+                } }
             </Dynamic>
         </List>
     }
@@ -373,8 +357,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <List spacing=8.0>
+                <List spacing=8.0>
                         <Text style=TextStyle::CAPTION string="Name" />
                         <TextInput
                             @test_id={"picker.name"}
@@ -386,7 +369,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
                         <Text style=TextStyle::CAPTION string="Location" />
                         <Scroll direction=Direction::Horizontal>
                             <ForEach keys={keys}>
-                                {move |parent: BlockParent| {
+                                |parent: BlockParent| {
                                     let place = create_memo(move || {
                                         places.get().into_iter().find(|place| place.parent == parent)
                                     });
@@ -399,12 +382,11 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
                                             place
                                         />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </Scroll>
                         <Text style=TextStyle::CAPTION string="Choose a type to create it" />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -473,14 +455,14 @@ fn TileSectionView(act: Act, section: Memo<Option<TileSection>>) -> NodeId {
             </List>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
                 <ForEach keys={keys}>
-                    {move |key: String| {
+                    |key: String| {
                         let tile = create_memo({ let key = key.clone(); move || {
                             tiles.get().into_iter().find(|tile| tile_key(tile) == key)
                         } });
                         view! {
                             <TileButton act={act} key tile />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         </List>
@@ -737,23 +719,19 @@ fn CreateBody(
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Show condition={options}>
-                    {move || view! {
-                        <Button
+                    <Button
                             label="Create"
                             variant=ButtonVariant::Primary
                             disabled={not_ready}
                             @test_id={"picker.create"}
                             on_click={move || act.call(PickAction::Create)}
                         />
-                    }}
                 </Show>
                 <Show condition={working}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
                             <Text style=TextStyle::CAPTION string={waiting_label} />
                         </List>
-                    }}
                 </Show>
                 <Button
                     label="Cancel"

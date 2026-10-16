@@ -12,7 +12,7 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
         view! {
             <List spacing=0.0>
                 <Dynamic value={tall}>
-                    {move |tall: bool| {
+                    |tall: bool| {
                         let height = match tall {
                             true => 200.0,
                             false => 100.0,
@@ -23,7 +23,7 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
                                 <Embed slot={slot} />
                             </Frame>
                         }
-                    }}
+                    }
                 </Dynamic>
             </List>
         }

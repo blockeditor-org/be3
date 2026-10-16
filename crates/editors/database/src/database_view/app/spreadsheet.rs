@@ -83,7 +83,7 @@ fn Grid(
                                 item_size=ROW_HEIGHT
                                 overscan={ROW_HEIGHT * 2.0}
                             >
-                                {move |index: ReadSignal<usize>| {
+                                |index: ReadSignal<usize>| {
                                     let (display, positions) = (display, positions);
                                     view! {
                                         <Row
@@ -93,7 +93,7 @@ fn Grid(
                                             index={index}
                                         />
                                     }
-                                }}
+                                }
                             </VirtualList>
                         </List>
                     </Interactive>
@@ -118,7 +118,7 @@ fn HeaderRow(data: Data) -> NodeId {
                 border={Border::new(ColorRole::Border).width(BORDER)}
             />
             <ForEach keys={keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let fields = fields;
                     let field = create_memo(move || {
                         fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
@@ -154,7 +154,7 @@ fn HeaderRow(data: Data) -> NodeId {
                             on_click={resort}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -241,7 +241,7 @@ fn Row(
                 <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
             <ForEach keys={keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let entry = entry;
                     let fields = fields;
                     let field = create_memo(move || {
@@ -250,7 +250,7 @@ fn Row(
                     view! {
                         <Cell data={data} entry={entry} field={field} row={index} />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

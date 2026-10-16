@@ -496,12 +496,12 @@ pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
     view! {
         <Layers>
             <ForEach keys={keys}>
-                {move |block: Uuid| {
+                |block: Uuid| {
                     provide_context(Nesting::root());
                     view! {
                         <TabFrame block top_bar=TopBar::Hidden />
                     }
-                }}
+                }
             </ForEach>
         </Layers>
     }
@@ -542,7 +542,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
         >
             <Layers>
                 <ForEach keys={keys}>
-                    {move |block: Uuid| {
+                    |block: Uuid| {
                         provide_context(Nesting::root());
                         crate::host::set_fullscreen(true);
                         on_cleanup(|| crate::host::set_fullscreen(false));
@@ -557,7 +557,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
                                 presented=true
                             />
                         }
-                    }}
+                    }
                 </ForEach>
             </Layers>
         </Overlay>
@@ -604,7 +604,7 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
     view! {
         <Layers>
             <ForEach keys={keys}>
-                {move |_key: RegionKey| {
+                |_key: RegionKey| {
                     let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                         return view! {
                             <Frame />
@@ -618,7 +618,7 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
                             child_view
                         />
                     }
-                }}
+                }
             </ForEach>
         </Layers>
     }
@@ -686,7 +686,7 @@ fn TabFrame(
                 reporter
             />
             <ForEach keys={shown}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let node = create_memo(move || {
                         portals.with(|held| {
                             held.iter().find(|(block, _)| *block == id).map(|(_, node)| *node)
@@ -695,7 +695,7 @@ fn TabFrame(
                     view! {
                         <Portal node={node} />
                     }
-                }}
+                }
             </ForEach>
         </Layers>
     }
@@ -861,9 +861,7 @@ fn BlockFrame(
     view! {
         <Layers>
             <ForEach keys={keys}>
-                {move |block: Uuid| {
-                    view! {
-                        <BlockFrameBody
+                |block: Uuid| <BlockFrameBody
                             block
                             chrome={chrome}
                             content={content}
@@ -872,8 +870,6 @@ fn BlockFrame(
                             passive={passive}
                             reporter={reporter}
                         />
-                    }
-                }}
             </ForEach>
         </Layers>
     }
@@ -952,7 +948,7 @@ fn BlockFrameBody(
     view! {
         <Layers>
             <Dynamic value={resolution}>
-                {move |resolution: Resolution| {
+                |resolution: Resolution| {
                     match resolution {
                         Resolution::NoAccess => {
                             let item = HostItem::Notice {
@@ -1015,7 +1011,7 @@ fn BlockFrameBody(
                             }
                         }
                     }
-                }}
+                }
             </Dynamic>
         </Layers>
     }
@@ -1052,7 +1048,7 @@ fn BlockFrameView(
     let revision = super::listen(&plugin_id.get());
     view! {
         <PlacementBuilder>
-            {move |rect: ReadSignal<Rect>| {
+            |rect: ReadSignal<Rect>| {
                 let read_only = !access.can_edit();
                 let placed = embedded || content.peek().is_some();
                 let pan_and_zoom = handle.pan_and_zoom && !placed;
@@ -1278,7 +1274,7 @@ fn BlockFrameView(
                         />
                     </Interactive>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }
@@ -1461,7 +1457,7 @@ fn HostedChild(
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
                     <ForEach keys={keys}>
-                        {move |(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
+                        |(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
                             let reporter = reporter_for(parent, region, key, within);
                             match kind {
                                 Kind::Missing | Kind::Unavailable => view! {
@@ -1564,7 +1560,7 @@ fn HostedChild(
                                     }
                                 }
                             }
-                        }}
+                        }
                     </ForEach>
                 </Layers>
             </CanvasItem>
@@ -1734,7 +1730,7 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
                 <HostItemFace content={label} />
             </Show>
             <ForEach keys={keys}>
-                {move |_key: RegionKey| {
+                |_key: RegionKey| {
                     let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                         return view! {
                             <Frame />
@@ -1750,7 +1746,7 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
                             child_view
                         />
                     }
-                }}
+                }
             </ForEach>
         </Layers>
     }

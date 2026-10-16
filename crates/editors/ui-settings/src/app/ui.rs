@@ -31,9 +31,7 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
                     options={view! {
                         <ChoiceOption label={inherited_label} />
                         <ForEach keys={Theme::ALL.to_vec()}>
-                            {|theme: Theme| view! {
-                                <ChoiceOption label={theme.name().to_owned()} />
-                            }}
+                            |theme: Theme| <ChoiceOption label={theme.name().to_owned()} />
                         </ForEach>
                     }}
                     selected={selected}

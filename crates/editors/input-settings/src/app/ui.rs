@@ -311,9 +311,7 @@ fn Pointers(
                 options={view! {
                     <ChoiceOption label="All pointers" />
                     <ForEach keys={keys}>
-                        {|key: DeviceKey| view! {
-                            <ChoiceOption label={key.0} />
-                        }}
+                        |key: DeviceKey| <ChoiceOption label={key.0} />
                     </ForEach>
                 }}
                 selected={selected}

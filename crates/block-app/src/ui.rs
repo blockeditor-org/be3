@@ -405,7 +405,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
         <Frame @node_ref=&area fill=ColorRole::Background>
             <List spacing=0.0>
                 <Dynamic value={screen}>
-                    {move |screen: Screen| {
+                    |screen: Screen| {
                         let view = view;
                         match screen {
                             Screen::Error => view! {
@@ -436,7 +436,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                                 />
                             },
                         }
-                    }}
+                    }
                 </Dynamic>
                 <Toasts
                     anchor={area}

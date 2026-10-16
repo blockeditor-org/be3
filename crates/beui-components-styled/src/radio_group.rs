@@ -14,9 +14,7 @@ pub fn RadioGroup(
 ) -> NodeId {
     view! {
         <Choice options selected kind=Kind::Radio on_change={on_change}>
-            {|handle| view! {
-                <OptionFace kind=Kind::Radio handle />
-            }}
+            |handle| <OptionFace kind=Kind::Radio handle />
         </Choice>
     }
 }

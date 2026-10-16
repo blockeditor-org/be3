@@ -80,7 +80,7 @@ fn Artwork(
 ) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
+            |placed: ReadSignal<Rect>| {
                 let world = editor.world();
                 let placeholder = create_memo(move || {
                     thumbhash.get().map(|thumbhash| thumbhash.size())
@@ -112,7 +112,7 @@ fn Artwork(
                         </CanvasItem>
                     </Canvas>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }

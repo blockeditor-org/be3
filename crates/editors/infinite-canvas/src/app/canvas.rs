@@ -23,7 +23,7 @@ const ITEM_MARGIN: f32 = 2.0;
 pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
+            |placed: ReadSignal<Rect>| {
                 let parent = state.editor().placed_content();
                 let shown = create_memo(move || match parent.get() {
                     Some(parent) => parent.intersect(placed.get()),
@@ -74,19 +74,15 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                         stage={backdrop_stage}
                                     />
                                     <ForEach keys={ids}>
-                                        {move |id: Uuid| {
+                                        |id: Uuid| {
                                             let camera = shape_camera;
                                             view! {
                                                 <EntityShape state id camera />
                                             }
-                                        }}
+                                        }
                                     </ForEach>
                                     <ForEach keys={embeds}>
-                                        {move |id: Uuid| {
-                                            view! {
-                                                <EntityEmbed state id />
-                                            }
-                                        }}
+                                        |id: Uuid| <EntityEmbed state id />
                                     </ForEach>
                                     <Show condition={!previewing}>
                                         <CanvasOverlay
@@ -100,7 +96,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                         </Frame>
                     </CanvasMenu>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }
@@ -304,9 +300,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             <Layers>
                 <Drawing draw={draw} />
                 <Show condition={live}>
-                    {move || view! {
-                        <EntityText state id entity outer={bounds} camera editing />
-                    }}
+                    <EntityText state id entity outer={bounds} camera editing />
                 </Show>
             </Layers>
         </CanvasItem>

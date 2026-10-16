@@ -55,11 +55,7 @@ fn DesktopShell(editor: Editor) -> NodeId {
     view! {
         <Loaded loaded={loaded} label="Loading the desktop">
             <Container>
-                {move |_| {
-                    view! {
-                        <DesktopBody workspace />
-                    }
-                }}
+                |_| <DesktopBody workspace />
             </Container>
         </Loaded>
     }
@@ -103,24 +99,16 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
                     <ForEach keys={block_tabs}>
-                        {move |tab: TabId| view! {
-                            <BlockWindow workspace tab />
-                        }}
+                        |tab: TabId| <BlockWindow workspace tab />
                     </ForEach>
                     <ForEach keys={desk}>
-                        {move |key: HostWindowId| view! {
-                            <FloatingWindow workspace key placeholder />
-                        }}
+                        |key: HostWindowId| <FloatingWindow workspace key placeholder />
                     </ForEach>
                     <ForEach keys={dialog_windows}>
-                        {move |(window, parent): (HostWindowId, HostWindowId)| view! {
-                            <AttachedWindow workspace window parent />
-                        }}
+                        |(window, parent): (HostWindowId, HostWindowId)| <AttachedWindow workspace window parent />
                     </ForEach>
                     <ForEach keys={panels}>
-                        {move |panel: HostPanel| view! {
-                            <PanelWindow workspace panel />
-                        }}
+                        |panel: HostPanel| <PanelWindow workspace panel />
                     </ForEach>
                 </Docking>
                 <DesktopBar

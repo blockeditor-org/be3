@@ -523,9 +523,7 @@ pub fn Scroll(
     });
     let scroll = view! {
         <Scrolling direction fit tab_stop focus_color scrollbar marker on_change={on_change}>
-            {move |report: Callback<ScrollPosition>| {
-                view! {
-                    <Fade edges>
+            |report: Callback<ScrollPosition>| <Fade edges>
                         <Offset
                             offset
                             direction={content_direction}
@@ -540,8 +538,6 @@ pub fn Scroll(
                             </List>
                         </Offset>
                     </Fade>
-                }
-            }}
         </Scrolling>
     };
     create_effect(move || {

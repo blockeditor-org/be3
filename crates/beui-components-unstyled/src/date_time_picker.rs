@@ -120,7 +120,7 @@ pub fn DateTimePicker(
     });
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 let width = create_memo(move || size.get().x);
                 let field = Field {
                     current,
@@ -203,8 +203,7 @@ pub fn DateTimePicker(
                                         label: trigger_label,
                                     })}
                                 >
-                                    {move |popover: PopoverHandle| view! {
-                                        <PickerPanel
+                                    |popover: PopoverHandle| <PickerPanel
                                             popover
                                             field={field}
                                             width
@@ -218,7 +217,6 @@ pub fn DateTimePicker(
                                             today
                                             panel
                                         />
-                                    }}
                                 </Popover>
                             }}
                             on_segment_focus={move |segment: Option<DateSegment>| {
@@ -232,7 +230,7 @@ pub fn DateTimePicker(
                         />
                     </Frame>
                 }
-            }}
+            }
         </LayoutBuilder>
     }
 }

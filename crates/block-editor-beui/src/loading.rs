@@ -35,7 +35,7 @@ pub fn Loaded(
             <Show condition={waiting}>
                 <Loading label={label} />
             </Show>
-            <ShowKeepAlive condition={shown}>{move || content.call(())}</ShowKeepAlive>
+            <ShowKeepAlive condition={shown}>|| { content.call(()) }</ShowKeepAlive>
         </Layers>
     }
 }

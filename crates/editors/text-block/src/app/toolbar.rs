@@ -31,14 +31,10 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
         <Dialog open={settings} title="Text settings" on_dismiss={move || set_settings.set(false)}>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={text_view}>
-                    {move || view! {
-                        <TextSettings state={state} />
-                    }}
+                    <TextSettings state={state} />
                 </Show>
                 <Show condition={hex_view}>
-                    {move || view! {
-                        <HexSettings state={state} />
-                    }}
+                    <HexSettings state={state} />
                 </Show>
             </List>
         </Dialog>
@@ -236,13 +232,13 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <ForEach keys={(0..count).collect::<Vec<usize>>()}>
-                {move |index: usize| {
+                |index: usize| {
                     let action = formats[index].clone();
                     let id = action.id().to_owned();
                     view! {
                         <IconButton @test_id={id} action />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -305,11 +301,9 @@ fn TextSettings(state: State) -> NodeId {
                         @test_id={"text.language"}
                         options={view! {
                             <ForEach keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}>
-                                {move |index: usize| view! {
-                                    <ChoiceOption
+                                |index: usize| <ChoiceOption
                                         label={TextLanguage::ALL[index].label().to_owned()}
                                     />
-                                }}
                             </ForEach>
                         }}
                         on_change={move |index: Option<usize>| {
@@ -343,8 +337,7 @@ fn TextSettings(state: State) -> NodeId {
                 </Frame>
             </List>
             <Show condition={spaces}>
-                {move || view! {
-                    <List
+                <List
                         direction=Direction::Horizontal
                         align=Align::Center
                         spacing=SETTINGS_SPACING
@@ -366,7 +359,6 @@ fn TextSettings(state: State) -> NodeId {
                             />
                         </Frame>
                     </List>
-                }}
             </Show>
         </List>
     }

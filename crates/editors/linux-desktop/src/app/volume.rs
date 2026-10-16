@@ -29,9 +29,7 @@ pub(crate) fn VolumeButton(editor: Editor, levels: Memo<MediaLevels>) -> NodeId 
     let label = create_memo(move || output.get().map(percent).unwrap_or_default());
     view! {
         <BarPopup label glyph width=VOLUME_WIDTH @test_id={"desktop.volume"}>
-            {move |_: PopoverHandle| view! {
-                <VolumePanel editor={editor} levels={levels} />
-            }}
+            |_: PopoverHandle| <VolumePanel editor={editor} levels={levels} />
         </BarPopup>
     }
 }
@@ -102,7 +100,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <Select
                 options={view! {
                     <ForEach keys={keys}>
-                        {move |id: String| {
+                        |id: String| {
                             let label = create_memo(move || {
                                 named.with(|outputs| {
                                     outputs
@@ -115,7 +113,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                             view! {
                                 <ChoiceOption label />
                             }
-                        }}
+                        }
                     </ForEach>
                 }}
                 selected={selected}

@@ -13,14 +13,10 @@ fn the_click_that_ends_autoscroll_presses_nothing() {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(100)}>
-                        {move |index: usize| {
-                            view! {
-                                <LabelledButton
+                        |index: usize| <LabelledButton
                                     label={format!("Row {index}")}
                                     on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                                 />
-                            }
-                        }}
                     </ForEach>
                 </Scroll>
             </List>

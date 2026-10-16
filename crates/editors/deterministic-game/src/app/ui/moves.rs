@@ -117,7 +117,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     @sizing=ItemSize::Fixed(NUMBER_WIDTH)
                 />
                 <ForEach keys={header_keys}>
-                    {move |column: usize| {
+                    |column: usize| {
                         let name = create_memo(move || {
                             columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
                         });
@@ -129,7 +129,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                                 @sizing=ItemSize::Percent(100.0)
                             />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
             <Show condition={empty}>
@@ -137,15 +137,13 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
             </Show>
             <List spacing=1.0>
                 <ForEach keys>
-                    {move |row: usize| view! {
-                        <MoveRow
+                    |row: usize| <MoveRow
                             row
                             rows={rows}
                             columns={column_keys}
                             shown={shown}
                             steps={steps}
                         />
-                    }}
                 </ForEach>
             </List>
             <Show condition={ended}>
@@ -173,8 +171,7 @@ fn MoveRow(
                 @sizing=ItemSize::Fixed(NUMBER_WIDTH)
             />
             <ForEach keys={columns}>
-                {move |column: usize| view! {
-                    <MoveCell
+                |column: usize| <MoveCell
                         row
                         column
                         rows={rows}
@@ -182,7 +179,6 @@ fn MoveRow(
                         steps={steps}
                         @sizing=ItemSize::Percent(100.0)
                     />
-                }}
             </ForEach>
         </List>
     }

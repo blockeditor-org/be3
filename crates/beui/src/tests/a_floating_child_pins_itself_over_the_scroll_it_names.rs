@@ -20,9 +20,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                 <List spacing=0.0>
                     <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                         <ForEach keys={(0..20).collect::<Vec<i64>>()}>
-                            {move |row: i64| {
-                                view! {
-                                    <Interactive
+                            |row: i64| <Interactive
                                         on_hover_change={move |over: bool| {
                                             set_over.update(|count| match over {
                                                 true => *count += 1,
@@ -36,8 +34,6 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                                             <Text string={format!("row {row}")} />
                                         </Button>
                                     </Interactive>
-                                }
-                            }}
                         </ForEach>
                     </Scroll>
                     <Floating anchor={scroll} edge=Edge::Bottom>

@@ -81,8 +81,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                             clip=true
                         />
                         <Show condition={editable}>
-                            {move || view! {
-                                <Button
+                            <Button
                                     label="Edit"
                                     variant=ButtonVariant::Secondary
                                     @test_id={format!("text.embed.{}.edit", key.id)}
@@ -91,14 +90,12 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                                         state.inner().focus_confirmed.set(false);
                                     }}
                                 />
-                            }}
                         </Show>
                     </List>
                 </Frame>
                 <Show condition={unavailable} then={unavailable_row} />
                 <Show condition={available}>
-                    {move || view! {
-                        <ChildBlock
+                    <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
                             editor={state.editor}
                             block={Some(target)}
@@ -118,7 +115,6 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                                 confirm_focus(state, key, next.active);
                             }}
                         />
-                    }}
                 </Show>
             </List>
         </Frame>

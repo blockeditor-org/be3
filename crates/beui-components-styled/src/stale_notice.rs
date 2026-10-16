@@ -57,14 +57,14 @@ pub fn StaleNotice(
                         on_click={on_delete}
                     />
                     <Show condition={create_memo(move || can_try.get())}>
-                        {move || { let try_id = try_id.clone(); view! {
+                        || { let try_id = try_id.clone(); view! {
                             <Button
                                 @test_id={try_id}
                                 label="Try anyway"
                                 variant=ButtonVariant::Ghost
                                 on_click={on_try}
                             />
-                        } }}
+                        } }
                     </Show>
                 </List>
             </List>

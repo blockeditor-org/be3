@@ -84,9 +84,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         </Frame>
                     </DockTab>
                     <ForEach keys={opened}>
-                        {move |number: u64| view! {
-                            <PullRequestTab model number />
-                        }}
+                        |number: u64| <PullRequestTab model number />
                     </ForEach>
                 </DockPane>
             </Docking>
@@ -199,7 +197,7 @@ fn TargetList(model: Model) -> NodeId {
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <VirtualList keys item_size=TARGET_ROW>
-                    {move |label: ReadSignal<String>| {
+                    |label: ReadSignal<String>| {
                         let target = create_memo(move || {
                             label.with(|label| {
                                 shown.with(|shown| {
@@ -210,7 +208,7 @@ fn TargetList(model: Model) -> NodeId {
                         view! {
                             <TargetRow model={model} target />
                         }
-                    }}
+                    }
                 </VirtualList>
             </Scroll>
         </List>
@@ -315,9 +313,7 @@ pub(crate) fn Actions(
                 disabled={busy}
                 items={view! {
                     <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                        {|index: usize| view! {
-                            <MenuItem label={format!("Run {}", COMMON[index].title)} />
-                        }}
+                        |index: usize| <MenuItem label={format!("Run {}", COMMON[index].title)} />
                     </ForEach>
                     <MenuItem label="All targets" />
                 }}
@@ -350,8 +346,7 @@ pub(crate) fn Notes(
     let shown = create_memo(move || fork.get() || deleted.get());
     view! {
         <Show condition={shown}>
-            {move || view! {
-                <List spacing=8.0>
+            <List spacing=8.0>
                     <Show condition={fork}>
                         <Text
                             style=TextStyle::CAPTION
@@ -367,7 +362,6 @@ pub(crate) fn Notes(
                         />
                     </Show>
                 </List>
-            }}
         </Show>
     }
 }
@@ -393,9 +387,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
             disabled={busy}
             items={view! {
                 <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                    {|index: usize| view! {
-                        <MenuItem label={format!("Run {}", COMMON[index].title)} />
-                    }}
+                    |index: usize| <MenuItem label={format!("Run {}", COMMON[index].title)} />
                 </ForEach>
                 <MenuItem label="Check out main" />
             }}

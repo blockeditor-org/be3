@@ -284,7 +284,7 @@ pub fn BackSlide(
     view! {
         <Layers>
             <Show condition={revealing}>
-                {move || {
+                || {
                     let page = behind.call(());
                     let shade = shade;
                     view! {
@@ -295,7 +295,7 @@ pub fn BackSlide(
                             </Layers>
                         </Shift>
                     }
-                }}
+                }
             </Show>
             {page}
         </Layers>

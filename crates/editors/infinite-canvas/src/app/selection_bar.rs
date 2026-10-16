@@ -45,10 +45,9 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Show condition={colored}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                             <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let (name, color) = PRESETS[index];
                                     let value = value;
                                     view! {
@@ -60,17 +59,16 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                                             on_pick={move |color| set_foreground(state, color)}
                                         />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
-                    }}
                 </Show>
                 <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
                 <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />
                 <Show condition={embedded}>
-                    {move || { let open = open.clone(); view! {
+                    || { let open = open.clone(); view! {
                         <IconButton label="Open" @test_id={"infinite-canvas.open"} action={open} />
-                    } }}
+                    } }
                 </Show>
                 <Show condition={narrow}>
                     <IconButton

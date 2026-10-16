@@ -44,32 +44,22 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             <KindSwitch data={data} />
             <Separator />
             <Show condition={grouped}>
-                {move || view! {
-                    <GroupPicker data={data} />
-                }}
+                <GroupPicker data={data} />
             </Show>
             <Show condition={ordered}>
-                {move || view! {
-                    <OrderPicker data={data} />
-                }}
+                <OrderPicker data={data} />
             </Show>
             <Show condition={scatter}>
-                {move || view! {
-                    <AxisPickers data={data} />
-                }}
+                <AxisPickers data={data} />
             </Show>
             <Show condition={listed}>
-                {move || view! {
-                    <EmptyGroups data={data} />
-                }}
+                <EmptyGroups data={data} />
             </Show>
             <Show condition={listed}>
-                {move || view! {
-                    <List spacing=SPACING>
+                <List spacing=SPACING>
                         <Separator />
                         <ShownFields data={data} />
                     </List>
-                }}
             </Show>
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -104,7 +94,7 @@ fn KindSwitch(data: Data) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap=true>
             <ForEach keys={keys}>
-                {move |index: usize| {
+                |index: usize| {
                     let (wanted, label, glyph) = KINDS[index];
                     let pressed = create_memo(move || data.kind.get() == wanted);
                     let choose = move |_: bool| {
@@ -129,7 +119,7 @@ fn KindSwitch(data: Data) -> NodeId {
                             on_change={choose}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -336,7 +326,7 @@ fn ShownFields(data: Data) -> NodeId {
             <Text style=TextStyle::CAPTION string="Shown on each row" />
             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
                 <ForEach keys={keys}>
-                    {move |field: Uuid| {
+                    |field: Uuid| {
                         let name = create_memo(move || {
                             data.fields.with(|fields| {
                                 fields.iter().find(|known| known.id == field).map_or_else(String::new, |known| known.name.clone())
@@ -361,7 +351,7 @@ fn ShownFields(data: Data) -> NodeId {
                                 on_change={toggle}
                             />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         </List>
@@ -414,7 +404,7 @@ pub fn FieldPicker(
         <Select
             options={view! {
                 <ForEach keys={keys}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let name = create_memo(move || match index {
                             0 => none.to_owned(),
                             index => names.with(|options| {
@@ -424,7 +414,7 @@ pub fn FieldPicker(
                         view! {
                             <ChoiceOption label={name} />
                         }
-                    }}
+                    }
                 </ForEach>
             }}
             selected={selected}

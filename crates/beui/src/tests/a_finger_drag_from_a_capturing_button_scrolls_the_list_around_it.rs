@@ -16,17 +16,13 @@ fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
                 <List spacing=0.0>
                     <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <ForEach keys={indices(100)}>
-                            {move |_: usize| {
-                                view! {
-                                    <Interactive
+                            |_: usize| <Interactive
                                         capture_presses=true
                                         on_click={move || set_clicks.update(|clicks| *clicks += 1)}
                                         on_cancel={move || set_cancels.update(|cancels| *cancels += 1)}
                                     >
                                         <Frame height=30.0 />
                                     </Interactive>
-                                }
-                            }}
                         </ForEach>
                     </Scroll>
                 </List>

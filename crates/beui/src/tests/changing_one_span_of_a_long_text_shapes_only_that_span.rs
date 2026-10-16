@@ -23,14 +23,14 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
                 <Frame width=200.0>
                     <Text @node_ref=&text wrap=true>
                         <ForEach keys={keys}>
-                            {move |index: usize| {
+                            |index: usize| {
                                 let word = create_memo(move || {
                                     words.get().get(index).cloned().unwrap_or_default()
                                 });
                                 view! {
                                     <Span text={word} />
                                 }
-                            }}
+                            }
                         </ForEach>
                     </Text>
                 </Frame>

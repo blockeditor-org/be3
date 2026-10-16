@@ -137,9 +137,7 @@ fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> NodeId {
             <Select
                 options={view! {
                     <ForEach keys={options}>
-                        {|index: usize| view! {
-                            <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
-                        }}
+                        |index: usize| <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
                     </ForEach>
                 }}
                 selected={chosen}

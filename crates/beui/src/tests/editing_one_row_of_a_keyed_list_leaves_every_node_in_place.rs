@@ -26,12 +26,12 @@ fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
                     </Button>
                     <List @node_ref=&list spacing=0.0>
                         <ForEach keys={store.keys()}>
-                            {move |index: u32| {
+                            |index: u32| {
                                 let item = store.get(&index);
                                 view! {
                                     <Text string={item} />
                                 }
-                            }}
+                            }
                         </ForEach>
                     </List>
                 </List>

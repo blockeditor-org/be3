@@ -153,15 +153,11 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
             </HotbarHeader>
             <List direction=Direction::Horizontal spacing=COLUMN_GAP>
                 <ForEach keys={columns}>
-                    {move |column: usize| {
-                        view! {
-                            <HotbarColumn
+                    |column: usize| <HotbarColumn
                                 @sizing=ItemSize::Fixed(COLUMN_WIDTH)
                                 session={session}
                                 column={column}
                             />
-                        }
-                    }}
                 </ForEach>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -189,7 +185,7 @@ fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: 
     };
     view! {
         <DropTarget accepts={accepts} on_drop={dropped}>
-            {move |handle: DropHandle| {
+            |handle: DropHandle| {
                 let DropHandle { over, .. } = handle;
                 view! {
                     <Frame
@@ -199,7 +195,7 @@ fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: 
                         {children}
                     </Frame>
                 }
-            }}
+            }
         </DropTarget>
     }
 }
@@ -239,11 +235,7 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
                         <Frame width=SLOT_SIZE height=SLOT_SIZE />
                     </Show>
                     <ForEach keys={entries}>
-                        {move |path: Vec<usize>| {
-                            view! {
-                                <HotbarSlotButton session={session} path={path} />
-                            }
-                        }}
+                        |path: Vec<usize>| <HotbarSlotButton session={session} path={path} />
                     </ForEach>
                 </List>
             </Frame>
@@ -332,9 +324,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                             on_click={clicked}
                             on_drag_change={carried}
                         >
-                            {move |_: DragHandle| view! {
-                                <SlotFace shown={shown} hovered={hovered} />
-                            }}
+                            |_: DragHandle| <SlotFace shown={shown} hovered={hovered} />
                         </Draggable>
                     </Interactive>
                 </Tooltip>
@@ -485,22 +475,18 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={single}>
-                {move || view! {
-                    <List spacing=4.0>
+                <List spacing=4.0>
                         <Text style=TextStyle::CAPTION string="Scale" />
                         <ScalePicker session={session} output=false />
                     </List>
-                }}
             </Show>
             <Show condition={merger}>
-                {move || view! {
-                    <List spacing=4.0>
+                <List spacing=4.0>
                         <Text style=TextStyle::CAPTION string="Input scale" />
                         <ScalePicker session={session} output=false />
                         <Text style=TextStyle::CAPTION string="Output scale" />
                         <ScalePicker session={session} output=true />
                     </List>
-                }}
             </Show>
             <Show condition={labelled}>
                 <TextInput
@@ -555,9 +541,7 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
             label
             options={view! {
                 <ForEach keys={SCALES.to_vec()}>
-                    {move |value: u8| view! {
-                        <ChoiceOption label={format!("{value}x")} />
-                    }}
+                    |value: u8| <ChoiceOption label={format!("{value}x")} />
                 </ForEach>
             }}
             selected={selected}

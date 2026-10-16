@@ -25,18 +25,13 @@ pub fn ViewHeader(data: Data) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={wide}>
-                {move || view! {
-                    <WideHeader data={data} />
-                }}
+                <WideHeader data={data} />
             </Show>
             <Show condition={narrow}>
-                {move || view! {
-                    <NarrowHeader data={data} />
-                }}
+                <NarrowHeader data={data} />
             </Show>
             <Show condition={failed}>
-                {move || view! {
-                    <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
+                <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
@@ -52,7 +47,6 @@ pub fn ViewHeader(data: Data) -> NodeId {
                             />
                         </List>
                     </Frame>
-                }}
             </Show>
             <Separator />
         </List>
@@ -80,9 +74,7 @@ fn WideHeader(data: Data) -> NodeId {
                         max_width=DISPLAY_WIDTH
                         @test_id={"database-view.display"}
                     >
-                        {move |_| view! {
-                            <DisplayOptions data={data} />
-                        }}
+                        |_| <DisplayOptions data={data} />
                     </Popover>
                 </List>
             </List>
@@ -181,7 +173,7 @@ fn ViewTabs(data: Data) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <ForEach keys={keys}>
-                {move |view: Uuid| {
+                |view: Uuid| {
                     let name = create_memo(move || {
                         data.views.with(|views| {
                             views.iter().find(|(id, _)| *id == view).map(|(_, name)| name.clone()).unwrap_or_default()
@@ -196,7 +188,7 @@ fn ViewTabs(data: Data) -> NodeId {
                             on_change={open}
                         />
                     }
-                }}
+                }
             </ForEach>
             <IconButton
                 glyph={ICON_ADD.to_owned()}

@@ -83,7 +83,7 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let target = Some(ChildTarget::new(id, DatabaseViewContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
@@ -92,7 +92,7 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
                             @test_id={format!("database.view.{id}")}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

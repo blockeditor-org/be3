@@ -42,9 +42,7 @@ fn Slide(editor: Editor) -> NodeId {
     view! {
         <Frame width=320.0 height=180.0>
             <ChildBlock editor={editor} block={target} mode=ChildMode::Preview>
-                {move |handle: ChildBlockHandle| view! {
-                    <Status state={handle.state} />
-                }}
+                |handle: ChildBlockHandle| <Status state={handle.state} />
             </ChildBlock>
         </Frame>
     }

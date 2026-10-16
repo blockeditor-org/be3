@@ -75,8 +75,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
                 <PointDetails state={state} selected={selected} />
             </Show>
             <Show condition={failed}>
-                {move || view! {
-                    <List spacing=4.0>
+                <List spacing=4.0>
                         <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
                         <Button
                             label="Dismiss"
@@ -84,7 +83,6 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
                             on_click={move || state.dismiss_import_error()}
                         />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -116,8 +114,7 @@ fn RegionInspector(state: MapState) -> NodeId {
                 />
             </Show>
             <Show condition={fixed}>
-                {move || view! {
-                    <List spacing=6.0>
+                <List spacing=6.0>
                         <RegionEdges state={state} />
                         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                             <Button
@@ -136,7 +133,6 @@ fn RegionInspector(state: MapState) -> NodeId {
                             />
                         </List>
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -290,11 +286,7 @@ fn PointList(state: MapState) -> NodeId {
                 <Text style=TextStyle::CAPTION string="Select a marker to edit it." />
             </Show>
             <ForEach keys={ids}>
-                {move |id: Uuid| {
-                    view! {
-                        <PointRow state id />
-                    }
-                }}
+                |id: Uuid| <PointRow state id />
             </ForEach>
         </List>
     }
@@ -447,12 +439,12 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
             <Text string="Colour" />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ForEach keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}>
-                    {move |name: String| {
+                    |name: String| {
                         let point = coloured_point;
                         view! {
                             <ColorPreset state point name />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
             <ColorInput

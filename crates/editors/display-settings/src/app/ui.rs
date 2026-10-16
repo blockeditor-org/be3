@@ -61,7 +61,7 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                             read_only={read_only}
                         />
                         <ForEach keys={ids}>
-                            {move |id: String| {
+                            |id: String| {
                                 let (displays, read_only) = (displays, read_only);
                                 view! {
                                     <DisplaySection
@@ -73,7 +73,7 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                                         read_only={read_only}
                                     />
                                 }
-                            }}
+                            }
                         </ForEach>
                     </List>
                 </Frame>
@@ -181,9 +181,7 @@ fn DisplaySection(
             <Select
                 options={view! {
                     <ForEach keys={size_list}>
-                        {|size: Size| view! {
-                            <ChoiceOption label={size_label(size)} />
-                        }}
+                        |size: Size| <ChoiceOption label={size_label(size)} />
                     </ForEach>
                 }}
                 selected={size_selected}
@@ -204,9 +202,7 @@ fn DisplaySection(
             <Select
                 options={view! {
                     <ForEach keys={rate_list}>
-                        {|mode: HostDisplayMode| view! {
-                            <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
-                        }}
+                        |mode: HostDisplayMode| <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
                     </ForEach>
                 }}
                 selected={rate_selected}
@@ -245,9 +241,7 @@ fn ScreenOffSection(
             <Select
                 options={view! {
                     <ForEach keys={SCREEN_OFF.to_vec()}>
-                        {|screen_off: ScreenOff| view! {
-                            <ChoiceOption label={screen_off_label(screen_off)} />
-                        }}
+                        |screen_off: ScreenOff| <ChoiceOption label={screen_off_label(screen_off)} />
                     </ForEach>
                 }}
                 selected={selected}
@@ -264,9 +258,7 @@ fn ScreenOffSection(
             <Select
                 options={view! {
                     <ForEach keys={LOCK_AFTER.to_vec()}>
-                        {|lock_after: LockAfter| view! {
-                            <ChoiceOption label={lock_after_label(lock_after)} />
-                        }}
+                        |lock_after: LockAfter| <ChoiceOption label={lock_after_label(lock_after)} />
                     </ForEach>
                 }}
                 selected={locks}

@@ -55,9 +55,7 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
                                 />
                             </Show>
                             <ForEach keys={types}>
-                                {move |block_type: Uuid| view! {
-                                    <DefaultEditor editor={editor} block_type={block_type} />
-                                }}
+                                |block_type: Uuid| <DefaultEditor editor={editor} block_type={block_type} />
                             </ForEach>
                         </List>
                     </Frame>
@@ -119,7 +117,7 @@ fn DefaultEditor(editor: Editor, block_type: Uuid) -> NodeId {
                 options={view! {
                     <ChoiceOption label={inherited_label} />
                     <ForEach keys={names}>
-                        {move |index: usize| {
+                        |index: usize| {
                             let label = create_memo(move || {
                                 choices.with(|choices| {
                                     choices
@@ -132,7 +130,7 @@ fn DefaultEditor(editor: Editor, block_type: Uuid) -> NodeId {
                             view! {
                                 <ChoiceOption label={label} />
                             }
-                        }}
+                        }
                     </ForEach>
                 }}
                 selected={selected}

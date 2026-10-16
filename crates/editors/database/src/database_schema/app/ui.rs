@@ -111,7 +111,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <ForEach keys={keys}>
-                            {move |id: Uuid| {
+                            |id: Uuid| {
                                 let field = create_memo(move || {
                                     rows.with(|rows| {
                                         rows.iter().find(|field| field.id == id).cloned()
@@ -126,7 +126,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                                         read_only={read_only}
                                     />
                                 }
-                            }}
+                            }
                         </ForEach>
                         <List
                             direction=Direction::Horizontal
@@ -241,9 +241,7 @@ fn FieldRow(
                 <Select
                     options={view! {
                         <ForEach keys={type_keys}>
-                            {|index: usize| view! {
-                                <ChoiceOption label={FIELD_TYPES[index].1} />
-                            }}
+                            |index: usize| <ChoiceOption label={FIELD_TYPES[index].1} />
                         </ForEach>
                     }}
                     selected={selected}
@@ -373,9 +371,7 @@ fn NumberOptions(
                         <Select
                             options={view! {
                                 <ForEach keys={scale_keys}>
-                                    {|index: usize| view! {
-                                        <ChoiceOption label={NUMBER_SCALES[index].1} />
-                                    }}
+                                    |index: usize| <ChoiceOption label={NUMBER_SCALES[index].1} />
                                 </ForEach>
                             }}
                             selected={scale}
@@ -515,17 +511,13 @@ fn EnumOptions(
         <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
             <List spacing=ROW_SPACING>
                 <ForEach keys={keys}>
-                    {move |option_id: Uuid| {
-                        view! {
-                            <EnumOptionRow
+                    |option_id: Uuid| <EnumOptionRow
                                 schema={schema}
                                 id={id}
                                 option_id={option_id}
                                 field={field}
                                 read_only={read_only}
                             />
-                        }
-                    }}
                 </ForEach>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <IconButton
@@ -622,7 +614,7 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
                     <ForEach keys={icon_keys}>
-                        {move |index: usize| {
+                        |index: usize| {
                             let icon = ChoiceIcon::ALL[index];
                             view! {
                                 <MenuItem
@@ -632,7 +624,7 @@ fn EnumOptionRow(
                                     on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                 }}
                 trigger={move |handle: MenuButtonHandle| {
@@ -660,7 +652,7 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
                     <ForEach keys={color_keys}>
-                        {move |index: usize| {
+                        |index: usize| {
                             let color = ChoiceColor::ALL[index];
                             view! {
                                 <MenuItem
@@ -669,7 +661,7 @@ fn EnumOptionRow(
                                     on_click={move || schema.operate(DatabaseSchema::set_option_color(option_id, color))}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                 }}
                 trigger={move |handle: MenuButtonHandle| {
@@ -799,7 +791,7 @@ fn BlockOptions(
                 <Select
                     options={view! {
                         <ForEach keys={keys}>
-                            {move |id: Option<Uuid>| {
+                            |id: Option<Uuid>| {
                                 let label = create_memo(move || {
                                     labels.with(|entries| {
                                         entries
@@ -811,7 +803,7 @@ fn BlockOptions(
                                 view! {
                                     <ChoiceOption label={label} />
                                 }
-                            }}
+                            }
                         </ForEach>
                     }}
                     selected={selected}

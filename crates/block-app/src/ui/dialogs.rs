@@ -109,7 +109,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                     wrap=true
                 />
                 <ForEach keys={keys}>
-                    {move |account: Uuid| {
+                    |account: Uuid| {
                         let row = create_memo(move || {
                             shown
                                 .get()
@@ -155,11 +155,10 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                                 />
                             </List>
                         }
-                    }}
+                    }
                 </ForEach>
                 <Show condition={asks_removal}>
-                    {move || view! {
-                        <List spacing=6.0>
+                    <List spacing=6.0>
                             <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
                             <List direction=Direction::Horizontal spacing=8.0>
                                 <Button
@@ -175,7 +174,6 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                                 />
                             </List>
                         </List>
-                    }}
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
@@ -239,7 +237,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     <Text style=TextStyle::CAPTION string="No contacts yet." />
                 </Show>
                 <ForEach keys={keys}>
-                    {move |account: Uuid| {
+                    |account: Uuid| {
                         let row = create_memo(move || {
                             shown
                                 .get()
@@ -270,11 +268,10 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                                 />
                             </List>
                         }
-                    }}
+                    }
                 </ForEach>
                 <Show condition={asks_removal}>
-                    {move || view! {
-                        <List spacing=6.0>
+                    <List spacing=6.0>
                             <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
                             <List direction=Direction::Horizontal spacing=8.0>
                                 <Button
@@ -290,7 +287,6 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                                 />
                             </List>
                         </List>
-                    }}
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
@@ -305,8 +301,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     </Show>
                 </List>
                 <Show condition={has_link}>
-                    {move || view! {
-                        <List spacing=6.0>
+                    <List spacing=6.0>
                             <Text
                                 style=TextStyle::PARAGRAPH
                                 @test_id={"app.contacts.link-help"}
@@ -328,7 +323,6 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                                 />
                             </List>
                         </List>
-                    }}
                 </Show>
                 <Text style=TextStyle::CAPTION string="Open a contact link someone sent you" />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -349,8 +343,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     />
                 </List>
                 <Show condition={offered}>
-                    {move || view! {
-                        <List spacing=6.0>
+                    <List spacing=6.0>
                             <Text
                                 style=TextStyle::PARAGRAPH
                                 @test_id={"app.contacts.offer"}
@@ -371,7 +364,6 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                                 />
                             </List>
                         </List>
-                    }}
                 </Show>
                 <Show condition={has_connected}>
                     <Text style=TextStyle::PARAGRAPH string={connected} wrap=true />
@@ -421,7 +413,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                     <Text style=TextStyle::CAPTION string="No agents yet." />
                 </Show>
                 <ForEach keys={keys}>
-                    {move |account: Uuid| {
+                    |account: Uuid| {
                         let label = create_memo(move || {
                             names
                                 .get()
@@ -442,7 +434,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                                 />
                             </List>
                         }
-                    }}
+                    }
                 </ForEach>
                 <Text style=TextStyle::CAPTION string="Name" />
                 <TextInput
@@ -466,9 +458,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                 </List>
                 <ErrorText text={error} />
                 <Show condition={made}>
-                    {move || view! {
-                        <AgentCredentials created={created} />
-                    }}
+                    <AgentCredentials created={created} />
                 </Show>
             </List>
         </Frame>
@@ -596,8 +586,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                 </List>
                 <ErrorText text={error} />
                 <Show condition={has_link}>
-                    {move || view! {
-                        <List spacing=6.0>
+                    <List spacing=6.0>
                             <Text
                                 style=TextStyle::PARAGRAPH
                                 @test_id={"app.invite.help"}
@@ -610,7 +599,6 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                                 @test_id={"app.invite.link"}
                             />
                         </List>
-                    }}
                 </Show>
             </List>
         </Frame>

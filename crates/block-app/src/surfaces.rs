@@ -116,7 +116,7 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
     view! {
         <Layers>
             <ForEach keys={keys}>
-                {move |_key: (EditorInstanceId, EditorRegion)| {
+                |_key: (EditorInstanceId, EditorRegion)| {
                     let Some(hosted) = region.get_untracked() else {
                         return view! {
                             <Frame />
@@ -133,7 +133,7 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
                             child_view
                         />
                     }
-                }}
+                }
             </ForEach>
         </Layers>
     }

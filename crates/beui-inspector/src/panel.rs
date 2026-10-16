@@ -253,12 +253,10 @@ pub fn build(state: Stored<State>) -> Panel {
                                         <PickToggle state={state} picking />
                                     </ShowKeepAlive>
                                     <Show condition={create_memo(move || !compact.get())}>
-                                        {move || view! {
-                                            <CloseButton
+                                        <CloseButton
                                                 @test_id={"inspector.close"}
                                                 state={state}
                                             />
-                                        }}
                                     </Show>
                                 </List>
                                 <Tabs
@@ -304,12 +302,10 @@ pub fn build(state: Stored<State>) -> Panel {
                                                 state.get().hover(key.node(), hovered);
                                             }}
                                         >
-                                            {move |row: TreeRowFace<Key>| view! {
-                                                <TreeCells
+                                            |row: TreeRowFace<Key>| <TreeCells
                                                     row_key={row.key}
                                                     entries={row_entries}
                                                 />
-                                            }}
                                         </Tree>
                                         <Frame
                                             @sizing={properties_size}
@@ -482,9 +478,7 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.pixel_ratio"}
                             options={view! {
                                 <ForEach keys={labels(&PIXEL_RATIOS)}>
-                                    {|label: &'static str| view! {
-                                        <ChoiceOption label />
-                                    }}
+                                    |label: &'static str| <ChoiceOption label />
                                 </ForEach>
                             }}
                             selected={Some(selected)}
@@ -508,9 +502,7 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.theme"}
                             options={view! {
                                 <ForEach keys={labels(&Theme::BUILT_IN)}>
-                                    {|label: &'static str| view! {
-                                        <ChoiceOption label />
-                                    }}
+                                    |label: &'static str| <ChoiceOption label />
                                 </ForEach>
                             }}
                             selected={Some(selected_theme)}
@@ -652,9 +644,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                 @test_id={"inspector.simulation.color_vision"}
                 options={view! {
                     <ForEach keys={vision_labels}>
-                        {|label: &'static str| view! {
-                            <ChoiceOption label />
-                        }}
+                        |label: &'static str| <ChoiceOption label />
                     </ForEach>
                 }}
                 selected={Some(selected_vision)}
@@ -715,9 +705,7 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
         <List spacing=FOOTER_SPACING>
             <Text style=TextStyle::CAPTION string={title.to_owned()} color=TextColor::Default />
             <ForEach keys={lines.to_vec()}>
-                {|line: &'static str| view! {
-                    <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
-                }}
+                |line: &'static str| <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
             </ForEach>
         </List>
     }
@@ -850,9 +838,7 @@ fn RendererSection(
                     @test_id={"inspector.performance.renderer.choice"}
                     options={view! {
                         <ForEach keys={names}>
-                            {|label: &'static str| view! {
-                                <ChoiceOption label />
-                            }}
+                            |label: &'static str| <ChoiceOption label />
                         </ForEach>
                     }}
                     selected={active}
@@ -867,9 +853,7 @@ fn RendererSection(
                 <Text style=TextStyle::CAPTION string="Not reported by this host" />
             </Show>
             <ForEach keys={rows}>
-                {|(label, value): (&'static str, String)| view! {
-                    <LabeledRow label={label.to_owned()} value />
-                }}
+                |(label, value): (&'static str, String)| <LabeledRow label={label.to_owned()} value />
             </ForEach>
         </List>
     }
@@ -885,9 +869,7 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
                     <List spacing=TIMING_SPACING>
                         <Text style=TextStyle::HEADING string="Properties" />
                         <ForEach keys={properties}>
-                            {|(label, value): (String, String)| view! {
-                                <LabeledRow label value />
-                            }}
+                            |(label, value): (String, String)| <LabeledRow label value />
                         </ForEach>
                     </List>
                 </Frame>

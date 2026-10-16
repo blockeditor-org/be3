@@ -187,11 +187,7 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
     view! {
         <beui_view::primitives::List spacing=0.0>
             <beui_view::reactive::ForEach keys>
-                {move |(tab, parent): (TabId, TabId)| {
-                    view! {
-                        <DockDialogView dock tab parent />
-                    }
-                }}
+                |(tab, parent): (TabId, TabId)| <DockDialogView dock tab parent />
             </beui_view::reactive::ForEach>
         </beui_view::primitives::List>
     }

@@ -112,8 +112,7 @@ pub(crate) fn Scene3DView() -> NodeId {
             on_motion={look}
             on_key={walked}
         >
-            {move |_: PointerLockHandle| view! {
-                <List spacing=0.0>
+            |_: PointerLockHandle| <List spacing=0.0>
                     <Drawing
                         draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
                         @sizing=ItemSize::Percent(100.0)
@@ -122,7 +121,6 @@ pub(crate) fn Scene3DView() -> NodeId {
                         <Hint />
                     </Floating>
                 </List>
-            }}
         </PointerLock>
     }
 }

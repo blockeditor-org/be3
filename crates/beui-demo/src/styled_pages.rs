@@ -426,12 +426,10 @@ fn TextSizes() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <ForEach keys={TextSize::ALL.to_vec()}>
-                {|size: TextSize| view! {
-                    <Text size wrap=true>
+                |size: TextSize| <Text size wrap=true>
                         <Icon glyph=ICON_TEXT_FIELDS />
                         {format!("{} {}", size.name(), size.px())}
                     </Text>
-                }}
             </ForEach>
         </List>
     }
@@ -443,9 +441,7 @@ fn TextColors() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <ForEach keys={TextColor::ROLES.to_vec()}>
-                {|color: TextColor| view! {
-                    <Text color>{format!("The {} role", color.name())}</Text>
-                }}
+                |color: TextColor| <Text color>{format!("The {} role", color.name())}</Text>
             </ForEach>
             <Text>
                 "Regular, "
@@ -1004,9 +1000,7 @@ fn FruitSelect() -> NodeId {
             <Select
                 options={view! {
                     <ForEach keys={FRUITS.to_vec()}>
-                        {|label: &'static str| view! {
-                            <ChoiceOption label />
-                        }}
+                        |label: &'static str| <ChoiceOption label />
                     </ForEach>
                 }}
                 selected=Some(0)
@@ -1025,9 +1019,7 @@ fn FruitSelect() -> NodeId {
             <Select
                 options={view! {
                     <ForEach keys={FRUITS.to_vec()}>
-                        {|label: &'static str| view! {
-                            <ChoiceOption label />
-                        }}
+                        |label: &'static str| <ChoiceOption label />
                     </ForEach>
                 }}
                 selected=None
@@ -1710,9 +1702,7 @@ fn FiltersButton() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Popover label="Filters">
-                {move |handle: PopoverHandle| view! {
-                    <FilterPopover handle />
-                }}
+                |handle: PopoverHandle| <FilterPopover handle />
             </Popover>
         </List>
     }
@@ -2003,7 +1993,7 @@ fn LongSheet() -> NodeId {
             <ModalSheet open={sheet} rest=0.5 on_close={move || dismiss_sheet.set(false)}>
                 <List spacing=0.0>
                     <ForEach keys={(1..=60).collect::<Vec<usize>>()}>
-                        {move |row: usize| {
+                        |row: usize| {
                             let (picked, closing) = (set_picked, set_sheet);
                             view! {
                                 <ActionRow
@@ -2015,7 +2005,7 @@ fn LongSheet() -> NodeId {
                                     }}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                 </List>
             </ModalSheet>
@@ -2306,9 +2296,7 @@ fn CardStrip() -> NodeId {
                     keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
                     item_size=STRIP_ITEM_WIDTH
                 >
-                    {move |index: ReadSignal<usize>| view! {
-                        <StripCard index />
-                    }}
+                    |index: ReadSignal<usize>| <StripCard index />
                 </VirtualList>
             </Scroll>
         </List>
@@ -2344,13 +2332,11 @@ fn FittedScroll() -> NodeId {
             <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
                     <ForEach keys={rows}>
-                        {move |index: usize| view! {
-                            <Frame
+                        |index: usize| <Frame
                                 padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                             >
                                 <Text string={format!("Row {}", index + 1)} />
                             </Frame>
-                        }}
                     </ForEach>
                 </Scroll>
             </Frame>
@@ -2411,7 +2397,7 @@ fn ThousandsOfRows() -> NodeId {
             <Separator />
             <Scroll @sizing=ItemSize::Fixed(ROWS_HEIGHT)>
                 <VirtualList keys={(0..ROW_COUNT).collect::<Vec<usize>>()} item_size={row_height}>
-                    {move |index: ReadSignal<usize>| {
+                    |index: ReadSignal<usize>| {
                         let set_selected = set_selected;
                         let set_status = set_status;
                         view! {
@@ -2427,7 +2413,7 @@ fn ThousandsOfRows() -> NodeId {
                                 }}
                             />
                         }
-                    }}
+                    }
                 </VirtualList>
             </Scroll>
         </List>
@@ -2567,9 +2553,7 @@ fn ProjectTree() -> NodeId {
                     });
                 }}
             >
-                {move |row: TreeRowFace<usize>| view! {
-                    <Text string={TREE_NODES[row.key].0} />
-                }}
+                |row: TreeRowFace<usize>| <Text string={TREE_NODES[row.key].0} />
             </Tree>
             <Text style=TextStyle::CAPTION string={status_text} />
         </List>
@@ -2664,8 +2648,7 @@ fn FrameTokens() -> NodeId {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <ForEach keys={ColorRole::ROLES.to_vec()}>
-                    {|role: ColorRole| view! {
-                        <List spacing=4.0>
+                    |role: ColorRole| <List spacing=4.0>
                             <Frame
                                 width=88.0
                                 height=32.0
@@ -2675,13 +2658,11 @@ fn FrameTokens() -> NodeId {
                             />
                             <Text style=TextStyle::CAPTION string={role.name()} />
                         </List>
-                    }}
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>
-                    {|index: usize| view! {
-                        <List spacing=4.0>
+                    |index: usize| <List spacing=4.0>
                             <Frame
                                 width=48.0
                                 height=48.0
@@ -2690,13 +2671,11 @@ fn FrameTokens() -> NodeId {
                             />
                             <Text style=TextStyle::CAPTION string={Radius::ALL[index].name()} />
                         </List>
-                    }}
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>
-                    {|index: usize| view! {
-                        <List spacing=4.0>
+                    |index: usize| <List spacing=4.0>
                             <Frame
                                 width=88.0
                                 height=48.0
@@ -2706,7 +2685,6 @@ fn FrameTokens() -> NodeId {
                             />
                             <Text style=TextStyle::CAPTION string={BORDERS[index].0} />
                         </List>
-                    }}
                 </ForEach>
             </List>
         </List>
@@ -2801,9 +2779,7 @@ fn NestedScroll() -> NodeId {
                 <Scroll @sizing=ItemSize::Fixed(NESTED_SCROLL_HEIGHT)>
                     <List spacing=4.0>
                         <ForEach keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}>
-                            {move |line: usize| view! {
-                                <Text string={format!("Line {line}")} />
-                            }}
+                            |line: usize| <Text string={format!("Line {line}")} />
                         </ForEach>
                     </List>
                 </Scroll>
@@ -2935,12 +2911,12 @@ fn scale_in(view: &mut PanZoomView) {
 fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) -> NodeId {
     view! {
         <PanZoom view on_change={on_change}>
-            {move |handle: PanZoomHandle| {
+            |handle: PanZoomHandle| {
                 let PanZoomHandle { view, scale, focused, .. } = handle;
                 view! {
                     <CanvasBoard view scale focused />
                 }
-            }}
+            }
         </PanZoom>
     }
 }

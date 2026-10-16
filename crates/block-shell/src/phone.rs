@@ -40,7 +40,7 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
         >
             <List spacing=0.0>
                 <Dynamic value={shown}>
-                    {move |tab: Option<TabId>| {
+                    |tab: Option<TabId>| {
                         match tab {
                             Some(tab) => view! {
                                 <DetailsBody @sizing=ItemSize::Percent(100.0) workspace tab />
@@ -49,7 +49,7 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
                                 <Frame @sizing=ItemSize::Percent(100.0) />
                             },
                         }
-                    }}
+                    }
                 </Dynamic>
             </List>
         </ModalSheet>
@@ -177,14 +177,12 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     on_click={move || act(Action::Share)}
                 />
                 <Show condition={unlinkable}>
-                    {move || view! {
-                        <ActionRow
+                    <ActionRow
                             @test_id={"workspace.details.unlink"}
                             label="Unlink"
                             glyph={ICON_LINK_OFF.to_owned()}
                             on_click={move || act(Action::Unlink)}
                         />
-                    }}
                 </Show>
                 <ActionRow
                     @test_id={"workspace.details.delete"}
@@ -220,14 +218,14 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
     view! {
         <List spacing=0.0>
             <Show condition={some}>
-                {move || { let title = title.clone(); view! {
+                || { let title = title.clone(); view! {
                     <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION string={title} />
                     </Frame>
-                } }}
+                } }
             </Show>
             <ForEach keys={ids}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let reference = create_memo(move || {
                         refs.with(|refs| refs.list.iter().find(|info| info.id == id).cloned())
                     });
@@ -235,7 +233,7 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
                     view! {
                         <RelatedRow workspace reference named />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

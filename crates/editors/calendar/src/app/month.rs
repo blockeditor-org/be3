@@ -31,21 +31,15 @@ pub(crate) fn MonthGrid(
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
                 <ForEach keys={weekday_names()}>
-                    {move |name: &'static str| {
-                        view! {
-                            <Text
+                    |name: &'static str| <Text
                                 @sizing=ItemSize::Percent(100.0)
                                 string={name}
                                 align=TextAlign::Center
                             />
-                        }
-                    }}
                 </ForEach>
             </List>
             <ForEach keys={weeks}>
-                {move |start: i64| {
-                    view! {
-                        <MonthWeek
+                |start: i64| <MonthWeek
                             @sizing=ItemSize::Fixed(CELL_HEIGHT)
                             start={start}
                             anchor={anchor}
@@ -53,8 +47,6 @@ pub(crate) fn MonthGrid(
                             on_pick_day={forward(on_pick_day)}
                             on_pick_event={forward(on_pick_event)}
                         />
-                    }
-                }}
             </ForEach>
         </List>
     }
@@ -72,9 +64,7 @@ fn MonthWeek(
     view! {
         <List direction=Direction::Horizontal spacing=CELL_SPACING>
             <ForEach keys={days}>
-                {move |day: i64| {
-                    view! {
-                        <MonthCell
+                |day: i64| <MonthCell
                             @sizing=ItemSize::Percent(100.0)
                             day={day}
                             anchor={anchor}
@@ -82,8 +72,6 @@ fn MonthWeek(
                             on_pick_day={forward(on_pick_day)}
                             on_pick_event={forward(on_pick_event)}
                         />
-                    }
-                }}
             </ForEach>
         </List>
     }
@@ -152,7 +140,7 @@ fn MonthCell(
                     />
                 </ListRow>
                 <ForEach keys={shown}>
-                    {move |id: ObjectId| {
+                    |id: ObjectId| {
                         let event = event_of(day_events, id);
                         let title = create_memo(move || {
                             event.get().map(|event| event.value.title).unwrap_or_default()
@@ -169,7 +157,7 @@ fn MonthCell(
                                 on_click={open}
                             />
                         }
-                    }}
+                    }
                 </ForEach>
                 <Text style=TextStyle::CAPTION string={overflow} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />

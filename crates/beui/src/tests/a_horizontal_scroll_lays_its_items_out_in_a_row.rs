@@ -22,9 +22,7 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
                         <Frame @node_ref=&first_ref width=120.0 />
                         <Frame @node_ref=&second_ref width=120.0 />
                         <ForEach keys={indices(4)}>
-                            {|_: usize| view! {
-                                <Frame width=120.0 />
-                            }}
+                            |_: usize| <Frame width=120.0 />
                         </ForEach>
                     </List>
                 </Offset>

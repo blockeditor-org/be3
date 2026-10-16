@@ -22,7 +22,7 @@ pub fn WindowView(
     };
     view! {
         <PlacementBuilder>
-            {move |rect: ReadSignal<Rect>| {
+            |rect: ReadSignal<Rect>| {
                 let catcher = NodeRef::new();
                 let popup_catcher = NodeRef::new();
                 create_effect(move || {
@@ -149,7 +149,7 @@ pub fn WindowView(
                     untrack(|| with_document(|document| document.focus_focusable(node)));
                 });
                 built
-            }}
+            }
         </PlacementBuilder>
     }
 }

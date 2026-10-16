@@ -108,7 +108,7 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
-                {move |called: Uuid| {
+                |called: Uuid| {
                     let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                     view! {
                         <BlockLink
@@ -117,7 +117,7 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
                             @test_id={format!("compiled-logic.call.{called}")}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -129,7 +129,7 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
     view! {
         <List spacing=2.0>
             <ForEach keys={keys}>
-                {move |index: usize| {
+                |index: usize| {
                     let line = create_memo(move || {
                         lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
                     });
@@ -140,7 +140,7 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
                             family={if monospace { Family::Mono } else { Family::Sans }}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

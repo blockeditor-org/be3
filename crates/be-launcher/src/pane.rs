@@ -181,7 +181,7 @@ fn color(color: Rgb) -> Color32 {
 pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 create_effect(move || {
                     let size = size.get();
                     let Some(cell) = layout_text("M", FontId::monospace(FONT_SIZE), TextLayout::DEFAULT)
@@ -214,18 +214,18 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
                         <Frame fill={ColorRole::custom(background)} padding=PADDING>
                             <List spacing=0.0>
                                 <ForEach keys>
-                                    {move |index: usize| {
+                                    |index: usize| {
                                         let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
                                         view! {
                                             <TerminalLine row />
                                         }
-                                    }}
+                                    }
                                 </ForEach>
                             </List>
                         </Frame>
                     </Interactive>
                 }
-            }}
+            }
         </LayoutBuilder>
     }
 }
@@ -236,12 +236,12 @@ fn TerminalLine(row: Memo<Row>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys>
-                {move |index: usize| {
+                |index: usize| {
                     let span = create_memo(move || row.with(|row| row.get(index).cloned()));
                     view! {
                         <TerminalSpan span />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

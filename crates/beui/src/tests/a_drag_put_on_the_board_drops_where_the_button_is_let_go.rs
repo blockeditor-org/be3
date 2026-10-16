@@ -18,9 +18,7 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
                         set_dropped.set(Some((payload, point.pos)))
                     }}
                 >
-                    {|_: DropHandle| view! {
-                        <Frame width=100.0 height=100.0 />
-                    }}
+                    |_: DropHandle| <Frame width=100.0 height=100.0 />
                 </DropTarget>
             },
         ]

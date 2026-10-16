@@ -12,11 +12,9 @@ fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(400)}>
-                        {|_: usize| view! {
-                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                        |_: usize| <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Spacer />
                             </Frame>
-                        }}
                     </ForEach>
                 </Scroll>
             </List>

@@ -105,7 +105,7 @@ pub fn KeepChanges(
                 <Frame width=width height=height>
                     <Layers>
                         <ForEach keys={places}>
-                            {move |index: usize| {
+                            |index: usize| {
                                 let place = create_memo(move || {
                                     let origin = bounds.get().min.to_vec2();
                                     screens.with(|screens| {
@@ -127,7 +127,7 @@ pub fn KeepChanges(
                                 };
                                 let layer: Layer = card.into_child();
                                 layer
-                            }}
+                            }
                         </ForEach>
                     </Layers>
                 </Frame>

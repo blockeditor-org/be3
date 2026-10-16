@@ -105,8 +105,7 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                         <Text style=TextStyle::CAPTION string="Loading…" />
                     </Show>
                     <Show condition={described}>
-                        {move || view! {
-                            <List
+                        <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
                                 spacing=SPACING
@@ -124,7 +123,6 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                                 />
                                 <Text style=TextStyle::CAPTION string={summary} />
                             </List>
-                        }}
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={running}>

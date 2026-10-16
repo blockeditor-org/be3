@@ -1043,10 +1043,8 @@ pub fn TextArea(
     let trigger = completer.trigger;
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
-                view! {
-                    <PlacementBuilder>
-                        {move |area: ReadSignal<Rect>| {
+            |size: ReadSignal<Vec2>| <PlacementBuilder>
+                        |area: ReadSignal<Rect>| {
                         let (field_placed, set_field_placed) =
                             create_signal(None::<ReadSignal<Rect>>);
                         let placed = create_memo(move || match single_line {
@@ -1405,15 +1403,13 @@ pub fn TextArea(
                             <Frame @node_ref=&outer fill=outer_color>
                                 <List spacing=0.0>
                                     <Show condition={single_line}>
-                                        {move || view! {
-                                            <Editing
+                                        <Editing
                                                 @sizing=ItemSize::Percent(100.0)
                                                 field={field}
                                             />
-                                        }}
                                     </Show>
                                     <Show condition={multi_line}>
-                                        {move || {
+                                        || {
                                         let (width, height, strip_width, strip_height) =
                                             (width, height, strip_width, strip_height);
                                         let (gutter_color, border_x, border_width, border_height, border_color) =
@@ -1458,24 +1454,22 @@ pub fn TextArea(
                                                 </CanvasItem>
                                             </Canvas>
                                         }
-                                        }}
+                                        }
                                     </Show>
                                     <Show condition={menu}>
-                                        {move || {
+                                        || {
                                             let menu = menu_render
                                                 .expect("a completion menu is only shown when the area was given one");
                                             view! {
                                                 <Completions cx menu />
                                             }
-                                        }}
+                                        }
                                     </Show>
                                 </List>
                             </Frame>
                         }
-                        }}
+                        }
                     </PlacementBuilder>
-                }
-            }}
         </LayoutBuilder>
     }
 }
@@ -1646,12 +1640,12 @@ fn FieldFrame(
 ) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
+            |placed: ReadSignal<Rect>| {
                 report.set_unconditionally(Some(placed));
                 view! {
                     <Frame fill=color>{children}</Frame>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }

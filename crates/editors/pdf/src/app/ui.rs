@@ -152,7 +152,7 @@ fn PageCanvas(
                     <Frame fill={ColorRole::Custom(PAGE_FILL)} />
                 </CanvasItem>
                 <ForEach keys={keys}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let tile = create_memo(move || {
                             shown.with(|shown| shown.tiles.get(index).cloned())
                         });
@@ -177,7 +177,7 @@ fn PageCanvas(
                                 <Picture image={image} fit=ImageFit::Fill @test_id={test_id} />
                             </CanvasItem>
                         }
-                    }}
+                    }
                 </ForEach>
             </Canvas>
             <Show condition={failed}>

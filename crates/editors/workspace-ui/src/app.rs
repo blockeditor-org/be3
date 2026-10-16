@@ -40,11 +40,7 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
     view! {
         <Loaded loaded={loaded} label="Loading the workspace">
             <Container>
-                {move |_| {
-                    view! {
-                        <WorkspaceBody workspace />
-                    }
-                }}
+                |_| <WorkspaceBody workspace />
             </Container>
         </Loaded>
     }
@@ -96,26 +92,18 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             }}
                         >
                             <ForEach keys={block_tabs}>
-                                {move |tab: TabId| view! {
-                                    <BlockTab workspace tab />
-                                }}
+                                |tab: TabId| <BlockTab workspace tab />
                             </ForEach>
                             <ForEach keys={top_windows}>
-                                {move |window: HostWindowId| view! {
-                                    <WindowTab workspace key={window} />
-                                }}
+                                |window: HostWindowId| <WindowTab workspace key={window} />
                             </ForEach>
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={panels}>
-                        {move |panel: HostPanel| view! {
-                            <PanelWindow workspace panel />
-                        }}
+                        |panel: HostPanel| <PanelWindow workspace panel />
                     </ForEach>
                     <ForEach keys={dialog_windows}>
-                        {move |(window, parent): (HostWindowId, HostWindowId)| view! {
-                            <AttachedWindow workspace window parent />
-                        }}
+                        |(window, parent): (HostWindowId, HostWindowId)| <AttachedWindow workspace window parent />
                     </ForEach>
                 </Docking>
                 <PickerDialogs workspace />
@@ -176,9 +164,7 @@ fn SidePanel(
                 on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
                 @test_id={id}
             >
-                {move |handle: ChildBlockHandle| view! {
-                    <PanelStatus state={handle.state} loading={loading.to_owned()} />
-                }}
+                |handle: ChildBlockHandle| <PanelStatus state={handle.state} loading={loading.to_owned()} />
             </ChildBlock>
         </List>
     }

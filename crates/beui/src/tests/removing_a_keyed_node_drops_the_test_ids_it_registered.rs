@@ -16,9 +16,7 @@ fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
                         <Text string="drop" />
                     </Button>
                     <ForEach keys={items}>
-                        {|value: i64| view! {
-                            <Text @test_id={format!("item.{value}")} string={value.to_string()} />
-                        }}
+                        |value: i64| <Text @test_id={format!("item.{value}")} string={value.to_string()} />
                     </ForEach>
                 </List>
             }

@@ -145,7 +145,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=0.0>
                         <Dynamic value={mode}>
-                            {move |shown: CalendarView| {
+                            |shown: CalendarView| {
                                 match shown {
                                     CalendarView::Month => view! {
                                         <MonthGrid
@@ -177,7 +177,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                                         />
                                     },
                                 }
-                            }}
+                            }
                         </Dynamic>
                     </List>
                 </Frame>

@@ -299,7 +299,7 @@ fn MenuRow(
                 on_key={move |press: KeyPress| key(state, index, parent, press)}
             />
             <Show condition={has_children}>
-                {move || {
+                || {
                 let (dismiss, submenu_open, children) =
                     (dismiss, submenu_open, children.clone());
                 let (row, panel, content_ref) = (row, panel, content_ref);
@@ -330,7 +330,7 @@ fn MenuRow(
                         })}
                     />
                 }
-                }}
+                }
             </Show>
         </List>
     };

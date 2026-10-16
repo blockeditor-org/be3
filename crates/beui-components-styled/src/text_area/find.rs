@@ -31,9 +31,7 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
         <BackHandler enabled={open} on_back={move || state.close_find()}>
             <List spacing=0.0>
                 <Show condition={open}>
-                    {move || view! {
-                        <FindBarRows state={state} />
-                    }}
+                    <FindBarRows state={state} />
                 </Show>
             </List>
         </BackHandler>
@@ -103,13 +101,11 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                     </List>
                 </Frame>
                 <Show condition={show_replace}>
-                    {move || view! {
-                        <ReplaceRow
+                    <ReplaceRow
                             state={state}
                             no_current={no_current}
                             no_matches={replace_no_matches}
                         />
-                    }}
                 </Show>
             </List>
         </Frame>

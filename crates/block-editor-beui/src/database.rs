@@ -52,7 +52,7 @@ pub fn DatabaseValueEditor(
     view! {
         <List spacing=FIELD_SPACING>
             <ForEach keys={keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let field = field_of(fields, id);
                     let value = value_of(values, id);
                     let test_id = format!("{}.field.{id}", prefix.get_untracked());
@@ -69,7 +69,7 @@ pub fn DatabaseValueEditor(
                             on_submit={forward(on_submit)}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -157,7 +157,7 @@ fn DatabaseValueControl(
     view! {
         <List spacing=0.0>
             <Dynamic value={kind}>
-                {move |kind: Option<Option<DatabaseFieldType>>| {
+                |kind: Option<Option<DatabaseFieldType>>| {
                     let test_id = id.clone();
                     let on_change = forward(on_change);
                     let on_pick = forward(on_pick);
@@ -252,7 +252,7 @@ fn DatabaseValueControl(
                             />
                         },
                     }
-                }}
+                }
             </Dynamic>
         </List>
     }
@@ -380,7 +380,7 @@ fn EnumValue(
         <Select
             options={view! {
                 <ForEach keys={keys}>
-                    {move |id: Uuid| {
+                    |id: Uuid| {
                         let label = create_memo(move || {
                             names.with(|options| {
                                 options
@@ -392,7 +392,7 @@ fn EnumValue(
                         view! {
                             <ChoiceOption label={label} />
                         }
-                    }}
+                    }
                 </ForEach>
             }}
             selected={selected}
@@ -598,7 +598,7 @@ fn RelationValue(
             <Select
                 options={view! {
                     <ForEach keys={keys}>
-                        {move |link: RowRef| {
+                        |link: RowRef| {
                             let label = create_memo(move || {
                                 names.with(|choices| {
                                     choices
@@ -610,7 +610,7 @@ fn RelationValue(
                             view! {
                                 <ChoiceOption label={label} />
                             }
-                        }}
+                        }
                     </ForEach>
                 }}
                 selected={selected}
@@ -688,7 +688,7 @@ fn LinksValue(
     view! {
         <List spacing=SPACING>
             <ForEach keys={linked}>
-                {move |link: RowRef| {
+                |link: RowRef| {
                     let remove_id = format!("{id}.remove.{}", link.row);
                     let label = create_memo(move || {
                         chip_labels.with(|labels| labels.row(&link))
@@ -713,12 +713,12 @@ fn LinksValue(
                             />
                         </List>
                     }
-                }}
+                }
             </ForEach>
             <Select
                 options={view! {
                     <ForEach keys={add_keys}>
-                        {move |link: RowRef| {
+                        |link: RowRef| {
                             let label = create_memo(move || {
                                 names.with(|rows| {
                                     rows.iter()
@@ -729,7 +729,7 @@ fn LinksValue(
                             view! {
                                 <ChoiceOption label={label} />
                             }
-                        }}
+                        }
                     </ForEach>
                 }}
                 selected={None}

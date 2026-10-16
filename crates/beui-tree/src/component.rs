@@ -184,16 +184,24 @@ impl<H, C> IntoRenderFn<H, C> for RenderFn<H, C> {
 
 #[diagnostic::on_unimplemented(
     message = "this component hands a value to the children it builds",
-    label = "name that value with `let:name` on this tag, or write these children as a single closure taking it"
+    label = "name that value after the opening tag, as `<Tag>|value| <Child /></Tag>`"
 )]
 pub trait UnitHandle<H> {}
 
 impl<F> UnitHandle<()> for F {}
 
 #[diagnostic::on_unimplemented(
-    message = "this component hands nothing to its children, so `let:` has nothing to name",
-    label = "write these children without `let:`"
+    message = "this component hands nothing to its children, so there is no value to name",
+    label = "write these children without `|value|`"
 )]
 pub trait HandsAValue {
     fn bind<T>(self) -> T;
+}
+
+#[diagnostic::on_unimplemented(
+    message = "this component takes its children already built, so they cannot be a block that builds them",
+    label = "write these children as tags or as `{{expr}}`, without `|| {{...}}`"
+)]
+pub trait BuildsItsChildren {
+    fn build<T>(self) -> T;
 }

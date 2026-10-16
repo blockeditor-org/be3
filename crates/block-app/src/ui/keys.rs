@@ -192,8 +192,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 </List>
             </Show>
             <Show condition={waiting}>
-                {move || view! {
-                    <List spacing=8.0>
+                <List spacing=8.0>
                         <Text
                             style=TextStyle::PARAGRAPH
                             string="Type this code on the other device:"
@@ -211,7 +210,6 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                             />
                         </List>
                     </List>
-                }}
             </Show>
             <ErrorText text={error} />
             <List direction=Direction::Horizontal spacing=8.0>

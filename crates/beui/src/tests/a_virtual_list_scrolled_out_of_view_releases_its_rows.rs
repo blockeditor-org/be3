@@ -19,7 +19,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
                                 keys={indices(ROWS)}
                                 item_size=VIRTUAL_ITEM_HEIGHT
                             >
-                                {move |key: ReadSignal<usize>| {
+                                |key: ReadSignal<usize>| {
                                     create_binding(move || {
                                         let key = key.get();
                                         set_built.update(|built| built.push(key));
@@ -29,7 +29,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
                                             <Spacer />
                                         </Frame>
                                     }
-                                }}
+                                }
                             </VirtualList>
                             <Frame height=BELOW>
                                 <Spacer />

@@ -60,12 +60,12 @@ fn Rows(region: NodeRef, count: crate::reactive::ReadSignal<usize>) -> NodeId {
         <ContextMenu
             items={view! {
                 <ForEach keys={keys}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let label = create_memo(move || format!("row {index}"));
                         view! {
                             <Row label={label} />
                         }
-                    }}
+                    }
                 </ForEach>
             }}
             on_select={move |_: Vec<usize>| {}}

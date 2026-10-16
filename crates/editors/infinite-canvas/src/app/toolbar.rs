@@ -66,12 +66,12 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
             }}
         >
             <ForEach keys={DOCK_TOOLS.to_vec()}>
-                {move |index: usize| {
+                |index: usize| {
                     let actions = tools.clone();
                     view! {
                         <ToolChoice actions index />
                     }
-                }}
+                }
             </ForEach>
             <IconButton
                 label="Block"
@@ -166,8 +166,7 @@ pub(crate) fn ImportError(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={failed}>
-                {move || view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Text string={message} color=TextColor::Danger />
                         <Button
                             label="Dismiss"
@@ -177,7 +176,6 @@ pub(crate) fn ImportError(state: CanvasState) -> NodeId {
                         />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                     </List>
-                }}
             </Show>
         </List>
     }

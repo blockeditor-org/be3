@@ -15,8 +15,7 @@ fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
         move || {
             view! {
                 <Container>
-                    {move |_| view! {
-                        <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                    |_| <Stack spacing=0.0 breakpoint=BREAKPOINT>
                             <Frame
                                 @sizing=ItemSize::Percent(50.0)
                                 @node_ref=&left
@@ -32,7 +31,6 @@ fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
                                 <Spacer />
                             </Frame>
                         </Stack>
-                    }}
                 </Container>
             }
         }

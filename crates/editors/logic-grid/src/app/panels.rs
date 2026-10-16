@@ -26,15 +26,13 @@ pub(super) fn Panels(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={challenged}>
-                {move || view! {
-                    <Accordion
+                <Accordion
                         title="Challenge"
                         open={challenge_open}
                         on_toggle={move |open| set_challenge_open.set(open)}
                     >
                         <ChallengePanel session={session} />
                     </Accordion>
-                }}
             </Show>
             <Accordion
                 title="Simulation"
@@ -96,7 +94,7 @@ fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
                 <Text style=TextStyle::CAPTION string="None" />
             </Show>
             <ForEach keys={keys}>
-                {move |index: usize| {
+                |index: usize| {
                     let label = create_memo(move || {
                         rows.with(|rows| rows.get(index).map(|row| row.0.clone()).unwrap_or_default())
                     });
@@ -106,7 +104,7 @@ fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
                     view! {
                         <Field label={label} value={value} />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -416,14 +414,13 @@ fn SimulationPanel(session: Session) -> NodeId {
                 />
             </Show>
             <Show condition={compiled}>
-                {move || view! {
-                    <List spacing=SPACING>
+                <List spacing=SPACING>
                         <Rows rows={summary} />
                         <Separator />
                         <Text string="Call stack" />
                         <List spacing=2.0>
                             <ForEach keys={frames}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let row = create_memo(move || {
                                         frame_shown.get().frames.get(index).cloned()
                                     });
@@ -443,7 +440,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                                             <Text string={label} />
                                         </ListRow>
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                         <Separator />
@@ -453,14 +450,14 @@ fn SimulationPanel(session: Session) -> NodeId {
                         </Show>
                         <List spacing=2.0>
                             <ForEach keys={instructions}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let row = create_memo(move || {
                                         instruction_shown.get().instructions.get(index).cloned()
                                     });
                                     view! {
                                         <InstructionRow session={session} row={row} index={index} />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                         <Separator />
@@ -470,14 +467,14 @@ fn SimulationPanel(session: Session) -> NodeId {
                         </Show>
                         <List spacing=4.0>
                             <ForEach keys={inputs}>
-                                {move |index: usize| {
+                                |index: usize| {
                                     let row = create_memo(move || {
                                         input_shown.get().inputs.get(index).cloned()
                                     });
                                     view! {
                                         <InputRow session={session} row={row} index={index} />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                         <Separator />
@@ -490,7 +487,6 @@ fn SimulationPanel(session: Session) -> NodeId {
                         <Text string="Storage" />
                         <Rows rows={storage} />
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -549,7 +545,7 @@ fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> Nod
                 <Text style=TextStyle::CAPTION string="deleted" />
             </Show>
             <ForEach keys={bits}>
-                {move |bit: u32| {
+                |bit: u32| {
                     let state = create_memo(move || {
                         row.get()
                             .and_then(|row| row.1)
@@ -563,7 +559,7 @@ fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> Nod
                     view! {
                         <Button label={text} variant=ButtonVariant::Secondary on_click={toggle} />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -673,8 +669,7 @@ fn ChallengePanel(session: Session) -> NodeId {
                 <Problem content={problem} />
             </Show>
             <Show condition={working}>
-                {move || view! {
-                    <List spacing=2.0>
+                <List spacing=2.0>
                         <Text
                             style=TextStyle::CAPTION
                             string={status}
@@ -684,7 +679,7 @@ fn ChallengePanel(session: Session) -> NodeId {
                             <List spacing=2.0>
                                 <TableRow cells={header} />
                                 <ForEach keys={ticks}>
-                                    {move |tick: usize| {
+                                    |tick: usize| {
                                         let row = create_memo(move || {
                                             rows_shown
                                                 .get()
@@ -693,12 +688,11 @@ fn ChallengePanel(session: Session) -> NodeId {
                                         view! {
                                             <TickRow session={session} row={row} tick={tick} />
                                         }
-                                    }}
+                                    }
                                 </ForEach>
                             </List>
                         </Scroll>
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -710,7 +704,7 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys={keys}>
-                {move |index: usize| {
+                |index: usize| {
                     let text = create_memo(move || {
                         cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
                     });
@@ -719,7 +713,7 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
                             <Text string={text} />
                         </Frame>
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -734,14 +728,14 @@ fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId
         <ListRow selected={active} on_click={seek}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <ForEach keys={keys}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let cell = create_memo(move || {
                             row.get().and_then(|row| row.0.get(index).cloned())
                         });
                         view! {
                             <TickCell cell={cell} />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         </ListRow>
@@ -884,14 +878,14 @@ fn DebuggerPanel(session: Session) -> NodeId {
                 <Text style=TextStyle::CAPTION string="No validation errors" />
             </Show>
             <ForEach keys={error_keys}>
-                {move |index: usize| {
+                |index: usize| {
                     let text = create_memo(move || {
                         errors.with(|errors| errors.get(index).cloned().unwrap_or_default())
                     });
                     view! {
                         <Problem content={text} />
                     }
-                }}
+                }
             </ForEach>
             <Separator />
             <Text string="Entities" />
@@ -899,14 +893,14 @@ fn DebuggerPanel(session: Session) -> NodeId {
                 <Text style=TextStyle::CAPTION string="No entities" />
             </Show>
             <ForEach keys={entity_keys}>
-                {move |entity: DebugEntity| {
+                |entity: DebugEntity| {
                     let row = create_memo(move || {
                         entities.with(|rows| rows.iter().find(|row| row.entity == entity).cloned())
                     });
                     view! {
                         <EntityPanel session={session} row={row} entity={entity} />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -1020,7 +1014,7 @@ fn GraphPanel(session: Session) -> NodeId {
                 <Text style=TextStyle::CAPTION string="The generated graph is empty." />
             </Show>
             <Show condition={drawn}>
-                {move || { let draw = draw.clone(); view! {
+                || { let draw = draw.clone(); view! {
                     <Scroll direction=Direction::Horizontal>
                         <GraphCanvas
                             session={session}
@@ -1030,7 +1024,7 @@ fn GraphPanel(session: Session) -> NodeId {
                             draw={draw}
                         />
                     </Scroll>
-                } }}
+                } }
             </Show>
         </List>
     }
@@ -1105,7 +1099,7 @@ fn StorageDialog(session: Session) -> NodeId {
         <Dialog open={open} title={title} width=DIALOG_WIDTH on_dismiss={dismiss}>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={bits}>
-                    {move |bit: u32| {
+                    |bit: u32| {
                         let label = create_memo(move || {
                             let state = configured.get().map_or(0, |(_, _, value)| (value >> bit) & 1);
                             format!("Bit {bit}: {state}")
@@ -1123,7 +1117,7 @@ fn StorageDialog(session: Session) -> NodeId {
                                 on_click={toggle}
                             />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         </Dialog>

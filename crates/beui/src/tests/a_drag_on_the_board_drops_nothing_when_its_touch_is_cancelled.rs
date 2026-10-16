@@ -16,9 +16,7 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
                 <DropTarget
                     on_drop={move |(payload, _): (u32, DragPoint)| set_dropped.set(Some(payload))}
                 >
-                    {|_: DropHandle| view! {
-                        <Frame width=100.0 height=100.0 />
-                    }}
+                    |_: DropHandle| <Frame width=100.0 height=100.0 />
                 </DropTarget>
             },
         ]

@@ -161,7 +161,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                     <LinkedBar workspace={workspace} info={info} />
                 </Show>
                 <Dynamic value={content}>
-                    {move |content: Content| {
+                    |content: Content| {
                         match content {
                             Content::Denied => view! {
                                 <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
@@ -180,7 +180,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                                 />
                             },
                         }
-                    }}
+                    }
                 </Dynamic>
                 <Show condition={desktop}>
                     <StatusBar workspace={workspace} info={info} />
@@ -222,12 +222,12 @@ fn BlockChild(
             on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
             @test_id={"workspace.block"}
         >
-            {move |handle: ChildBlockHandle| {
+            |handle: ChildBlockHandle| {
                 dock_menu(handle.menu);
                 view! {
                     <PanelStatus state={handle.state} loading="This block is loading…" />
                 }
-            }}
+            }
         </ChildBlock>
     }
 }

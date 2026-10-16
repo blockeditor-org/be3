@@ -309,9 +309,7 @@ impl DemoApp {
 pub fn Demo() -> NodeId {
     view! {
         <Container>
-            {move |_| view! {
-                <DemoShell />
-            }}
+            |_| <DemoShell />
         </Container>
     }
 }
@@ -324,9 +322,7 @@ impl DemoApp {
                 provide_context(Today(today));
                 view! {
                     <Container>
-                        {move |_| view! {
-                            <LonePage page />
-                        }}
+                        |_| <LonePage page />
                     </Container>
                 }
             }),
@@ -585,26 +581,21 @@ fn DemoShell() -> NodeId {
                             }}
                         >
                             <ForEach keys={open}>
-                                {move |page: Page| view! {
-                                    <DockTab
+                                |page: Page| <DockTab
                                         id={page.tab()}
                                         title={page.title()}
                                         icon={page.icon()}
                                         on_close={move || pages.close(page)}
                                     >
                                         <Container>
-                                            {move |_| view! {
-                                                <PageView page />
-                                            }}
+                                            |_| <PageView page />
                                         </Container>
                                     </DockTab>
-                                }}
                             </ForEach>
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={attached}>
-                        {move |dialog: DemoDialog| view! {
-                            <DockDialog
+                        |dialog: DemoDialog| <DockDialog
                                 id={dialog.id}
                                 parent={dialog.parent}
                                 modal={dialog.modal}
@@ -618,7 +609,6 @@ fn DemoShell() -> NodeId {
                             >
                                 <AttachedDialog modal={dialog.modal} />
                             </DockDialog>
-                        }}
                     </ForEach>
                 </Docking>
             </List>
@@ -729,13 +719,11 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
-                {move || view! {
-                    <Checkbox
+                <Checkbox
                         label="Mobile"
                         checked={mobile}
                         on_change={move |on: bool| set_mobile.set(on)}
                     />
-                }}
             </Show>
             <Select
                 label="Theme"
@@ -743,9 +731,7 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
                     <ForEach
                         keys={Theme::BUILT_IN.iter().map(|(label, _)| *label).collect::<Vec<_>>()}
                     >
-                        {|label: &'static str| view! {
-                            <ChoiceOption label />
-                        }}
+                        |label: &'static str| <ChoiceOption label />
                     </ForEach>
                 }}
                 selected={selected_theme}
@@ -822,12 +808,12 @@ fn CatalogGroup(
                 </List>
             </Frame>
             <ForEach keys={listed}>
-                {move |page: Page| {
+                |page: Page| {
                     let selected = active.memo(Some(page));
                     view! {
                         <CatalogRow page pages selected />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

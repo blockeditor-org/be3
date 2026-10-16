@@ -52,7 +52,7 @@ pub fn Scatter(data: Data) -> NodeId {
 fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeId {
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 let bounds = create_memo(move || {
                     let (x_field, y_field) = axes.get()?;
                     plot_bounds(&shown_rows(data), x_field.id, y_field.id)
@@ -162,12 +162,12 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                                 <Text style=TextStyle::CAPTION string={y_name} />
                             </CanvasItem>
                             <ForEach keys={keys}>
-                                {move |row: usize| {
+                                |row: usize| {
                                     let placed = placed;
                                     view! {
                                         <Dot placed={placed} data={data} row={row} />
                                     }
-                                }}
+                                }
                             </ForEach>
                             <Show condition={empty}>
                                 <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
@@ -180,7 +180,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                         </Canvas>
                     </Interactive>
                 }
-            }}
+            }
         </LayoutBuilder>
     }
 }

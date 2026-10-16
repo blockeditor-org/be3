@@ -38,7 +38,7 @@ fn check_compact_rows(inset: f32) {
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size={item_height}
                         >
-                            {move |index: ReadSignal<usize>| {
+                            |index: ReadSignal<usize>| {
                                 create_binding(move || {
                                     let index = index.get();
                                     set_built.update(|built| built.push(index));
@@ -50,7 +50,7 @@ fn check_compact_rows(inset: f32) {
                                         <Spacer />
                                     </Frame>
                                 }
-                            }}
+                            }
                         </VirtualList>
                     </Offset>
                 </List>

@@ -147,8 +147,7 @@ pub fn ContextMenu(
             <List spacing=0.0>
                 {children} @sizing={child_size}
                 <Show condition={built}>
-                    {move || view! {
-                        <MenuPopup
+                    <MenuPopup
                             overlay
                             content
                             items={items.clone()}
@@ -163,10 +162,9 @@ pub fn ContextMenu(
                             }}
                             on_select={on_select}
                         />
-                    }}
                 </Show>
                 <Show condition={toolbar_open}>
-                    {move || {
+                    || {
                         let (button, panel) = toolbar_style.unwrap_or_else(|| unreachable!());
                         view! {
                             <Toolbar
@@ -182,7 +180,7 @@ pub fn ContextMenu(
                                 on_dismiss={move || on_toolbar_close.call()}
                             />
                         }
-                    }}
+                    }
                 </Show>
             </List>
         </Interactive>

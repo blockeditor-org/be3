@@ -27,12 +27,12 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
                 <Text style=TextStyle::CAPTION string="Opening the review" color={opening} />
             </Show>
             <ForEach keys={Status::ALL.to_vec()}>
-                {move |status: Status| {
+                |status: Status| {
                     let entries = entries;
                     view! {
                         <StatusGroup review entries status />
                     }
-                }}
+                }
             </ForEach>
             <Show condition={searching}>
                 <Text
@@ -78,12 +78,12 @@ fn StatusGroup(
                     <Text string={heading} />
                 </List>
                 <ForEach keys={paths}>
-                    {move |path: String| {
+                    |path: String| {
                         let chosen = here.memo(Some(path.clone()));
                         view! {
                             <PaintingRow review path selected={chosen} />
                         }
-                    }}
+                    }
                 </ForEach>
             </List>
         </Frame>

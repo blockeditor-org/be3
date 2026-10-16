@@ -47,7 +47,7 @@ pub(crate) fn HandBar(
 ) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |rect: ReadSignal<Rect>| {
+            |rect: ReadSignal<Rect>| {
                 let bar = rect;
                 create_effect(move || set_bar.set(bar.get()));
                 let shown = create_memo(move || !hand.with(Vec::is_empty));
@@ -67,8 +67,7 @@ pub(crate) fn HandBar(
                     >
                         <Canvas view={screen}>
                             <ForEach keys={keys}>
-                                {move |(id, spot): (ItemId, Spot)| view! {
-                                    <HandItem
+                                |(id, spot): (ItemId, Spot)| <HandItem
                                         id
                                         spot
                                         hand={hand}
@@ -76,12 +75,11 @@ pub(crate) fn HandBar(
                                         play={play}
                                         hidden={hidden}
                                     />
-                                }}
                             </ForEach>
                         </Canvas>
                     </Frame>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }

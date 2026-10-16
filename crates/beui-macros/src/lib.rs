@@ -304,12 +304,12 @@ fn render_children_block(
     }
 }
 
-fn render_children_let(
+fn render_children_with(
     render: &Render,
     wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
 ) -> Setter {
     let Some(handle) = &render.handle else {
-        return no_children_let();
+        return no_children_with();
     };
     let output = render_output(render);
     let bound = render_fn_bound(render, quote! { #handle });
@@ -317,7 +317,7 @@ fn render_children_let(
     let new = render_new(render);
     let built = output.wrap_block(quote! { children(handle) });
     Setter {
-        method: format_ident!("children_let"),
+        method: format_ident!("children_with"),
         generics: quote! { <ChildrenFn, ChildrenBlock> },
         args: quote! { children: ChildrenFn },
         where_clause: quote! {
@@ -329,13 +329,23 @@ fn render_children_let(
     }
 }
 
-fn no_children_let() -> Setter {
+fn no_children_with() -> Setter {
     Setter {
-        method: format_ident!("children_let"),
+        method: format_ident!("children_with"),
         generics: quote! { <ChildrenFn> },
         args: quote! { children: ChildrenFn },
         where_clause: quote! { where ChildrenFn: ::beui::reactive::HandsAValue },
         value: quote! { ::beui::reactive::HandsAValue::bind(children) },
+    }
+}
+
+fn no_children_render() -> Setter {
+    Setter {
+        method: format_ident!("children_render"),
+        generics: quote! { <ChildrenFn> },
+        args: quote! { children: ChildrenFn },
+        where_clause: quote! { where ChildrenFn: ::beui::reactive::BuildsItsChildren },
+        value: quote! { ::beui::reactive::BuildsItsChildren::build(children) },
     }
 }
 
@@ -352,7 +362,8 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
                 where_clause: quote! { where ChildrenBlock: ::beui::reactive::IntoSegments<#child> },
                 value: quote! { ::beui::reactive::Children::from_block(children()) },
             },
-            no_children_let(),
+            no_children_with(),
+            no_children_render(),
         ];
     }
     if prop.is_optional_child {
@@ -368,7 +379,8 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
                 where_clause: quote! { where ChildrenBlock: ::beui::reactive::AtMostOneChild<#item> },
                 value: quote! { ::beui::reactive::AtMostOneChild::at_most_one_child(children()) },
             },
-            no_children_let(),
+            no_children_with(),
+            no_children_render(),
         ];
     }
     if prop.is_child {
@@ -381,21 +393,22 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
                 where_clause: quote! { where ChildrenBlock: ::beui::reactive::OneChild<#ty> },
                 value: quote! { ::beui::reactive::OneChild::one_child(children()) },
             },
-            no_children_let(),
+            no_children_with(),
+            no_children_render(),
         ];
     }
     match &prop.optional_render {
         Some(render) => vec![
             render_children_closure(render, |build| quote! { Some(#build) }),
             render_children_block(render, |build| quote! { Some(#build) }),
-            render_children_let(render, |build| quote! { Some(#build) }),
+            render_children_with(render, |build| quote! { Some(#build) }),
         ],
         None => {
             let render = prop.render.as_ref().expect("checked by the caller");
             vec![
                 render_children_closure(render, |build| build),
                 render_children_block(render, |build| build),
-                render_children_let(render, |build| build),
+                render_children_with(render, |build| build),
             ]
         }
     }
@@ -1314,8 +1327,54 @@ struct ViewNode {
     props: Vec<ViewAttr>,
     specials: Vec<ViewAttr>,
     sizing: Option<ViewSizing>,
-    binding: Option<(Token![let], Pat)>,
+    head: Option<ViewHead>,
     children: Option<Vec<ViewChild>>,
+}
+
+struct ViewHead {
+    span: proc_macro2::Span,
+    pattern: Option<Pat>,
+    block: Option<syn::Block>,
+}
+
+fn parse_view_head(input: ParseStream) -> syn::Result<Option<ViewHead>> {
+    let (span, pattern) = if input.peek(Token![||]) {
+        (input.parse::<Token![||]>()?.spans[0], None)
+    } else if input.peek(Token![|]) {
+        let open = input.parse::<Token![|]>()?;
+        let pattern = Pat::parse_single(input)?;
+        let pattern = if input.peek(Token![:]) {
+            let colon_token = input.parse::<Token![:]>()?;
+            Pat::Type(PatType {
+                attrs: Vec::new(),
+                pat: Box::new(pattern),
+                colon_token,
+                ty: Box::new(input.parse()?),
+            })
+        } else {
+            pattern
+        };
+        input.parse::<Token![|]>()?;
+        (open.span, Some(pattern))
+    } else {
+        return Ok(None);
+    };
+    let block = if input.peek(syn::token::Brace) {
+        let fork = input.fork();
+        fork.parse::<syn::Block>()?;
+        if fork.peek(Token![<]) && fork.peek2(Token![/]) {
+            Some(input.parse::<syn::Block>()?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    Ok(Some(ViewHead {
+        span,
+        pattern,
+        block,
+    }))
 }
 
 fn parse_tag_path(input: ParseStream) -> syn::Result<Vec<Ident>> {
@@ -1344,17 +1403,7 @@ impl Parse for ViewNode {
         let mut specials = Vec::new();
         let mut special_names: Vec<String> = Vec::new();
         let mut sizing = None;
-        let mut binding = None;
         while !input.peek(Token![>]) && !input.peek(Token![/]) {
-            if input.peek(Token![let]) {
-                let let_token = input.parse::<Token![let]>()?;
-                if binding.is_some() {
-                    return Err(syn::Error::new(let_token.span, "duplicate `let:`"));
-                }
-                input.parse::<Token![:]>()?;
-                binding = Some((let_token, Pat::parse_single(input)?));
-                continue;
-            }
             if input.peek(Token![@]) {
                 let at = input.parse::<Token![@]>()?;
                 let attr = input.parse::<ViewAttr>()?;
@@ -1399,23 +1448,18 @@ impl Parse for ViewNode {
         if input.peek(Token![/]) {
             input.parse::<Token![/]>()?;
             input.parse::<Token![>]>()?;
-            if let Some((let_token, _)) = binding {
-                return Err(syn::Error::new(
-                    let_token.span,
-                    "`let:` names the value this tag hands its children, so the tag needs children",
-                ));
-            }
             return Ok(ViewNode {
                 tag_path,
                 props,
                 specials,
                 sizing,
-                binding: None,
+                head: None,
                 children: None,
             });
         }
         input.parse::<Token![>]>()?;
 
+        let head = parse_view_head(input)?;
         let mut children = Vec::new();
         while !(input.peek(Token![<]) && input.peek2(Token![/])) {
             children.push(input.parse::<ViewChild>()?);
@@ -1441,18 +1485,15 @@ impl Parse for ViewNode {
             ));
         }
 
-        if let (
-            Some((let_token, _)),
-            [
-                ViewChild {
-                    kind: ViewChildKind::Expr(Expr::Closure(_), None),
-                },
-            ],
-        ) = (&binding, children.as_slice())
+        if let [
+            ViewChild {
+                kind: ViewChildKind::Expr(Expr::Closure(closure), None),
+            },
+        ] = children.as_slice()
         {
-            return Err(syn::Error::new(
-                let_token.span,
-                "`let:` already names the value this tag hands its children, so write the children as tags rather than as a closure",
+            return Err(syn::Error::new_spanned(
+                closure,
+                "write a closure child without its braces and `move`, as `|value| <Tag />` or `|value| { ... }`",
             ));
         }
 
@@ -1461,7 +1502,7 @@ impl Parse for ViewNode {
             props,
             specials,
             sizing,
-            binding,
+            head,
             children: Some(children),
         })
     }
@@ -1540,23 +1581,25 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
     match &node.children {
         None => quote_spanned! { tag => #builder .#build() },
         Some(children) => {
-            if let Some((_, pattern)) = &node.binding {
-                let items = expand_child_block(children);
-                let children_let = format_ident!("children_let", span = tag);
-                return quote_spanned! { tag =>
-                    #builder .#children_let(move |#pattern| #items) .#build()
+            if let Some(head) = &node.head {
+                let span = head.span;
+                let params = match &head.pattern {
+                    Some(pattern) => quote! { |#pattern| },
+                    None => quote! { || },
                 };
-            }
-            if let [
-                ViewChild {
-                    kind: ViewChildKind::Expr(Expr::Closure(closure), None),
-                },
-            ] = children.as_slice()
-            {
-                let children_render = format_ident!("children_render", span = tag);
-                return quote_spanned! { tag =>
-                    #builder .#children_render(#closure) .#build()
-                };
+                if let Some(block) = &head.block {
+                    let children_render = format_ident!("children_render", span = span);
+                    return quote_spanned! { span =>
+                        #builder .#children_render(move #params #block) .#build()
+                    };
+                }
+                if head.pattern.is_some() {
+                    let items = expand_child_block(children);
+                    let children_with = format_ident!("children_with", span = span);
+                    return quote_spanned! { span =>
+                        #builder .#children_with(move #params #items) .#build()
+                    };
+                }
             }
             let items = expand_child_block(children);
             let block = quote_spanned! { tag => move || #items };

@@ -36,11 +36,7 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION string="Nothing on the canvas yet." wrap=true />
                 </Show>
                 <ForEach keys={ids}>
-                    {move |id: Uuid| {
-                        view! {
-                            <LayerRow state id />
-                        }
-                    }}
+                    |id: Uuid| <LayerRow state id />
                 </ForEach>
             </List>
         </Accordion>
@@ -90,7 +86,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
     };
     view! {
         <DropTarget on_drop={dropped}>
-            {move |handle: DropHandle| {
+            |handle: DropHandle| {
                 let fill = create_memo(move || match selected.get() {
                     true => theme.accent_soft.get(),
                     false => Color32::TRANSPARENT,
@@ -119,16 +115,14 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                                 on_click={select}
                                 @test_id={format!("infinite-canvas.layer.{id}")}
                             >
-                                {move |_: DragHandle| view! {
-                                    <Frame padding={Sides::vertical(ROW_PADDING)}>
+                                |_: DragHandle| <Frame padding={Sides::vertical(ROW_PADDING)}>
                                         <Text string={label} color={text} />
                                     </Frame>
-                                }}
                             </Draggable>
                         </List>
                     </Frame>
                 }
-            }}
+            }
         </DropTarget>
     }
 }

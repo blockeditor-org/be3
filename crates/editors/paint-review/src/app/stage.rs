@@ -143,7 +143,7 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={places}>
-                        {move |index: usize| {
+                        |index: usize| {
                             let panels = panels;
                             let layout = layout;
                             let image = create_memo(move || {
@@ -163,7 +163,7 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
                                     <Picture image={image} fit=ImageFit::Fill smooth=false />
                                 </CanvasItem>
                             }
-                        }}
+                        }
                     </ForEach>
                 </Canvas>
                 <Notice shown={stalled} note={note} failed={broken} progress={progress} />

@@ -40,9 +40,7 @@ pub fn Popover(
                 }
             }}
         >
-            {move |handle: PopoverHandle| view! {
-                <PopoverPanel max_width={max_width}>{content.call(handle)}</PopoverPanel>
-            }}
+            |handle: PopoverHandle| <PopoverPanel max_width={max_width}>{content.call(handle)}</PopoverPanel>
         </unstyled::Popover>
     }
 }

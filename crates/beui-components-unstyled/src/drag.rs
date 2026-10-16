@@ -161,12 +161,12 @@ where
                 >
                     <List spacing=0.0>
                         <Dynamic value={carried}>
-                            {move |carried: Option<P>| match carried {
+                            |carried: Option<P>| { match carried {
                                 Some(carried) => preview.call(carried),
                                 None => view! {
                                     <Frame />
                                 },
-                            }}
+                            } }
                         </Dynamic>
                     </List>
                 </Overlay>

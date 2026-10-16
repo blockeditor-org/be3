@@ -55,8 +55,7 @@ pub fn ColorInput(
                     <SwatchTrigger handle color={shown} label={picker_label} />
                 }}
             >
-                {move |popover: PopoverHandle| view! {
-                    <PopoverPanel>
+                |popover: PopoverHandle| <PopoverPanel>
                         <ColorPicker
                             value={current}
                             alpha
@@ -68,7 +67,6 @@ pub fn ColorInput(
                             }}
                         />
                     </PopoverPanel>
-                }}
             </unstyled::Popover>
             <TextInput
                 @sizing=ItemSize::Percent(100.0)

@@ -45,8 +45,7 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 <Text style=TextStyle::CAPTION string="Relationships loading…" />
             </Show>
             <Show condition={loaded}>
-                {move || view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ReferenceMenu
                             workspace={workspace}
                             name="Backrefs"
@@ -64,7 +63,6 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                             named="workspace.references"
                         />
                     </List>
-                }}
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <AccessMode workspace={workspace} info={info} />
@@ -104,7 +102,7 @@ pub(crate) fn ReferenceMenu(
                     <MenuItem label={nothing_label} disabled=true />
                 </Show>
                 <ForEach keys={indices}>
-                    {move |index: usize| {
+                    |index: usize| {
                         let reference = create_memo(move || {
                             items_refs.with(|refs| refs.list.get(index).cloned())
                         });
@@ -115,7 +113,7 @@ pub(crate) fn ReferenceMenu(
                                 containing={containing}
                             />
                         }
-                    }}
+                    }
                 </ForEach>
             }}
             on_select={move |path: Vec<usize>| {

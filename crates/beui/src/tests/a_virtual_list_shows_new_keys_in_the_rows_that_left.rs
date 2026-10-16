@@ -17,7 +17,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >
-                            {move |key: ReadSignal<usize>| {
+                            |key: ReadSignal<usize>| {
                                 set_built.update(|built| *built += 1);
                                 let label = create_memo(move || format!("Row {}", key.get()));
                                 view! {
@@ -27,7 +27,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
                                         </Frame>
                                     </Interactive>
                                 }
-                            }}
+                            }
                         </VirtualList>
                     </Offset>
                 </List>

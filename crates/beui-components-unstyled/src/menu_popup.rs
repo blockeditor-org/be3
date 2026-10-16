@@ -147,7 +147,7 @@ pub(crate) fn MenuPopup(
                 })}
             />
             <Show condition={sheet_built}>
-                {move || {
+                || {
                     let (row, sheet) = sheet.unwrap_or_else(|| unreachable!());
                     let (choose, dismiss) = (sheet_choose, sheet_dismiss);
                     sheet.call(MenuSheetHandle {
@@ -163,7 +163,7 @@ pub(crate) fn MenuPopup(
                             />
                         },
                     })
-                }}
+                }
             </Show>
         </List>
     }

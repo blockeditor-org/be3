@@ -32,11 +32,7 @@ pub fn Checkbox(
 ) -> NodeId {
     view! {
         <Toggle checked label disabled capture_presses tab_stop press_focus on_change={on_change}>
-            {move |handle: ToggleHandle| {
-                view! {
-                    <CheckboxFace handle />
-                }
-            }}
+            |handle: ToggleHandle| <CheckboxFace handle />
         </Toggle>
     }
 }
@@ -83,14 +79,12 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                     />
                 </Frame>
                 <Show condition={labeled}>
-                    {move || view! {
-                        <Text
+                    <Text
                             @sizing=ItemSize::Percent(100.0)
                             string={label}
                             color={label_color}
                             align=TextAlign::Start
                         />
-                    }}
                 </Show>
             </List>
         </FocusRing>

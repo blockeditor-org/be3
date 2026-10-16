@@ -138,11 +138,7 @@ pub fn CommandPalette(
                         scrollbar={scrollbar}
                     >
                         <ForEach keys={keys}>
-                            {move |key: u64| {
-                                view! {
-                                    <CommandRow state={state} key row={row} highlight={highlight} />
-                                }
-                            }}
+                            |key: u64| <CommandRow state={state} key row={row} highlight={highlight} />
                         </ForEach>
                     </unstyled::Scroll>
                 </List>

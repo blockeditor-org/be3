@@ -160,7 +160,7 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::TITLE string="Block Editor" />
             <Text style=TextStyle::CAPTION string="Choose an account to continue." />
             <ForEach keys={keys}>
-                {move |key: String| {
+                |key: String| {
                     let accounts = accounts;
                     let account = create_memo(move || {
                         accounts
@@ -172,7 +172,7 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
                     view! {
                         <AccountCard account />
                     }
-                }}
+                }
             </ForEach>
             <Show condition={empty}>
                 <Card>
@@ -340,8 +340,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                 />
                 <Text style=TextStyle::CAPTION string="Server" />
                 <Show condition={platform::HAS_EMBEDDED_SERVER}>
-                    {move || view! {
-                        <Tabs
+                    <Tabs
                             selected={remote_index}
                             on_change={move |index: usize| set_remote.set(index == 1)}
                             options={view! {
@@ -349,11 +348,9 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                                 <ChoiceOption label="Remote" />
                             }}
                         />
-                    }}
                 </Show>
                 <Show condition={remote}>
-                    {move || view! {
-                        <List spacing=10.0>
+                    <List spacing=10.0>
                             <TextInput
                                 value={remote_url}
                                 placeholder="https://example.com"
@@ -361,18 +358,15 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                                 on_change={move |value: String| set_remote_url.set(value)}
                             />
                             <Show condition={platform::SENDS_HEADERS}>
-                                {move || view! {
-                                    <TextInput
+                                <TextInput
                                         value={authorization}
                                         placeholder="Authorization header (optional)"
                                         label="Authorization header"
                                         password=true
                                         on_change={move |value: String| set_authorization.set(value)}
                                     />
-                                }}
                             </Show>
                         </List>
-                    }}
                 </Show>
                 <Text style=TextStyle::CAPTION string="Email address" />
                 <TextInput
@@ -382,8 +376,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                     on_change={move |value: String| set_email.set(value)}
                 />
                 <Show condition={register}>
-                    {move || view! {
-                        <List spacing=10.0>
+                    <List spacing=10.0>
                             <Text style=TextStyle::CAPTION string="Display name" />
                             <TextInput
                                 value={display_name}
@@ -391,7 +384,6 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                                 on_change={move |value: String| set_display_name.set(value)}
                             />
                         </List>
-                    }}
                 </Show>
                 <Text style=TextStyle::CAPTION string="Password" />
                 <TextInput
@@ -488,7 +480,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
             </Card>
             <Text style=TextStyle::HEADING string="Open an organization" />
             <ForEach keys={keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let rows = rows;
                     let label = create_memo(move || {
                         rows.get()
@@ -514,14 +506,12 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                             />
                         </List>
                     }
-                }}
+                }
             </ForEach>
             <Show condition={empty}>
-                {move || view! {
-                    <Card>
+                <Card>
                         <OrganizationsPlaceholder state />
                     </Card>
-                }}
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Text align=TextAlign::Center>
@@ -566,8 +556,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
     view! {
         <List spacing=8.0 @test_id={"app.join"}>
             <Show condition={asking}>
-                {move || view! {
-                    <Card>
+                <Card>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                                 <Text style=TextStyle::HEADING string={title} wrap=true />
@@ -588,11 +577,9 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             />
                         </List>
                     </Card>
-                }}
             </Show>
             <Show condition={pasting}>
-                {move || view! {
-                    <List spacing=8.0>
+                <List spacing=8.0>
                         <Text
                             style=TextStyle::CAPTION
                             string="Paste the invite link someone sent you."
@@ -617,7 +604,6 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             />
                         </List>
                     </List>
-                }}
             </Show>
         </List>
     }
@@ -666,7 +652,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 string="The settings this device uses. Each device starts with a profile of its own."
             />
             <ForEach keys={profile_keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let row = create_memo(move || {
                         profiles.get().profiles.into_iter().find(|profile| profile.id == id)
                     });
@@ -688,7 +674,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                             on_click={move || send(UiCommand::UseProfile(id))}
                         />
                     }
-                }}
+                }
             </ForEach>
             <Button
                 label="New settings profile"
@@ -712,7 +698,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 string="The blocks you had open. Start a new session to begin again with the same settings."
             />
             <ForEach keys={session_keys}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let sessions = sessions;
                     let label = create_memo(move || {
                         sessions.get()
@@ -735,7 +721,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                             on_click={move || send(UiCommand::OpenSession(id))}
                         />
                     }
-                }}
+                }
             </ForEach>
             <SplitButton
                 label={new_label}
@@ -745,9 +731,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 disabled={loading}
                 items={view! {
                     <ForEach keys={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>
-                        {|index: usize| view! {
-                            <MenuItem label={format!("New {} session", SESSION_TYPES[index].1)} />
-                        }}
+                        |index: usize| <MenuItem label={format!("New {} session", SESSION_TYPES[index].1)} />
                     </ForEach>
                 }}
                 on_click={move || send(UiCommand::OpenNewSession(new_type.get_untracked()))}

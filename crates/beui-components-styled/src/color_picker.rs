@@ -73,38 +73,28 @@ pub fn ColorPicker(
                     thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
                     focused
                 >
-                    {|handle: ColorAreaHandle| view! {
-                        <PlaneFace handle />
-                    }}
+                    |handle: ColorAreaHandle| <PlaneFace handle />
                 </ColorPickerArea>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <List @sizing=ItemSize::Percent(100.0) spacing=8.0>
                         <HueSlider picker={picker} thumb=SLIDER_HEIGHT>
-                            {move |handle: SliderHandle| view! {
-                                <StripFace handle strip=Strip::Hue />
-                            }}
+                            |handle: SliderHandle| <StripFace handle strip=Strip::Hue />
                         </HueSlider>
                         <Show condition=alpha>
-                            {move || view! {
-                                <AlphaSlider picker={picker} thumb=SLIDER_HEIGHT>
-                                    {move |handle: SliderHandle| view! {
-                                        <StripFace handle strip={Strip::Alpha(color)} />
-                                    }}
+                            <AlphaSlider picker={picker} thumb=SLIDER_HEIGHT>
+                                    |handle: SliderHandle| <StripFace handle strip={Strip::Alpha(color)} />
                                 </AlphaSlider>
-                            }}
                         </Show>
                     </List>
                     <ColorSwatch color={shown} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
                 <ColorFields picker={picker} alpha />
                 <Show condition=has_swatches>
-                    {move || { let swatches = swatches.clone(); view! {
+                    || { let swatches = swatches.clone(); view! {
                         <Swatches picker={picker} swatches>
-                            {|handle: SwatchHandle| view! {
-                                <SwatchFace handle />
-                            }}
+                            |handle: SwatchHandle| <SwatchFace handle />
                         </Swatches>
-                    } }}
+                    } }
                 </Show>
             </List>
         </Frame>
@@ -140,8 +130,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     on_submit={move |typed: String| hex.submit(typed)}
                 />
                 <Show condition=alpha>
-                    {move || view! {
-                        <NumberInput
+                    <NumberInput
                             @sizing=ItemSize::Fixed(ALPHA_WIDTH)
                             value={opacity}
                             min=0.0
@@ -149,7 +138,6 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                             label="Opacity percent"
                             on_change={set_opacity}
                         />
-                    }}
                 </Show>
             </List>
             <Grid

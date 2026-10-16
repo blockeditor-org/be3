@@ -223,71 +223,63 @@ pub fn Calendar(
         <List spacing>
             {header_node}
             <Show condition={days_shown}>
-                {move || {
+                || {
                     let (days_label, spacing, weekday) = (days_label, spacing, weekday);
                     let (grid_start, day) = (grid_start, day);
                     view! {
                         <CalendarGrid label=days_label spacing>
                             <List direction=Direction::Horizontal spacing>
                                 <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>
-                                    {move |column: usize| view! {
-                                        <CalendarWeekday
+                                    |column: usize| <CalendarWeekday
                                             @sizing=ItemSize::Percent(100.0)
                                             weekday={first_weekday.offset(column as u32)}
                                             face={weekday}
                                         />
-                                    }}
                                 </ForEach>
                             </List>
                             <ForEach keys={(0..WEEKS).collect::<Vec<_>>()}>
-                                {move |week: usize| view! {
-                                    <CalendarWeek
+                                |week: usize| <CalendarWeek
                                         state={state}
                                         week
                                         grid_start={grid_start}
                                         spacing
                                         day={day}
                                     />
-                                }}
                             </ForEach>
                         </CalendarGrid>
                     }
-                }}
+                }
             </Show>
             <Show condition={months_shown}>
-                {move || {
+                || {
                     let (months_label, spacing) = (months_label, spacing);
                     view! {
                         <CalendarGrid label=months_label spacing>
                             <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>
-                                {move |row: usize| view! {
-                                    <CalendarMonthRow state={state} row spacing month={month} />
-                                }}
+                                |row: usize| <CalendarMonthRow state={state} row spacing month={month} />
                             </ForEach>
                         </CalendarGrid>
                     }
-                }}
+                }
             </Show>
             <Show condition={years_shown}>
-                {move || {
+                || {
                     let (label, spacing) = (label, spacing);
                     let (first_year, year) = (first_year, year);
                     view! {
                         <CalendarGrid label spacing>
                             <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>
-                                {move |row: usize| view! {
-                                    <CalendarYearRow
+                                |row: usize| <CalendarYearRow
                                         state={state}
                                         row
                                         first_year={first_year}
                                         spacing
                                         year={year}
                                     />
-                                }}
                             </ForEach>
                         </CalendarGrid>
                     }
-                }}
+                }
             </Show>
         </List>
     }
@@ -305,15 +297,13 @@ fn CalendarYearRow(
     view! {
         <List direction=Direction::Horizontal spacing>
             <ForEach keys={(0..YEAR_COLUMNS).collect::<Vec<_>>()}>
-                {move |column: usize| view! {
-                    <CalendarYear
+                |column: usize| <CalendarYear
                         @sizing=ItemSize::Percent(100.0)
                         state={state}
                         offset={(row * YEAR_COLUMNS + column) as i32}
                         first_year={first_year}
                         face={year}
                     />
-                }}
             </ForEach>
         </List>
     }
@@ -425,15 +415,13 @@ fn CalendarWeek(
     view! {
         <List direction=Direction::Horizontal spacing>
             <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>
-                {move |column: usize| view! {
-                    <CalendarDay
+                |column: usize| <CalendarDay
                         @sizing=ItemSize::Percent(100.0)
                         state={state}
                         offset={(week * DAYS_PER_WEEK + column) as i64}
                         grid_start={grid_start}
                         face={day}
                     />
-                }}
             </ForEach>
         </List>
     }
@@ -515,14 +503,12 @@ fn CalendarMonthRow(
     view! {
         <List direction=Direction::Horizontal spacing>
             <ForEach keys={(0..MONTH_COLUMNS).collect::<Vec<_>>()}>
-                {move |column: usize| view! {
-                    <CalendarMonth
+                |column: usize| <CalendarMonth
                         @sizing=ItemSize::Percent(100.0)
                         state={state}
                         number={(row * MONTH_COLUMNS + column + 1) as u8}
                         face={month}
                     />
-                }}
             </ForEach>
         </List>
     }

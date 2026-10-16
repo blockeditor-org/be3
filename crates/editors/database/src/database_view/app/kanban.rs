@@ -48,21 +48,15 @@ pub fn Kanban(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    {move || view! {
-                        <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
+                    <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
                             <Frame padding=PADDING>
                                 <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
                                     <ForEach keys={columns}>
-                                        {move |key: GroupKey| {
-                                            view! {
-                                                <Column data={data} key={key} />
-                                            }
-                                        }}
+                                        |key: GroupKey| <Column data={data} key={key} />
                                     </ForEach>
                                 </List>
                             </Frame>
                         </Scroll>
-                    }}
                 </Show>
             </List>
         </Frame>
@@ -84,14 +78,10 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={open}>
-                {move || view! {
-                    <OpenColumn data={data} group={open_group} key={key} />
-                }}
+                <OpenColumn data={data} group={open_group} key={key} />
             </Show>
             <Show condition={folded}>
-                {move || view! {
-                    <FoldedColumn data={data} group={folded_group} key={key} />
-                }}
+                <FoldedColumn data={data} group={folded_group} key={key} />
             </Show>
         </List>
     }
@@ -192,7 +182,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
     };
     view! {
         <DropTarget on_drop={dropped}>
-            {move |handle: DropHandle| {
+            |handle: DropHandle| {
                 let DropHandle { over, .. } = handle;
                 view! {
                     <Frame
@@ -226,21 +216,17 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                             </Frame>
                             <Scroll @sizing=ItemSize::Percent(100.0)>
                                 <VirtualList keys={keys} item_size=CARD_HEIGHT overscan=CARD_HEIGHT>
-                                    {move |row: ReadSignal<usize>| {
-                                        view! {
-                                            <Frame
+                                    |row: ReadSignal<usize>| <Frame
                                                 padding={Sides::new(0.0, 0.0, 0.0, CARD_SPACING)}
                                             >
                                                 <KanbanCard data={data} row={row} />
                                             </Frame>
-                                        }
-                                    }}
                                 </VirtualList>
                             </Scroll>
                         </List>
                     </Frame>
                 }
-            }}
+            }
         </DropTarget>
     }
 }
@@ -265,11 +251,9 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
     };
     view! {
         <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>
-            {move |_: DragHandle| view! {
-                <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
+            |_: DragHandle| <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
                     <CardLines data={data} row={row} />
                 </ListRow>
-            }}
         </Draggable>
     }
 }

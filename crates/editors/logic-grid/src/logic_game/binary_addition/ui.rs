@@ -142,12 +142,10 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     />
                 </Show>
                 <Show condition={done}>
-                    {move || view! {
-                        <Text style=TextStyle::CAPTION color=TextColor::Success>
+                    <Text style=TextStyle::CAPTION color=TextColor::Success>
                             <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
                             "Every problem is correct."
                         </Text>
-                    }}
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -209,7 +207,7 @@ fn OperandRows(operands: Memo<Vec<String>>) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <ForEach keys={rows}>
-                {move |index: usize| {
+                |index: usize| {
                     let operand = create_memo(move || {
                         operands.with(|operands| operands.get(index).cloned().unwrap_or_default())
                     });
@@ -222,7 +220,7 @@ fn OperandRows(operands: Memo<Vec<String>>) -> NodeId {
                     view! {
                         <OperandRow sign={sign} operand={operand} />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -237,7 +235,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
                 <Text style=TextStyle::CAPTION string={sign} align=TextAlign::End />
             </Frame>
             <ForEach keys={bits}>
-                {move |column: usize| {
+                |column: usize| {
                     let bit = create_memo(move || {
                         operand.with(|operand| {
                             operand.chars().nth(column).map(String::from).unwrap_or_default()
@@ -248,7 +246,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
                             <Text style=TextStyle::CODE string={bit} align=TextAlign::Center />
                         </Frame>
                     }
-                }}
+                }
             </ForEach>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
@@ -272,7 +270,7 @@ fn BitRow(
                 <Text style=TextStyle::CAPTION string={label} align=TextAlign::End />
             </Frame>
             <ForEach keys={columns}>
-                {move |column: usize| {
+                |column: usize| {
                     let answer = create_memo(move || {
                         answers.with(|answers| answers.get(column).copied().flatten())
                     });
@@ -297,7 +295,7 @@ fn BitRow(
                             on_click={cycle}
                         />
                     }
-                }}
+                }
             </ForEach>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>

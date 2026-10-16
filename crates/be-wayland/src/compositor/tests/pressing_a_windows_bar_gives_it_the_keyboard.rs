@@ -30,9 +30,7 @@ fn Floating(windows: Windows) -> NodeId {
                         content={move || view! {
                             <Layers>
                                 <ForEach keys={ids}>
-                                    {move |id: WindowId| view! {
-                                        <WindowView windows id />
-                                    }}
+                                    |id: WindowId| <WindowView windows id />
                                 </ForEach>
                             </Layers>
                         }}

@@ -80,7 +80,7 @@ pub fn LevelOsd(
     view! {
         <List spacing=0.0>
             <ForEach keys={places}>
-                {move |index: usize| {
+                |index: usize| {
                     let anchored = create_memo(move || {
                         let screen = screens.with(|screens| {
                             screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
@@ -105,7 +105,7 @@ pub fn LevelOsd(
                             }}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

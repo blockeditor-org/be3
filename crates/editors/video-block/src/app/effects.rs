@@ -116,8 +116,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 <Text string="Attached to" />
                 <Text style=TextStyle::CAPTION string={parent_name} color={parent_color} />
                 <Show condition={hanging_row}>
-                    {move || view! {
-                        <IconButton
+                    <IconButton
                             glyph={ICON_LINK_OFF.to_owned()}
                             label="Move this clip onto the base track"
                             @test_id={"video.detach"}
@@ -129,12 +128,10 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                                 state.update_clip(clip);
                             }}
                         />
-                    }}
                 </Show>
             </List>
             <Show condition={hanging}>
-                {move || view! {
-                    <NumberInput
+                <NumberInput
                         value={offset}
                         label="Offset"
                         on_change={move |value: f64| {
@@ -149,19 +146,18 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                             state.update_clip(clip);
                         }}
                     />
-                }}
             </Show>
             <Text string="Effect stack" />
             <Show condition={bare}>
                 <Text style=TextStyle::CAPTION string="No effects yet." color={bare_color} />
             </Show>
             <ForEach keys={effect_ids}>
-                {move |id: Uuid| {
+                |id: Uuid| {
                     let effects = effects;
                     view! {
                         <EffectRow effects id />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

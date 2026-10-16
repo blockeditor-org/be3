@@ -63,15 +63,13 @@ pub fn TextInput(
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >
-            {move |handle| view! {
-                <TextInputFrame
+            |handle| <TextInputFrame
                     handle
                     plain={plain}
                     glyph={glyph}
                     clearable={clearable}
                     multiline
                 />
-            }}
         </unstyled::TextInput>
     }
 }
@@ -126,18 +124,15 @@ fn TextInputFrame(
                     spacing=0.0
                 >
                     <Show condition={marked}>
-                        {move || view! {
-                            <Frame padding={Sides::new(PADDING_HORIZONTAL, 0.0, 0.0, 0.0)}>
+                        <Frame padding={Sides::new(PADDING_HORIZONTAL, 0.0, 0.0, 0.0)}>
                                 <Text color=TextColor::Muted align=TextAlign::Center>
                                     <Icon glyph={glyph} />
                                 </Text>
                             </Frame>
-                        }}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        {move || view! {
-                            <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
+                        <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
                                 <IconButton
                                     glyph={ICON_CLOSE.to_owned()}
                                     label="Clear"
@@ -146,7 +141,6 @@ fn TextInputFrame(
                                     on_click={clear}
                                 />
                             </Frame>
-                        }}
                     </Show>
                 </List>
             </Frame>

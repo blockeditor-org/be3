@@ -29,11 +29,7 @@ pub fn Scrollbar(
                 direction
                 on_scroll_to={move |offset: f32| on_scroll_to.call(offset)}
             >
-                {move |handle: ScrollbarHandle| {
-                    view! {
-                        <ScrollbarTrack handle />
-                    }
-                }}
+                |handle: ScrollbarHandle| <ScrollbarTrack handle />
             </unstyled::Scrollbar>
         </Frame>
     }

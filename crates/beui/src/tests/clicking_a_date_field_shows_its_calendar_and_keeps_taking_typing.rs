@@ -13,7 +13,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let field = NodeRef::new();
     let document = build(move || {
         view! {
-            <Container let:_size>
+            <Container>|_size|
             <List spacing=0.0>
                 <DateTimeField
                     @node_ref=&field

@@ -62,8 +62,7 @@ pub fn TextArea(
                 masked
                 child_size=ItemSize::Percent(100.0)
             >
-                {move |open_menu: Callback<Option<Rect>>| view! {
-                    <unstyled::TextArea
+                |open_menu: Callback<Option<Rect>>| <unstyled::TextArea
                         @node_ref=&surface
                         state={state}
                         widgets
@@ -88,7 +87,6 @@ pub fn TextArea(
                         }}
                         completion_menu={emoji_menu()}
                     />
-                }}
             </unstyled::TextContextMenu>
         </List>
     }

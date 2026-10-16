@@ -6,7 +6,7 @@ fn Floating(windows: Windows) -> NodeId {
     view! {
         <List spacing=0.0>
             <ForEach keys={ids}>
-                {move |id: WindowId| {
+                |id: WindowId| {
                     let list = windows.list();
                     let size = create_memo(move || {
                         list.with(|list| {
@@ -22,7 +22,7 @@ fn Floating(windows: Windows) -> NodeId {
                             <WindowView windows id />
                         </Frame>
                     }
-                }}
+                }
             </ForEach>
         </List>
     }

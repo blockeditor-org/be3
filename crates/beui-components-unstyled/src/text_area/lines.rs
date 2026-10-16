@@ -71,9 +71,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             <List spacing=0.0>
                 <Frame height=top />
                 <VirtualList @node_ref=&list keys item_size=estimate>
-                    {move |line: ReadSignal<usize>| view! {
-                        <AreaRow cx={cx} line />
-                    }}
+                    |line: ReadSignal<usize>| <AreaRow cx={cx} line />
                 </VirtualList>
                 <Frame height=bottom />
             </List>
@@ -147,11 +145,9 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={numbered}>
-                    {move || view! {
-                        <Frame width=gutter>
+                    <Frame width=gutter>
                             <Gutter cx={cx} model={gutter_model} />
                         </Frame>
-                    }}
                 </Show>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
@@ -161,7 +157,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                         <List spacing=0.0>
                             <RowText cx model text wrap=true />
                             <Dynamic value={shown_block}>
-                                {move |index: Option<usize>| match (index, cx.block) {
+                                |index: Option<usize>| { match (index, cx.block) {
                                     (Some(index), Some(render)) => {
                                         let size = block.get_untracked().unwrap_or_default().1;
                                         let node = block_node;
@@ -172,7 +168,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                                     _ => view! {
                                         <Frame />
                                     },
-                                }}
+                                } }
                             </Dynamic>
                         </List>
                     </Frame>
@@ -529,16 +525,14 @@ fn RowText(
             carets={carets}
         >
             <ForEach keys={keys}>
-                {move |(key, _): (PieceKey, usize)| {
+                |(key, _): (PieceKey, usize)| {
                     row_piece(cx, item_model, cursors, layer, key)
-                }}
+                }
             </ForEach>
             <Show condition={anchored}>
-                {move || view! {
-                    <TextItem at={anchor_position}>
+                <TextItem at={anchor_position}>
                         <Portal node={anchor_node} />
                     </TextItem>
-                }}
             </Show>
         </Text>
     }
@@ -676,19 +670,13 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
-                {move || view! {
-                    <InlineCheckbox cx={cx} item={checkbox_item} />
-                }}
+                <InlineCheckbox cx={cx} item={checkbox_item} />
             </Show>
             <Show condition={widget}>
-                {move || view! {
-                    <WidgetPill cx={cx} item={widget_item} />
-                }}
+                <WidgetPill cx={cx} item={widget_item} />
             </Show>
             <Show condition={run}>
-                {move || view! {
-                    <RunChip cx={cx} item={run_item} />
-                }}
+                <RunChip cx={cx} item={run_item} />
             </Show>
         </List>
     }
@@ -750,9 +738,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             press_focus=false
             on_change={on_change}
         >
-            {move |handle: ToggleHandle| view! {
-                <CheckboxBox cx handle />
-            }}
+            |handle: ToggleHandle| <CheckboxBox cx handle />
         </Toggle>
     }
 }
@@ -776,15 +762,13 @@ fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
         >
             <List spacing=0.0>
                 <Show condition={checked}>
-                    {move || view! {
-                        <Text
+                    <Text
                             @sizing=ItemSize::Percent(100.0)
                             color={Color32::WHITE}
                             align=TextAlign::Center
                         >
                             <Icon glyph={ICON_CHECK.to_owned()} />
                         </Text>
-                    }}
                 </Show>
             </List>
         </Frame>
@@ -850,7 +834,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         >
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>
-                    {move || {
+                    || {
                         let icon = icon;
                         view! {
                             <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
@@ -863,11 +847,11 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                                 </Text>
                             </Frame>
                         }
-                    }}
+                    }
                 </Show>
                 <Text string={label} font={font} color={color} vertical_align=TextAlign::Center />
                 <Show condition={selected}>
-                    {move || {
+                    || {
                         let anchor = overlay_anchor;
                         let render = cx
                             .selected_widget
@@ -876,7 +860,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                         view! {
                             <WidgetPopup anchor render index />
                         }
-                    }}
+                    }
                 </Show>
             </List>
         </Frame>

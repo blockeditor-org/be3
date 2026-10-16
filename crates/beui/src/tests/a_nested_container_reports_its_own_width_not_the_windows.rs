@@ -18,7 +18,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
         move || {
             view! {
                 <Container>
-                    {move |size| {
+                    |size| {
                         set_sizes.update(|sizes| sizes.push(size));
                         let narrow = narrower_than(BREAKPOINT);
                         set_collapsed.update(|collapsed| collapsed.push(narrow));
@@ -35,7 +35,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                                 </Stack>
                                 <Frame width=INNER_WIDTH>
                                     <Container>
-                                        {move |size| {
+                                        |size| {
                                             set_sizes.update(|sizes| sizes.push(size));
                                             let narrow = narrower_than(BREAKPOINT);
                                             set_collapsed.update(|collapsed| collapsed.push(narrow));
@@ -50,12 +50,12 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                                                     </Frame>
                                                 </Stack>
                                             }
-                                        }}
+                                        }
                                     </Container>
                                 </Frame>
                             </List>
                         }
-                    }}
+                    }
                 </Container>
             }
         }

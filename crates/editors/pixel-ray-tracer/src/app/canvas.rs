@@ -13,7 +13,7 @@ use super::state::{RayState, Tool};
 pub(crate) fn Artwork(state: RayState) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
+            |placed: ReadSignal<Rect>| {
                 let editor = state.editor();
                 let world = editor.world();
                 let artwork = create_memo(move || {
@@ -120,7 +120,7 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                         </Frame>
                     </Interactive>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }

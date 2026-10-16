@@ -22,7 +22,7 @@ pub(crate) fn BarPopup(
             max_width={width + 2.0 * PANEL_PADDING}
             on_open_change={on_open_change}
         >
-            {move |handle: PopoverHandle| content.call(handle)}
+            |handle: PopoverHandle| { content.call(handle) }
         </Popover>
     }
 }

@@ -263,7 +263,7 @@ fn PickerPanel(
                     <Frame width=field_width>{field}</Frame>
                 </List>
                 <Dynamic value={layout}>
-                    {move |shape: DateTimePanelLayout| {
+                    |shape: DateTimePanelLayout| {
                         let (page, show_page) = (page, show_page);
                         view! {
                             <PanelBody
@@ -277,7 +277,7 @@ fn PickerPanel(
                                 step_minutes
                             />
                         }
-                    }}
+                    }
                 </Dynamic>
                 <List
                     direction=Direction::Horizontal
@@ -287,9 +287,7 @@ fn PickerPanel(
                 >
                     <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
                     <Show condition=clearable>
-                        {move || view! {
-                            <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
-                        }}
+                        <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
                     </Show>
                 </List>
             </List>
@@ -318,8 +316,7 @@ fn PanelBody(
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
-                {move || view! {
-                    <List direction=Direction::Horizontal spacing=PANEL_SPACING>
+                <List direction=Direction::Horizontal spacing=PANEL_SPACING>
                         <CalendarPane handle={calendar} width={beside} first_weekday />
                         <TimePane
                             @sizing=ItemSize::Percent(100.0)
@@ -329,28 +326,22 @@ fn PanelBody(
                             height=TIME_LIST_HEIGHT
                         />
                     </List>
-                }}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Date}>
-                {move || view! {
-                    <Centred>
+                <Centred>
                         <CalendarPane handle={calendar} width={alone_date} first_weekday />
                     </Centred>
-                }}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Time}>
-                {move || view! {
-                    <TimePane
+                <TimePane
                         handle={times}
                         step_minutes
                         max_columns=MAX_GRID_COLUMNS
                         height=TIME_GRID_HEIGHT
                     />
-                }}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Paged}>
-                {move || view! {
-                    <List spacing=PANEL_SPACING>
+                <List spacing=PANEL_SPACING>
                         <Tabs
                             options={view! {
                                 <ChoiceOption label="Date" />
@@ -360,24 +351,19 @@ fn PanelBody(
                             on_change={show_page}
                         />
                         <Show condition={dates}>
-                            {move || view! {
-                                <Centred>
+                            <Centred>
                                     <CalendarPane handle={calendar} width={alone} first_weekday />
                                 </Centred>
-                            }}
                         </Show>
                         <Show condition={times_shown}>
-                            {move || view! {
-                                <TimePane
+                            <TimePane
                                     handle={times}
                                     step_minutes
                                     max_columns=MAX_GRID_COLUMNS
                                     height=TIME_GRID_HEIGHT
                                 />
-                            }}
                         </Show>
                     </List>
-                }}
             </Show>
         </List>
     }

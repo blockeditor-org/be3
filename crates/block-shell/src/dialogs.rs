@@ -372,14 +372,13 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
                 />
                 <Show condition={searching}>
-                    {move || view! {
-                        <Card>
+                    <Card>
                             <List spacing=4.0>
                                 <Show condition={unmatched}>
                                     <Text style=TextStyle::CAPTION string="No matching contacts." />
                                 </Show>
                                 <ForEach keys={suggestion_keys}>
-                                    {move |id: Uuid| {
+                                    |id: Uuid| {
                                         let person = create_memo(move || {
                                             suggestions
                                                 .get()
@@ -390,18 +389,16 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                         view! {
                                             <SuggestionButton person act={act} />
                                         }
-                                    }}
+                                    }
                                 </ForEach>
                             </List>
                         </Card>
-                    }}
                 </Show>
                 <Show condition={has_pending}>
-                    {move || view! {
-                        <List spacing=8.0>
+                    <List spacing=8.0>
                             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
                                 <ForEach keys={pending_keys}>
-                                    {move |id: Uuid| {
+                                    |id: Uuid| {
                                         let name = create_memo(move || {
                                             pending
                                                 .get()
@@ -425,7 +422,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                                 />
                                             </List>
                                         }
-                                    }}
+                                    }
                                 </ForEach>
                             </List>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -453,7 +450,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 />
                             </List>
                         </List>
-                    }}
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
@@ -469,8 +465,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </Show>
                 </List>
                 <Show condition={invited}>
-                    {move || view! {
-                        <List spacing=6.0>
+                    <List spacing=6.0>
                             <Text
                                 style=TextStyle::CAPTION
                                 @test_id={"share.invite.help"}
@@ -491,7 +486,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 />
                             </List>
                         </List>
-                    }}
                 </Show>
                 <Text style=TextStyle::HEADING string="People with access" />
                 <Frame height=MEMBERS_HEIGHT>
@@ -503,14 +497,14 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             />
                         </Show>
                         <ForEach keys={member_keys}>
-                            {move |id: Uuid| {
+                            |id: Uuid| {
                                 let member = create_memo(move || {
                                     members.get().into_iter().find(|member| member.id == id)
                                 });
                                 view! {
                                     <MemberRow member act={act} />
                                 }
-                            }}
+                            }
                         </ForEach>
                     </Scroll>
                 </Frame>
@@ -589,8 +583,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         </List>
                         <Text style=TextStyle::CAPTION string={email} />
                         <Show condition={is_fixed}>
-                            {move || view! {
-                                <List
+                            <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
                                     spacing=4.0
@@ -600,7 +593,6 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                     </Text>
                                     <Text style=TextStyle::CAPTION string={fixed_text} />
                                 </List>
-                            }}
                         </Show>
                         <Show condition={has_note}>
                             <Text style=TextStyle::CAPTION string={note_text} />
@@ -615,8 +607,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         />
                     </Show>
                     <Show condition={editable}>
-                        {move || view! {
-                            <Select
+                        <Select
                                 selected={selected}
                                 label="Access"
                                 on_change={move |index: Option<usize>| {
@@ -636,11 +627,9 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                     <ChoiceOption label={AccessLevel::KnowExists.label()} />
                                 }}
                             />
-                        }}
                     </Show>
                     <Show condition={removable}>
-                        {move || view! {
-                            <IconButton
+                        <IconButton
                                 glyph={ICON_CLOSE.to_owned()}
                                 label="Remove access"
                                 size=IconButtonSize::Compact
@@ -650,7 +639,6 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                     }
                                 }}
                             />
-                        }}
                     </Show>
                 </List>
             </Card>

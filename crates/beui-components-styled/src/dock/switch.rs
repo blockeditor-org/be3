@@ -29,9 +29,7 @@ pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
         >
             <List spacing=ROW_SPACING>
                 <ForEach keys={tabs}>
-                    {move |tab: TabId| view! {
-                        <DockSwitchRow handle={row.call(tab)} />
-                    }}
+                    |tab: TabId| <DockSwitchRow handle={row.call(tab)} />
                 </ForEach>
             </List>
         </Frame>

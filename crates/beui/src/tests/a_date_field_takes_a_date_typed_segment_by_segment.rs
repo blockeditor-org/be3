@@ -10,7 +10,7 @@ fn a_date_field_takes_a_date_typed_segment_by_segment() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
-            <Container let:_size>
+            <Container>|_size|
             <DateTimeField
                 value=None
                 parts=DateTimeParts::Date

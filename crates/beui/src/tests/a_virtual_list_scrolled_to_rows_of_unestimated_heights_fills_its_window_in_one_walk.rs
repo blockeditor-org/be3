@@ -20,7 +20,7 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
-                            {move |index: ReadSignal<usize>| {
+                            |index: ReadSignal<usize>| {
                                 create_binding(move || {
                                     index.get();
                                     let walk = with_document(|document| {
@@ -33,7 +33,7 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
                                         <Spacer />
                                     </Frame>
                                 }
-                            }}
+                            }
                         </VirtualList>
                     </Offset>
                 </List>

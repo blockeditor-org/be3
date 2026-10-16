@@ -86,7 +86,7 @@ pub fn ChoicePicker(
                 @test_id={picker_id.clone()}
                 items={view! {
                     <ForEach keys={keys}>
-                        {move |id: Uuid| {
+                        |id: Uuid| {
                             let shown = create_memo(move || {
                                 options.with(|field| field.as_ref()?.option(id).cloned())
                             });
@@ -105,7 +105,7 @@ pub fn ChoicePicker(
                                     on_click={move || pick.call(Some(id))}
                                 />
                             }
-                        }}
+                        }
                     </ForEach>
                     <MenuItem
                         label="Clear"

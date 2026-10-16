@@ -330,14 +330,10 @@ pub(crate) fn Stage(
                 <List spacing=0.0>
                     <Canvas view={canvas} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                         <ForEach keys={item_keys}>
-                            {move |id: ItemId| view! {
-                                <TableItem id layout={layout} play={play} hidden={hidden} />
-                            }}
+                            |id: ItemId| <TableItem id layout={layout} play={play} hidden={hidden} />
                         </ForEach>
                         <ForEach keys={spot_keys}>
-                            {move |spot: Spot| view! {
-                                <SpotItem spot layout={layout} play={play} />
-                            }}
+                            |spot: Spot| <SpotItem spot layout={layout} play={play} />
                         </ForEach>
                         <CanvasItem
                             x=0.0
@@ -353,9 +349,7 @@ pub(crate) fn Stage(
                 </List>
                 <Canvas view={screen_view()}>
                     <ForEach keys={flight_keys}>
-                        {move |id: ItemId| view! {
-                            <FlightItem id motion={motion} />
-                        }}
+                        |id: ItemId| <FlightItem id motion={motion} />
                     </ForEach>
                     <CanvasItem
                         x={create_memo(move || lifted_rect.get().left())}

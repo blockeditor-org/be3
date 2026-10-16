@@ -104,42 +104,42 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
                 <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Canvas view={camera} @test_id={"map.canvas"}>
                         <ForEach keys={covering}>
-                            {move |tile: TileId| {
+                            |tile: TileId| {
                                 let world = underlay_world;
                                 let scale = underlay_scale;
                                 view! {
                                     <Tile state tile world scale underlay=true />
                                 }
-                            }}
+                            }
                         </ForEach>
                         <ForEach keys={covering}>
-                            {move |tile: TileId| {
+                            |tile: TileId| {
                                 let world = world;
                                 let scale = tile_scale;
                                 view! {
                                     <Tile state tile world scale />
                                 }
-                            }}
+                            }
                         </ForEach>
                         <ForEach keys={label_keys}>
-                            {move |key: labels::LabelKey| {
+                            |key: labels::LabelKey| {
                                 let shown = by_key;
                                 let scale = scale;
                                 view! {
                                     <MapLabel key shown scale />
                                 }
-                            }}
+                            }
                         </ForEach>
                         <RegionOutline shown={has_region} rect={region_rect} />
                         <ForEach keys={ids}>
-                            {move |id: Uuid| {
+                            |id: Uuid| {
                                 let selected = selection.memo(Some(id));
                                 let world = marker_world;
                                 let scale = marker_scale;
                                 view! {
                                     <PointMarker state id selected world scale />
                                 }
-                            }}
+                            }
                         </ForEach>
                     </Canvas>
                 </MapSurface>

@@ -10,7 +10,7 @@ fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() 
         view! {
             <List spacing=0.0>
                 <Dynamic value={shown}>
-                    {move |shown: bool| match shown {
+                    |shown: bool| { match shown {
                         true => {
                             let owned = store(());
                             let slot = EmbedSlot::new();
@@ -24,7 +24,7 @@ fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() 
                         false => view! {
                             <Frame height=100.0 />
                         },
-                    }}
+                    } }
                 </Dynamic>
             </List>
         }

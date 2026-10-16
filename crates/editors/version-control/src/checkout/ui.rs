@@ -186,8 +186,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <Show condition={behind}>
-                            {move || view! {
-                                <Card>
+                            <Card>
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
@@ -206,17 +205,14 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         />
                                     </List>
                                 </Card>
-                            }}
                         </Show>
                         <Show condition={conflicted}>
-                            {move || view! {
-                                <Card>
+                            <Card>
                                     <List spacing=12.0>
                                         <Text style=TextStyle::HEADING string="Conflicts" />
                                         <ForEach keys={conflicts} view={conflict_rows} />
                                     </List>
                                 </Card>
-                            }}
                         </Show>
                         <Card>
                             <List spacing=10.0>
@@ -353,8 +349,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
             </List>
             <List spacing=8.0>
                 <Show condition={compared}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <Text style=TextStyle::CAPTION string="Base" />
                             <BlockLink editor={editor} block={base} fallback="none" />
                             <Text style=TextStyle::CAPTION string="Yours" />
@@ -362,11 +357,9 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                             <Text style=TextStyle::CAPTION string="Theirs" />
                             <BlockLink editor={editor} block={theirs} fallback="none" />
                         </List>
-                    }}
                 </Show>
                 <Show condition={compared}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
                                 label="Take base"
                                 variant=ButtonVariant::Secondary
@@ -389,7 +382,6 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                                 on_click={take_theirs}
                             />
                         </List>
-                    }}
                 </Show>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

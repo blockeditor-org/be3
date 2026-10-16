@@ -151,7 +151,7 @@ where
     view! {
         <List spacing>
             <ForEach keys>
-                {move |key: K| {
+                |key: K| {
                     let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                     let selected = selection.memo(Some(key.clone()));
                     let marked = burial.memo(Some(key.clone()));
@@ -172,7 +172,7 @@ where
                             on_drag_start={dragging}
                         />
                     }
-                }}
+                }
             </ForEach>
         </List>
     }
@@ -281,7 +281,7 @@ pub fn TreeToggle(
     let expanded = create_memo(move || item.get().expanded);
     view! {
         <Show condition={expandable}>
-            {move || { let button_test_id = button_test_id.clone(); {
+            || { let button_test_id = button_test_id.clone(); {
                 let label = create_memo(move || match expanded.get() {
                     true => "Collapse".to_owned(),
                     false => "Expand".to_owned(),
@@ -305,7 +305,7 @@ pub fn TreeToggle(
                         })}
                     />
                 }
-            } }}
+            } }
         </Show>
     }
 }

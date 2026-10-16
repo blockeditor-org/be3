@@ -115,7 +115,7 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.sessions"}
                         items={view! {
                             <ForEach keys={keys}>
-                                {move |block: uuid::Uuid| {
+                                |block: uuid::Uuid| {
                                     let named = named;
                                     let label = create_memo(move || {
                                         named.with(|sessions| {
@@ -129,7 +129,7 @@ pub(crate) fn DesktopBar(
                                     view! {
                                         <MenuItem label />
                                     }
-                                }}
+                                }
                             </ForEach>
                             <MenuItem
                                 row_test_id={"desktop.sessions.new".to_owned()}
@@ -153,9 +153,7 @@ pub(crate) fn DesktopBar(
                         <NotificationsButton notifications />
                     </Show>
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
-                        {move |_: PopoverHandle| view! {
-                            <DesktopCalendar editor={editor} />
-                        }}
+                        |_: PopoverHandle| <DesktopCalendar editor={editor} />
                     </BarPopup>
                     <Show condition={powered}>
                         <PowerMenu editor={editor} />

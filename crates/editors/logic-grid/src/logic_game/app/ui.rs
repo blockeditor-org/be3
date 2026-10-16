@@ -81,7 +81,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                     <Scroll @sizing=ItemSize::Percent(100.0)>
                         <List spacing=4.0>
                             <ForEach keys={keys}>
-                                {move |challenge: ChallengeId| {
+                                |challenge: ChallengeId| {
                                     let level = level_of(levels, challenge);
                                     let here = open.memo(Some(challenge));
                                     let toggle = move || {
@@ -99,7 +99,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                                             on_toggle={toggle}
                                         />
                                     }
-                                }}
+                                }
                             </ForEach>
                         </List>
                     </Scroll>
@@ -148,7 +148,7 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                {move || { let goal = goal.clone(); view! {
+                || { let goal = goal.clone(); view! {
                     <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::CAPTION string={goal} wrap=true />
@@ -165,7 +165,7 @@ fn LevelRow(
                             </Show>
                         </List>
                     </Frame>
-                } }}
+                } }
             </Show>
         </List>
     }
@@ -197,7 +197,7 @@ fn Solutions(
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
-                {move |reference: Uuid| {
+                |reference: Uuid| {
                     let solution = solution_of(level, reference);
                     view! {
                         <SolutionRow
@@ -207,7 +207,7 @@ fn Solutions(
                             solution={solution}
                         />
                     }
-                }}
+                }
             </ForEach>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button

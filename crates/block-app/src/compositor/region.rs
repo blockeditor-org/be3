@@ -382,8 +382,7 @@ pub(crate) fn PluginRegion(
     };
     view! {
         <DropTarget on_over={over} on_drop={dropped}>
-            {move |_: DropHandle| view! {
-                <Layers>
+            |_: DropHandle| <Layers>
                     <RegionChildren state={state} rect={rect} child_view below=true />
                     <BackHandler enabled={handles_back} on_gesture={back}>
                         <Interactive
@@ -415,7 +414,6 @@ pub(crate) fn PluginRegion(
                     <RegionChildren state rect child_view below=false />
                     <Drawing draw={floating} />
                 </Layers>
-            }}
         </DropTarget>
     }
 }
@@ -542,7 +540,7 @@ fn RegionChildren(
     view! {
         <Canvas>
             <ForEach keys={keys}>
-                {move |key: ChildId| {
+                |key: ChildId| {
                     let child = create_memo(move || {
                         state.with(|view| {
                             view.children.iter().find(|child| child.child == key).cloned()
@@ -562,7 +560,7 @@ fn RegionChildren(
                     view! {
                         <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
                     }
-                }}
+                }
             </ForEach>
         </Canvas>
     }

@@ -12,7 +12,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
-                            {move |index: ReadSignal<usize>| {
+                            |index: ReadSignal<usize>| {
                                 create_binding(move || {
                                     let index = index.get();
                                     set_built.update(|built| built.push(index));
@@ -22,7 +22,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
                                         <Spacer />
                                     </Frame>
                                 }
-                            }}
+                            }
                         </VirtualList>
                     </Offset>
                 </List>

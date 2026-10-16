@@ -11,27 +11,25 @@ fn a_layout_builder_built_inside_another_settles_in_one_layout() {
             view! {
                 <Frame width=300.0 height=200.0>
                     <LayoutBuilder>
-                        {move |size: ReadSignal<Vec2>| {
+                        |size: ReadSignal<Vec2>| {
                             let wide = create_memo(move || size.get().x > 100.0);
                             view! {
                                 <Frame height=40.0>
                                     <List spacing=0.0>
                                         <Show condition={wide}>
-                                            {move || view! {
-                                                <LayoutBuilder>
-                                                    {move |inner: ReadSignal<Vec2>| {
+                                            <LayoutBuilder>
+                                                    |inner: ReadSignal<Vec2>| {
                                                         create_effect(move || set_seen.update(|seen| seen.push(inner.get().x)));
                                                         view! {
                                                             <Frame height=20.0 />
                                                         }
-                                                    }}
+                                                    }
                                                 </LayoutBuilder>
-                                            }}
                                         </Show>
                                     </List>
                                 </Frame>
                             }
-                        }}
+                        }
                     </LayoutBuilder>
                 </Frame>
             }

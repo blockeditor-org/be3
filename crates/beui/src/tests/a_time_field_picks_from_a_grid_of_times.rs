@@ -10,7 +10,7 @@ fn a_time_field_picks_from_a_grid_of_times() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
-            <Container let:_size>
+            <Container>|_size|
             <DateTimeField
                 value={Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0)))}
                 parts=DateTimeParts::Time

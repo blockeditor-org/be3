@@ -35,7 +35,7 @@ pub(crate) fn ArtworkCanvas(
     let scale = editor.scale();
     view! {
         <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
+            |placed: ReadSignal<Rect>| {
                 let world = editor.world();
                 let artwork = create_memo(move || {
                     let (width, height) = size.get();
@@ -216,7 +216,7 @@ pub(crate) fn ArtworkCanvas(
                         </Interactive>
                     </Frame>
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }
@@ -393,7 +393,7 @@ fn Artwork(
                 </Frame>
             </CanvasItem>
             <ForEach keys={lines}>
-                {move |line: Line| {
+                |line: Line| {
                     let thin = thin;
                     let cell = cell;
                     let (left, top) = (left, top);
@@ -423,7 +423,7 @@ fn Artwork(
                             />
                         </CanvasItem>
                     }
-                }}
+                }
             </ForEach>
             <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
                 <Frame

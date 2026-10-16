@@ -16,11 +16,9 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
                     direction=Direction::Horizontal
                 >
                     <ForEach keys={indices(20)}>
-                        {|index: usize| view! {
-                            <Frame width=120.0>
+                        |index: usize| <Frame width=120.0>
                                 <Text string={format!("Card {index}")} color=Color32::WHITE />
                             </Frame>
-                        }}
                     </ForEach>
                 </Scroll>
             </List>

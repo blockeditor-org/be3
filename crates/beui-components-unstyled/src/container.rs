@@ -12,10 +12,10 @@ pub struct ContainerSize(pub ReadSignal<Vec2>);
 pub fn Container(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> NodeId {
     view! {
         <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
+            |size: ReadSignal<Vec2>| {
                 provide_context(ContainerSize(size));
                 content.call(size)
-            }}
+            }
         </LayoutBuilder>
     }
 }

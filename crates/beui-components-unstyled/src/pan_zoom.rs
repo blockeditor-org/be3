@@ -152,7 +152,7 @@ pub fn PanZoom(
 ) -> NodeId {
     view! {
         <PlacementBuilder>
-            {move |rect: ReadSignal<Rect>| {
+            |rect: ReadSignal<Rect>| {
                 let (current, set_current) = create_signal(view.peek());
                 create_effect(move || set_current.set(view.get()));
                 let (panning, set_panning) = create_signal(false);
@@ -207,7 +207,7 @@ pub fn PanZoom(
                         children={Some(content_node)}
                     />
                 }
-            }}
+            }
         </PlacementBuilder>
     }
 }

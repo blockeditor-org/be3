@@ -12,9 +12,7 @@ fn releasing_a_middle_drag_ends_autoscroll() {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <ForEach keys={indices(100)}>
-                        {|index: usize| view! {
-                            <LabelledButton label={format!("Row {index}")} />
-                        }}
+                        |index: usize| <LabelledButton label={format!("Row {index}")} />
                     </ForEach>
                 </Scroll>
             </List>

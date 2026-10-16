@@ -13,13 +13,13 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
         view! {
             <Element tag="ul">
                 <ForEach keys={items}>
-                    {move |item: u32| {
+                    |item: u32| {
                         on_cleanup(move || set_cleanups.update(|cleanups| *cleanups += 1));
                         let text = create_memo(move || format!("{item}{}", suffix.get()));
                         view! {
                             <Element tag="li" text={text} texts={set_texts} />
                         }
-                    }}
+                    }
                 </ForEach>
             </Element>
         }

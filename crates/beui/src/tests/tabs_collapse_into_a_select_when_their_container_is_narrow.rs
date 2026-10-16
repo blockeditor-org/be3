@@ -13,8 +13,7 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
         move || {
             view! {
                 <Container>
-                    {move |_| view! {
-                        <ResponsiveTabs
+                    |_| <ResponsiveTabs
                             @node_ref=&tabs
                             options={view! {
                                 <unstyled::ChoiceOption label="List" />
@@ -24,7 +23,6 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
                             selected=1
                             breakpoint=BREAKPOINT
                         />
-                    }}
                 </Container>
             }
         }

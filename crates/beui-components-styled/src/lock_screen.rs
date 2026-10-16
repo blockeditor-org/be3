@@ -74,7 +74,7 @@ pub fn LockScreen(
                 <Frame width=width height=height>
                     <Layers>
                         <ForEach keys={places}>
-                            {move |index: usize| {
+                            |index: usize| {
                                 let place = create_memo(move || {
                                     let origin = bounds.get().min.to_vec2();
                                     screens.with(|screens| {
@@ -108,7 +108,7 @@ pub fn LockScreen(
                                 };
                                 let layer: Layer = card.into_child();
                                 layer
-                            }}
+                            }
                         </ForEach>
                     </Layers>
                 </Frame>
@@ -184,7 +184,7 @@ fn LockCard(
                     </List>
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>
                         <ForEach keys={slots}>
-                            {move |index: usize| {
+                            |index: usize| {
                                 let chose = on_action;
                                 let glyph = create_memo(move || {
                                     actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
@@ -200,7 +200,7 @@ fn LockCard(
                                         on_click={move || chose.call(index)}
                                     />
                                 }
-                            }}
+                            }
                         </ForEach>
                     </List>
                 </List>
