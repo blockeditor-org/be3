@@ -241,6 +241,7 @@ fn child_operations<C: be_block::LiveEdit>(
 
 const KINDS: &[Kind] = &[
     kind::<be_block::AudioContent>(),
+    kind::<be_block::BeuiDemoContent>(),
     kind_with_history::<be_block::CalendarContent>(),
     kind_with_history::<be_block::ChecklistContent>(),
     kind::<be_block::CompiledLogicContent>(),

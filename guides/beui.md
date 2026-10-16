@@ -15,7 +15,7 @@ The quickest introduction is the component catalog in
 `crates/beui-demo`: a dock whose Components pane opens a page for
 each group of styled components, for the unstyled components painted by
 hand, and for the base nodes (frames, text, lists, grids, control flow,
-interaction, layers and overlays). Every sample on a page shows the code it was written with: a
+interaction, layers and overlays). Inside block-app it is a block type, beui demo, whose editor (`crates/editors/beui-gallery`) shows the same catalog and stores nothing. Every sample on a page shows the code it was written with: a
 function marked `#[beui_macros::sample]` (above its `#[component]`) also
 gets a `Name::SOURCE` holding its text exactly as written, so a new sample
 cannot drift from its listing. The

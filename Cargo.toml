@@ -57,6 +57,7 @@ members = [
     "crates/build-id",
     "crates/cvl2",
     "crates/editors/audio-block",
+    "crates/editors/beui-gallery",
     "crates/editors/block-debug",
     "crates/editors/browser-tab",
     "crates/editors/calendar",
