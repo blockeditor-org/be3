@@ -41,8 +41,10 @@ placeholder; there is no key for BuildBuddy there.
 The servers fail in different ways:
 
 - **Namespace** is the fastest, but now and then never finishes a build: an
-  action sits at `[re_execute]` or queued for hours while nothing else moves.
-  It does not recover on its own, so stop the command rather than wait.
+  action sits at `[re_queued]` or `[re_execute]` for hours while nothing else
+  moves. It does not recover until every instance in the workspace is
+  destroyed, and `./scripts/buck` does that itself (see "When it stalls"
+  below).
 - **`blocks.pfg.pw`** always finishes, but runs slower.
 
 To move off a server that hangs or keeps failing, run the command again with
@@ -102,6 +104,37 @@ Setup must always be run with those arguments and that `--key`: without a
 key, or with other flags (such as `--static`), Namespace starts a new cluster
 beside the old one. The dashboard shows both, and the stale one should be
 destroyed, since its workers count against the workspace's 32 vCPU limit.
+
+### When it stalls
+
+While a command builds on Namespace, `./scripts/buck` asks the daemon every
+minute how many remote executions it has started and finished
+(`buck2 status --snapshot`). When some are waiting and none has finished for
+`BE3_NAMESPACE_STALL_MINUTES` (30 unless set; `0` turns this off), it stops
+the daemon, destroys every instance in the workspace with `nsc list --all`
+and `nsc destroy`, which takes the remote execution cluster and its cache with
+it, and tries the command again, which wakes a fresh cluster. That counts as
+one of the command's attempts. Actions that run here, such as the plugin
+tests, are not remote executions, so one of them hanging is not taken for a
+stall.
+
+Destroying instances takes the admin token, from:
+
+1. `BE3_NAMESPACE_ADMIN_TOKEN` in the environment
+2. `.namespace-admin-token.json` at the root of the checkout
+3. `~/.config/be3/namespace-admin-token.json`
+
+Without one, a stalled command is stopped and fails, saying so. The admin
+token is made with a Namespace login, granted only what this needs:
+
+```
+nsc token create --name be3-stall-reset --user --no_expiry \
+    --grant '{"resource_type":"instance","resource_id":"*","actions":["list","destroy"]}' \
+    --token_file ns-admin-token.json
+```
+
+CI and an agent's cloud session take it as `BE3_NAMESPACE_ADMIN_TOKEN`, like
+the build token below.
 
 ### The token
 

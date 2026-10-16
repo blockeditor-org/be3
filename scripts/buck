@@ -38,6 +38,10 @@ case "$command" in
         ;;
 esac
 
+# While a command builds on Namespace, watch_namespace_stall (common.sh) stops
+# it if Namespace's executor stalls. Every instance in the workspace is then
+# destroyed, and the command is tried again on a fresh cluster.
+#
 # buck2 exits with 2 for an infrastructure error and with other statuses for a
 # build that is wrong. A connection to the build server sometimes resets
 # partway through a download, which buck2 does not retry itself, a relay
@@ -48,6 +52,24 @@ esac
 # held back until it is known not to be retried: a --keep-going bxl prints its
 # results even when it fails, and the reader would otherwise get each one more
 # than once.
+watcher=''
+watching() {
+    if [[ "$(build_server)" == 'namespace' ]]; then
+        rm -f "$namespace_stall_marker"
+        watch_namespace_stall "$buck2" &
+        watcher=$!
+    fi
+}
+
+stop_watching() {
+    if [[ -n "$watcher" ]]; then
+        kill "$watcher" 2> /dev/null || true
+        wait "$watcher" 2> /dev/null || true
+        watcher=''
+    fi
+}
+trap stop_watching EXIT
+
 retrying() {
     local status attempt=1 attempts="${BE3_BUCK_ATTEMPTS:-3}" output=''
     if [[ ! "$attempts" =~ ^[1-9][0-9]?$ ]]; then
@@ -56,13 +78,21 @@ retrying() {
     fi
     while true; do
         status=0
+        watching
         if [[ -t 1 ]]; then
             "$@" || status=$?
         else
             output="$(mktemp)"
             "$@" > "$output" || status=$?
         fi
-        if [[ $status -ne 2 || $attempt -ge $attempts ]]; then
+        stop_watching
+        if [[ -f "$namespace_stall_marker" ]]; then
+            rm -f "$namespace_stall_marker"
+            [[ $status -ne 0 ]] || status=2
+            if ! reset_namespace || [[ $attempt -ge $attempts ]]; then
+                break
+            fi
+        elif [[ $status -ne 2 || $attempt -ge $attempts ]]; then
             break
         fi
         [[ -z "$output" ]] || rm -f "$output"
