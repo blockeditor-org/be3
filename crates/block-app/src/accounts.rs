@@ -311,6 +311,50 @@ pub(crate) async fn set_recovery_key(
     Ok(())
 }
 
+pub(crate) async fn sealed_key(
+    server_url: String,
+    token: String,
+    workspace: Uuid,
+    cancelled: futures_util::future::BoxFuture<'static, ()>,
+) -> Result<Vec<u8>, AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    let mut events = connection.subscribe();
+    let wait = async move {
+        loop {
+            let ServerMessage::Keys { sealed, .. } = connection
+                .request(|request| ClientMessage::GetKeys { request })
+                .await?
+            else {
+                return Err(ClientError::Unexpected.into());
+            };
+            if let Some(key) = sealed.into_iter().find(|key| key.workspace == workspace) {
+                return Ok(key.sealed);
+            }
+            loop {
+                match events.recv().await {
+                    Ok(ServerMessage::KeySealed { workspace: sealed }) if sealed == workspace => {
+                        break;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => break,
+                    Ok(_) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        return Err(AccountError::from(ClientError::Disconnected(
+                            "the connection closed while waiting for the workspace key".into(),
+                        )));
+                    }
+                }
+            }
+        }
+    };
+    match futures_util::future::select(std::pin::pin!(wait), cancelled).await {
+        futures_util::future::Either::Left((sealed, _)) => sealed,
+        futures_util::future::Either::Right(_) => Err(AccountError {
+            message: "waiting for the workspace key was cancelled".into(),
+            invalid_token: false,
+        }),
+    }
+}
+
 pub(crate) async fn pair(
     server_url: String,
     token: String,

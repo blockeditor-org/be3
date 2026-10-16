@@ -539,6 +539,38 @@ impl ServerStore {
         Ok(())
     }
 
+    pub async fn awaiting_keys(
+        &self,
+        account: Uuid,
+    ) -> Result<Vec<(Uuid, Vec<Uuid>)>, ServerError> {
+        let database = self.database.lock().await;
+        if recovery_key(&database, account)?.is_none() {
+            return Ok(Vec::new());
+        }
+        let mut statement = database.prepare(
+            "SELECT memberships.workspace_id FROM memberships
+             LEFT JOIN workspace_keys ON workspace_keys.account_id = memberships.account_id
+                AND workspace_keys.workspace_id = memberships.workspace_id
+             WHERE memberships.account_id = ?1 AND workspace_keys.sealed IS NULL",
+        )?;
+        let workspaces = statement
+            .query_map([account.to_string()], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut members =
+            database.prepare("SELECT account_id FROM memberships WHERE workspace_id = ?1")?;
+        let mut awaiting = Vec::new();
+        for workspace in workspaces {
+            let accounts = members
+                .query_map([&workspace], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?
+                .iter()
+                .map(|account| parse_uuid(account))
+                .collect::<Result<Vec<_>, _>>()?;
+            awaiting.push((parse_uuid(&workspace)?, accounts));
+        }
+        Ok(awaiting)
+    }
+
     pub async fn member_keys(
         &self,
         caller: Uuid,

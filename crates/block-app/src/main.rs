@@ -1266,6 +1266,7 @@ impl BlockApp {
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys.cancel_pairing();
+        self.keys.stop_waiting();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
             Err(error) => {
@@ -1297,7 +1298,18 @@ impl BlockApp {
     }
 
     fn poll_keys(&mut self) {
-        match self.keys.poll() {
+        let mut event = self.keys.poll();
+        if event.is_none()
+            && self.workspace_key.is_none()
+            && let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id)
+        {
+            event = self.keys.want(
+                self.server_url.clone(),
+                self.account.token.clone(),
+                workspace,
+            );
+        }
+        match event {
             Some(keys::KeyEvent::RecoverySaved) if self.workspace.is_some() => {}
             Some(keys::KeyEvent::RecoverySaved) => {
                 self.workspaces_loaded = false;

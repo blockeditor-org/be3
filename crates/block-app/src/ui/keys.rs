@@ -184,7 +184,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Show condition={unsealed}>
                 <Text
                     style=TextStyle::PARAGRAPH
-                    string="No key for this workspace is sealed to your recovery phrase yet. It will be once a member opens the workspace on a device that has the key."
+                    string="No key for this workspace is sealed to your recovery phrase yet. It will be as soon as a member who has the key is online."
                     wrap=true
                 />
             </Show>

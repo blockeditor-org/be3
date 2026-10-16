@@ -10,7 +10,15 @@ pub(crate) struct KeyState {
     setup: Option<RecoverySetup>,
     saving: Option<platform::RequestResult<Result<(), AccountError>>>,
     pairing: Option<PairingWait>,
+    awaiting: Option<SealWait>,
+    secret: Option<be_keys::RecoverySecret>,
     error: Option<String>,
+}
+
+struct SealWait {
+    workspace: Uuid,
+    receiver: Option<platform::RequestResult<Result<Vec<u8>, AccountError>>>,
+    _cancel: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 struct RecoverySetup {
@@ -164,11 +172,14 @@ impl KeyState {
                 .get(&workspace)
                 .ok_or("No key for this workspace is sealed to your recovery phrase yet.")?;
             let key = secret.open(sealed).map_err(|error| error.to_string())?;
-            <[u8; 32]>::try_from(key).map_err(|_| "The sealed key is corrupt.".to_owned())
+            let key =
+                <[u8; 32]>::try_from(key).map_err(|_| "The sealed key is corrupt.".to_owned())?;
+            Ok((key, secret))
         })();
         match opened {
-            Ok(key) => {
+            Ok((key, secret)) => {
                 self.error = None;
+                self.secret = Some(secret);
                 Some(key)
             }
             Err(error) => {
@@ -204,6 +215,54 @@ impl KeyState {
         self.pairing = None;
     }
 
+    pub(crate) fn want(
+        &mut self,
+        server_url: String,
+        token: String,
+        workspace: Uuid,
+    ) -> Option<KeyEvent> {
+        let keys = self.keys.as_ref()?;
+        if self
+            .awaiting
+            .as_ref()
+            .is_some_and(|wait| wait.workspace == workspace)
+        {
+            return None;
+        }
+        if let Some(sealed) = keys.sealed.get(&workspace).cloned() {
+            self.awaiting = Some(SealWait {
+                workspace,
+                receiver: None,
+                _cancel: None,
+            });
+            return self.open_sealed(workspace, &sealed);
+        }
+        let (cancel, cancelled) = tokio::sync::oneshot::channel::<()>();
+        self.awaiting = Some(SealWait {
+            workspace,
+            receiver: Some(platform::spawn_request(accounts::sealed_key(
+                server_url,
+                token,
+                workspace,
+                Box::pin(async move {
+                    let _ = cancelled.await;
+                }),
+            ))),
+            _cancel: Some(cancel),
+        });
+        None
+    }
+
+    pub(crate) fn stop_waiting(&mut self) {
+        self.awaiting = None;
+    }
+
+    fn open_sealed(&mut self, workspace: Uuid, sealed: &[u8]) -> Option<KeyEvent> {
+        let opened = self.secret.as_ref()?.open(sealed).ok()?;
+        let key = <[u8; 32]>::try_from(opened).ok()?;
+        Some(KeyEvent::Unlocked(workspace, key))
+    }
+
     pub(crate) fn poll(&mut self) -> Option<KeyEvent> {
         if let Some(saving) = &self.saving
             && let Ok(result) = saving.try_recv()
@@ -211,7 +270,9 @@ impl KeyState {
             self.saving = None;
             match result {
                 Ok(()) => {
-                    self.setup = None;
+                    if let Some(setup) = self.setup.take() {
+                        self.secret = Some(setup.phrase.secret());
+                    }
                     self.keys = None;
                     return Some(KeyEvent::RecoverySaved);
                 }
@@ -231,6 +292,24 @@ impl KeyState {
             self.pairing = None;
             match result {
                 Ok(key) => return Some(KeyEvent::Unlocked(workspace, key)),
+                Err(error) => self.error = Some(error.message),
+            }
+        }
+        if let Some(wait) = &mut self.awaiting
+            && let Some(result) = wait
+                .receiver
+                .as_ref()
+                .and_then(|receiver| receiver.try_recv().ok())
+        {
+            let workspace = wait.workspace;
+            wait.receiver = None;
+            match result {
+                Ok(sealed) => {
+                    if let Some(keys) = &mut self.keys {
+                        keys.sealed.insert(workspace, sealed.clone());
+                    }
+                    return self.open_sealed(workspace, &sealed);
+                }
                 Err(error) => self.error = Some(error.message),
             }
         }
