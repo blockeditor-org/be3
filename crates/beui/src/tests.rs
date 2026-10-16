@@ -321,6 +321,7 @@ mod a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
+mod a_typed_paste_types_the_clipboard_key_by_key;
 mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
 mod a_value_child_that_watches_its_placement_panics_when_built;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
@@ -402,6 +403,7 @@ mod arrows_at_the_ends_of_a_date_field_leave_its_value_alone;
 mod arrows_pick_which_emoji_the_menu_inserts;
 mod back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar;
 mod backspace_deletes_the_character_before_the_caret;
+mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod changing_a_filter_damages_only_the_region_it_covers;
 mod changing_one_span_of_a_long_text_shapes_only_that_span;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
@@ -704,7 +706,7 @@ mod the_simulate_tab_filters_the_document_without_the_screen_reader;
 mod the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated;
 mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
-mod the_simulated_keyboard_types_into_the_focused_input;
+mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_top_layer_takes_a_click_over_the_layer_below;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
 mod the_window_is_shown_the_ime_again_after_typing_into_it;
@@ -1206,11 +1208,6 @@ impl Harness {
 
     pub(crate) fn simulated_trackpad(&self) -> Pos2 {
         self.simulation(MouseSimulation::trackpad_center)
-    }
-
-    pub(crate) fn simulated_key(&self, label: &str) -> Pos2 {
-        self.simulation(|simulation| simulation.key_center(label))
-            .unwrap_or_else(|| panic!("the simulated keyboard has no {label:?} key"))
     }
 
     pub(crate) fn enable_mouse_simulation(&mut self) {
@@ -2431,6 +2428,7 @@ pub(crate) struct IntakePlatform {
     pub(crate) clipboard: Option<String>,
     pub(crate) clipboard_image: Option<crate::PickedFile>,
     pub(crate) delivers_paste: bool,
+    pub(crate) shows_keyboard: bool,
     pub(crate) pastes: Vec<Vec<crate::PasteKind>>,
 }
 
@@ -2445,6 +2443,10 @@ impl beui_core::runner::Platform for IntakePlatform {
 
     fn delivers_paste_shortcut(&self) -> bool {
         self.delivers_paste
+    }
+
+    fn shows_keyboard(&self) -> bool {
+        self.shows_keyboard
     }
 }
 

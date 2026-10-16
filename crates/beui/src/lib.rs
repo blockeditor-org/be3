@@ -111,9 +111,7 @@ pub mod reactive {
 }
 
 pub fn context() -> Context {
-    let context = Context::new(FreetypeFonts::default());
-    context.enable_keyboard();
-    context
+    Context::new(FreetypeFonts::default())
 }
 
 pub fn system_fonts() -> FontLibrary {
@@ -124,9 +122,7 @@ pub fn system_fonts() -> FontLibrary {
 }
 
 pub fn system_context() -> Context {
-    let context = Context::new(FreetypeFonts::new(system_fonts()));
-    context.enable_keyboard();
-    context
+    Context::new(FreetypeFonts::new(system_fonts()))
 }
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]

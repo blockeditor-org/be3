@@ -2051,10 +2051,10 @@ It is three pieces:
   `install_keyboard` puts a `KeyboardWindow` on a document as its
   `KeyboardHost`, which `beui::reactive::build` does for every document.
 - `beui_core::software_keyboard`: whether it shows and where. A context shows
-  one only once `Context::enable_keyboard` has been called, which
-  `beui::context()` and `beui::system_context()` do and a plugin's context does
-  not, so a plugin's own keyboard never opens; a plugin's `toggle_keyboard()`
-  goes to its host instead (below). `Document::show` (and the inspector, around
+  one only once `Context::enable_keyboard` has been called, which the runner
+  does on its first frame unless its `Platform::shows_keyboard` says the
+  platform has an on-screen keyboard of its own (Android, the web, a plugin's
+  host). `Document::show` (and the inspector, around
   the app it shows) calls `show_with_keyboard`, which takes the keyboard's
   height off the bottom of the screen the focused field is on, the way the
   mouse simulation's strip is taken: a single screen's document is laid out
@@ -2063,8 +2063,15 @@ It is three pieces:
   the app with the pointer only while a press began on it or the pointer is
   over it, and with no keys.
 
-It opens three ways. `toggle_keyboard()` (or `Context::toggle_keyboard`) opens
-it until it is closed. While the platform reports that no keyboard is attached
+There is one way to ask for an on-screen keyboard whatever shows it:
+`toggle_keyboard()` (or `Context::toggle_keyboard`) counts up
+`WindowState::keyboard_toggles`. Where beui's keyboard is enabled it opens it
+until it is closed; otherwise the platform answers the change in
+`Platform::show_window`: Android shows or hides its keyboard, the web focuses
+or blurs its hidden textarea, and a plugin passes it to its host as
+`WindowRequests::keyboard_toggles`, where block-app toggles its own. The
+desktop bar's keyboard button, the inspector's Sim tab button and the mouse
+simulation's keyboard button all call it. While the platform reports that no keyboard is attached
 (`WindowReports::keyboard_attached`, which only `beui-adapter-drm` sends, from
 libinput devices that have an A key; every other platform counts as attached),
 it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
@@ -2077,10 +2084,7 @@ use too) and `Event::Text` for what no key types, `Context::type_events` puts
 them in `FrameOutput::typed`, and the runner feeds them back in as the next
 frame's input, so a beui field, a plugin and a Wayland program all take them
 the same way. Paste as plain text asks for a `PasteRequest::Typed`, whose
-answer the runner types out key by key. A plugin's `toggle_keyboard()` counts
-up `WindowState::keyboard_toggles`, which reaches its host as
-`WindowRequests::keyboard_toggles`, and block-app toggles its own keyboard on
-each change. The Inputs page of beui-demo shows it in place, and the
+answer the runner types out key by key. The Inputs page of beui-demo shows it in place, and the
 inspector's Sim tab has a button that opens it over the inspected app.
 
 ### The inspector
@@ -2114,15 +2118,15 @@ releases it. A stroke that moved the cursor is never a tap. The strip along the 
 and right mouse buttons plus a keyboard toggle: a button stays held for as long
 as its finger is down, another finger can work the trackpad at the same time,
 and swiping up or down on the middle button scrolls a wheel tick at a time. The
-keyboard toggle opens an on-screen keyboard that sends `Event::Key`s with the
-text they type; its Shift, Ctrl, and Alt keys latch until the next key, and they
-also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
+keyboard button calls `toggle_keyboard()`, so it opens whatever on-screen
+keyboard the platform has (see The on-screen keyboard); fingers that land on
+beui's keyboard pass through to it as touches rather than moving the cursor.
 
-The strip and the keyboard take their room out of the window rather than
+The strip takes its room out of the window rather than
 covering it: `Document::show` asks the simulation how tall it is, trims that off
 the bottom, and lays the document and the inspector panel out in what is left,
-the way a phone's keyboard pushes a page up. Nothing is drawn over content that
-is still live, so the bars are opaque.
+the way a phone's keyboard pushes a page up, and beui's keyboard opens above
+it. Nothing is drawn over content that is still live, so the bar is opaque.
 
 ### Responsive design mode
 

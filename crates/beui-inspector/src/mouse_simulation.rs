@@ -1,5 +1,3 @@
-pub mod keyboard;
-
 use std::array;
 use std::time::{Duration, Instant};
 
@@ -14,8 +12,6 @@ use beui_core::input::{
     CursorIcon, Event, Modifiers, PointerButton, RawInput, TouchId, TouchPhase,
 };
 use beui_core::painter::Painter;
-
-use keyboard::{KeyId, Keyboard};
 
 const BAR_HEIGHT: f32 = 56.0;
 const BAR_PADDING: f32 = 6.0;
@@ -53,7 +49,6 @@ enum Role {
     Trackpad,
     Button(usize),
     Keyboard,
-    Key(KeyId),
     Ignored,
 }
 
@@ -86,7 +81,6 @@ struct Finger {
 struct Layout {
     bar: Rect,
     buttons: [Rect; 4],
-    keyboard: Option<Rect>,
     trackpad: Rect,
 }
 
@@ -107,8 +101,9 @@ pub struct MouseSimulation {
     left: Left,
     scrolling: bool,
     now: Instant,
-    keyboard_open: bool,
-    keyboard: Keyboard,
+    keyboard: Option<Rect>,
+    keyboard_toggled: bool,
+    passed: Vec<TouchId>,
     painted: Rect,
 }
 
@@ -131,8 +126,9 @@ impl Default for MouseSimulation {
             left: Left::Up,
             scrolling: false,
             now: Instant::now(),
-            keyboard_open: false,
-            keyboard: Keyboard::default(),
+            keyboard: None,
+            keyboard_toggled: false,
+            passed: Vec::new(),
             painted: Rect::NOTHING,
         }
     }
@@ -160,8 +156,7 @@ impl MouseSimulation {
             return 0.0;
         }
         let layout = self.layout();
-        let height = layout.bar.height() + layout.keyboard.map_or(0.0, |rect| rect.height());
-        height * self.scale
+        layout.bar.height() * self.scale
     }
 
     fn measured(&mut self, viewport: Rect, scale: f32) {
@@ -187,7 +182,10 @@ impl MouseSimulation {
             self.start();
         }
         for event in raw.events {
-            match event {
+            match event.clone() {
+                Event::Touch { id, phase, pos, .. } if self.passes(id, phase, pos) => {
+                    out.push(event);
+                }
                 Event::Touch { id, phase, pos, .. } => self.touch(id, phase, pos),
                 Event::Focus(false) => {
                     self.cancel();
@@ -217,8 +215,7 @@ impl MouseSimulation {
         if self.reported.take().is_some() {
             out.push(Event::PointerGone);
         }
-        self.keyboard_open = false;
-        self.keyboard.clear();
+        self.passed.clear();
         self.active = false;
     }
 
@@ -229,7 +226,18 @@ impl MouseSimulation {
         self.middle_travel = 0.0;
         self.left = Left::Up;
         self.scrolling = false;
-        self.keyboard.clear();
+    }
+
+    fn passes(&mut self, id: TouchId, phase: TouchPhase, pos: Pos2) -> bool {
+        let passed = self.passed.contains(&id)
+            || (phase == TouchPhase::Start
+                && self.keyboard.is_some_and(|keyboard| keyboard.contains(pos)));
+        match phase {
+            TouchPhase::Start if passed => self.passed.push(id),
+            TouchPhase::End | TouchPhase::Cancel => self.passed.retain(|held| *held != id),
+            _ => {}
+        }
+        passed
     }
 
     fn settle(&mut self) -> Option<Duration> {
@@ -265,7 +273,7 @@ impl MouseSimulation {
     }
 
     fn flush(&mut self, out: &mut Vec<Event>) {
-        let modifiers = self.keyboard.modifiers();
+        let modifiers = Modifiers::NONE;
         let pressed_at = self.reported.unwrap_or(self.cursor);
         for index in 0..BUTTONS.len() {
             if self.held(index) && !self.emitted[index] {
@@ -297,7 +305,6 @@ impl MouseSimulation {
                 Vec2::ZERO,
             )));
         }
-        self.keyboard.drain(out);
     }
 
     fn button_event(&self, index: usize, pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
@@ -335,11 +342,7 @@ impl MouseSimulation {
                 self.middle_travel = 0.0;
             }
             Role::Button(index) => self.holders[index] = Some(id),
-            Role::Keyboard => {
-                self.keyboard_open = !self.keyboard_open;
-                self.keyboard.clear();
-            }
-            Role::Key(key) => self.keyboard.press(key),
+            Role::Keyboard => self.keyboard_toggled = true,
             Role::Trackpad => {
                 if self.trackpad_fingers() > 0 {
                     self.scrolling = true;
@@ -458,7 +461,6 @@ impl MouseSimulation {
                 self.middle_travel = 0.0;
             }
             Role::Button(button) => self.holders[button] = None,
-            Role::Key(key) => self.keyboard.release(key),
             Role::Trackpad => {
                 if self.trackpad_fingers() > 0 {
                     return;
@@ -506,14 +508,6 @@ impl MouseSimulation {
                 index => Role::Button(index),
             };
         }
-        if let Some(rect) = layout.keyboard {
-            if let Some(key) = Keyboard::hit(rect, pos) {
-                return Role::Key(key);
-            }
-            if rect.contains(pos) {
-                return Role::Ignored;
-            }
-        }
         if layout.bar.contains(pos) {
             return Role::Ignored;
         }
@@ -539,11 +533,6 @@ impl MouseSimulation {
         self.document(self.layout().trackpad.center())
     }
 
-    pub fn key_center(&self, label: &str) -> Option<Pos2> {
-        let rect = self.layout().keyboard?;
-        Keyboard::locate(rect, label).map(|pos| self.document(pos))
-    }
-
     fn document(&self, pos: Pos2) -> Pos2 {
         pos2(pos.x * self.scale, pos.y * self.scale)
     }
@@ -563,13 +552,6 @@ impl MouseSimulation {
             pos2(bounds.left(), bounds.bottom() - bar_height),
             bounds.max,
         );
-        let keyboard = self.keyboard_open.then(|| {
-            let height = Keyboard::height().min((bounds.height() - bar_height).max(0.0));
-            Rect::from_min_max(
-                pos2(bounds.left(), bar.top() - height),
-                pos2(bounds.right(), bar.top()),
-            )
-        });
         let inner = bar.shrink(BAR_PADDING);
         let width = inner.width().min(BAR_WIDTH);
         let slot = ((width - BAR_SPACING * 3.0) / 4.0).max(0.0);
@@ -580,17 +562,10 @@ impl MouseSimulation {
                 vec2(slot, inner.height().max(0.0)),
             )
         });
-        let trackpad = Rect::from_min_max(
-            bounds.min,
-            pos2(
-                bounds.right(),
-                keyboard.map_or(bar.top(), |rect| rect.top()),
-            ),
-        );
+        let trackpad = Rect::from_min_max(bounds.min, pos2(bounds.right(), bar.top()));
         Layout {
             bar,
             buttons,
-            keyboard,
             trackpad,
         }
     }
@@ -602,7 +577,7 @@ impl MouseSimulation {
             return damage;
         }
         let layout = self.layout();
-        let top = layout.keyboard.unwrap_or(layout.bar);
+        let top = layout.bar;
         painter.rect_filled(layout.bar, 0.0, Theme::DARK.background);
         painter.rect_filled(
             Rect::from_min_max(top.min, pos2(top.right(), top.top() + BORDER_WIDTH)),
@@ -611,7 +586,7 @@ impl MouseSimulation {
         );
         for (index, bounds) in layout.buttons.iter().enumerate() {
             let active = match index {
-                3 => self.keyboard_open,
+                3 => self.keyboard.is_some(),
                 index => self.held(index) || self.holders[index].is_some(),
             };
             let fill = if active {
@@ -633,19 +608,9 @@ impl MouseSimulation {
                 color,
             );
         }
-        if let Some(rect) = layout.keyboard {
-            self.keyboard.paint(painter, rect);
-        }
         let cursor = self.paint_cursor(painter, icon);
-        let damage = layout
-            .bar
-            .union(layout.keyboard.unwrap_or(Rect::NOTHING))
-            .union(cursor)
-            .union(self.painted);
-        self.painted = layout
-            .bar
-            .union(layout.keyboard.unwrap_or(Rect::NOTHING))
-            .union(cursor);
+        let damage = layout.bar.union(cursor).union(self.painted);
+        self.painted = layout.bar.union(cursor);
         damage
     }
 
@@ -763,6 +728,14 @@ impl InputSimulation for MouseSimulation {
 
     fn reserved(&self) -> f32 {
         self.reserved_height()
+    }
+
+    fn keyboard(&mut self, shown: Option<Rect>) {
+        self.keyboard = shown;
+    }
+
+    fn take_keyboard_toggle(&mut self) -> bool {
+        std::mem::take(&mut self.keyboard_toggled)
     }
 
     fn painting(&self) -> bool {

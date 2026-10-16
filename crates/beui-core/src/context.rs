@@ -105,6 +105,12 @@ pub trait InputSimulation: Any {
 
     fn reserved(&self) -> f32;
 
+    fn keyboard(&mut self, _shown: Option<Rect>) {}
+
+    fn take_keyboard_toggle(&mut self) -> bool {
+        false
+    }
+
     fn painting(&self) -> bool;
 
     fn paint(&mut self, painter: &Painter, icon: CursorIcon) -> Rect;
@@ -464,10 +470,18 @@ impl Context {
         self.inner.repaint_after.set(Duration::MAX);
         self.inner.mouse_viewport.set(None);
         self.inner.shown.set(None);
-        let (raw, wake) = match self.inner.input_simulation.borrow_mut().as_mut() {
-            Some(simulation) => simulation.translate(raw, now),
-            None => (raw, None),
+        let keyboard = self.keyboard_rect();
+        let (raw, wake, toggled) = match self.inner.input_simulation.borrow_mut().as_mut() {
+            Some(simulation) => {
+                simulation.keyboard(keyboard);
+                let (raw, wake) = simulation.translate(raw, now);
+                (raw, wake, simulation.take_keyboard_toggle())
+            }
+            None => (raw, None, false),
         };
+        if toggled {
+            self.toggle_keyboard();
+        }
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
         }

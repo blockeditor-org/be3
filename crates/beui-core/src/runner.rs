@@ -78,6 +78,10 @@ pub trait Platform {
         false
     }
 
+    fn shows_keyboard(&self) -> bool {
+        false
+    }
+
     fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
 
     fn resize(&mut self, _resize: Resize) -> Result<(), String> {
@@ -133,6 +137,7 @@ pub struct Runner {
     picks: (Sender<Answered>, Receiver<Answered>),
     pastes: (Sender<Pasted>, Receiver<Pasted>),
     typed_pastes: (Sender<Pasted>, Receiver<Pasted>),
+    keyboard_chosen: bool,
     publishing_accessibility: bool,
     automation: Option<Automation>,
     actions: Vec<ActionGroup>,
@@ -180,6 +185,7 @@ impl Runner {
             picks: mpsc::channel(),
             pastes: mpsc::channel(),
             typed_pastes: mpsc::channel(),
+            keyboard_chosen: false,
             publishing_accessibility: false,
             automation,
             actions: Vec::new(),
@@ -376,6 +382,9 @@ impl Runner {
             self.intake.modifiers(),
             &mut self.events,
         );
+        if !std::mem::replace(&mut self.keyboard_chosen, true) && !platform.shows_keyboard() {
+            self.context.enable_keyboard();
+        }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
