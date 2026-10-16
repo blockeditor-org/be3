@@ -19,6 +19,7 @@ pub(crate) mod paint;
 pub(crate) mod selection_bar;
 pub(crate) mod sidebar;
 pub(crate) mod state;
+pub(crate) mod text;
 pub(crate) mod toolbar;
 
 use actions::canvas_actions;

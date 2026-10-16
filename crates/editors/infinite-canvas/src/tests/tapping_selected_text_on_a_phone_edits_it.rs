@@ -21,15 +21,22 @@ fn tapping_selected_text_on_a_phone_edits_it() {
         editor.run();
     };
 
-    tap(&mut editor);
-    assert!(
-        !editor.shown("infinite-canvas.text"),
-        "the first tap selects"
-    );
+    let typed = |editor: &mut BeuiTest<CanvasApp>| {
+        editor.text("!");
+        editor.run();
+        match &entities(editor)[0].kind {
+            CanvasEntityKind::Text { text, .. } => text.clone(),
+            _ => panic!("the entity is still text"),
+        }
+    };
 
     tap(&mut editor);
-    assert!(
-        editor.shown("infinite-canvas.text"),
-        "a second tap opens the text to edit"
+    assert_eq!(typed(&mut editor), "Hello", "the first tap selects");
+
+    tap(&mut editor);
+    assert_ne!(
+        typed(&mut editor),
+        "Hello",
+        "a second tap opens the text to edit where it is drawn"
     );
 }

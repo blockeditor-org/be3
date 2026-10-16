@@ -176,6 +176,7 @@ pub struct CanvasItemNode {
     child: Option<NodeId>,
     rect: Rect,
     clip: bool,
+    pointer: bool,
 }
 
 impl Element for CanvasItemNode {
@@ -205,6 +206,10 @@ impl Element for CanvasItemNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
+        self.child.filter(|_| self.pointer).into_iter().collect()
     }
 
     fn remove_child(&mut self, child: NodeId) {
@@ -264,6 +269,7 @@ impl Document {
             child: None,
             rect: Rect::ZERO,
             clip: true,
+            pointer: true,
         })
     }
 
@@ -282,6 +288,12 @@ impl Document {
     pub fn set_canvas_item_clip(&mut self, item: NodeOf<CanvasItemNode>, clip: bool) {
         if self.arena.get_as::<CanvasItemNode>(item).clip != clip {
             self.arena.get_mut_as::<CanvasItemNode>(item).clip = clip;
+        }
+    }
+
+    pub fn set_canvas_item_pointer(&mut self, item: NodeOf<CanvasItemNode>, pointer: bool) {
+        if self.arena.get_as::<CanvasItemNode>(item).pointer != pointer {
+            self.arena.touch_mut_as::<CanvasItemNode>(item).pointer = pointer;
         }
     }
 

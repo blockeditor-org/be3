@@ -22,7 +22,7 @@ use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
-use block_editor_beui::{BlockParent, BlockQuery, narrow_chrome, sheet_control};
+use block_editor_beui::{BlockParent, BlockQuery};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -82,6 +82,12 @@ pub(crate) enum Tool {
     Rectangle,
     Text,
     Pen,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum TextEntry {
+    At(Pos2),
+    All,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -257,7 +263,9 @@ struct CanvasCells {
     grouped_edit: Cell<bool>,
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
-    retapped: Cell<Option<Uuid>>,
+    retapped: Cell<Option<(Uuid, Pos2)>>,
+    text_entry: Cell<Option<TextEntry>>,
+    surface: NodeRef,
     last_foreground: Cell<CanvasColor>,
     last_fill: Cell<Option<CanvasColor>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
@@ -273,8 +281,6 @@ pub(crate) struct CanvasState {
     cells: Stored<CanvasCells>,
     editor: Editor,
     preview: bool,
-    narrow: Memo<bool>,
-    sheet: Option<WriteSignal<bool>>,
     pub(crate) pointer: ReadSignal<Option<CanvasPoint>>,
     set_pointer: WriteSignal<Option<CanvasPoint>>,
     pub(crate) entities: ReadSignal<Vec<CanvasEntity>>,
@@ -334,6 +340,8 @@ impl CanvasState {
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
             retapped: Cell::new(None),
+            text_entry: Cell::new(None),
+            surface: NodeRef::new(),
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
             last_fill: Cell::new(CanvasEntityStyle::default().fill),
             children: RefCell::new(HashMap::new()),
@@ -347,8 +355,6 @@ impl CanvasState {
             cells,
             editor,
             preview,
-            narrow: narrow_chrome(),
-            sheet: sheet_control(),
             pointer,
             set_pointer,
             entities,
@@ -716,11 +722,29 @@ impl CanvasState {
         if self.editing_text.get_untracked() != entity {
             self.set_editing_text.set(entity);
         }
-        if entity.is_some()
-            && self.narrow.get_untracked()
-            && let Some(sheet) = &self.sheet
-        {
-            sheet.set(true);
+    }
+
+    pub(crate) fn edit_text_at(&self, entity: Uuid, entry: TextEntry) {
+        self.cells.get().text_entry.set(Some(entry));
+        self.edit_text(Some(entity));
+    }
+
+    pub(crate) fn take_text_entry(&self) -> Option<TextEntry> {
+        self.cells.get().text_entry.take()
+    }
+
+    pub(crate) fn finish_text(&self) {
+        self.edit_text(None);
+        self.finish_grouped_edit();
+    }
+
+    pub(crate) fn surface(&self) -> NodeRef {
+        self.cells.get().surface
+    }
+
+    pub(crate) fn focus_surface(&self) {
+        if let Some(surface) = self.surface().try_get() {
+            with_document(|document| document.focus_focusable(surface));
         }
     }
 
@@ -729,13 +753,13 @@ impl CanvasState {
             return entity;
         };
         let text_style = *text_style;
-        if text_style.wrap {
-            return entity;
-        }
-        let Some(measured) = super::paint::measure_text(&entity, self.scale()) else {
+        let Some(measured) = super::text::measure(&entity, self.scale()) else {
             return entity;
         };
-        let size = text_box_size(&text_style, measured);
+        let mut size = text_box_size(&text_style, measured);
+        if text_style.wrap {
+            size = CanvasPoint::new(entity.transform.size.x, entity.transform.size.y.max(size.y));
+        }
         if (entity.transform.size.x - size.x).abs() >= 0.5
             || (entity.transform.size.y - size.y).abs() >= 0.5
         {
@@ -774,11 +798,11 @@ impl CanvasState {
         self.cells.get().touch.get()
     }
 
-    pub(crate) fn note_retap(&self, id: Option<Uuid>) {
-        self.cells.get().retapped.set(id);
+    pub(crate) fn note_retap(&self, retap: Option<(Uuid, Pos2)>) {
+        self.cells.get().retapped.set(retap);
     }
 
-    pub(crate) fn take_retap(&self) -> Option<Uuid> {
+    pub(crate) fn take_retap(&self) -> Option<(Uuid, Pos2)> {
         self.cells.get().retapped.take()
     }
 
@@ -1701,7 +1725,7 @@ impl CanvasState {
                 }
             }
             CanvasEntityKind::Text { .. } if !entity.locked => {
-                self.edit_text(Some(entity.id));
+                self.edit_text_at(entity.id, TextEntry::All);
             }
             CanvasEntityKind::Block { block_id } => self.open_referenced_block(block_id),
             _ => {}

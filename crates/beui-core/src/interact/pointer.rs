@@ -149,6 +149,7 @@ struct Session {
     owners: Vec<NodeId>,
     claimed: bool,
     focus: Option<NodeId>,
+    pressed_focus: Option<NodeId>,
     sink: Option<NodeId>,
     pan: Option<NodeId>,
     modifiers: Modifiers,
@@ -478,6 +479,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         owners: Vec::new(),
         claimed: claimant.is_some(),
         focus: None,
+        pressed_focus: None,
         sink,
         pan: None,
         modifiers: event.modifiers,
@@ -564,6 +566,7 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
             on_active_change.call(active);
         }
     }
+    session.pressed_focus = focused;
     if session.kind.settles {
         session.long_press = Some(frame.now + frame.long_press);
         frame.ctx.request_repaint_after(frame.long_press);
@@ -919,6 +922,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                 && !session.dragged
                 && !cancelled
                 && doc.focused_node() == focused
+                && focused == session.pressed_focus
             {
                 doc.press_focus(session.focus);
             }

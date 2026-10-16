@@ -49,7 +49,7 @@ use state::{AreaGeometry, Grab};
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
-pub use rows::TextWidget;
+pub use rows::{Prose, TextWidget};
 pub use state::{TextAreaLayout, TextAreaState};
 
 pub struct TextCheckbox {
@@ -133,6 +133,7 @@ struct Surface {
     composition: Memo<Option<Composition>>,
     placeholder: Memo<String>,
     font_size: Memo<f32>,
+    prose: Memo<Option<Prose>>,
     metrics: Memo<(f32, u64)>,
     gutter: Memo<f32>,
     padding: Memo<Vec2>,
@@ -208,10 +209,12 @@ impl Surface {
     fn row_estimate(&self) -> f32 {
         let body = galley("", FontId::proportional(self.font_size.get_untracked()))
             .map_or(BODY_SIZE * 1.15, |galley| galley.line_height());
-        match self.single_line {
-            true => body,
-            false => body + LINE_PADDING.0 + LINE_PADDING.1,
-        }
+        let padding = match (self.single_line, self.prose.get_untracked()) {
+            (true, _) => (0.0, 0.0),
+            (false, Some(prose)) => prose.line_padding,
+            (false, None) => LINE_PADDING,
+        };
+        body + padding.0 + padding.1
     }
 
     fn line_of(&self, byte: usize) -> usize {
@@ -974,6 +977,7 @@ pub fn TextArea(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
     #[prop(default = PADDING)] padding: Prop<Vec2>,
+    #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     accessibility: Option<Prop<Node>>,
@@ -1022,6 +1026,7 @@ pub fn TextArea(
                         let placeholder = create_memo(move || placeholder.get());
                         let disabled = create_memo(move || disabled.get());
                         let font_size = create_memo(move || font_size.get());
+                        let prose = create_memo(move || prose.get());
                         let padding = create_memo(move || padding.get());
                         let widgets = create_memo(move || widgets.get());
                         let colors = create_memo(move || colors.get());
@@ -1113,6 +1118,7 @@ pub fn TextArea(
                                     body_size: font_size.get(),
                                     mask: masked.get(),
                                     single_line,
+                                    prose: prose.get(),
                                 };
                                 Rc::new(state.with_snapshot(|snapshot| match snapshot.loaded && !single_line {
                                     true => table_spacers(&rows::TableInputs {
@@ -1189,6 +1195,7 @@ pub fn TextArea(
                             composition,
                             placeholder,
                             font_size,
+                            prose,
                             metrics: create_memo(move || (scale.get(), attached.get())),
                             gutter,
                             padding,

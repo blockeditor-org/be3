@@ -129,15 +129,16 @@ pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::text_area_handles;
 pub use text_area::{
-    Completer, Completion, CompletionMenu, CompletionRowHandle, RemoteTextCursor, SyntaxColors,
-    TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox, TextWidget,
-    emoji_completer, search_emoji, text_area_index_at, text_area_shown, text_area_state,
+    Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
+    SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox,
+    TextWidget, emoji_completer, search_emoji, text_area_index_at, text_area_shown,
+    text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{
-    TextInput, TextInputHandle, TextInputStyle, text_input_caret, text_input_focused,
-    text_input_index_at, text_input_menu_row, text_input_selection, text_input_shown,
-    text_input_text, text_input_value,
+    TextInput, TextInputHandle, TextInputStyle, measure_prose, text_input_caret,
+    text_input_focused, text_input_index_at, text_input_menu_row, text_input_selection,
+    text_input_shown, text_input_state, text_input_text, text_input_value,
 };
 pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeOptionHandle, grid_columns, time_list_selected};

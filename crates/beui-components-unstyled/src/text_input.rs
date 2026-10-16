@@ -13,6 +13,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2};
 
+use crate::Prose;
 use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaColors;
@@ -52,6 +53,7 @@ pub struct TextInputStyle {
     pub caret_color: Prop<Color32>,
     pub padding_horizontal: Prop<f32>,
     pub padding_vertical: Prop<f32>,
+    pub prose: Prop<Option<Prose>>,
     pub menu: MenuStyle,
 }
 
@@ -65,6 +67,7 @@ impl Default for TextInputStyle {
             caret_color: Prop::Static(Color32::WHITE),
             padding_horizontal: Prop::Static(0.0),
             padding_vertical: Prop::Static(0.0),
+            prose: Prop::Static(None),
             menu: MenuStyle::default(),
         }
     }
@@ -104,6 +107,7 @@ pub fn TextInput(
         caret_color,
         padding_horizontal,
         padding_vertical,
+        prose,
         menu,
     } = style;
     let initial = value.peek();
@@ -235,6 +239,7 @@ pub fn TextInput(
             disabled={disabled}
             font_size
             padding
+            prose
             accessibility
             on_menu={open_menu}
             on_submit={move || on_submit.call(text_of(state))}
@@ -256,6 +261,16 @@ pub fn TextInput(
         true => surround(area_node, false),
         false => area_node,
     }
+}
+
+pub fn measure_prose(
+    value: &str,
+    placeholder: &str,
+    font_size: f32,
+    prose: Prose,
+    wrap_width: f32,
+) -> Option<Vec2> {
+    plain_text(value).measure_prose(font_size, prose, placeholder, wrap_width)
 }
 
 fn plain_text(value: &str) -> TextAreaState {
@@ -310,6 +325,10 @@ pub fn text_input_caret(document: &Document, input_node: NodeId) -> usize {
         .first()
         .copied()
         .unwrap_or(0)
+}
+
+pub fn text_input_state(document: &Document, input_node: NodeId) -> TextAreaState {
+    input(document, input_node).state
 }
 
 pub fn text_input_selection(document: &Document, input_node: NodeId) -> Vec<Range<usize>> {

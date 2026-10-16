@@ -15,6 +15,7 @@ use super::menu::CanvasMenu;
 use super::overlay::{Artboard, Backdrop, Overlay};
 use super::paint::{Camera, EntityPaint, Palette, resolve_color};
 use super::state::CanvasState;
+use super::text::{EntityText, shown_live, text_box};
 
 const ITEM_MARGIN: f32 = 2.0;
 
@@ -108,8 +109,10 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
 fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
     let cursor = create_memo(move || state.cursor());
     let interactive = !state.previewing();
+    let surface = state.surface();
     view! {
         <Interactive
+            @node_ref=&surface
             focusable=true
             tab_stop={interactive}
             on_key={move |press: KeyPress| state.key(press)}
@@ -239,11 +242,20 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
 #[component]
 fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
     let entity = entity_of(state, id);
-    let bounds = create_memo(move || {
+    let editing = create_memo(move || state.editing_text.get() == Some(id));
+    let live = create_memo(move || {
         entity
             .get()
-            .map(|entity| item_bounds(&entity))
-            .unwrap_or(Rect::ZERO)
+            .is_some_and(|entity| shown_live(&entity, editing.get()))
+    });
+    let bounds = create_memo(move || {
+        let Some(entity) = entity.get() else {
+            return Rect::ZERO;
+        };
+        match live.get() {
+            true => item_bounds(&entity).union(text_box(&entity)),
+            false => item_bounds(&entity),
+        }
     });
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
@@ -258,6 +270,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         let label = reference.and_then(|reference| state.label_of(reference));
         let loading = reference.is_some();
         let paint = EntityPaint {
+            live_text: live.get(),
             covered: state.child_state(entity.id).available,
             camera: Camera::of(Some(camera.get()), block_editor_beui::beui::Pos2::ZERO),
             palette: palette(&theme),
@@ -290,9 +303,17 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             y={create_memo(move || bounds.get().top())}
             width={create_memo(move || bounds.get().width().max(1.0))}
             height={create_memo(move || bounds.get().height().max(1.0))}
+            pointer={editing}
             @test_id={format!("infinite-canvas.entity.{id}")}
         >
-            <Drawing draw={draw} />
+            <Layers>
+                <Drawing draw={draw} />
+                <Show condition={live}>
+                    {move || view! {
+                        <EntityText state id entity outer={bounds} camera editing />
+                    }}
+                </Show>
+            </Layers>
         </CanvasItem>
     }
 }

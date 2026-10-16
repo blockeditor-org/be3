@@ -9,6 +9,8 @@ use block_editor_beui::beui::{
 
 use crate::geometry::*;
 
+use super::text::{TEXT_INSET, font_px};
+
 pub(crate) const SELECTION: Color32 = Color32::from_rgb(140, 200, 255);
 const PLACEHOLDER: Color32 = Color32::from_rgb(35, 35, 35);
 const ARROW_SPREAD: f32 = 0.45;
@@ -73,6 +75,7 @@ pub(crate) struct Palette {
 #[derive(Clone)]
 pub(crate) struct EntityPaint {
     pub(crate) entity: CanvasEntity,
+    pub(crate) live_text: bool,
     pub(crate) camera: Camera,
     pub(crate) palette: Palette,
     pub(crate) title: String,
@@ -85,6 +88,7 @@ pub(crate) struct EntityPaint {
 impl PartialEq for EntityPaint {
     fn eq(&self, other: &Self) -> bool {
         self.entity == other.entity
+            && self.live_text == other.live_text
             && self.camera == other.camera
             && self.palette == other.palette
             && self.title == other.title
@@ -109,6 +113,7 @@ impl EntityPaint {
         match &self.entity.kind {
             CanvasEntityKind::Line => self.draw_line(painter, color, width),
             CanvasEntityKind::Rectangle => self.draw_rectangle(painter, color, width, opacity),
+            CanvasEntityKind::Text { .. } if self.live_text => {}
             CanvasEntityKind::Text {
                 text,
                 text_style,
@@ -197,7 +202,8 @@ impl EntityPaint {
             false => (text, color),
         };
         let painter = self.turned(painter);
-        let rect = self.box_rect();
+        let inset = TEXT_INSET * self.camera.scale;
+        let rect = self.box_rect().expand2(Vec2::new(-inset, 0.0));
         let galley = painter.layout_text(
             shown,
             text_font(text_style, self.camera.scale),
@@ -209,15 +215,7 @@ impl EntityPaint {
             CanvasTextAlign::Center => rect.center().x - size.x / 2.0,
             CanvasTextAlign::Right => rect.right() - size.x,
         };
-        let origin = pos2(x, rect.center().y - size.y / 2.0);
-        if text_style.weight == CanvasTextWeight::Bold {
-            painter.galley(
-                pos2(origin.x + 0.6 * self.camera.scale, origin.y),
-                galley.clone(),
-                color,
-            );
-        }
-        painter.galley(origin, galley, color);
+        painter.galley(pos2(x, rect.center().y - size.y / 2.0), galley, color);
     }
 
     fn fill_uncovered(&self, painter: &Painter, rect: Rect, opacity: f32) {
@@ -436,7 +434,8 @@ pub(crate) fn handle(painter: &Painter, at: Pos2, color: Color32) {
 }
 
 fn text_font(text_style: CanvasTextStyle, scale: f32) -> FontId {
-    FontId::proportional((text_style.font_size * scale).clamp(4.0, 256.0))
+    FontId::proportional(font_px(text_style, scale))
+        .bold(text_style.weight == CanvasTextWeight::Bold)
 }
 
 fn text_layout(text_style: CanvasTextStyle, width: f32) -> TextLayout {
@@ -453,29 +452,6 @@ fn text_layout(text_style: CanvasTextStyle, width: f32) -> TextLayout {
         line_spacing: text_style.line_height.max(0.5),
         ..TextLayout::DEFAULT
     }
-}
-
-pub(crate) fn measure_text(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
-    let CanvasEntityKind::Text {
-        text,
-        text_style,
-        placeholder,
-    } = &entity.kind
-    else {
-        return None;
-    };
-    let shown = match text.is_empty() {
-        true => placeholder,
-        false => text,
-    };
-    let width = entity.transform.size.x * scale;
-    let galley = layout_text(
-        shown,
-        text_font(*text_style, scale),
-        text_layout(*text_style, width),
-    )?;
-    let size = galley.size();
-    Some(Vec2::new(size.x / scale, size.y / scale))
 }
 
 pub(crate) fn stroke(painter: &Painter, points: &[Pos2], width: f32, color: Color32) {
