@@ -64,7 +64,7 @@ ensure_sdk() {
     [ -d "$SDK/system-images/android-34/google_apis/x86_64" ] || missing+=("$IMAGE")
     if [ ${#missing[@]} -gt 0 ]; then
         log "installing ${missing[*]}"
-        yes | "$sdkmanager" --sdk_root="$SDK" "${missing[@]}" > /dev/null
+        { yes || true; } | "$sdkmanager" --sdk_root="$SDK" "${missing[@]}" > /dev/null
     fi
     if ! "$EMULATOR" -list-avds 2>/dev/null | grep -qx "$AVD"; then
         log "creating AVD $AVD"
