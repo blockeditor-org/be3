@@ -1291,6 +1291,7 @@ pub(crate) fn kill(plugin_id: &str) {
 }
 
 pub(crate) fn close(plugin_id: &str, instance: EditorInstanceId) {
+    super::instances::want_presence(instance, false);
     with(plugin_id, |runtime| {
         let messages = runtime
             .instances
@@ -1418,6 +1419,7 @@ pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: b
 }
 
 pub(crate) fn set_presence_visible(plugin_id: &str, instance: EditorInstanceId, visible: bool) {
+    super::instances::want_presence(instance, visible);
     with(plugin_id, |runtime| {
         let messages = runtime.instances.set_presence_visible(instance, visible);
         runtime.send(messages);
