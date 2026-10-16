@@ -65,6 +65,7 @@ mod the_preview_shows_the_first_artboard;
 mod the_transform_fields_edit_the_selected_entity;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
+mod undo_in_a_text_takes_back_only_what_was_typed_there;
 
 fn entity(id: Uuid) -> CanvasEntity {
     CanvasEntity {

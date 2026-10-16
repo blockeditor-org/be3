@@ -5,6 +5,7 @@ use std::{
 };
 
 use sequence::{Pos, SeqOp, Sequence, Splice};
+use similar::{Algorithm, DiffTag, capture_diff_slices};
 
 use crate::{ChangeLog, CursorPosition, TextChange};
 
@@ -294,6 +295,34 @@ impl TextBuffer {
                 group_open: false,
             }),
         }
+    }
+
+    pub fn adopt(&self, bytes: &[u8]) -> bool {
+        let mut state = self.write_state();
+        let old = state.text.items();
+        if old == bytes {
+            return false;
+        }
+        let mut change = TextChange::NONE;
+        for operation in capture_diff_slices(Algorithm::Myers, &old, bytes)
+            .into_iter()
+            .rev()
+        {
+            let (tag, old, new) = operation.as_tag_tuple();
+            if tag == DiffTag::Equal {
+                continue;
+            }
+            let replaced = match new.is_empty() {
+                true => state.text.delete(old),
+                false => state.text.replace(LOCAL, old, bytes[new].to_vec()),
+            };
+            if let Some(splices) = replaced.and_then(|replaced| state.text.apply(&replaced)) {
+                change = changed(change, &splices);
+            }
+        }
+        state.group_open = false;
+        state.bump(Some(change));
+        true
     }
 
     fn read_state(&self) -> RwLockReadGuard<'_, BufferState> {

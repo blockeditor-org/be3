@@ -1054,8 +1054,9 @@ same way rather than joining it to the peer's `UserActive` entry.
 Canvas text is a `Text` on its entity rather than part of the `kind` register,
 so two people typing into one text merge character by character: an update
 diffs the typed string against the sequence and sends one replace. The field
-showing it adopts a change from elsewhere through `ReplaceWholeFile`, which
-diffs too and keeps the caret on its character. A canvas text caret is shared
+showing it adopts a change from elsewhere through `TextBuffer::adopt`, which
+diffs too, keeps the caret on its character and leaves the field's undo
+history to what was typed in it. A canvas text caret is shared
 as byte offsets, which are only as current as the text the peer had when it
 sent them.
 

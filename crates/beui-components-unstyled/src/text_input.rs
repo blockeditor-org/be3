@@ -113,7 +113,7 @@ pub fn TextInput(
         menu,
     } = style;
     let initial = value.peek();
-    let state = plain_text(&initial);
+    let (state, buffer) = plain_text(&initial);
     let (hovered, set_hovered) = create_signal(false);
     let (is_focused, set_focused) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
@@ -127,9 +127,8 @@ pub fn TextInput(
     });
 
     create_effect(move || {
-        let value = value.get();
-        if text_of(state) != value {
-            state.execute(EditorCommand::ReplaceWholeFile(value.as_bytes()));
+        if buffer.adopt(value.get().as_bytes()) {
+            state.external_edit();
         }
     });
     let edited = state.content();
@@ -273,19 +272,21 @@ pub fn measure_prose(
     prose: Prose,
     wrap_width: f32,
 ) -> Option<Vec2> {
-    plain_text(value).measure_prose(font_size, prose, placeholder, wrap_width)
+    plain_text(value)
+        .0
+        .measure_prose(font_size, prose, placeholder, wrap_width)
 }
 
-fn plain_text(value: &str) -> TextAreaState {
+fn plain_text(value: &str) -> (TextAreaState, Arc<TextBuffer>) {
     let buffer = Arc::new(TextBuffer::new(value.as_bytes()));
-    let state = TextAreaState::new(buffer as Arc<dyn text_editor_core::Document>);
+    let state = TextAreaState::new(buffer.clone() as Arc<dyn text_editor_core::Document>);
     state.execute(EditorCommand::SetLanguage(TextLanguage::PlainText));
     let end = state.with_core(|core| core.position(value.len()));
     state.execute(EditorCommand::SetSelection {
         anchor: end,
         focus: end,
     });
-    state
+    (state, buffer)
 }
 
 fn text_of(state: TextAreaState) -> String {
