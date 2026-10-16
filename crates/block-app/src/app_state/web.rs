@@ -7,6 +7,7 @@ const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
+const APPROVED_REMAPS_KEY: &str = "block.approved-remaps";
 const WORKSPACE_KEYS_KEY: &str = "block.workspace-keys";
 const RECOVERY_KEYS_KEY: &str = "block.recovery-keys";
 
@@ -112,6 +113,7 @@ impl AppStateStore {
             CLIENT_ID_KEY,
             DISPLAY_SETTINGS_KEY,
             INPUT_SETTINGS_KEY,
+            APPROVED_REMAPS_KEY,
             WORKSPACE_KEYS_KEY,
             RECOVERY_KEYS_KEY,
         ] {
@@ -234,6 +236,14 @@ impl AppStateStore {
 
     pub fn set_input_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
         self.write(INPUT_SETTINGS_KEY, &content)
+    }
+
+    pub fn approved_remaps(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+        self.read(APPROVED_REMAPS_KEY)
+    }
+
+    pub fn set_approved_remaps(&self, content: Option<&[u8]>) -> Result<(), AppStateError> {
+        self.write(APPROVED_REMAPS_KEY, &content)
     }
 
     pub fn display_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {

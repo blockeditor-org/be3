@@ -247,6 +247,52 @@ with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press
 and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
 
+## Input remaps
+
+Under `--session` the keys, mouse buttons and wheel notches libinput reports can be remapped before
+anything else sees them, the way AutoHotkey does on Windows: a button that presses a key while it is
+held, a wheel notch or key that taps a key for some milliseconds or plays a sequence of taps, in every
+window or only while a window whose executable, app id or title matches has the keyboard. The rules
+are the input settings' `remaps` (`be_block::input_settings::RemapGroup`, one per group, by id), so
+they are kept in the workspace like the rest: in the shared input settings for every device or in a
+profile's for its devices, the profile's groups adding to the shared ones. The input settings editor
+shows the groups of the block it has open as TOML (`be_remap::text`, which reads and prints them and
+names the key it cannot read), stores what parses when Apply is pressed, and names every key the way
+`be_remap::names` does (evdev's names, AutoHotkey's for the common ones, and `Key:CODE` or
+`Button:CODE` for any other).
+
+The rules run as a WebAssembly module, `crates/remap/module` (`be-remap`'s engine behind two
+exports, `be_remap_buffer` and `be_remap_handle`, trading `be_remap::protocol` requests and replies
+in bincode), compiled into block-app (`BE_REMAP_WASM`) and run by `be-remap-host` on wasmi: each call
+gets a fixed amount of fuel and the instance a capped memory, so a module that loops, traps or
+answers with nonsense only stops itself. The host fails open: on any failure it lets go of every key
+and button the module held down, passes the input that failed through unchanged, says so with a
+toast, and starts the module again on the next input; after three failures in a minute it stays off
+until the remaps change. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L and Super+Escape never reach the
+module (the modifiers they need are pressed for them if the module held them back), and while the
+screen is locked nothing does, so a module can neither keep the session from ending nor read the
+password. Locking lets go of what the module held, too.
+
+The DRM adapter hands every key, button and wheel notch to the `InputFilter` block-app sets on its
+`InputControl` (`src/remap/linux.rs`) after the `WakeGate`, delivers what the filter returns as if
+libinput had sent it (so a remapped `VolumeUp` reaches linux-desktop's media keys and shows the
+level, and a remapped key goes to the window with the keyboard), and runs a timer for the filter's
+next deadline, on its monotonic clock. Changes the filter makes outside input, such as the releases
+when the focus, the lock or the remaps change, go through `InputControl::inject`. block-app tells the
+filter which window has the keyboard (`Compositor::keyboard_window`) every frame; its executable is
+the last part of the first argument of its process's command line, which for a Proton or Wine game
+is the Windows path of its `.exe`.
+
+Since remaps can press keys in any window, the workspace cannot turn them on by itself: block-app
+runs only remaps this device approved, which it keeps in its own database (`approved_remaps`), never
+in the workspace. When the input settings ask for different remaps, the session keeps running the
+ones it approved and the host shows a dialog of its own over either shell ("Turn on these input
+remaps?", with the rules as text); Turn on approves them, and Keep them off leaves them off without
+asking again until they change. The `Remaps` host value tells the input settings editor whether this
+device runs the remaps, waits to turn them on (its Review button sends `RemapRequest::Review`, which
+shows the dialog again) or stopped them after failures. Turning remaps off never asks. Outside a
+session nothing runs and nothing asks.
+
 ## The lock screen
 
 In the desktop shell (`--session` and `--desktop`) the screen locks on Super+L, the bar's power
@@ -313,7 +359,9 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`). Where the shell draws over a
+`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`) and buttons by theirs: a
+button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM adapter
+reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 

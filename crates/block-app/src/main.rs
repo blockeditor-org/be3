@@ -26,6 +26,7 @@ mod performance;
 mod platform;
 mod plugin_host;
 mod programs;
+mod remap;
 mod root_settings;
 #[cfg(target_os = "linux")]
 mod session;
@@ -289,6 +290,15 @@ impl beui::App for Shell {
             session::export_environment(wayland::environment());
         }
         display::start(setup);
+        remap::load_approved(
+            self.app
+                .app_state
+                .approved_remaps()
+                .unwrap_or_else(|error| {
+                    eprintln!("block-app: the remaps this device turned on were not read: {error}");
+                    None
+                }),
+        );
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
         #[cfg(all(
@@ -791,6 +801,7 @@ impl BlockApp {
         }
         let locked = lock.locked();
         wayland::set_locked(locked);
+        remap::set_locked(locked);
         plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
         if locked {
             self.app_menu_open = false;
@@ -2406,7 +2417,10 @@ impl BlockApp {
         self.process_pending_copies();
         self.show_shell();
         #[cfg(target_os = "linux")]
-        self.take_power_request();
+        {
+            self.take_power_request();
+            remap::frame();
+        }
         self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();
@@ -2629,6 +2643,15 @@ impl BlockApp {
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
+            UiCommand::TurnOnRemaps => {
+                let approved = remap::turn_on();
+                if let Err(error) = self.app_state.set_approved_remaps(approved.as_deref()) {
+                    notices::report(format!(
+                        "The remaps were turned on, but not saved for the next session: {error}"
+                    ));
+                }
+            }
+            UiCommand::KeepRemapsOff => remap::keep_off(),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             #[cfg(target_os = "linux")]
             UiCommand::LockScreen => {
@@ -2899,6 +2922,7 @@ impl BlockApp {
             debug: debug::view(),
             toasts: notices::shown(),
             keep_display: self.display_round,
+            remaps: remap::prompt(),
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),
             #[cfg(not(target_os = "linux"))]

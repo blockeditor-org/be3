@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 #[cfg(target_os = "linux")]
 use block_plugin_api::{
     Displays, InputDevices, Media, MediaRequest, NotificationReport, Notifications, Power,
-    PowerAction, ProgramAction, Programs, ScreenLocked, Tray, TrayRequest,
+    PowerAction, ProgramAction, Programs, RemapRequest, Remaps, ScreenLocked, Tray, TrayRequest,
 };
 use block_plugin_api::{
     EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, LinkBase, Message,
@@ -22,6 +22,7 @@ enum Access {
 const VALUES: &[(&str, Access)] = &[
     (HostWindows::KEY, Access::Shell),
     (InputDevices::KEY, Access::Anyone),
+    (Remaps::KEY, Access::Anyone),
     (Displays::KEY, Access::Anyone),
     (Power::KEY, Access::Anyone),
     (Media::KEY, Access::Anyone),
@@ -46,6 +47,7 @@ const ACTIONS: &[(&str, Access)] = &[
     (NotificationReport::KEY, Access::Shell),
     (ProgramAction::KEY, Access::Shell),
     (TrayRequest::KEY, Access::Shell),
+    (RemapRequest::KEY, Access::Anyone),
 ];
 
 #[cfg(not(target_os = "linux"))]

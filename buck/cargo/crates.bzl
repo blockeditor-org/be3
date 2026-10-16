@@ -120,6 +120,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -137,6 +138,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -154,6 +156,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -171,6 +174,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -188,6 +192,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -205,6 +210,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -222,6 +228,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -239,6 +246,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -256,6 +264,7 @@ crates = {
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
+                    "//crates/remap/rules:be-remap",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
@@ -6951,6 +6960,7 @@ crates = {
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
                         "//third-party/rust:ashpd-0.11.1",
@@ -6996,6 +7006,7 @@ crates = {
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:ashpd-0.11.1",
@@ -7057,6 +7068,7 @@ crates = {
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
                         "//third-party/rust:ashpd-0.11.1",
@@ -7102,6 +7114,7 @@ crates = {
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:ashpd-0.11.1",
@@ -9958,6 +9971,7 @@ crates = {
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -12052,6 +12066,359 @@ crates = {
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/host": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap_host",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap-host",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/module": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap_module",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap-module",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/rules": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
             },
         },
         "profile_flags": [],
@@ -47724,6 +48091,26 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -53479,6 +53866,40 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_spanned-1.1.1",
+                    ":toml_datetime-0.7.5+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-0.7.15",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_spanned-1.1.1",
+                    ":toml_datetime-0.7.5+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-0.7.15",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                    "serde",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -53612,6 +54033,26 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -53890,6 +54331,24 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":winnow-1.0.3",
@@ -53958,6 +54417,18 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "features": [
                     "alloc",
                     "std",
@@ -65639,6 +66110,8 @@ third_party = {
             },
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -65716,6 +66189,8 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {},
+            "wasi-guest": {},
             "windows-arm64": {
                 "features": [
                     "alloc",

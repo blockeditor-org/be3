@@ -216,6 +216,13 @@ impl Compositor {
         });
     }
 
+    pub fn keyboard_window(&self) -> Option<WindowInfo> {
+        let id = self.server.state.keyboard_window()?;
+        self.windows
+            .list()
+            .with_untracked(|windows| windows.iter().find(|window| window.id == id).cloned())
+    }
+
     pub fn windows(&self) -> Windows {
         self.windows
     }
@@ -1005,6 +1012,7 @@ fn button_code(button: PointerButton) -> u32 {
         PointerButton::Middle => BUTTON_MIDDLE,
         PointerButton::Back => BUTTON_SIDE,
         PointerButton::Forward => BUTTON_EXTRA,
+        PointerButton::Other(code) => u32::from(code),
     }
 }
 

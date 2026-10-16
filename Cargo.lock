@@ -640,6 +640,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-model",
+ "be-remap",
  "be-store",
  "logicgame",
  "memchr",
@@ -821,6 +822,30 @@ dependencies = [
  "serde",
  "serde_bytes",
  "uuid",
+]
+
+[[package]]
+name = "be-remap"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
+name = "be-remap-host"
+version = "0.1.0"
+dependencies = [
+ "be-remap",
+ "wasmi",
+]
+
+[[package]]
+name = "be-remap-module"
+version = "0.1.0"
+dependencies = [
+ "be-remap",
 ]
 
 [[package]]
@@ -1298,6 +1323,7 @@ dependencies = [
  "be-graph",
  "be-keys",
  "be-protocol",
+ "be-remap-host",
  "be-server",
  "be-store",
  "be-vcs",
@@ -4061,6 +4087,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "text-editor-core",
  "uuid",
 ]
 

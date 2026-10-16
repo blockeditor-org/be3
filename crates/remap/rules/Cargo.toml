@@ -1,0 +1,16 @@
+[package]
+name = "be-remap"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+bincode = "1"
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.9", optional = true }
+
+[features]
+text = ["dep:toml"]
+
+[lints]
+workspace = true

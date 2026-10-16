@@ -4,6 +4,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 
+mod remaps;
 mod ui;
 
 use ui::InputSettingsView;

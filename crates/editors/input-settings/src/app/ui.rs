@@ -10,6 +10,8 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, HostInputDevice, InputDevices};
 
+use super::remaps::RemapSettings;
+
 const PADDING: f32 = 20.0;
 const VALUE_WIDTH: f32 = 72.0;
 const SECTION_SPACING: f32 = 18.0;
@@ -17,7 +19,7 @@ const ROW_SPACING: f32 = 8.0;
 const LABEL_SPACING: f32 = 4.0;
 const COLUMN_SPACING: f32 = 12.0;
 
-type Settings = ContentProjection<InputSettingsContent>;
+pub(super) type Settings = ContentProjection<InputSettingsContent>;
 type DeviceKey = (String, u32, u32);
 type Apply = Callback<PointerSetting>;
 
@@ -150,6 +152,12 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 string="Lets programs paste the text last selected in them with the middle button."
                             />
                         </List>
+                        <RemapSettings
+                            editor={editor}
+                            settings={settings}
+                            root={root}
+                            read_only={read_only}
+                        />
                     </List>
                 </Frame>
             </Scroll>

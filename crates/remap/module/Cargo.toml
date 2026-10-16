@@ -1,0 +1,14 @@
+[package]
+name = "be-remap-module"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-remap = { path = "../rules" }
+
+[lints]
+workspace = true

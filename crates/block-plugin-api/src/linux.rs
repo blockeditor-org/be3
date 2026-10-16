@@ -129,6 +129,20 @@ impl PlayerCommand {
     pub const ALL: [Self; 4] = [Self::PlayPause, Self::Next, Self::Previous, Self::Stop];
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RemapState {
+    #[default]
+    Off,
+    On,
+    Waiting,
+    Stopped,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RemapRequest {
+    Review,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MediaRequest {
     StepVolume(f32),
@@ -310,6 +324,13 @@ impl HostValue for InputDevices {
     type Value = Vec<HostInputDevice>;
 }
 
+pub enum Remaps {}
+
+impl HostValue for Remaps {
+    const KEY: &'static str = "remaps";
+    type Value = RemapState;
+}
+
 pub enum Displays {}
 
 impl HostValue for Displays {
@@ -373,6 +394,10 @@ impl HostAction for WindowAction {
 
 impl HostAction for PowerAction {
     const KEY: &'static str = "power";
+}
+
+impl HostAction for RemapRequest {
+    const KEY: &'static str = "remaps";
 }
 
 impl HostAction for MediaRequest {

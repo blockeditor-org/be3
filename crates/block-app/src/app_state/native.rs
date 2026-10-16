@@ -46,6 +46,10 @@ const SCHEMA: &str = "
         id      INTEGER PRIMARY KEY CHECK (id = 0),
         content BLOB NOT NULL
     );
+    CREATE TABLE approved_remaps (
+        id      INTEGER PRIMARY KEY CHECK (id = 0),
+        content BLOB NOT NULL
+    );
 ";
 
 enum Opened {
@@ -359,6 +363,26 @@ impl AppStateStore {
              ON CONFLICT(id) DO UPDATE SET content = excluded.content",
             params![content],
         )?;
+        Ok(())
+    }
+
+    pub fn approved_remaps(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+        let content = self
+            .connection
+            .query_row("SELECT content FROM approved_remaps", [], |row| row.get(0))
+            .optional()?;
+        Ok(content)
+    }
+
+    pub fn set_approved_remaps(&self, content: Option<&[u8]>) -> Result<(), AppStateError> {
+        match content {
+            Some(content) => self.connection.execute(
+                "INSERT INTO approved_remaps (id, content) VALUES (0, ?1)
+                 ON CONFLICT(id) DO UPDATE SET content = excluded.content",
+                params![content],
+            )?,
+            None => self.connection.execute("DELETE FROM approved_remaps", [])?,
+        };
         Ok(())
     }
 

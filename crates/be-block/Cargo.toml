@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 be-commit = { path = "../be-commit" }
 be-model = { path = "../be-model" }
+be-remap = { path = "../remap/rules", features = ["text"] }
 be-store = { path = "../be-store" }
 logicgame = { path = "../logicgame" }
 memchr = "2"

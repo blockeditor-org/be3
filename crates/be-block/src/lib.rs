@@ -47,6 +47,7 @@ pub mod video;
 pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
 pub use be_model::{Edit, Item, ObjectId, Touched};
+pub use be_remap;
 pub use blob::{Blob, BlobKind, BlobOp};
 pub use browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};
 pub use calendar::{Calendar, CalendarContent, CalendarEvent};

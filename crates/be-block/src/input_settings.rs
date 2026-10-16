@@ -1,4 +1,5 @@
 use be_model::{Change, Document, Edit, Map, Model, ObjectId};
+pub use be_remap::Group as RemapGroup;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -124,6 +125,7 @@ pub struct InputSettings {
     pub every_pointer: PointerSettings,
     pub pointers: Map<InputDevice, PointerSettings>,
     pub middle_click_paste: Option<bool>,
+    pub remaps: Map<Uuid, RemapGroup>,
 }
 
 impl InputSettings {
@@ -143,6 +145,39 @@ impl InputSettings {
 
     pub fn set_middle_click_paste(on: Option<bool>) -> Edit {
         Self::MIDDLE_CLICK_PASTE.set(ObjectId::ROOT, &on).into()
+    }
+
+    pub fn remap_groups(&self) -> Vec<RemapGroup> {
+        let mut groups: Vec<&RemapGroup> = self.remaps.values().collect();
+        groups.sort_by(|left, right| {
+            (left.window.is_some(), &left.name).cmp(&(right.window.is_some(), &right.name))
+        });
+        groups.into_iter().cloned().collect()
+    }
+
+    pub fn set_remaps(&self, groups: Vec<RemapGroup>) -> Edit {
+        let mut unclaimed: Vec<(Uuid, &RemapGroup)> =
+            self.remaps.iter().map(|(id, group)| (*id, group)).collect();
+        let mut changes = Vec::new();
+        for group in groups {
+            let id = match unclaimed.iter().position(|(_, old)| old.name == group.name) {
+                Some(index) => {
+                    let (id, old) = unclaimed.remove(index);
+                    if *old == group {
+                        continue;
+                    }
+                    id
+                }
+                None => Uuid::new_v4(),
+            };
+            changes.push(Self::REMAPS.put(ObjectId::ROOT, &id, Some(&group)));
+        }
+        changes.extend(
+            unclaimed
+                .into_iter()
+                .map(|(id, _)| Self::REMAPS.put(ObjectId::ROOT, &id, None)),
+        );
+        changes.into_iter().collect()
     }
 
     pub fn device_pointer(&self, device: &InputDevice) -> PointerSettings {
@@ -243,6 +278,12 @@ impl Layered for InputSettings {
             every_pointer: self.every_pointer.or(lower.every_pointer),
             pointers,
             middle_click_paste: self.middle_click_paste.or(lower.middle_click_paste),
+            remaps: lower
+                .remaps
+                .iter()
+                .chain(self.remaps.iter())
+                .map(|(id, group)| (*id, group.clone()))
+                .collect(),
         }
     }
 }
