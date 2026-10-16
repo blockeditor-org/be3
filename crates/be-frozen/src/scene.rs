@@ -8,9 +8,23 @@ pub const EDITOR_EMAIL: &str = "editor@example.com";
 pub const EDITOR_NAME: &str = "Editor";
 pub const EDITOR_PASSWORD: &str = "tr0ub4dor and three";
 
+pub const FRIEND_EMAIL: &str = "friend@example.com";
+pub const FRIEND_NAME: &str = "Friend";
+pub const FRIEND_PASSWORD: &str = "a friend's password";
+
 pub const INVITED_EMAIL: &str = "invited@example.com";
 
 pub const AGENT_NAME: &str = "Tracker agent";
+
+pub const MY_FILES: &str = "My files";
+pub const TEAM: &str = "Team";
+pub const PLAN: [&str; 2] = [
+    "Plan, as the editor saw it\n",
+    "Plan, after the editor left\n",
+];
+pub const HOLIDAY: &str = "Holiday";
+pub const HOLIDAY_NOTE: &str = "Tickets are in the drawer.\n";
+pub const RECIPES: &str = "Pancakes: flour, eggs, milk.\n";
 
 pub const NOTES: &str = "Notes";
 pub const ARCHIVE: &str = "Archive";

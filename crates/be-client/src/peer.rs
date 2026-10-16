@@ -1091,14 +1091,18 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         public: &be_keys::RecoveryPublic,
     ) -> Result<(), ClientError> {
-        let mut keys = self.own_scope(block).await?;
+        let keys = self.own_scope(block).await?;
+        self.put_keys(keys).await?;
         let scope = self
             .keys
             .scope_key(block)
             .ok_or(ClientError::Locked(block))?;
-        keys.wrapped
-            .push(self.keys.seal_to(scope, account, public)?);
-        self.put_keys(keys).await
+        let sealed = self.keys.seal_to(scope, account, public)?;
+        self.put_keys(KeySet {
+            keys: Vec::new(),
+            wrapped: vec![sealed],
+        })
+        .await
     }
 
     pub async fn offer(
