@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, PoisonError},
     time::{Duration, Instant},
 };
 
@@ -774,7 +774,10 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             changed.notify_all();
             return;
         }
-        shared.lock().unwrap().connected = false;
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connected = false;
         changed.notify_all();
         crate::host::wake();
         platform::sleep(RECONNECT_DELAY).await;
@@ -805,7 +808,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         Ok(peer) => {
             let resolving = Arc::clone(shared);
             peer.set_resolver(Arc::new(move |block, references| {
-                let held = resolving.lock().unwrap();
+                let held = resolving.lock().unwrap_or_else(PoisonError::into_inner);
                 let Some(scope) = held.graph.scope_of(block) else {
                     return references;
                 };
@@ -828,7 +831,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         }
     };
     {
-        let mut held = shared.lock().unwrap();
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.connected = true;
         held.error = None;
     }
@@ -870,7 +873,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             None => wait(commands, &mut events, &mut gone).await,
         };
-        shared.lock().unwrap().wakes += 1;
+        shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
         let sealed = match woken {
             Woken::Stopped => {
                 seal_all(&mut sessions, shared).await;
@@ -901,7 +904,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     }
                 };
                 {
-                    let mut held = shared.lock().unwrap();
+                    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                     held.pending = held.pending.saturating_sub(1);
                 }
                 crate::host::wake();
@@ -914,13 +917,25 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                             record(shared, error);
                         }
                         let node = node_of(&peer, &block);
-                        shared.lock().unwrap().graph.put(node, block.revision);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .put(node, block.revision);
                     }
                     Some(ServerMessage::BlockRemoved { block, revision }) => {
-                        shared.lock().unwrap().graph.remove(block, revision);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .remove(block, revision);
                     }
                     Some(ServerMessage::HeadChanged { block, head, .. }) => {
-                        shared.lock().unwrap().graph.set_head(block, Some(head));
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .set_head(block, Some(head));
                     }
                     Some(ServerMessage::Paired { from, payload }) => {
                         asked_to_pair(shared, from, &payload);
@@ -1030,7 +1045,7 @@ fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
     else {
         return;
     };
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.pairing.retain(|request| request.from != from);
     held.pairing.push(PairingRequest {
         from,
@@ -1051,7 +1066,7 @@ async fn approve_pairing(
     code: &str,
 ) -> Result<(), ClientError> {
     let request = {
-        let mut held = shared.lock().unwrap();
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(index) = held.pairing.iter().position(|request| request.from == from) else {
             return Ok(());
         };
@@ -1104,7 +1119,7 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     match peer.refresh_contacts().await {
         Ok(contacts) => {
             let changed = {
-                let mut shared = shared.lock().unwrap();
+                let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 let changed = shared.contacts != contacts;
                 if changed {
                     shared.contacts = contacts;
@@ -1126,7 +1141,10 @@ async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     if let Err(error) = peer.tend().await {
         record(shared, error);
     }
-    shared.lock().unwrap().escrow_warning = peer
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .escrow_warning = peer
         .keys()
         .escrow_warning()
         .map(be_client::EscrowWarning::message);
@@ -1222,7 +1240,12 @@ async fn rejoin(
     let Some(kind) = super::kind_of(content_type) else {
         return;
     };
-    let owned = !kind.frozen && shared.lock().unwrap().owned.contains(&block);
+    let owned = !kind.frozen
+        && shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .owned
+            .contains(&block);
     let joined = (kind.join)(peer, block).await;
     set_locked(shared, block, matches!(joined, Err(ClientError::Locked(_))));
     match joined {
@@ -1259,7 +1282,7 @@ async fn rejoin(
 fn reshaped(shared: &Arc<Mutex<Shared>>, block: Uuid, kind: &super::Kind) -> bool {
     shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .get(block)
         .and_then(|node| node.metadata.get(&be_block::SCHEMA))
@@ -1274,7 +1297,7 @@ fn reset_notice() {
 }
 
 fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool) {
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let changed = match locked {
         true => held.locked.insert(block),
         false => held.locked.remove(&block),
@@ -1288,7 +1311,7 @@ fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool) {
 }
 
 fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String>) {
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let changed = match error {
         Some(error) => held.unreadable.insert(block, error.clone()) != Some(error),
         None => held.unreadable.remove(&block).is_some(),
@@ -1304,7 +1327,7 @@ fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String
 fn remember_head(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .set_head(block, peer.local_head(block));
 }
@@ -1312,7 +1335,7 @@ fn remember_head(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
 fn version_revisions(shared: &Arc<Mutex<Shared>>) -> u64 {
     shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .versions
         .values()
         .map(|state| state.revision)
@@ -1320,7 +1343,7 @@ fn version_revisions(shared: &Arc<Mutex<Shared>>) -> u64 {
 }
 
 fn set_busy(shared: &Arc<Mutex<Shared>>, block: Uuid, busy: bool, error: Option<String>) {
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let state = held.versions.entry(block).or_default();
     state.status.busy = busy;
     state.status.error = error;
@@ -1360,7 +1383,7 @@ async fn apply(
         Command::DismissPairing(from) => {
             shared
                 .lock()
-                .unwrap()
+                .unwrap_or_else(PoisonError::into_inner)
                 .pairing
                 .retain(|request| request.from != from);
             crate::host::wake();
@@ -1391,7 +1414,11 @@ async fn apply(
             owned,
         } => {
             if owned {
-                shared.lock().unwrap().owned.insert(block);
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .owned
+                    .insert(block);
             }
             open.insert(block, content_type);
             if sessions.contains_key(&block) {
@@ -1409,7 +1436,7 @@ async fn apply(
                 record(shared, error);
             }
             let _ = peer.leave_session(block).await;
-            let mut held = shared.lock().unwrap();
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.blocks.remove(&block);
             held.graph.forget_derived(block);
             held.histories.remove(&block);
@@ -1433,7 +1460,11 @@ async fn apply(
             metadata,
         } => {
             let Some(copy) = super::copy_for(content_type) else {
-                shared.lock().unwrap().graph.settle(to);
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .settle(to);
                 return false;
             };
             let created = peer
@@ -1531,7 +1562,11 @@ async fn apply(
         }
         Command::SetParent { block, parent } => {
             let moved = peer.set_parent(block, parent).await;
-            let settled = shared.lock().unwrap().graph.settle(block);
+            let settled = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .settle(block);
             if let Err(error) = moved {
                 record(shared, error);
             }
@@ -1563,7 +1598,7 @@ async fn apply(
         } => {
             let verified = shared
                 .lock()
-                .unwrap()
+                .unwrap_or_else(PoisonError::into_inner)
                 .contacts
                 .iter()
                 .find(|contact| contact.account == account)
@@ -1647,7 +1682,7 @@ async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
             }
             let revision = blocks.iter().map(|block| block.revision).max();
             let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
-            let mut held = shared.lock().unwrap();
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.graph.load(nodes, revision.unwrap_or_default());
             held.stale_revision += 1;
         }
@@ -1661,7 +1696,12 @@ async fn settled(
     block: Uuid,
     reply: Result<BlockSummary, ClientError>,
 ) -> Result<(), ClientError> {
-    if !shared.lock().unwrap().graph.settle(block) {
+    if !shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .graph
+        .settle(block)
+    {
         return reply.map(|_| ());
     }
     match reply {
@@ -1670,7 +1710,11 @@ async fn settled(
                 record(shared, error);
             }
             let node = node_of(peer, &summary);
-            shared.lock().unwrap().graph.put(node, summary.revision);
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .put(node, summary.revision);
             Ok(())
         }
         Err(error) => {
@@ -1687,9 +1731,17 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
                 record(shared, error);
             }
             let node = node_of(peer, &summary);
-            shared.lock().unwrap().graph.put(node, summary.revision);
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .put(node, summary.revision);
         }
-        Err(ClientError::Refused(..)) => shared.lock().unwrap().graph.forget(block),
+        Err(ClientError::Refused(..)) => shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .forget(block),
         Err(error) => record(shared, error),
     }
 }
@@ -1720,7 +1772,7 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<M
 
 fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let known: std::collections::HashSet<Uuid> = {
-        let held = shared.lock().unwrap();
+        let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         sessions
             .keys()
             .filter(|block| held.blocks.contains_key(*block))
@@ -1758,7 +1810,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             }
         })
         .collect();
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let mut changed = held.owing != owing;
     held.unsealed = unsealed;
     held.owing = owing;
@@ -1841,11 +1893,11 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
 }
 
 fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
-    shared.lock().unwrap().error = Some(error.to_string());
+    shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(error.to_string());
 }
 
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.connected = false;
     held.error = Some(error);
 }

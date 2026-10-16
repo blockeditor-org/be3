@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, PoisonError},
 };
 
 use be_block::{
@@ -720,21 +720,28 @@ impl Versions {
     }
 
     pub(super) fn watch(shared: &Arc<Mutex<Shared>>, block: Uuid) {
-        shared.lock().unwrap().version_watch.insert(block);
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .version_watch
+            .insert(block);
     }
 
     pub(super) async fn refresh(&mut self, context: &mut Context<'_>) {
         let watched: Vec<Uuid> = context
             .shared
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .version_watch
             .iter()
             .copied()
             .collect();
         for block in watched {
             let signature = {
-                let held = context.shared.lock().unwrap();
+                let held = context
+                    .shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
                 let revision_of = |block: Option<Uuid>| {
                     block
                         .and_then(|block| held.blocks.get(&block))
@@ -752,7 +759,10 @@ impl Versions {
             }
             self.computed.insert(block, signature);
             let status = self.status(context, block).await;
-            let mut held = context.shared.lock().unwrap();
+            let mut held = context
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             let entry = held.versions.entry(block).or_default();
             let status = VersionStatus {
                 busy: entry.status.busy,
@@ -769,7 +779,10 @@ impl Versions {
 
     async fn status(&mut self, context: &mut Context<'_>, block: Uuid) -> VersionStatus {
         let (checkout, repository) = {
-            let held = context.shared.lock().unwrap();
+            let held = context
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             (
                 checkout_of(&held, block),
                 content_of::<Repository>(&held, block),
@@ -795,7 +808,10 @@ impl Versions {
         };
         self.follow(context, block, &state, repository_id).await;
         let repository = {
-            let held = context.shared.lock().unwrap();
+            let held = context
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             content_of::<Repository>(&held, repository_id)
         };
         let Ok(base) = self.tree(context.peer, state.base).await else {
@@ -895,7 +911,7 @@ fn content_of<R: Root + Model>(shared: &Shared, block: Uuid) -> Option<R> {
 }
 
 fn with_graph<T>(shared: &Arc<Mutex<Shared>>, read: impl FnOnce(&Graph) -> T) -> T {
-    read(&shared.lock().unwrap().graph)
+    read(&shared.lock().unwrap_or_else(PoisonError::into_inner).graph)
 }
 
 fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, base: &Tree) -> Vec<Scanned> {
@@ -987,7 +1003,10 @@ fn clean_heads(working: &Working, tree: &Tree) -> BTreeMap<Uuid, CommitId> {
 
 async fn refresh_heads(context: &mut Context<'_>) -> Result<(), String> {
     let blocks = context.peer.list_blocks().await.map_err(failed)?;
-    let mut held = context.shared.lock().unwrap();
+    let mut held = context
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
     for block in blocks {
         held.graph.set_head(block.id, block.head);
     }
@@ -1054,7 +1073,7 @@ async fn settle(context: &mut Context<'_>, block: Uuid, head: CommitId) -> Resul
     context
         .shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .set_head(block, Some(head));
     Ok(())
@@ -1095,7 +1114,7 @@ async fn create(
     context
         .shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .put(node, summary.revision);
     Ok(())
@@ -1116,7 +1135,7 @@ async fn set_parent(
     context
         .shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .put(node, summary.revision);
     Ok(())
@@ -1139,7 +1158,7 @@ async fn publish(
         context
             .shared
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .graph
             .put(node, summary.revision);
         return Ok(summary.head);
@@ -1168,7 +1187,7 @@ async fn publish(
                 context
                     .shared
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(PoisonError::into_inner)
                     .graph
                     .put(node, summary.revision);
                 return Ok(Some(head));

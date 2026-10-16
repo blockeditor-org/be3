@@ -1,4 +1,4 @@
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
@@ -312,12 +312,12 @@ pub(crate) fn locked(block: Uuid) -> bool {
 }
 
 pub(crate) fn staleness(block: Uuid) -> Option<Stale> {
-    let guard = stack().lock().unwrap();
+    let guard = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let stack = guard.as_ref()?;
     if stack.tried.contains(&block) {
         return None;
     }
-    let shared = stack.shared.lock().unwrap();
+    let shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
     let node = shared.graph.get(block)?;
     let kind = kind_of(node.content_type)?;
     if kind.frozen {
@@ -337,7 +337,11 @@ pub(crate) fn reset(block: Uuid) {
     let Some(kind) = kind_of(node.content_type) else {
         return;
     };
-    if let Some(stack) = stack().lock().unwrap().as_mut() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_mut()
+    {
         stack.tried.remove(&block);
     }
     replace(block, node.content_type, (kind.blank)());
@@ -347,7 +351,11 @@ pub(crate) fn try_anyway(block: Uuid) {
     if !matches!(staleness(block), Some(Stale::Reshaped)) {
         return;
     }
-    if let Some(stack) = stack().lock().unwrap().as_mut() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_mut()
+    {
         stack.tried.insert(block);
     }
     crate::compositor::changed();
@@ -414,7 +422,7 @@ pub(crate) fn start(config: Config) {
     let account = config.account;
     let organization = config.organization;
     let running = platform::spawn(config, receiver, Arc::clone(&shared), Arc::clone(&changed));
-    *stack().lock().unwrap() = Some(Stack {
+    *stack().lock().unwrap_or_else(PoisonError::into_inner) = Some(Stack {
         account,
         organization,
         commands: Some(commands),
@@ -430,13 +438,16 @@ pub(crate) fn start(config: Config) {
 pub(crate) fn installed_for(account: Uuid, organization: Uuid) -> bool {
     stack()
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .is_some_and(|stack| stack.account == account && stack.organization == organization)
 }
 
 pub(crate) fn stop() {
-    let stack = stack().lock().unwrap().take();
+    let stack = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
     drop(stack);
 }
 
@@ -457,7 +468,7 @@ pub(crate) fn open(block: Uuid, content_type: Uuid) {
 pub(crate) fn close(block: Uuid) {
     let held = stack()
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .is_some_and(|stack| stack.held.contains(&block));
     if !held {
@@ -471,7 +482,7 @@ pub(crate) fn hold(block: Uuid, content_type: Uuid) {
     }
     let fresh = stack()
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .as_mut()
         .is_some_and(|stack| stack.held.insert(block));
     if fresh {
@@ -510,7 +521,7 @@ pub(crate) fn version_since(
 ) -> Option<(u64, block_plugin_api::VersionStatus)> {
     let fresh = stack()
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .as_mut()
         .is_some_and(|stack| stack.versioned.insert(block));
     if fresh {
@@ -649,7 +660,11 @@ pub(crate) fn make_contact_link(
     offer: Option<(Uuid, be_graph::Access)>,
     reply: impl FnOnce(Result<String, String>) + Send + 'static,
 ) {
-    if stack().lock().unwrap().is_none() {
+    if stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_none()
+    {
         reply(Err("Open an organization first.".to_owned()));
         return;
     }
@@ -701,16 +716,24 @@ pub(crate) fn status() -> Status {
 }
 
 fn send(command: Command) {
-    let held = stack().lock().unwrap();
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let Some(stack) = held.as_ref() else {
         return;
     };
     let Some(commands) = &stack.commands else {
         return;
     };
-    stack.shared.lock().unwrap().pending += 1;
+    stack
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .pending += 1;
     if commands.send(command).is_err() {
-        stack.shared.lock().unwrap().pending -= 1;
+        stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pending -= 1;
     }
 }
 
@@ -733,11 +756,11 @@ pub(crate) fn wait_for<T>(
 ) -> Option<T> {
     let (shared, changed) = stack()
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))?;
     let deadline = std::time::Instant::now() + timeout;
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     loop {
         if let Some(value) = read(&held) {
             return Some(value);
@@ -746,25 +769,32 @@ pub(crate) fn wait_for<T>(
         if remaining.is_zero() {
             return None;
         }
-        held = changed.wait_timeout(held, remaining).unwrap().0;
+        held = changed
+            .wait_timeout(held, remaining)
+            .unwrap_or_else(PoisonError::into_inner)
+            .0;
     }
 }
 
 fn with_shared_mut<T>(change: impl FnOnce(&mut Shared) -> T) -> Option<T> {
-    let held = stack().lock().unwrap();
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let stack = held.as_ref()?;
-    let mut shared = stack.shared.lock().unwrap();
+    let mut shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
     Some(change(&mut shared))
 }
 
 pub(crate) fn account() -> Option<Uuid> {
-    stack().lock().unwrap().as_ref().map(|stack| stack.account)
+    stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|stack| stack.account)
 }
 
 pub(crate) fn identity() -> Option<(Uuid, Uuid)> {
     stack()
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .map(|stack| (stack.account, stack.organization))
 }
@@ -1047,9 +1077,9 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
 }
 
 fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {
-    let held = stack().lock().unwrap();
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let stack = held.as_ref()?;
-    let shared = stack.shared.lock().unwrap();
+    let shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
     Some(read(&shared))
 }
 
