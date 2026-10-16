@@ -16,6 +16,7 @@ pub enum TextLanguage {
     PlainText,
     Rust,
     Zig,
+    Toml,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

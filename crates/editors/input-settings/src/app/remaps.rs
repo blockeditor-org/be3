@@ -42,7 +42,7 @@ pub(super) fn RemapSettings(
     let stored = create_memo(move || root.get().remaps.unwrap_or_default());
     let initial = stored.get_untracked();
     let buffer = TextBuffer::new(&initial);
-    buffer.set_language(TextLanguage::PlainText);
+    buffer.set_language(TextLanguage::Toml);
     let document = store(Arc::new(buffer));
     let loaded = store(RefCell::new(initial));
     let state =
