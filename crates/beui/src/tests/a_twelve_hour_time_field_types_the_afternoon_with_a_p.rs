@@ -2,7 +2,7 @@ use super::*;
 use crate::datetime::{HourCycle, Time};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::DateTimeParts;
+use crate::unstyled::{Container, DateTimeParts};
 
 #[test]
 fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
@@ -10,6 +10,7 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
+            <Container let:_size>
             <DateTimeField
                 value=None
                 parts=DateTimeParts::Time
@@ -18,6 +19,7 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
                     set_reported.update(|reported| reported.push(value.map(|value| value.time)))
                 }}
             />
+            </Container>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

@@ -4,7 +4,7 @@ use super::*;
 use crate::datetime::{Date, DateTime, Time};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::DateTimeParts;
+use crate::unstyled::{Container, DateTimeParts};
 
 #[test]
 fn a_date_segment_reads_and_steps_as_a_spin_button() {
@@ -12,6 +12,7 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
+            <Container let:_size>
             <DateTimeField
                 value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
                 parts=DateTimeParts::Date
@@ -20,6 +21,7 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
                     set_reported.update(|reported| reported.push(value.map(|value| value.date)))
                 }}
             />
+            </Container>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

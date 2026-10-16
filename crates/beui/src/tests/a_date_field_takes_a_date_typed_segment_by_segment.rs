@@ -2,7 +2,7 @@ use super::*;
 use crate::datetime::{Date, DateTime, Time};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::DateTimeParts;
+use crate::unstyled::{Container, DateTimeParts};
 
 #[test]
 fn a_date_field_takes_a_date_typed_segment_by_segment() {
@@ -10,12 +10,14 @@ fn a_date_field_takes_a_date_typed_segment_by_segment() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
+            <Container let:_size>
             <DateTimeField
                 value=None
                 parts=DateTimeParts::Date
                 label="Due"
                 on_change={move |value| set_reported.update(|reported| reported.push(value))}
             />
+            </Container>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

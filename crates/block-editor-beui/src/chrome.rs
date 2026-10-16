@@ -3,6 +3,7 @@ use beui::reactive::*;
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
+use beui::unstyled::{Container, narrower_than};
 use beui::{NodeId, Vec2};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
@@ -67,12 +68,9 @@ pub(crate) fn ChromeRoot(
 ) -> NodeId {
     let phone = create_memo(move || phone.get());
     view! {
-        <LayoutBuilder>
+        <Container>
             {move |size: ReadSignal<Vec2>| {
-                let narrow = create_memo(move || {
-                    let width = size.get().x;
-                    width > 0.0 && width < NARROW_WIDTH
-                });
+                let narrow = narrower_than(NARROW_WIDTH);
                 let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
                 let (open, set_open) = create_signal(false);
                 let (toolbars, set_toolbars) = create_signal(0usize);
@@ -145,7 +143,7 @@ pub(crate) fn ChromeRoot(
                     </List>
                 }
             }}
-        </LayoutBuilder>
+        </Container>
     }
 }
 

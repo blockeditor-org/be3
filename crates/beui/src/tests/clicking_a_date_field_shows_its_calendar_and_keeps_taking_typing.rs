@@ -4,7 +4,7 @@ use super::*;
 use crate::datetime::{Date, DateTime, Time};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::DateTimeParts;
+use crate::unstyled::{Container, DateTimeParts};
 
 #[test]
 fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
@@ -13,6 +13,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let field = NodeRef::new();
     let document = build(move || {
         view! {
+            <Container let:_size>
             <List spacing=0.0>
                 <DateTimeField
                     @node_ref=&field
@@ -25,6 +26,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
                     }}
                 />
             </List>
+            </Container>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

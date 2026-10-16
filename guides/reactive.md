@@ -668,9 +668,14 @@ fn Checkbox(label: Prop<String>, checked: Prop<bool>) -> NodeId {
 
 A slot that hands something over — `toggle`'s `content` above, `for_each`'s
 `view`, `container`'s `content` — takes one closure as its only child, and that
-closure receives the handle. A slot whose handle is `()`, like `show`'s `then`,
-takes tags instead: `view!` wraps them in the closure itself, so they stay
-unbuilt until the component asks for them. A `RenderFn` slot, like `Show`'s,
+closure receives the handle, its type inferred from the slot. `let:name` on the
+tag is the shorter way to write that closure: the tags between it and its
+closing tag become the closure's body, with the handle bound to `name` (any
+pattern, `_` included), so `<Container let:size><Card size /></Container>` is
+`<Container>{move |size| view! { <Card size /> }}</Container>`. A slot whose
+handle is `()`, like `show`'s `then`, takes tags without `let:`: `view!` wraps
+them in the closure itself, so they stay unbuilt until the component asks for
+them. A `RenderFn` slot, like `Show`'s,
 may run that closure more than once, so the block clones what it hands on
 rather than moving it: `{move || { let a = a.clone(); view! { ... } }}`.
 
@@ -679,7 +684,10 @@ rather than moving it: `{move || { let a = a.clone(); view! { ... } }}`.
 ```
 
 Either way the block is exactly one child, because a `Render` returns one of
-them; two tags there are a compile error naming the tag that wrote them.
+them; two tags there are a compile error naming the tag that wrote them. A slot
+typed `Render<H, Children<T>>` or `RenderFn<H, Children<T>>` returns a run
+instead, so it takes any number of tags, and the component hands what its call
+returns to a `Children<T>` prop of its own.
 A slot the component always calls is a required prop like any other, so a
 `Show` with nothing between its tags, or a `ForEach` with no closure, does not
 compile rather than panicking once the view runs. Each misuse the types turn
@@ -850,7 +858,19 @@ as a render prop and calls it after `provide_context`. That prop is where
 `#[prop(children)]` earns its keep: the caller still writes the subtree between
 the provider's tags, but `view!` hands it over as a closure rather than as
 finished nodes, so the provide-then-build order holds while the provider reads
-like any other wrapper.
+like any other wrapper. Typed `Render<(), Children<T>>`, it takes as many
+children as a `Children<T>` prop would:
+
+```rust
+#[component]
+fn Page(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
+    view! {
+        <Container let:_size>
+            <List spacing=0.0 children={sections.call(())} />
+        </Container>
+    }
+}
+```
 
 ## Containers and responsive layout
 
@@ -868,9 +888,13 @@ and `Dynamic` do, so context the caller provides still reaches it. It provides
 the size it is laid out at as `ContainerSize`, and hands the signal to its `content`
 render prop. Anything below it can then ask `container_size()`, or
 `narrower_than(width)` for a `Memo<bool>` that is true when the nearest container
-is narrower than `width` (false when nothing provides a size, and false until the
-first layout). Queries answer for the nearest container, so a card that wraps its
-contents in a container gets answers about the card, not the window.
+is narrower than `width` (false until the first layout). Queries answer for the
+nearest container, so a card that wraps its contents in a container gets answers
+about the card, not the window. In debug builds `narrower_than` and `shorter_than`
+panic when no container is above them (release builds answer false), which usually means children built in the caller's
+scope rather than inside a wrapper's container (see the ordering rule above);
+`container_size()` returns `None` there instead, for code that has a use for
+"no container".
 
 `unstyled::stack` consumes that flag: it is a row that turns into a column, with
 its children falling back to intrinsic sizing, while the flag is true. It keeps

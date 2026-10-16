@@ -4,7 +4,7 @@ use super::*;
 use crate::datetime::{Date, DateTime, Time};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::DateTimeParts;
+use crate::unstyled::{Container, DateTimeParts};
 
 #[test]
 fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
@@ -12,6 +12,7 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
+            <Container let:_size>
             <DateTimeField
                 value={Some(DateTime::new(Date::new(2026, 2, 27), Time::new(8, 45)))}
                 today={Some(Date::new(2026, 1, 1))}
@@ -19,6 +20,7 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
                 label="Due"
                 on_change={move |value| set_reported.update(|reported| reported.push(value))}
             />
+            </Container>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

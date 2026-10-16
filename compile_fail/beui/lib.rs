@@ -6,3 +6,4 @@ mod a_show_needs_a_child;
 mod a_span_is_kept_only_by_a_text;
 mod a_test_id_names_a_node;
 mod a_value_child_has_no_node_ref;
+mod let_needs_a_value_to_name;
