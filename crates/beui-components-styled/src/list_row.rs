@@ -16,13 +16,20 @@ const PADDING_VERTICAL: f32 = 4.0;
 pub fn ListRow(
     children: Child,
     #[prop(default = false)] selected: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
     on_activate: ClickCallback,
 ) -> NodeId {
     let face = selected;
     let activates = !on_activate.is_empty();
     view! {
-        <unstyled::ListRow selected activates on_click={on_click} on_activate={on_activate}>
+        <unstyled::ListRow
+            selected
+            disabled
+            activates
+            on_click={on_click}
+            on_activate={on_activate}
+        >
             {move |handle: ButtonHandle| view! {
                 <ListRowFace handle selected={face}>{children}</ListRowFace>
             }}
@@ -36,11 +43,14 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
         hovered,
         active,
         focused,
+        disabled,
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color =
-        create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
+    let fill_color = create_memo(move || match disabled.get() {
+        true => Color32::TRANSPARENT,
+        false => background(&theme, selected.get(), hovered.get(), active.get()),
+    });
     view! {
         <Frame
             fill={ColorRole::custom(fill_color)}
