@@ -156,7 +156,7 @@ struct Placed {
 #[derive(Clone)]
 enum Entry {
     Span(SpanHandle, u64),
-    Inline(Vec2),
+    Inline(Vec2, Option<Rc<str>>),
     Gap(f32),
 }
 
@@ -166,7 +166,9 @@ impl PartialEq for Entry {
             (Entry::Span(left, at), Entry::Span(right, other)) => {
                 Rc::ptr_eq(&left.0, &right.0) && at == other
             }
-            (Entry::Inline(left), Entry::Inline(right)) => left == right,
+            (Entry::Inline(left, stands), Entry::Inline(right, other)) => {
+                left == right && stands == other
+            }
             (Entry::Gap(left), Entry::Gap(right)) => left == right,
             _ => false,
         }
@@ -277,6 +279,7 @@ impl Shaper for CachedShaper<'_> {
 pub struct TextItemNode {
     child: Option<NodeId>,
     at: Option<usize>,
+    text: Option<Rc<str>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -333,7 +336,7 @@ impl ChildHost for TextNode {
 
 enum Flow<'a> {
     Span(Ref<'a, SpanContent>),
-    Inline(usize, Vec2),
+    Inline(usize, Vec2, &'a str),
     Gap(f32),
 }
 
@@ -401,12 +404,13 @@ impl TextNode {
         for part in self.parts.iter() {
             match part {
                 TextPart::Span(span) => entries.push(Entry::Span(span.clone(), span.generation())),
-                TextPart::Inline(item) => entries.push(Entry::Inline(crate::layout::measure(
-                    doc,
-                    painter,
-                    *item,
-                    Vec2::splat(f32::INFINITY),
-                ))),
+                TextPart::Inline(item) => entries.push(Entry::Inline(
+                    crate::layout::measure(doc, painter, *item, Vec2::splat(f32::INFINITY)),
+                    doc.arena
+                        .get_as::<TextItemNode>(NodeOf::assumed(*item))
+                        .text
+                        .clone(),
+                )),
                 TextPart::Gap(width) => entries.push(Entry::Gap(*width)),
                 TextPart::Anchored(_) => {}
             }
@@ -487,9 +491,9 @@ impl TextNode {
                 .iter()
                 .map(|entry| match entry {
                     Entry::Span(span, _) => Flow::Span(span.content()),
-                    Entry::Inline(size) => {
+                    Entry::Inline(size, text) => {
                         inline += 1;
-                        Flow::Inline(inline - 1, *size)
+                        Flow::Inline(inline - 1, *size, text.as_deref().unwrap_or(OBJECT))
                     }
                     Entry::Gap(width) => Flow::Gap(*width),
                 })
@@ -514,9 +518,10 @@ impl TextNode {
                         break_after: content.break_after,
                     },
                 },
-                Flow::Inline(index, size) => Piece::Inline {
+                Flow::Inline(index, size, text) => Piece::Inline {
                     index: *index,
                     size: *size,
+                    text,
                 },
                 Flow::Gap(width) => Piece::Gap(*width),
             })
@@ -617,7 +622,7 @@ impl TextNode {
             .flat_map(|shaped| &shaped.entries)
             .map(|entry| match entry {
                 Entry::Span(span, _) => Some(span.clone()),
-                Entry::Inline(_) | Entry::Gap(_) => None,
+                Entry::Inline(..) | Entry::Gap(_) => None,
             })
             .collect();
         let changed = previous.is_none_or(|previous| {
@@ -1220,12 +1225,19 @@ impl Document {
         self.arena.insert(TextItemNode {
             child: None,
             at: None,
+            text: None,
         })
     }
 
     pub fn set_text_item_child(&mut self, item: NodeOf<TextItemNode>, child: NodeId) {
         if self.arena.get_as::<TextItemNode>(item).child != Some(child) {
             self.arena.get_mut_as::<TextItemNode>(item).child = Some(child);
+        }
+    }
+
+    pub fn set_text_item_text(&mut self, item: NodeOf<TextItemNode>, text: Option<Rc<str>>) {
+        if self.arena.get_as::<TextItemNode>(item).text != text {
+            self.arena.get_mut_as::<TextItemNode>(item).text = text;
         }
     }
 
