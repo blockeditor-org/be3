@@ -7,7 +7,7 @@ use be_block::database_schema::{
 use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
-use be_store::{ContentKey, MemoryStore};
+use be_store::MemoryStore;
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -32,8 +32,6 @@ mod arguments_parse_into_commands;
 mod blocks_are_listed_and_found_by_short_id_or_name;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod two_databases_with_one_prefix_are_refused;
-
-const KEY: [u8; 32] = [9; 32];
 
 struct Harness {
     url: String,
@@ -68,10 +66,10 @@ impl Harness {
     }
 
     async fn owner(&self) -> Peer<MemoryStore> {
-        Peer::connect(
+        let owner = Peer::connect(
             PeerConfig::new(
                 be_client::socket_url(&self.url),
-                ContentKey::from_bytes(KEY),
+                be_keys::RecoveryPhrase::generate().secret(),
                 Credentials::Register {
                     email: "owner@example.com".into(),
                     display_name: "Owner".into(),
@@ -81,7 +79,9 @@ impl Harness {
             MemoryStore::new(),
         )
         .await
-        .unwrap()
+        .unwrap();
+        workspace(&owner, "Tracker").await;
+        owner
     }
 
     async fn stop(mut self) {
@@ -94,6 +94,19 @@ impl Harness {
         }
         let _ = std::fs::remove_dir_all(&self.directory);
     }
+}
+
+async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
+    let id = Uuid::now_v7();
+    peer.create_block(
+        id,
+        be_block::WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        &BlockMetadata::named(name),
+    )
+    .await
+    .unwrap();
+    id
 }
 
 struct Board {
@@ -208,7 +221,7 @@ fn set(field: &str, value: &str) -> Assignment {
     Assignment::parse(&format!("{field}={value}")).unwrap()
 }
 
-async fn run(tracker: &Tracker<MemoryStore>, line: &str) -> Result<String, String> {
+async fn run<S: be_store::ObjectStore>(tracker: &Tracker<S>, line: &str) -> Result<String, String> {
     let invocation: Invocation = cli::parse(
         line.split(' ').map(|word| word.replace('_', " ")).collect(),
         || Ok(String::new()),

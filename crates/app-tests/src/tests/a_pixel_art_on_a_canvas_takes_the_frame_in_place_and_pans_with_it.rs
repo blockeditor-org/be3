@@ -5,7 +5,7 @@ const ARTWORK: &str = "#pixel-art.artwork";
 #[test]
 fn a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
     let mut app = AppTest::start();
-    add_root_block(&mut app, "Canvas");
+    add_to_my_files(&mut app, "Canvas");
     add_to_canvas(&mut app, "Label value=\"Pixel Art\"");
     let card = app.place("GenericContainer #infinite-canvas.entity.");
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);

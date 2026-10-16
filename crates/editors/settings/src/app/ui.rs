@@ -141,10 +141,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             .read()
             .into_iter()
             .next()
-            .and_then(|info| match info.parent {
-                BlockParent::Block(parent) => Some(parent),
-                _ => None,
-            })
+            .and_then(|info| info.parent?.block())
     });
     let own = create_memo(move || {
         parent

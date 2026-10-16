@@ -14,6 +14,7 @@ fn a_common_ancestor_is_found_across_a_fork() {
 
     let merged = store
         .put(
+            KEY,
             &Commit::new(store.get(ours).unwrap().manifest, AUTHOR, 4_000)
                 .with_parents(vec![ours, theirs])
                 .with_kind(CommitKind::Merge),

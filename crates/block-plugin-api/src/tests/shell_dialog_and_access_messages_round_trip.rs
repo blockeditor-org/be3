@@ -30,6 +30,7 @@ fn shell_dialog_and_access_messages_round_trip() {
                 author: false,
                 granted: Some(AccessLevel::View),
                 effective: AccessLevel::View,
+                waiting: true,
             }])),
         }),
         Message::Children(ChildPlacements {

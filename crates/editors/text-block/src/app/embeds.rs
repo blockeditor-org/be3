@@ -4,7 +4,8 @@ use std::ops::Range;
 use beui::Vec2;
 use beui::unstyled::TextWidget;
 use block_editor_beui::be_block::block_url::{block_url, parse_block_urls};
-use block_editor_beui::block_ui::{self, BlockLabel};
+use block_editor_beui::block_ui::{self, BlockLabel, Reach};
+use block_editor_beui::label_glyph;
 use text_editor_core::TextLanguage;
 use uuid::Uuid;
 
@@ -49,34 +50,25 @@ pub(crate) struct ParsedEmbed {
 
 pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
     let markdown = state.text.language() == TextLanguage::Markdown;
-    let parsed = parse_embeds(&state.text.bytes(), state.workspace_id, markdown);
+    let parsed = parse_embeds(&state.text.bytes(), state.organization_id, markdown);
     let references = state.inner().dependencies.read();
+    let types = state.editor.block_types();
     let referenced = references
         .iter()
-        .map(|reference| {
-            (
-                reference.id,
-                (
-                    reference.block_type,
-                    reference.name(),
-                    reference.named_by_hand(),
-                ),
-            )
-        })
+        .map(|reference| (reference.id, reference.label(types.as_ref())))
         .collect::<HashMap<_, _>>();
     let block_id = state.block_id;
-    let types = state.editor.block_types();
     parsed
         .into_iter()
         .filter(|embed| embed.reference != block_id)
         .map(|embed| {
             let id = embed.reference;
-            let metadata = referenced.get(&id).cloned().or_else(|| {
+            let label = referenced.get(&id).cloned().or_else(|| {
                 state
                     .inner()
                     .client
                     .info(id)
-                    .map(|block| (block.block_type, block.name(), block.named_by_hand()))
+                    .map(|block| block.label(types.as_ref()))
             });
             let frame_size = embed
                 .large
@@ -87,28 +79,23 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                         block_ui::embedded_editor_frame(intrinsic.x, intrinsic.y, 1.0);
                     Vec2::new(width, height)
                 });
-            let label = metadata.as_ref().map_or_else(
-                || BlockLabel {
-                    block_type: Uuid::nil(),
-                    icon: None,
-                    name: "Broken link".to_owned(),
-                    automatic: true,
-                },
-                |(block_type, name, by_hand)| {
-                    BlockLabel::new(types.as_ref(), *block_type, name.as_deref(), *by_hand)
-                },
-            );
+            let available = label.is_some();
+            let label = label.unwrap_or_else(|| BlockLabel {
+                block_type: Uuid::nil(),
+                icon: None,
+                name: "Broken link".to_owned(),
+                automatic: true,
+                reach: Reach::Open,
+            });
             ResolvedEmbed {
                 range: embed.range,
                 id,
-                block_type: metadata
-                    .as_ref()
-                    .map_or_else(Uuid::nil, |(block_type, _, _)| *block_type),
+                block_type: label.block_type,
+                icon: label_glyph(&label),
                 label: label.name,
-                icon: label.icon,
                 automatic: label.automatic,
                 large: embed.large,
-                available: metadata.is_some(),
+                available,
                 frame_size,
             }
         })
@@ -117,12 +104,12 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
 
 pub(crate) fn image_embed_directive(
     link_base: &str,
-    workspace_id: Uuid,
+    organization_id: Uuid,
     reference: &Uuid,
     source_name: &str,
     markdown: bool,
 ) -> String {
-    let url = block_url(link_base, workspace_id, *reference);
+    let url = block_url(link_base, organization_id, *reference);
     if markdown {
         format!("![{source_name}]({url})")
     } else {
@@ -130,10 +117,14 @@ pub(crate) fn image_embed_directive(
     }
 }
 
-pub(crate) fn parse_embeds(bytes: &[u8], workspace_id: Uuid, markdown: bool) -> Vec<ParsedEmbed> {
+pub(crate) fn parse_embeds(
+    bytes: &[u8],
+    organization_id: Uuid,
+    markdown: bool,
+) -> Vec<ParsedEmbed> {
     parse_block_urls(bytes)
         .into_iter()
-        .filter(|url| url.workspace_id == workspace_id)
+        .filter(|url| url.organization_id == organization_id)
         .map(|url| {
             let image_range = markdown
                 .then(|| markdown_image_range(bytes, &url.range))

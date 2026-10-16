@@ -1,48 +1,74 @@
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, ObjectRefs};
-use be_protocol::{AccessEntry, BlockSummary, ErrorCode, HistoryEntry, WorkspaceRole};
+use be_protocol::{
+    AccessEntry, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, OrganizationRole,
+};
 use be_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
+use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 use crate::{
     ServerError,
+    keys::{forget_block_keys, store_keys},
     store::{Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid},
 };
 
 pub enum PublishOutcome {
-    Published(CommitId, bool),
+    Published(CommitId, Option<Vec<Uuid>>),
     Rejected(Option<CommitId>),
 }
 
-struct Visibility {
+pub(crate) struct Visibility {
+    account: Uuid,
     administrator: bool,
-    access: std::collections::BTreeMap<Uuid, Access>,
+    visible: std::cell::OnceCell<BTreeMap<Uuid, Access>>,
 }
 
 impl Visibility {
-    fn of(graph: &BlockGraph, account: Uuid, role: WorkspaceRole) -> Self {
-        let administrator = role == WorkspaceRole::Administrator;
+    fn of(account: Uuid, role: OrganizationRole) -> Self {
         Self {
-            administrator,
-            access: match administrator {
-                true => std::collections::BTreeMap::new(),
-                false => graph.access_map(account),
-            },
+            account,
+            administrator: role == OrganizationRole::Administrator,
+            visible: std::cell::OnceCell::new(),
         }
     }
 
-    fn access(&self, graph: &BlockGraph, block: Uuid) -> Access {
+    fn inherited(&self, graph: &BlockGraph, block: Uuid) -> Access {
         match (graph.contains(block), self.administrator) {
             (false, _) => Access::None,
             (true, true) => Access::Edit,
-            (true, false) => self.access.get(&block).copied().unwrap_or_default(),
+            (true, false) => graph.inherited(block, self.account),
         }
+    }
+
+    pub(crate) fn can_view(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        self.inherited(graph, block).can_view()
+    }
+
+    pub(crate) fn can_edit(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        self.inherited(graph, block).can_edit()
+    }
+
+    pub(crate) fn administrator(&self) -> bool {
+        self.administrator
+    }
+
+    fn access(&self, graph: &BlockGraph, block: Uuid) -> Access {
+        let inherited = self.inherited(graph, block);
+        if inherited.can_view() || !graph.contains(block) {
+            return inherited;
+        }
+        self.visible
+            .get_or_init(|| graph.visible(self.account))
+            .get(&block)
+            .copied()
+            .unwrap_or_default()
     }
 }
 
-fn visibility(graph: &BlockGraph, identity: Identity) -> Visibility {
-    Visibility::of(graph, identity.account, identity.role)
+pub(crate) fn visibility(identity: Identity) -> Visibility {
+    Visibility::of(identity.account, identity.role)
 }
 
 fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
@@ -52,7 +78,7 @@ fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<()
             format!("block {block} does not exist"),
         ));
     }
-    if seen.access(graph, block).can_edit() {
+    if seen.inherited(graph, block).can_edit() {
         return Ok(());
     }
     Err(ServerError::Refused(
@@ -62,25 +88,37 @@ fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<()
 }
 
 fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockSummary> {
-    summary_with(graph, &visibility(graph, identity), block)
+    summary_with(graph, &visibility(identity), block)
 }
 
 fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<BlockSummary> {
     let node = graph.get(block)?;
+    let access = seen.access(graph, block);
+    let revision = graph.revision();
+    if !access.can_view() {
+        return Some(BlockSummary {
+            revision,
+            ..BlockSummary::no_access(block, node.content_type, access)
+        });
+    }
     Some(BlockSummary {
         id: block,
         content_type: node.content_type,
-        author: node.author,
-        parent: node.parent,
+        access,
+        author: Some(node.author),
+        parent: Some(node.parent),
         head: node.head,
-        access: seen.access(graph, block),
         references: node.references.clone(),
         metadata: node.metadata.clone(),
-        version: node.version,
+        version: Some(node.version),
+        key: node.key,
+        scope: Some(graph.scope(block)),
+        revision,
     })
 }
 
 impl ServerStore {
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_block(
         &self,
         identity: Identity,
@@ -88,21 +126,34 @@ impl ServerStore {
         content_type: Uuid,
         parent: BlockParent,
         metadata: Vec<u8>,
+        key: Uuid,
+        keys: KeySet,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             if let BlockParent::Block(target) = parent {
-                require_edit(graph, &visibility(graph, identity), target)?;
+                require_edit(graph, &visibility(identity), target)?;
+            }
+            if !keys
+                .keys
+                .iter()
+                .any(|row| row.id == key && row.block == block && row.kind == KeyKind::Data)
+            {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a new block needs a data key of its own".into(),
+                ));
             }
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
-            database.execute(
+            let transaction = database.unchecked_transaction()?;
+            transaction.execute(
                 "INSERT INTO blocks
-                    (workspace_id, id, content_type, author, parent_kind, parent_id, head, metadata)
+                    (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)",
                 params![
-                    identity.workspace.to_string(),
+                    identity.organization.to_string(),
                     block.to_string(),
                     content_type.to_string(),
                     identity.account.to_string(),
@@ -111,6 +162,15 @@ impl ServerStore {
                     metadata,
                 ],
             )?;
+            store_keys(
+                graph,
+                &transaction,
+                identity.organization,
+                identity.account,
+                &keys,
+                |_, owner| owner == block,
+            )?;
+            transaction.commit()?;
             summary(graph, identity, block).ok_or(ServerError::Corrupt)
         })
         .await
@@ -122,8 +182,8 @@ impl ServerStore {
         block: Uuid,
         metadata: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, &visibility(graph, identity), block)?;
+        self.with_graph(identity.organization, move |graph, database| {
+            require_edit(graph, &visibility(identity), block)?;
             if let Some(head) = graph.head(block) {
                 return Err(ServerError::Refused(
                     ErrorCode::BlockHasContent,
@@ -131,8 +191,8 @@ impl ServerStore {
                 ));
             }
             database.execute(
-                "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
-                params![identity.workspace.to_string(), block.to_string(), metadata],
+                "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
+                params![identity.organization.to_string(), block.to_string(), metadata],
             )?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
@@ -142,10 +202,13 @@ impl ServerStore {
     }
 
     pub async fn list_blocks(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
-            let seen = visibility(graph, identity);
-            Ok(graph
-                .ids()
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
+            let blocks = match seen.administrator {
+                true => graph.ids(),
+                false => graph.visible(identity.account).into_keys().collect(),
+            };
+            Ok(blocks
                 .into_iter()
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
@@ -156,35 +219,59 @@ impl ServerStore {
 
     pub async fn graph_views(
         &self,
-        workspace: Uuid,
+        organization: Uuid,
         members: Vec<Identity>,
         blocks: Vec<Uuid>,
         subtree: bool,
     ) -> Result<Vec<Vec<be_protocol::ServerMessage>>, ServerError> {
-        self.with_graph(workspace, move |graph, _| {
+        self.with_graph(organization, move |graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
-                match subtree && graph.contains(block) {
+                match subtree {
                     true => touched.extend(graph.subtree(block)),
                     false => touched.push(block),
                 }
             }
+            let referenced: Vec<Uuid> = touched
+                .iter()
+                .flat_map(|block| graph.references(*block))
+                .collect();
+            touched.extend(referenced);
+            touched.retain(|block| graph.contains(*block));
             touched.sort_unstable();
             touched.dedup();
+            let revision = graph.revision();
             Ok(members
                 .into_iter()
                 .map(|identity| {
-                    let seen = visibility(graph, identity);
+                    let seen = visibility(identity);
                     touched
                         .iter()
                         .map(|block| match summary_with(graph, &seen, *block) {
                             Some(found) if found.access.can_know_exists() => {
                                 be_protocol::ServerMessage::BlockChanged { block: found }
                             }
-                            _ => be_protocol::ServerMessage::BlockRemoved { block: *block },
+                            _ => be_protocol::ServerMessage::BlockRemoved {
+                                block: *block,
+                                revision,
+                            },
                         })
                         .collect()
                 })
+                .collect())
+        })
+        .await
+    }
+
+    pub async fn audience(
+        &self,
+        organization: Uuid,
+        blocks: Vec<Uuid>,
+    ) -> Result<BTreeSet<Uuid>, ServerError> {
+        self.with_graph(organization, move |graph, _| {
+            Ok(blocks
+                .into_iter()
+                .flat_map(|block| graph.audience(block))
                 .collect())
         })
         .await
@@ -195,20 +282,21 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
-            let Some(found) = summary(graph, identity, block) else {
+        self.with_graph(identity.organization, move |graph, _| {
+            if !graph.contains(block) {
                 return Err(ServerError::Refused(
                     ErrorCode::BlockNotFound,
                     format!("block {block} does not exist"),
                 ));
-            };
-            if !found.access.can_view() {
+            }
+            let seen = visibility(identity);
+            if !seen.can_view(graph, block) {
                 return Err(ServerError::Refused(
                     ErrorCode::PermissionDenied,
                     format!("block {block} is not readable by this account"),
                 ));
             }
-            Ok(found)
+            summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)
         })
         .await
     }
@@ -236,40 +324,47 @@ impl ServerStore {
                 ));
             }
         }
-        self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, &visibility(graph, identity), block)?;
+        self.with_graph(identity.organization, move |graph, database| {
+            require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
             if current != expected {
                 return Ok(PublishOutcome::Rejected(current));
             }
             if current == Some(commit) {
-                return Ok(PublishOutcome::Published(commit, false));
+                return Ok(PublishOutcome::Published(commit, None));
             }
             let mut references = references;
             let mut seen = std::collections::HashSet::new();
             references.retain(|reference| seen.insert(*reference));
-            let relinked = graph.references(block) != references;
-            let redescribed = relinked
+            let before = graph.references(block);
+            let relinked = before != references;
+            let redescribed = (relinked
                 || graph
                     .get(block)
-                    .is_some_and(|node| node.metadata != metadata);
+                    .is_some_and(|node| node.metadata != metadata))
+            .then(|| {
+                before
+                    .into_iter()
+                    .filter(|reference| !references.contains(reference))
+                    .collect()
+            });
             let transaction = database.unchecked_transaction()?;
-            let workspace = identity.workspace.to_string();
+            let organization = identity.organization.to_string();
             let existing: Option<i64> = transaction
                 .query_row(
                     "SELECT 1 FROM block_commits
-                     WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
-                    params![workspace, block.to_string(), commit.hash().to_hex()],
+                     WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+                    params![organization, block.to_string(), commit.hash().to_hex()],
                     |row| row.get(0),
                 )
                 .optional()?;
             if existing.is_none() {
                 transaction.execute(
                     "INSERT INTO block_commits
-                        (workspace_id, block_id, commit_id, parents, time, pinned)
+                        (organization_id, block_id, commit_id, parents, time, pinned)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![
-                        workspace,
+                        organization,
                         block.to_string(),
                         commit.hash().to_hex(),
                         encode_parents(&parents),
@@ -281,10 +376,10 @@ impl ServerStore {
                 for (position, hash) in held.iter().enumerate() {
                     transaction.execute(
                         "INSERT INTO commit_objects
-                            (workspace_id, block_id, commit_id, position, hash)
+                            (organization_id, block_id, commit_id, position, hash)
                          VALUES (?1, ?2, ?3, ?4, ?5)",
                         params![
-                            workspace,
+                            organization,
                             block.to_string(),
                             commit.hash().to_hex(),
                             i64::try_from(position).map_err(|_| ServerError::Corrupt)?,
@@ -297,9 +392,9 @@ impl ServerStore {
             }
             transaction.execute(
                 "UPDATE blocks SET head = ?3, metadata = ?4, version = version + 1
-                 WHERE workspace_id = ?1 AND id = ?2",
+                 WHERE organization_id = ?1 AND id = ?2",
                 params![
-                    workspace,
+                    organization,
                     block.to_string(),
                     commit.hash().to_hex(),
                     metadata
@@ -307,16 +402,16 @@ impl ServerStore {
             )?;
             if relinked {
                 transaction.execute(
-                    "DELETE FROM block_edges WHERE workspace_id = ?1 AND block_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 for (position, reference) in references.iter().enumerate() {
                     transaction.execute(
                         "INSERT OR IGNORE INTO block_edges
-                            (workspace_id, block_id, reference_id, position)
+                            (organization_id, block_id, reference_id, position)
                          VALUES (?1, ?2, ?3, ?4)",
                         params![
-                            workspace,
+                            organization,
                             block.to_string(),
                             reference.to_string(),
                             i64::try_from(position).map_err(|_| ServerError::Corrupt)?
@@ -339,19 +434,19 @@ impl ServerStore {
         identity: Identity,
         hash: Hash,
     ) -> Result<bool, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             let mut statement = database.prepare(
-                "SELECT block_id FROM commit_objects WHERE workspace_id = ?1 AND hash = ?2
+                "SELECT block_id FROM commit_objects WHERE organization_id = ?1 AND hash = ?2
                  UNION
-                 SELECT block_id FROM block_objects WHERE workspace_id = ?1 AND hash = ?2",
+                 SELECT block_id FROM block_objects WHERE organization_id = ?1 AND hash = ?2",
             )?;
             let rows = statement.query_map(
-                params![identity.workspace.to_string(), hash.to_hex()],
+                params![identity.organization.to_string(), hash.to_hex()],
                 |row| row.get::<_, String>(0),
             )?;
-            let seen = visibility(graph, identity);
+            let seen = visibility(identity);
             for row in rows {
-                if seen.access(graph, parse_uuid(&row?)?).can_view() {
+                if seen.can_view(graph, parse_uuid(&row?)?) {
                     return Ok(true);
                 }
             }
@@ -374,16 +469,16 @@ impl ServerStore {
                 ));
             }
         }
-        self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, &visibility(graph, identity), block)?;
+        self.with_graph(identity.organization, move |graph, database| {
+            require_edit(graph, &visibility(identity), block)?;
             let transaction = database.unchecked_transaction()?;
-            let workspace = identity.workspace.to_string();
+            let organization = identity.organization.to_string();
             let mut fresh = Vec::new();
             for hash in objects {
                 let inserted = transaction.execute(
-                    "INSERT OR IGNORE INTO block_objects (workspace_id, block_id, hash)
+                    "INSERT OR IGNORE INTO block_objects (organization_id, block_id, hash)
                      VALUES (?1, ?2, ?3)",
-                    params![workspace, block.to_string(), hash.to_hex()],
+                    params![organization, block.to_string(), hash.to_hex()],
                 )?;
                 if inserted > 0 {
                     fresh.push(hash);
@@ -403,27 +498,42 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
         parent: BlockParent,
-    ) -> Result<(), ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
-            let seen = visibility(graph, identity);
+        keys: KeySet,
+    ) -> Result<BTreeSet<Uuid>, ServerError> {
+        self.with_graph(identity.organization, move |graph, database| {
+            let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
             if let BlockParent::Block(target) = parent {
                 require_edit(graph, &seen, target)?;
             }
+            let before = graph.audience(block);
+            let transaction = database.unchecked_transaction()?;
+            store_keys(
+                graph,
+                &transaction,
+                identity.organization,
+                identity.account,
+                &keys,
+                |graph, owner| {
+                    (owner == block || graph.ancestors(owner).any(|above| above == block))
+                        && seen.can_view(graph, owner)
+                },
+            )?;
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
             let (kind, parent_id) = encode_parent(parent);
-            database.execute(
+            transaction.execute(
                 "UPDATE blocks SET parent_kind = ?3, parent_id = ?4, version = version + 1
-                 WHERE workspace_id = ?1 AND id = ?2",
+                 WHERE organization_id = ?1 AND id = ?2",
                 params![
-                    identity.workspace.to_string(),
+                    identity.organization.to_string(),
                     block.to_string(),
                     kind,
                     parent_id
                 ],
             )?;
-            Ok(())
+            transaction.commit()?;
+            Ok(before)
         })
         .await
     }
@@ -433,8 +543,8 @@ impl ServerStore {
         identity: Identity,
         parent: BlockParent,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
-            let seen = visibility(graph, identity);
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
             Ok(graph
                 .children(parent)
                 .into_iter()
@@ -450,8 +560,8 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
-            let seen = visibility(graph, identity);
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
             Ok(graph
                 .backrefs(block)
                 .into_iter()
@@ -467,14 +577,14 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<HistoryEntry>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
-            if !visibility(graph, identity).access(graph, block).can_view() {
+        self.with_graph(identity.organization, move |graph, database| {
+            if !visibility(identity).can_view(graph, block) {
                 return Err(ServerError::Refused(
                     ErrorCode::PermissionDenied,
                     format!("block {block} is not readable by this account"),
                 ));
             }
-            read_history(database, identity.workspace, block)
+            read_history(database, identity.organization, block)
         })
         .await
     }
@@ -485,11 +595,11 @@ impl ServerStore {
         block: Uuid,
         drop: Vec<CommitId>,
     ) -> Result<usize, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, &visibility(graph, identity), block)?;
+        self.with_graph(identity.organization, move |graph, database| {
+            require_edit(graph, &visibility(identity), block)?;
             let head = graph.head(block);
             let transaction = database.unchecked_transaction()?;
-            let pinned: Vec<CommitId> = read_history(&transaction, identity.workspace, block)?
+            let pinned: Vec<CommitId> = read_history(&transaction, identity.organization, block)?
                 .into_iter()
                 .filter(|entry| entry.pinned)
                 .map(|entry| entry.commit)
@@ -503,7 +613,7 @@ impl ServerStore {
                 freed.extend(release_commit(
                     &transaction,
                     &mut refs,
-                    identity.workspace,
+                    identity.organization,
                     block,
                     commit,
                 )?);
@@ -515,28 +625,33 @@ impl ServerStore {
         .await
     }
 
-    pub async fn delete_block(&self, identity: Identity, block: Uuid) -> Result<(), ServerError> {
-        self.set_parent(identity, block, BlockParent::Detached)
+    pub async fn delete_block(
+        &self,
+        identity: Identity,
+        block: Uuid,
+    ) -> Result<BTreeSet<Uuid>, ServerError> {
+        self.set_parent(identity, block, BlockParent::Detached, KeySet::default())
             .await
     }
 
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
-            let detached = graph.detached();
-            let seen = visibility(graph, identity);
+        self.with_graph(identity.organization, move |graph, database| {
+            let seen = visibility(identity);
+            let detached: Vec<Uuid> = graph
+                .detached()
+                .into_iter()
+                .filter(|block| seen.inherited(graph, *block).can_edit())
+                .collect();
             let transaction = database.unchecked_transaction()?;
             let mut refs = self.object_refs();
             let mut freed = Vec::new();
             let mut removed = Vec::new();
             for block in detached {
-                if !seen.access(graph, block).can_edit() {
-                    continue;
-                }
-                for commit in read_history(&transaction, identity.workspace, block)? {
+                for commit in read_history(&transaction, identity.organization, block)? {
                     freed.extend(release_commit(
                         &transaction,
                         &mut refs,
-                        identity.workspace,
+                        identity.organization,
                         block,
                         commit.commit,
                     )?);
@@ -544,26 +659,27 @@ impl ServerStore {
                 freed.extend(release_held(
                     &transaction,
                     &mut refs,
-                    identity.workspace,
+                    identity.organization,
                     block,
                 )?);
-                let workspace = identity.workspace.to_string();
+                let organization = identity.organization.to_string();
                 transaction.execute(
-                    "DELETE FROM block_edges WHERE workspace_id = ?1 AND block_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 transaction.execute(
-                    "DELETE FROM block_edges WHERE workspace_id = ?1 AND reference_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_edges WHERE organization_id = ?1 AND reference_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 transaction.execute(
-                    "DELETE FROM block_access WHERE workspace_id = ?1 AND block_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_access WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 transaction.execute(
-                    "DELETE FROM blocks WHERE workspace_id = ?1 AND id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
+                    params![organization, block.to_string()],
                 )?;
+                forget_block_keys(&transaction, identity.organization, block)?;
                 graph.remove(block);
                 removed.push(block);
             }
@@ -572,6 +688,7 @@ impl ServerStore {
             Ok(Collected {
                 blocks: removed,
                 objects: freed.len(),
+                revision: graph.revision(),
             })
         })
         .await
@@ -583,34 +700,45 @@ impl ServerStore {
         block: Uuid,
         account: Uuid,
         access: Access,
-    ) -> Result<(), ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, &visibility(graph, identity), block)?;
-            graph.grant(block, account, access)?;
-            graph.touch(block)?;
-            let workspace = identity.workspace.to_string();
-            database.execute(
-                "UPDATE blocks SET version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
-                params![workspace, block.to_string()],
-            )?;
-            match encode_access(access) {
-                None => {
-                    database.execute(
-                        "DELETE FROM block_access
-                         WHERE workspace_id = ?1 AND block_id = ?2 AND account_id = ?3",
-                        params![workspace, block.to_string(), account.to_string()],
-                    )?;
+    ) -> Result<BTreeSet<Uuid>, ServerError> {
+        self.with_graph(identity.organization, move |graph, database| {
+            let leaving = account == identity.account && access == Access::None;
+            match leaving {
+                true if !graph.contains(block) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::BlockNotFound,
+                        format!("block {block} does not exist"),
+                    ));
                 }
-                Some(encoded) => {
-                    database.execute(
-                        "INSERT OR REPLACE INTO block_access
-                            (workspace_id, block_id, account_id, access)
-                         VALUES (?1, ?2, ?3, ?4)",
-                        params![workspace, block.to_string(), account.to_string(), encoded],
-                    )?;
+                true => {}
+                false => require_edit(graph, &visibility(identity), block)?,
+            }
+            if access > Access::None && account != identity.account {
+                if !crate::store::is_member_of(database, account, identity.organization)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "that account is not a member of this organization".into(),
+                    ));
+                }
+                if !crate::contacts::is_contact(database, identity.account, account)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::NotAContact,
+                        "share only with your contacts: send them a contact link first".into(),
+                    ));
                 }
             }
-            Ok(())
+            let before = graph.audience(block);
+            let transaction = database.unchecked_transaction()?;
+            revoke_or_grant(
+                graph,
+                &transaction,
+                identity.organization,
+                block,
+                account,
+                access,
+            )?;
+            transaction.commit()?;
+            Ok(before)
         })
         .await
     }
@@ -620,27 +748,43 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<AccessEntry>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, &visibility(graph, identity), block)?;
+        self.with_graph(identity.organization, move |graph, database| {
+            require_edit(graph, &visibility(identity), block)?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
-            let mut entries = Vec::new();
-            let mut statement = database.prepare(
-                "SELECT accounts.id, accounts.email, accounts.display_name, memberships.role
+            let contacts = crate::contacts::contacts_of(database, identity.account)?;
+            let mut listed: BTreeSet<Uuid> = node.grants.keys().copied().collect();
+            listed.insert(node.author);
+            listed.insert(identity.account);
+            listed.extend(
+                graph
+                    .audience(block)
+                    .into_iter()
+                    .filter(|account| graph.effective_access(block, *account).can_view()),
+            );
+            listed.extend(contacts.iter().copied());
+            let mut statement = database.prepare_cached(
+                "SELECT accounts.email, accounts.display_name, memberships.role
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
-                 WHERE memberships.workspace_id = ?1",
+                 WHERE memberships.organization_id = ?1 AND memberships.account_id = ?2",
             )?;
-            let rows = statement.query_map([identity.workspace.to_string()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            })?;
-            for row in rows {
-                let (account, email, display_name, role) = row?;
-                let account = parse_uuid(&account)?;
+            let mut entries = Vec::new();
+            for account in listed {
+                let row = statement
+                    .query_row(
+                        params![identity.organization.to_string(), account.to_string()],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                            ))
+                        },
+                    )
+                    .optional()?;
+                let Some((email, display_name, role)) = row else {
+                    continue;
+                };
                 let role = crate::store::decode_role(&role)?;
                 entries.push(AccessEntry {
                     account,
@@ -649,7 +793,21 @@ impl ServerStore {
                     role,
                     author: node.author == account,
                     granted: node.grants.get(&account).copied(),
-                    effective: Visibility::of(graph, account, role).access(graph, block),
+                    effective: match role {
+                        OrganizationRole::Administrator => Access::Edit,
+                        OrganizationRole::Editor => graph.effective_access(block, account),
+                    },
+                    contact: contacts.contains(&account),
+                    waiting: node
+                        .grants
+                        .get(&account)
+                        .is_some_and(|level| level.can_view())
+                        && crate::keys::waiting_for_key(
+                            database,
+                            identity.organization,
+                            block,
+                            account,
+                        )?,
                 });
             }
             Ok(entries)
@@ -658,24 +816,83 @@ impl ServerStore {
     }
 }
 
+pub(crate) fn revoke_or_grant(
+    graph: &mut BlockGraph,
+    database: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+    access: Access,
+) -> Result<(), ServerError> {
+    let viewed = crate::keys::is_viewer(database, graph, organization, account, block)?;
+    write_grant(graph, database, organization, block, account, access)?;
+    if viewed && !crate::keys::is_viewer(database, graph, organization, account, block)? {
+        crate::keys::lost_view(database, organization, block, account)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn write_grant(
+    graph: &mut BlockGraph,
+    database: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+    access: Access,
+) -> Result<(), ServerError> {
+    graph.grant(block, account, access)?;
+    graph.touch(block)?;
+    let organization = organization.to_string();
+    database.execute(
+        "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
+        params![organization, block.to_string()],
+    )?;
+    match encode_access(access) {
+        None => {
+            database.execute(
+                "DELETE FROM block_access
+                 WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
+                params![organization, block.to_string(), account.to_string()],
+            )?;
+        }
+        Some(encoded) => {
+            database.execute(
+                "INSERT OR REPLACE INTO block_access
+                    (organization_id, block_id, account_id, access)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    organization,
+                    block.to_string(),
+                    account.to_string(),
+                    encoded
+                ],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 fn read_history(
     connection: &Connection,
-    workspace: Uuid,
+    organization: Uuid,
     block: Uuid,
 ) -> Result<Vec<HistoryEntry>, ServerError> {
     let mut statement = connection.prepare(
         "SELECT commit_id, parents, time, pinned FROM block_commits
-         WHERE workspace_id = ?1 AND block_id = ?2
+         WHERE organization_id = ?1 AND block_id = ?2
          ORDER BY time DESC",
     )?;
-    let rows = statement.query_map(params![workspace.to_string(), block.to_string()], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, i64>(2)?,
-            row.get::<_, bool>(3)?,
-        ))
-    })?;
+    let rows = statement.query_map(
+        params![organization.to_string(), block.to_string()],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, bool>(3)?,
+            ))
+        },
+    )?;
     let mut entries = Vec::new();
     for row in rows {
         let (commit, parents, time, pinned) = row?;
@@ -692,7 +909,7 @@ fn read_history(
 fn release_commit(
     connection: &Connection,
     refs: &mut ObjectRefs,
-    workspace: Uuid,
+    organization: Uuid,
     block: Uuid,
     commit: CommitId,
 ) -> Result<Vec<Hash>, ServerError> {
@@ -700,11 +917,11 @@ fn release_commit(
     {
         let mut statement = connection.prepare(
             "SELECT hash FROM commit_objects
-             WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+             WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
         )?;
         let rows = statement.query_map(
             params![
-                workspace.to_string(),
+                organization.to_string(),
                 block.to_string(),
                 commit.hash().to_hex()
             ],
@@ -716,18 +933,18 @@ fn release_commit(
     }
     connection.execute(
         "DELETE FROM commit_objects
-         WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+         WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
         params![
-            workspace.to_string(),
+            organization.to_string(),
             block.to_string(),
             commit.hash().to_hex()
         ],
     )?;
     connection.execute(
         "DELETE FROM block_commits
-         WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+         WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
         params![
-            workspace.to_string(),
+            organization.to_string(),
             block.to_string(),
             commit.hash().to_hex()
         ],
@@ -740,24 +957,25 @@ fn release_commit(
 fn release_held(
     connection: &Connection,
     refs: &mut ObjectRefs,
-    workspace: Uuid,
+    organization: Uuid,
     block: Uuid,
 ) -> Result<Vec<Hash>, ServerError> {
     let mut held = Vec::new();
     {
-        let mut statement = connection
-            .prepare("SELECT hash FROM block_objects WHERE workspace_id = ?1 AND block_id = ?2")?;
-        let rows = statement
-            .query_map(params![workspace.to_string(), block.to_string()], |row| {
-                row.get::<_, String>(0)
-            })?;
+        let mut statement = connection.prepare(
+            "SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+        )?;
+        let rows = statement.query_map(
+            params![organization.to_string(), block.to_string()],
+            |row| row.get::<_, String>(0),
+        )?;
         for row in rows {
             held.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
         }
     }
     connection.execute(
-        "DELETE FROM block_objects WHERE workspace_id = ?1 AND block_id = ?2",
-        params![workspace.to_string(), block.to_string()],
+        "DELETE FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+        params![organization.to_string(), block.to_string()],
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;

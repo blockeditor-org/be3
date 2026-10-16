@@ -1291,14 +1291,14 @@ impl Instances {
                 continue;
             }
             regions.sort_by_key(|request| request.screen.0);
-            let Some((client_id, (account, workspace))) = client else {
+            let Some((client_id, (account, organization))) = client else {
                 continue;
             };
             let client_id = client_id.into_bytes();
             if !entry.opened {
                 entry.opened = true;
                 let account_id = account.into_bytes();
-                let workspace_id = workspace.into_bytes();
+                let organization_id = organization.into_bytes();
                 opened.push(match entry.role {
                     InstanceRole::Editor(block) => Message::Editor(EditorMessage::Open {
                         instance,
@@ -1306,7 +1306,7 @@ impl Instances {
                         block_type: block.block_type.into_bytes(),
                         view_block: block.view_block.map(Uuid::into_bytes),
                         account_id,
-                        workspace_id,
+                        organization_id,
                         client_id,
                         editable: {
                             let editable = crate::be::access(block.id).can_edit();
@@ -1320,7 +1320,7 @@ impl Instances {
                             block_type: editor.into_bytes(),
                             template: template.to_owned(),
                             account_id,
-                            workspace_id,
+                            organization_id,
                             client_id,
                         })
                     }
@@ -1331,7 +1331,7 @@ impl Instances {
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
                             account_id,
-                            workspace_id,
+                            organization_id,
                             client_id,
                             data: entry.artifact.data.clone(),
                         })
@@ -2411,6 +2411,15 @@ impl Instances {
             HostRequest::ListAccess(block) => {
                 crate::be::list_access(Uuid::from_bytes(block), move |listed| {
                     reply(HostReply::AccessListed(super::graph::grants_of(listed)));
+                });
+            }
+            HostRequest::ContactLink { block_id, access } => {
+                let offer = (Uuid::from_bytes(block_id), super::graph::access_of(access));
+                crate::be::make_contact_link(Some(offer), move |made| {
+                    reply(HostReply::ContactLinkMade(match made {
+                        Ok(link) => block_plugin_api::ContactLinkResult::Made(link),
+                        Err(error) => block_plugin_api::ContactLinkResult::Failed(error),
+                    }));
                 });
             }
             HostRequest::ExportBlock(block) => {

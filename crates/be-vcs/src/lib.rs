@@ -26,8 +26,12 @@ pub struct Entry {
 }
 
 impl Tree {
-    pub fn write<S: ObjectStore>(&self, vault: &Vault<S>) -> Result<Manifest, StoreError> {
-        vault.write(TREE_CONTENT_TYPE, &be_store::encode_value(self)?)
+    pub fn write<S: ObjectStore>(
+        &self,
+        vault: &Vault<S>,
+        key: Uuid,
+    ) -> Result<Manifest, StoreError> {
+        vault.write(key, TREE_CONTENT_TYPE, &be_store::encode_value(self)?)
     }
 
     pub fn read<S: ObjectStore>(vault: &Vault<S>, manifest: &Manifest) -> Result<Self, StoreError> {
@@ -52,6 +56,7 @@ impl Tree {
 
 pub fn snapshot<S: ObjectStore>(
     commits: &CommitStore<S>,
+    key: Uuid,
     tree: Manifest,
     parents: Vec<CommitId>,
     author: Uuid,
@@ -61,7 +66,7 @@ pub fn snapshot<S: ObjectStore>(
     let commit = Commit::new(tree, author, time)
         .with_parents(parents)
         .with_kind(CommitKind::Snapshot(message.into()));
-    commits.put(&commit)
+    commits.put(key, &commit)
 }
 
 pub fn message_of(commit: &Commit) -> Option<&str> {

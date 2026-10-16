@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit,
-    Root, SettingsContent, SettingsProfileContent, WORKSPACE_EDITOR,
+    MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent, WORKSPACE_EDITOR,
+    WorkspaceContent,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -54,6 +55,7 @@ fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
 #[derive(Default)]
 struct Cache {
     owned: Option<(u64, Vec<Uuid>)>,
+    my_files: Option<(u64, Option<Uuid>)>,
     settings: HashMap<Uuid, (u64, Settings)>,
     profiles: HashMap<Uuid, (u64, SettingsProfile)>,
     editors: HashMap<Uuid, (u64, Uuid)>,
@@ -82,6 +84,7 @@ impl Cache {
 pub(crate) struct RootSettings {
     shell: Uuid,
     created: Option<Uuid>,
+    created_files: Option<Uuid>,
     created_session: Option<Uuid>,
     chosen_session: Option<Uuid>,
     created_profile: Option<Uuid>,
@@ -94,6 +97,7 @@ impl RootSettings {
         Self {
             shell,
             created: None,
+            created_files: None,
             created_session: None,
             chosen_session: None,
             created_profile: None,
@@ -117,7 +121,9 @@ impl RootSettings {
         }
         let mut owned: Vec<Uuid> = be::query(be::Query::Roots)
             .into_iter()
-            .filter(|node| node.content_type == Settings::CONTENT_TYPE && node.author == account)
+            .filter(|node| {
+                node.content_type == Settings::CONTENT_TYPE && node.author == Some(account)
+            })
             .map(|node| node.id)
             .collect();
         owned.sort_unstable();
@@ -142,6 +148,46 @@ impl RootSettings {
             self.created = Some(block);
         }
         self.find()
+    }
+
+    pub(crate) fn my_files(&self) -> Option<Uuid> {
+        let account = be::account()?;
+        let revision = be::graph_revision();
+        let mut cache = self.cache.borrow_mut();
+        if let Some((seen, found)) = cache.my_files
+            && seen == revision
+        {
+            return found.or(self.created_files);
+        }
+        let found = be::query(be::Query::Roots)
+            .into_iter()
+            .filter(|node| {
+                node.content_type == WorkspaceContent::CONTENT_TYPE
+                    && node.author == Some(account)
+                    && node.metadata.get(&MY_FILES) == Some(true)
+            })
+            .map(|node| node.id)
+            .min();
+        cache.my_files = Some((revision, found));
+        found.or(self.created_files)
+    }
+
+    pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
+        if self.my_files().is_none() && be::graph_loaded() {
+            let block = Uuid::now_v7();
+            let mut metadata = BlockMetadata::default();
+            metadata.insert(&NAME, &"My files".to_owned());
+            metadata.insert(&MY_FILES, &true);
+            be::create(
+                block,
+                WorkspaceContent::CONTENT_TYPE,
+                BlockParent::Root,
+                metadata,
+                Some(WorkspaceContent::default().encode()),
+            );
+            self.created_files = Some(block);
+        }
+        self.my_files()
     }
 
     pub(crate) fn settings(&self) -> Option<Settings> {

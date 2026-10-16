@@ -35,7 +35,12 @@ async fn a_rename_and_an_unsaved_edit_both_reach_the_head() {
 
     let summary = laptop.summary(block).await.unwrap();
     assert_eq!(
-        laptop.metadata(&summary).unwrap().name().as_deref(),
+        laptop
+            .metadata_of_summary(&summary)
+            .await
+            .unwrap()
+            .name()
+            .as_deref(),
         Some("Groceries")
     );
     assert_eq!(

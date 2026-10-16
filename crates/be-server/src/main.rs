@@ -7,7 +7,7 @@ const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-id-file FILE]
-  be-server [--data-dir DIR] --add-account EMAIL NAME WORKSPACE < password
+  be-server [--data-dir DIR] --add-account EMAIL NAME ORGANIZATION < password
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -22,7 +22,7 @@ Usage:
   --build-id-file FILE      The build this server is, which every client must match; by
                             default the build-id file beside the executable, and with
                             neither it does not start
-  --add-account             Make an account that owns a new workspace, reading its password
+  --add-account             Make an account that owns a new organization, reading its password
                             from the first line of standard input
 
 A backup uploads every object the database references that the target does not
@@ -94,8 +94,10 @@ async fn run() -> Result<(), Box<dyn Error>> {
             "--add-account" => {
                 let email = arguments.next().ok_or("--add-account needs an email")?;
                 let display_name = arguments.next().ok_or("--add-account needs a name")?;
-                let workspace = arguments.next().ok_or("--add-account needs a workspace")?;
-                account = Some((email, display_name, workspace));
+                let organization = arguments
+                    .next()
+                    .ok_or("--add-account needs an organization")?;
+                account = Some((email, display_name, organization));
             }
             "--help" => {
                 println!("{USAGE}");
@@ -105,14 +107,15 @@ async fn run() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    if let Some((email, display_name, workspace)) = account {
+    if let Some((email, display_name, organization)) = account {
         eprintln!("Password for {email}:");
         let mut password = String::new();
         std::io::stdin().lock().read_line(&mut password)?;
         let password = password.trim_end_matches(['\r', '\n']);
-        let (account, workspace) =
-            be_server::add_account(&data_dir, &email, &display_name, password, &workspace).await?;
-        println!("account {account} owns workspace {workspace}");
+        let (account, organization) =
+            be_server::add_account(&data_dir, &email, &display_name, password, &organization)
+                .await?;
+        println!("account {account} owns organization {organization}");
         return Ok(());
     }
 

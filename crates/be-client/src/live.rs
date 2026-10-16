@@ -345,7 +345,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 from,
                 payload,
             } if block == self.block => {
-                let plain = self.peer.unseal(&payload)?;
+                let plain = self.peer.unseal(&payload).await?;
                 let Ok(message) = be_protocol::decode::<SessionMessage>(&plain) else {
                     self.unreadable_message();
                     return Ok(0);

@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
-use block_editor_beui::be_block::{BlockContent, FolderContent};
+use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::{
     BlockFilter, BlockInfo, BlockParent, BlockPick, ChildId, CreationProgress, PickRequest,
+    label_glyph,
 };
 use uuid::Uuid;
 
@@ -317,7 +318,11 @@ pub(crate) fn links(catalog: &BlockCatalog, pick: &Pick, blocks: &[BlockInfo]) -
     blocks
         .iter()
         .filter(|block| block.access.can_view())
-        .filter(|block| block.parent != BlockParent::Detached)
+        .filter(|block| {
+            block
+                .parent
+                .is_some_and(|parent| parent != BlockParent::Detached)
+        })
         .filter(|block| !excluded.contains(&block.id))
         .filter(|block| pick.allowed(block.block_type))
         .map(|block| (block.label(catalog), block.id, block.block_type))
@@ -329,8 +334,8 @@ pub(crate) fn links(catalog: &BlockCatalog, pick: &Pick, blocks: &[BlockInfo]) -
         .map(|(label, id, block_type)| LinkRow {
             id,
             block_type,
+            icon: label_glyph(&label).unwrap_or_default().to_owned(),
             name: label.name,
-            icon: label.icon.unwrap_or_default().to_owned(),
         })
         .collect()
 }
@@ -348,28 +353,31 @@ pub(crate) fn places(catalog: &BlockCatalog, pick: &Pick, blocks: &[BlockInfo]) 
     };
     let excluded = pick.excluded();
     let folder_type = FolderContent::CONTENT_TYPE;
+    let workspace_type = WorkspaceContent::CONTENT_TYPE;
     let folder = catalog.icon(folder_type).unwrap_or_default().to_owned();
     let mut folders: Vec<Place> = blocks
         .iter()
         .filter(|block| block.access.can_edit())
-        .filter(|block| block.parent != BlockParent::Detached)
-        .filter(|block| block.block_type == folder_type || place == BlockParent::Block(block.id))
+        .filter(|block| {
+            block
+                .parent
+                .is_some_and(|parent| parent != BlockParent::Detached)
+        })
+        .filter(|block| {
+            block.block_type == folder_type
+                || block.block_type == workspace_type
+                || place == BlockParent::Block(block.id)
+        })
         .filter(|block| !excluded.contains(&block.id) || place == BlockParent::Block(block.id))
         .map(|block| {
             let label = block.label(catalog);
             Place {
                 parent: BlockParent::Block(block.id),
+                icon: label_glyph(&label).map_or_else(|| folder.clone(), str::to_owned),
                 name: label.name,
-                icon: label.icon.map_or_else(|| folder.clone(), str::to_owned),
             }
         })
         .collect();
     folders.sort_by(|a, b| a.name.cmp(&b.name));
-    std::iter::once(Place {
-        parent: BlockParent::Root,
-        name: "Top level".to_owned(),
-        icon: folder,
-    })
-    .chain(folders)
-    .collect()
+    folders
 }

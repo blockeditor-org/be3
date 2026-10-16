@@ -73,7 +73,11 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
     let glyph = create_memo(move || {
         info.with(|info| {
             info.as_ref()
-                .and_then(|info| workspace.label(info.item.id, info.item.block_type).icon)
+                .and_then(|info| {
+                    block_editor_beui::label_glyph(
+                        &workspace.label(info.item.id, info.item.block_type),
+                    )
+                })
                 .unwrap_or_default()
                 .to_owned()
         })
@@ -251,7 +255,7 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
     let glyph = create_memo(move || {
         label
             .get()
-            .and_then(|label| label.icon)
+            .and_then(|label| block_editor_beui::label_glyph(&label))
             .unwrap_or_default()
             .to_owned()
     });
@@ -260,10 +264,7 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
             return;
         };
         workspace.set_sheet(PhoneSheet::Closed);
-        let via = match reference.parent {
-            BlockParent::Block(parent) => Some(parent),
-            BlockParent::Root | BlockParent::Detached => None,
-        };
+        let via = reference.parent.and_then(BlockParent::block);
         workspace.open(TabItem::new(reference.id, reference.block_type), via);
     };
     view! {

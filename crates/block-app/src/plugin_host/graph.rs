@@ -8,6 +8,7 @@ pub(crate) fn query_of(query: BlockQuery) -> Query {
         BlockQuery::All => Query::All,
         BlockQuery::Roots => Query::Roots,
         BlockQuery::Detached => Query::Detached,
+        BlockQuery::Shared => Query::Shared,
         BlockQuery::Children(id) => Query::Children(Uuid::from_bytes(id)),
         BlockQuery::References(id) => Query::References(Uuid::from_bytes(id)),
         BlockQuery::Backrefs(id) => Query::Backrefs(Uuid::from_bytes(id)),
@@ -52,10 +53,14 @@ pub(crate) fn grants_of(
                     account: entry.account.into_bytes(),
                     email: entry.email,
                     display_name: entry.display_name,
-                    administrator: matches!(entry.role, be_protocol::WorkspaceRole::Administrator),
+                    administrator: matches!(
+                        entry.role,
+                        be_protocol::OrganizationRole::Administrator
+                    ),
                     author: entry.author,
                     granted: entry.granted.map(level_of),
                     effective: level_of(entry.effective),
+                    waiting: entry.waiting,
                 })
                 .collect(),
         ),
@@ -76,14 +81,15 @@ pub(crate) fn info_of(node: &Node) -> BlockInfo {
     BlockInfo {
         block_id: node.id.into_bytes(),
         block_type: node.content_type.into_bytes(),
-        author: node.author.into_bytes(),
-        parent: location_of(node.parent),
+        author: node.author.map(Uuid::into_bytes),
+        parent: node.parent.map(location_of),
         references: node.references.iter().map(|id| id.into_bytes()).collect(),
         access: level_of(node.access),
         metadata: block_plugin_api::BlockMetadata {
             defined: wire_entries(&node.metadata.defined),
             derived: wire_entries(&node.metadata.derived),
         },
+        locked: node.locked,
     }
 }
 

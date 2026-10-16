@@ -35,7 +35,7 @@ fn a_first_desktop_with_no_sessions_offers_a_new_one() {
         .store()
         .block(session)
         .expect("the session exists");
-    assert_eq!(info.parent, BlockParent::Block(fixture.settings));
+    assert_eq!(info.parent, Some(BlockParent::Block(fixture.settings)));
     assert_eq!(info.name().as_deref(), Some("Session 1"));
     let settings: SettingsContent = fixture.test.content(Some(fixture.settings));
     assert!(

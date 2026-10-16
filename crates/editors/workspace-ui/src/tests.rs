@@ -41,6 +41,7 @@ mod sharing_a_block_grants_the_people_added_and_lists_them_again;
 mod showing_a_block_with_another_editor_switches_its_tab;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
+mod the_share_dialog_lists_again_when_a_contact_is_made;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
 const MAX_TAB: u64 = 64;

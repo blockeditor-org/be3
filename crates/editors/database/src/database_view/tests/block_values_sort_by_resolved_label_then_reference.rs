@@ -12,6 +12,7 @@ fn block_values_sort_by_resolved_label_then_reference() {
                 icon: None,
                 name: "Zulu".into(),
                 automatic: false,
+                reach: Default::default(),
             },
         ),
         (
@@ -21,12 +22,14 @@ fn block_values_sort_by_resolved_label_then_reference() {
                 icon: None,
                 name: "Alpha".into(),
                 automatic: false,
+                reach: Default::default(),
             },
         ),
     ]);
     let labels = BlockLabels {
         blocks: blocks.clone(),
         rows: Default::default(),
+        unreachable: Default::default(),
     };
     assert_eq!(
         compare_database_values(
@@ -47,6 +50,7 @@ fn block_values_sort_by_resolved_label_then_reference() {
             })
             .collect(),
         rows: Default::default(),
+        unreachable: Default::default(),
     };
     assert_eq!(
         compare_database_values(

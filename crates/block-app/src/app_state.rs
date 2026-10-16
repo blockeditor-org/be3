@@ -60,7 +60,7 @@ pub struct SavedAccount {
     pub name: String,
 
     pub token: String,
-    pub last_workspace_id: Option<Uuid>,
+    pub last_organization_id: Option<Uuid>,
     #[serde(default)]
     pub authorization: Option<String>,
 }

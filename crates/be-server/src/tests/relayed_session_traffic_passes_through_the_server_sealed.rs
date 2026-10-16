@@ -5,20 +5,20 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     let account = owner.register("owner@example.com").await;
-    let workspace = owner.workspace("notes").await;
+    let organization = owner.organization("notes").await;
     let block = owner.create_block(BlockParent::Root).await;
     let author = Author::new(account);
 
     let (owner_id, _) = owner.join_session(block).await;
     let mut peer = harness
-        .second_connection(&owner.token.clone(), workspace)
+        .second_connection(&owner.token.clone(), organization)
         .await;
     let (peer_id, state) = peer.join_session(block).await;
     assert_eq!(state.owner, Some(owner_id));
     assert!(state.participants.contains(&peer_id));
 
     let plaintext = b"insert \"the quick brown fox\" at 12";
-    let sealed = author.commits.vault().seal(plaintext);
+    let sealed = author.commits.vault().seal(KEY, plaintext).unwrap();
     assert!(
         !sealed
             .windows(plaintext.len())

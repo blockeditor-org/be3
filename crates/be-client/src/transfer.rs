@@ -227,8 +227,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         let commit = self.load_commit(head).await?;
-        self.fetch(&commit.manifest.chunk_hashes()).await?;
-        Ok(Some(self.commits().vault().read(&commit.manifest)?))
+        Ok(Some(self.read_manifest(&commit.manifest).await?))
     }
 
     pub async fn download_block(
@@ -242,7 +241,7 @@ impl<S: ObjectStore> Peer<S> {
             id: block,
             block_type,
             parent,
-            metadata: self.metadata(&summary)?,
+            metadata: self.metadata_of_summary(&summary).await?,
             content: self.head_content(&summary).await?,
             references: summary.references,
         })
@@ -252,7 +251,9 @@ impl<S: ObjectStore> Peer<S> {
         let Some(content) = &block.content else {
             return Ok(None);
         };
-        let manifest = self.commits().vault().write(block.block_type, content)?;
+        let manifest = self
+            .write_content(block.id, block.block_type, content)
+            .await?;
         self.publish_manifest(
             block.id,
             manifest,

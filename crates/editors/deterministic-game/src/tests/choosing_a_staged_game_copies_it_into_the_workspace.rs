@@ -50,7 +50,7 @@ fn choosing_a_staged_game_copies_it_into_the_workspace() {
     assert_ne!(module, game);
     assert_eq!(
         store.block(module).unwrap().parent,
-        BlockParent::Block(game)
+        Some(BlockParent::Block(game))
     );
     let copied = store.content::<GameModuleContent>(Some(module));
     assert_eq!(copied.data(), TIC_TAC_TOE);

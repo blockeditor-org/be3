@@ -8,6 +8,7 @@ license.workspace = true
 be-block = { path = "../be-block" }
 be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
+be-keys = { path = "../be-keys" }
 be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
@@ -42,6 +43,7 @@ web-sys = { version = "0.3", features = [
 
 [dev-dependencies]
 be-server = { path = "../be-server" }
+rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
 
 [lints]

@@ -180,7 +180,7 @@ impl Screens {
                 block_type,
                 view_block,
                 account_id,
-                workspace_id,
+                organization_id,
                 client_id,
                 editable,
             }) => {
@@ -190,7 +190,7 @@ impl Screens {
                 session.set_view_block(view_block.map(Uuid::from_bytes));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_workspace_id(Uuid::from_bytes(*workspace_id));
+                session.set_organization_id(Uuid::from_bytes(*organization_id));
                 session.set_editable(*editable);
                 session.connect(Uuid::from_bytes(*block_id), Uuid::from_bytes(*block_type));
             }
@@ -199,7 +199,7 @@ impl Screens {
                 block_type,
                 template,
                 account_id,
-                workspace_id,
+                organization_id,
                 client_id,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
@@ -207,7 +207,7 @@ impl Screens {
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_workspace_id(Uuid::from_bytes(*workspace_id));
+                session.set_organization_id(Uuid::from_bytes(*organization_id));
                 session.connect_creation(template.clone());
             }
             Message::Editor(EditorMessage::OpenArtifact {
@@ -216,7 +216,7 @@ impl Screens {
                 block_id,
                 block_type,
                 account_id,
-                workspace_id,
+                organization_id,
                 client_id,
                 data,
             }) => {
@@ -225,7 +225,7 @@ impl Screens {
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_workspace_id(Uuid::from_bytes(*workspace_id));
+                session.set_organization_id(Uuid::from_bytes(*organization_id));
                 session.connect_artifact(
                     Uuid::from_bytes(*block_id),
                     Uuid::from_bytes(*block_type),

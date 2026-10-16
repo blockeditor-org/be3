@@ -3,11 +3,11 @@ use std::{path::PathBuf, time::Duration};
 use be_commit::{Commit, CommitId, CommitStore};
 use be_graph::BlockParent;
 use be_protocol::{
-    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, ServerMessage, SessionState,
-    encode as encode_message,
+    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeyRow, KeySet, ServerMessage,
+    SessionState, WrappedBy, WrappedKey, encode as encode_message,
 };
 use be_session::{Resume, resume, takeover_needs_merge};
-use be_store::{ChunkerConfig, ContentKey, Hash, MemoryStore, ObjectStore, Vault};
+use be_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
 use futures_util::{SinkExt, StreamExt};
 use tokio::{net::TcpListener, sync::oneshot};
 use tokio_tungstenite::{
@@ -18,35 +18,47 @@ use uuid::Uuid;
 use super::*;
 
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
+mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
+mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
+mod a_graph_change_reaches_only_the_members_who_may_see_it;
+mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
+mod a_pending_grant_is_applied_when_its_link_is_accepted;
+mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
-mod an_invited_account_joins_the_workspace_and_a_logout_ends_the_session;
+mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
+mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod history_records_each_commits_parents;
+mod key_rows_are_served_only_to_who_may_see_their_block;
 mod metadata_travels_with_the_content_once_a_block_has_any;
+mod moving_a_block_drops_the_wraps_of_its_old_scope;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod pruning_history_keeps_pinned_commits;
 mod references_keep_the_order_their_block_lists_them_in;
+mod registering_joins_the_one_personal_organization_as_an_editor;
 mod relayed_session_traffic_passes_through_the_server_sealed;
+mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
-mod workspace_keys_are_sealed_per_member_and_never_overwritten;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
+const KEY: Uuid = Uuid::from_u128(0x006b_6579);
 
 const BUILD: &str = "a test build";
 
@@ -93,7 +105,7 @@ impl Harness {
         client
     }
 
-    async fn second_connection(&self, token: &str, workspace: Uuid) -> TestClient {
+    async fn second_connection(&self, token: &str, organization: Uuid) -> TestClient {
         let mut client = self.client().await;
         let response = client
             .send(|request| ClientMessage::Authenticate {
@@ -105,7 +117,7 @@ impl Harness {
             matches!(response, ServerMessage::Authenticated { .. }),
             "{response:?}"
         );
-        client.open(workspace).await;
+        client.open(organization).await;
         client
     }
 
@@ -241,33 +253,46 @@ impl TestClient {
         account
     }
 
-    async fn workspace(&mut self, name: &str) -> Uuid {
+    async fn organization(&mut self, name: &str) -> Uuid {
         let response = self
-            .send(|request| ClientMessage::CreateWorkspace {
+            .send(|request| ClientMessage::CreateOrganization {
                 request,
                 name: name.into(),
             })
             .await;
-        let ServerMessage::Workspaces { workspaces, .. } = response else {
-            panic!("workspace creation failed: {response:?}");
+        let ServerMessage::Organizations { organizations, .. } = response else {
+            panic!("organization creation failed: {response:?}");
         };
-        let workspace = workspaces[0].id;
-        self.open(workspace).await;
-        workspace
+        let organization = organizations[0].id;
+        self.open(organization).await;
+        organization
     }
 
-    async fn open(&mut self, workspace: Uuid) {
+    async fn open(&mut self, organization: Uuid) {
         let response = self
-            .send(|request| ClientMessage::OpenWorkspace { request, workspace })
+            .send(|request| ClientMessage::OpenOrganization {
+                request,
+                organization,
+            })
             .await;
         assert!(
-            matches!(response, ServerMessage::WorkspaceOpened { .. }),
+            matches!(response, ServerMessage::OrganizationOpened { .. }),
             "{response:?}"
         );
     }
 
     async fn create_block(&mut self, parent: BlockParent) -> Uuid {
         let block = Uuid::new_v4();
+        let key = Uuid::new_v4();
+        let keys = KeySet {
+            keys: vec![row(key, block, KeyKind::Data)],
+            wrapped: Vec::new(),
+        };
+        self.create_keyed(block, parent, key, keys).await;
+        block
+    }
+
+    async fn create_keyed(&mut self, block: Uuid, parent: BlockParent, key: Uuid, keys: KeySet) {
         let response = self
             .send(|request| ClientMessage::CreateBlock {
                 request,
@@ -275,13 +300,24 @@ impl TestClient {
                 content_type: CONTENT,
                 parent,
                 metadata: Vec::new(),
+                key,
+                keys,
             })
             .await;
         assert!(
             matches!(response, ServerMessage::Block { .. }),
             "{response:?}"
         );
-        block
+    }
+
+    async fn keys(&mut self, blocks: Option<Vec<Uuid>>) -> KeySet {
+        let response = self
+            .send(|request| ClientMessage::GetKeys { request, blocks })
+            .await;
+        let ServerMessage::Keys { keys, .. } = response else {
+            panic!("reading keys failed: {response:?}");
+        };
+        keys
     }
 
     async fn upload(&mut self, store: &MemoryStore, hashes: &[Hash]) {
@@ -354,6 +390,67 @@ impl TestClient {
     }
 }
 
+fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {
+    KeyRow {
+        id,
+        block,
+        kind,
+        epoch: 1,
+    }
+}
+
+fn wrap(key: Uuid, wrapped_by: WrappedBy, sealed: &[u8]) -> WrappedKey {
+    WrappedKey {
+        key,
+        wrapped_by,
+        sender: Uuid::nil(),
+        sealed: sealed.to_vec(),
+    }
+}
+
+struct Scoped {
+    block: Uuid,
+    data: Uuid,
+    scope: Uuid,
+}
+
+impl TestClient {
+    async fn scope_root(&mut self, account: Uuid, parent: BlockParent) -> Scoped {
+        let (block, data, scope) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let keys = KeySet {
+            keys: vec![
+                row(data, block, KeyKind::Data),
+                row(scope, block, KeyKind::Scope),
+            ],
+            wrapped: vec![
+                wrap(
+                    scope,
+                    WrappedBy::Account(account),
+                    b"scope sealed to its author",
+                ),
+                wrap(data, WrappedBy::Key(scope), b"data under the scope"),
+            ],
+        };
+        self.create_keyed(block, parent, data, keys).await;
+        Scoped { block, data, scope }
+    }
+
+    async fn inside(&mut self, scope: &Scoped) -> (Uuid, Uuid) {
+        let (block, data) = (Uuid::new_v4(), Uuid::new_v4());
+        let keys = KeySet {
+            keys: vec![row(data, block, KeyKind::Data)],
+            wrapped: vec![wrap(
+                data,
+                WrappedBy::Key(scope.scope),
+                b"data under the scope",
+            )],
+        };
+        self.create_keyed(block, BlockParent::Block(scope.block), data, keys)
+            .await;
+        (block, data)
+    }
+}
+
 struct Author {
     store: MemoryStore,
     commits: CommitStore<MemoryStore>,
@@ -365,8 +462,12 @@ impl Author {
         let store = MemoryStore::new();
         Self {
             commits: CommitStore::new(
-                Vault::new(store.clone(), ContentKey::from_bytes([5; 32]))
-                    .with_chunker(ChunkerConfig::SMALL),
+                Vault::new(store.clone(), {
+                    let keys = Keyring::new();
+                    keys.insert(KEY, ContentKey::from_bytes([5; 32]));
+                    keys
+                })
+                .with_chunker(ChunkerConfig::SMALL),
             ),
             store,
             account,
@@ -374,11 +475,14 @@ impl Author {
     }
 
     fn compose(&self, text: &[u8], time: i64, parent: Option<CommitId>) -> (CommitId, Vec<Hash>) {
-        let manifest = self.commits.vault().write(CONTENT, text).unwrap();
+        let manifest = self.commits.vault().write(KEY, CONTENT, text).unwrap();
         let chunks = manifest.chunk_hashes();
         let commit = self
             .commits
-            .put(&Commit::new(manifest, self.account, time).with_parent(parent))
+            .put(
+                KEY,
+                &Commit::new(manifest, self.account, time).with_parent(parent),
+            )
             .unwrap();
         (commit, chunks)
     }
@@ -406,4 +510,77 @@ async fn next_binary(socket: &mut Socket) -> Option<Vec<u8>> {
             Ok(_) => {}
         }
     }
+}
+
+impl TestClient {
+    async fn personal(&mut self) -> Uuid {
+        let response = self
+            .send(|request| ClientMessage::ListOrganizations { request })
+            .await;
+        let ServerMessage::Organizations { organizations, .. } = response else {
+            panic!("listing organizations failed: {response:?}");
+        };
+        let personal = organizations
+            .iter()
+            .find(|organization| organization.kind == be_protocol::OrganizationKind::Personal)
+            .expect("registering joined the personal organization")
+            .id;
+        self.open(personal).await;
+        personal
+    }
+
+    async fn link(&mut self, grant: Option<be_protocol::PendingGrant>) -> Uuid {
+        let link = Uuid::new_v4();
+        let response = self
+            .send(|request| ClientMessage::CreateContactLink {
+                request,
+                link,
+                card: b"the owner's card".to_vec(),
+                code: b"the code, sealed for the owner".to_vec(),
+                grant,
+            })
+            .await;
+        assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
+        link
+    }
+
+    async fn accept(&mut self, link: Uuid, key: &[u8]) -> ServerMessage {
+        self.send(|request| ClientMessage::AcceptContactLink {
+            request,
+            link,
+            card: b"the accepter's card".to_vec(),
+            contact: b"the owner's key, sealed for the accepter".to_vec(),
+            key: key.to_vec(),
+        })
+        .await
+    }
+
+    async fn contacts(&mut self) -> Vec<be_protocol::ContactRow> {
+        let response = self
+            .send(|request| ClientMessage::ListContacts { request })
+            .await;
+        let ServerMessage::Contacts { contacts, .. } = response else {
+            panic!("listing contacts failed: {response:?}");
+        };
+        contacts
+    }
+
+    async fn grant(
+        &mut self,
+        block: Uuid,
+        account: Uuid,
+        access: be_graph::Access,
+    ) -> ServerMessage {
+        self.send(|request| ClientMessage::SetAccess {
+            request,
+            block,
+            account,
+            access,
+        })
+        .await
+    }
+}
+
+fn refused_as(response: &ServerMessage, expected: ErrorCode) -> bool {
+    matches!(response, ServerMessage::Failed { code, .. } if *code == expected)
 }

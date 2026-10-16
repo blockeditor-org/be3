@@ -7,22 +7,13 @@ const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
-const WORKSPACE_KEYS_KEY: &str = "block.workspace-keys";
-const RECOVERY_KEYS_KEY: &str = "block.recovery-keys";
+const IDENTITY_KEY: &str = "block.identity-secrets";
 
 #[derive(serde::Deserialize, serde::Serialize)]
-struct StoredRecovery {
+struct StoredIdentity {
     server: String,
     account: Uuid,
-    public: [u8; 32],
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-struct StoredKey {
-    server: String,
-    account: Uuid,
-    workspace: Uuid,
-    key: [u8; 32],
+    secret: [u8; 32],
 }
 
 pub struct AppStateStore {
@@ -77,12 +68,10 @@ impl AppStateStore {
         let mut accounts = self.accounts()?;
         accounts.retain(|account| account.server != saved.server || account.id != saved.id);
         self.write(ACCOUNTS_KEY, &accounts)?;
-        let mut keys = self.stored_keys()?;
-        keys.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        self.write(WORKSPACE_KEYS_KEY, &keys)?;
-        let mut recovery = self.stored_recovery()?;
-        recovery.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        self.write(RECOVERY_KEYS_KEY, &recovery)?;
+        let mut identities = self.stored_identities()?;
+        identities
+            .retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        self.write(IDENTITY_KEY, &identities)?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -112,8 +101,7 @@ impl AppStateStore {
             CLIENT_ID_KEY,
             DISPLAY_SETTINGS_KEY,
             INPUT_SETTINGS_KEY,
-            WORKSPACE_KEYS_KEY,
-            RECOVERY_KEYS_KEY,
+            IDENTITY_KEY,
         ] {
             self.storage
                 .remove_item(key)
@@ -127,10 +115,10 @@ impl AppStateStore {
         Ok(active.map(|active| (active.server, active.id)))
     }
 
-    pub fn set_last_workspace(
+    pub fn set_last_organization(
         &self,
         saved: &SavedAccount,
-        workspace_id: Option<Uuid>,
+        organization_id: Option<Uuid>,
     ) -> Result<(), AppStateError> {
         let mut accounts = self.accounts()?;
         let Some(account) = accounts
@@ -139,84 +127,36 @@ impl AppStateStore {
         else {
             return Ok(());
         };
-        account.last_workspace_id = workspace_id;
+        account.last_organization_id = organization_id;
         self.write(ACCOUNTS_KEY, &accounts)
     }
 
-    fn stored_keys(&self) -> Result<Vec<StoredKey>, AppStateError> {
-        Ok(self.read(WORKSPACE_KEYS_KEY)?.unwrap_or_default())
+    fn stored_identities(&self) -> Result<Vec<StoredIdentity>, AppStateError> {
+        Ok(self.read(IDENTITY_KEY)?.unwrap_or_default())
     }
 
-    pub fn workspace_key(
-        &self,
-        saved: &SavedAccount,
-        workspace: Uuid,
-    ) -> Result<Option<[u8; 32]>, AppStateError> {
+    pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
         Ok(self
-            .workspace_keys(saved)?
-            .into_iter()
-            .find(|(stored, _)| *stored == workspace)
-            .map(|(_, key)| key))
-    }
-
-    pub fn workspace_keys(
-        &self,
-        saved: &SavedAccount,
-    ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
-        Ok(self
-            .stored_keys()?
-            .into_iter()
-            .filter(|stored| stored.server == saved.server.key() && stored.account == saved.id)
-            .map(|stored| (stored.workspace, stored.key))
-            .collect())
-    }
-
-    pub fn set_workspace_key(
-        &self,
-        saved: &SavedAccount,
-        workspace: Uuid,
-        key: [u8; 32],
-    ) -> Result<(), AppStateError> {
-        let mut keys = self.stored_keys()?;
-        keys.retain(|stored| {
-            stored.server != saved.server.key()
-                || stored.account != saved.id
-                || stored.workspace != workspace
-        });
-        keys.push(StoredKey {
-            server: saved.server.key().to_owned(),
-            account: saved.id,
-            workspace,
-            key,
-        });
-        self.write(WORKSPACE_KEYS_KEY, &keys)
-    }
-
-    fn stored_recovery(&self) -> Result<Vec<StoredRecovery>, AppStateError> {
-        Ok(self.read(RECOVERY_KEYS_KEY)?.unwrap_or_default())
-    }
-
-    pub fn recovery_key(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
-        Ok(self
-            .stored_recovery()?
+            .stored_identities()?
             .into_iter()
             .find(|stored| stored.server == saved.server.key() && stored.account == saved.id)
-            .map(|stored| stored.public))
+            .map(|stored| stored.secret))
     }
 
-    pub fn set_recovery_key(
+    pub fn set_identity(
         &self,
         saved: &SavedAccount,
-        public: [u8; 32],
+        secret: [u8; 32],
     ) -> Result<(), AppStateError> {
-        let mut recovery = self.stored_recovery()?;
-        recovery.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        recovery.push(StoredRecovery {
+        let mut identities = self.stored_identities()?;
+        identities
+            .retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        identities.push(StoredIdentity {
             server: saved.server.key().to_owned(),
             account: saved.id,
-            public,
+            secret,
         });
-        self.write(RECOVERY_KEYS_KEY, &recovery)
+        self.write(IDENTITY_KEY, &identities)
     }
 
     pub fn client_id(&self) -> Result<Uuid, AppStateError> {

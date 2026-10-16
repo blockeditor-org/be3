@@ -12,7 +12,7 @@ fn a_narrow_files_pane_on_a_desktop_keeps_the_tree() {
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
 
-    assert!(fixture.test.shown("file-tree.add-root"));
+    assert!(fixture.test.shown("file-tree.new-workspace"));
     assert!(
         !fixture.test.shown("file-tree.search"),
         "the phone page is only for a phone"

@@ -127,6 +127,7 @@ impl EditorMessage {
                     }
                     BlockCommand::Place { parent, .. } => existing(parent),
                     BlockCommand::Share
+                    | BlockCommand::Leave
                     | BlockCommand::Rename
                     | BlockCommand::Undo
                     | BlockCommand::Redo
@@ -155,9 +156,9 @@ impl EditorMessage {
                         location(place, &mut existing);
                     }
                 }
-                HostRequest::ListAccess(block_id) | HostRequest::ExportBlock(block_id) => {
-                    existing(block_id)
-                }
+                HostRequest::ListAccess(block_id)
+                | HostRequest::ExportBlock(block_id)
+                | HostRequest::ContactLink { block_id, .. } => existing(block_id),
                 HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
@@ -177,6 +178,7 @@ impl EditorMessage {
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
                 | HostReply::AccessListed(_)
+                | HostReply::ContactLinkMade(_)
                 | HostReply::BlocksImported(BlockImport::Cancelled | BlockImport::Failed(_)) => {}
             },
             Self::CreationBlock { outcome, .. } => match outcome {
@@ -214,7 +216,9 @@ impl EditorMessage {
                 self::query(query, &mut existing);
                 for block in blocks {
                     existing(&mut block.block_id);
-                    location(&mut block.parent, &mut existing);
+                    if let Some(parent) = &mut block.parent {
+                        location(parent, &mut existing);
+                    }
                     block.references.iter_mut().for_each(&mut existing);
                 }
             }
@@ -308,6 +312,6 @@ fn query(query: &mut BlockQuery, visit: &mut impl FnMut(&mut [u8; 16])) {
         | BlockQuery::Backrefs(block_id)
         | BlockQuery::Parents(block_id)
         | BlockQuery::Block(block_id) => visit(block_id),
-        BlockQuery::All | BlockQuery::Roots | BlockQuery::Detached => {}
+        BlockQuery::All | BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared => {}
     }
 }

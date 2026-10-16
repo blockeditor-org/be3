@@ -81,6 +81,16 @@ impl SessionRegistry {
             .then(|| lease.state().clone())
     }
 
+    pub async fn blocks_of(&self, client: ClientId) -> Vec<Uuid> {
+        self.sessions
+            .lock()
+            .await
+            .iter()
+            .filter(|(_, lease)| lease.state().participants.contains(&client))
+            .map(|(block, _)| *block)
+            .collect()
+    }
+
     pub async fn state(&self, block: Uuid) -> SessionState {
         self.sessions
             .lock()

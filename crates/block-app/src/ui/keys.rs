@@ -69,7 +69,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             <Show condition={replacing}>
                 <Text
                     style=TextStyle::PARAGRAPH
-                    string="Once you save this phrase, your old one stops working. Every workspace key sealed to the old phrase is sealed to this one instead."
+                    string="Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
                     wrap=true
                 />
             </Show>
@@ -135,9 +135,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
 #[component]
 pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
     let unlock = view.unlock;
-    let title = create_memo(move || format!("Unlock {}", unlock.get().workspace));
-    let sealed = create_memo(move || unlock.get().sealed);
-    let unsealed = create_memo(move || !sealed.get());
+    let title = create_memo(move || format!("Unlock {}", unlock.get().account));
     let code = create_memo(move || unlock.get().code.unwrap_or_default());
     let waiting = create_memo(move || unlock.get().code.is_some());
     let idle = create_memo(move || !waiting.get());
@@ -155,46 +153,35 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::TITLE string={title} />
             <Text
                 style=TextStyle::PARAGRAPH
-                string="This device does not have the key to this workspace yet."
+                string="This device does not have this account's key yet, so it cannot open anything the account keeps."
                 wrap=true
             />
-            <Show condition={sealed}>
-                {move || view! {
-                    <List spacing=8.0>
-                        <Text style=TextStyle::HEADING string="With your recovery phrase" />
-                        <TextInput
-                            value={phrase}
-                            label="Recovery phrase"
-                            placeholder="twelve words"
-                            on_change={move |value: String| set_phrase.set(value)}
-                            on_submit={move |_value: String| submit()}
-                        />
-                        <List direction=Direction::Horizontal spacing=8.0>
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <Button
-                                label="Unlock"
-                                variant=ButtonVariant::Primary
-                                disabled={cannot}
-                                on_click={open}
-                            />
-                        </List>
-                    </List>
-                }}
-            </Show>
-            <Show condition={unsealed}>
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="No key for this workspace is sealed to your recovery phrase yet. It will be the next time one of your devices that has the key opens a workspace."
-                    wrap=true
+            <List spacing=8.0>
+                <Text style=TextStyle::HEADING string="With your recovery phrase" />
+                <TextInput
+                    value={phrase}
+                    label="Recovery phrase"
+                    placeholder="twelve words"
+                    on_change={move |value: String| set_phrase.set(value)}
+                    on_submit={move |_value: String| submit()}
                 />
-            </Show>
+                <List direction=Direction::Horizontal spacing=8.0>
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Button
+                        label="Unlock"
+                        variant=ButtonVariant::Primary
+                        disabled={cannot}
+                        on_click={open}
+                    />
+                </List>
+            </List>
             <Text style=TextStyle::HEADING string="With another device" />
             <Show condition={idle}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Text
                         style=TextStyle::PARAGRAPH
                         @sizing=ItemSize::Percent(100.0)
-                        string="Open any workspace on a device that already has this one, and it will ask for a code."
+                        string="Open any organization of this account on a device that is unlocked, and it will ask for a code."
                         wrap=true
                     />
                     <Button
@@ -229,9 +216,9 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <ErrorText text={error} />
             <List direction=Direction::Horizontal spacing=8.0>
                 <Button
-                    label="Back to workspaces"
+                    label="Switch account"
                     variant=ButtonVariant::Ghost
-                    on_click={|| send(UiCommand::SwitchWorkspace)}
+                    on_click={|| send(UiCommand::SwitchAccount)}
                 />
             </List>
         </Column>
@@ -244,12 +231,12 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
     let open = create_memo(move || !pairing.get().is_empty());
     let request = create_memo(move || pairing.get().first().cloned());
     let message = create_memo(move || {
-        let (device, workspace) = request
+        let device = request
             .get()
-            .map(|request| (request.device, request.workspace))
+            .map(|request| request.device)
             .unwrap_or_default();
         format!(
-            "A {device} device wants to open {workspace}. If it is yours, type the code it shows."
+            "A {device} device wants this account's key. If it is yours, type the code it shows."
         )
     });
     let (code, set_code) = create_signal(String::new());

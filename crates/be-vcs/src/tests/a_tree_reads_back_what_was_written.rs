@@ -9,13 +9,13 @@ fn a_tree_reads_back_what_was_written() {
         (child, entry(Some(ROOT), manifest(&vault, "notes"))),
     ]);
 
-    let stored = written.write(&vault).unwrap();
+    let stored = written.write(&vault, KEY).unwrap();
 
     assert_eq!(Tree::read(&vault, &stored).unwrap(), written);
     assert_eq!(written.children(ROOT).collect::<Vec<_>>(), vec![child]);
     assert_eq!(
         stored,
-        written.write(&vault).unwrap(),
+        written.write(&vault, KEY).unwrap(),
         "the same tree was stored twice"
     );
 }

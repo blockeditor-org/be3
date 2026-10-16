@@ -5,7 +5,7 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     let harness = Harness::start().await;
     let mut laptop = harness.client().await;
     laptop.register("owner@example.com").await;
-    let workspace = laptop.workspace("notes").await;
+    laptop.organization("notes").await;
     let mut phone = harness.client().await;
     let response = phone
         .send(|request| ClientMessage::Authenticate {
@@ -16,46 +16,36 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     assert!(matches!(response, ServerMessage::Authenticated { .. }));
     let mut stranger = harness.member("stranger@example.com").await;
 
-    let refused = stranger
+    let unheard = stranger
         .send(|request| ClientMessage::Pair {
             request,
             to: None,
-            workspace,
             payload: b"let me in".to_vec(),
         })
         .await;
-    assert!(
-        matches!(refused, ServerMessage::Failed { .. }),
-        "a non-member asked to pair: {refused:?}"
-    );
+    assert!(matches!(unheard, ServerMessage::Ok { .. }), "{unheard:?}");
 
     let response = phone
         .send(|request| ClientMessage::Pair {
             request,
             to: None,
-            workspace,
             payload: b"request".to_vec(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    let ServerMessage::Paired {
-        from,
-        workspace: asked,
-        payload,
-    } = laptop.notification().await
-    else {
+    let ServerMessage::Paired { from, payload } = laptop.notification().await else {
         panic!("the laptop never heard the request");
     };
     assert_eq!(
-        (asked, payload.as_slice()),
-        (workspace, b"request".as_slice())
+        payload.as_slice(),
+        b"request".as_slice(),
+        "the laptop heard the stranger's request"
     );
 
     let response = laptop
         .send(|request| ClientMessage::Pair {
             request,
             to: Some(from),
-            workspace,
             payload: b"reply".to_vec(),
         })
         .await;
@@ -67,9 +57,9 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     );
 
     let response = stranger
-        .send(|request| ClientMessage::ListWorkspaces { request })
+        .send(|request| ClientMessage::ListOrganizations { request })
         .await;
-    assert!(matches!(response, ServerMessage::Workspaces { .. }));
+    assert!(matches!(response, ServerMessage::Organizations { .. }));
     assert!(
         stranger.notifications.is_empty(),
         "another account heard the pairing: {:?}",

@@ -1,4 +1,4 @@
-use be_store::{ChunkerConfig, ContentKey, MemoryStore, Vault};
+use be_store::{ChunkerConfig, ContentKey, Keyring, MemoryStore, Vault};
 use uuid::Uuid;
 
 use super::*;
@@ -19,11 +19,16 @@ mod three_way_merge_conflicts_when_both_sides_rewrite_a_region;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874_2d63_6f6e_7465_6e74_2d30_3031);
 const AUTHOR: Uuid = Uuid::from_u128(0xa170);
+const KEY: Uuid = Uuid::from_u128(0x6b65);
 
 fn store() -> CommitStore<MemoryStore> {
     CommitStore::new(
-        Vault::new(MemoryStore::new(), ContentKey::from_bytes([9; 32]))
-            .with_chunker(ChunkerConfig::SMALL),
+        Vault::new(MemoryStore::new(), {
+            let keys = Keyring::new();
+            keys.insert(KEY, ContentKey::from_bytes([9; 32]));
+            keys
+        })
+        .with_chunker(ChunkerConfig::SMALL),
     )
 }
 
@@ -34,7 +39,15 @@ fn commit(
     parent: Option<CommitId>,
 ) -> CommitId {
     store
-        .write(CONTENT, text.as_bytes(), AUTHOR, time, parent, Vec::new())
+        .write(
+            KEY,
+            CONTENT,
+            text.as_bytes(),
+            AUTHOR,
+            time,
+            parent,
+            Vec::new(),
+        )
         .unwrap()
 }
 

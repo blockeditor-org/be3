@@ -10,15 +10,17 @@ async fn read(client: &mut TestClient, hash: Hash) -> Option<Vec<u8>> {
     bytes
 }
 
-async fn join(owner: &mut TestClient, guest: &mut TestClient, workspace: Uuid, email: &str) {
+async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid, email: &str) {
     let response = owner
         .send(|request| ClientMessage::Invite {
             request,
             invitation: Uuid::from_u128(1),
-            workspace,
+            organization,
             email: email.into(),
-            role: WorkspaceRole::Editor,
+            role: OrganizationRole::Editor,
             sealed: Vec::new(),
+            code: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -26,9 +28,12 @@ async fn join(owner: &mut TestClient, guest: &mut TestClient, workspace: Uuid, e
         .send(|request| ClientMessage::AcceptInvitation {
             request,
             invitation: Uuid::from_u128(1),
+            card: Vec::new(),
+            contact: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
-    guest.open(workspace).await;
+    guest.open(organization).await;
 }
 
 #[tokio::test]
@@ -36,7 +41,7 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     let account = owner.register("owner@example.com").await;
-    let workspace = owner.workspace("private").await;
+    let organization = owner.organization("private").await;
     let author = Author::new(account);
     let block = owner.create_block(BlockParent::Root).await;
     let (commit, chunks) = author.compose(b"only for the owner\n", 1_000, None);
@@ -57,12 +62,12 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     assert!(read(&mut owner, unpublished.hash()).await.is_none());
 
     let mut outsider = harness.member("outsider@example.com").await;
-    outsider.workspace("elsewhere").await;
+    outsider.organization("elsewhere").await;
     assert!(read(&mut outsider, commit.hash()).await.is_none());
     assert!(read(&mut outsider, chunks[0]).await.is_none());
 
     let mut guest = harness.member("guest@example.com").await;
-    join(&mut owner, &mut guest, workspace, "guest@example.com").await;
+    join(&mut owner, &mut guest, organization, "guest@example.com").await;
     assert!(read(&mut guest, commit.hash()).await.is_none());
 
     let token = guest.token.clone();
@@ -76,7 +81,7 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     else {
         panic!("the guest could not re-authenticate: {response:?}");
     };
-    guest.open(workspace).await;
+    guest.open(organization).await;
     let response = owner
         .send(|request| ClientMessage::SetAccess {
             request,

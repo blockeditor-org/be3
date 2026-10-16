@@ -91,7 +91,7 @@ pub(crate) fn read_info(
     watched.follow(&workspace.blocks(), item.id);
     let access = workspace.access(item.id);
     let ceiling = workspace.ceiling(item.id);
-    let parent = workspace.info(item.id).map(|info| info.parent);
+    let parent = workspace.info(item.id).and_then(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let references = refs(watched.references.as_ref());
     let backrefs = refs(watched.backrefs.as_ref());

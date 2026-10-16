@@ -5,7 +5,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("one@example.com").await;
-    client.workspace("notes").await;
+    client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
 

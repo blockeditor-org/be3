@@ -31,7 +31,7 @@ pub(crate) struct FocusedEmbed {
 pub(crate) struct State {
     pub editor: Editor,
     pub block_id: Uuid,
-    pub workspace_id: Uuid,
+    pub organization_id: Uuid,
     link_base: Memo<String>,
     pub text: TextAreaState,
     pub embed_sizes: ReadSignal<HashMap<Uuid, Vec2>>,
@@ -92,7 +92,7 @@ impl State {
         let (embed_sizes, set_embed_sizes) = create_signal(HashMap::new());
         let (loaded, set_loaded) = create_signal(false);
         let state = Self {
-            workspace_id: editor.host().workspace_id(),
+            organization_id: editor.host().organization_id(),
             link_base: editor.host_value::<LinkBase>(),
             peers: editor.peers::<TextCursor>(),
             editor,
@@ -237,7 +237,7 @@ impl State {
         let markdown = self.text.language() == TextLanguage::Markdown;
         let link_base = self.link_base.get_untracked();
         let directive =
-            image_embed_directive(&link_base, self.workspace_id, &id, source_name, markdown);
+            image_embed_directive(&link_base, self.organization_id, &id, source_name, markdown);
         self.text
             .execute(EditorCommand::InsertText(directive.as_bytes()));
         self.text.reveal_cursor();

@@ -5,7 +5,7 @@ async fn objects_a_block_holds_outlive_its_commits_until_it_is_collected() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("keeper@example.com").await;
-    client.workspace("history").await;
+    client.organization("history").await;
     let author = Author::new(account);
 
     let repository = client.create_block(BlockParent::Root).await;

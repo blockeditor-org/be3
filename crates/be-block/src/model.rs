@@ -17,8 +17,8 @@ pub trait Root: Model + Send + Sync + 'static {
         Vec::new()
     }
 
-    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
-        let _ = workspace;
+    fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
+        let _ = organization;
         self.references()
     }
 
@@ -71,8 +71,8 @@ impl<R: Root> BlockContent for Document<R> {
         joined(self.root().references(), self.block_refs())
     }
 
-    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
-        joined(self.root().references_in(workspace), self.block_refs())
+    fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
+        joined(self.root().references_in(organization), self.block_refs())
     }
 
     fn describe(&self, metadata: &mut crate::BlockMetadata) {

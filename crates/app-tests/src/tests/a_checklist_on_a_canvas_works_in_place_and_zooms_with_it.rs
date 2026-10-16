@@ -5,7 +5,7 @@ const PANE: &str = "Pane \"Checklist\"";
 #[test]
 fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     let mut app = AppTest::start();
-    add_root_block(&mut app, "Canvas");
+    add_to_my_files(&mut app, "Canvas");
     add_to_canvas(&mut app, "Label value=\"Checklist\"");
     app.wait(PANE);
     let pane = app.place(PANE);

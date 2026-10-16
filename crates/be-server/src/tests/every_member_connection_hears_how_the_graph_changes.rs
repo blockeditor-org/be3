@@ -5,9 +5,9 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let harness = Harness::start().await;
     let mut author = harness.client().await;
     author.register("author@example.com").await;
-    let workspace = author.workspace("notes").await;
+    let organization = author.organization("notes").await;
     let mut other = harness
-        .second_connection(&author.token.clone(), workspace)
+        .second_connection(&author.token.clone(), organization)
         .await;
 
     let folder = author.create_block(BlockParent::Root).await;
@@ -47,7 +47,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let detached = other.graph_change().await;
     assert!(
         matches!(&detached, ServerMessage::BlockChanged { block }
-            if block.id == child && block.parent == BlockParent::Detached),
+            if block.id == child && block.parent == Some(BlockParent::Detached)),
         "{detached:?}"
     );
 
@@ -68,7 +68,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     );
     let removed = other.graph_change().await;
     assert!(
-        matches!(removed, ServerMessage::BlockRemoved { block } if block == child),
+        matches!(removed, ServerMessage::BlockRemoved { block, .. } if block == child),
         "{removed:?}"
     );
 

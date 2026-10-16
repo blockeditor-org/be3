@@ -771,7 +771,7 @@ pub fn watch_inverses(
                     && info.access.can_view()
             })
             .filter_map(|info| match info.parent {
-                crate::BlockParent::Block(parent) => Some(parent),
+                Some(crate::BlockParent::Block(parent)) => Some(parent),
                 _ => None,
             })
             .collect();
@@ -853,6 +853,7 @@ type RowTitles = Vec<(RowRef, String)>;
 pub struct RowLabels {
     pub labels: Memo<BTreeMap<RowRef, String>>,
     pub loaded: Memo<bool>,
+    pub unreachable: Memo<std::collections::BTreeSet<Uuid>>,
 }
 
 pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> RowLabels {
@@ -874,7 +875,18 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
             set_found.set(Some((wanted.clone(), all)));
         });
     });
+    let blocks = editor.blocks();
+    let unreachable = create_memo(move || {
+        databases.with(|databases| {
+            databases
+                .iter()
+                .copied()
+                .filter(|database| blocks.info(*database).is_some_and(|info| info.no_access()))
+                .collect()
+        })
+    });
     RowLabels {
+        unreachable,
         labels: create_memo(move || {
             found.with(|found| {
                 found

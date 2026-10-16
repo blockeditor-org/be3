@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, PoisonError},
     time::{Duration, Instant},
 };
 
@@ -9,7 +9,6 @@ use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerC
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
-use be_store::ContentKey;
 use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
@@ -103,12 +102,49 @@ pub(super) enum Command {
         code: String,
     },
     DismissPairing(u64),
+    Contact(ContactCommand),
+    Leave(Uuid),
+    Members(MembersCommand),
+}
+
+type MembersReply = Box<dyn FnOnce(Result<Vec<be_protocol::Member>, String>) + Send>;
+
+pub(super) enum MembersCommand {
+    List(MembersReply),
+    SetRole {
+        account: Uuid,
+        role: be_protocol::OrganizationRole,
+        reply: MembersReply,
+    },
+    Remove {
+        account: Uuid,
+        reply: MembersReply,
+    },
+}
+
+type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
+
+type CardReply = Box<dyn FnOnce(Result<be_keys::ContactCard, String>) + Send>;
+
+pub(super) enum ContactCommand {
+    Link {
+        offer: Option<(Uuid, Access)>,
+        reply: LinkReply,
+    },
+    Open {
+        code: be_keys::InviteCode,
+        reply: CardReply,
+    },
+    Accept {
+        code: be_keys::InviteCode,
+        reply: CardReply,
+    },
+    Remove(Uuid),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PairingRequest {
     pub(crate) from: u64,
-    pub(crate) workspace: Uuid,
     pub(crate) device: String,
     message: Vec<u8>,
 }
@@ -129,8 +165,10 @@ pub(crate) struct Shared {
     pub(crate) error: Option<String>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
-    pub(crate) other_keys: HashMap<Uuid, [u8; 32]>,
-    pub(crate) recovery: Option<[u8; 32]>,
+    pub(crate) contacts: Vec<be_client::Contact>,
+    pub(crate) contacts_revision: u64,
+    pub(crate) escrow_warning: Option<&'static str>,
+    pub(crate) locked: std::collections::HashSet<Uuid>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
@@ -257,6 +295,8 @@ pub(super) trait Session {
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn rekey(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
@@ -406,6 +446,10 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
+    }
+
+    fn rekey(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { rekey(&mut self.live).await })
     }
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -592,6 +636,10 @@ where
         Box::pin(async move { seal(&mut self.live).await })
     }
 
+    fn rekey(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { rekey(&mut self.live).await })
+    }
+
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move {
             let Ok(content) = C::decode(&bytes) else {
@@ -633,6 +681,20 @@ where
     C: LiveEdit + Merge + Clone + Default,
 {
     if !live.is_owner() || live.is_clean() {
+        return Ok(());
+    }
+    if matches!(live.seal().await?, Saved::Rejected { .. }) {
+        live.reconcile().await?;
+        live.seal().await?;
+    }
+    Ok(())
+}
+
+async fn rekey<C>(live: &mut Live<Store, C>) -> Result<(), ClientError>
+where
+    C: LiveEdit + Merge + Clone + Default,
+{
+    if !live.is_owner() || live.is_diverged() {
         return Ok(());
     }
     if matches!(live.seal().await?, Saved::Rejected { .. }) {
@@ -712,7 +774,10 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             changed.notify_all();
             return;
         }
-        shared.lock().unwrap().connected = false;
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connected = false;
         changed.notify_all();
         crate::host::wake();
         platform::sleep(RECONNECT_DELAY).await;
@@ -743,7 +808,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         Ok(peer) => {
             let resolving = Arc::clone(shared);
             peer.set_resolver(Arc::new(move |block, references| {
-                let held = resolving.lock().unwrap();
+                let held = resolving.lock().unwrap_or_else(PoisonError::into_inner);
                 let Some(scope) = held.graph.scope_of(block) else {
                     return references;
                 };
@@ -766,7 +831,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         }
     };
     {
-        let mut held = shared.lock().unwrap();
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.connected = true;
         held.error = None;
     }
@@ -774,10 +839,8 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
-    if let Err(error) = seal_own(&peer, shared).await {
-        record(shared, error);
-    }
     load_graph(&peer, shared).await;
+    sync_contacts(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
         rejoin(&peer, &mut sessions, shared, block, content_type).await;
@@ -795,6 +858,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut unsealed_since: Option<Instant> = None;
     let mut flushes = Vec::new();
+    let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
     loop {
         let deadline = unsealed_since.map(|since| since + SEAL_INTERVAL);
         let woken = match deadline {
@@ -809,7 +873,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             None => wait(commands, &mut events, &mut gone).await,
         };
-        shared.lock().unwrap().wakes += 1;
+        shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
         let sealed = match woken {
             Woken::Stopped => {
                 seal_all(&mut sessions, shared).await;
@@ -817,18 +881,30 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             Woken::Disconnected => return Outcome::Lost,
             Woken::Command(command) => {
-                let applied = apply(
-                    &peer,
-                    &mut sessions,
-                    shared,
-                    open,
-                    &mut versions,
-                    &mut flushes,
-                    command,
-                )
-                .await;
+                let applied = match command {
+                    Command::Contact(command) => {
+                        contact(&peer, shared, config, command).await;
+                        false
+                    }
+                    Command::Members(command) => {
+                        members(&peer, shared, command).await;
+                        false
+                    }
+                    command => {
+                        apply(
+                            &peer,
+                            &mut sessions,
+                            shared,
+                            open,
+                            &mut versions,
+                            &mut flushes,
+                            command,
+                        )
+                        .await
+                    }
+                };
                 {
-                    let mut held = shared.lock().unwrap();
+                    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                     held.pending = held.pending.saturating_sub(1);
                 }
                 crate::host::wake();
@@ -837,22 +913,35 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             Woken::Event(event) => {
                 match event {
                     Some(ServerMessage::BlockChanged { block }) => {
+                        if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
+                            record(shared, error);
+                        }
                         let node = node_of(&peer, &block);
-                        shared.lock().unwrap().graph.put(node);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .put(node, block.revision);
                     }
-                    Some(ServerMessage::BlockRemoved { block }) => {
-                        shared.lock().unwrap().graph.remove(block);
+                    Some(ServerMessage::BlockRemoved { block, revision }) => {
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .remove(block, revision);
                     }
                     Some(ServerMessage::HeadChanged { block, head, .. }) => {
-                        shared.lock().unwrap().graph.set_head(block, Some(head));
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .set_head(block, Some(head));
                     }
-                    Some(ServerMessage::Paired {
-                        from,
-                        workspace,
-                        payload,
-                    }) => {
-                        asked_to_pair(&peer, shared, from, workspace, &payload);
+                    Some(ServerMessage::Paired { from, payload }) => {
+                        asked_to_pair(shared, from, &payload);
                     }
+                    Some(ServerMessage::ContactsChanged) => sync_contacts(&peer, shared).await,
+                    Some(ServerMessage::KeyWorkChanged) => tend(&peer, shared).await,
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
                 }
@@ -871,6 +960,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 due
             }
         };
+        rekey_changed(&peer, &mut sessions, &mut keyed, shared).await;
         if sealed {
             unsealed_since = None;
         }
@@ -896,6 +986,27 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         changed.notify_all();
         if moved {
             crate::host::wake();
+        }
+    }
+}
+
+async fn rekey_changed(
+    peer: &Peer<Store>,
+    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
+    keyed: &mut HashMap<Uuid, Uuid>,
+    shared: &Arc<Mutex<Shared>>,
+) {
+    keyed.retain(|block, _| sessions.contains_key(block));
+    for (block, session) in sessions.iter_mut() {
+        let Some(key) = peer.current_key(*block) else {
+            continue;
+        };
+        if keyed
+            .insert(*block, key)
+            .is_some_and(|previous| previous != key)
+            && let Err(error) = session.rekey().await
+        {
+            record(shared, error);
         }
     }
 }
@@ -928,69 +1039,16 @@ async fn wait(
     }
 }
 
-async fn seal_own(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> Result<(), ClientError> {
-    let (recovery, held) = {
-        let held = shared.lock().unwrap();
-        let Some(recovery) = held.recovery else {
-            return Ok(());
-        };
-        let keys: Vec<(Uuid, [u8; 32])> = held
-            .other_keys
-            .iter()
-            .map(|(workspace, key)| (*workspace, *key))
-            .collect();
-        (recovery, keys)
-    };
-    let ServerMessage::Keys {
-        recovery: current,
-        sealed,
-        ..
-    } = peer
-        .connection()
-        .request(|request| ClientMessage::GetKeys { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
-    if current != Some(recovery) {
-        return Ok(());
-    }
-    let own = (peer.workspace(), *peer.commits().vault().key().as_bytes());
-    for (workspace, key) in std::iter::once(own).chain(held) {
-        if sealed.iter().any(|sealed| sealed.workspace == workspace) {
-            continue;
-        }
-        peer.connection()
-            .request(|request| ClientMessage::PutWorkspaceKey {
-                request,
-                workspace,
-                sealed: be_keys::RecoveryPublic(recovery).seal(&key),
-            })
-            .await?;
-    }
-    Ok(())
-}
-
-fn asked_to_pair(
-    peer: &Peer<Store>,
-    shared: &Arc<Mutex<Shared>>,
-    from: u64,
-    workspace: Uuid,
-    payload: &[u8],
-) {
+fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
     let Ok(be_keys::PairingMessage::Request { message, device }) =
         be_keys::PairingMessage::decode(payload)
     else {
         return;
     };
-    let mut held = shared.lock().unwrap();
-    if workspace != peer.workspace() && !held.other_keys.contains_key(&workspace) {
-        return;
-    }
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.pairing.retain(|request| request.from != from);
     held.pairing.push(PairingRequest {
         from,
-        workspace,
         device,
         message,
     });
@@ -1008,7 +1066,7 @@ async fn approve_pairing(
     code: &str,
 ) -> Result<(), ClientError> {
     let request = {
-        let mut held = shared.lock().unwrap();
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(index) = held.pairing.iter().position(|request| request.from == from) else {
             return Ok(());
         };
@@ -1019,38 +1077,157 @@ async fn approve_pairing(
             "that is not a pairing code".to_owned(),
         ));
     };
-    let workspace = request.workspace;
-    let content_key = match workspace == peer.workspace() {
-        true => *peer.commits().vault().key().as_bytes(),
-        false => match shared.lock().unwrap().other_keys.get(&workspace) {
-            Some(key) => *key,
-            None => return Ok(()),
-        },
-    };
-    let recovery = shared.lock().unwrap().recovery;
-    let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
+    let (pairing, message) = be_keys::Pairing::start(&code, peer.account().as_bytes());
     let key = pairing
         .finish(&request.message)
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
-    let sealed = key.seal(&content_key);
-    let recovery = recovery
-        .map(|recovery| key.seal(&recovery))
-        .unwrap_or_default();
-    let payload = be_keys::PairingMessage::Reply {
-        message,
-        sealed,
-        recovery,
-    }
-    .encode();
+    let sealed = key.seal(&peer.keys().identity().to_bytes());
+    let payload = be_keys::PairingMessage::Reply { message, sealed }.encode();
     peer.connection()
         .request(|request| ClientMessage::Pair {
             request,
             to: Some(from),
-            workspace,
             payload,
         })
         .await?;
     Ok(())
+}
+
+async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    let identity = peer.keys().identity();
+    match be_client::contacts::finish_links(peer.connection(), identity, peer.organization()).await
+    {
+        Ok(finished) => {
+            for done in finished {
+                let Some(grant) = done
+                    .grant
+                    .filter(|grant| grant.organization == peer.organization())
+                else {
+                    continue;
+                };
+                let account = Uuid::from_bytes(done.card.account);
+                if let Err(error) = peer
+                    .seal_share(grant.block, account, &done.card.public)
+                    .await
+                {
+                    record(shared, error);
+                }
+            }
+        }
+        Err(error) => record(shared, error),
+    }
+    match peer.refresh_contacts().await {
+        Ok(contacts) => {
+            let changed = {
+                let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                let changed = shared.contacts != contacts;
+                if changed {
+                    shared.contacts = contacts;
+                    shared.contacts_revision += 1;
+                }
+                changed
+            };
+            if changed {
+                load_graph(peer, shared).await;
+            }
+        }
+        Err(error) => record(shared, error),
+    }
+    tend(peer, shared).await;
+    crate::host::wake();
+}
+
+async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    if let Err(error) = peer.tend().await {
+        record(shared, error);
+    }
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .escrow_warning = peer
+        .keys()
+        .escrow_warning()
+        .map(be_client::EscrowWarning::message);
+    crate::host::wake();
+}
+
+async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: MembersCommand) {
+    let (changed, reply) = match command {
+        MembersCommand::List(reply) => (Ok(()), reply),
+        MembersCommand::SetRole {
+            account,
+            role,
+            reply,
+        } => (peer.set_role(account, role).await, reply),
+        MembersCommand::Remove { account, reply } => (peer.remove_member(account).await, reply),
+    };
+    if changed.is_ok() {
+        tend(peer, shared).await;
+    }
+    let listed = match changed {
+        Ok(()) => peer.members().await,
+        Err(error) => Err(error),
+    };
+    reply(listed.map_err(|error| error.to_string()));
+    crate::host::wake();
+}
+
+async fn contact(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    config: &Config,
+    command: ContactCommand,
+) {
+    let identity = peer.keys().identity();
+    let me = be_client::contacts::card(
+        peer.account(),
+        identity,
+        &config.display_name,
+        &config.email,
+    );
+    match command {
+        ContactCommand::Link { offer, reply } => {
+            let made = async {
+                let offer = match offer {
+                    Some((block, access)) => Some(peer.offer(block, access).await?),
+                    None => None,
+                };
+                be_client::contacts::make_link(peer.connection(), identity, &me, offer.as_ref())
+                    .await
+            }
+            .await;
+            reply(
+                made.map(|code| {
+                    crate::invite_link::contact_link(
+                        &crate::accounts::link_base(&config.server_url),
+                        &code,
+                    )
+                })
+                .map_err(|error| error.to_string()),
+            );
+        }
+        ContactCommand::Open { code, reply } => {
+            let opened = be_client::contacts::open_link(peer.connection(), &code)
+                .await
+                .map(|(_, card)| card);
+            reply(opened.map_err(|error| error.to_string()));
+        }
+        ContactCommand::Accept { code, reply } => {
+            let accepted =
+                be_client::contacts::accept_link(peer.connection(), identity, &me, &code).await;
+            if accepted.is_ok() {
+                sync_contacts(peer, shared).await;
+            }
+            reply(accepted.map_err(|error| error.to_string()));
+        }
+        ContactCommand::Remove(account) => {
+            match be_client::contacts::remove_contact(peer.connection(), account).await {
+                Ok(()) => sync_contacts(peer, shared).await,
+                Err(error) => record(shared, error),
+            }
+        }
+    }
+    crate::host::wake();
 }
 
 async fn rejoin(
@@ -1063,8 +1240,16 @@ async fn rejoin(
     let Some(kind) = super::kind_of(content_type) else {
         return;
     };
-    let owned = !kind.frozen && shared.lock().unwrap().owned.contains(&block);
-    match (kind.join)(peer, block).await {
+    let owned = !kind.frozen
+        && shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .owned
+            .contains(&block);
+    let joined = (kind.join)(peer, block).await;
+    set_locked(shared, block, matches!(joined, Err(ClientError::Locked(_))));
+    match joined {
+        Err(ClientError::Locked(_)) => {}
         Ok(mut session) => {
             set_unreadable(shared, block, None);
             if owned && reshaped(shared, block, kind) {
@@ -1097,7 +1282,7 @@ async fn rejoin(
 fn reshaped(shared: &Arc<Mutex<Shared>>, block: Uuid, kind: &super::Kind) -> bool {
     shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .get(block)
         .and_then(|node| node.metadata.get(&be_block::SCHEMA))
@@ -1111,8 +1296,22 @@ fn reset_notice() {
     );
 }
 
+fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let changed = match locked {
+        true => held.locked.insert(block),
+        false => held.locked.remove(&block),
+    };
+    if changed {
+        held.stale_revision += 1;
+        held.touch(block);
+        drop(held);
+        crate::host::wake();
+    }
+}
+
 fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String>) {
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let changed = match error {
         Some(error) => held.unreadable.insert(block, error.clone()) != Some(error),
         None => held.unreadable.remove(&block).is_some(),
@@ -1128,7 +1327,7 @@ fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String
 fn remember_head(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .set_head(block, peer.local_head(block));
 }
@@ -1136,7 +1335,7 @@ fn remember_head(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
 fn version_revisions(shared: &Arc<Mutex<Shared>>) -> u64 {
     shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .versions
         .values()
         .map(|state| state.revision)
@@ -1144,7 +1343,7 @@ fn version_revisions(shared: &Arc<Mutex<Shared>>) -> u64 {
 }
 
 fn set_busy(shared: &Arc<Mutex<Shared>>, block: Uuid, busy: bool, error: Option<String>) {
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let state = held.versions.entry(block).or_default();
     state.status.busy = busy;
     state.status.error = error;
@@ -1162,6 +1361,14 @@ async fn apply(
     command: Command,
 ) -> bool {
     match command {
+        Command::Contact(_) | Command::Members(_) => false,
+        Command::Leave(block) => {
+            if let Err(error) = peer.leave(block).await {
+                record(shared, error);
+            }
+            refresh(peer, shared, block).await;
+            true
+        }
         Command::WatchVersion(block) => {
             Versions::watch(shared, block);
             false
@@ -1176,7 +1383,7 @@ async fn apply(
         Command::DismissPairing(from) => {
             shared
                 .lock()
-                .unwrap()
+                .unwrap_or_else(PoisonError::into_inner)
                 .pairing
                 .retain(|request| request.from != from);
             crate::host::wake();
@@ -1207,7 +1414,11 @@ async fn apply(
             owned,
         } => {
             if owned {
-                shared.lock().unwrap().owned.insert(block);
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .owned
+                    .insert(block);
             }
             open.insert(block, content_type);
             if sessions.contains_key(&block) {
@@ -1225,7 +1436,7 @@ async fn apply(
                 record(shared, error);
             }
             let _ = peer.leave_session(block).await;
-            let mut held = shared.lock().unwrap();
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.blocks.remove(&block);
             held.graph.forget_derived(block);
             held.histories.remove(&block);
@@ -1249,7 +1460,11 @@ async fn apply(
             metadata,
         } => {
             let Some(copy) = super::copy_for(content_type) else {
-                shared.lock().unwrap().graph.settle(to);
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .settle(to);
                 return false;
             };
             let created = peer
@@ -1347,7 +1562,11 @@ async fn apply(
         }
         Command::SetParent { block, parent } => {
             let moved = peer.set_parent(block, parent).await;
-            let settled = shared.lock().unwrap().graph.settle(block);
+            let settled = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .settle(block);
             if let Err(error) = moved {
                 record(shared, error);
             }
@@ -1377,9 +1596,21 @@ async fn apply(
             account,
             access,
         } => {
-            if let Err(error) = peer.grant(block, account, access).await {
+            let verified = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .contacts
+                .iter()
+                .find(|contact| contact.account == account)
+                .and_then(|contact| contact.public);
+            let granted = match verified {
+                Some(public) => peer.share(block, account, access, &public).await,
+                None => peer.grant(block, account, access).await,
+            };
+            if let Err(error) = granted {
                 record(shared, error);
             }
+            tend(peer, shared).await;
             true
         }
         Command::ListAccess { block, reply } => {
@@ -1446,9 +1677,13 @@ async fn apply(
 async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     match peer.list_blocks().await {
         Ok(blocks) => {
+            if let Err(error) = peer.learn(&blocks).await {
+                record(shared, error);
+            }
+            let revision = blocks.iter().map(|block| block.revision).max();
             let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
-            let mut held = shared.lock().unwrap();
-            held.graph.load(nodes);
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.graph.load(nodes, revision.unwrap_or_default());
             held.stale_revision += 1;
         }
         Err(error) => record(shared, error),
@@ -1461,13 +1696,25 @@ async fn settled(
     block: Uuid,
     reply: Result<BlockSummary, ClientError>,
 ) -> Result<(), ClientError> {
-    if !shared.lock().unwrap().graph.settle(block) {
+    if !shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .graph
+        .settle(block)
+    {
         return reply.map(|_| ());
     }
     match reply {
         Ok(summary) => {
+            if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
+                record(shared, error);
+            }
             let node = node_of(peer, &summary);
-            shared.lock().unwrap().graph.put(node);
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .put(node, summary.revision);
             Ok(())
         }
         Err(error) => {
@@ -1480,17 +1727,30 @@ async fn settled(
 async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     match peer.summary(block).await {
         Ok(summary) => {
+            if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
+                record(shared, error);
+            }
             let node = node_of(peer, &summary);
-            shared.lock().unwrap().graph.put(node);
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .put(node, summary.revision);
         }
-        Err(ClientError::Refused(..)) => shared.lock().unwrap().graph.remove(block),
+        Err(ClientError::Refused(..)) => shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .forget(block),
         Err(error) => record(shared, error),
     }
 }
 
 pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
     let metadata = peer.metadata(summary);
+    let locked = summary.access.can_view() && matches!(metadata, Err(ClientError::Locked(_)));
     Node {
+        locked,
         id: summary.id,
         content_type: summary.content_type,
         author: summary.author,
@@ -1499,7 +1759,6 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         references: summary.references.clone(),
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
-        version: summary.version,
     }
 }
 
@@ -1513,7 +1772,7 @@ async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<M
 
 fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let known: std::collections::HashSet<Uuid> = {
-        let held = shared.lock().unwrap();
+        let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         sessions
             .keys()
             .filter(|block| held.blocks.contains_key(*block))
@@ -1551,7 +1810,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             }
         })
         .collect();
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let mut changed = held.owing != owing;
     held.unsealed = unsealed;
     held.owing = owing;
@@ -1624,21 +1883,21 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
     Peer::connect(
         PeerConfig::new(
             config.socket_url(),
-            ContentKey::from_bytes(config.content_key),
+            be_keys::RecoverySecret::from_bytes(config.identity),
             Credentials::Token(config.token.clone()),
         )
-        .workspace(Some(config.workspace)),
+        .organization(Some(config.organization)),
         store,
     )
     .await
 }
 
 fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
-    shared.lock().unwrap().error = Some(error.to_string());
+    shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(error.to_string());
 }
 
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
-    let mut held = shared.lock().unwrap();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.connected = false;
     held.error = Some(error);
 }

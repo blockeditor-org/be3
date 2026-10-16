@@ -17,7 +17,7 @@ const SCHEMA: &str = "
         email             TEXT NOT NULL,
         display_name      TEXT NOT NULL,
         token             TEXT NOT NULL,
-        last_workspace_id TEXT,
+        last_organization_id TEXT,
         authorization     TEXT,
         PRIMARY KEY (server_key, account_id)
     );
@@ -25,17 +25,10 @@ const SCHEMA: &str = "
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
-    CREATE TABLE workspace_keys (
-        server_key   TEXT NOT NULL,
-        account_id   TEXT NOT NULL,
-        workspace_id TEXT NOT NULL,
-        key          BLOB NOT NULL,
-        PRIMARY KEY (server_key, account_id, workspace_id)
-    );
-    CREATE TABLE recovery_keys (
+    CREATE TABLE identity_secrets (
         server_key TEXT NOT NULL,
         account_id TEXT NOT NULL,
-        public     BLOB NOT NULL,
+        secret     BLOB NOT NULL,
         PRIMARY KEY (server_key, account_id)
     );
     CREATE TABLE input_settings (
@@ -119,7 +112,7 @@ impl AppStateStore {
 
     pub fn accounts(&self) -> Result<Vec<SavedAccount>, AppStateError> {
         let mut statement = self.connection.prepare(
-            "SELECT server_key, server_url, account_id, email, display_name, token, last_workspace_id,
+            "SELECT server_key, server_url, account_id, email, display_name, token, last_organization_id,
                     authorization
              FROM saved_accounts ORDER BY display_name COLLATE NOCASE, account_id",
         )?;
@@ -128,7 +121,7 @@ impl AppStateStore {
                 let server_key = row.get::<_, String>(0)?;
                 let server_url = row.get::<_, Option<String>>(1)?;
                 let account_id = parse_uuid(row.get::<_, String>(2)?)?;
-                let last_workspace_id = row
+                let last_organization_id = row
                     .get::<_, Option<String>>(6)?
                     .map(parse_uuid)
                     .transpose()?;
@@ -142,7 +135,7 @@ impl AppStateStore {
                     email: row.get(3)?,
                     name: row.get(4)?,
                     token: row.get(5)?,
-                    last_workspace_id,
+                    last_organization_id,
                     authorization: row.get(7)?,
                 })
             })?
@@ -157,7 +150,7 @@ impl AppStateStore {
         };
         self.connection.execute(
             "INSERT INTO saved_accounts
-             (server_key, server_url, account_id, email, display_name, token, last_workspace_id,
+             (server_key, server_url, account_id, email, display_name, token, last_organization_id,
               authorization)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(server_key, account_id) DO UPDATE SET
@@ -165,7 +158,7 @@ impl AppStateStore {
                 email = excluded.email,
                 display_name = excluded.display_name,
                 token = excluded.token,
-                last_workspace_id = excluded.last_workspace_id,
+                last_organization_id = excluded.last_organization_id,
                 authorization = excluded.authorization",
             params![
                 saved.server.key(),
@@ -174,7 +167,7 @@ impl AppStateStore {
                 &saved.email,
                 &saved.name,
                 &saved.token,
-                saved.last_workspace_id.map(|id| id.to_string()),
+                saved.last_organization_id.map(|id| id.to_string()),
                 &saved.authorization
             ],
         )?;
@@ -187,11 +180,7 @@ impl AppStateStore {
             params![saved.server.key(), saved.id.to_string()],
         )?;
         self.connection.execute(
-            "DELETE FROM workspace_keys WHERE server_key = ?1 AND account_id = ?2",
-            params![saved.server.key(), saved.id.to_string()],
-        )?;
-        self.connection.execute(
-            "DELETE FROM recovery_keys WHERE server_key = ?1 AND account_id = ?2",
+            "DELETE FROM identity_secrets WHERE server_key = ?1 AND account_id = ?2",
             params![saved.server.key(), saved.id.to_string()],
         )?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
@@ -222,116 +211,50 @@ impl AppStateStore {
         }
     }
 
-    pub fn set_last_workspace(
+    pub fn set_last_organization(
         &self,
         saved: &SavedAccount,
-        workspace_id: Option<Uuid>,
+        organization_id: Option<Uuid>,
     ) -> Result<(), AppStateError> {
         self.connection.execute(
-            "UPDATE saved_accounts SET last_workspace_id = ?3
+            "UPDATE saved_accounts SET last_organization_id = ?3
              WHERE server_key = ?1 AND account_id = ?2",
             params![
                 saved.server.key(),
                 saved.id.to_string(),
-                workspace_id.map(|id| id.to_string())
+                organization_id.map(|id| id.to_string())
             ],
         )?;
         Ok(())
     }
 
-    pub fn workspace_key(
-        &self,
-        saved: &SavedAccount,
-        workspace: Uuid,
-    ) -> Result<Option<[u8; 32]>, AppStateError> {
-        let key: Option<Vec<u8>> = self
+    pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
+        let secret: Option<Vec<u8>> = self
             .connection
             .query_row(
-                "SELECT key FROM workspace_keys
-                 WHERE server_key = ?1 AND account_id = ?2 AND workspace_id = ?3",
-                params![
-                    saved.server.key(),
-                    saved.id.to_string(),
-                    workspace.to_string()
-                ],
-                |row| row.get(0),
-            )
-            .optional()?;
-        key.map(|key| {
-            key.try_into()
-                .map_err(|_| AppStateError::from("a stored workspace key is corrupt".to_owned()))
-        })
-        .transpose()
-    }
-
-    pub fn workspace_keys(
-        &self,
-        saved: &SavedAccount,
-    ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
-        let mut statement = self.connection.prepare(
-            "SELECT workspace_id, key FROM workspace_keys WHERE server_key = ?1 AND account_id = ?2",
-        )?;
-        let rows = statement
-            .query_map(params![saved.server.key(), saved.id.to_string()], |row| {
-                Ok((parse_uuid(row.get(0)?)?, row.get::<_, Vec<u8>>(1)?))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        rows.into_iter()
-            .map(|(workspace, key)| {
-                let key = key.try_into().map_err(|_| {
-                    AppStateError::from("a stored workspace key is corrupt".to_owned())
-                })?;
-                Ok((workspace, key))
-            })
-            .collect()
-    }
-
-    pub fn set_workspace_key(
-        &self,
-        saved: &SavedAccount,
-        workspace: Uuid,
-        key: [u8; 32],
-    ) -> Result<(), AppStateError> {
-        self.connection.execute(
-            "INSERT OR REPLACE INTO workspace_keys (server_key, account_id, workspace_id, key)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![
-                saved.server.key(),
-                saved.id.to_string(),
-                workspace.to_string(),
-                key.to_vec()
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn recovery_key(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
-        let public: Option<Vec<u8>> = self
-            .connection
-            .query_row(
-                "SELECT public FROM recovery_keys WHERE server_key = ?1 AND account_id = ?2",
+                "SELECT secret FROM identity_secrets WHERE server_key = ?1 AND account_id = ?2",
                 params![saved.server.key(), saved.id.to_string()],
                 |row| row.get(0),
             )
             .optional()?;
-        public
-            .map(|public| {
-                public
-                    .try_into()
-                    .map_err(|_| AppStateError::from("a stored recovery key is corrupt".to_owned()))
+        secret
+            .map(|secret| {
+                secret.try_into().map_err(|_| {
+                    AppStateError::from("a stored identity secret is corrupt".to_owned())
+                })
             })
             .transpose()
     }
 
-    pub fn set_recovery_key(
+    pub fn set_identity(
         &self,
         saved: &SavedAccount,
-        public: [u8; 32],
+        secret: [u8; 32],
     ) -> Result<(), AppStateError> {
         self.connection.execute(
-            "INSERT OR REPLACE INTO recovery_keys (server_key, account_id, public)
+            "INSERT OR REPLACE INTO identity_secrets (server_key, account_id, secret)
              VALUES (?1, ?2, ?3)",
-            params![saved.server.key(), saved.id.to_string(), public.to_vec()],
+            params![saved.server.key(), saved.id.to_string(), secret.to_vec()],
         )?;
         Ok(())
     }

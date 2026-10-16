@@ -121,8 +121,8 @@ impl<S: ObjectStore> CommitStore<S> {
         &self.vault
     }
 
-    pub fn put(&self, commit: &Commit) -> Result<CommitId, StoreError> {
-        Ok(CommitId(self.vault.put_value(commit)?))
+    pub fn put(&self, key: Uuid, commit: &Commit) -> Result<CommitId, StoreError> {
+        Ok(CommitId(self.vault.put_value(key, commit)?))
     }
 
     pub fn get(&self, id: CommitId) -> Result<Commit, StoreError> {
@@ -148,8 +148,10 @@ impl<S: ObjectStore> CommitStore<S> {
         self.vault.has_value(id.0)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn write(
         &self,
+        key: Uuid,
         content_type: Uuid,
         data: &[u8],
         author: Uuid,
@@ -157,11 +159,11 @@ impl<S: ObjectStore> CommitStore<S> {
         parent: Option<CommitId>,
         references: Vec<Uuid>,
     ) -> Result<CommitId, StoreError> {
-        let manifest = self.vault.write(content_type, data)?;
+        let manifest = self.vault.write(key, content_type, data)?;
         let commit = Commit::new(manifest, author, time)
             .with_parent(parent)
             .with_references(references);
-        self.put(&commit)
+        self.put(key, &commit)
     }
 
     pub fn read(&self, id: CommitId) -> Result<Vec<u8>, StoreError> {

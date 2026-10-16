@@ -159,7 +159,7 @@ impl ViewData {
         });
         let targets = create_memo(move || fields.with(|fields| relation_targets(fields)));
         let row_labels = watch_row_labels(editor, targets);
-        let (labels, labels_loaded) = watch_labels(editor, database_id, rows, row_labels.labels);
+        let (labels, labels_loaded) = watch_labels(editor, database_id, rows, row_labels);
 
         let (selected, set_selected) = create_signal(None::<Selection>);
         let (error, set_error) = create_signal(None::<String>);
@@ -362,7 +362,8 @@ impl ViewData {
         let blocks = self.editor.blocks();
         let parent = blocks
             .info(self.editor.block_id())
-            .map_or(BlockParent::Detached, |info| info.parent);
+            .and_then(|info| info.parent)
+            .unwrap_or(BlockParent::Detached);
         let mut view = DatabaseView::of(database);
         view.kind = DatabaseViewKind::List;
         view.group_by = self.group_by.get_untracked();
@@ -596,7 +597,7 @@ fn watch_labels(
     editor: Editor,
     database_id: Memo<Option<Uuid>>,
     rows: Memo<Vec<DatabaseRow>>,
-    row_labels: Memo<std::collections::BTreeMap<RowRef, String>>,
+    row_labels: block_editor_beui::database::RowLabels,
 ) -> (Memo<BlockLabels>, Memo<bool>) {
     let (labels, set_labels) = create_signal(HashMap::<Uuid, BlockLabel>::new());
     let (loaded, set_loaded) = create_signal(false);
@@ -632,7 +633,8 @@ fn watch_labels(
     });
     let labels = create_memo(move || BlockLabels {
         blocks: labels.get(),
-        rows: row_labels.get(),
+        rows: row_labels.labels.get(),
+        unreachable: row_labels.unreachable.get(),
     });
     (labels, create_memo(move || loaded.get()))
 }

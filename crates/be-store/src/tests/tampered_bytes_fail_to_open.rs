@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn tampered_bytes_fail_to_open() {
     let vault = vault(6);
-    let sealed = vault.seal(b"the quick brown fox");
+    let sealed = vault.seal(id(6), b"the quick brown fox").unwrap();
     assert_eq!(vault.open(&sealed).unwrap(), b"the quick brown fox");
 
     let mut flipped = sealed.clone();
