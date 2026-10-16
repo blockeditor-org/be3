@@ -52,6 +52,8 @@ Design principles:
   - Do not edit files named README.md.
   - Write guides for agents. Add something to a guide only if a summary of that area written from scratch would include it. Put notes that only help humans in the PR description, the handoff message, or both.
   - Don't repeat in other files what AGENTS.md already says; every agent reads it at startup.
+- Sharing:
+  - No in-app reach to strangers: every sharing or messaging relationship starts with an out-of-band contact link.
 - Testing:
   - Don't sleep in tests. Wait on an explicit signal, and read time from the frame clock (`ctx.now()` or `timer::now()`), never `Instant::now()`, so tests can advance time instead.
   - Add a painting that demonstrates each visual change or feature (see guides/testing_a_gui.md). If an existing painting already shows the change, that's enough.
