@@ -1166,6 +1166,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui_gallery"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-demo",
+ "block-editor-beui",
+ "block-ui-test",
+ "uuid",
+]
+
+[[package]]
 name = "beui_macros"
 version = "0.1.0"
 dependencies = [
@@ -1293,7 +1304,6 @@ dependencies = [
  "be-wayland",
  "beui",
  "beui-adapter-drm",
- "beui-demo",
  "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
