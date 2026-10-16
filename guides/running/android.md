@@ -1,10 +1,16 @@
 # Running the app on Android
 
-The emulator runs with or without KVM. Without it (Claude Code's cloud containers have no
-`/dev/kvm`), `./scripts/android-emulator` boots it with `-accel off`: the first boot,
-including downloading the SDK, takes about 20 minutes and launching the app a few more,
-but the app runs, paints and logs as it does on a device. Run the boot in the background
-and end your turn until it finishes. Once booted, the emulator stays up between runs.
+The Android emulator needs KVM. Check before anything else:
+
+    test -r /dev/kvm && test -w /dev/kvm && echo ok
+
+If that does not print `ok`, give up on the emulator: do not install the SDK, boot the
+emulator without acceleration, or try to work around it. Without KVM the system image
+never becomes usable. Say in your handoff message that the change was not run on Android.
+
+Claude Code's cloud containers have no KVM: `/dev/kvm` does not exist and the CPU does not
+expose `vmx`/`svm` to the guest, so there the emulator cannot run. Only building the APK
+works.
 
 ## Starting it
 

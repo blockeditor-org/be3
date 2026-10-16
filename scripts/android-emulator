@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Without KVM it boots unaccelerated, which is slow but works. See
-# guides/running/android.md.
+# This needs KVM. If /dev/kvm is not readable and writable, give up: do not try
+# to run the Android emulator. See guides/running/android.md.
 #
 # Boots an Android emulator (if one isn't running), installs be3's APK, launches
 # it, and prints the app's logcat plus a screenshot path.
@@ -33,7 +33,7 @@ while [ $# -gt 0 ]; do
         --apk) APK="$2"; shift 2 ;;
         --wait) WAIT="$2"; shift 2 ;;
         --no-install) INSTALL=false; shift ;;
-        -h|--help) sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 1 ;;
     esac
 done
