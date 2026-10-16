@@ -14,6 +14,7 @@ mod file_chooser;
 pub mod fonts;
 pub mod headless;
 mod instance;
+pub mod live_text;
 mod loading;
 mod related_content;
 pub mod version_control;

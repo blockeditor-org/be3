@@ -1074,30 +1074,26 @@ same way rather than joining it to the peer's `UserActive` entry.
 
 Canvas text is a `Text` on its entity rather than part of the `kind` register,
 and an `Update` never touches it, so a stale copy of an entity cannot undo
-someone's typing. Each text field on the canvas edits that sequence live, like
-the text editor: `infinite_canvas::app::live_text::LiveText` is a
-`text_editor_core::Document` over a copy of it whose edits go out as the
-field's own text operations, and it adopts the projection's sequence whenever
-`Canvas::text_touched` says that field changed, so carets keep their characters
-and its undo is the block's. Its caret is shared as `Position` anchors, which
+someone's typing. Each text field on the canvas edits that sequence live
+through `LiveText` (below), and shares its caret as `Position` anchors, which
 every peer resolves against the same characters.
 
 ### Editors with their own model
 
-The text editor cannot hand its state to a projection: `text_editor_core` wants
-a `Document` that hands out anchors, so a cursor stays on its character while
-other people type. An anchor names one byte and dies with it. Only the bytes
-something holds a position on have one: `text_editor_core::AnchorTable` makes
-them on demand and moves them on every edit, so its cost follows the cursors and
-undo steps, not the length of the text. `text_block::document::BlockDocument`
-keeps the bytes and their table itself, turns each local edit into
-`TextOp::Delete` and `TextOp::Insert` that the editor pushes into its
-`ContentProjection` every frame, and adopts a change from elsewhere by diffing
-the projection's text against its own: anchors on unchanged bytes move with
-them, and the rest are dropped. Its undo is its own too, because it has to give the text core back its
-cursors. Each step remembers the anchors either side of the text it replaced
-and both versions of that text, so undo finds the text wherever it has moved to
-and skips it when someone else has changed it since.
+A text field cannot hand its state to a projection: `text_editor_core` wants a
+`Document` that hands out anchors, so a cursor stays on its character while
+other people type. `block_editor_beui::live_text::LiveText` is that document
+for any `Text` in a block, named by a `TextField` (the object and field it
+lives in, and optionally a language and indentation it reads and writes): the
+text editor's body (`text_block::document::TextBody`) and each canvas text
+(`EntityText`) use it. It keeps its own copy of the sequence, whose `Pos` ids are
+the shared ones, so an anchor means the same character to every peer. A local
+edit is applied to that copy and queued as the field's own text operations.
+`LiveText::sync` sends them to the `ContentProjection` and then catches up: it
+applies the projection's recorded edits to the copy when they touch only its
+text, and otherwise adopts the projection's sequence whole, which keeps every
+anchor on a character that survived. Undo and redo go to the host, so they are
+the block's history.
 
 Dynamic artifacts reach content from the artifact session through the
 host: `EditorHost::content_of` gives a regeneration a projection of its source,

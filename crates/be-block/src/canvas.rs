@@ -1,8 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use be_model::{
-    Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, SeqOp, Sequence, Text,
-    Touched,
+    Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, Sequence, Text,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -343,12 +342,8 @@ impl Canvas {
         content.text(ObjectId::from_uuid(entity), Entity::TEXT)
     }
 
-    pub fn text_edit(entity: Uuid, op: SeqOp<u8>) -> Change {
-        Entity::TEXT.edit(ObjectId::from_uuid(entity), op)
-    }
-
-    pub fn text_touched(entity: Uuid) -> Touched {
-        Touched::Field(ObjectId::from_uuid(entity), Entity::TEXT.index())
+    pub fn text_field(entity: Uuid) -> (ObjectId, u16) {
+        (ObjectId::from_uuid(entity), Entity::TEXT.index())
     }
 
     pub fn replace_text(
@@ -359,7 +354,7 @@ impl Canvas {
         bytes: &[u8],
     ) -> Option<Edit> {
         let op = Self::text(content, entity)?.replace(client, range, bytes.to_vec())?;
-        Some(Self::text_edit(entity, op).into())
+        Some(Entity::TEXT.edit(ObjectId::from_uuid(entity), op).into())
     }
 
     pub fn edit_for(&self, operation: &InfiniteCanvasOperation) -> Edit {

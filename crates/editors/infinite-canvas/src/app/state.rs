@@ -10,6 +10,7 @@ use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::be_block::be_model::{ObjectId, Sequence, Touched};
 use block_editor_beui::be_block::canvas::{
     Canvas, CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
     CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation,
@@ -21,6 +22,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::TextAreaState;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::live_text::{LiveText, Synced, TextField};
 use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
@@ -29,8 +31,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::geometry::*;
-
-use super::live_text::{History, LiveText};
 use crate::images::{image_filter, imported_image};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
@@ -279,7 +279,6 @@ struct CanvasCells {
     shown: RefCell<Option<CanvasCursor>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
-    client: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -359,7 +358,6 @@ impl CanvasState {
             shown: RefCell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
-            client: Uuid::new_v4().as_u64_pair().0 | 1 << 63,
         });
         Self {
             cells,
@@ -790,52 +788,35 @@ impl CanvasState {
 
     pub(crate) fn live_text(&self, entity: Uuid) -> TextAreaState {
         let cells = self.cells.get();
-        let held = cells
-            .content
-            .read(|canvas| Canvas::text(canvas, entity).cloned())
-            .flatten()
-            .unwrap_or_default();
         let document = Arc::new(LiveText::new(
-            entity,
-            cells.client,
-            held,
+            EntityText(entity),
             self.editor.host().waker(),
         ));
+        cells.content.read(|canvas| document.adopt(canvas));
+        document.take_external_edit();
         let area = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
+        let (object, field) = Canvas::text_field(entity);
         let shared = cells
             .content
-            .project_on(Canvas::text_touched(entity), move |canvas| {
+            .project_on(Touched::Field(object, field), move |canvas| {
                 Canvas::text(canvas, entity).cloned()
             });
         let state = *self;
         create_effect(move || {
             area.content().get();
             shared.with(|_| ());
-            untrack(|| state.sync_text(entity, &document, area));
+            untrack(|| {
+                let Some(cells) = state.cells.try_get() else {
+                    return;
+                };
+                let host = state.editor.host();
+                match document.sync(cells.content, &host, state.block_id(), true) {
+                    Synced::External => area.external_edit(),
+                    Synced::Unchanged | Synced::Waiting => area.sync(),
+                }
+            });
         });
         area
-    }
-
-    fn sync_text(&self, entity: Uuid, document: &LiveText, area: TextAreaState) {
-        let Some(cells) = self.cells.try_get() else {
-            return;
-        };
-        for operation in document.take_operations() {
-            cells.content.operate(operation);
-        }
-        match document.take_history() {
-            Some(History::Undo) => self.editor.host().undo(self.block_id()),
-            Some(History::Redo) => self.editor.host().redo(self.block_id()),
-            None => {}
-        }
-        let held = cells
-            .content
-            .read(|canvas| Canvas::text(canvas, entity).cloned())
-            .flatten();
-        match held.is_some_and(|held| document.adopt(&held)) {
-            true => area.external_edit(),
-            false => area.sync(),
-        }
     }
 
     pub(crate) fn note_caret(&self, caret: Option<TextCaret>) {
@@ -2406,5 +2387,23 @@ impl CanvasState {
             content.x / scale.max(f32::EPSILON),
             content.y / scale.max(f32::EPSILON),
         ))
+    }
+}
+
+struct EntityText(Uuid);
+
+impl TextField for EntityText {
+    type Content = CanvasContent;
+
+    fn object(&self) -> ObjectId {
+        Canvas::text_field(self.0).0
+    }
+
+    fn field(&self) -> u16 {
+        Canvas::text_field(self.0).1
+    }
+
+    fn text<'a>(&self, content: &'a CanvasContent) -> Option<&'a Sequence<u8>> {
+        Canvas::text(content, self.0)
     }
 }

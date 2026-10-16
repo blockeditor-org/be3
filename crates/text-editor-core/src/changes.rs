@@ -22,6 +22,25 @@ impl TextChange {
         }
     }
 
+    pub fn between(old: &[u8], new: &[u8]) -> Self {
+        let prefix = old
+            .iter()
+            .zip(new)
+            .take_while(|(before, after)| before == after)
+            .count();
+        let suffix = old[prefix..]
+            .iter()
+            .rev()
+            .zip(new[prefix..].iter().rev())
+            .take_while(|(before, after)| before == after)
+            .count();
+        Self {
+            start: prefix,
+            old_end: old.len() - suffix,
+            new_end: new.len() - suffix,
+        }
+    }
+
     pub const fn is_empty(self) -> bool {
         self.start == self.old_end && self.start == self.new_end
     }
