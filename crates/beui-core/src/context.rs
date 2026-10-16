@@ -761,7 +761,7 @@ impl Context {
             return;
         };
         if simulation.painting() {
-            let icon = self.shown_window().cursor;
+            let icon = self.cursor_icon();
             self.scaled(scale, || {
                 let painter = self
                     .painter()
