@@ -32,6 +32,6 @@ fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(false));
+    set_shown.set(false);
     harness.frame(Vec::new());
 }

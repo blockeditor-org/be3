@@ -66,7 +66,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
         "the dialog is centred on its screen"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
+    set_open.set(false);
     harness.frame(Vec::new());
     let button = harness.center(harness.find("left"));
     harness.click(button);
@@ -78,9 +78,9 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     );
     assert!((shown.center().x - left.center().x).abs() < 2.0);
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
+    set_open.set(false);
     harness.frame(vec![Event::PointerMoved(right.center())]);
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    set_open.set(true);
     harness.frame(Vec::new());
     let shown = harness.rect(body.get());
     assert!(

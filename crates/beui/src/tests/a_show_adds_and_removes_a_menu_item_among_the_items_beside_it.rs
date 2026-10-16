@@ -50,7 +50,7 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
         "a hidden show puts no item between the items written around it"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_pasteable.set(true));
+    set_pasteable.set(true);
     harness.frame(Vec::new());
 
     assert_eq!(

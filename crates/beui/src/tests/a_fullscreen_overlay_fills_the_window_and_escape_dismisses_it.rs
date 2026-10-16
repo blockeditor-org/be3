@@ -28,7 +28,7 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     harness.frame(Vec::new());
     assert!(harness.document().node_rect(content.get()).is_none());
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    set_open.set(true);
     harness.frame(Vec::new());
     let filled = harness.rect(content.get());
     assert_eq!(filled.size(), VIEWPORT);

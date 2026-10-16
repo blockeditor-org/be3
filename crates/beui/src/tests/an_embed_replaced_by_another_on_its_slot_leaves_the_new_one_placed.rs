@@ -31,7 +31,7 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_tall.set(true));
+    set_tall.set(true);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

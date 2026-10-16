@@ -36,7 +36,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_above.set(true));
+    set_above.set(true);
     harness.frame(Vec::new());
     let below = harness.rect(catcher.get());
     set_heard.update(|heard| heard.clear());

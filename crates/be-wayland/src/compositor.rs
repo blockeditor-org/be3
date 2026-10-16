@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
-use beui::reactive::*;
 use beui::{
     Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, NodeId, PointerButton,
     PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
@@ -191,7 +190,7 @@ impl Compositor {
         )
     }
 
-    fn publish(&mut self, document: &mut Document) {
+    fn publish(&mut self) {
         for (id, fullscreen) in self.windows.take_fullscreen_requests() {
             self.set_fullscreen(id, fullscreen);
         }
@@ -206,14 +205,12 @@ impl Compositor {
         let raise = self.raise.take().or_else(|| self.windows.take_activation());
         let raise = raise.filter(|_| !self.locked);
         let windows = self.windows;
-        with_reactive_scope(document, || {
-            if let Some(list) = list {
-                windows.set_list(list);
-            }
-            if let Some(id) = raise {
-                windows.raise(id);
-            }
-        });
+        if let Some(list) = list {
+            windows.set_list(list);
+        }
+        if let Some(id) = raise {
+            windows.raise(id);
+        }
     }
 
     pub fn windows(&self) -> Windows {
@@ -317,7 +314,7 @@ impl Compositor {
         }
     }
 
-    fn receive(&mut self, context: &Context, document: &mut Document) {
+    fn receive(&mut self, context: &Context) {
         self.server.state.activation.tick(context.now());
         self.server.dispatch();
         self.sync_clipboard(context);
@@ -342,28 +339,26 @@ impl Compositor {
         let mut fullscreen = Vec::new();
         let mut activated = None;
         let windows = self.windows;
-        with_reactive_scope(document, || {
-            for event in events {
-                match event {
-                    ServerEvent::Opened(id) => windows.open(id),
-                    ServerEvent::Closed(id) => {
-                        windows.forget(id);
+        for event in events {
+            match event {
+                ServerEvent::Opened(id) => windows.open(id),
+                ServerEvent::Closed(id) => {
+                    windows.forget(id);
+                    changed = true;
+                }
+                ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
+                ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
+                ServerEvent::Activated(id) => activated = Some(id),
+                ServerEvent::Committed(id) => {
+                    if !windows.listed(id) {
                         changed = true;
                     }
-                    ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
-                    ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
-                    ServerEvent::Activated(id) => activated = Some(id),
-                    ServerEvent::Committed(id) => {
-                        if !windows.listed(id) {
-                            changed = true;
-                        }
-                        if !redraw.contains(&id) {
-                            redraw.push(id);
-                        }
+                    if !redraw.contains(&id) {
+                        redraw.push(id);
                     }
                 }
             }
-        });
+        }
         for (id, on) in fullscreen {
             self.set_fullscreen(id, on);
         }
@@ -376,10 +371,10 @@ impl Compositor {
         if changed {
             let list = self.list();
             let windows = self.windows;
-            with_reactive_scope(document, || windows.set_list(list));
+            windows.set_list(list);
         }
         if !redraw.is_empty() {
-            self.redraw(redraw, document);
+            self.redraw(redraw);
         }
     }
 
@@ -470,7 +465,7 @@ impl Compositor {
             .collect()
     }
 
-    fn redraw(&mut self, windows: Vec<WindowId>, document: &mut Document) {
+    fn redraw(&mut self, windows: Vec<WindowId>) {
         let drawings: Vec<_> = windows
             .into_iter()
             .map(|id| (id, self.drawing(id)))
@@ -480,11 +475,9 @@ impl Compositor {
             self.server.state.presentation.drawn(*id, callbacks);
         }
         let store = self.windows;
-        with_reactive_scope(document, || {
-            for (id, (drawing, popups)) in drawings {
-                store.draw(id, drawing, popups);
-            }
-        });
+        for (id, (drawing, popups)) in drawings {
+            store.draw(id, drawing, popups);
+        }
     }
 
     pub fn gpu(&self) -> Option<Rc<Gpu>> {
@@ -698,7 +691,7 @@ impl Compositor {
         }
     }
 
-    fn apply(&mut self, now: Instant, document: &mut Document) {
+    fn apply(&mut self, now: Instant) {
         let focused = self.server.state.keyboard_window();
         for command in self.windows.take_commands() {
             match command {
@@ -761,7 +754,7 @@ impl Compositor {
             CursorImageStatus::Surface(_) => CursorIcon::Default,
         };
         let windows = self.windows;
-        with_reactive_scope(document, || windows.set_cursor(cursor));
+        windows.set_cursor(cursor);
         self.reap();
     }
 }
@@ -865,9 +858,9 @@ impl Compositor {
         }
     }
 
-    pub fn before(&mut self, context: &Context, rect: Rect, document: &mut Document) {
+    pub fn before(&mut self, context: &Context, rect: Rect) {
         self.show_painted(context);
-        self.receive(context, document);
+        self.receive(context);
         let scale = context.pixels_per_point().ceil().max(1.0) as i32;
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
@@ -889,7 +882,7 @@ impl Compositor {
             })
             .collect();
         self.server.state.set_screens(screens);
-        self.publish(document);
+        self.publish();
         self.listed = self.windows.revision();
     }
 
@@ -910,7 +903,7 @@ impl Compositor {
         let idle = self.server.state.idle.blanked();
         if self.windows.idle().get_untracked() != idle {
             let windows = self.windows;
-            with_reactive_scope(document, || windows.set_idle(idle));
+            windows.set_idle(idle);
         }
     }
 
@@ -926,7 +919,7 @@ impl Compositor {
         self.watch_idle(context, document);
         self.focus(now);
         self.input(now);
-        self.apply(now, document);
+        self.apply(now);
         self.server.flush();
         self.ping_unowned(context);
         self.watch_pings(context);

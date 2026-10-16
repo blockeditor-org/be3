@@ -100,7 +100,7 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
         ),
     ];
     for (step, change) in &steps {
-        with_reactive_scope(harness.document_mut(), || change(&setters));
+        change(&setters);
         let output = harness.frame(Vec::new());
         apply(&mut mirror, output.accessibility_tree("Test", VIEWPORT));
         assert_matches_fresh(&harness, &mirror, step);

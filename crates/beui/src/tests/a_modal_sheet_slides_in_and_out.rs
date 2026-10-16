@@ -28,7 +28,7 @@ fn a_modal_sheet_slides_in_and_out() {
             .node_rect(content.get())
             .map(|rect| rect.top())
     };
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    set_open.set(true);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let entering = top(&harness).expect("the sheet is laid out as it enters");

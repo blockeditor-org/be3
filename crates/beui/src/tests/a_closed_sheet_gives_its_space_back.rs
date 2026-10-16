@@ -26,7 +26,7 @@ fn a_closed_sheet_gives_its_space_back() {
         "an open sheet takes its share"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
+    set_open.set(false);
     harness.settle();
     assert_eq!(
         harness.rect(filler.get()).height(),

@@ -81,9 +81,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
         vec2(WIDE_VIEWPORT.x, 100.0),
     );
     let moving = layout;
-    with_reactive_scope(harness.document_mut(), move || {
-        moving.enter_fullscreen(&1, Some(screen));
-    });
+    moving.enter_fullscreen(&1, Some(screen));
     harness.settle();
     assert!(
         harness.rect(harness.find("dock.away.leave")).max.y <= screen.min.y,
@@ -94,9 +92,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
     assert_eq!(layout.fullscreen(), None, "the entry turns into leaving it");
 
     let entering = layout;
-    with_reactive_scope(harness.document_mut(), move || {
-        entering.enter_fullscreen(&1, Some(screen));
-    });
+    entering.enter_fullscreen(&1, Some(screen));
     harness.settle();
     harness.click(harness.center(harness.find("dock.away.leave")));
     harness.settle();

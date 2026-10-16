@@ -57,9 +57,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
         "a stacked dock draws no tab bars"
     );
 
-    with_reactive_scope(harness.document_mut(), move || {
-        set_mode.set(DockMode::Tiled)
-    });
+    set_mode.set(DockMode::Tiled);
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().find_test_id("content.3"),
@@ -72,9 +70,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     );
     harness.find("content.1");
 
-    with_reactive_scope(harness.document_mut(), move || {
-        set_mode.set(DockMode::Stacked)
-    });
+    set_mode.set(DockMode::Stacked);
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().find_test_id("content.3"),
