@@ -9,6 +9,6 @@ fn remaps_that_do_not_read_say_why_and_store_nothing() {
         "[[group]]\nname = \"Cairn\"\nrules = [{ on = \"Q\", tap = \"Spcae\" }]\n",
     );
 
-    assert!(content(&editor).root().remaps.is_empty());
+    assert_eq!(content(&editor).root().remaps, None);
     editor.snapshot("remaps_that_do_not_read_say_why_and_store_nothing");
 }

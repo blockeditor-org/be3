@@ -253,13 +253,16 @@ Under `--session` the keys, mouse buttons and wheel notches libinput reports can
 anything else sees them, the way AutoHotkey does on Windows: a button that presses a key while it is
 held, a wheel notch or key that taps a key for some milliseconds or plays a sequence of taps, in every
 window or only while a window whose executable, app id or title matches has the keyboard. The rules
-are the input settings' `remaps` (`be_block::input_settings::RemapGroup`, one per group, by id), so
-they are kept in the workspace like the rest: in the shared input settings for every device or in a
-profile's for its devices, the profile's groups adding to the shared ones. The input settings editor
-shows the groups of the block it has open as TOML (`be_remap::text`, which reads and prints them and
-names the key it cannot read), stores what parses when Apply is pressed, and names every key the way
+are the input settings' `remaps`: TOML text (`be_remap::text` reads it into
+`be_block::input_settings::RemapGroup`s and names the group and rule it cannot read), stored exactly as
+written, comments and layout included, so it is kept in the workspace like the rest: in the shared
+input settings for every device or in a profile's for its devices. The layers' texts are read one
+after the other, the profile's last, and a group replaces an earlier one of its name, so a profile adds
+groups to the shared ones and can replace one. The input settings editor shows the text of the block
+it has open, stores it when Apply is pressed and it reads, and keys are named the way
 `be_remap::names` does (evdev's names, AutoHotkey's for the common ones, and `Key:CODE` or
-`Button:CODE` for any other).
+`Button:CODE` for any other). What the module is given, and what a device approves (below), is the
+rules read from the text, so a change to a comment asks nothing.
 
 The rules run as a WebAssembly module, `crates/remap/module` (`be-remap`'s engine behind two
 exports, `be_remap_buffer` and `be_remap_handle`, trading `be_remap::protocol` requests and replies
@@ -287,7 +290,7 @@ Since remaps can press keys in any window, the workspace cannot turn them on by 
 runs only remaps this device approved, which it keeps in its own database (`approved_remaps`), never
 in the workspace. When the input settings ask for different remaps, the session keeps running the
 ones it approved and the host shows a dialog of its own over either shell ("Turn on these input
-remaps?", with the rules as text); Turn on approves them, and Keep them off leaves them off without
+remaps?", with their text); Turn on approves them, and Keep them off leaves them off without
 asking again until they change. The `Remaps` host value tells the input settings editor whether this
 device runs the remaps, waits to turn them on (its Review button sends `RemapRequest::Review`, which
 shows the dialog again) or stopped them after failures. Turning remaps off never asks. Outside a

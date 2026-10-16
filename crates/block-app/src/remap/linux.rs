@@ -6,7 +6,7 @@ use be_block::InputSettings;
 use be_block::input_settings::RemapGroup;
 use be_remap_host::Remapper;
 use be_remap_host::be_remap::rules::exe_name;
-use be_remap_host::be_remap::{Input, Output, Source, Window, protocol, text};
+use be_remap_host::be_remap::{Input, Output, Source, Window, protocol};
 use beui_adapter_drm::{InputControl, InputFilter, RawInput};
 use block_plugin_api::{RemapRequest, RemapState, Remaps};
 
@@ -23,7 +23,8 @@ struct State {
     control: Option<InputControl>,
     filter: Option<Rc<RefCell<Filter>>>,
     approval: Approval,
-    groups: Vec<RemapGroup>,
+    text: String,
+    groups: usize,
     published: Option<RemapState>,
 }
 
@@ -100,15 +101,23 @@ pub(crate) fn load_approved(approved: Option<Vec<u8>>) {
 }
 
 pub(crate) fn configure(settings: &InputSettings) {
-    let groups: Vec<RemapGroup> = settings
-        .remap_groups()
-        .into_iter()
-        .filter(|group| !group.rules.is_empty())
-        .collect();
+    let groups: Vec<RemapGroup> = match settings.remap_groups() {
+        Ok(groups) => groups,
+        Err(problem) => {
+            crate::notices::report(format!(
+                "The remaps in the input settings could not be read, so none run: {problem}"
+            ));
+            Vec::new()
+        }
+    }
+    .into_iter()
+    .filter(|group| !group.rules.is_empty())
+    .collect();
     let wanted = (!groups.is_empty()).then(|| protocol::config(&groups));
     let changed = STATE.with_borrow_mut(|state| {
         let changed = state.approval.want(wanted);
-        state.groups = groups;
+        state.text = settings.remaps.clone().unwrap_or_default();
+        state.groups = groups.len();
         changed
     });
     if changed {
@@ -160,8 +169,8 @@ pub(crate) fn frame() {
 pub(crate) fn prompt() -> Option<RemapsPrompt> {
     STATE.with_borrow(|state| {
         (state.filter.is_some() && state.approval.asking()).then(|| RemapsPrompt {
-            text: text::print(&state.groups),
-            groups: state.groups.len(),
+            text: state.text.clone(),
+            groups: state.groups,
         })
     })
 }

@@ -8,7 +8,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::TextAreaState;
 use block_editor_beui::beui::{ItemSize, NodeId};
 use block_editor_beui::{Editor, RemapRequest, RemapState, Remaps};
-use text_editor_core::{Document, TextBuffer};
+use text_editor_core::{Document, TextBuffer, TextLanguage};
 
 use super::ui::Settings;
 
@@ -39,9 +39,11 @@ pub(super) fn RemapSettings(
 ) -> NodeId {
     let device = editor.host_value::<Remaps>();
     let offered = editor.host_offers::<Remaps>();
-    let stored = create_memo(move || text::print(&root.get().remap_groups()));
+    let stored = create_memo(move || root.get().remaps.unwrap_or_default());
     let initial = stored.get_untracked();
-    let document = store(Arc::new(TextBuffer::new(&initial)));
+    let buffer = TextBuffer::new(&initial);
+    buffer.set_language(TextLanguage::PlainText);
+    let document = store(Arc::new(buffer));
     let loaded = store(RefCell::new(initial));
     let state =
         TextAreaState::new(document.with(|document| Arc::clone(document) as Arc<dyn Document>));
@@ -62,14 +64,16 @@ pub(super) fn RemapSettings(
             }
         });
     });
-    let apply = move || match text::parse(&document.with(|document| text_of(document))) {
-        Ok(groups) => {
-            let typed = document.with(|document| text_of(document));
-            loaded.with(|loaded| *loaded.borrow_mut() = typed);
-            set_error.set(None);
-            settings.operate(root.get_untracked().set_remaps(groups));
+    let apply = move || {
+        let typed = document.with(|document| text_of(document));
+        match text::parse(&typed) {
+            Ok(_) => {
+                settings.operate(InputSettings::set_remaps(Some(&typed)));
+                loaded.with(|loaded| *loaded.borrow_mut() = typed);
+                set_error.set(None);
+            }
+            Err(problem) => set_error.set(Some(problem)),
         }
-        Err(problem) => set_error.set(Some(problem)),
     };
     let revert = move || reload(stored.get_untracked());
     let failed = create_memo(move || error.get().is_some());
@@ -93,7 +97,7 @@ pub(super) fn RemapSettings(
             <Text style=TextStyle::HEADING string="Remaps" />
             <Text
                 style=TextStyle::CAPTION
-                string="Keys, buttons and wheel turns to change in a Linux session, everywhere or in the windows a group names. They are written as TOML, as in the example shown while this is empty. Comments are not kept."
+                string="Keys, buttons and wheel turns to change in a Linux session, everywhere or in the windows a group names. They are written as TOML, as in the example shown while this is empty, and kept as written."
                 wrap=true
             />
             <TextArea

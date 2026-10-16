@@ -125,7 +125,7 @@ pub struct InputSettings {
     pub every_pointer: PointerSettings,
     pub pointers: Map<InputDevice, PointerSettings>,
     pub middle_click_paste: Option<bool>,
-    pub remaps: Map<Uuid, RemapGroup>,
+    pub remaps: Option<String>,
 }
 
 impl InputSettings {
@@ -147,37 +147,21 @@ impl InputSettings {
         Self::MIDDLE_CLICK_PASTE.set(ObjectId::ROOT, &on).into()
     }
 
-    pub fn remap_groups(&self) -> Vec<RemapGroup> {
-        let mut groups: Vec<&RemapGroup> = self.remaps.values().collect();
-        groups.sort_by(|left, right| {
-            (left.window.is_some(), &left.name).cmp(&(right.window.is_some(), &right.name))
-        });
-        groups.into_iter().cloned().collect()
+    pub fn remap_groups(&self) -> Result<Vec<RemapGroup>, String> {
+        let parsed = be_remap::text::parse(self.remaps.as_deref().unwrap_or_default())?;
+        let mut groups: Vec<RemapGroup> = Vec::with_capacity(parsed.len());
+        for group in parsed {
+            groups.retain(|earlier| earlier.name != group.name);
+            groups.push(group);
+        }
+        Ok(groups)
     }
 
-    pub fn set_remaps(&self, groups: Vec<RemapGroup>) -> Edit {
-        let mut unclaimed: Vec<(Uuid, &RemapGroup)> =
-            self.remaps.iter().map(|(id, group)| (*id, group)).collect();
-        let mut changes = Vec::new();
-        for group in groups {
-            let id = match unclaimed.iter().position(|(_, old)| old.name == group.name) {
-                Some(index) => {
-                    let (id, old) = unclaimed.remove(index);
-                    if *old == group {
-                        continue;
-                    }
-                    id
-                }
-                None => Uuid::new_v4(),
-            };
-            changes.push(Self::REMAPS.put(ObjectId::ROOT, &id, Some(&group)));
-        }
-        changes.extend(
-            unclaimed
-                .into_iter()
-                .map(|(id, _)| Self::REMAPS.put(ObjectId::ROOT, &id, None)),
-        );
-        changes.into_iter().collect()
+    pub fn set_remaps(text: Option<&str>) -> Edit {
+        let text = text
+            .filter(|text| !text.trim().is_empty())
+            .map(str::to_owned);
+        Self::REMAPS.set(ObjectId::ROOT, &text).into()
     }
 
     pub fn device_pointer(&self, device: &InputDevice) -> PointerSettings {
@@ -278,12 +262,10 @@ impl Layered for InputSettings {
             every_pointer: self.every_pointer.or(lower.every_pointer),
             pointers,
             middle_click_paste: self.middle_click_paste.or(lower.middle_click_paste),
-            remaps: lower
-                .remaps
-                .iter()
-                .chain(self.remaps.iter())
-                .map(|(id, group)| (*id, group.clone()))
-                .collect(),
+            remaps: match (&lower.remaps, &self.remaps) {
+                (Some(lower), Some(upper)) => Some(format!("{}\n{upper}", lower.trim_end())),
+                (lower, upper) => upper.clone().or_else(|| lower.clone()),
+            },
         }
     }
 }
