@@ -4,9 +4,12 @@
 #   buck2 bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.json
 
 # Every first-party Rust target in every configuration //:check and clippy
-# cover.
+# cover. ./scripts/deploy's target is left out of the universe: it configures
+# block-app for every desktop platform, and a pattern takes every
+# configuration in the universe.
 def rust_targets(ctx: bxl.Context) -> list:
-    return list(ctx.cquery().eval('kind("^rust_(library|binary|test)$", //crates/...)'))
+    universe = ctx.target_universe(ctx.uquery().eval("//crates/... - //crates/local-tools:deploy"))
+    return list(ctx.cquery().kind("^rust_(library|binary|test)$", universe.lookup("//crates/...")))
 
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget
