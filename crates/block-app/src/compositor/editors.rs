@@ -827,8 +827,7 @@ fn BlockFrame(
 ) -> NodeId {
     let any = super::any();
     let counted = store(Cell::new(false));
-    create_effect(move || {
-        any.get();
+    let count = move || {
         if counted.with(Cell::get) {
             return;
         }
@@ -840,6 +839,11 @@ fn BlockFrame(
             None => false,
         });
         counted.with(|counted| counted.set(shown));
+    };
+    count();
+    create_effect(move || {
+        any.get();
+        count();
     });
     on_cleanup(move || {
         if counted.with(Cell::get) {
