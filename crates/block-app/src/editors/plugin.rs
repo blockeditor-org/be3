@@ -341,9 +341,6 @@ impl PluginEditor {
             false => self.shown = self.shown.saturating_sub(1),
         }
         self.sync_active_presence(self.shown > 0);
-        if self.shown == 0 {
-            self.stop_presenting();
-        }
     }
 
     pub(crate) fn block_type(&self) -> Uuid {
