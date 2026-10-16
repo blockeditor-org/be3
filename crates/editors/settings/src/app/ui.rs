@@ -21,6 +21,7 @@ const ROW_SPACING: f32 = 2.0;
 const ROW_PADDING: f32 = 4.0;
 const ROW_GAP: f32 = 12.0;
 const CARD_PADDING: f32 = 6.0;
+const NOTICE_INSET: f32 = 24.0;
 
 const NOT_OURS: &str = "These settings belong to another account. This device never uses them, and they stay as they are.";
 
@@ -187,7 +188,9 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         <Loaded loaded={loaded}>
             <SettingsPage>
                 <Show condition={others}>
-                    <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                    <Frame padding={Sides::horizontal(NOTICE_INSET)}>
+                        <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                    </Frame>
                 </Show>
                 <SettingsSection
                     title="Settings profile"
