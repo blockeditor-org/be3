@@ -808,7 +808,8 @@ impl Session {
         pointers.sort_by(|left, right| left.id.cmp(&right.id));
         self.control.set_devices(pointers);
         let typing = self.devices.iter().any(|device| {
-            device.has_capability(DeviceCapability::Keyboard) && device.keyboard_has_key(KEY_A) == Ok(true)
+            device.has_capability(DeviceCapability::Keyboard)
+                && device.keyboard_has_key(KEY_A) == Ok(true)
         });
         self.runner.reports().keyboard_attached(typing);
     }

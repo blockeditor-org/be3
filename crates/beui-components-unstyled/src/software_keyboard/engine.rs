@@ -319,7 +319,10 @@ impl Engine {
         }
         let layout = self.layout();
         for pointer in &self.pointers {
-            if let Some(modifier) = layout.key(pointer.key).and_then(|def| pointer.modifier(def)) {
+            if let Some(modifier) = layout
+                .key(pointer.key)
+                .and_then(|def| pointer.modifier(def))
+            {
                 mods.set(modifier);
             }
         }
@@ -398,7 +401,11 @@ impl Engine {
         if normal {
             let layout = self.layout();
             for pointer in &mut self.pointers {
-                if layout.key(pointer.key).and_then(|def| pointer.modifier(def)).is_some() {
+                if layout
+                    .key(pointer.key)
+                    .and_then(|def| pointer.modifier(def))
+                    .is_some()
+                {
                     pointer.used = true;
                 }
             }
@@ -462,11 +469,9 @@ impl Engine {
                 }
             }
             Some(mut gesture) => {
-                if gesture.turned(direction) {
-                    if gesture.in_progress() {
-                        self.apply_gesture(&mut pointer, &def, gesture);
-                        pointer.held_since = now;
-                    }
+                if gesture.turned(direction) && gesture.in_progress() {
+                    self.apply_gesture(&mut pointer, &def, gesture);
+                    pointer.held_since = now;
                 }
                 pointer.gesture = Some(gesture);
             }
@@ -551,11 +556,18 @@ impl Engine {
         if let Some(sliding) = pointer.sliding {
             match (sliding.slider, sliding.start) {
                 (Slider::SelectWords, Some(_)) if sliding.steps > 0 => {
-                    keys::press_chord(Key::Backspace, Modifiers::NONE, Modifiers::NONE, &mut self.events);
+                    keys::press_chord(
+                        Key::Backspace,
+                        Modifiers::NONE,
+                        Modifiers::NONE,
+                        &mut self.events,
+                    );
                     self.clear_latched();
                 }
                 (Slider::SelectWords, Some(_)) => {}
-                (Slider::SelectWords, None) => self.emit(Value::Key(Key::Backspace), pointer.mods, now),
+                (Slider::SelectWords, None) => {
+                    self.emit(Value::Key(Key::Backspace), pointer.mods, now)
+                }
                 (Slider::Cursor, _) => {}
             }
             return;
@@ -620,7 +632,9 @@ impl Engine {
                 }
                 continue;
             }
-            let Some(value) = pointer.value.filter(|value| modify(*value, pointer.mods).repeats())
+            let Some(value) = pointer
+                .value
+                .filter(|value| modify(*value, pointer.mods).repeats())
             else {
                 continue;
             };

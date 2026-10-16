@@ -66,7 +66,6 @@ pub use beui_view::primitives::{
 };
 pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
-pub use software_keyboard::{SoftwareKeyboard, install_keyboard, keyboard_height};
 pub use calendar::Calendar;
 pub use card::Card;
 pub use checkbox::{Checkbox, checkbox_checked};
@@ -103,6 +102,7 @@ pub use selectable_text::SelectableText;
 pub use sheet::{ModalSheet, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::{Slider, slider_value};
+pub use software_keyboard::{SoftwareKeyboard, install_keyboard, keyboard_height};
 pub use spinner::Spinner;
 pub use split_button::SplitButton;
 pub use stack::Stack;

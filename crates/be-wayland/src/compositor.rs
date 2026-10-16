@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use beui::reactive::*;
 use beui::{
-    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, ImeEvent, NodeId, PointerButton,
-    PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
+    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, ImeEvent, NodeId,
+    PointerButton, PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
 };
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};

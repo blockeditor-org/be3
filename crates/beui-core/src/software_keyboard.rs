@@ -114,10 +114,7 @@ impl KeyboardState {
         }
         match self.area.as_ref().map(|area| area.keyboard) {
             Some(Keyboard::Shown { asks }) => {
-                if !self.attached
-                    && self.asks != Some(asks)
-                    && self.opened == Opened::Closed
-                {
+                if !self.attached && self.asks != Some(asks) && self.opened == Opened::Closed {
                     self.opened = Opened::Asked;
                 }
                 self.asks = Some(asks);
@@ -153,7 +150,8 @@ impl KeyboardState {
             .height(target.width())
             .min(target.height() * MAX_SHARE)
             .max(0.0);
-        let keyboard = Rect::from_min_max(pos2(target.left(), target.bottom() - height), target.max);
+        let keyboard =
+            Rect::from_min_max(pos2(target.left(), target.bottom() - height), target.max);
         let content = match target == rect {
             true => trim_bottom(rect, height).0,
             false => rect,
@@ -258,7 +256,8 @@ pub fn show_with_keyboard(
     if let Some(mut host) = host {
         ctx.with_input(
             |input| {
-                let input = input.only(|event| !event.is_key() && !matches!(event, Event::Focus(_)));
+                let input =
+                    input.only(|event| !event.is_key() && !matches!(event, Event::Focus(_)));
                 match owns {
                     true => input,
                     false => input.without_pointer(was),

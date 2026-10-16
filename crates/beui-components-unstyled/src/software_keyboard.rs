@@ -6,14 +6,14 @@ pub mod tables;
 use std::cell::RefCell;
 use std::time::Duration;
 
-use beui_macros::{component, view};
-use beui_view::primitives::*;
-use beui_view::reactive::*;
 use beui_core::geometry::vec2;
 use beui_core::input::{PointerButton, PointerPhase};
 use beui_core::interact::forward::ForwardedInput;
 use beui_core::node::NodeId;
 use beui_core::timer;
+use beui_macros::{component, view};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
 use reactive::{Stored, store};
 
 pub use engine::{Engine, Latch, Mods, modify};
@@ -93,10 +93,7 @@ pub struct KeyCapHandle {
 }
 
 #[component]
-pub fn SoftwareKeyboard(
-    cap: RenderFn<KeyCapHandle>,
-    emoji: RenderFn<KeyboardHandle>,
-) -> NodeId {
+pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHandle>) -> NodeId {
     let engine = store(RefCell::new(Engine::default()));
     let (revision, set_revision) = create_signal(0u64);
     let keyboard = KeyboardHandle {
@@ -108,7 +105,10 @@ pub fn SoftwareKeyboard(
     let repeat = create_timer(move || {
         let now = timer::now();
         let next = keyboard.change(|engine| engine.tick(now));
-        next.map(|next| next.saturating_duration_since(now).max(Duration::from_millis(1)))
+        next.map(|next| {
+            next.saturating_duration_since(now)
+                .max(Duration::from_millis(1))
+        })
     });
     let forward = move |input: ForwardedInput| {
         let now = timer::now();
@@ -178,7 +178,13 @@ fn KeyRows(
         <List spacing=0.0>
             <ForEach keys={rows}>
                 {move |row: usize| view! {
-                    <KeyRow @sizing=ItemSize::Percent(layout.rows[row].height) layout row keyboard cap />
+                    <KeyRow
+                        @sizing=ItemSize::Percent(layout.rows[row].height)
+                        layout
+                        row
+                        keyboard
+                        cap
+                    />
                 }}
             </ForEach>
         </List>
@@ -215,7 +221,9 @@ fn KeyRow(
                     Cell::Gap(column) => view! {
                         <Frame @sizing=ItemSize::Percent(keys[column].shift) />
                     },
-                    Cell::Fill => view! { <Frame @sizing=ItemSize::Percent(fill) /> },
+                    Cell::Fill => view! {
+                        <Frame @sizing=ItemSize::Percent(fill) />
+                    },
                     Cell::Key(column) => {
                         let def = &keys[column];
                         let at = KeyAt { row, column };
@@ -246,7 +254,9 @@ fn KeyRow(
                             latch,
                             active,
                         };
-                        view! { <KeyCell @sizing=ItemSize::Percent(def.width) handle cap /> }
+                        view! {
+                            <KeyCell @sizing=ItemSize::Percent(def.width) handle cap />
+                        }
                     }
                 }}
             </ForEach>

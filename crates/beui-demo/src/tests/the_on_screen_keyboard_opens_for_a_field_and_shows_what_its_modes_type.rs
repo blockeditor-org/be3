@@ -1,8 +1,8 @@
 use beui::reactive::*;
-use beui::vec2;
 use beui::styled::software_keyboard::{BAR_HEIGHT, PADDING, key_center};
 use beui::styled::*;
 use beui::unstyled::software_keyboard::{Layer, Modifier, Value};
+use beui::vec2;
 
 use super::*;
 
@@ -20,7 +20,10 @@ fn field() -> DocumentTest {
 }
 
 fn key(test: &DocumentTest, layer: Layer, value: Value) -> Pos2 {
-    let keyboard = test.context().keyboard_rect().expect("the keyboard is open");
+    let keyboard = test
+        .context()
+        .keyboard_rect()
+        .expect("the keyboard is open");
     key_center(keyboard, layer, value).expect("the layer has that key")
 }
 
@@ -31,7 +34,10 @@ fn swipe(test: &mut DocumentTest, layer: Layer, value: Value, by: Vec2) {
 }
 
 fn value_of(test: &DocumentTest) -> String {
-    let field = test.document().find_test_id("test.field").expect("the field");
+    let field = test
+        .document()
+        .find_test_id("test.field")
+        .expect("the field");
     text_input_value(test.document(), field)
 }
 
@@ -40,7 +46,10 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     let mut test = field();
     test.context().set_keyboard_attached(false);
     test.frame(Vec::new());
-    assert!(test.context().keyboard_rect().is_none(), "nothing asks for it yet");
+    assert!(
+        test.context().keyboard_rect().is_none(),
+        "nothing asks for it yet"
+    );
 
     test.click("test.field");
     test.frame(Vec::new());
@@ -48,7 +57,11 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
         .context()
         .keyboard_rect()
         .expect("tapping a field opens the keyboard when no keyboard is attached");
-    assert_eq!(keyboard.bottom(), SIZE.y, "the keyboard sits along the bottom");
+    assert_eq!(
+        keyboard.bottom(),
+        SIZE.y,
+        "the keyboard sits along the bottom"
+    );
     test.snapshot("software_keyboard");
 
     test.click_at(key(&test, Layer::Text, Value::Modifier(Modifier::Shift)));
@@ -64,7 +77,11 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     test.snapshot("software_keyboard_superscript");
     swipe(&mut test, Layer::Text, Value::Char('w'), vec2(16.0, -16.0));
     test.frame(Vec::new());
-    assert_eq!(value_of(&test), "Hi²", "superscript turns the next key into its superscript");
+    assert_eq!(
+        value_of(&test),
+        "Hi²",
+        "superscript turns the next key into its superscript"
+    );
 
     swipe(
         &mut test,
@@ -80,7 +97,10 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     );
     test.click_at(close);
     test.frame(Vec::new());
-    assert!(test.context().keyboard_rect().is_none(), "its close button closes it");
+    assert!(
+        test.context().keyboard_rect().is_none(),
+        "its close button closes it"
+    );
 
     test.click("test.field");
     test.frame(Vec::new());

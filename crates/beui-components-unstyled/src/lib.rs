@@ -49,7 +49,6 @@ pub mod tree;
 pub mod typeahead;
 
 pub use accessibility::labelled_node;
-pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonHandle, button_active, button_focused};
@@ -130,6 +129,7 @@ pub use select::{
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
 pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
+pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::text_area_handles;

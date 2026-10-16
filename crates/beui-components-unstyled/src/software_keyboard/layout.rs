@@ -60,7 +60,9 @@ impl Value {
         match self {
             Self::Char(_) => true,
             Self::Key(key) => !matches!(key, Key::Escape | Key::Enter | Key::Tab),
-            Self::Action(action) => matches!(action, Action::DeleteWordLeft | Action::DeleteWordRight),
+            Self::Action(action) => {
+                matches!(action, Action::DeleteWordLeft | Action::DeleteWordRight)
+            }
             _ => false,
         }
     }
@@ -462,9 +464,7 @@ pub const NUMPAD: Layout = Layout {
         },
         Row {
             keys: &[
-                KeyDef::new(Value::Layer(Layer::Greek))
-                    .width(0.75)
-                    .action(),
+                KeyDef::new(Value::Layer(Layer::Greek)).width(0.75).action(),
                 KeyDef::new(SHIFT).ne(FN).se(ALT).width(0.75).action(),
                 key('1').nw(SUPERSCRIPT).sw(SUBSCRIPT),
                 key('2'),
@@ -480,7 +480,12 @@ pub const NUMPAD: Layout = Layout {
                     .width(1.5)
                     .action(),
                 key('0').width(1.5),
-                key('.').nw(c(':')).ne(c(',')).sw(c(';')).width(0.75).action(),
+                key('.')
+                    .nw(c(':'))
+                    .ne(c(','))
+                    .sw(c(';'))
+                    .width(0.75)
+                    .action(),
                 SPACE
                     .nw(c('"'))
                     .ne(c('\''))

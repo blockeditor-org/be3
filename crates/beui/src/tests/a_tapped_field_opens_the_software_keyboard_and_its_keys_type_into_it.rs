@@ -25,7 +25,11 @@ fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {
     harness.context().enable_keyboard();
     harness.context().set_keyboard_attached(false);
     harness.frame(Vec::new());
-    assert_eq!(harness.context().keyboard_rect(), None, "nothing asks for it yet");
+    assert_eq!(
+        harness.context().keyboard_rect(),
+        None,
+        "nothing asks for it yet"
+    );
 
     let field = harness.find("field");
     harness.click(harness.center(field));
@@ -42,7 +46,11 @@ fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {
         harness.click(key);
     }
     harness.frame(Vec::new());
-    assert_eq!(*typed.borrow(), "hi", "its keys type into the focused field");
+    assert_eq!(
+        *typed.borrow(),
+        "hi",
+        "its keys type into the focused field"
+    );
     assert_eq!(
         harness.document().focused_node(),
         focused,

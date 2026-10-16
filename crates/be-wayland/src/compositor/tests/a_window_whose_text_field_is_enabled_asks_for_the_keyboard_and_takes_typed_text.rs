@@ -21,7 +21,11 @@ fn a_window_whose_text_field_is_enabled_asks_for_the_keyboard_and_takes_typed_te
         harness.client.received.protocols.text_entered,
         "the text input enters the window that has the keyboard"
     );
-    assert_eq!(asks(&harness), None, "a window with no enabled field asks for nothing");
+    assert_eq!(
+        asks(&harness),
+        None,
+        "a window with no enabled field asks for nothing"
+    );
 
     text_input.enable();
     text_input.commit();

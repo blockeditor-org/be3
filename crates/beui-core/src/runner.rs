@@ -371,7 +371,11 @@ impl Runner {
         while let Ok(pasted) = self.pastes.1.try_recv() {
             self.events.push(Event::Paste(pasted));
         }
-        type_pastes(&self.typed_pastes.1, self.intake.modifiers(), &mut self.events);
+        type_pastes(
+            &self.typed_pastes.1,
+            self.intake.modifiers(),
+            &mut self.events,
+        );
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
@@ -486,11 +490,17 @@ impl Runner {
         if output.paste == Some(PasteRequest::Typed) {
             let answer = PasteAnswer::new(self.typed_pastes.0.clone(), self.waker.clone());
             platform.paste(&[crate::clipboard::PasteKind::Text], answer);
-            type_pastes(&self.typed_pastes.1, self.intake.modifiers(), &mut self.events);
+            type_pastes(
+                &self.typed_pastes.1,
+                self.intake.modifiers(),
+                &mut self.events,
+            );
         }
         let delivered =
             output.paste == Some(PasteRequest::Shortcut) && platform.delivers_paste_shortcut();
-        if output.paste.is_some_and(|paste| paste != PasteRequest::Typed)
+        if output
+            .paste
+            .is_some_and(|paste| paste != PasteRequest::Typed)
             && !delivered
             && !output.window.paste_kinds.is_empty()
         {

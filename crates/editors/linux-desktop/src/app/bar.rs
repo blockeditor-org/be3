@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_WORKSPACES};
+use block_editor_beui::beui::icons::{
+    ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_WORKSPACES,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};

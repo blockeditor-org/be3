@@ -42,7 +42,10 @@ impl Typist {
     fn center(&self, value: Value) -> Pos2 {
         let layout = self.engine.layout();
         let at = layout.find(value).expect("a key shows that value");
-        layout.key_rect(RECT, at).expect("the key is laid out").center()
+        layout
+            .key_rect(RECT, at)
+            .expect("the key is laid out")
+            .center()
     }
 
     fn pointer(&mut self) -> PointerId {
@@ -89,7 +92,9 @@ fn summary(events: &[Event]) -> String {
         match event {
             Event::Text(text) => out.push_str(text),
             Event::Key {
-                press, text: Some(text), ..
+                press,
+                text: Some(text),
+                ..
             } if press.pressed && !press.modifiers.command() => out.push_str(text),
             Event::Key { press, .. } if press.pressed && !press.key.is_modifier() => {
                 let modifiers = press.modifiers;
