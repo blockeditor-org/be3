@@ -545,7 +545,14 @@ pub(crate) fn PresentingSurface() -> NodeId {
                     {move |block: Uuid| {
                         provide_context(Nesting::root());
                         crate::host::set_fullscreen(true);
-                        on_cleanup(|| crate::host::set_fullscreen(false));
+                        on_cleanup(move || {
+                            crate::host::set_fullscreen(false);
+                            editors.with(|open| {
+                                if let Some(editor) = open.get_mut(&block) {
+                                    editor.stop_presenting_now();
+                                }
+                            });
+                        });
                         view! {
                             <BlockFrame
                                 block
@@ -827,8 +834,7 @@ fn BlockFrame(
 ) -> NodeId {
     let any = super::any();
     let counted = store(Cell::new(false));
-    create_effect(move || {
-        any.get();
+    let count = move || {
         if counted.with(Cell::get) {
             return;
         }
@@ -840,6 +846,11 @@ fn BlockFrame(
             None => false,
         });
         counted.with(|counted| counted.set(shown));
+    };
+    count();
+    create_effect(move || {
+        any.get();
+        count();
     });
     on_cleanup(move || {
         if counted.with(Cell::get) {
