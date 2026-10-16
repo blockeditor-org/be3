@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use crate::Scrollbar;
 use crate::text::{Icon, Text};
-use crate::theme::{SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
+use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
@@ -21,7 +21,9 @@ pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Option<f32>,
+    #[prop(default = ColorRole::Accent)] focus_color: Prop<ColorRole>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
@@ -32,8 +34,8 @@ pub fn Scroll(
             offset
             reveal
             direction
-            fit={max_length.is_some()}
-            focus_color={theme.accent}
+            fit={fit || max_length.is_some()}
+            focus_color={create_memo(move || focus_color.get().resolve(&theme))}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />
@@ -54,18 +56,21 @@ pub fn Scroll(
 }
 
 pub fn scrollbar_style() -> ScrollbarStyle {
-    ScrollbarStyle::new(SCROLLBAR_SPACING, |handle: ScrollHandle| {
+    ScrollbarStyle::new(SCROLLBAR_WIDTH, |handle: ScrollHandle| {
         let ScrollHandle {
             position,
             direction,
             scroll_to,
+            visibility,
+            on_engage,
         } = handle;
         view! {
             <Scrollbar
-                @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
                 position
                 direction
+                visibility
                 on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+                on_engage={move |engaged: bool| on_engage.call(engaged)}
             />
         }
     })

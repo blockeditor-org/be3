@@ -110,6 +110,7 @@ mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
 mod a_finger_drags_a_draggable_down_where_nothing_scrolls;
 mod a_finger_moves_a_window_up_and_down_by_its_bar;
+mod a_finger_on_a_hidden_scrollbar_scrolls_the_content_under_it;
 mod a_finger_press_that_moves_the_focus_keeps_it_when_the_finger_lifts;
 mod a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds;
 mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
@@ -245,6 +246,7 @@ mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scroll_only_re_measures_the_row_that_changed;
+mod a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
@@ -284,7 +286,7 @@ mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
-mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
+mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
@@ -579,6 +581,7 @@ mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod platform_scrolls_arrive_in_points;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod pointer_motion_only_reaches_what_lies_under_the_pointer;
+mod pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track;
 mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
 mod pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows;
 mod pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged;
@@ -1659,6 +1662,24 @@ pub(crate) fn stacked_panels() -> StackedPanels {
         lower: kind_of(&document, lower.get()),
         document,
     }
+}
+
+pub(crate) fn scrollbar_of(harness: &Harness, scroll: NodeId) -> NodeId {
+    let over = harness.document().children(scroll)[1];
+    harness.document().children(over)[0]
+}
+
+pub(crate) fn track_within(harness: &Harness, bar: NodeId) -> Rect {
+    let document = harness.document();
+    let interactive = document.children(bar)[0];
+    let inset = document.children(interactive)[0];
+    harness.rect(document.children(inset)[0])
+}
+
+pub(crate) fn thumb_painted(output: &crate::FrameOutput, track: Rect) -> bool {
+    output.shapes().iter().any(|shape| {
+        matches!(shape, crate::painter::Shape::Rect { rect, .. } if track.contains_rect(*rect) && *rect != track)
+    })
 }
 
 pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {

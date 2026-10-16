@@ -22,14 +22,19 @@ fn the_scrollbar_thumb_brightens_under_the_pointer_and_while_it_is_dragged() {
     let mut harness = Harness::new(document);
     let theme = styled::Theme::DARK;
     let output = harness.frame(Vec::new());
-    assert_eq!(painted(&output, theme.scroll_thumb), 1);
+    assert_eq!(
+        painted(&output, theme.scroll_thumb),
+        0,
+        "a resting bar is hidden"
+    );
 
-    let bar = harness.rect(harness.document().children(scroll.get())[1]);
+    let bar = harness.rect(scrollbar_of(&harness, scroll.get()));
     let thumb = bar.height() * VIEWPORT.y / CONTENT_HEIGHT;
     let over_thumb = pos2(bar.center().x, bar.top() + thumb / 2.0);
     let over_track = pos2(bar.center().x, bar.bottom() - 1.0);
 
-    let output = harness.frame(vec![Event::PointerMoved(over_thumb)]);
+    harness.frame(vec![Event::PointerMoved(over_thumb)]);
+    let output = harness.frame(Vec::new());
     assert_eq!(painted(&output, theme.scroll_thumb_hover), 1);
     assert_eq!(painted(&output, theme.scroll_thumb), 0);
 

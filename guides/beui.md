@@ -718,7 +718,7 @@ lists.
 
 Scrolling exists at all three layers, and app code wants the styled one.
 `styled::Scroll` is a scroll with the project's
-scrollbar already beside it, so a panel that scrolls is one tag:
+scrollbar already over its edge, so a panel that scrolls is one tag:
 
 ```rust
 view! {
@@ -728,8 +728,11 @@ view! {
 }
 ```
 
-The focus ring follows the theme's accent unless `focus_color` names another,
+The focus ring follows the theme's accent unless `focus_color` names another
+role (`ColorRole::None` for a scroll whose content draws its own focus),
 and `on_change` still reports the position for anything else that wants it.
+With `fit` it measures as long as its content, so a box sized by what it holds
+can still scroll once it is squeezed.
 With `max_length` the scroll is as long as what it holds, up to that length, and
 scrolls from there on, which is what a popup listing a few rows or many wants. A
 `Frame` with `max_height` around a scroll does not do this: a `Frame` with a
@@ -830,26 +833,43 @@ the layout calls on every node it placed last pass and did not place this one.
 The list releases its rows there rather than holding a screenful it cannot see.
 
 `unstyled::Scroll` is the same arrangement without the appearance: it owns the
-base offset, the input that drives it, the position it reports, and the list
-that puts the bar on the scroll's cross axis, and it takes a `ScrollbarStyle`
+base offset, the input that drives it, the position it reports, and the layer
+that lays the bar over the content's far edge, and it takes a `ScrollbarStyle`
 saying what to put there.
-That is the seam the styled layer fills, with a spacing and a builder that is
-handed a `ScrollHandle` of the live `position`, the `direction`, and a
-`scroll_to` that drives the offset the way the wheel and the arrow keys do:
+That is the seam the styled layer fills, with the width of the strip the bar
+covers and a builder that is handed a `ScrollHandle` of the live `position`,
+the `direction`, a `scroll_to` that drives the offset the way the wheel and the
+arrow keys do, the bar's `visibility`, and an `on_engage` to report the pointer
+on the bar:
 
 ```rust
-ScrollbarStyle::new(SCROLLBAR_SPACING, |handle: ScrollHandle| {
-    let ScrollHandle { position, direction, scroll_to } = handle;
+ScrollbarStyle::new(SCROLLBAR_WIDTH, |handle: ScrollHandle| {
+    let ScrollHandle { position, direction, scroll_to, visibility, on_engage } = handle;
     view! {
         <Scrollbar
-            @sizing=ItemSize::Fixed(SCROLLBAR_WIDTH)
             position
             direction
+            visibility
             on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+            on_engage={move |engaged: bool| on_engage.call(engaged)}
         />
     }
 })
 ```
+
+The bar is an overlay, as on macOS: it takes no space from the content, and it
+shows only while it is wanted. `visibility` goes to 1 when the offset or the
+overscroll changes and while the mouse is within the strip's width of the edge
+or on the bar (`on_engage`, which `unstyled::Scrollbar` reports for its whole
+rect and while it is held), stays there for `SCROLLBAR_LINGER` after the last
+of those, and then falls to 0 over `SCROLLBAR_FADE_OUT` on a timer that stops
+once it is hidden. `unstyled::Scrollbar` takes it as `shown` and turns down
+every point while it is false or the content fits, so a press or a finger on a
+hidden bar reaches the content beneath; a finger can drag the bar only while a
+scroll has just shown it. The styled bar fades its colours by `visibility`,
+paints only the thumb while the scroll moves, and adds the track while the bar
+is engaged. A scroll keeps its content clear of the bar, if it needs to, by
+padding inside it, which the edge-to-edge rule already asks for.
 
 The bar answers the pointer itself. `unstyled::Scrollbar` owns that: it takes
 the position, the direction and an `on_scroll_to`, hit-tests the press against
@@ -872,9 +892,9 @@ Without one the scroll shows no bar, which is what the unstyled layer does on
 its own. A control that scrolls something of its own takes a `ScrollbarStyle`
 and passes it down, the way `unstyled::Select` hands one to the scroll behind
 its options, so the styled control decides the bar and the unstyled one never
-names a colour. The gutter is always reserved, and the bar paints nothing while
-its content fits, so a scroll that grows past its viewport does not shift the
-content beside it.
+names a colour. The bar paints nothing while its content fits, and since it
+reserves no gutter, a scroll that grows past its viewport does not shift its
+content.
 
 `ScrollbarStyle::fading(length)` also fades the content out toward each edge
 that has more content beyond it, over at most `length` points and only as far

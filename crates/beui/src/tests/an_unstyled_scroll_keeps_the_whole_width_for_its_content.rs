@@ -21,6 +21,9 @@ fn an_unstyled_scroll_keeps_the_whole_width_for_its_content() {
     harness.frame(Vec::new());
 
     let children = harness.document().children(scroll.get());
-    assert_eq!(children.len(), 1, "an unstyled scroll painted a scrollbar");
+    assert!(
+        harness.document().children(children[1]).is_empty(),
+        "an unstyled scroll built a scrollbar"
+    );
     assert_eq!(harness.rect(children[0]), harness.rect(scroll.get()));
 }

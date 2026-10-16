@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 use beui_core::base::drawing::Draw;
 use beui_core::base::{Direction, ScrollPosition};
 use beui_core::color::Color32;
-use beui_core::geometry::{Rect, pos2};
+use beui_core::geometry::{Pos2, Rect, pos2};
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
@@ -20,6 +20,7 @@ pub struct ScrollbarHandle {
     pub direction: Prop<Direction>,
     pub hovered: ReadSignal<bool>,
     pub dragging: ReadSignal<bool>,
+    pub engaged: Memo<bool>,
 }
 
 pub fn thumb_length(position: ScrollPosition) -> f32 {
@@ -65,6 +66,9 @@ pub fn ScrollbarThumb(
     let draw = Prop::dynamic(move || {
         let (position, direction, color) = (position.get(), direction.get(), color.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
+            if color.alpha() == 0 {
+                return;
+            }
             let thumb = painter
                 .pixel_grid()
                 .snap_rect(thumb_rect(rect, direction, position));
@@ -117,12 +121,18 @@ fn along(direction: &Prop<Direction>, press: PointerPress) -> f32 {
 pub fn Scrollbar(
     position: Prop<ScrollPosition>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    #[prop(default = true)] shown: Prop<bool>,
     on_scroll_to: Callback<f32>,
+    on_engage: Callback<bool>,
     #[prop(children)] content: Render<ScrollbarHandle>,
 ) -> NodeId {
     let position = create_memo(move || position.get());
     let (hovered, set_hovered) = create_signal(false);
+    let (over_bar, set_over_bar) = create_signal(false);
     let (dragging, set_dragging) = create_signal(false);
+    let (held, set_held) = create_signal(false);
+    let engaged = create_memo(move || over_bar.get() || held.get());
+    create_effect(move || on_engage.call(engaged.get()));
     let grab = Rc::new(Cell::new(None::<f32>));
 
     let content_node = content.call(ScrollbarHandle {
@@ -130,11 +140,13 @@ pub fn Scrollbar(
         direction,
         hovered,
         dragging,
+        engaged,
     });
 
     let paged = on_scroll_to;
     let (pressed_axis, dragged_axis, hovered_axis) = (direction, direction, direction);
-    let (pressed_at, dragged_at, hovered_at) = (position, position, position);
+    let (pressed_at, dragged_at, hovered_at, hit_position) =
+        (position, position, position, position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {
         <Interactive
@@ -171,11 +183,16 @@ pub fn Scrollbar(
                 set_hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
             }}
             on_hover_change={move |inside: bool| {
+                set_over_bar.set(inside);
                 if !inside {
                     set_hovered.set(false);
                 }
             }}
+            hit_at={move |_: Pos2| {
+                untrack(|| shown.get() && hit_position.get().max_offset() > 0.0)
+            }}
             on_active_change={move |active: bool| {
+                set_held.set(active);
                 set_dragging.set(active && active_grab.get().is_some());
                 if !active {
                     active_grab.set(None);

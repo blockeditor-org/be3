@@ -117,7 +117,9 @@ pub use popover::{
     Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle, popover_open, popover_trigger,
 };
 pub use pressable::Pressable;
-pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, scroll_animating};
+pub use scroll::{
+    SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollHandle, ScrollbarStyle, scroll_animating,
+};
 pub use scrollbar::{
     Scrollbar, ScrollbarHandle, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,
 };

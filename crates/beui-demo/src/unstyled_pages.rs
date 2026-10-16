@@ -940,21 +940,24 @@ fn ThinScroll() -> NodeId {
 
 #[sample]
 fn thin_scrollbar() -> ScrollbarStyle {
-    ScrollbarStyle::new(0.0, |handle: ScrollHandle| {
+    ScrollbarStyle::new(BAR_WIDTH, |handle: ScrollHandle| {
         let ScrollHandle {
             position,
             direction,
             scroll_to,
+            visibility,
+            on_engage,
         } = handle;
         view! {
             <unstyled::Scrollbar
-                @sizing=ItemSize::Fixed(BAR_WIDTH)
                 position
                 direction
+                shown={create_memo(move || visibility.get() > 0.0)}
                 on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+                on_engage={move |engaged: bool| on_engage.call(engaged)}
             >
                 {move |bar: ScrollbarHandle| view! {
-                    <ThinThumb bar />
+                    <ThinThumb bar visibility />
                 }}
             </unstyled::Scrollbar>
         }
@@ -963,17 +966,21 @@ fn thin_scrollbar() -> ScrollbarStyle {
 
 #[sample]
 #[component]
-fn ThinThumb(bar: ScrollbarHandle) -> NodeId {
+fn ThinThumb(bar: ScrollbarHandle, visibility: ReadSignal<f32>) -> NodeId {
     let ScrollbarHandle {
         position,
         direction,
         hovered,
         dragging,
+        ..
     } = bar;
     let theme = use_theme();
-    let color = create_memo(move || match hovered.get() || dragging.get() {
-        true => theme.scroll_thumb_hover.get(),
-        false => theme.scroll_thumb.get(),
+    let color = create_memo(move || {
+        let color = match hovered.get() || dragging.get() {
+            true => theme.scroll_thumb_hover.get(),
+            false => theme.scroll_thumb.get(),
+        };
+        color.scale_alpha(visibility.get())
     });
     view! {
         <unstyled::ScrollbarThumb position direction color radius=3.0 />

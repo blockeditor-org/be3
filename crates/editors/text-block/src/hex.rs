@@ -2,7 +2,6 @@ use std::ops::Range;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;
 use beui::{
     Color32, CursorIcon, FontId, Key, KeyPress, NodeId, Page, PageShape, PointerPress, Pos2, Rect,
@@ -400,7 +399,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                 };
                 view! {
                     <Frame fill={ColorRole::Custom(COLORS.surface)}>
-                        <Scroll focus_color={Color32::TRANSPARENT}>
+                        <Scroll focus_color=ColorRole::None>
                             <Interactive
                                 focusable=true
                                 on_key={move |press: KeyPress| key(state, press)}
