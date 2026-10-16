@@ -18,6 +18,7 @@ mod shortcuts_inhibit;
 mod single_pixel;
 mod state;
 mod tearing;
+mod text_input;
 mod toplevel_icon;
 mod view;
 mod windows;

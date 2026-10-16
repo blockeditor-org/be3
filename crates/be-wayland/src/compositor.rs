@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use beui::reactive::*;
 use beui::{
-    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, NodeId, PointerButton,
+    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, ImeEvent, NodeId, PointerButton,
     PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
 };
 use smithay::backend::renderer::utils::with_renderer_surface_state;
@@ -647,6 +647,14 @@ impl Compositor {
                     }
                     state.key(*code, press.pressed);
                 }
+                Forwarded::Input(Event::Text(text)) if state.keyboard_window() == Some(id) => {
+                    state.text_inputs.commit_text(text);
+                }
+                Forwarded::Input(Event::Ime(ImeEvent::CommitText(text)))
+                    if state.keyboard_window() == Some(id) =>
+                {
+                    state.text_inputs.commit_text(text);
+                }
                 Forwarded::Pointer { event, over } if event.pointer == PointerId::Mouse => {
                     match event.phase {
                         PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
@@ -927,6 +935,13 @@ impl Compositor {
         self.focus(now);
         self.input(now);
         self.apply(now, document);
+        let typing = self
+            .server
+            .state
+            .keyboard_window()
+            .zip(self.server.state.text_inputs.asks());
+        let windows = self.windows;
+        with_reactive_scope(document, || windows.set_typing(typing));
         self.server.flush();
         self.ping_unowned(context);
         self.watch_pings(context);

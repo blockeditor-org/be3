@@ -755,3 +755,6 @@ fn nearest(def: &KeyDef, direction: i32, _mods: Mods) -> Option<Value> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests;

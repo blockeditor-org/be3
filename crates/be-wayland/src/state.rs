@@ -144,6 +144,7 @@ pub struct State {
     pub(crate) shortcuts: Shortcuts,
     pub(crate) presentation: Presentation,
     pub(crate) activation: Activation,
+    pub(crate) text_inputs: crate::text_input::TextInputs,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -206,6 +207,7 @@ impl State {
         crate::content_type::create(handle);
         crate::single_pixel::create(handle);
         crate::tearing::create(handle);
+        crate::text_input::create(handle);
         let presentation = Presentation::new(handle);
         let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
@@ -241,6 +243,7 @@ impl State {
             shortcuts: Shortcuts::new(handle),
             presentation,
             activation,
+            text_inputs: Default::default(),
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -1476,6 +1479,7 @@ impl SeatHandler for State {
     }
 
     fn focus_changed(&mut self, seat: &Seat<Self>, focused: Option<&KeyboardFocus>) {
+        self.text_inputs.focus(focused.map(KeyboardFocus::surface));
         let client = focused.and_then(|focus| self.handle_of(focus.surface()));
         smithay::wayland::selection::data_device::set_data_device_focus(
             &self.display_handle(),

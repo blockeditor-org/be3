@@ -469,6 +469,12 @@ fn SimulationPanel(
                         checked={state.get().mouse_simulation.get()}
                         on_change={move |enabled| state.get().mouse_simulation.set(enabled)}
                     />
+                    <Button
+                        @test_id={"inspector.simulation.keyboard"}
+                        label="Show or hide the on-screen keyboard"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || state.get().toggle_keyboard()}
+                    />
                     <Checkbox
                         @test_id={"inspector.simulation.rubber_banding"}
                         label="Rubber-band scrolls and windows"

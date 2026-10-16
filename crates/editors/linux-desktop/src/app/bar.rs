@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
@@ -152,6 +152,13 @@ pub(crate) fn DesktopBar(
                     <Show condition={notified}>
                         <NotificationsButton notifications />
                     </Show>
+                    <IconButton
+                        glyph={ICON_KEYBOARD.to_owned()}
+                        label="On-screen keyboard"
+                        @test_id={"desktop.keyboard"}
+                        press_focus=false
+                        on_click={toggle_keyboard}
+                    />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
                             <DesktopCalendar editor={editor} />

@@ -53,6 +53,8 @@ pub fn WindowView(
                     }
                 });
                 let cursor = windows.cursor();
+                let asks = signals.typing;
+                let typing = create_memo(move || asks.get().is_some());
                 let takes = move |local: Pos2| {
                     let position = local + rect.get_untracked().min.to_vec2();
                     !occluders
@@ -96,6 +98,8 @@ pub fn WindowView(
                             cursor
                             on_forward={move |input: ForwardedInput| windows.forward(id, input)}
                             inhibits_shortcuts={inhibits}
+                            ime={typing}
+                            keyboard_asks={asks}
                             hit_at={takes}
                         >
                             <Layers>
