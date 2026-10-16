@@ -1,21 +1,7 @@
 use super::*;
+use block_editor_beui::BlockCommand;
 use block_editor_beui::be_block::canvas::CanvasTextStyle;
 use block_editor_beui::beui::{Key, Modifiers, pos2};
-
-fn retyped(label: &CanvasEntity, text: &str) -> CanvasEntity {
-    let mut label = label.clone();
-    if let CanvasEntityKind::Text { text: held, .. } = &mut label.kind {
-        *held = text.to_owned();
-    }
-    label
-}
-
-fn text_of(editor: &BeuiTest<CanvasApp>) -> String {
-    match &entities(editor)[0].kind {
-        CanvasEntityKind::Text { text, .. } => text.clone(),
-        _ => panic!("the entity is still text"),
-    }
-}
 
 #[test]
 fn undo_in_a_text_takes_back_only_what_was_typed_there() {
@@ -34,39 +20,21 @@ fn undo_in_a_text_takes_back_only_what_was_typed_there() {
     editor.run();
     editor.text("!");
     editor.run();
-
-    apply(
-        &mut editor,
-        InfiniteCanvasOperation::Update {
-            entities: vec![retyped(&label, "Oh, Hello!")],
-        },
-    );
+    peer_types(&mut editor, label.id, 0, "Oh, ");
     editor.run();
-    assert_eq!(text_of(&editor), "Oh, Hello!");
+    editor.take_block_commands();
 
     editor.key_press_modifiers(Modifiers::CTRL, Key::Z);
     editor.run();
-    assert_eq!(
-        text_of(&editor),
-        "Oh, Hello",
-        "undo takes back what was typed here, and leaves what a peer typed"
-    );
 
-    editor.key_press_modifiers(Modifiers::CTRL, Key::Z);
-    editor.run();
+    let block = editor.block_id().expect("the canvas has a block");
     assert_eq!(
-        text_of(&editor),
-        "Oh, Hello",
-        "there is nothing more of ours to undo"
+        editor.take_block_commands(),
+        [(block, BlockCommand::Undo)],
+        "undo in a text is the canvas's undo, which takes back only this peer's edits"
     );
-
-    editor.key_press_modifiers(
-        Modifiers {
-            shift: true,
-            ..Modifiers::CTRL
-        },
-        Key::Z,
-    );
-    editor.run();
-    assert_eq!(text_of(&editor), "Oh, Hello!", "redo puts it back");
+    let CanvasEntityKind::Text { text, .. } = &entities(&editor)[0].kind else {
+        panic!("the entity is still text");
+    };
+    assert_eq!(text, "Oh, Hello!", "the field undoes nothing on its own");
 }

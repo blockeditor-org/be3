@@ -2,6 +2,7 @@ use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::presence::{CanvasCursor, TextCaret};
 use block_editor_beui::BlockList;
@@ -17,6 +18,7 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::unstyled::TextAreaState;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::{
@@ -27,6 +29,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::geometry::*;
+
+use super::live_text::{History, LiveText};
 use crate::images::{image_filter, imported_image};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
@@ -629,11 +633,10 @@ impl CanvasState {
     }
 
     fn operate_all(&self, operations: &[InfiniteCanvasOperation]) {
-        let client = self.cells.get().client;
         if let Some(edit) = self.cells.get().content.read(|canvas| {
             operations
                 .iter()
-                .flat_map(|operation| Canvas::edit_for(canvas, client, operation).0)
+                .flat_map(|operation| canvas.root().edit_for(operation).0)
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {
@@ -783,6 +786,56 @@ impl CanvasState {
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
         self.cells.get().context_position.set(at);
+    }
+
+    pub(crate) fn live_text(&self, entity: Uuid) -> TextAreaState {
+        let cells = self.cells.get();
+        let held = cells
+            .content
+            .read(|canvas| Canvas::text(canvas, entity).cloned())
+            .flatten()
+            .unwrap_or_default();
+        let document = Arc::new(LiveText::new(
+            entity,
+            cells.client,
+            held,
+            self.editor.host().waker(),
+        ));
+        let area = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
+        let shared = cells
+            .content
+            .project_on(Canvas::text_touched(entity), move |canvas| {
+                Canvas::text(canvas, entity).cloned()
+            });
+        let state = *self;
+        create_effect(move || {
+            area.content().get();
+            shared.with(|_| ());
+            untrack(|| state.sync_text(entity, &document, area));
+        });
+        area
+    }
+
+    fn sync_text(&self, entity: Uuid, document: &LiveText, area: TextAreaState) {
+        let Some(cells) = self.cells.try_get() else {
+            return;
+        };
+        for operation in document.take_operations() {
+            cells.content.operate(operation);
+        }
+        match document.take_history() {
+            Some(History::Undo) => self.editor.host().undo(self.block_id()),
+            Some(History::Redo) => self.editor.host().redo(self.block_id()),
+            None => {}
+        }
+        let held = cells
+            .content
+            .read(|canvas| Canvas::text(canvas, entity).cloned())
+            .flatten();
+        match held.is_some_and(|held| document.adopt(&held)) {
+            true => area.external_edit(),
+            false => area.sync(),
+        }
     }
 
     pub(crate) fn note_caret(&self, caret: Option<TextCaret>) {

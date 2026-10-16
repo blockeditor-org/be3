@@ -13,6 +13,7 @@ pub(crate) mod canvas;
 pub(crate) mod components;
 pub(crate) mod input;
 pub(crate) mod layers;
+pub(crate) mod live_text;
 pub(crate) mod menu;
 pub(crate) mod overlay;
 pub(crate) mod paint;

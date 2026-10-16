@@ -1,18 +1,6 @@
 use super::*;
 use crate::canvas::{Canvas, CanvasContent, CanvasTextStyle, InfiniteCanvasOperation};
 
-fn typed(entity: &CanvasEntity, text: &str) -> InfiniteCanvasOperation {
-    let mut entity = entity.clone();
-    entity.kind = CanvasEntityKind::Text {
-        text: text.to_owned(),
-        text_style: CanvasTextStyle::default(),
-        placeholder: String::new(),
-    };
-    InfiniteCanvasOperation::Update {
-        entities: vec![entity],
-    }
-}
-
 fn text_of(content: &CanvasContent) -> String {
     match &content.root().entities()[0].kind {
         CanvasEntityKind::Text { text, .. } => text.clone(),
@@ -36,12 +24,24 @@ fn text_typed_into_one_canvas_text_by_two_peers_keeps_both() {
     );
     assert_eq!(text_of(&base), "hello world");
 
-    let ours = Canvas::edit_for(&base, 1, &typed(&note, "hello, world"));
-    let theirs = Canvas::edit_for(&base, 2, &typed(&note, "hello world!"));
-
+    let ours = Canvas::replace_text(&base, 1, note.id, 5..5, b",").unwrap();
+    let theirs = Canvas::replace_text(&base, 2, note.id, 11..11, b"!").unwrap();
     let one_way = edited(&base, [ours.clone(), theirs.clone()]);
     let other_way = edited(&base, [theirs, ours]);
-
     assert_eq!(text_of(&one_way), "hello, world!");
     assert_eq!(text_of(&other_way), "hello, world!");
+
+    let mut stale = note;
+    stale.transform.center.x = 40.0;
+    let restyled = canvas_run(
+        &one_way,
+        InfiniteCanvasOperation::Update {
+            entities: vec![stale],
+        },
+    );
+    assert_eq!(
+        text_of(&restyled),
+        "hello, world!",
+        "an update made from an older copy of the entity leaves its text alone"
+    );
 }

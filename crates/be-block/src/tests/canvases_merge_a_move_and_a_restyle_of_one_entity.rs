@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 fn run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {
     let mut changed = content.clone();
-    let edit = crate::canvas::Canvas::edit_for(content, 1, &operation);
+    let edit = content.root().edit_for(&operation);
     changed.apply(&edit);
     changed
 }

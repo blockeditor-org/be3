@@ -1052,13 +1052,14 @@ selections and text carets work the same way, and each carries a colour of its o
 same way rather than joining it to the peer's `UserActive` entry.
 
 Canvas text is a `Text` on its entity rather than part of the `kind` register,
-so two people typing into one text merge character by character: an update
-diffs the typed string against the sequence and sends one replace. The field
-showing it adopts a change from elsewhere through `TextBuffer::adopt`, which
-diffs too, keeps the caret on its character and leaves the field's undo
-history to what was typed in it. A canvas text caret is shared
-as byte offsets, which are only as current as the text the peer had when it
-sent them.
+and an `Update` never touches it, so a stale copy of an entity cannot undo
+someone's typing. Each text field on the canvas edits that sequence live, like
+the text editor: `infinite_canvas::app::live_text::LiveText` is a
+`text_editor_core::Document` over a copy of it whose edits go out as the
+field's own text operations, and it adopts the projection's sequence whenever
+`Canvas::text_touched` says that field changed, so carets keep their characters
+and its undo is the block's. Its caret is shared as `Position` anchors, which
+every peer resolves against the same characters.
 
 ### Editors with their own model
 

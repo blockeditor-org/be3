@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, HashSet};
 
-use be_model::{Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, Text};
+use be_model::{
+    Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, SeqOp, Sequence, Text,
+    Touched,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -336,12 +339,31 @@ impl Canvas {
             .filter(move |held| held.id == ObjectId::from_uuid(id))
     }
 
-    pub fn edit_for(
+    pub fn text(content: &CanvasContent, entity: Uuid) -> Option<&Sequence<u8>> {
+        content.text(ObjectId::from_uuid(entity), Entity::TEXT)
+    }
+
+    pub fn text_edit(entity: Uuid, op: SeqOp<u8>) -> Change {
+        Entity::TEXT.edit(ObjectId::from_uuid(entity), op)
+    }
+
+    pub fn text_touched(entity: Uuid) -> Touched {
+        Touched::Field(ObjectId::from_uuid(entity), Entity::TEXT.index())
+    }
+
+    pub fn replace_text(
         content: &CanvasContent,
         client: u64,
-        operation: &InfiniteCanvasOperation,
-    ) -> Edit {
-        let canvas = content.root();
+        entity: Uuid,
+        range: std::ops::Range<usize>,
+        bytes: &[u8],
+    ) -> Option<Edit> {
+        let op = Self::text(content, entity)?.replace(client, range, bytes.to_vec())?;
+        Some(Self::text_edit(entity, op).into())
+    }
+
+    pub fn edit_for(&self, operation: &InfiniteCanvasOperation) -> Edit {
+        let canvas = self;
         match operation {
             InfiniteCanvasOperation::Add { entity } => {
                 if entity.id.is_nil() || canvas.holding(entity.id).next().is_some() {
@@ -362,7 +384,7 @@ impl Canvas {
                     let update = normalized_entity(update.clone());
                     canvas
                         .holding(update.id)
-                        .flat_map(|held| update_entity(content, client, held, &update))
+                        .flat_map(|held| update_entity(held, &update))
                         .collect::<Vec<_>>()
                 })
                 .collect(),
@@ -452,15 +474,10 @@ fn stored_kind(kind: &CanvasEntityKind) -> (CanvasEntityKind, Option<&str>) {
     (stored, text)
 }
 
-fn update_entity(
-    content: &CanvasContent,
-    client: u64,
-    held: &be_model::Item<Entity>,
-    update: &CanvasEntity,
-) -> Vec<Change> {
+fn update_entity(held: &be_model::Item<Entity>, update: &CanvasEntity) -> Vec<Change> {
     let id = held.id;
     let mut changes = Vec::new();
-    let (kind, text) = stored_kind(&update.kind);
+    let (kind, _) = stored_kind(&update.kind);
     if held.center != update.transform.center {
         changes.push(Entity::CENTER.set(id, &update.transform.center));
     }
@@ -473,9 +490,7 @@ fn update_entity(
     if held.kind.as_ref() != Some(&kind) {
         changes.push(Entity::KIND.set(id, &Some(kind)));
     }
-    if let Some(op) = text.and_then(|text| retyped(content, client, id, text.as_bytes())) {
-        changes.push(Entity::TEXT.edit(id, op));
-    }
+
     if held.style != update.style {
         changes.push(Entity::STYLE.set(id, &update.style));
     }
@@ -487,33 +502,6 @@ fn update_entity(
     }
     changes.extend(update_components(held, &update.components));
     changes
-}
-
-fn retyped(
-    content: &CanvasContent,
-    client: u64,
-    id: ObjectId,
-    typed: &[u8],
-) -> Option<be_model::SeqOp<u8>> {
-    let held = content.text(id, Entity::TEXT)?;
-    let old = held.items();
-    let prefix = old
-        .iter()
-        .zip(typed)
-        .take_while(|(before, after)| before == after)
-        .count();
-    let suffix = old[prefix..]
-        .iter()
-        .rev()
-        .zip(typed[prefix..].iter().rev())
-        .take_while(|(before, after)| before == after)
-        .count();
-    let range = prefix..old.len() - suffix;
-    let inserted = typed[prefix..typed.len() - suffix].to_vec();
-    match inserted.is_empty() {
-        true => held.delete(range),
-        false => held.replace(client, range, inserted),
-    }
 }
 
 fn update_components(held: &be_model::Item<Entity>, wanted: &[CanvasComponent]) -> Vec<Change> {

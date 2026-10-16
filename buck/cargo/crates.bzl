@@ -9912,6 +9912,7 @@ crates = {
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",

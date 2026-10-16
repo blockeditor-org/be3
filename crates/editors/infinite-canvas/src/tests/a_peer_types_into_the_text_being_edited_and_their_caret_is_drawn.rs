@@ -4,14 +4,7 @@ use block_editor_beui::PeerPresence;
 use block_editor_beui::be_block::canvas::CanvasTextStyle;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
 use block_editor_beui::beui::pos2;
-
-fn retyped(label: &CanvasEntity, text: &str) -> CanvasEntity {
-    let mut label = label.clone();
-    if let CanvasEntityKind::Text { text: held, .. } = &mut label.kind {
-        *held = text.to_owned();
-    }
-    label
-}
+use block_editor_beui::beui::unstyled;
 
 #[test]
 fn a_peer_types_into_the_text_being_edited_and_their_caret_is_drawn() {
@@ -31,20 +24,21 @@ fn a_peer_types_into_the_text_being_edited_and_their_caret_is_drawn() {
     editor.double_click_at(pos2(resting.right() - 2.0, resting.center().y));
     editor.run();
 
-    apply(
-        &mut editor,
-        InfiniteCanvasOperation::Update {
-            entities: vec![retyped(&label, "Oh, Hello")],
-        },
-    );
+    peer_types(&mut editor, label.id, 0, "Oh, ");
     editor.run();
+    let node = editor
+        .document()
+        .find_test_id(&field)
+        .expect("the text has a field");
+    let area = unstyled::text_input_state(editor.document(), node);
+    let (anchor, focus) = area.with_core(|core| (core.position(0), core.position(3)));
     let theirs = CanvasCursor {
         pointer: None,
         selection: vec![label.id],
         text: Some(TextCaret {
             entity: label.id,
-            anchor: 0,
-            focus: 3,
+            anchor,
+            focus,
         }),
         color: PresenceColor::Purple,
     };
@@ -57,8 +51,6 @@ fn a_peer_types_into_the_text_being_edited_and_their_caret_is_drawn() {
         }],
     );
     editor.run();
-    editor.take_shown_presence();
-
     editor.text("!");
     editor.run();
 
@@ -69,20 +61,19 @@ fn a_peer_types_into_the_text_being_edited_and_their_caret_is_drawn() {
         text, "Oh, Hello!",
         "the peer's words are kept and typing stays at the caret"
     );
-    let ours: CanvasCursor = editor
+    let ours = editor
         .take_shown_presence()
         .iter()
         .rev()
         .find(|shown| shown.kind == CanvasCursor::ID)
-        .and_then(|shown| serde_json::from_slice(shown.value.as_ref()?).ok())
+        .and_then(|shown| serde_json::from_slice::<CanvasCursor>(shown.value.as_ref()?).ok())
+        .and_then(|cursor| cursor.text)
         .expect("the canvas shows its caret to its peers");
+    assert_eq!(ours.entity, label.id);
     assert_eq!(
-        ours.text,
-        Some(TextCaret {
-            entity: label.id,
-            anchor: 10,
-            focus: 10,
-        })
+        area.with_core(|core| core.position_index(ours.focus)),
+        Some(10),
+        "the caret it shows is after what was typed"
     );
     editor.snapshot("a_peer_types_into_the_text_being_edited_and_their_caret_is_drawn");
 }

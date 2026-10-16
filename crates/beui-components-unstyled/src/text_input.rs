@@ -83,7 +83,8 @@ struct Input {
 
 #[component]
 pub fn TextInput(
-    value: Prop<String>,
+    #[prop(default = String::new())] value: Prop<String>,
+    document: Option<TextAreaState>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -112,8 +113,14 @@ pub fn TextInput(
         prose,
         menu,
     } = style;
-    let initial = value.peek();
-    let (state, buffer) = plain_text(&initial);
+    let (state, buffer) = match document {
+        Some(state) => (state, None),
+        None => {
+            let (state, buffer) = plain_text(&value.peek());
+            (state, Some(buffer))
+        }
+    };
+    let initial = text_of(state);
     let (hovered, set_hovered) = create_signal(false);
     let (is_focused, set_focused) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
@@ -126,11 +133,13 @@ pub fn TextInput(
         focused: is_focused,
     });
 
-    create_effect(move || {
-        if buffer.adopt(value.get().as_bytes()) {
-            state.external_edit();
-        }
-    });
+    if let Some(buffer) = buffer {
+        create_effect(move || {
+            if buffer.adopt(value.get().as_bytes()) {
+                state.external_edit();
+            }
+        });
+    }
     let edited = state.content();
     let empty = create_memo(move || {
         edited.get();

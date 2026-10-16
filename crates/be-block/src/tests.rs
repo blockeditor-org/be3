@@ -227,8 +227,5 @@ fn rectangle() -> CanvasEntity {
 }
 
 fn canvas_run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {
-    edited(
-        content,
-        [crate::canvas::Canvas::edit_for(content, 1, &operation)],
-    )
+    edited(content, [content.root().edit_for(&operation)])
 }

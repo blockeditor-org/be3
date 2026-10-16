@@ -81,7 +81,6 @@ pub(crate) fn text_box(entity: &CanvasEntity) -> Rect {
 
 #[derive(Clone, PartialEq)]
 struct Shown {
-    text: String,
     placeholder: String,
     text_style: CanvasTextStyle,
     color: Color32,
@@ -102,15 +101,14 @@ pub(crate) fn EntityText(
     let shown = create_memo(move || {
         let entity = entity.get()?;
         let CanvasEntityKind::Text {
-            text,
             text_style,
             placeholder,
+            ..
         } = entity.kind
         else {
             return None;
         };
         Some(Shown {
-            text,
             placeholder,
             text_style,
             color: with_opacity(
@@ -120,7 +118,6 @@ pub(crate) fn EntityText(
             locked: entity.locked,
         })
     });
-    let text = create_memo(move || shown.get().map(|shown| shown.text).unwrap_or_default());
     let placeholder = create_memo(move || {
         shown
             .get()
@@ -163,20 +160,28 @@ pub(crate) fn EntityText(
         prose: Prop::dynamic(move || Some(prose(text_style.get(), font_size.get()))),
         ..text_input_style()
     };
+    let area = state.live_text(id);
     let remote_cursors = create_memo(move || {
-        let length = text.get().len();
-        state.presence.with(|presence| {
+        area.content().get();
+        let carets: Vec<_> = state.presence.with(|presence| {
             presence
                 .carets
                 .iter()
                 .filter(|(caret, _)| caret.entity == id)
-                .map(|(caret, color)| {
-                    let (anchor, focus) = (caret.anchor.min(length), caret.focus.min(length));
-                    RemoteTextCursor {
+                .copied()
+                .collect()
+        });
+        area.with_core(|core| {
+            carets
+                .into_iter()
+                .filter_map(|(caret, color)| {
+                    let anchor = core.position_index(caret.anchor)?;
+                    let focus = core.position_index(caret.focus)?;
+                    Some(RemoteTextCursor {
                         selection: anchor.min(focus)..anchor.max(focus),
                         caret: focus,
-                        color: block_editor_beui::presence_color(*color),
-                    }
+                        color: block_editor_beui::presence_color(color),
+                    })
                 })
                 .collect::<Vec<_>>()
         })
@@ -207,25 +212,16 @@ pub(crate) fn EntityText(
         let Some(held) = entity.get_untracked() else {
             return;
         };
-        let CanvasEntityKind::Text {
-            text_style,
-            placeholder,
-            text,
-        } = held.kind.clone()
-        else {
-            return;
-        };
-        if text == typed {
-            return;
+        let mut retyped = held.clone();
+        if let CanvasEntityKind::Text { text, .. } = &mut retyped.kind {
+            *text = typed;
         }
-        let mut updated = held.clone();
-        updated.kind = CanvasEntityKind::Text {
-            text: typed,
-            text_style,
-            placeholder,
-        };
-        let updated = state.fit_text(updated);
-        state.record_update(vec![held], vec![updated], true);
+        let fitted = state.fit_text(retyped);
+        if fitted.transform != held.transform {
+            let mut resized = held.clone();
+            resized.transform = fitted.transform;
+            state.record_update(vec![held], vec![resized], true);
+        }
     };
     let left = move |has_focus: bool| {
         if !has_focus && editing.get_untracked() {
@@ -237,7 +233,7 @@ pub(crate) fn EntityText(
             <unstyled::TextInput
                 @node_ref=&field
                 @test_id={format!("infinite-canvas.text.{id}")}
-                value={text}
+                document={area}
                 placeholder={placeholder}
                 label="Text"
                 disabled={disabled}
@@ -250,13 +246,12 @@ pub(crate) fn EntityText(
             />
         </Frame>
     };
-    let input = with_document(|document| unstyled::text_input_state(document, field.get()));
     create_effect(move || {
         let caret = match editing.get() {
             true => {
-                input.cursors().get();
-                input.content().get();
-                untrack(|| caret_of(input, id))
+                area.cursors().get();
+                area.content().get();
+                untrack(|| caret_of(area, id))
             }
             false => None,
         };
@@ -280,8 +275,8 @@ fn caret_of(input: TextAreaState, entity: Uuid) -> Option<TextCaret> {
         let cursor = core.cursor_positions().first()?;
         Some(TextCaret {
             entity,
-            anchor: core.position_index(cursor.pos.anchor)?,
-            focus: core.position_index(cursor.pos.focus)?,
+            anchor: cursor.pos.anchor,
+            focus: cursor.pos.focus,
         })
     })
 }

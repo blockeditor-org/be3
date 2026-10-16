@@ -151,7 +151,22 @@ fn phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
 }
 
 fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {
-    let edit = Canvas::edit_for(&editor.content::<CanvasContent>(None), 1, &operation);
+    let edit = editor
+        .content::<CanvasContent>(None)
+        .root()
+        .edit_for(&operation);
+    editor.edit::<CanvasContent>(None, &edit);
+}
+
+fn peer_types(editor: &mut BeuiTest<CanvasApp>, entity: Uuid, at: usize, typed: &str) {
+    let edit = Canvas::replace_text(
+        &editor.content::<CanvasContent>(None),
+        2,
+        entity,
+        at..at,
+        typed.as_bytes(),
+    )
+    .expect("the peer has somewhere to type");
     editor.edit::<CanvasContent>(None, &edit);
 }
 
