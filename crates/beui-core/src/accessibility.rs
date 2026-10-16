@@ -290,6 +290,11 @@ impl Pass<'_> {
                 && held.origin == origin
                 && held.at == rect.min
             {
+                for child in &held.children {
+                    if let Some(local) = document.local_node_id(*child) {
+                        self.tree.reached.insert(local, self.tree.pass);
+                    }
+                }
                 out.children.extend_from_slice(&held.children);
                 if held.focus.is_some() {
                     out.focus = held.focus;
