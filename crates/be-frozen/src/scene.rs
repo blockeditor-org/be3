@@ -1,4 +1,4 @@
-pub const WORKSPACE: &str = "Frozen";
+pub const ORGANIZATION: &str = "Frozen";
 
 pub const OWNER_EMAIL: &str = "owner@example.com";
 pub const OWNER_NAME: &str = "Owner";

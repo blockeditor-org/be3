@@ -3,21 +3,26 @@ use std::collections::{HashMap, HashSet};
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{BlockContent, EditorViewContent, FolderContent};
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_WORKSPACES;
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF, ICON_MORE_VERT,
-    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_SEARCH, ICON_SEARCH_OFF, ICON_SHARE,
+    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_SEARCH, ICON_SEARCH_OFF,
+    ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{BackSlide, Edge, Floating, MenuItem};
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::{BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label};
+use block_editor_beui::{BlockQuery, ChildTarget, Editor, watch_block_label};
 use uuid::Uuid;
 
 use super::export::Exporter;
-use super::rows::{Inspection, Placement, Row, RowKey, Tree as FileTree, describe};
-use super::ui::{ExportAs, OpenWith, Picker, menu_action};
+use super::rows::{
+    Inspection, Placement, Row, RowKey, Tree as FileTree, describe, is_workspace, shared_with_me,
+    workspaces,
+};
+use super::ui::{ExportAs, OpenWith, Picker, menu_action, new_workspace};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING: f32 = 8.0;
@@ -41,6 +46,7 @@ pub(crate) struct Crumb {
 pub(crate) enum Level {
     Root,
     Folder(Vec<Crumb>),
+    Shared,
     Deleted,
 }
 
@@ -51,6 +57,7 @@ impl Level {
             Self::Folder(crumbs) => crumbs
                 .last()
                 .map_or(BlockQuery::Roots, |crumb| BlockQuery::References(crumb.id)),
+            Self::Shared => BlockQuery::Shared,
             Self::Deleted => BlockQuery::Detached,
         }
     }
@@ -58,7 +65,7 @@ impl Level {
     fn container(&self) -> Option<&Crumb> {
         match self {
             Self::Folder(crumbs) => crumbs.last(),
-            Self::Root | Self::Deleted => None,
+            Self::Root | Self::Shared | Self::Deleted => None,
         }
     }
 
@@ -67,7 +74,7 @@ impl Level {
             Self::Folder(crumbs) if crumbs.len() > 1 => {
                 Self::Folder(crumbs[..crumbs.len() - 1].to_vec())
             }
-            Self::Root | Self::Folder(_) | Self::Deleted => Self::Root,
+            Self::Root | Self::Folder(_) | Self::Shared | Self::Deleted => Self::Root,
         }
     }
 
@@ -84,13 +91,14 @@ impl Level {
                 crumbs.push(crumb);
                 Self::Folder(crumbs)
             }
-            Self::Root | Self::Deleted => Self::Folder(vec![crumb]),
+            Self::Root | Self::Shared | Self::Deleted => Self::Folder(vec![crumb]),
         })
     }
 }
 
 fn drills_in(row: &Row) -> bool {
-    row.block_type == FolderContent::CONTENT_TYPE && !row.is_reference
+    (row.block_type == FolderContent::CONTENT_TYPE || is_workspace(row.block_type))
+        && !row.is_reference
 }
 
 #[component]
@@ -108,8 +116,9 @@ pub(crate) fn PhoneFiles(
     let browsing = create_memo(move || !searching.get());
     let at_root = create_memo(move || browsing.get() && level.get() == Level::Root);
     let nested = create_memo(move || level.get() != Level::Root);
-    let can_create =
-        create_memo(move || browsing.get() && level.get() != Level::Deleted && !covered.get());
+    let can_create = create_memo(move || {
+        browsing.get() && !matches!(level.get(), Level::Deleted | Level::Shared) && !covered.get()
+    });
     let page = NodeRef::new();
     let creating = move || {
         let parent = level.with_untracked(|level| {
@@ -120,7 +129,15 @@ pub(crate) fn PhoneFiles(
                         && tree.blocks().access(crumb.id).can_edit()
                 })
                 .map(|crumb| crumb.id)
+                .or_else(|| match level {
+                    Level::Root => tree.my_files(),
+                    Level::Folder(_) | Level::Shared | Level::Deleted => None,
+                })
         });
+        let Some(parent) = parent else {
+            return;
+        };
+        let parent = Some(parent);
         let excluded = parent.into_iter().collect::<HashSet<Uuid>>();
         picker.open_placed(editor, parent, excluded);
     };
@@ -268,6 +285,7 @@ fn Header(
             .last()
             .map(|crumb| crumb.name.clone())
             .unwrap_or_default(),
+        Level::Shared => "Shared with me".to_owned(),
         Level::Deleted => "Recently deleted".to_owned(),
     });
     let path = create_memo(move || match level.get() {
@@ -279,7 +297,7 @@ fn Header(
             )
             .collect::<Vec<_>>()
             .join(" / "),
-        Level::Root | Level::Deleted => "Files".to_owned(),
+        Level::Root | Level::Shared | Level::Deleted => "Files".to_owned(),
     });
     let up = move || set_level.set(level.get_untracked().up());
     let typed = query;
@@ -466,10 +484,20 @@ fn LevelRows(
     tools: RowTools,
 ) -> NodeId {
     let listed = editor.watch_blocks(level.query());
+    let roots = match level {
+        Level::Shared => Some(editor.watch_blocks(BlockQuery::Roots)),
+        Level::Root | Level::Folder(_) | Level::Deleted => None,
+    };
     let described_level = level.clone();
+    let account = editor.host().account_id();
     let rows = create_memo(move || {
         let listed = listed.get()?;
         let types = editor.block_types();
+        let listed = match &described_level {
+            Level::Root => workspaces(listed, account, types.as_ref()),
+            Level::Shared => shared_with_me(roots.as_ref()?.get()?, listed),
+            Level::Folder(_) | Level::Deleted => listed,
+        };
         let mut block_types: HashMap<Uuid, Uuid> = tree.block_types();
         if let Level::Folder(crumbs) = &described_level {
             block_types.extend(crumbs.iter().map(|crumb| (crumb.id, crumb.block_type)));
@@ -477,7 +505,7 @@ fn LevelRows(
         block_types.extend(listed.iter().map(|info| (info.id, info.block_type)));
         let path: Vec<Uuid> = match &described_level {
             Level::Folder(crumbs) => crumbs.iter().map(|crumb| crumb.id).collect(),
-            Level::Root | Level::Deleted => Vec::new(),
+            Level::Root | Level::Shared | Level::Deleted => Vec::new(),
         };
         let container = described_level.container().map(|crumb| crumb.id);
         Some(
@@ -514,8 +542,9 @@ fn LevelRows(
         })
     });
     let empty_text = match &level {
-        Level::Root => "Nothing here yet. Tap New to make your first file.",
+        Level::Root => "No workspaces yet. Tap New workspace to make one.",
         Level::Folder(_) => "This folder is empty. Tap New to add a file to it.",
+        Level::Shared => "Nothing has been shared with you.",
         Level::Deleted => "Nothing has been deleted.",
     };
     let at_root = level == Level::Root;
@@ -547,6 +576,26 @@ fn LevelRows(
                     }
                 }}
             </ForEach>
+            <Show condition={at_root}>
+                {move || view! {
+                    <ActionRow
+                        @test_id={"file-tree.new-workspace"}
+                        label="New workspace"
+                        glyph={ICON_WORKSPACES.to_owned()}
+                        on_click={move || new_workspace(editor)}
+                    />
+                }}
+            </Show>
+            <Show condition={at_root}>
+                {move || view! {
+                    <ActionRow
+                        @test_id={"file-tree.shared"}
+                        label="Shared with me"
+                        glyph={ICON_PEOPLE.to_owned()}
+                        on_click={move || deleting.set(Level::Shared)}
+                    />
+                }}
+            </Show>
             <Show condition={at_root}>
                 {move || view! {
                     <ActionRow
@@ -702,7 +751,26 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
         inspect,
         set_level,
     } = tools;
-    let chosen = menu_action(editor, tree, picker, inspect, row);
+    let chosen = menu_action(editor, picker, inspect, row);
+    let my_files = create_memo(move || {
+        tree.rows().get();
+        tree.my_files()
+    });
+    let moving = move || {
+        let (Some(shown), Some(files)) = (row.get_untracked(), my_files.get_untracked()) else {
+            return;
+        };
+        let Some(id) = shown.id else {
+            return;
+        };
+        editor.host().move_block(
+            id,
+            shown.block_type,
+            shown.source,
+            files,
+            shown.is_reference,
+        );
+    };
     let add_inside = move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
@@ -715,7 +783,12 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
     let unaddable = off(|row| row.can_add);
     let uneditable = off(|row| row.can_edit);
     let unshareable = off(|row| row.can_edit);
-    let unmovable = off(|row| row.can_edit && row.parent != BlockParent::Root);
+    let unmovable = create_memo(move || {
+        let files = my_files.get();
+        !row.get().is_some_and(|row| {
+            row.can_delete && files.is_some() && row.container != files && row.id != files
+        })
+    });
     let unlinkable = off(|row| row.is_reference && row.unlink.is_ok());
     let undeletable = off(|row| row.can_delete);
     let uninspectable = off(|row| row.inspection.is_some());
@@ -783,7 +856,7 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                 />
                 <MenuItem
                     row_test_id={"file-tree.actions.top".to_owned()}
-                    label="Move to the top level"
+                    label="Move to My files"
                     glyph={ICON_MOVE_UP.to_owned()}
                     disabled={unmovable}
                 />
@@ -818,7 +891,7 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                 [2] => add_inside(),
                 [3] => chosen(vec![3]),
                 [4] => chosen(vec![4]),
-                [5] => chosen(vec![2, 0]),
+                [5] => moving(),
                 [6] => chosen(vec![5]),
                 [7] => chosen(vec![7]),
                 [9] => chosen(vec![6]),

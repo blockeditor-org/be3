@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn an_invite_code_opens_only_its_own_workspaces_key() {
+fn an_invite_code_opens_only_its_own_organizations_key() {
     let code = InviteCode::generate();
     let typed = code.to_string().to_lowercase().replace('-', " ");
     let parsed = InviteCode::parse(&typed).expect("a printed code parses back");
@@ -10,18 +10,18 @@ fn an_invite_code_opens_only_its_own_workspaces_key() {
         "the code changed on the way through its text"
     );
 
-    let sealed = code.seal(b"workspace", b"the workspace key");
+    let sealed = code.seal(b"organization", b"the organization key");
     assert_eq!(
-        parsed.open(b"workspace", &sealed).unwrap(),
-        b"the workspace key"
+        parsed.open(b"organization", &sealed).unwrap(),
+        b"the organization key"
     );
     assert_eq!(
-        parsed.open(b"another workspace", &sealed),
+        parsed.open(b"another organization", &sealed),
         Err(KeyError::Invite),
-        "the key opened for a workspace it was not sealed for"
+        "the key opened for an organization it was not sealed for"
     );
     assert_eq!(
-        InviteCode::generate().open(b"workspace", &sealed),
+        InviteCode::generate().open(b"organization", &sealed),
         Err(KeyError::Invite),
         "another code opened the key"
     );

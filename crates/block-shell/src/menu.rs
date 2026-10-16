@@ -12,6 +12,7 @@ use super::workspace::Workspace;
 pub(crate) enum Action {
     Open,
     Picker,
+    MoveToMyFiles,
     SetParent(BlockParent),
     Rename,
     Share,
@@ -32,7 +33,7 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
     match path {
         [0] => Some(Action::Open),
         [1] => Some(Action::Picker),
-        [2, 0] => Some(Action::SetParent(BlockParent::Root)),
+        [2, 0] => Some(Action::MoveToMyFiles),
         [2, 1] => Some(Action::SetParent(BlockParent::Detached)),
         [3] => Some(Action::Rename),
         [4] => Some(Action::Share),
@@ -104,6 +105,17 @@ pub(crate) fn apply(
     match action {
         Action::Open => workspace.open(TabItem::new(reference.id, reference.block_type), None),
         Action::Picker => workspace.open_picker(reference.id),
+        Action::MoveToMyFiles => {
+            if let Some(files) = workspace.my_files() {
+                workspace.host().move_block(
+                    reference.id,
+                    reference.block_type,
+                    permissions.source,
+                    files,
+                    permissions.is_reference,
+                );
+            }
+        }
         Action::SetParent(parent) => workspace.blocks().set_parent(reference.id, parent),
         Action::Rename => workspace.open_dialog(OpenDialog::Rename(reference.id)),
         Action::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
@@ -156,11 +168,15 @@ pub(crate) fn ReferenceMenuItem(
     let edit = create_memo(move || rights.get().is_none_or(|rights| rights.1));
     let delete = create_memo(move || rights.get().is_none_or(|rights| rights.2));
     let unlink = create_memo(move || rights.get().is_none_or(|rights| rights.3));
+    let files = create_memo(move || workspace.my_files());
     let rooted = create_memo(move || {
-        edit.get()
-            || rights
-                .get()
-                .is_none_or(|rights| rights.4 == BlockParent::Root)
+        let files = files.get();
+        delete.get()
+            || files.is_none()
+            || rights.get().is_none_or(|rights| {
+                rights.4 == BlockParent::Root
+                    || rights.4 == files.map_or(rights.4, BlockParent::Block)
+            })
     });
     let orphaned = create_memo(move || {
         edit.get()
@@ -177,7 +193,7 @@ pub(crate) fn ReferenceMenuItem(
             <MenuItem label="Open" />
             <MenuItem label="Add" disabled={add} />
             <MenuItem label="Set parent" disabled={edit}>
-                <MenuItem label="Root" disabled={rooted} />
+                <MenuItem label="My files" disabled={rooted} />
                 <MenuItem label="Orphaned" disabled={orphaned} />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} />

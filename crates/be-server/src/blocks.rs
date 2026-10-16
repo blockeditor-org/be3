@@ -1,6 +1,6 @@
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, ObjectRefs};
-use be_protocol::{AccessEntry, BlockSummary, ErrorCode, HistoryEntry, WorkspaceRole};
+use be_protocol::{AccessEntry, BlockSummary, ErrorCode, HistoryEntry, OrganizationRole};
 use be_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet};
@@ -23,10 +23,10 @@ struct Visibility {
 }
 
 impl Visibility {
-    fn of(account: Uuid, role: WorkspaceRole) -> Self {
+    fn of(account: Uuid, role: OrganizationRole) -> Self {
         Self {
             account,
-            administrator: role == WorkspaceRole::Administrator,
+            administrator: role == OrganizationRole::Administrator,
             visible: std::cell::OnceCell::new(),
         }
     }
@@ -104,7 +104,7 @@ impl ServerStore {
         parent: BlockParent,
         metadata: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             if let BlockParent::Block(target) = parent {
                 require_edit(graph, &visibility(identity), target)?;
             }
@@ -114,10 +114,10 @@ impl ServerStore {
             let (kind, parent_id) = encode_parent(parent);
             database.execute(
                 "INSERT INTO blocks
-                    (workspace_id, id, content_type, author, parent_kind, parent_id, head, metadata)
+                    (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)",
                 params![
-                    identity.workspace.to_string(),
+                    identity.organization.to_string(),
                     block.to_string(),
                     content_type.to_string(),
                     identity.account.to_string(),
@@ -137,7 +137,7 @@ impl ServerStore {
         block: Uuid,
         metadata: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             if let Some(head) = graph.head(block) {
                 return Err(ServerError::Refused(
@@ -146,8 +146,8 @@ impl ServerStore {
                 ));
             }
             database.execute(
-                "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
-                params![identity.workspace.to_string(), block.to_string(), metadata],
+                "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
+                params![identity.organization.to_string(), block.to_string(), metadata],
             )?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
@@ -157,7 +157,7 @@ impl ServerStore {
     }
 
     pub async fn list_blocks(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
+        self.with_graph(identity.organization, move |graph, _| {
             let seen = visibility(identity);
             let blocks = match seen.administrator {
                 true => graph.ids(),
@@ -174,12 +174,12 @@ impl ServerStore {
 
     pub async fn graph_views(
         &self,
-        workspace: Uuid,
+        organization: Uuid,
         members: Vec<Identity>,
         blocks: Vec<Uuid>,
         subtree: bool,
     ) -> Result<Vec<Vec<be_protocol::ServerMessage>>, ServerError> {
-        self.with_graph(workspace, move |graph, _| {
+        self.with_graph(organization, move |graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
                 match subtree && graph.contains(block) {
@@ -210,10 +210,10 @@ impl ServerStore {
 
     pub async fn audience(
         &self,
-        workspace: Uuid,
+        organization: Uuid,
         blocks: Vec<Uuid>,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(workspace, move |graph, _| {
+        self.with_graph(organization, move |graph, _| {
             Ok(blocks
                 .into_iter()
                 .flat_map(|block| graph.audience(block))
@@ -227,7 +227,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
+        self.with_graph(identity.organization, move |graph, _| {
             if !graph.contains(block) {
                 return Err(ServerError::Refused(
                     ErrorCode::BlockNotFound,
@@ -269,7 +269,7 @@ impl ServerStore {
                 ));
             }
         }
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let current = graph.head(block);
             if current != expected {
@@ -287,22 +287,22 @@ impl ServerStore {
                     .get(block)
                     .is_some_and(|node| node.metadata != metadata);
             let transaction = database.unchecked_transaction()?;
-            let workspace = identity.workspace.to_string();
+            let organization = identity.organization.to_string();
             let existing: Option<i64> = transaction
                 .query_row(
                     "SELECT 1 FROM block_commits
-                     WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
-                    params![workspace, block.to_string(), commit.hash().to_hex()],
+                     WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+                    params![organization, block.to_string(), commit.hash().to_hex()],
                     |row| row.get(0),
                 )
                 .optional()?;
             if existing.is_none() {
                 transaction.execute(
                     "INSERT INTO block_commits
-                        (workspace_id, block_id, commit_id, parents, time, pinned)
+                        (organization_id, block_id, commit_id, parents, time, pinned)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![
-                        workspace,
+                        organization,
                         block.to_string(),
                         commit.hash().to_hex(),
                         encode_parents(&parents),
@@ -314,10 +314,10 @@ impl ServerStore {
                 for (position, hash) in held.iter().enumerate() {
                     transaction.execute(
                         "INSERT INTO commit_objects
-                            (workspace_id, block_id, commit_id, position, hash)
+                            (organization_id, block_id, commit_id, position, hash)
                          VALUES (?1, ?2, ?3, ?4, ?5)",
                         params![
-                            workspace,
+                            organization,
                             block.to_string(),
                             commit.hash().to_hex(),
                             i64::try_from(position).map_err(|_| ServerError::Corrupt)?,
@@ -330,9 +330,9 @@ impl ServerStore {
             }
             transaction.execute(
                 "UPDATE blocks SET head = ?3, metadata = ?4, version = version + 1
-                 WHERE workspace_id = ?1 AND id = ?2",
+                 WHERE organization_id = ?1 AND id = ?2",
                 params![
-                    workspace,
+                    organization,
                     block.to_string(),
                     commit.hash().to_hex(),
                     metadata
@@ -340,16 +340,16 @@ impl ServerStore {
             )?;
             if relinked {
                 transaction.execute(
-                    "DELETE FROM block_edges WHERE workspace_id = ?1 AND block_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 for (position, reference) in references.iter().enumerate() {
                     transaction.execute(
                         "INSERT OR IGNORE INTO block_edges
-                            (workspace_id, block_id, reference_id, position)
+                            (organization_id, block_id, reference_id, position)
                          VALUES (?1, ?2, ?3, ?4)",
                         params![
-                            workspace,
+                            organization,
                             block.to_string(),
                             reference.to_string(),
                             i64::try_from(position).map_err(|_| ServerError::Corrupt)?
@@ -372,14 +372,14 @@ impl ServerStore {
         identity: Identity,
         hash: Hash,
     ) -> Result<bool, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             let mut statement = database.prepare(
-                "SELECT block_id FROM commit_objects WHERE workspace_id = ?1 AND hash = ?2
+                "SELECT block_id FROM commit_objects WHERE organization_id = ?1 AND hash = ?2
                  UNION
-                 SELECT block_id FROM block_objects WHERE workspace_id = ?1 AND hash = ?2",
+                 SELECT block_id FROM block_objects WHERE organization_id = ?1 AND hash = ?2",
             )?;
             let rows = statement.query_map(
-                params![identity.workspace.to_string(), hash.to_hex()],
+                params![identity.organization.to_string(), hash.to_hex()],
                 |row| row.get::<_, String>(0),
             )?;
             let seen = visibility(identity);
@@ -407,16 +407,16 @@ impl ServerStore {
                 ));
             }
         }
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let transaction = database.unchecked_transaction()?;
-            let workspace = identity.workspace.to_string();
+            let organization = identity.organization.to_string();
             let mut fresh = Vec::new();
             for hash in objects {
                 let inserted = transaction.execute(
-                    "INSERT OR IGNORE INTO block_objects (workspace_id, block_id, hash)
+                    "INSERT OR IGNORE INTO block_objects (organization_id, block_id, hash)
                      VALUES (?1, ?2, ?3)",
-                    params![workspace, block.to_string(), hash.to_hex()],
+                    params![organization, block.to_string(), hash.to_hex()],
                 )?;
                 if inserted > 0 {
                     fresh.push(hash);
@@ -437,7 +437,7 @@ impl ServerStore {
         block: Uuid,
         parent: BlockParent,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
             if let BlockParent::Block(target) = parent {
@@ -449,9 +449,9 @@ impl ServerStore {
             let (kind, parent_id) = encode_parent(parent);
             database.execute(
                 "UPDATE blocks SET parent_kind = ?3, parent_id = ?4, version = version + 1
-                 WHERE workspace_id = ?1 AND id = ?2",
+                 WHERE organization_id = ?1 AND id = ?2",
                 params![
-                    identity.workspace.to_string(),
+                    identity.organization.to_string(),
                     block.to_string(),
                     kind,
                     parent_id
@@ -467,7 +467,7 @@ impl ServerStore {
         identity: Identity,
         parent: BlockParent,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
+        self.with_graph(identity.organization, move |graph, _| {
             let seen = visibility(identity);
             Ok(graph
                 .children(parent)
@@ -484,7 +484,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, _| {
+        self.with_graph(identity.organization, move |graph, _| {
             let seen = visibility(identity);
             Ok(graph
                 .backrefs(block)
@@ -501,14 +501,14 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<HistoryEntry>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             if !visibility(identity).can_view(graph, block) {
                 return Err(ServerError::Refused(
                     ErrorCode::PermissionDenied,
                     format!("block {block} is not readable by this account"),
                 ));
             }
-            read_history(database, identity.workspace, block)
+            read_history(database, identity.organization, block)
         })
         .await
     }
@@ -519,11 +519,11 @@ impl ServerStore {
         block: Uuid,
         drop: Vec<CommitId>,
     ) -> Result<usize, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let head = graph.head(block);
             let transaction = database.unchecked_transaction()?;
-            let pinned: Vec<CommitId> = read_history(&transaction, identity.workspace, block)?
+            let pinned: Vec<CommitId> = read_history(&transaction, identity.organization, block)?
                 .into_iter()
                 .filter(|entry| entry.pinned)
                 .map(|entry| entry.commit)
@@ -537,7 +537,7 @@ impl ServerStore {
                 freed.extend(release_commit(
                     &transaction,
                     &mut refs,
-                    identity.workspace,
+                    identity.organization,
                     block,
                     commit,
                 )?);
@@ -559,7 +559,7 @@ impl ServerStore {
     }
 
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
             let detached: Vec<Uuid> = graph
                 .detached()
@@ -571,11 +571,11 @@ impl ServerStore {
             let mut freed = Vec::new();
             let mut removed = Vec::new();
             for block in detached {
-                for commit in read_history(&transaction, identity.workspace, block)? {
+                for commit in read_history(&transaction, identity.organization, block)? {
                     freed.extend(release_commit(
                         &transaction,
                         &mut refs,
-                        identity.workspace,
+                        identity.organization,
                         block,
                         commit.commit,
                     )?);
@@ -583,25 +583,25 @@ impl ServerStore {
                 freed.extend(release_held(
                     &transaction,
                     &mut refs,
-                    identity.workspace,
+                    identity.organization,
                     block,
                 )?);
-                let workspace = identity.workspace.to_string();
+                let organization = identity.organization.to_string();
                 transaction.execute(
-                    "DELETE FROM block_edges WHERE workspace_id = ?1 AND block_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 transaction.execute(
-                    "DELETE FROM block_edges WHERE workspace_id = ?1 AND reference_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_edges WHERE organization_id = ?1 AND reference_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 transaction.execute(
-                    "DELETE FROM block_access WHERE workspace_id = ?1 AND block_id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM block_access WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 transaction.execute(
-                    "DELETE FROM blocks WHERE workspace_id = ?1 AND id = ?2",
-                    params![workspace, block.to_string()],
+                    "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
+                    params![organization, block.to_string()],
                 )?;
                 graph.remove(block);
                 removed.push(block);
@@ -623,30 +623,35 @@ impl ServerStore {
         account: Uuid,
         access: Access,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let before = graph.audience(block);
             graph.grant(block, account, access)?;
             graph.touch(block)?;
-            let workspace = identity.workspace.to_string();
+            let organization = identity.organization.to_string();
             database.execute(
-                "UPDATE blocks SET version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
-                params![workspace, block.to_string()],
+                "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
+                params![organization, block.to_string()],
             )?;
             match encode_access(access) {
                 None => {
                     database.execute(
                         "DELETE FROM block_access
-                         WHERE workspace_id = ?1 AND block_id = ?2 AND account_id = ?3",
-                        params![workspace, block.to_string(), account.to_string()],
+                         WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
+                        params![organization, block.to_string(), account.to_string()],
                     )?;
                 }
                 Some(encoded) => {
                     database.execute(
                         "INSERT OR REPLACE INTO block_access
-                            (workspace_id, block_id, account_id, access)
+                            (organization_id, block_id, account_id, access)
                          VALUES (?1, ?2, ?3, ?4)",
-                        params![workspace, block.to_string(), account.to_string(), encoded],
+                        params![
+                            organization,
+                            block.to_string(),
+                            account.to_string(),
+                            encoded
+                        ],
                     )?;
                 }
             }
@@ -660,7 +665,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<AccessEntry>, ServerError> {
-        self.with_graph(identity.workspace, move |graph, database| {
+        self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             let audience = graph.audience(block);
@@ -669,9 +674,9 @@ impl ServerStore {
                 "SELECT accounts.id, accounts.email, accounts.display_name, memberships.role
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
-                 WHERE memberships.workspace_id = ?1",
+                 WHERE memberships.organization_id = ?1",
             )?;
-            let rows = statement.query_map([identity.workspace.to_string()], |row| {
+            let rows = statement.query_map([identity.organization.to_string()], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
@@ -691,7 +696,7 @@ impl ServerStore {
                     author: node.author == account,
                     granted: node.grants.get(&account).copied(),
                     effective: match (role, audience.contains(&account)) {
-                        (WorkspaceRole::Administrator, _) => Access::Edit,
+                        (OrganizationRole::Administrator, _) => Access::Edit,
                         (_, true) => graph.effective_access(block, account),
                         (_, false) => Access::None,
                     },
@@ -705,22 +710,25 @@ impl ServerStore {
 
 fn read_history(
     connection: &Connection,
-    workspace: Uuid,
+    organization: Uuid,
     block: Uuid,
 ) -> Result<Vec<HistoryEntry>, ServerError> {
     let mut statement = connection.prepare(
         "SELECT commit_id, parents, time, pinned FROM block_commits
-         WHERE workspace_id = ?1 AND block_id = ?2
+         WHERE organization_id = ?1 AND block_id = ?2
          ORDER BY time DESC",
     )?;
-    let rows = statement.query_map(params![workspace.to_string(), block.to_string()], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, i64>(2)?,
-            row.get::<_, bool>(3)?,
-        ))
-    })?;
+    let rows = statement.query_map(
+        params![organization.to_string(), block.to_string()],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, bool>(3)?,
+            ))
+        },
+    )?;
     let mut entries = Vec::new();
     for row in rows {
         let (commit, parents, time, pinned) = row?;
@@ -737,7 +745,7 @@ fn read_history(
 fn release_commit(
     connection: &Connection,
     refs: &mut ObjectRefs,
-    workspace: Uuid,
+    organization: Uuid,
     block: Uuid,
     commit: CommitId,
 ) -> Result<Vec<Hash>, ServerError> {
@@ -745,11 +753,11 @@ fn release_commit(
     {
         let mut statement = connection.prepare(
             "SELECT hash FROM commit_objects
-             WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+             WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
         )?;
         let rows = statement.query_map(
             params![
-                workspace.to_string(),
+                organization.to_string(),
                 block.to_string(),
                 commit.hash().to_hex()
             ],
@@ -761,18 +769,18 @@ fn release_commit(
     }
     connection.execute(
         "DELETE FROM commit_objects
-         WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+         WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
         params![
-            workspace.to_string(),
+            organization.to_string(),
             block.to_string(),
             commit.hash().to_hex()
         ],
     )?;
     connection.execute(
         "DELETE FROM block_commits
-         WHERE workspace_id = ?1 AND block_id = ?2 AND commit_id = ?3",
+         WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3",
         params![
-            workspace.to_string(),
+            organization.to_string(),
             block.to_string(),
             commit.hash().to_hex()
         ],
@@ -785,24 +793,25 @@ fn release_commit(
 fn release_held(
     connection: &Connection,
     refs: &mut ObjectRefs,
-    workspace: Uuid,
+    organization: Uuid,
     block: Uuid,
 ) -> Result<Vec<Hash>, ServerError> {
     let mut held = Vec::new();
     {
-        let mut statement = connection
-            .prepare("SELECT hash FROM block_objects WHERE workspace_id = ?1 AND block_id = ?2")?;
-        let rows = statement
-            .query_map(params![workspace.to_string(), block.to_string()], |row| {
-                row.get::<_, String>(0)
-            })?;
+        let mut statement = connection.prepare(
+            "SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+        )?;
+        let rows = statement.query_map(
+            params![organization.to_string(), block.to_string()],
+            |row| row.get::<_, String>(0),
+        )?;
         for row in rows {
             held.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
         }
     }
     connection.execute(
-        "DELETE FROM block_objects WHERE workspace_id = ?1 AND block_id = ?2",
-        params![workspace.to_string(), block.to_string()],
+        "DELETE FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+        params![organization.to_string(), block.to_string()],
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;

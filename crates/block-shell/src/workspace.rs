@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::profile::{RECENTS, VIEW_EDITORS};
 use block_editor_beui::be_block::{
-    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
+    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, MY_FILES, Recents,
+    ViewState, WorkspaceContent,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -495,6 +496,20 @@ impl Workspace {
         };
         share.listed(listing);
         self.set_share.set(Some(share));
+    }
+
+    pub(crate) fn my_files(&self) -> Option<Uuid> {
+        let account = self.host().account_id();
+        self.every_block()
+            .into_iter()
+            .filter(|block| {
+                block.block_type == WorkspaceContent::CONTENT_TYPE
+                    && block.parent == BlockParent::Root
+                    && block.author == account
+                    && block.metadata.get(&MY_FILES) == Some(true)
+            })
+            .map(|block| block.id)
+            .min()
     }
 
     pub(crate) fn every_block(&self) -> Vec<BlockInfo> {
@@ -1044,10 +1059,7 @@ impl Workspace {
             true => BlockParent::Block(id),
             false => self
                 .info(id)
-                .map_or(BlockParent::Root, |info| match info.parent {
-                    BlockParent::Detached => BlockParent::Root,
-                    parent => parent,
-                }),
+                .map_or(BlockParent::Detached, |info| info.parent),
         };
         self.create_in(parent);
     }
@@ -1056,7 +1068,9 @@ impl Workspace {
         self.set_sheet.set(PhoneSheet::Closed);
         self.set_error.set(None);
         let parent = match parent {
-            BlockParent::Detached => BlockParent::Root,
+            BlockParent::Root | BlockParent::Detached => self
+                .my_files()
+                .map_or(BlockParent::Root, BlockParent::Block),
             parent => parent,
         };
         let excluded = match parent {

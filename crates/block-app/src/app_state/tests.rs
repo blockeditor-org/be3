@@ -5,9 +5,9 @@ mod client_id_persists_across_reopen;
 mod display_settings_persist_across_reopen;
 mod fresh_store_has_no_accounts;
 mod input_settings_persist_across_reopen;
+mod organization_keys_belong_to_their_account_and_leave_with_it;
 mod removing_an_account_clears_active_selection;
-mod saved_accounts_and_last_workspace_survive_reopen;
-mod workspace_keys_belong_to_their_account_and_leave_with_it;
+mod saved_accounts_and_last_organization_survive_reopen;
 
 fn account(server: ServerLocation, email: &str) -> SavedAccount {
     SavedAccount {
@@ -16,7 +16,7 @@ fn account(server: ServerLocation, email: &str) -> SavedAccount {
         email: email.into(),
         name: email.into(),
         token: Uuid::new_v4().to_string(),
-        last_workspace_id: None,
+        last_organization_id: None,
         authorization: None,
     }
 }

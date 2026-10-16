@@ -108,7 +108,7 @@ pub(super) enum Command {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PairingRequest {
     pub(crate) from: u64,
-    pub(crate) workspace: Uuid,
+    pub(crate) organization: Uuid,
     pub(crate) device: String,
     message: Vec<u8>,
 }
@@ -848,10 +848,10 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     }
                     Some(ServerMessage::Paired {
                         from,
-                        workspace,
+                        organization,
                         payload,
                     }) => {
-                        asked_to_pair(&peer, shared, from, workspace, &payload);
+                        asked_to_pair(&peer, shared, from, organization, &payload);
                     }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
@@ -937,7 +937,7 @@ async fn seal_own(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> Result<(),
         let keys: Vec<(Uuid, [u8; 32])> = held
             .other_keys
             .iter()
-            .map(|(workspace, key)| (*workspace, *key))
+            .map(|(organization, key)| (*organization, *key))
             .collect();
         (recovery, keys)
     };
@@ -955,15 +955,21 @@ async fn seal_own(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> Result<(),
     if current != Some(recovery) {
         return Ok(());
     }
-    let own = (peer.workspace(), *peer.commits().vault().key().as_bytes());
-    for (workspace, key) in std::iter::once(own).chain(held) {
-        if sealed.iter().any(|sealed| sealed.workspace == workspace) {
+    let own = (
+        peer.organization(),
+        *peer.commits().vault().key().as_bytes(),
+    );
+    for (organization, key) in std::iter::once(own).chain(held) {
+        if sealed
+            .iter()
+            .any(|sealed| sealed.organization == organization)
+        {
             continue;
         }
         peer.connection()
-            .request(|request| ClientMessage::PutWorkspaceKey {
+            .request(|request| ClientMessage::PutOrganizationKey {
                 request,
-                workspace,
+                organization,
                 sealed: be_keys::RecoveryPublic(recovery).seal(&key),
             })
             .await?;
@@ -975,7 +981,7 @@ fn asked_to_pair(
     peer: &Peer<Store>,
     shared: &Arc<Mutex<Shared>>,
     from: u64,
-    workspace: Uuid,
+    organization: Uuid,
     payload: &[u8],
 ) {
     let Ok(be_keys::PairingMessage::Request { message, device }) =
@@ -984,13 +990,13 @@ fn asked_to_pair(
         return;
     };
     let mut held = shared.lock().unwrap();
-    if workspace != peer.workspace() && !held.other_keys.contains_key(&workspace) {
+    if organization != peer.organization() && !held.other_keys.contains_key(&organization) {
         return;
     }
     held.pairing.retain(|request| request.from != from);
     held.pairing.push(PairingRequest {
         from,
-        workspace,
+        organization,
         device,
         message,
     });
@@ -1019,16 +1025,16 @@ async fn approve_pairing(
             "that is not a pairing code".to_owned(),
         ));
     };
-    let workspace = request.workspace;
-    let content_key = match workspace == peer.workspace() {
+    let organization = request.organization;
+    let content_key = match organization == peer.organization() {
         true => *peer.commits().vault().key().as_bytes(),
-        false => match shared.lock().unwrap().other_keys.get(&workspace) {
+        false => match shared.lock().unwrap().other_keys.get(&organization) {
             Some(key) => *key,
             None => return Ok(()),
         },
     };
     let recovery = shared.lock().unwrap().recovery;
-    let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
+    let (pairing, message) = be_keys::Pairing::start(&code, organization.as_bytes());
     let key = pairing
         .finish(&request.message)
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
@@ -1046,7 +1052,7 @@ async fn approve_pairing(
         .request(|request| ClientMessage::Pair {
             request,
             to: Some(from),
-            workspace,
+            organization,
             payload,
         })
         .await?;
@@ -1627,7 +1633,7 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
             ContentKey::from_bytes(config.content_key),
             Credentials::Token(config.token.clone()),
         )
-        .workspace(Some(config.workspace)),
+        .organization(Some(config.organization)),
         store,
     )
     .await

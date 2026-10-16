@@ -5,7 +5,7 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     let harness = Harness::start().await;
     let mut laptop = harness.client().await;
     laptop.register("owner@example.com").await;
-    let workspace = laptop.workspace("notes").await;
+    let organization = laptop.organization("notes").await;
     let mut phone = harness.client().await;
     let response = phone
         .send(|request| ClientMessage::Authenticate {
@@ -20,7 +20,7 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
         .send(|request| ClientMessage::Pair {
             request,
             to: None,
-            workspace,
+            organization,
             payload: b"let me in".to_vec(),
         })
         .await;
@@ -33,14 +33,14 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
         .send(|request| ClientMessage::Pair {
             request,
             to: None,
-            workspace,
+            organization,
             payload: b"request".to_vec(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
     let ServerMessage::Paired {
         from,
-        workspace: asked,
+        organization: asked,
         payload,
     } = laptop.notification().await
     else {
@@ -48,14 +48,14 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     };
     assert_eq!(
         (asked, payload.as_slice()),
-        (workspace, b"request".as_slice())
+        (organization, b"request".as_slice())
     );
 
     let response = laptop
         .send(|request| ClientMessage::Pair {
             request,
             to: Some(from),
-            workspace,
+            organization,
             payload: b"reply".to_vec(),
         })
         .await;
@@ -67,9 +67,9 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     );
 
     let response = stranger
-        .send(|request| ClientMessage::ListWorkspaces { request })
+        .send(|request| ClientMessage::ListOrganizations { request })
         .await;
-    assert!(matches!(response, ServerMessage::Workspaces { .. }));
+    assert!(matches!(response, ServerMessage::Organizations { .. }));
     assert!(
         stranger.notifications.is_empty(),
         "another account heard the pairing: {:?}",

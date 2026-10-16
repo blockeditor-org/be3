@@ -9,8 +9,8 @@ use be_commit::{
 };
 use be_graph::{Access, BlockParent};
 use be_protocol::{
-    AccessEntry, BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, ServerMessage,
-    SessionState, WorkspaceRole,
+    AccessEntry, BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, OrganizationRole,
+    ServerMessage, SessionState,
 };
 use be_store::{ChunkerConfig, ContentKey, Hash, Manifest, ObjectStore, Vault};
 use uuid::Uuid;
@@ -58,8 +58,8 @@ pub struct PeerConfig {
     pub url: String,
     pub key: ContentKey,
     pub credentials: Credentials,
-    pub workspace: Option<Uuid>,
-    pub workspace_name: String,
+    pub organization: Option<Uuid>,
+    pub organization_name: String,
     pub chunker: ChunkerConfig,
 }
 
@@ -69,14 +69,14 @@ impl PeerConfig {
             url: url.into(),
             key,
             credentials,
-            workspace: None,
-            workspace_name: "Workspace".into(),
+            organization: None,
+            organization_name: "Organization".into(),
             chunker: ChunkerConfig::DEFAULT,
         }
     }
 
-    pub fn workspace(mut self, workspace: Option<Uuid>) -> Self {
-        self.workspace = workspace;
+    pub fn organization(mut self, organization: Option<Uuid>) -> Self {
+        self.organization = organization;
         self
     }
 
@@ -107,8 +107,8 @@ pub struct Peer<S: ObjectStore> {
     commits: CommitStore<S>,
     token: String,
     account: Uuid,
-    workspace: Uuid,
-    role: WorkspaceRole,
+    organization: Uuid,
+    role: OrganizationRole,
     heads: Mutex<HashMap<Uuid, CommitId>>,
     resolver: Mutex<Option<Resolver>>,
 }
@@ -134,25 +134,28 @@ impl<S: ObjectStore> Peer<S> {
         config: PeerConfig,
         store: S,
     ) -> Result<Self, ClientError> {
-        let workspace = match config.workspace {
-            Some(workspace) => workspace,
+        let organization = match config.organization {
+            Some(organization) => organization,
             None => {
                 let response = connection
-                    .request(|request| ClientMessage::CreateWorkspace {
+                    .request(|request| ClientMessage::CreateOrganization {
                         request,
-                        name: config.workspace_name.clone(),
+                        name: config.organization_name.clone(),
                     })
                     .await?;
-                let ServerMessage::Workspaces { workspaces, .. } = response else {
+                let ServerMessage::Organizations { organizations, .. } = response else {
                     return Err(ClientError::Unexpected);
                 };
-                workspaces.first().ok_or(ClientError::Unexpected)?.id
+                organizations.first().ok_or(ClientError::Unexpected)?.id
             }
         };
         let response = connection
-            .request(|request| ClientMessage::OpenWorkspace { request, workspace })
+            .request(|request| ClientMessage::OpenOrganization {
+                request,
+                organization,
+            })
             .await?;
-        let ServerMessage::WorkspaceOpened { role, .. } = response else {
+        let ServerMessage::OrganizationOpened { role, .. } = response else {
             return Err(ClientError::Unexpected);
         };
         Ok(Self {
@@ -160,7 +163,7 @@ impl<S: ObjectStore> Peer<S> {
             commits: CommitStore::new(Vault::new(store, config.key).with_chunker(config.chunker)),
             token,
             account,
-            workspace,
+            organization,
             role,
             heads: Mutex::new(HashMap::new()),
             resolver: Mutex::new(None),
@@ -171,11 +174,11 @@ impl<S: ObjectStore> Peer<S> {
         self.account
     }
 
-    pub fn workspace(&self) -> Uuid {
-        self.workspace
+    pub fn organization(&self) -> Uuid {
+        self.organization
     }
 
-    pub fn role(&self) -> WorkspaceRole {
+    pub fn role(&self) -> OrganizationRole {
         self.role
     }
 
@@ -524,7 +527,8 @@ impl<S: ObjectStore> Peer<S> {
         content: &C,
         parent: Option<CommitId>,
     ) -> Result<CommitId, ClientError> {
-        let references = deduplicated(self.resolve(block, content.references_in(self.workspace())));
+        let references =
+            deduplicated(self.resolve(block, content.references_in(self.organization())));
         let metadata = self
             .metadata_at(block, parent)
             .await?
@@ -575,7 +579,7 @@ impl<S: ObjectStore> Peer<S> {
         extra_parents: Vec<CommitId>,
         defined: Option<Entries>,
     ) -> Result<Saved, ClientError> {
-        let references = self.resolve(block, content.references_in(self.workspace()));
+        let references = self.resolve(block, content.references_in(self.organization()));
         let manifest = self
             .commits
             .vault()

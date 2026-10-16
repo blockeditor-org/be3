@@ -3,11 +3,11 @@ mod dialogs;
 mod keys;
 mod lock;
 mod onboarding;
-mod workspace;
+mod organization;
 
 use std::cell::RefCell;
 
-use be_protocol::WorkspaceRole;
+use be_protocol::OrganizationRole;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::Edge;
@@ -53,18 +53,18 @@ pub(crate) enum Screen {
     Error,
     #[default]
     Accounts,
-    Workspaces,
+    Organizations,
     Recovery,
     Unlock,
     Sessions,
-    Workspace,
+    Organization,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PairingRow {
     pub(crate) from: u64,
     pub(crate) device: String,
-    pub(crate) workspace: String,
+    pub(crate) organization: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,7 +88,7 @@ pub(crate) struct AccountRow {
     pub(crate) email: String,
     pub(crate) server: String,
     pub(crate) local: bool,
-    pub(crate) has_last_workspace: bool,
+    pub(crate) has_last_organization: bool,
     pub(crate) current: bool,
 }
 
@@ -103,7 +103,7 @@ impl AccountRow {
                 ServerLocation::Remote(url) => url.clone(),
             },
             local: account.server == ServerLocation::Local,
-            has_last_workspace: account.last_workspace_id.is_some(),
+            has_last_organization: account.last_organization_id.is_some(),
             current,
         }
     }
@@ -129,7 +129,7 @@ pub(crate) struct AccountForm {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum WorkspacesState {
+pub(crate) enum OrganizationsState {
     #[default]
     Loading,
     Loaded,
@@ -138,15 +138,15 @@ pub(crate) enum WorkspacesState {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct JoiningRow {
-    pub(crate) workspace: String,
+    pub(crate) organization: String,
     pub(crate) role: String,
     pub(crate) email: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct WorkspacesView {
-    pub(crate) state: WorkspacesState,
-    pub(crate) workspaces: Vec<(Uuid, String)>,
+pub(crate) struct OrganizationsView {
+    pub(crate) state: OrganizationsState,
+    pub(crate) organizations: Vec<(Uuid, String)>,
     pub(crate) joining: Option<JoiningRow>,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
@@ -163,7 +163,7 @@ pub(crate) struct ReauthView {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StatusView {
     pub(crate) changes_saved: bool,
-    pub(crate) workspace: String,
+    pub(crate) organization: String,
     pub(crate) signed_in_as: String,
     pub(crate) sessions: Vec<SessionRow>,
     pub(crate) profiles: Vec<ProfileRow>,
@@ -190,7 +190,7 @@ pub(crate) struct ProfileRow {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct InviteView {
-    pub(crate) workspace: String,
+    pub(crate) organization: String,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
     pub(crate) sent: u64,
@@ -207,14 +207,14 @@ pub(crate) struct AgentRow {
 pub(crate) struct CreatedAgent {
     pub(crate) name: String,
     pub(crate) server: String,
-    pub(crate) workspace: String,
+    pub(crate) organization: String,
     pub(crate) token: String,
     pub(crate) phrase: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct AgentsView {
-    pub(crate) workspace: String,
+    pub(crate) organization: String,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
     pub(crate) agents: Vec<AgentRow>,
@@ -246,7 +246,7 @@ pub(crate) struct AppView {
     pub(crate) account_error: Option<String>,
     pub(crate) add_account: AddAccountView,
     pub(crate) account: AccountRow,
-    pub(crate) workspaces: WorkspacesView,
+    pub(crate) organizations: OrganizationsView,
     pub(crate) recovery: crate::keys::RecoveryView,
     pub(crate) unlock: crate::keys::UnlockView,
     pub(crate) pairing: Vec<PairingRow>,
@@ -272,13 +272,13 @@ pub(crate) enum UiCommand {
     CancelErrorAction,
     Exit,
     OpenAccount(String),
-    ChooseWorkspace(String),
+    ChooseOrganization(String),
     LogOut(String),
     OpenAddAccount,
     SubmitAccount(AccountForm),
     CloseAddAccount,
-    ReloadWorkspaces,
-    OpenWorkspace(Uuid),
+    ReloadOrganizations,
+    OpenOrganization(Uuid),
     ChooseSession(Uuid),
     SwitchSession,
     CloseSessions,
@@ -290,7 +290,7 @@ pub(crate) enum UiCommand {
     OpenInvite(String),
     JoinInvited,
     CancelJoin,
-    CreateWorkspace(String),
+    CreateOrganization(String),
     SwitchAccount,
     LogOutCurrent,
     ReauthSubmit(String),
@@ -298,12 +298,12 @@ pub(crate) enum UiCommand {
     ReauthClose,
     OpenInspector,
     InviteMember,
-    SwitchWorkspace,
+    SwitchOrganization,
     ManageAccounts,
     About(bool),
     CloseApp,
     AppMenu(bool),
-    SendInvite(String, WorkspaceRole),
+    SendInvite(String, OrganizationRole),
     CloseInvite,
     OpenAgents,
     CloseAgents,
@@ -355,8 +355,8 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                             Screen::Accounts => view! {
                                 <onboarding::AccountsScreen @sizing=ItemSize::Percent(100.0) view />
                             },
-                            Screen::Workspaces => view! {
-                                <onboarding::WorkspacesScreen
+                            Screen::Organizations => view! {
+                                <onboarding::OrganizationsScreen
                                     @sizing=ItemSize::Percent(100.0)
                                     view
                                 />
@@ -370,8 +370,11 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                             Screen::Sessions => view! {
                                 <onboarding::SessionsScreen @sizing=ItemSize::Percent(100.0) view />
                             },
-                            Screen::Workspace => view! {
-                                <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />
+                            Screen::Organization => view! {
+                                <organization::OrganizationScreen
+                                    @sizing=ItemSize::Percent(100.0)
+                                    view
+                                />
                             },
                         }
                     }}

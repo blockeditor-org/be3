@@ -17,7 +17,7 @@ trait Held: Any {
 
     fn content_type(&self) -> Uuid;
 
-    fn references(&self, workspace: Uuid) -> Vec<Uuid>;
+    fn references(&self, organization: Uuid) -> Vec<Uuid>;
 
     fn as_any(&self) -> &dyn Any;
 }
@@ -41,8 +41,8 @@ impl<C: LiveEdit> Held for C {
         C::CONTENT_TYPE
     }
 
-    fn references(&self, workspace: Uuid) -> Vec<Uuid> {
-        BlockContent::references_in(self, workspace)
+    fn references(&self, organization: Uuid) -> Vec<Uuid> {
+        BlockContent::references_in(self, organization)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -186,7 +186,7 @@ impl Block {
 #[derive(Default)]
 struct Inner {
     own: Option<Uuid>,
-    workspace: Uuid,
+    organization: Uuid,
     blocks: BTreeMap<Uuid, Block>,
     seeded: Vec<SeededContent>,
     graph: BTreeMap<Uuid, BlockInfo>,
@@ -201,9 +201,9 @@ struct Inner {
 pub struct ContentStore(Rc<RefCell<Inner>>);
 
 impl ContentStore {
-    pub(crate) fn new(workspace: Uuid) -> Self {
+    pub(crate) fn new(organization: Uuid) -> Self {
         let store = Self::default();
-        store.0.borrow_mut().workspace = workspace;
+        store.0.borrow_mut().organization = organization;
         store
     }
 
@@ -502,7 +502,7 @@ impl ContentStore {
     fn references_of(&self, id: Uuid) -> Vec<Uuid> {
         let inner = self.0.borrow();
         match inner.blocks.get(&id).map(|held| &held.content) {
-            Some(Stored::Typed(content)) => content.references(inner.workspace),
+            Some(Stored::Typed(content)) => content.references(inner.organization),
             _ => inner
                 .graph
                 .get(&id)
@@ -523,6 +523,16 @@ impl ContentStore {
             BlockQuery::Roots => nodes
                 .iter()
                 .filter(|node| node.parent == BlockParent::Root)
+                .cloned()
+                .collect(),
+            BlockQuery::Shared => nodes
+                .iter()
+                .filter(|node| {
+                    node.access.can_view()
+                        && node.parent.block().is_some_and(|parent| {
+                            !known(&parent).is_some_and(|above| above.access.can_view())
+                        })
+                })
                 .cloned()
                 .collect(),
             BlockQuery::Detached => nodes

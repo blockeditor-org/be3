@@ -1,15 +1,18 @@
 use super::*;
 
 #[tokio::test]
-async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() {
+async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
-    let workspace = owner.workspace("shared").await;
+    let organization = owner.organization("shared").await;
     let mut guest = harness.member("Guest@Example.com").await;
 
     let refused = guest
-        .send(|request| ClientMessage::OpenWorkspace { request, workspace })
+        .send(|request| ClientMessage::OpenOrganization {
+            request,
+            organization,
+        })
         .await;
     assert!(
         matches!(refused, ServerMessage::Failed { .. }),
@@ -21,9 +24,9 @@ async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() 
         .send(|request| ClientMessage::Invite {
             request,
             invitation,
-            workspace,
+            organization,
             email: "guest@example.com".into(),
-            role: WorkspaceRole::Editor,
+            role: OrganizationRole::Editor,
             sealed: b"sealed to the invite code".to_vec(),
         })
         .await;
@@ -62,7 +65,7 @@ async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() 
     else {
         panic!("reading the invitation failed: {fetched:?}");
     };
-    assert_eq!(found.workspace_name, "shared");
+    assert_eq!(found.organization_name, "shared");
     assert_eq!(found.sealed, b"sealed to the invite code");
 
     let response = guest
@@ -72,7 +75,7 @@ async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() 
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    guest.open(workspace).await;
+    guest.open(organization).await;
     let again = guest
         .send(|request| ClientMessage::GetInvitation {
             request,

@@ -16,13 +16,13 @@ use crate::compositor::PresentingSurface;
 use crate::surfaces::MainSurface;
 
 #[component]
-pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
+pub(super) fn OrganizationScreen(view: AppViewStore) -> NodeId {
     view! {
         <Container>
             {move |_| {
                 let view = view;
                 view! {
-                    <WorkspaceBody view />
+                    <OrganizationBody view />
                 }
             }}
         </Container>
@@ -30,7 +30,7 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn WorkspaceBody(view: AppViewStore) -> NodeId {
+fn OrganizationBody(view: AppViewStore) -> NodeId {
     let debug = view.debug;
     provide_context(DebugPanels(create_memo(move || debug.get())));
     let presenting = view.presenting;
@@ -67,7 +67,7 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
         true => ICON_CHECK.to_owned(),
         false => ICON_SYNC.to_owned(),
     });
-    let workspace = create_memo(move || status.get().workspace);
+    let organization = create_memo(move || status.get().organization);
     let signed_in_as = create_memo(move || status.get().signed_in_as);
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
     let can_close = create_memo(move || status.get().can_close);
@@ -87,7 +87,7 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     row_test_id={"app.menu.invite".to_owned()}
                     label="Invite member"
                     glyph={ICON_PERSON_ADD.to_owned()}
-                    detail={workspace}
+                    detail={organization}
                     separated=true
                     on_click={|| pick(UiCommand::InviteMember)}
                 />
@@ -104,10 +104,10 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     on_click={|| pick(UiCommand::SwitchSession)}
                 />
                 <MenuItem
-                    row_test_id={"app.menu.switch-workspace".to_owned()}
-                    label="Switch workspace"
+                    row_test_id={"app.menu.switch-organization".to_owned()}
+                    label="Switch organization"
                     glyph={ICON_SWAP_HORIZ.to_owned()}
-                    on_click={|| pick(UiCommand::SwitchWorkspace)}
+                    on_click={|| pick(UiCommand::SwitchOrganization)}
                 />
                 <MenuItem
                     label="New recovery phrase"

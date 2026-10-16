@@ -103,7 +103,7 @@ impl Harness {
                 ContentKey::from_bytes([11; 32]),
                 Credentials::Token(owner.token().to_owned()),
             )
-            .workspace(Some(owner.workspace()))
+            .organization(Some(owner.organization()))
             .chunker(ChunkerConfig::SMALL),
             MemoryStore::new(),
         )

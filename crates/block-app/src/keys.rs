@@ -20,7 +20,7 @@ struct RecoverySetup {
 }
 
 struct PairingWait {
-    workspace: Uuid,
+    organization: Uuid,
     code: String,
     receiver: platform::RequestResult<Result<accounts::Paired, AccountError>>,
     _cancel: tokio::sync::oneshot::Sender<()>,
@@ -29,7 +29,7 @@ struct PairingWait {
 pub(crate) enum KeyEvent {
     RecoverySaved(be_keys::RecoveryPublic),
     Unlocked {
-        workspace: Uuid,
+        organization: Uuid,
         key: [u8; 32],
         recovery: Option<be_keys::RecoveryPublic>,
     },
@@ -46,7 +46,7 @@ pub(crate) struct RecoveryView {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct UnlockView {
-    pub(crate) workspace: String,
+    pub(crate) organization: String,
     pub(crate) sealed: bool,
     pub(crate) code: Option<String>,
     pub(crate) error: Option<String>,
@@ -141,8 +141,8 @@ impl KeyState {
         let public = setup.phrase.secret().public();
         let sealed = held
             .into_iter()
-            .map(|(workspace, key)| be_protocol::SealedKey {
-                workspace,
+            .map(|(organization, key)| be_protocol::SealedKey {
+                organization,
                 sealed: public.seal(&key),
             })
             .collect();
@@ -154,7 +154,7 @@ impl KeyState {
 
     pub(crate) fn unlock_with_phrase(
         &mut self,
-        workspace: Uuid,
+        organization: Uuid,
         typed: &str,
     ) -> Option<([u8; 32], be_keys::RecoveryPublic)> {
         let opened = (|| {
@@ -162,15 +162,15 @@ impl KeyState {
             let keys = self
                 .keys
                 .as_ref()
-                .ok_or("The workspace keys have not loaded yet.")?;
+                .ok_or("The organization keys have not loaded yet.")?;
             let secret = phrase.secret();
             if keys.recovery != Some(secret.public()) {
                 return Err("That is not this account's recovery phrase.".to_owned());
             }
             let sealed = keys
                 .sealed
-                .get(&workspace)
-                .ok_or("No key for this workspace is sealed to your recovery phrase yet.")?;
+                .get(&organization)
+                .ok_or("No key for this organization is sealed to your recovery phrase yet.")?;
             let key = secret.open(sealed).map_err(|error| error.to_string())?;
             let key =
                 <[u8; 32]>::try_from(key).map_err(|_| "The sealed key is corrupt.".to_owned())?;
@@ -188,13 +188,13 @@ impl KeyState {
         }
     }
 
-    pub(crate) fn start_pairing(&mut self, server_url: String, token: String, workspace: Uuid) {
+    pub(crate) fn start_pairing(&mut self, server_url: String, token: String, organization: Uuid) {
         let code = be_keys::pairing_code();
         let (cancel, cancelled) = tokio::sync::oneshot::channel::<()>();
         let receiver = platform::spawn_request(accounts::pair(
             server_url,
             token,
-            workspace,
+            organization,
             code.clone(),
             std::env::consts::OS.to_owned(),
             Box::pin(async move {
@@ -203,7 +203,7 @@ impl KeyState {
         ));
         self.error = None;
         self.pairing = Some(PairingWait {
-            workspace,
+            organization,
             code,
             receiver,
             _cancel: cancel,
@@ -228,7 +228,7 @@ impl KeyState {
                 }
                 Err(error) if self.replacing() => {
                     self.error = Some(format!(
-                        "{} Unlock every workspace on this device first, so the new phrase can seal its key.",
+                        "{} Unlock every organization on this device first, so the new phrase can seal its key.",
                         error.message
                     ));
                 }
@@ -238,12 +238,12 @@ impl KeyState {
         if let Some(pairing) = &self.pairing
             && let Ok(result) = pairing.receiver.try_recv()
         {
-            let workspace = pairing.workspace;
+            let organization = pairing.organization;
             self.pairing = None;
             match result {
                 Ok(paired) => {
                     return Some(KeyEvent::Unlocked {
-                        workspace,
+                        organization,
                         key: paired.key,
                         recovery: paired.recovery.map(be_keys::RecoveryPublic),
                     });
@@ -279,17 +279,17 @@ impl KeyState {
         }
     }
 
-    pub(crate) fn unlock_view(&self, workspace: Uuid, name: &str) -> UnlockView {
+    pub(crate) fn unlock_view(&self, organization: Uuid, name: &str) -> UnlockView {
         UnlockView {
-            workspace: name.to_owned(),
+            organization: name.to_owned(),
             sealed: self
                 .keys
                 .as_ref()
-                .is_some_and(|keys| keys.sealed.contains_key(&workspace)),
+                .is_some_and(|keys| keys.sealed.contains_key(&organization)),
             code: self
                 .pairing
                 .as_ref()
-                .filter(|pairing| pairing.workspace == workspace)
+                .filter(|pairing| pairing.organization == organization)
                 .map(|pairing| format!("{}-{}", &pairing.code[..4], &pairing.code[4..])),
             error: self.error.clone(),
         }

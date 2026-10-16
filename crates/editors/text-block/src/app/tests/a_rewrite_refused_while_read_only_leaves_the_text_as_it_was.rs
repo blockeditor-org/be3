@@ -1,4 +1,4 @@
-use super::{Uuid, WORKSPACE_ID, block_url, editor, text};
+use super::{ORGANIZATION_ID, Uuid, block_url, editor, text};
 
 fn shown(document: &beui::Document, id: beui::NodeId, out: &mut String) {
     if let Some(node) = document.arena.kind_of(id) {
@@ -15,7 +15,7 @@ fn a_rewrite_refused_while_read_only_leaves_the_text_as_it_was() {
     let new = Uuid::from_u128(0x0e00_0000_0000_4000_8000_0000_0000_0002);
     let original = format!(
         "see {}\n",
-        block_url("https://example.com/", WORKSPACE_ID, old)
+        block_url("https://example.com/", ORGANIZATION_ID, old)
     );
     let mut editor = editor(&original);
     editor.host().set_editable(false);

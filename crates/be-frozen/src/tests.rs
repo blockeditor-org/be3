@@ -1,51 +1,62 @@
-use std::{
-    fs,
-    io::Read,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::path::PathBuf;
 
-use be_client::Connection;
-use be_protocol::{ClientMessage, ServerMessage};
-use be_server::ServerConfig;
+use be_cli::tracker::Tracker;
+use be_client::{Credentials, Peer, PeerConfig};
+use be_store::{ContentKey, MemoryStore};
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use uuid::Uuid;
 
-use crate::snapshots::{SNAPSHOTS, Snapshot};
+use crate::scene;
 
-mod every_snapshot_of_a_servers_data_still_serves_what_it_held;
+mod a_tracker_downloaded_as_a_block_file_uploads_and_reads_back;
+
+const TRACKER: &[u8] = include_bytes!("fixtures/tracker.block");
 
 struct Server {
     url: String,
+    data: PathBuf,
     stop: Option<oneshot::Sender<()>>,
     handle: JoinHandle<()>,
 }
 
 impl Server {
-    async fn start(data: &Path) -> Self {
+    async fn start() -> Self {
         build_id::install("frozen");
+        let data = std::env::temp_dir().join(format!("be-frozen-{}", Uuid::new_v4()));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let (stop, stopped) = oneshot::channel::<()>();
-        let data = data.to_path_buf();
+        let served = data.clone();
         let handle = tokio::spawn(async move {
-            be_server::serve_with_config(listener, data, ServerConfig::OPEN, stopped)
+            be_server::serve_with_config(listener, served, be_server::ServerConfig::OPEN, stopped)
                 .await
-                .expect("the server opens the data it was given");
+                .expect("the server starts");
         });
         Self {
             url,
+            data,
             stop: Some(stop),
             handle,
         }
     }
 
-    fn socket(&self) -> String {
-        be_client::socket_url(&self.url)
-    }
-
-    async fn connect(&self) -> std::sync::Arc<Connection> {
-        Connection::connect(&self.socket()).await.unwrap()
+    async fn owner(&self) -> Tracker<MemoryStore> {
+        Tracker::new(
+            Peer::connect(
+                PeerConfig::new(
+                    be_client::socket_url(&self.url),
+                    ContentKey::random(),
+                    Credentials::Register {
+                        email: scene::OWNER_EMAIL.into(),
+                        display_name: scene::OWNER_NAME.into(),
+                        password: scene::OWNER_PASSWORD.into(),
+                    },
+                ),
+                MemoryStore::new(),
+            )
+            .await
+            .unwrap(),
+        )
     }
 
     async fn stop(mut self) {
@@ -54,66 +65,6 @@ impl Server {
         }
         self.handle.abort();
         let _ = self.handle.await;
+        let _ = std::fs::remove_dir_all(&self.data);
     }
-}
-
-struct Unpacked {
-    root: PathBuf,
-    data: PathBuf,
-    backup: PathBuf,
-}
-
-impl Drop for Unpacked {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.root);
-    }
-}
-
-fn unpack(snapshot: &Snapshot) -> Unpacked {
-    let root = std::env::temp_dir().join(format!("be-frozen-{}-{}", snapshot.name, Uuid::new_v4()));
-    let unpacked = Unpacked {
-        data: root.join("data"),
-        backup: root.join("backup"),
-        root,
-    };
-    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(snapshot.files)).unwrap();
-    for index in 0..archive.len() {
-        let mut file = archive.by_index(index).unwrap();
-        let name = file.enclosed_name().unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
-        let mut targets = vec![unpacked.root.join(&name)];
-        if let Ok(object) = name.strip_prefix("data")
-            && object.starts_with("objects")
-        {
-            targets.push(unpacked.backup.join(object));
-        }
-        for target in targets {
-            fs::create_dir_all(target.parent().unwrap()).unwrap();
-            fs::write(target, &bytes).unwrap();
-        }
-    }
-    unpacked
-}
-
-async fn request(
-    connection: &Connection,
-    build: impl FnOnce(u64) -> ClientMessage,
-) -> ServerMessage {
-    tokio::time::timeout(Duration::from_secs(30), connection.request(build))
-        .await
-        .expect("the server answered in time")
-        .unwrap()
-}
-
-fn id(text: &str) -> Uuid {
-    Uuid::parse_str(text).unwrap()
-}
-
-fn key(hex: &str) -> [u8; 32] {
-    let bytes: Vec<u8> = (0..hex.len())
-        .step_by(2)
-        .map(|at| u8::from_str_radix(&hex[at..at + 2], 16).unwrap())
-        .collect();
-    bytes.try_into().unwrap()
 }

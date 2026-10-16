@@ -1,5 +1,5 @@
 use be_client::{ClientError, Connection};
-use be_protocol::{ClientMessage, ErrorCode, ServerMessage, Workspace, WorkspaceInvitation};
+use be_protocol::{ClientMessage, ErrorCode, Organization, OrganizationInvitation, ServerMessage};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -123,33 +123,33 @@ pub(crate) async fn logout(server_url: String, token: String) -> Result<(), Acco
     Ok(())
 }
 
-pub(crate) async fn workspaces(
+pub(crate) async fn organizations(
     server_url: String,
     token: String,
-) -> Result<Vec<Workspace>, AccountError> {
+) -> Result<Vec<Organization>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Workspaces { workspaces, .. } = connection
-        .request(|request| ClientMessage::ListWorkspaces { request })
+    let ServerMessage::Organizations { organizations, .. } = connection
+        .request(|request| ClientMessage::ListOrganizations { request })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
     };
-    Ok(workspaces)
+    Ok(organizations)
 }
 
-pub(crate) async fn create_workspace(
+pub(crate) async fn create_organization(
     server_url: String,
     token: String,
     name: String,
-) -> Result<Workspace, AccountError> {
+) -> Result<Organization, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     match connection
-        .request(|request| ClientMessage::CreateWorkspace { request, name })
+        .request(|request| ClientMessage::CreateOrganization { request, name })
         .await?
     {
-        ServerMessage::Workspaces { mut workspaces, .. } if !workspaces.is_empty() => {
-            Ok(workspaces.remove(0))
-        }
+        ServerMessage::Organizations {
+            mut organizations, ..
+        } if !organizations.is_empty() => Ok(organizations.remove(0)),
         _ => Err(ClientError::Unexpected.into()),
     }
 }
@@ -158,7 +158,7 @@ pub(crate) async fn invitation(
     server_url: String,
     token: String,
     invitation: Uuid,
-) -> Result<WorkspaceInvitation, AccountError> {
+) -> Result<OrganizationInvitation, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let ServerMessage::Invitation { invitation, .. } = connection
         .request(|request| ClientMessage::GetInvitation {
@@ -189,13 +189,13 @@ pub(crate) async fn accept_invitation(
     else {
         return Err(ClientError::Unexpected.into());
     };
-    let workspace = invitation.workspace;
+    let organization = invitation.organization;
     let key: [u8; 32] = code
-        .open(workspace.as_bytes(), &invitation.sealed)
+        .open(organization.as_bytes(), &invitation.sealed)
         .ok()
         .and_then(|key| key.try_into().ok())
         .ok_or_else(|| AccountError {
-            message: "This invite link does not open its workspace. Ask for a new one.".into(),
+            message: "This invite link does not open its organization. Ask for a new one.".into(),
             invalid_token: false,
         })?;
     connection
@@ -206,32 +206,32 @@ pub(crate) async fn accept_invitation(
         .await?;
     if let Some(recovery) = recovery {
         connection
-            .request(|request| ClientMessage::PutWorkspaceKey {
+            .request(|request| ClientMessage::PutOrganizationKey {
                 request,
-                workspace,
+                organization,
                 sealed: recovery.seal(&key),
             })
             .await?;
     }
-    Ok((workspace, key))
+    Ok((organization, key))
 }
 
 pub(crate) async fn invite(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
     email: String,
-    role: be_protocol::WorkspaceRole,
+    role: be_protocol::OrganizationRole,
     content_key: [u8; 32],
 ) -> Result<String, AccountError> {
     let code = be_keys::InviteCode::generate();
-    let sealed = code.seal(workspace.as_bytes(), &content_key);
+    let sealed = code.seal(organization.as_bytes(), &content_key);
     let connection = authenticated(&server_url, token).await?;
     connection
         .request(|request| ClientMessage::Invite {
             request,
             invitation: Uuid::from_bytes(code.lookup()),
-            workspace,
+            organization,
             email,
             role,
             sealed,
@@ -244,7 +244,7 @@ pub(crate) async fn invite(
 pub(crate) struct AgentCredentials {
     pub(crate) name: String,
     pub(crate) server: String,
-    pub(crate) workspace: Uuid,
+    pub(crate) organization: Uuid,
     pub(crate) token: String,
     pub(crate) phrase: String,
 }
@@ -252,7 +252,7 @@ pub(crate) struct AgentCredentials {
 pub(crate) async fn create_agent(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
     name: String,
     key: [u8; 32],
 ) -> Result<AgentCredentials, AccountError> {
@@ -263,7 +263,7 @@ pub(crate) async fn create_agent(
     let ServerMessage::AgentCreated { agent, token, .. } = connection
         .request(|request| ClientMessage::CreateAgent {
             request,
-            workspace,
+            organization,
             name,
             recovery: public.0,
             sealed,
@@ -275,7 +275,7 @@ pub(crate) async fn create_agent(
     Ok(AgentCredentials {
         name: agent.name,
         server: server_url,
-        workspace,
+        organization,
         token,
         phrase: phrase.to_string(),
     })
@@ -284,11 +284,14 @@ pub(crate) async fn create_agent(
 pub(crate) async fn agents(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
 ) -> Result<Vec<be_protocol::Agent>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let ServerMessage::Agents { agents, .. } = connection
-        .request(|request| ClientMessage::ListAgents { request, workspace })
+        .request(|request| ClientMessage::ListAgents {
+            request,
+            organization,
+        })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
@@ -299,14 +302,14 @@ pub(crate) async fn agents(
 pub(crate) async fn remove_agent(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
     account: Uuid,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
     connection
         .request(|request| ClientMessage::RemoveAgent {
             request,
-            workspace,
+            organization,
             account,
         })
         .await?;
@@ -333,7 +336,7 @@ pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, Acco
         recovery: recovery.map(be_keys::RecoveryPublic),
         sealed: sealed
             .into_iter()
-            .map(|key| (key.workspace, key.sealed))
+            .map(|key| (key.organization, key.sealed))
             .collect(),
     })
 }
@@ -364,20 +367,20 @@ pub(crate) struct Paired {
 pub(crate) async fn pair(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
     code: String,
     device: String,
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<Paired, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let mut events = connection.subscribe();
-    let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
+    let (pairing, message) = be_keys::Pairing::start(&code, organization.as_bytes());
     let payload = be_keys::PairingMessage::Request { message, device }.encode();
     connection
         .request(|request| ClientMessage::Pair {
             request,
             to: None,
-            workspace,
+            organization,
             payload,
         })
         .await?;
@@ -385,10 +388,10 @@ pub(crate) async fn pair(
         loop {
             match events.recv().await {
                 Ok(ServerMessage::Paired {
-                    workspace: answered,
+                    organization: answered,
                     payload,
                     ..
-                }) if answered == workspace => {
+                }) if answered == organization => {
                     if let Ok(be_keys::PairingMessage::Reply {
                         message,
                         sealed,

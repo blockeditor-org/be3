@@ -1173,6 +1173,10 @@ crates = {
         "edition": "2024",
         "examples": [
             {
+                "crate_root": "examples/block-file.rs",
+                "name": "block-file",
+            },
+            {
                 "crate_root": "examples/freeze.rs",
                 "name": "freeze",
             },
@@ -1188,6 +1192,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1229,6 +1251,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1270,6 +1310,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1311,6 +1369,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1352,6 +1428,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1393,6 +1487,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1434,6 +1546,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",

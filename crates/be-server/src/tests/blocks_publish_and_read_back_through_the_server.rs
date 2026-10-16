@@ -5,7 +5,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("writer@example.com").await;
-    client.workspace("notes").await;
+    client.organization("notes").await;
     let author = Author::new(account);
 
     let block = client.create_block(BlockParent::Root).await;

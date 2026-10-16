@@ -22,6 +22,21 @@
       "regions": [
         "Frame"
       ]
+    },
+    {
+      "block_type": "776f726b-7370-6163-652d-626c6f636b01",
+      "display_name": "Workspace",
+      "icon": "\uea0f",
+      "children": {
+        "add": true,
+        "delete": true,
+        "replace": true
+      },
+      "interaction": "Preview",
+      "resize": "None",
+      "regions": [
+        "Frame"
+      ]
     }
   ],
   "entry_point": "workspace_index.wasm"

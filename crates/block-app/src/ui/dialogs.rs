@@ -1,4 +1,4 @@
-use be_protocol::WorkspaceRole;
+use be_protocol::OrganizationRole;
 use beui::NodeId;
 use beui::icons::ICON_DELETE;
 use beui::reactive::*;
@@ -53,7 +53,7 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
 fn AgentsPanel(view: AppViewStore) -> NodeId {
     let agents = view.agents;
     let shown = create_memo(move || agents.get().unwrap_or_default());
-    let workspace = create_memo(move || format!("Workspace: {}", shown.get().workspace));
+    let organization = create_memo(move || format!("Organization: {}", shown.get().organization));
     let busy = create_memo(move || shown.get().busy);
     let error = create_memo(move || shown.get().error);
     let created = create_memo(move || shown.get().created);
@@ -78,10 +78,10 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Text style=TextStyle::CAPTION string={workspace} />
+                <Text style=TextStyle::CAPTION string={organization} />
                 <Text
                     style=TextStyle::CAPTION
-                    string="An agent is an account for a program, such as a coding agent, that reads and edits this workspace through the be command line tool. It sees only the blocks you share with it."
+                    string="An agent is an account for a program, such as a coding agent, that reads and edits this organization through the be command line tool. It sees only the blocks you share with it."
                     wrap=true
                 />
                 <Show condition={none}>
@@ -154,7 +154,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
         )
     });
     let server = field(|created| created.server.clone());
-    let workspace = field(|created| created.workspace.clone());
+    let organization = field(|created| created.organization.clone());
     let token = field(|created| created.token.clone());
     let phrase = field(|created| created.phrase.clone());
     view! {
@@ -162,8 +162,12 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
             <Text style=TextStyle::PARAGRAPH string={heading} wrap=true />
             <Text style=TextStyle::CODE string="BE3_SERVER" />
             <TextInput value={server} label="BE3_SERVER" @test_id={"app.agents.server"} />
-            <Text style=TextStyle::CODE string="BE3_WORKSPACE" />
-            <TextInput value={workspace} label="BE3_WORKSPACE" @test_id={"app.agents.workspace"} />
+            <Text style=TextStyle::CODE string="BE3_ORGANIZATION" />
+            <TextInput
+                value={organization}
+                label="BE3_ORGANIZATION"
+                @test_id={"app.agents.organization"}
+            />
             <Text style=TextStyle::CODE string="BE3_TOKEN" />
             <TextInput value={token} label="BE3_TOKEN" @test_id={"app.agents.token"} />
             <Text style=TextStyle::CODE string="BE3_RECOVERY_PHRASE" />
@@ -185,12 +189,12 @@ fn AboutDialog(view: AppViewStore) -> NodeId {
 #[component]
 fn InvitePanel(view: AppViewStore) -> NodeId {
     let invite = view.invite;
-    let workspace = create_memo(move || {
+    let organization = create_memo(move || {
         format!(
-            "Workspace: {}",
+            "Organization: {}",
             invite
                 .get()
-                .map(|invite| invite.workspace)
+                .map(|invite| invite.organization)
                 .unwrap_or_default()
         )
     });
@@ -211,13 +215,13 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
         untrack(|| set_email.set(String::new()));
     });
     let role = create_memo(move || match administrator.get() {
-        true => WorkspaceRole::Administrator,
-        false => WorkspaceRole::Editor,
+        true => OrganizationRole::Administrator,
+        false => OrganizationRole::Editor,
     });
     let role_index = create_memo(move || usize::from(administrator.get()));
     let description = create_memo(move || match role.get() {
-        WorkspaceRole::Administrator => "Can open every block in the workspace.".to_owned(),
-        WorkspaceRole::Editor => {
+        OrganizationRole::Administrator => "Can open every block in the organization.".to_owned(),
+        OrganizationRole::Editor => {
             "Can only open blocks they create or are given access to.".to_owned()
         }
     });
@@ -225,7 +229,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Text style=TextStyle::CAPTION string={workspace} />
+                <Text style=TextStyle::CAPTION string={organization} />
                 <Text style=TextStyle::CAPTION string="Email address" />
                 <TextInput
                     value={email}
@@ -238,8 +242,8 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                     selected={role_index}
                     on_change={move |index: usize| set_administrator.set(index == 1)}
                     options={view! {
-                        <ChoiceOption label={WorkspaceRole::Editor.label()} />
-                        <ChoiceOption label={WorkspaceRole::Administrator.label()} />
+                        <ChoiceOption label={OrganizationRole::Editor.label()} />
+                        <ChoiceOption label={OrganizationRole::Administrator.label()} />
                     }}
                 />
                 <Text style=TextStyle::CAPTION string={description} />
@@ -264,7 +268,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                             <Text
                                 style=TextStyle::PARAGRAPH
                                 @test_id={"app.invite.help"}
-                                string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It carries the workspace's key, which the server never sees, so don't email it to the same address. It is shown only once."
+                                string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It carries the organization's key, which the server never sees, so don't email it to the same address. It is shown only once."
                                 wrap=true
                             />
                             <TextInput

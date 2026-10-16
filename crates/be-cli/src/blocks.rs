@@ -142,12 +142,13 @@ impl Index {
 }
 
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 13] = [
+    let known: [(Uuid, &str); 14] = [
         (DatabaseContent::CONTENT_TYPE, "database"),
         (DatabaseSchemaContent::CONTENT_TYPE, "schema"),
         (DatabaseViewContent::CONTENT_TYPE, "database view"),
         (TextContent::CONTENT_TYPE, "text"),
         (be_block::FolderContent::CONTENT_TYPE, "folder"),
+        (be_block::WorkspaceContent::CONTENT_TYPE, "workspace"),
         (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
         (be_block::ChecklistContent::CONTENT_TYPE, "checklist"),
         (be_block::CalendarContent::CONTENT_TYPE, "calendar"),

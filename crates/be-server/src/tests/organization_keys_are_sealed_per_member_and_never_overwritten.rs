@@ -3,16 +3,16 @@ use super::*;
 use be_protocol::SealedKey;
 
 #[tokio::test]
-async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
+async fn organization_keys_are_sealed_per_member_and_never_overwritten() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
-    let workspace = owner.workspace("notes").await;
+    let organization = owner.organization("notes").await;
 
     let refused = owner
-        .send(|request| ClientMessage::PutWorkspaceKey {
+        .send(|request| ClientMessage::PutOrganizationKey {
             request,
-            workspace,
+            organization,
             sealed: b"sealed for the owner".to_vec(),
         })
         .await;
@@ -31,9 +31,9 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
     for sealed in [b"sealed for the owner".to_vec(), b"a forgery".to_vec()] {
         let response = owner
-            .send(|request| ClientMessage::PutWorkspaceKey {
+            .send(|request| ClientMessage::PutOrganizationKey {
                 request,
-                workspace,
+                organization,
                 sealed: sealed.clone(),
             })
             .await;
@@ -52,7 +52,7 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
     assert_eq!(
         sealed,
         vec![SealedKey {
-            workspace,
+            organization,
             sealed: b"sealed for the owner".to_vec(),
         }],
         "a second put overwrote the sealed key"
@@ -67,24 +67,24 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
         })
         .await;
     let refused = guest
-        .send(|request| ClientMessage::PutWorkspaceKey {
+        .send(|request| ClientMessage::PutOrganizationKey {
             request,
-            workspace,
+            organization,
             sealed: b"sealed by an outsider".to_vec(),
         })
         .await;
     assert!(
         matches!(refused, ServerMessage::Failed { .. }),
-        "an outsider stored a key for a workspace: {refused:?}"
+        "an outsider stored a key for an organization: {refused:?}"
     );
 
     owner
         .send(|request| ClientMessage::Invite {
             request,
             invitation: Uuid::from_u128(1),
-            workspace,
+            organization,
             email: "guest@example.com".into(),
-            role: WorkspaceRole::Editor,
+            role: OrganizationRole::Editor,
             sealed: Vec::new(),
         })
         .await;
@@ -95,9 +95,9 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
         })
         .await;
     let response = guest
-        .send(|request| ClientMessage::PutWorkspaceKey {
+        .send(|request| ClientMessage::PutOrganizationKey {
             request,
-            workspace,
+            organization,
             sealed: b"sealed for the guest".to_vec(),
         })
         .await;
@@ -107,7 +107,7 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
         .await;
     assert!(
         matches!(&keys, ServerMessage::Keys { sealed, .. }
-            if sealed == &vec![SealedKey { workspace, sealed: b"sealed for the guest".to_vec() }]),
+            if sealed == &vec![SealedKey { organization, sealed: b"sealed for the guest".to_vec() }]),
         "{keys:?}"
     );
 
@@ -120,14 +120,14 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
         .await;
     assert!(
         matches!(refused, ServerMessage::Failed { .. }),
-        "a new recovery key dropped a workspace key: {refused:?}"
+        "a new recovery key dropped an organization key: {refused:?}"
     );
     let response = owner
         .send(|request| ClientMessage::SetRecoveryKey {
             request,
             public: [3; 32],
             sealed: vec![SealedKey {
-                workspace,
+                organization,
                 sealed: b"resealed for the owner".to_vec(),
             }],
         })

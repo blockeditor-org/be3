@@ -33,6 +33,7 @@ pub(crate) enum Query {
     All,
     Roots,
     Detached,
+    Shared,
     Children(Uuid),
     References(Uuid),
     Backrefs(Uuid),
@@ -153,6 +154,12 @@ impl Graph {
             Query::All => self.nodes.values().cloned().collect(),
             Query::Roots => self.with_parent(BlockParent::Root),
             Query::Detached => self.with_parent(BlockParent::Detached),
+            Query::Shared => self
+                .nodes
+                .values()
+                .filter(|node| node.access.can_view() && self.entered_from_outside(node))
+                .cloned()
+                .collect(),
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),
             Query::References(block) => {
                 return self.nodes.get(&block).map_or_else(Vec::new, |node| {
@@ -235,6 +242,15 @@ impl Graph {
             }
         }
         found
+    }
+
+    fn entered_from_outside(&self, node: &Node) -> bool {
+        node.parent.block().is_some_and(|parent| {
+            !self
+                .nodes
+                .get(&parent)
+                .is_some_and(|above| above.access.can_view())
+        })
     }
 
     fn with_parent(&self, parent: BlockParent) -> Vec<Node> {

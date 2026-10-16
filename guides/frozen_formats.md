@@ -12,15 +12,25 @@ else may still change freely.
   in `objects/ab/cdef…` named by the SHA-256 of its bytes.
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,
   and `objects/` laid out as on the server.
-- **What the objects hold**: chunks sealed with the workspace key
+- **What the objects hold**: chunks sealed with the organization key
   (`ContentKey::seal`), commits and manifests (CBOR from `Vault::put_value`),
-  `BlockMetadata` (in a commit, and sealed on the block's row), workspace
+  `BlockMetadata` (in a commit, and sealed on the block's row), organization
   keys sealed to a recovery phrase (`be_keys`: the phrase's words and the
-  secret derived from them), and workspace keys sealed to an invite code on an
-  invitation's row (`be_keys::InviteCode`: the code's text, the key derived
+  secret derived from them), and organization keys sealed to an invite code on
+  an invitation's row (`be_keys::InviteCode`: the code's text, the key derived
   from it, and the invitation id derived from it).
+- **A block file** (`be_client::transfer`, version 1, what `be download` and
+  the file tree's Export as write): plaintext ids, types, parents, encoded
+  `BlockMetadata`, references and content bytes. It is how data moves from one
+  server to another, so it is read forever even when a server's own data is not.
 - **The content of these blocks** (`Root::FROZEN`): `TextBlock`, `Folder`,
   `Database`, `DatabaseSchema` and `DatabaseView`, and their content type ids.
+
+The server's data, its backups and the sealed objects broke with the old ones
+on purpose when workspaces became organizations, and change again while keys
+move to blocks (a clean break agreed with the user: data moves across in block
+files). Until `crates/be-frozen` holds a snapshot of the new formats again,
+nothing checks them, so take one as soon as they settle.
 
 Not frozen yet: every other block type, the network protocol (server and
 clients are upgraded together and refuse other builds), the local plugin API,
@@ -47,25 +57,28 @@ Only add:
 - be-block's `tests/frozen_*.rs` hold each frozen block type's registry and a
   document it saved, checked by `be_model::schema::check_frozen` (the stack
   guide's "Freezing a version").
-- `crates/be-frozen` holds snapshots of a whole server: a data directory
-  (`data/`) and a backup of it (`backup/`, whose `objects/` are the data
-  directory's), zipped in `src/snapshots/NAME.zip`, with the tokens, recovery
-  phrases and keys to open them in `src/snapshots/sNAME.rs`. The `freeze` example made
-  them by running a real server and writing `scene.rs`'s accounts and blocks
-  through `be_client` and `be`'s tracker. The test serves each snapshot and
-  reads it the way the app and `be` do: passwords, tokens and recovery phrases
-  still sign in and open the workspace key, each block's name, content and
-  history are as written, an agent reads the tracker, a new commit goes on top
-  of an old one, and the backup restores.
+- `crates/be-frozen` holds `src/fixtures/tracker.block`, a block file the
+  `block-file` example wrote with the code of 2026-10-16: a folder holding a
+  text block and a tracker database (view, database, schema, two rows linked to
+  each other, a row's page). Its test uploads it into a new server the way `be
+  upload` does and reads the folder, the text and the rows back.
+- `crates/be-frozen` is also where snapshots of a whole server go: a data
+  directory (`data/`) and a backup of it (`backup/`, whose `objects/` are the
+  data directory's), zipped in `src/snapshots/NAME.zip`, with the tokens,
+  recovery phrases and keys to open them in `src/snapshots/sNAME.rs`. The
+  `freeze` example makes one by running a real server and writing `scene.rs`'s
+  accounts and blocks through `be_client` and `be`'s tracker, and the test
+  serves each snapshot and reads it the way the app and `be` do.
 
-Never edit or regenerate a snapshot, a `frozen_*.rs` module or a value in
-`scene.rs`: a failure means the change broke old data, so fix the change. Only
-the test's code may follow an API that is not frozen, such as a protocol
-message.
+Never edit or regenerate a snapshot, a fixture, a `frozen_*.rs` module or a
+value in `scene.rs`: a failure means the change broke old data, so fix the
+change. Only the test's code may follow an API that is not frozen, such as a
+protocol message.
 
 When a frozen format gains something worth guarding (a column, a field, a
 newly frozen block type), write it in the `freeze` example and `scene.rs`,
-take a new snapshot and add it to `SNAPSHOTS` in `src/snapshots.rs`:
+take a new snapshot and list it in `SNAPSHOTS` (`src/snapshots.rs`, with the
+test that serves them):
 
 ```
 ./scripts/buck run //crates/be-frozen:example-freeze -- $PWD/crates/be-frozen/src/snapshots 2026_10_12

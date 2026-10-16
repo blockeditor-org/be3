@@ -8,7 +8,7 @@ see a change working in the real app. Start it with its `:dev` target:
     source ~/.cache/be3/dev/env
     drive tree
 
-`:dev` exists for block-app (signed in, with a workspace called Dev open), beui-demo
+`:dev` exists for block-app (signed in, with an organization called Dev open), beui-demo
 (`//crates/beui-demo:dev`, `~/.cache/be3/beui-demo/env`) and be-launcher
 (`//crates/be-launcher:dev`). Each builds the program, starts it with no window and returns
 once it has settled; running it again restarts it, which is how to pick up a rebuild. The
@@ -149,10 +149,10 @@ change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prin
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
-frame's layout and is shown only by the next, while an account or workspace request is
+frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which a
 driven app asks for at once, rather than after the pause a person's edits wait for) or is
-still loading the workspace's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
+still loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;

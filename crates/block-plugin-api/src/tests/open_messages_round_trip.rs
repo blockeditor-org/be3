@@ -8,7 +8,7 @@ fn open_messages_round_trip() {
         block_type: [2; 16],
         view_block: Some([6; 16]),
         account_id: [3; 16],
-        workspace_id: [4; 16],
+        organization_id: [4; 16],
         client_id: [5; 16],
         editable: true,
     });

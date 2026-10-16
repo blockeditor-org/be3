@@ -3,14 +3,18 @@ use uuid::Uuid;
 
 #[test]
 fn a_block_link_is_found_by_its_fragment_whatever_its_host() {
-    let workspace_id = Uuid::from_u128(1);
+    let organization_id = Uuid::from_u128(1);
     let block_id = Uuid::from_u128(2);
-    let fragment = block_url("", workspace_id, block_id);
-    assert_eq!(fragment, format!("#block/{workspace_id}/{block_id}"));
+    let fragment = block_url("", organization_id, block_id);
+    assert_eq!(fragment, format!("#block/{organization_id}/{block_id}"));
 
     assert_eq!(
-        block_url("https://someurl.com/be3/index.html", workspace_id, block_id),
-        format!("https://someurl.com/be3/index.html#block/{workspace_id}/{block_id}")
+        block_url(
+            "https://someurl.com/be3/index.html",
+            organization_id,
+            block_id
+        ),
+        format!("https://someurl.com/be3/index.html#block/{organization_id}/{block_id}")
     );
 
     for base in [
@@ -19,13 +23,16 @@ fn a_block_link_is_found_by_its_fragment_whatever_its_host() {
         "https://someurl.com/be3/",
         "https://someurl.com/be3/index.html",
     ] {
-        let url = block_url(base, workspace_id, block_id);
+        let url = block_url(base, organization_id, block_id);
         let text = format!("see [the notes]({url}) or [{url}].");
         let parsed = parse_block_urls(text.as_bytes());
         assert_eq!(parsed.len(), 2, "{text}");
         for found in parsed {
             assert_eq!(&text[found.range.clone()], url);
-            assert_eq!((found.workspace_id, found.block), (workspace_id, block_id));
+            assert_eq!(
+                (found.organization_id, found.block),
+                (organization_id, block_id)
+            );
         }
     }
 

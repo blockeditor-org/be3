@@ -84,10 +84,14 @@ pub struct BlockGraph {
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
 }
 
-fn direct(node: &BlockNode, account: Uuid) -> Access {
-    match node.author == account {
-        true => Access::Edit,
-        false => node.grants.get(&account).copied().unwrap_or_default(),
+fn level_below(node: &BlockNode, account: Uuid, parent: Access, parent_viewable: bool) -> Access {
+    if node.author == account && parent_viewable {
+        return Access::Edit;
+    }
+    let granted = node.grants.get(&account).copied().unwrap_or_default();
+    match parent.can_view() {
+        true => granted.max(parent),
+        false => granted,
     }
 }
 
@@ -358,23 +362,20 @@ impl BlockGraph {
     }
 
     pub fn inherited(&self, id: Uuid, account: Uuid) -> Access {
-        let Some(node) = self.blocks.get(&id) else {
+        let chain: Vec<&BlockNode> = std::iter::once(id)
+            .chain(self.ancestors(id))
+            .map_while(|block| self.blocks.get(&block))
+            .collect();
+        let Some(top) = chain.last() else {
             return Access::None;
         };
-        let mut best = direct(node, account);
-        for ancestor in self.ancestors(id) {
-            if best == Access::Edit {
-                break;
-            }
-            let Some(above) = self.blocks.get(&ancestor) else {
-                break;
-            };
-            let inherited = direct(above, account);
-            if inherited.can_view() {
-                best = best.max(inherited);
-            }
+        let mut above = Access::None;
+        let mut parent_viewable = matches!(top.parent, BlockParent::Root | BlockParent::Detached);
+        for node in chain.into_iter().rev() {
+            above = level_below(node, account, above, parent_viewable);
+            parent_viewable = above.can_view();
         }
-        best
+        above
     }
 
     pub fn effective_access(&self, id: Uuid, account: Uuid) -> Access {
@@ -382,7 +383,7 @@ impl BlockGraph {
         if level.can_know_exists() {
             return level;
         }
-        if self.referenced_by_viewer(id, account) || self.knows_below(id, account) {
+        if self.referenced_by_viewer(id, account) {
             return Access::KnowExists;
         }
         Access::None
@@ -400,25 +401,6 @@ impl BlockGraph {
         })
     }
 
-    fn knows_below(&self, id: Uuid, account: Uuid) -> bool {
-        let entered = self.entries.get(&account).is_some_and(|entries| {
-            entries.iter().any(|entry| {
-                *entry != id
-                    && self
-                        .blocks
-                        .get(entry)
-                        .is_some_and(|node| direct(node, account).can_know_exists())
-                    && self.ancestors(*entry).any(|ancestor| ancestor == id)
-            })
-        });
-        entered
-            || self
-                .subtree(id)
-                .into_iter()
-                .skip(1)
-                .any(|below| self.referenced_by_viewer(below, account))
-    }
-
     pub fn visible(&self, account: Uuid) -> BTreeMap<Uuid, Access> {
         let mut levels: BTreeMap<Uuid, Access> = BTreeMap::new();
         fn raise(levels: &mut BTreeMap<Uuid, Access>, id: Uuid, level: Access) {
@@ -430,31 +412,28 @@ impl BlockGraph {
             let Some(node) = self.blocks.get(&entry) else {
                 continue;
             };
-            let level = direct(node, account);
-            if !level.can_view() {
-                if level.can_know_exists() {
-                    raise(&mut levels, entry, level);
-                }
+            let parent = match node.parent {
+                BlockParent::Block(parent) => self.inherited(parent, account),
+                BlockParent::Root | BlockParent::Detached => Access::None,
+            };
+            if parent.can_view() {
                 continue;
             }
-            let covered = self.ancestors(entry).any(|ancestor| {
-                self.blocks
-                    .get(&ancestor)
-                    .is_some_and(|above| direct(above, account).can_view())
-            });
-            if !covered {
-                roots.push((entry, level));
+            let open = matches!(node.parent, BlockParent::Root | BlockParent::Detached);
+            let level = level_below(node, account, Access::None, open);
+            match level.can_view() {
+                true => roots.push((entry, level)),
+                false if level.can_know_exists() => raise(&mut levels, entry, level),
+                false => {}
             }
         }
         let mut stack = roots;
         while let Some((id, level)) = stack.pop() {
             raise(&mut levels, id, level);
             for child in self.child_ids(id) {
-                let own = self
-                    .blocks
-                    .get(&child)
-                    .map_or(Access::None, |node| direct(node, account));
-                stack.push((child, level.max(own)));
+                if let Some(node) = self.blocks.get(&child) {
+                    stack.push((child, level_below(node, account, level, true)));
+                }
             }
         }
         let referenced: Vec<Uuid> = levels
@@ -470,16 +449,6 @@ impl BlockGraph {
             .collect();
         for id in referenced {
             raise(&mut levels, id, Access::KnowExists);
-        }
-        let known: Vec<Uuid> = levels.keys().copied().collect();
-        let mut climbed = BTreeSet::new();
-        for id in known {
-            for ancestor in self.ancestors(id) {
-                if !self.blocks.contains_key(&ancestor) || !climbed.insert(ancestor) {
-                    break;
-                }
-                raise(&mut levels, ancestor, Access::KnowExists);
-            }
         }
         levels
     }
@@ -502,28 +471,19 @@ impl BlockGraph {
     }
 
     pub fn audience(&self, id: Uuid) -> BTreeSet<Uuid> {
-        let mut audience = BTreeSet::new();
-        if !self.blocks.contains_key(&id) {
-            return audience;
-        }
-        if let Some(parent) = self.blocks.get(&id).and_then(|node| node.parent.block()) {
-            audience.extend(self.viewers(parent));
-        }
-        for below in self.subtree(id) {
-            let Some(node) = self.blocks.get(&below) else {
-                continue;
-            };
-            audience.insert(node.author);
-            audience.extend(
-                node.grants
-                    .iter()
-                    .filter(|(_, level)| level.can_know_exists())
-                    .map(|(account, _)| *account),
-            );
-            for referrer in self.backrefs.get(&below).into_iter().flatten() {
-                if node.parent != BlockParent::Block(*referrer) {
-                    audience.extend(self.viewers(*referrer));
-                }
+        let Some(node) = self.blocks.get(&id) else {
+            return BTreeSet::new();
+        };
+        let mut audience = self.viewers(id);
+        audience.extend(
+            node.grants
+                .iter()
+                .filter(|(_, level)| level.can_know_exists())
+                .map(|(account, _)| *account),
+        );
+        for referrer in self.backrefs.get(&id).into_iter().flatten() {
+            if node.parent != BlockParent::Block(*referrer) {
+                audience.extend(self.viewers(*referrer));
             }
         }
         audience

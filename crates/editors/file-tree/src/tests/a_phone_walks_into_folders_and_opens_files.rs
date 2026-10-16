@@ -10,19 +10,27 @@ fn a_phone_walks_into_folders_and_opens_files() {
     let folder = Uuid::from_u128(2);
     let notes = Uuid::from_u128(3);
     let inside = Uuid::from_u128(4);
-    let mut projects = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
+    let files = MY_FILES;
+    let mut projects = BlockInfo::new(
+        folder,
+        FolderContent::CONTENT_TYPE,
+        BlockParent::Block(files),
+    );
     projects.set_intrinsic_name("Projects".to_owned());
     projects.references = vec![inside];
-    let mut listed = BlockInfo::new(notes, text_type, BlockParent::Root);
+    let mut listed = BlockInfo::new(notes, text_type, BlockParent::Block(files));
     listed.set_intrinsic_name("Notes".to_owned());
-    fixture
-        .host
-        .set_blocks(BlockQuery::Roots, vec![projects, listed]);
+    my_files(&mut fixture, vec![projects, listed]);
     fixture.settle();
-    assert!(fixture.says("Projects"));
+    assert!(fixture.says("My files"));
+    assert!(fixture.test.shown("file-tree.shared"));
     fixture
         .test
         .snapshot("a_phone_lists_the_top_level_of_the_files");
+
+    fixture.test.click(&format!("file-tree.{files}.open"));
+    fixture.settle();
+    assert!(fixture.says("Projects"));
 
     fixture.test.click(&format!("file-tree.{folder}.open"));
     fixture.settle();
@@ -55,6 +63,9 @@ fn a_phone_walks_into_folders_and_opens_files() {
     fixture.test.click("file-tree.back");
     fixture.settle();
     assert!(fixture.test.shown(&format!("file-tree.{notes}.open")));
+    fixture.test.click("file-tree.back");
+    fixture.settle();
+    assert!(fixture.test.shown(&format!("file-tree.{files}.open")));
 
     fixture.test.click("file-tree.search");
     fixture.settle();

@@ -240,16 +240,16 @@ impl InviteCode {
         lookup
     }
 
-    pub fn seal(&self, workspace: &[u8], plain: &[u8]) -> Vec<u8> {
-        seal_with(&self.key(workspace), plain)
+    pub fn seal(&self, organization: &[u8], plain: &[u8]) -> Vec<u8> {
+        seal_with(&self.key(organization), plain)
     }
 
-    pub fn open(&self, workspace: &[u8], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
-        open_with(&self.key(workspace), sealed, KeyError::Invite)
+    pub fn open(&self, organization: &[u8], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+        open_with(&self.key(organization), sealed, KeyError::Invite)
     }
 
-    fn key(&self, workspace: &[u8]) -> [u8; 32] {
-        expand(&self.0, workspace, INVITE_INFO)
+    fn key(&self, organization: &[u8]) -> [u8; 32] {
+        expand(&self.0, organization, INVITE_INFO)
     }
 }
 

@@ -13,12 +13,12 @@ const SCHEMES: [&[u8]; 2] = [b"https://", b"http://"];
 pub struct BlockUrl {
     pub range: Range<usize>,
     pub block: Uuid,
-    pub workspace_id: Uuid,
+    pub organization_id: Uuid,
 }
 
-pub fn block_url(base: &str, workspace_id: Uuid, id: Uuid) -> String {
+pub fn block_url(base: &str, organization_id: Uuid, id: Uuid) -> String {
     let base = base.split('#').next().unwrap_or_default();
-    format!("{base}{MARKER}{workspace_id}/{id}")
+    format!("{base}{MARKER}{organization_id}/{id}")
 }
 
 fn parse_uuid_at(bytes: &[u8], start: usize, end: usize) -> Option<Uuid> {
@@ -28,15 +28,15 @@ fn parse_uuid_at(bytes: &[u8], start: usize, end: usize) -> Option<Uuid> {
 }
 
 fn parse_fragment(bytes: &[u8], start: usize) -> Option<(usize, Uuid, Uuid)> {
-    let workspace_end = start + UUID_TEXT_BYTES;
-    let workspace_id = parse_uuid_at(bytes, start, workspace_end)?;
-    if bytes.get(workspace_end) != Some(&b'/') {
+    let organization_end = start + UUID_TEXT_BYTES;
+    let organization_id = parse_uuid_at(bytes, start, organization_end)?;
+    if bytes.get(organization_end) != Some(&b'/') {
         return None;
     }
-    let id_start = workspace_end + 1;
+    let id_start = organization_end + 1;
     let id_end = id_start + UUID_TEXT_BYTES;
     let id = parse_uuid_at(bytes, id_start, id_end)?;
-    Some((id_end, id, workspace_id))
+    Some((id_end, id, organization_id))
 }
 
 fn ends_a_url(byte: u8) -> bool {
@@ -66,7 +66,8 @@ pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {
     while let Some(found) = finder.find(&bytes[from..]) {
         let marker = from + found;
         from = marker + 1;
-        let Some((end, block, workspace_id)) = parse_fragment(bytes, marker + MARKER.len()) else {
+        let Some((end, block, organization_id)) = parse_fragment(bytes, marker + MARKER.len())
+        else {
             continue;
         };
         if bytes
@@ -78,7 +79,7 @@ pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {
         urls.push(BlockUrl {
             range: base_start(bytes, marker, floor)..end,
             block,
-            workspace_id,
+            organization_id,
         });
         from = end;
         floor = end;

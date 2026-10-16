@@ -6,6 +6,7 @@ mod a_parent_knows_its_children_as_the_graph_changes;
 mod access_is_inherited_through_parents;
 mod access_to_one_block_agrees_with_mapping_the_whole_graph;
 mod an_account_sees_what_lies_below_its_entry_points;
+mod an_author_edits_only_what_lies_where_it_can_see;
 mod object_references_are_counted_not_traced;
 mod references_do_not_keep_a_block_alive;
 mod the_audience_of_a_block_holds_everyone_who_may_know_it;
@@ -151,26 +152,36 @@ fn varied_graphs(mut check: impl FnMut(&BlockGraph)) {
 }
 
 fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, Access> {
-    let direct = |node: &BlockNode| match node.author == account {
-        true => Access::Edit,
-        false => node.grants.get(&account).copied().unwrap_or_default(),
-    };
+    fn level(
+        graph: &BlockGraph,
+        account: Uuid,
+        id: Uuid,
+        memo: &mut BTreeMap<Uuid, Access>,
+    ) -> Access {
+        if let Some(level) = memo.get(&id) {
+            return *level;
+        }
+        let node = graph.get(id).unwrap();
+        let (parent, parent_viewable) = match node.parent {
+            BlockParent::Block(parent) => {
+                let above = level(graph, account, parent, memo);
+                (above, above.can_view())
+            }
+            BlockParent::Root | BlockParent::Detached => (Access::None, true),
+        };
+        let mut best = node.grants.get(&account).copied().unwrap_or_default();
+        if parent.can_view() {
+            best = best.max(parent);
+        }
+        if node.author == account && parent_viewable {
+            best = Access::Edit;
+        }
+        memo.insert(id, best);
+        best
+    }
     let mut access: BTreeMap<Uuid, Access> = BTreeMap::new();
     for id in graph.ids() {
-        let node = graph.get(id).unwrap();
-        let mut best = direct(node);
-        let mut current = node.parent.block();
-        while let Some(parent) = current {
-            let Some(ancestor) = graph.get(parent) else {
-                break;
-            };
-            let inherited = direct(ancestor);
-            if inherited.can_view() {
-                best = best.max(inherited);
-            }
-            current = ancestor.parent.block();
-        }
-        access.insert(id, best);
+        level(graph, account, id, &mut access);
     }
     let mut referenced = Vec::new();
     for id in graph.ids() {
@@ -189,21 +200,6 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
     for id in referenced {
         if let Some(level) = access.get_mut(&id) {
             *level = (*level).max(Access::KnowExists);
-        }
-    }
-    let known: Vec<Uuid> = access
-        .iter()
-        .filter(|(_, level)| level.can_know_exists())
-        .map(|(id, _)| *id)
-        .collect();
-    for id in known {
-        let mut current = graph.get(id).and_then(|node| node.parent.block());
-        while let Some(parent) = current {
-            let Some(level) = access.get_mut(&parent) else {
-                break;
-            };
-            *level = (*level).max(Access::KnowExists);
-            current = graph.get(parent).and_then(|node| node.parent.block());
         }
     }
     access

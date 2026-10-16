@@ -5,12 +5,12 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
-    let workspace = owner.workspace("tracker").await;
+    let organization = owner.organization("tracker").await;
 
     let response = owner
         .send(|request| ClientMessage::CreateAgent {
             request,
-            workspace,
+            organization,
             name: "Claude".into(),
             recovery: [7; 32],
             sealed: vec![1, 2, 3],
@@ -32,7 +32,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
         panic!("the agent's token did not sign it in: {response:?}");
     };
     assert_eq!(account, agent.account);
-    bot.open(workspace).await;
+    bot.open(organization).await;
     let response = bot.send(|request| ClientMessage::GetKeys { request }).await;
     let ServerMessage::Keys {
         recovery, sealed, ..
@@ -45,7 +45,10 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     assert_eq!(sealed[0].sealed, [1, 2, 3]);
 
     let response = owner
-        .send(|request| ClientMessage::ListAgents { request, workspace })
+        .send(|request| ClientMessage::ListAgents {
+            request,
+            organization,
+        })
         .await;
     let ServerMessage::Agents { agents, .. } = response else {
         panic!("listing agents failed: {response:?}");
@@ -55,7 +58,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     let response = owner
         .send(|request| ClientMessage::RemoveAgent {
             request,
-            workspace,
+            organization,
             account: agent.account,
         })
         .await;

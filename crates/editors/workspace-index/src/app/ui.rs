@@ -1,6 +1,5 @@
 use uuid::Uuid;
 
-use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -8,7 +7,7 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, TextAlign, Vec2};
 use block_editor_beui::{Editor, Toolbar};
 
-use super::entries::{Entry, Folder, FolderSort};
+use super::entries::{Entry, Folder, FolderSort, Listing};
 
 const PADDING: f32 = 12.0;
 const TILE_SPACING: f32 = 10.0;
@@ -79,7 +78,7 @@ impl Cells {
 
 #[component]
 pub fn FolderEditor(editor: Editor) -> NodeId {
-    let index = editor.block_content::<FolderContent>();
+    let index = Listing::of(editor);
     let (mode, set_mode) = create_signal(FolderView::default());
     let (sort, set_sort) = create_signal(FolderSort::default());
     let (descending, set_descending) = create_signal(false);

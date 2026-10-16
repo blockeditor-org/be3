@@ -49,7 +49,7 @@ pub(crate) struct ParsedEmbed {
 
 pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
     let markdown = state.text.language() == TextLanguage::Markdown;
-    let parsed = parse_embeds(&state.text.bytes(), state.workspace_id, markdown);
+    let parsed = parse_embeds(&state.text.bytes(), state.organization_id, markdown);
     let references = state.inner().dependencies.read();
     let referenced = references
         .iter()
@@ -117,12 +117,12 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
 
 pub(crate) fn image_embed_directive(
     link_base: &str,
-    workspace_id: Uuid,
+    organization_id: Uuid,
     reference: &Uuid,
     source_name: &str,
     markdown: bool,
 ) -> String {
-    let url = block_url(link_base, workspace_id, *reference);
+    let url = block_url(link_base, organization_id, *reference);
     if markdown {
         format!("![{source_name}]({url})")
     } else {
@@ -130,10 +130,14 @@ pub(crate) fn image_embed_directive(
     }
 }
 
-pub(crate) fn parse_embeds(bytes: &[u8], workspace_id: Uuid, markdown: bool) -> Vec<ParsedEmbed> {
+pub(crate) fn parse_embeds(
+    bytes: &[u8],
+    organization_id: Uuid,
+    markdown: bool,
+) -> Vec<ParsedEmbed> {
     parse_block_urls(bytes)
         .into_iter()
-        .filter(|url| url.workspace_id == workspace_id)
+        .filter(|url| url.organization_id == organization_id)
         .map(|url| {
             let image_range = markdown
                 .then(|| markdown_image_range(bytes, &url.range))

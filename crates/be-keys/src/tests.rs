@@ -3,6 +3,6 @@ use super::*;
 mod a_recovery_phrase_round_trips_through_its_words;
 mod a_sealed_key_opens_only_with_its_recovery_phrase;
 mod a_typed_code_is_normalized;
-mod an_invite_code_opens_only_its_own_workspaces_key;
+mod an_invite_code_opens_only_its_own_organizations_key;
 mod pairing_with_a_different_code_fails;
 mod pairing_with_the_same_code_shares_a_key;

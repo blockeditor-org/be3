@@ -9,12 +9,12 @@ use uuid::Uuid;
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub enum WorkspaceRole {
+pub enum OrganizationRole {
     Administrator,
     Editor,
 }
 
-impl WorkspaceRole {
+impl OrganizationRole {
     pub fn label(self) -> &'static str {
         match self {
             Self::Administrator => "Administrator",
@@ -23,20 +23,28 @@ impl WorkspaceRole {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Workspace {
-    pub id: Uuid,
-    pub name: String,
-    pub role: WorkspaceRole,
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum OrganizationKind {
+    #[default]
+    Company,
+    Personal,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct WorkspaceInvitation {
+pub struct Organization {
     pub id: Uuid,
-    pub workspace: Uuid,
-    pub workspace_name: String,
+    pub name: String,
+    pub kind: OrganizationKind,
+    pub role: OrganizationRole,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OrganizationInvitation {
+    pub id: Uuid,
+    pub organization: Uuid,
+    pub organization_name: String,
     pub email: String,
-    pub role: WorkspaceRole,
+    pub role: OrganizationRole,
     pub invited_by: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
@@ -77,7 +85,7 @@ pub struct AccessEntry {
     pub account: Uuid,
     pub email: String,
     pub display_name: String,
-    pub role: WorkspaceRole,
+    pub role: OrganizationRole,
     pub author: bool,
     pub granted: Option<Access>,
     pub effective: Access,
@@ -96,7 +104,7 @@ pub enum ErrorCode {
     ObjectTooLarge,
     ParentCycle,
     Storage,
-    WorkspaceNotFound,
+    OrganizationNotFound,
     RegistrationDisabled,
     InvitationNotFound,
     LoginDisabled,
@@ -129,23 +137,23 @@ pub enum ClientMessage {
     Logout {
         request: u64,
     },
-    ListWorkspaces {
+    ListOrganizations {
         request: u64,
     },
-    CreateWorkspace {
+    CreateOrganization {
         request: u64,
         name: String,
     },
-    OpenWorkspace {
+    OpenOrganization {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
     },
     Invite {
         request: u64,
         invitation: Uuid,
-        workspace: Uuid,
+        organization: Uuid,
         email: String,
-        role: WorkspaceRole,
+        role: OrganizationRole,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
     },
@@ -299,22 +307,22 @@ pub enum ClientMessage {
         public: [u8; 32],
         sealed: Vec<SealedKey>,
     },
-    PutWorkspaceKey {
+    PutOrganizationKey {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
     },
     Pair {
         request: u64,
         to: Option<ClientId>,
-        workspace: Uuid,
+        organization: Uuid,
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
     CreateAgent {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
         name: String,
         recovery: [u8; 32],
         #[serde(with = "serde_bytes")]
@@ -322,11 +330,11 @@ pub enum ClientMessage {
     },
     ListAgents {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
     },
     RemoveAgent {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
         account: Uuid,
     },
 }
@@ -340,7 +348,7 @@ pub struct Agent {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SealedKey {
-    pub workspace: Uuid,
+    pub organization: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
 }
@@ -355,9 +363,9 @@ impl ClientMessage {
             | Self::Invite { request, .. }
             | Self::GetInvitation { request, .. }
             | Self::AcceptInvitation { request, .. }
-            | Self::ListWorkspaces { request }
-            | Self::CreateWorkspace { request, .. }
-            | Self::OpenWorkspace { request, .. }
+            | Self::ListOrganizations { request }
+            | Self::CreateOrganization { request, .. }
+            | Self::OpenOrganization { request, .. }
             | Self::PutObject { request, .. }
             | Self::GetObject { request, .. }
             | Self::GetObjectRange { request, .. }
@@ -386,7 +394,7 @@ impl ClientMessage {
             | Self::Relay { request, .. }
             | Self::GetKeys { request }
             | Self::SetRecoveryKey { request, .. }
-            | Self::PutWorkspaceKey { request, .. }
+            | Self::PutOrganizationKey { request, .. }
             | Self::Pair { request, .. }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }
@@ -420,18 +428,18 @@ pub enum ServerMessage {
         display_name: String,
         token: String,
     },
-    Workspaces {
+    Organizations {
         request: u64,
-        workspaces: Vec<Workspace>,
+        organizations: Vec<Organization>,
     },
     Invitation {
         request: u64,
-        invitation: WorkspaceInvitation,
+        invitation: OrganizationInvitation,
     },
-    WorkspaceOpened {
+    OrganizationOpened {
         request: u64,
-        workspace: Uuid,
-        role: WorkspaceRole,
+        organization: Uuid,
+        role: OrganizationRole,
     },
     Stored {
         request: u64,
@@ -512,7 +520,7 @@ pub enum ServerMessage {
     },
     Paired {
         from: ClientId,
-        workspace: Uuid,
+        organization: Uuid,
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
@@ -533,9 +541,9 @@ impl ServerMessage {
             Self::Ok { request }
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
-            | Self::Workspaces { request, .. }
+            | Self::Organizations { request, .. }
             | Self::Invitation { request, .. }
-            | Self::WorkspaceOpened { request, .. }
+            | Self::OrganizationOpened { request, .. }
             | Self::Stored { request, .. }
             | Self::Object { request, .. }
             | Self::Missing { request, .. }

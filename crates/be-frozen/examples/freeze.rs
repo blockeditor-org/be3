@@ -16,7 +16,7 @@ use be_client::{Connection, Credentials, Peer, PeerConfig};
 use be_frozen::scene;
 use be_graph::{Access, BlockParent};
 use be_keys::{InviteCode, RecoveryPhrase};
-use be_protocol::{ClientMessage, SealedKey, ServerMessage, WorkspaceRole};
+use be_protocol::{ClientMessage, OrganizationRole, SealedKey, ServerMessage};
 use be_server::{
     ServerConfig,
     backup::{self, BackupKey, Directory},
@@ -28,7 +28,7 @@ use uuid::Uuid;
 const CLIENT: u64 = 0x6672_6f7a_656e;
 
 struct Written {
-    workspace: Uuid,
+    organization: Uuid,
     key: ContentKey,
     owner_token: String,
     owner_phrase: RecoveryPhrase,
@@ -141,7 +141,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     let key = ContentKey::random();
     let owner = Peer::connect(
         PeerConfig {
-            workspace_name: scene::WORKSPACE.into(),
+            organization_name: scene::ORGANIZATION.into(),
             ..PeerConfig::new(
                 &socket,
                 key,
@@ -156,12 +156,12 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     )
     .await
     .map_err(text)?;
-    let workspace = owner.workspace();
+    let organization = owner.organization();
     let owner_token = owner.token().to_owned();
     let signed_in = |chunker| {
         Peer::connect(
             PeerConfig::new(&socket, key, Credentials::Token(owner_token.clone()))
-                .workspace(Some(workspace))
+                .organization(Some(organization))
                 .chunker(chunker),
             MemoryStore::new(),
         )
@@ -174,7 +174,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
             request,
             public: public.0,
             sealed: vec![SealedKey {
-                workspace,
+                organization,
                 sealed: public.seal(key.as_bytes()),
             }],
         }
@@ -200,10 +200,10 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     request(owner.connection(), |request| ClientMessage::Invite {
         request,
         invitation,
-        workspace,
+        organization,
         email: scene::EDITOR_EMAIL.into(),
-        role: WorkspaceRole::Editor,
-        sealed: code.seal(workspace.as_bytes(), key.as_bytes()),
+        role: OrganizationRole::Editor,
+        sealed: code.seal(organization.as_bytes(), key.as_bytes()),
     })
     .await?;
     request(&editor, |request| ClientMessage::AcceptInvitation {
@@ -219,9 +219,9 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         sealed: Vec::new(),
     })
     .await?;
-    request(&editor, |request| ClientMessage::PutWorkspaceKey {
+    request(&editor, |request| ClientMessage::PutOrganizationKey {
         request,
-        workspace,
+        organization,
         sealed: editor_public.seal(key.as_bytes()),
     })
     .await?;
@@ -229,10 +229,10 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     request(owner.connection(), |request| ClientMessage::Invite {
         request,
         invitation: Uuid::from_bytes(code.lookup()),
-        workspace,
+        organization,
         email: scene::INVITED_EMAIL.into(),
-        role: WorkspaceRole::Editor,
-        sealed: code.seal(workspace.as_bytes(), key.as_bytes()),
+        role: OrganizationRole::Editor,
+        sealed: code.seal(organization.as_bytes(), key.as_bytes()),
     })
     .await?;
 
@@ -244,7 +244,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         ..
     } = request(owner.connection(), |request| ClientMessage::CreateAgent {
         request,
-        workspace,
+        organization,
         name: scene::AGENT_NAME.into(),
         recovery: agent_public.0,
         sealed: agent_public.seal(key.as_bytes()),
@@ -450,7 +450,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         .ok_or("a save was rejected")?;
 
     Ok(Written {
-        workspace,
+        organization,
         key,
         owner_token,
         owner_phrase,
@@ -538,8 +538,8 @@ fn source(name: &str, written: &Written, backup_key: &BackupKey) -> String {
     let mut field = |label: &str, value: &dyn Display| {
         let _ = writeln!(out, "    {label}: \"{value}\",");
     };
-    field("workspace", &written.workspace);
-    field("workspace_key", &hex(written.key.as_bytes()));
+    field("organization", &written.organization);
+    field("organization_key", &hex(written.key.as_bytes()));
     field("owner_token", &written.owner_token);
     field("owner_phrase", &written.owner_phrase);
     field("editor_phrase", &written.editor_phrase);

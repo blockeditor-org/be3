@@ -8,7 +8,9 @@ use beui::unstyled::{ChoiceOption, MenuItem};
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
-use super::{AccountForm, AccountRow, AppViewStore, ErrorAction, UiCommand, WorkspacesState, send};
+use super::{
+    AccountForm, AccountRow, AppViewStore, ErrorAction, OrganizationsState, UiCommand, send,
+};
 use crate::platform;
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 
@@ -62,7 +64,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
         match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => {
             let accounts =
-                "This removes every saved account and workspace key on this device. You will need to sign in again, and unlock each workspace with your recovery phrase or another device.";
+                "This removes every saved account and organization key on this device. You will need to sign in again, and unlock each organization with your recovery phrase or another device.";
             match unsaved.get() {
                 0 => accounts.to_owned(),
                 1 => format!("{accounts} One block has changes that have not reached the server yet, and they will be lost."),
@@ -71,7 +73,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
         }
         #[cfg(not(target_arch = "wasm32"))]
         Some(ErrorAction::DeleteServerDatabase) => {
-            "This permanently deletes every workspace and block stored on this device's local server."
+            "This permanently deletes every organization and block stored on this device's local server."
                 .to_owned()
         }
         None => String::new(),
@@ -196,9 +198,9 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
 fn AccountCard(account: Memo<AccountRow>) -> NodeId {
     let name = create_memo(move || account.get().name);
     let key = create_memo(move || account.get().key);
-    let open_hint = create_memo(move || match account.get().has_last_workspace {
-        true => "Open the last workspace used".to_owned(),
-        false => "Choose a workspace".to_owned(),
+    let open_hint = create_memo(move || match account.get().has_last_organization {
+        true => "Open the last organization used".to_owned(),
+        false => "Choose an organization".to_owned(),
     });
     let log_out = key;
     let open = key;
@@ -237,8 +239,8 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                     </Tooltip>
                     <IconButton
                         glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
-                        label="Open a different workspace"
-                        on_click={move || send(UiCommand::ChooseWorkspace(choose.get_untracked()))}
+                        label="Open a different organization"
+                        on_click={move || send(UiCommand::ChooseOrganization(choose.get_untracked()))}
                     />
                 </List>
             </List>
@@ -426,29 +428,33 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
-    let workspaces = create_memo(move || view.workspaces.get());
-    let busy = create_memo(move || workspaces.get().busy);
+pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
+    let organizations = create_memo(move || view.organizations.get());
+    let busy = create_memo(move || organizations.get().busy);
     let keys = create_memo(move || {
-        workspaces
+        organizations
             .get()
-            .workspaces
+            .organizations
             .into_iter()
             .map(|(id, _)| id)
             .collect::<Vec<_>>()
     });
     let empty = create_memo(move || keys.get().is_empty());
-    let state = create_memo(move || workspaces.get().state);
-    let error = create_memo(move || workspaces.get().error);
-    let created = create_memo(move || workspaces.get().created);
+    let state = create_memo(move || organizations.get().state);
+    let error = create_memo(move || organizations.get().error);
+    let created = create_memo(move || organizations.get().created);
     let account = create_memo(move || view.account.get());
     let name = create_memo(move || account.get().name);
-    let rows = workspaces;
+    let rows = organizations;
     let reload_busy = busy;
     view! {
         <Column>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0) string="Workspaces" />
+                <Text
+                    style=TextStyle::TITLE
+                    @sizing=ItemSize::Percent(100.0)
+                    string="Organizations"
+                />
                 <MenuButton
                     label="Account options"
                     glyph={ICON_MORE_HORIZ.to_owned()}
@@ -461,9 +467,9 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                 />
                 <IconButton
                     glyph={ICON_REFRESH.to_owned()}
-                    label="Reload workspaces"
+                    label="Reload organizations"
                     disabled={reload_busy}
-                    on_click={|| send(UiCommand::ReloadWorkspaces)}
+                    on_click={|| send(UiCommand::ReloadOrganizations)}
                 />
             </List>
             <Card>
@@ -480,15 +486,15 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                     />
                 </List>
             </Card>
-            <Text style=TextStyle::HEADING string="Open a workspace" />
+            <Text style=TextStyle::HEADING string="Open an organization" />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
                     let rows = rows;
                     let label = create_memo(move || {
                         rows.get()
-                            .workspaces
+                            .organizations
                             .into_iter()
-                            .find(|(workspace, _)| *workspace == id)
+                            .find(|(organization, _)| *organization == id)
                             .map(|(_, name)| name)
                             .unwrap_or_default()
                     });
@@ -499,7 +505,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                                 label={label}
                                 glyph={ICON_WORKSPACES.to_owned()}
                                 variant=ButtonVariant::Secondary
-                                on_click={move || send(UiCommand::OpenWorkspace(id))}
+                                on_click={move || send(UiCommand::OpenOrganization(id))}
                             />
                             <IconButton
                                 glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
@@ -513,7 +519,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             <Show condition={empty}>
                 {move || view! {
                     <Card>
-                        <WorkspacesPlaceholder state />
+                        <OrganizationsPlaceholder state />
                     </Card>
                 }}
             </Show>
@@ -521,11 +527,11 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                 <Text align=TextAlign::Center>
                     <Icon glyph={ICON_GROUP_ADD.to_owned()} />
                 </Text>
-                <Text style=TextStyle::HEADING string="Join a workspace" />
+                <Text style=TextStyle::HEADING string="Join an organization" />
             </List>
-            <JoinWorkspace view busy={busy} />
-            <Text style=TextStyle::HEADING string="Create a workspace" />
-            <CreateWorkspace busy={busy} created />
+            <JoinOrganization view busy={busy} />
+            <Text style=TextStyle::HEADING string="Create an organization" />
+            <CreateOrganization busy={busy} created />
             <ErrorText text={error} />
             <ReauthDialog view />
         </Column>
@@ -533,14 +539,14 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn JoinWorkspace(view: AppViewStore, busy: Memo<bool>) -> NodeId {
-    let joining = create_memo(move || view.workspaces.get().joining);
+fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
+    let joining = create_memo(move || view.organizations.get().joining);
     let asking = create_memo(move || joining.get().is_some());
     let pasting = create_memo(move || !asking.get());
     let title = create_memo(move || {
         joining
             .get()
-            .map(|row| format!("Join {} as {}?", row.workspace, row.role))
+            .map(|row| format!("Join {} as {}?", row.organization, row.role))
             .unwrap_or_default()
     });
     let invited = create_memo(move || {
@@ -638,7 +644,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
     });
     let loaded = create_memo(move || status.get().settings_loaded);
     let loading = create_memo(move || !loaded.get());
-    let title = create_memo(move || status.get().workspace);
+    let title = create_memo(move || status.get().organization);
     let every_type = create_memo(move || status.get().every_session_type);
     let session_type = create_memo(move || status.get().session_type);
     let new_label =
@@ -759,9 +765,9 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                     on_click={|| send(UiCommand::CloseSessions)}
                 />
                 <Button
-                    label="Back to workspaces"
+                    label="Back to organizations"
                     variant=ButtonVariant::Ghost
-                    on_click={|| send(UiCommand::SwitchWorkspace)}
+                    on_click={|| send(UiCommand::SwitchOrganization)}
                 />
             </List>
         </Column>
@@ -769,32 +775,32 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn WorkspacesPlaceholder(state: Memo<WorkspacesState>) -> NodeId {
-    let loaded = create_memo(move || state.get() == WorkspacesState::Loaded);
-    let failed = create_memo(move || state.get() == WorkspacesState::Failed);
-    let loading = create_memo(move || state.get() == WorkspacesState::Loading);
+fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
+    let loaded = create_memo(move || state.get() == OrganizationsState::Loaded);
+    let failed = create_memo(move || state.get() == OrganizationsState::Failed);
+    let loading = create_memo(move || state.get() == OrganizationsState::Loading);
     view! {
         <List spacing=0.0>
             <Show condition={loaded}>
                 <Text
                     style=TextStyle::CAPTION
-                    string="You do not have any workspaces yet. Create one below."
+                    string="You do not have any organizations yet. Create one below."
                 />
             </Show>
             <Show condition={failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text style=TextStyle::CAPTION string="Could not load workspaces." />
+                    <Text style=TextStyle::CAPTION string="Could not load organizations." />
                     <Button
                         label="Retry"
                         variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::ReloadWorkspaces)}
+                        on_click={|| send(UiCommand::ReloadOrganizations)}
                     />
                 </List>
             </Show>
             <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
-                    <Text style=TextStyle::CAPTION string="Loading workspaces…" />
+                    <Text style=TextStyle::CAPTION string="Loading organizations…" />
                 </List>
             </Show>
         </List>
@@ -802,7 +808,7 @@ fn WorkspacesPlaceholder(state: Memo<WorkspacesState>) -> NodeId {
 }
 
 #[component]
-fn CreateWorkspace(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
+fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
     let (name, set_name) = create_signal(String::new());
     create_effect(move || {
         created.get();
@@ -811,7 +817,7 @@ fn CreateWorkspace(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
     let cannot = create_memo(move || busy.get() || name.get().trim().is_empty());
     let create = move || {
         if !cannot.get_untracked() {
-            send(UiCommand::CreateWorkspace(name.get_untracked()));
+            send(UiCommand::CreateOrganization(name.get_untracked()));
         }
     };
     let submit = create;
@@ -820,8 +826,8 @@ fn CreateWorkspace(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
                 value={name}
-                placeholder="Workspace name"
-                label="Workspace name"
+                placeholder="Organization name"
+                label="Organization name"
                 on_change={move |value: String| set_name.set(value)}
                 on_submit={move |_value: String| submit()}
             />

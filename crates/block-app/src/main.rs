@@ -55,7 +55,7 @@ use be_block::{
     BlockContent, DisplaySettings, InputSettings, Root, UiSettingsContent, WORKSPACE_EDITOR,
 };
 use be_graph::{Access, BlockParent};
-use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
+use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use beui::Document;
 use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
@@ -326,7 +326,7 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        wayland::set_owned(view.screen == ui::Screen::Workspace && self.app.shell.is_some());
+        wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
         let store = self.view;
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
@@ -409,15 +409,15 @@ struct BlockApp {
     add_account_generation: u64,
     pending_account_request: Option<PendingAccountRequest>,
     account_error: Option<String>,
-    workspace: Option<Workspace>,
-    workspaces: Vec<Workspace>,
+    organization: Option<Organization>,
+    organizations: Vec<Organization>,
     joining: Option<Joining>,
-    workspaces_loaded: bool,
-    workspaces_load_failed: bool,
-    pending_workspace_request:
-        Option<platform::RequestResult<Result<WorkspaceResult, WorkspaceRequestError>>>,
-    workspace_created: u64,
-    workspace_error: Option<String>,
+    organizations_loaded: bool,
+    organizations_load_failed: bool,
+    pending_organization_request:
+        Option<platform::RequestResult<Result<OrganizationResult, OrganizationRequestError>>>,
+    organization_created: u64,
+    organization_error: Option<String>,
 
     reauth: Option<ReauthState>,
     invite_open: bool,
@@ -426,7 +426,7 @@ struct BlockApp {
     agents_open: bool,
     agents: Vec<be_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
-    scheduled_workspace_list: bool,
+    scheduled_organization_list: bool,
     server_url: String,
     account: Account,
     root_settings: RootSettings,
@@ -471,7 +471,7 @@ struct BlockApp {
     inspector_requested: Option<bool>,
     dev_workspace: bool,
     keys: keys::KeyState,
-    workspace_key: Option<[u8; 32]>,
+    organization_key: Option<[u8; 32]>,
     #[cfg(target_os = "linux")]
     desktop: Option<session::DesktopSession>,
     #[cfg(target_os = "linux")]
@@ -497,24 +497,24 @@ struct PendingAccountRequest {
 
 struct Joining {
     link: InviteLink,
-    invitation: Option<WorkspaceInvitation>,
+    invitation: Option<OrganizationInvitation>,
 }
 
-enum WorkspaceOperation {
+enum OrganizationOperation {
     Load,
     Create(String),
     LookUp(Uuid),
     Join(be_keys::InviteCode, Option<be_keys::RecoveryPublic>),
-    Invite(Uuid, String, WorkspaceRole, [u8; 32]),
+    Invite(Uuid, String, OrganizationRole, [u8; 32]),
     ListAgents(Uuid),
     CreateAgent(Uuid, String, [u8; 32]),
     RemoveAgent(Uuid, Uuid),
 }
 
-enum WorkspaceResult {
-    Loaded(Vec<Workspace>, accounts::Keys),
-    Created(Workspace),
-    Invitation(WorkspaceInvitation),
+enum OrganizationResult {
+    Loaded(Vec<Organization>, accounts::Keys),
+    Created(Organization),
+    Invitation(OrganizationInvitation),
     Joined(Uuid, [u8; 32]),
     Invited(String),
     Agents(
@@ -523,7 +523,7 @@ enum WorkspaceResult {
     ),
 }
 
-type WorkspaceRequestError = AccountError;
+type OrganizationRequestError = AccountError;
 
 struct ReauthState {
     account: Account,
@@ -533,7 +533,7 @@ struct ReauthState {
 
 #[derive(Clone)]
 enum PendingDestructiveAction {
-    ChooseWorkspace,
+    ChooseOrganization,
     Close,
 }
 
@@ -631,7 +631,7 @@ impl BlockApp {
             email: String::new(),
             name: String::new(),
             token: String::new(),
-            last_workspace_id: None,
+            last_organization_id: None,
             authorization: None,
         });
         let server_url = match &account.server {
@@ -650,14 +650,14 @@ impl BlockApp {
             add_account_generation: 0,
             pending_account_request: None,
             account_error: None,
-            workspace: None,
-            workspaces: Vec::new(),
+            organization: None,
+            organizations: Vec::new(),
             joining: None,
-            workspaces_loaded: false,
-            workspaces_load_failed: false,
-            pending_workspace_request: None,
-            workspace_created: 0,
-            workspace_error: None,
+            organizations_loaded: false,
+            organizations_load_failed: false,
+            pending_organization_request: None,
+            organization_created: 0,
+            organization_error: None,
             reauth: None,
             invite_open: false,
             invite_sent: 0,
@@ -665,7 +665,7 @@ impl BlockApp {
             agents_open: false,
             agents: Vec::new(),
             agent_created: None,
-            scheduled_workspace_list: false,
+            scheduled_organization_list: false,
             server_url,
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
@@ -706,7 +706,7 @@ impl BlockApp {
             inspector_requested: None,
             dev_workspace: false,
             keys: keys::KeyState::default(),
-            workspace_key: None,
+            organization_key: None,
             #[cfg(target_os = "linux")]
             desktop: None,
             #[cfg(target_os = "linux")]
@@ -863,10 +863,10 @@ impl BlockApp {
 
     fn loading(&self) -> bool {
         self.pending_account_request.is_some()
-            || self.pending_workspace_request.is_some()
+            || self.pending_organization_request.is_some()
             || !self.pending_transfers.is_empty()
             || !self.pending_copies.is_empty()
-            || (self.dev_workspace && self.workspace.is_none())
+            || (self.dev_workspace && self.organization.is_none())
             || be::busy()
     }
 
@@ -902,18 +902,18 @@ impl BlockApp {
 
     fn open_invite(&mut self, text: &str) {
         let Some(link) = InviteLink::parse(text) else {
-            self.workspace_error = Some(
+            self.organization_error = Some(
                 "That is not an invite link. Copy the whole link from the person who invited you."
                     .to_owned(),
             );
             return;
         };
-        self.workspace_error = None;
+        self.organization_error = None;
         self.joining = Some(Joining {
             link,
             invitation: None,
         });
-        if self.signed_in && self.workspaces_loaded && !self.keys.needs_recovery() {
+        if self.signed_in && self.organizations_loaded && !self.keys.needs_recovery() {
             self.look_up_invite();
         }
     }
@@ -926,7 +926,7 @@ impl BlockApp {
             return;
         }
         if !joining.link.is_for(&accounts::link_base(&self.server_url)) {
-            self.workspace_error = Some(format!(
+            self.organization_error = Some(format!(
                 "This invite link is for {}. Switch to an account on that server to join.",
                 joining.link.server.clone().unwrap_or_default()
             ));
@@ -934,17 +934,17 @@ impl BlockApp {
             return;
         }
         let invitation = joining.link.invitation();
-        self.begin_workspace_request(WorkspaceOperation::LookUp(invitation));
+        self.begin_organization_request(OrganizationOperation::LookUp(invitation));
     }
 
-    fn open_any_workspace(&mut self) {
-        if !std::mem::take(&mut self.dev_workspace) || self.workspace.is_some() {
+    fn open_any_organization(&mut self) {
+        if !std::mem::take(&mut self.dev_workspace) || self.organization.is_some() {
             return;
         }
-        match self.workspaces.first().cloned() {
-            Some(workspace) => self.open_workspace(workspace),
+        match self.organizations.first().cloned() {
+            Some(organization) => self.open_organization(organization),
             None => {
-                self.begin_workspace_request(WorkspaceOperation::Create("Dev".to_owned()));
+                self.begin_organization_request(OrganizationOperation::Create("Dev".to_owned()));
                 host::request_repaint();
             }
         }
@@ -1032,7 +1032,7 @@ impl BlockApp {
                     email: session.email,
                     name: session.display_name,
                     token: session.token,
-                    last_workspace_id: None,
+                    last_organization_id: None,
                     authorization: pending.authorization.clone(),
                 };
                 if let Err(error) = self.app_state.save_account(&saved) {
@@ -1051,10 +1051,10 @@ impl BlockApp {
         }
     }
 
-    fn open_account(&mut self, mut account: Account, choose_workspace: bool) {
-        if choose_workspace {
-            account.last_workspace_id = None;
-            if let Err(error) = self.app_state.set_last_workspace(&account, None) {
+    fn open_account(&mut self, mut account: Account, choose_organization: bool) {
+        if choose_organization {
+            account.last_organization_id = None;
+            if let Err(error) = self.app_state.set_last_organization(&account, None) {
                 self.account_error = Some(error.to_string());
             }
         }
@@ -1082,74 +1082,77 @@ impl BlockApp {
         }
     }
 
-    fn begin_workspace_request(&mut self, operation: WorkspaceOperation) {
-        if self.pending_workspace_request.is_some() {
+    fn begin_organization_request(&mut self, operation: OrganizationOperation) {
+        if self.pending_organization_request.is_some() {
             return;
         }
         let url = self.server_url.clone();
         let token = self.account.token.clone();
         let receiver = platform::spawn_request(async move {
             match operation {
-                WorkspaceOperation::Load => {
-                    let workspaces = accounts::workspaces(url.clone(), token.clone()).await?;
+                OrganizationOperation::Load => {
+                    let organizations = accounts::organizations(url.clone(), token.clone()).await?;
                     let keys = accounts::keys(url, token).await?;
-                    Ok(WorkspaceResult::Loaded(workspaces, keys))
+                    Ok(OrganizationResult::Loaded(organizations, keys))
                 }
-                WorkspaceOperation::Create(name) => accounts::create_workspace(url, token, name)
-                    .await
-                    .map(WorkspaceResult::Created),
-                WorkspaceOperation::LookUp(invitation) => {
+                OrganizationOperation::Create(name) => {
+                    accounts::create_organization(url, token, name)
+                        .await
+                        .map(OrganizationResult::Created)
+                }
+                OrganizationOperation::LookUp(invitation) => {
                     accounts::invitation(url, token, invitation)
                         .await
-                        .map(WorkspaceResult::Invitation)
+                        .map(OrganizationResult::Invitation)
                 }
-                WorkspaceOperation::Join(code, recovery) => {
+                OrganizationOperation::Join(code, recovery) => {
                     accounts::accept_invitation(url, token, code, recovery)
                         .await
-                        .map(|(workspace, key)| WorkspaceResult::Joined(workspace, key))
+                        .map(|(organization, key)| OrganizationResult::Joined(organization, key))
                 }
-                WorkspaceOperation::Invite(workspace, email, role, key) => {
-                    accounts::invite(url, token, workspace, email, role, key)
+                OrganizationOperation::Invite(organization, email, role, key) => {
+                    accounts::invite(url, token, organization, email, role, key)
                         .await
-                        .map(WorkspaceResult::Invited)
+                        .map(OrganizationResult::Invited)
                 }
-                WorkspaceOperation::ListAgents(workspace) => {
-                    accounts::agents(url, token, workspace)
+                OrganizationOperation::ListAgents(organization) => {
+                    accounts::agents(url, token, organization)
                         .await
-                        .map(|agents| WorkspaceResult::Agents(Some(agents), None))
+                        .map(|agents| OrganizationResult::Agents(Some(agents), None))
                 }
-                WorkspaceOperation::CreateAgent(workspace, name, key) => {
+                OrganizationOperation::CreateAgent(organization, name, key) => {
                     let created =
-                        accounts::create_agent(url.clone(), token.clone(), workspace, name, key)
+                        accounts::create_agent(url.clone(), token.clone(), organization, name, key)
                             .await?;
-                    let agents = accounts::agents(url, token, workspace).await.ok();
-                    Ok(WorkspaceResult::Agents(agents, Some(created)))
+                    let agents = accounts::agents(url, token, organization).await.ok();
+                    Ok(OrganizationResult::Agents(agents, Some(created)))
                 }
-                WorkspaceOperation::RemoveAgent(workspace, account) => {
-                    accounts::remove_agent(url.clone(), token.clone(), workspace, account).await?;
-                    let agents = accounts::agents(url, token, workspace).await?;
-                    Ok(WorkspaceResult::Agents(Some(agents), None))
+                OrganizationOperation::RemoveAgent(organization, account) => {
+                    accounts::remove_agent(url.clone(), token.clone(), organization, account)
+                        .await?;
+                    let agents = accounts::agents(url, token, organization).await?;
+                    Ok(OrganizationResult::Agents(Some(agents), None))
                 }
             }
         });
-        self.workspace_error = None;
-        self.pending_workspace_request = Some(receiver);
+        self.organization_error = None;
+        self.pending_organization_request = Some(receiver);
     }
 
-    fn poll_workspace_request(&mut self) {
+    fn poll_organization_request(&mut self) {
         let result = self
-            .pending_workspace_request
+            .pending_organization_request
             .as_ref()
             .and_then(|receiver| receiver.try_recv().ok());
         let Some(result) = result else {
             return;
         };
-        self.pending_workspace_request = None;
+        self.pending_organization_request = None;
         match result {
-            Ok(WorkspaceResult::Loaded(workspaces, keys)) => {
-                self.workspaces = workspaces;
-                self.workspaces_loaded = true;
-                self.workspaces_load_failed = false;
+            Ok(OrganizationResult::Loaded(organizations, keys)) => {
+                self.organizations = organizations;
+                self.organizations_loaded = true;
+                self.organizations_load_failed = false;
                 self.keys.loaded(keys);
                 if self.keys.needs_recovery() {
                     if self.dev_workspace {
@@ -1166,53 +1169,53 @@ impl BlockApp {
                     self.look_up_invite();
                     return;
                 }
-                if let Some(last_workspace_id) = self.account.last_workspace_id
-                    && let Some(workspace) = self
-                        .workspaces
+                if let Some(last_organization_id) = self.account.last_organization_id
+                    && let Some(organization) = self
+                        .organizations
                         .iter()
-                        .find(|workspace| workspace.id == last_workspace_id)
+                        .find(|organization| organization.id == last_organization_id)
                         .cloned()
                 {
-                    self.open_workspace(workspace);
+                    self.open_organization(organization);
                 }
-                self.open_any_workspace();
+                self.open_any_organization();
             }
-            Ok(WorkspaceResult::Created(workspace)) => {
-                self.workspaces.push(workspace.clone());
-                self.workspace_created += 1;
+            Ok(OrganizationResult::Created(organization)) => {
+                self.organizations.push(organization.clone());
+                self.organization_created += 1;
                 let key = *be_store::ContentKey::random().as_bytes();
                 if let Err(error) =
                     self.app_state
-                        .set_workspace_key(&self.account, workspace.id, key)
+                        .set_organization_key(&self.account, organization.id, key)
                 {
-                    self.workspace_error = Some(error.to_string());
+                    self.organization_error = Some(error.to_string());
                     return;
                 }
-                self.open_workspace(workspace);
+                self.open_organization(organization);
             }
-            Ok(WorkspaceResult::Invitation(invitation)) => {
+            Ok(OrganizationResult::Invitation(invitation)) => {
                 if let Some(joining) = &mut self.joining {
                     joining.invitation = Some(invitation);
                 }
             }
-            Ok(WorkspaceResult::Joined(workspace, key)) => {
+            Ok(OrganizationResult::Joined(organization, key)) => {
                 self.joining = None;
-                if let Err(error) = self
-                    .app_state
-                    .set_workspace_key(&self.account, workspace, key)
+                if let Err(error) =
+                    self.app_state
+                        .set_organization_key(&self.account, organization, key)
                 {
-                    self.workspace_error = Some(error.to_string());
+                    self.organization_error = Some(error.to_string());
                 }
-                self.account.last_workspace_id = Some(workspace);
-                self.workspaces_loaded = false;
-                self.workspaces_load_failed = false;
-                self.begin_workspace_request(WorkspaceOperation::Load);
+                self.account.last_organization_id = Some(organization);
+                self.organizations_loaded = false;
+                self.organizations_load_failed = false;
+                self.begin_organization_request(OrganizationOperation::Load);
             }
-            Ok(WorkspaceResult::Invited(link)) => {
+            Ok(OrganizationResult::Invited(link)) => {
                 self.invite_sent += 1;
                 self.invite_link = Some(link);
             }
-            Ok(WorkspaceResult::Agents(agents, created)) => {
+            Ok(OrganizationResult::Agents(agents, created)) => {
                 if let Some(agents) = agents {
                     self.agents = agents;
                 }
@@ -1226,10 +1229,10 @@ impl BlockApp {
                     .joining
                     .take()
                     .filter(|joining| joining.invitation.is_some());
-                if !self.workspaces_loaded {
-                    self.workspaces_load_failed = true;
+                if !self.organizations_loaded {
+                    self.organizations_load_failed = true;
                 }
-                self.workspace_error = Some(error.message);
+                self.organization_error = Some(error.message);
             }
         }
     }
@@ -1302,10 +1305,10 @@ impl BlockApp {
                 if self.account.server == updated.server && self.account.id == updated.id {
                     self.account.token = updated.token;
                 }
-                self.workspace_error = None;
-                self.workspaces_loaded = false;
-                self.workspaces_load_failed = false;
-                self.begin_workspace_request(WorkspaceOperation::Load);
+                self.organization_error = None;
+                self.organizations_loaded = false;
+                self.organizations_load_failed = false;
+                self.begin_organization_request(OrganizationOperation::Load);
             }
             Err(error) => {
                 reauth.error = Some(error);
@@ -1322,7 +1325,7 @@ impl BlockApp {
         }
     }
 
-    fn open_workspace(&mut self, workspace: Workspace) {
+    fn open_organization(&mut self, organization: Organization) {
         self.cancel_forwarded_picks();
         self.focus_reports.clear();
         self.artifact_watches.clear();
@@ -1342,33 +1345,36 @@ impl BlockApp {
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys.cancel_pairing();
-        self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
+        self.organization_key = match self
+            .app_state
+            .organization_key(&self.account, organization.id)
+        {
             Ok(key) => key,
             Err(error) => {
-                self.workspace_error = Some(error.to_string());
+                self.organization_error = Some(error.to_string());
                 None
             }
         };
-        self.workspace = Some(workspace.clone());
-        self.account.last_workspace_id = Some(workspace.id);
+        self.organization = Some(organization.clone());
+        self.account.last_organization_id = Some(organization.id);
         if let Some(saved) = self
             .accounts
             .iter_mut()
             .find(|saved| saved.server == self.account.server && saved.id == self.account.id)
         {
-            saved.last_workspace_id = Some(workspace.id);
+            saved.last_organization_id = Some(organization.id);
         }
         if let Err(error) = self
             .app_state
-            .set_last_workspace(&self.account, Some(workspace.id))
+            .set_last_organization(&self.account, Some(organization.id))
         {
-            self.workspace_error = Some(error.to_string());
+            self.organization_error = Some(error.to_string());
         }
     }
 
     fn held_keys(&self) -> Vec<(Uuid, [u8; 32])> {
         self.app_state
-            .workspace_keys(&self.account)
+            .organization_keys(&self.account)
             .unwrap_or_default()
     }
 
@@ -1376,21 +1382,21 @@ impl BlockApp {
         match self.keys.poll() {
             Some(keys::KeyEvent::RecoverySaved(public)) => {
                 self.trust_recovery(public);
-                if self.workspace.is_none() {
-                    self.workspaces_loaded = false;
-                    self.workspaces_load_failed = false;
-                    self.begin_workspace_request(WorkspaceOperation::Load);
+                if self.organization.is_none() {
+                    self.organizations_loaded = false;
+                    self.organizations_load_failed = false;
+                    self.begin_organization_request(OrganizationOperation::Load);
                 }
             }
             Some(keys::KeyEvent::Unlocked {
-                workspace,
+                organization,
                 key,
                 recovery,
             }) => {
                 if let Some(recovery) = recovery {
                     self.trust_recovery(recovery);
                 }
-                self.unlocked(workspace, key);
+                self.unlocked(organization, key);
             }
             None => {}
         }
@@ -1406,32 +1412,32 @@ impl BlockApp {
 
     fn trust_recovery(&mut self, public: be_keys::RecoveryPublic) {
         if let Err(error) = self.app_state.set_recovery_key(&self.account, public.0) {
-            self.workspace_error = Some(error.to_string());
+            self.organization_error = Some(error.to_string());
         }
     }
 
-    fn unlocked(&mut self, workspace: Uuid, key: [u8; 32]) {
+    fn unlocked(&mut self, organization: Uuid, key: [u8; 32]) {
         if let Err(error) = self
             .app_state
-            .set_workspace_key(&self.account, workspace, key)
+            .set_organization_key(&self.account, organization, key)
         {
-            self.workspace_error = Some(error.to_string());
+            self.organization_error = Some(error.to_string());
             return;
         }
-        if self.workspace.as_ref().map(|open| open.id) == Some(workspace) {
-            self.workspace_key = Some(key);
+        if self.organization.as_ref().map(|open| open.id) == Some(organization) {
+            self.organization_key = Some(key);
         }
     }
 
-    fn load_workspaces_if_needed(&mut self) {
-        if !self.workspaces_loaded
-            && !self.workspaces_load_failed
-            && self.pending_workspace_request.is_none()
+    fn load_organizations_if_needed(&mut self) {
+        if !self.organizations_loaded
+            && !self.organizations_load_failed
+            && self.pending_organization_request.is_none()
             && self.reauth.is_none()
         {
-            self.begin_workspace_request(WorkspaceOperation::Load);
+            self.begin_organization_request(OrganizationOperation::Load);
         }
-        self.poll_workspace_request();
+        self.poll_organization_request();
     }
 
     fn switch_account(&mut self, account: Account) {
@@ -1456,12 +1462,12 @@ impl BlockApp {
         self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.allow_close = false;
-        self.workspace = None;
-        self.workspaces.clear();
-        self.workspaces_loaded = false;
-        self.workspaces_load_failed = false;
-        self.pending_workspace_request = None;
-        self.workspace_error = None;
+        self.organization = None;
+        self.organizations.clear();
+        self.organizations_loaded = false;
+        self.organizations_load_failed = false;
+        self.pending_organization_request = None;
+        self.organization_error = None;
         self.reauth = None;
         self.invite_open = false;
         self.invite_link = None;
@@ -1474,7 +1480,7 @@ impl BlockApp {
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys = keys::KeyState::default();
-        self.workspace_key = None;
+        self.organization_key = None;
         self.account = account;
         self.server_url = server_url;
         self.signed_in = true;
@@ -1498,8 +1504,8 @@ impl BlockApp {
             return;
         };
         match action {
-            PendingDestructiveAction::ChooseWorkspace => {
-                self.scheduled_workspace_list = true;
+            PendingDestructiveAction::ChooseOrganization => {
+                self.scheduled_organization_list = true;
             }
             PendingDestructiveAction::Close => {
                 self.allow_close = true;
@@ -1743,6 +1749,7 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
+        self.root_settings.ensure_my_files();
         self.root_settings.ensure_profile(self.client_id)?;
         let id = self.root_settings.ensure_session(self.client_id)?;
         if self.shell.is_some_and(|previous| previous != id) {
@@ -2366,27 +2373,27 @@ impl BlockApp {
             performance::end_frame();
             return;
         }
-        if self.scheduled_workspace_list {
-            self.scheduled_workspace_list = false;
+        if self.scheduled_organization_list {
+            self.scheduled_organization_list = false;
             let mut account = self.account.clone();
-            account.last_workspace_id = None;
-            let _ = self.app_state.set_last_workspace(&account, None);
+            account.last_organization_id = None;
+            let _ = self.app_state.set_last_organization(&account, None);
             self.switch_account(account);
         }
         self.poll_keys();
-        if self.workspace.is_none() {
+        if self.organization.is_none() {
             be::stop();
-            self.load_workspaces_if_needed();
+            self.load_organizations_if_needed();
             self.poll_reauth_request();
             performance::end_frame();
             return;
         }
-        if self.workspace_key.is_none() {
+        if self.organization_key.is_none() {
             be::stop();
-            if !self.workspaces_loaded {
-                self.load_workspaces_if_needed();
+            if !self.organizations_loaded {
+                self.load_organizations_if_needed();
             }
-            self.poll_workspace_request();
+            self.poll_organization_request();
             self.poll_reauth_request();
             performance::end_frame();
             return;
@@ -2395,7 +2402,7 @@ impl BlockApp {
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
-        self.poll_workspace_request();
+        self.poll_organization_request();
         self.poll_reauth_request();
         if self.choosing_session {
             self.root_settings.ensure();
@@ -2413,13 +2420,17 @@ impl BlockApp {
     }
 
     fn sync_be_stack(&mut self) {
-        let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) else {
+        let Some(organization) = self
+            .organization
+            .as_ref()
+            .map(|organization| organization.id)
+        else {
             return;
         };
-        let Some(content_key) = self.workspace_key else {
+        let Some(content_key) = self.organization_key else {
             return;
         };
-        if be::installed_for(self.account.id, workspace) {
+        if be::installed_for(self.account.id, organization) {
             return;
         }
         let link_base = if self.server_url == self.local_server_url {
@@ -2432,12 +2443,12 @@ impl BlockApp {
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),
             account: self.account.id,
-            workspace,
+            organization,
             content_key,
             other_keys: self
                 .held_keys()
                 .into_iter()
-                .filter(|(held, _)| *held != workspace)
+                .filter(|(held, _)| *held != organization)
                 .collect(),
             recovery: self.trusted_recovery().map(|public| public.0),
             #[cfg(not(target_arch = "wasm32"))]
@@ -2512,7 +2523,7 @@ impl BlockApp {
                     self.open_account(account, false);
                 }
             }
-            UiCommand::ChooseWorkspace(key) => {
+            UiCommand::ChooseOrganization(key) => {
                 if let Some(account) = self.account_by_key(&key) {
                     self.open_account(account, true);
                 }
@@ -2537,29 +2548,29 @@ impl BlockApp {
                 self.pending_account_request = None;
                 self.account_error = None;
             }
-            UiCommand::ReloadWorkspaces => {
-                self.workspaces_loaded = false;
-                self.workspaces_load_failed = false;
-                self.begin_workspace_request(WorkspaceOperation::Load);
+            UiCommand::ReloadOrganizations => {
+                self.organizations_loaded = false;
+                self.organizations_load_failed = false;
+                self.begin_organization_request(OrganizationOperation::Load);
             }
-            UiCommand::OpenWorkspace(id) => {
-                if let Some(workspace) = self
-                    .workspaces
+            UiCommand::OpenOrganization(id) => {
+                if let Some(organization) = self
+                    .organizations
                     .iter()
-                    .find(|workspace| workspace.id == id)
+                    .find(|organization| organization.id == id)
                     .cloned()
                 {
-                    self.open_workspace(workspace);
+                    self.open_organization(organization);
                 }
             }
             UiCommand::ChooseSession(id) => {
-                if let Some(workspace) = self
-                    .workspaces
+                if let Some(organization) = self
+                    .organizations
                     .iter()
-                    .find(|workspace| workspace.id == id)
+                    .find(|organization| organization.id == id)
                     .cloned()
                 {
-                    self.open_workspace(workspace);
+                    self.open_organization(organization);
                     self.choosing_session = true;
                 }
             }
@@ -2585,13 +2596,13 @@ impl BlockApp {
                 {
                     let code = joining.link.code.clone();
                     let recovery = self.trusted_recovery();
-                    self.begin_workspace_request(WorkspaceOperation::Join(code, recovery));
+                    self.begin_organization_request(OrganizationOperation::Join(code, recovery));
                 }
             }
             UiCommand::CancelJoin => self.joining = None,
-            UiCommand::CreateWorkspace(name) => {
+            UiCommand::CreateOrganization(name) => {
                 if !name.trim().is_empty() {
-                    self.begin_workspace_request(WorkspaceOperation::Create(name));
+                    self.begin_organization_request(OrganizationOperation::Create(name));
                 }
             }
             UiCommand::SwitchAccount | UiCommand::ManageAccounts => {
@@ -2617,12 +2628,12 @@ impl BlockApp {
                 self.invite_open = true;
                 self.invite_link = None;
             }
-            UiCommand::SwitchWorkspace => {
+            UiCommand::SwitchOrganization => {
                 if be::status().unsealed == 0 {
-                    self.scheduled_workspace_list = true;
+                    self.scheduled_organization_list = true;
                 } else {
                     self.pending_destructive_action =
-                        Some(PendingDestructiveAction::ChooseWorkspace);
+                        Some(PendingDestructiveAction::ChooseOrganization);
                 }
             }
             UiCommand::About(open) => self.about_open = open,
@@ -2655,13 +2666,15 @@ impl BlockApp {
             #[cfg(not(target_os = "linux"))]
             UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
             UiCommand::SendInvite(email, role) => {
-                if let Some(workspace) = &self.workspace
-                    && let Some(key) = self.workspace_key
+                if let Some(organization) = &self.organization
+                    && let Some(key) = self.organization_key
                     && !email.trim().is_empty()
                 {
-                    let id = workspace.id;
+                    let id = organization.id;
                     self.invite_link = None;
-                    self.begin_workspace_request(WorkspaceOperation::Invite(id, email, role, key));
+                    self.begin_organization_request(OrganizationOperation::Invite(
+                        id, email, role, key,
+                    ));
                 }
             }
             UiCommand::CloseInvite => {
@@ -2671,9 +2684,9 @@ impl BlockApp {
             UiCommand::OpenAgents => {
                 self.agents_open = true;
                 self.agent_created = None;
-                if let Some(workspace) = &self.workspace {
-                    let id = workspace.id;
-                    self.begin_workspace_request(WorkspaceOperation::ListAgents(id));
+                if let Some(organization) = &self.organization {
+                    let id = organization.id;
+                    self.begin_organization_request(OrganizationOperation::ListAgents(id));
                 }
             }
             UiCommand::CloseAgents => {
@@ -2681,17 +2694,21 @@ impl BlockApp {
                 self.agent_created = None;
             }
             UiCommand::CreateAgent(name) => {
-                if let (Some(workspace), Some(key)) = (&self.workspace, self.workspace_key)
+                if let (Some(organization), Some(key)) = (&self.organization, self.organization_key)
                     && !name.trim().is_empty()
                 {
-                    let id = workspace.id;
-                    self.begin_workspace_request(WorkspaceOperation::CreateAgent(id, name, key));
+                    let id = organization.id;
+                    self.begin_organization_request(OrganizationOperation::CreateAgent(
+                        id, name, key,
+                    ));
                 }
             }
             UiCommand::RemoveAgent(account) => {
-                if let Some(workspace) = &self.workspace {
-                    let id = workspace.id;
-                    self.begin_workspace_request(WorkspaceOperation::RemoveAgent(id, account));
+                if let Some(organization) = &self.organization {
+                    let id = organization.id;
+                    self.begin_organization_request(OrganizationOperation::RemoveAgent(
+                        id, account,
+                    ));
                 }
             }
             UiCommand::Discard => self.discard(context),
@@ -2708,19 +2725,26 @@ impl BlockApp {
                 );
             }
             UiCommand::UnlockWithPhrase(phrase) => {
-                if let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id)
-                    && let Some((key, public)) = self.keys.unlock_with_phrase(workspace, &phrase)
+                if let Some(organization) = self
+                    .organization
+                    .as_ref()
+                    .map(|organization| organization.id)
+                    && let Some((key, public)) = self.keys.unlock_with_phrase(organization, &phrase)
                 {
                     self.trust_recovery(public);
-                    self.unlocked(workspace, key);
+                    self.unlocked(organization, key);
                 }
             }
             UiCommand::StartPairing => {
-                if let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) {
+                if let Some(organization) = self
+                    .organization
+                    .as_ref()
+                    .map(|organization| organization.id)
+                {
                     self.keys.start_pairing(
                         self.server_url.clone(),
                         self.account.token.clone(),
-                        workspace,
+                        organization,
                     );
                 }
             }
@@ -2733,18 +2757,18 @@ impl BlockApp {
     }
 
     fn view(&self) -> AppView {
-        let screen = match (&self.error, self.signed_in, &self.workspace) {
+        let screen = match (&self.error, self.signed_in, &self.organization) {
             (Some(_), _, _) => ui::Screen::Error,
             (None, false, _) => ui::Screen::Accounts,
             (None, true, _) if self.keys.replacing() => ui::Screen::Recovery,
             (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
-            (None, true, None) => ui::Screen::Workspaces,
-            (None, true, Some(_)) if self.workspace_key.is_none() => ui::Screen::Unlock,
+            (None, true, None) => ui::Screen::Organizations,
+            (None, true, Some(_)) if self.organization_key.is_none() => ui::Screen::Unlock,
             (None, true, Some(_)) if self.choosing_session => ui::Screen::Sessions,
-            (None, true, Some(_)) => ui::Screen::Workspace,
+            (None, true, Some(_)) => ui::Screen::Organization,
         };
         let changes_saved = match screen {
-            ui::Screen::Workspace => be::status().unsealed == 0,
+            ui::Screen::Organization => be::status().unsealed == 0,
             _ => true,
         };
         let accounts: Vec<_> = self
@@ -2757,10 +2781,10 @@ impl BlockApp {
                 )
             })
             .collect();
-        let workspace_name = self
-            .workspace
+        let organization_name = self
+            .organization
             .as_ref()
-            .map(|workspace| workspace.name.clone())
+            .map(|organization| organization.name.clone())
             .unwrap_or_default();
         AppView {
             screen,
@@ -2783,49 +2807,49 @@ impl BlockApp {
             account: ui::AccountRow::of(&self.account, true),
             recovery: self.keys.recovery_view(),
             unlock: self
-                .workspace
+                .organization
                 .as_ref()
-                .map(|workspace| self.keys.unlock_view(workspace.id, &workspace.name))
+                .map(|organization| self.keys.unlock_view(organization.id, &organization.name))
                 .unwrap_or_default(),
             pairing: match screen {
-                ui::Screen::Workspace => be::pairing_requests()
+                ui::Screen::Organization => be::pairing_requests()
                     .into_iter()
                     .map(|request| ui::PairingRow {
                         from: request.from,
                         device: request.device,
-                        workspace: self
-                            .workspaces
+                        organization: self
+                            .organizations
                             .iter()
-                            .find(|workspace| workspace.id == request.workspace)
-                            .map(|workspace| workspace.name.clone())
-                            .unwrap_or_else(|| "another workspace".to_owned()),
+                            .find(|organization| organization.id == request.organization)
+                            .map(|organization| organization.name.clone())
+                            .unwrap_or_else(|| "another organization".to_owned()),
                     })
                     .collect(),
                 _ => Vec::new(),
             },
-            workspaces: ui::WorkspacesView {
-                state: match (self.workspaces_loaded, self.workspaces_load_failed) {
-                    (true, _) => ui::WorkspacesState::Loaded,
-                    (false, true) => ui::WorkspacesState::Failed,
-                    (false, false) => ui::WorkspacesState::Loading,
+            organizations: ui::OrganizationsView {
+                state: match (self.organizations_loaded, self.organizations_load_failed) {
+                    (true, _) => ui::OrganizationsState::Loaded,
+                    (false, true) => ui::OrganizationsState::Failed,
+                    (false, false) => ui::OrganizationsState::Loading,
                 },
-                workspaces: self
-                    .workspaces
+                organizations: self
+                    .organizations
                     .iter()
-                    .map(|workspace| (workspace.id, workspace.name.clone()))
+                    .map(|organization| (organization.id, organization.name.clone()))
                     .collect(),
                 joining: self
                     .joining
                     .as_ref()
                     .and_then(|joining| joining.invitation.as_ref())
                     .map(|invitation| ui::JoiningRow {
-                        workspace: invitation.workspace_name.clone(),
+                        organization: invitation.organization_name.clone(),
                         role: invitation.role.label().to_lowercase(),
                         email: invitation.email.clone(),
                     }),
-                busy: self.pending_workspace_request.is_some(),
-                error: self.workspace_error.clone(),
-                created: self.workspace_created,
+                busy: self.pending_organization_request.is_some(),
+                error: self.organization_error.clone(),
+                created: self.organization_created,
             },
             reauth: self.reauth.as_ref().map(|reauth| ui::ReauthView {
                 email: reauth.account.email.clone(),
@@ -2834,7 +2858,7 @@ impl BlockApp {
             }),
             status: ui::StatusView {
                 changes_saved,
-                workspace: workspace_name.clone(),
+                organization: organization_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
                 sessions: self
                     .root_settings
@@ -2864,9 +2888,9 @@ impl BlockApp {
                 can_close: !cfg!(target_arch = "wasm32"),
             },
             agents: self.agents_open.then(|| ui::AgentsView {
-                workspace: workspace_name.clone(),
-                busy: self.pending_workspace_request.is_some(),
-                error: self.workspace_error.clone(),
+                organization: organization_name.clone(),
+                busy: self.pending_organization_request.is_some(),
+                error: self.organization_error.clone(),
                 agents: self
                     .agents
                     .iter()
@@ -2878,15 +2902,15 @@ impl BlockApp {
                 created: self.agent_created.as_ref().map(|created| ui::CreatedAgent {
                     name: created.name.clone(),
                     server: created.server.clone(),
-                    workspace: created.workspace.to_string(),
+                    organization: created.organization.to_string(),
                     token: created.token.clone(),
                     phrase: created.phrase.clone(),
                 }),
             }),
             invite: self.invite_open.then(|| ui::InviteView {
-                workspace: workspace_name,
-                busy: self.pending_workspace_request.is_some(),
-                error: self.workspace_error.clone(),
+                organization: organization_name,
+                busy: self.pending_organization_request.is_some(),
+                error: self.organization_error.clone(),
                 sent: self.invite_sent,
                 link: self.invite_link.clone(),
             }),
@@ -2974,8 +2998,8 @@ impl BlockApp {
 
 fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     let (message, button) = match action {
-        PendingDestructiveAction::ChooseWorkspace => (
-            "Switching workspaces will discard changes that have not reached the server."
+        PendingDestructiveAction::ChooseOrganization => (
+            "Switching organizations will discard changes that have not reached the server."
                 .to_owned(),
             "Discard and switch",
         ),

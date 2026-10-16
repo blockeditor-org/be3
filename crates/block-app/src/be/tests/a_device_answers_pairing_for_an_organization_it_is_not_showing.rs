@@ -8,15 +8,15 @@ fn runtime() -> tokio::runtime::Runtime {
 }
 
 #[test]
-fn a_device_answers_pairing_for_a_workspace_it_is_not_showing() {
+fn a_device_answers_pairing_for_an_organization_it_is_not_showing() {
     let harness = Harness::start();
     let other = runtime()
-        .block_on(crate::accounts::create_workspace(
+        .block_on(crate::accounts::create_organization(
             harness.url.clone(),
             harness.token.clone(),
             "Elsewhere".to_owned(),
         ))
-        .expect("the second workspace is created");
+        .expect("the second organization is created");
     let other_key = *be_store::ContentKey::random().as_bytes();
     start(Config {
         other_keys: vec![(other.id, other_key)],
@@ -41,11 +41,11 @@ fn a_device_answers_pairing_for_a_workspace_it_is_not_showing() {
     });
     wait_until("heard the new device", |shared| !shared.pairing.is_empty());
     let request = pairing_requests().remove(0);
-    assert_eq!(request.workspace, other.id);
+    assert_eq!(request.organization, other.id);
     approve_pairing(request.from, code);
     assert_eq!(
         paired.join().unwrap().expect("the right code pairs").key,
         other_key,
-        "the device handed over the key of the workspace it had open instead"
+        "the device handed over the key of the organization it had open instead"
     );
 }

@@ -69,7 +69,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             <Show condition={replacing}>
                 <Text
                     style=TextStyle::PARAGRAPH
-                    string="Once you save this phrase, your old one stops working. Every workspace key sealed to the old phrase is sealed to this one instead."
+                    string="Once you save this phrase, your old one stops working. Every organization key sealed to the old phrase is sealed to this one instead."
                     wrap=true
                 />
             </Show>
@@ -135,7 +135,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
 #[component]
 pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
     let unlock = view.unlock;
-    let title = create_memo(move || format!("Unlock {}", unlock.get().workspace));
+    let title = create_memo(move || format!("Unlock {}", unlock.get().organization));
     let sealed = create_memo(move || unlock.get().sealed);
     let unsealed = create_memo(move || !sealed.get());
     let code = create_memo(move || unlock.get().code.unwrap_or_default());
@@ -155,7 +155,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::TITLE string={title} />
             <Text
                 style=TextStyle::PARAGRAPH
-                string="This device does not have the key to this workspace yet."
+                string="This device does not have the key to this organization yet."
                 wrap=true
             />
             <Show condition={sealed}>
@@ -184,7 +184,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Show condition={unsealed}>
                 <Text
                     style=TextStyle::PARAGRAPH
-                    string="No key for this workspace is sealed to your recovery phrase yet. It will be the next time one of your devices that has the key opens a workspace."
+                    string="No key for this organization is sealed to your recovery phrase yet. It will be the next time one of your devices that has the key opens an organization."
                     wrap=true
                 />
             </Show>
@@ -194,7 +194,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     <Text
                         style=TextStyle::PARAGRAPH
                         @sizing=ItemSize::Percent(100.0)
-                        string="Open any workspace on a device that already has this one, and it will ask for a code."
+                        string="Open any organization on a device that already has this one, and it will ask for a code."
                         wrap=true
                     />
                     <Button
@@ -229,9 +229,9 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <ErrorText text={error} />
             <List direction=Direction::Horizontal spacing=8.0>
                 <Button
-                    label="Back to workspaces"
+                    label="Back to organizations"
                     variant=ButtonVariant::Ghost
-                    on_click={|| send(UiCommand::SwitchWorkspace)}
+                    on_click={|| send(UiCommand::SwitchOrganization)}
                 />
             </List>
         </Column>
@@ -244,12 +244,12 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
     let open = create_memo(move || !pairing.get().is_empty());
     let request = create_memo(move || pairing.get().first().cloned());
     let message = create_memo(move || {
-        let (device, workspace) = request
+        let (device, organization) = request
             .get()
-            .map(|request| (request.device, request.workspace))
+            .map(|request| (request.device, request.organization))
             .unwrap_or_default();
         format!(
-            "A {device} device wants to open {workspace}. If it is yours, type the code it shows."
+            "A {device} device wants to open {organization}. If it is yours, type the code it shows."
         )
     });
     let (code, set_code) = create_signal(String::new());

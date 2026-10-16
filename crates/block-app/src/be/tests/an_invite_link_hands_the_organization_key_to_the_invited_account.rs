@@ -19,7 +19,7 @@ fn register(url: &str, email: &str) -> crate::accounts::Session {
 }
 
 #[test]
-fn an_invite_link_hands_the_workspace_key_to_the_invited_account() {
+fn an_invite_link_hands_the_organization_key_to_the_invited_account() {
     let harness = Harness::start();
     let url = harness.url.clone();
     let guest = register(&url, "guest@example.com");
@@ -37,9 +37,9 @@ fn an_invite_link_hands_the_workspace_key_to_the_invited_account() {
         .block_on(crate::accounts::invite(
             url.clone(),
             harness.token.clone(),
-            harness.workspace,
+            harness.organization,
             "guest@example.com".to_owned(),
-            be_protocol::WorkspaceRole::Editor,
+            be_protocol::OrganizationRole::Editor,
             harness.content_key,
         ))
         .expect("the owner invites the guest");
@@ -53,13 +53,13 @@ fn an_invite_link_hands_the_workspace_key_to_the_invited_account() {
             parsed.invitation(),
         ))
         .expect("the guest reads the invitation");
-    assert_eq!(invitation.workspace, harness.workspace);
+    assert_eq!(invitation.organization, harness.organization);
     assert!(
         !invitation
             .sealed
             .windows(harness.content_key.len())
             .any(|window| window == harness.content_key),
-        "the invitation carries the workspace key in the clear"
+        "the invitation carries the organization key in the clear"
     );
 
     let join = |token: &str| {
@@ -76,7 +76,7 @@ fn an_invite_link_hands_the_workspace_key_to_the_invited_account() {
     );
     assert_eq!(
         join(&guest.token).expect("the guest joins with the link"),
-        (harness.workspace, harness.content_key)
+        (harness.organization, harness.content_key)
     );
     assert!(join(&guest.token).is_err(), "the link worked twice");
 
@@ -86,7 +86,7 @@ fn an_invite_link_hands_the_workspace_key_to_the_invited_account() {
     assert_eq!(
         phrase
             .secret()
-            .open(&keys.sealed[&harness.workspace])
+            .open(&keys.sealed[&harness.organization])
             .unwrap(),
         harness.content_key,
         "the guest did not seal the key to their own recovery phrase"

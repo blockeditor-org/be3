@@ -1,11 +1,12 @@
 use block_editor_beui::BlockParent;
+use block_editor_beui::be_block::{BlockContent, EditorViewContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_LINK_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
 use super::menu::unlink_permission;
-use super::panel::Info;
+use super::panel::{Info, Refs};
 use super::status::ReferenceMenu;
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
@@ -16,12 +17,19 @@ const SPACING: f32 = 8.0;
 
 #[component]
 pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
+    let backrefs = create_memo(move || {
+        info.with(|info| {
+            info.as_ref()
+                .map(|info| places(&info.backrefs))
+                .unwrap_or_default()
+        })
+    });
     let shown = create_memo(move || {
         info.with(|info| {
             info.as_ref().is_some_and(|info| {
                 info.access.can_view()
                     && info.backrefs.loaded
-                    && info.backrefs.list.len() > 1
+                    && backrefs.with(|places| places.list.len() > 1)
                     && info.parent.is_some()
             })
         })
@@ -35,9 +43,7 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
         })
     });
     let original = create_memo(move || !via_reference.get());
-    let count = create_memo(move || {
-        info.with(|info| info.as_ref().map_or(0, |info| info.backrefs.list.len()))
-    });
+    let count = create_memo(move || backrefs.with(|places| places.list.len()));
     let elsewhere = create_memo(move || {
         let others = count.get().saturating_sub(1);
         format!(
@@ -61,13 +67,6 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
         })
     });
     let unlink_off = create_memo(move || !permission.get());
-    let backrefs = create_memo(move || {
-        info.with(|info| {
-            info.as_ref()
-                .map(|info| info.backrefs.clone())
-                .unwrap_or_default()
-        })
-    });
     let nowhere = create_memo(|| None);
     let original_info = info;
     let unlinking_info = info;
@@ -136,5 +135,17 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>
+    }
+}
+
+fn places(backrefs: &Refs) -> Refs {
+    Refs {
+        loaded: backrefs.loaded,
+        list: backrefs
+            .list
+            .iter()
+            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE)
+            .cloned()
+            .collect(),
     }
 }

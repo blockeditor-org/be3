@@ -29,7 +29,7 @@ pub(crate) struct Config {
     pub(crate) server_url: String,
     pub(crate) token: String,
     pub(crate) account: Uuid,
-    pub(crate) workspace: Uuid,
+    pub(crate) organization: Uuid,
     pub(crate) content_key: [u8; 32],
     pub(crate) other_keys: Vec<(Uuid, [u8; 32])>,
     pub(crate) recovery: Option<[u8; 32]>,
@@ -226,9 +226,9 @@ fn merge_content<C: be_block::Merge + Default>(
     }
 }
 
-fn content_references<C: be_block::BlockContent>(bytes: &[u8], workspace: Uuid) -> Vec<Uuid> {
+fn content_references<C: be_block::BlockContent>(bytes: &[u8], organization: Uuid) -> Vec<Uuid> {
     C::decode(bytes)
-        .map(|content| content.references_in(workspace))
+        .map(|content| content.references_in(organization))
         .unwrap_or_default()
 }
 
@@ -273,6 +273,7 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::SettingsContent>(),
     kind_with_history::<be_block::SettingsProfileContent>(),
     kind::<be_block::FolderContent>(),
+    kind::<be_block::WorkspaceContent>(),
     kind_with_history::<be_block::PixelRayTracerContent>(),
     kind::<be_block::EditorViewContent>(),
     kind::<be_block::PanZoomContent>(),
@@ -375,7 +376,7 @@ fn join_for(content_type: Uuid) -> Option<worker::Join> {
 
 struct Stack {
     account: Uuid,
-    workspace: Uuid,
+    organization: Uuid,
     commands: Option<UnboundedSender<Command>>,
     held: std::collections::HashSet<Uuid>,
     versioned: std::collections::HashSet<Uuid>,
@@ -408,11 +409,11 @@ pub(crate) fn start(config: Config) {
     }));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
-    let workspace = config.workspace;
+    let organization = config.organization;
     let running = platform::spawn(config, receiver, Arc::clone(&shared), Arc::clone(&changed));
     *stack().lock().unwrap() = Some(Stack {
         account,
-        workspace,
+        organization,
         commands: Some(commands),
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashSet::new(),
@@ -423,12 +424,12 @@ pub(crate) fn start(config: Config) {
     });
 }
 
-pub(crate) fn installed_for(account: Uuid, workspace: Uuid) -> bool {
+pub(crate) fn installed_for(account: Uuid, organization: Uuid) -> bool {
     stack()
         .lock()
         .unwrap()
         .as_ref()
-        .is_some_and(|stack| stack.account == account && stack.workspace == workspace)
+        .is_some_and(|stack| stack.account == account && stack.organization == organization)
 }
 
 pub(crate) fn stop() {
@@ -712,7 +713,7 @@ pub(crate) fn identity() -> Option<(Uuid, Uuid)> {
         .lock()
         .unwrap()
         .as_ref()
-        .map(|stack| (stack.account, stack.workspace))
+        .map(|stack| (stack.account, stack.organization))
 }
 
 pub(crate) fn stale_revision() -> u64 {

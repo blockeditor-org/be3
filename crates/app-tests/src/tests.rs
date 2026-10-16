@@ -12,7 +12,7 @@ mod pressing_the_files_after_a_text_block_moves_the_focus_to_them;
 mod the_add_block_dialog_takes_presses_over_an_open_file;
 mod the_app_opens_its_files_and_closes_cleanly;
 mod the_desktop_shell_opens_and_closes_cleanly;
-mod the_workspaces_screen_takes_an_invite_link;
+mod the_organizations_screen_takes_an_invite_link;
 
 fn add_root_block(app: &mut AppTest, label: &str) {
     app.click("#file-tree.add-root");

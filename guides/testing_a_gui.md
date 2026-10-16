@@ -289,7 +289,7 @@ recorded, and a child's statuses are whatever the test reports. What happens bet
 (a child taking its parent's frame and handing it back, a dialog over a child pane taking the
 press, a tab closing its editor) lives in block-app's compositor and plugin host, so it is
 tested in crates/app-tests instead, against the app itself. Each test there starts the native
-app headless with every plugin and the dev workspace open, exactly as `:dev` does, in a data
+app headless with every plugin and the dev organization open, exactly as `:dev` does, in a data
 directory of its own; drives it with the commands `drive` has (guides/running/drive.md); paints
 the whole window, every plugin included; and fails unless the app exits cleanly when it closes.
 

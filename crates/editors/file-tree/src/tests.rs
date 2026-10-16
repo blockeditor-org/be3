@@ -7,6 +7,8 @@ use uuid::Uuid;
 use crate::app::FileTreeApp;
 
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
+mod a_new_workspace_is_made_at_the_top_and_named_by_hand;
+mod a_phone_lists_what_is_shared_with_it;
 mod a_phone_walks_into_folders_and_opens_files;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
@@ -17,6 +19,7 @@ mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
 mod the_desktop_files_toolbar_opens_the_app_menu;
+mod the_files_are_shown_by_workspace_then_what_is_shared;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
 mod the_phone_files_header_opens_the_app_menu;
 
@@ -82,6 +85,35 @@ impl Fixture {
             .map(|open| open.block_id)
             .collect()
     }
+}
+
+const MY_FILES: Uuid = Uuid::from_u128(0x006d_7966_696c_6573);
+
+fn files_workspace(
+    host: &EditorHost,
+    inside: &[block_editor_beui::BlockInfo],
+) -> block_editor_beui::BlockInfo {
+    use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+    use block_editor_beui::{BlockInfo, BlockParent};
+    let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
+    files.author = host.account_id();
+    files.set_name("My files");
+    files
+        .metadata
+        .insert(&block_editor_beui::be_block::MY_FILES, &true);
+    files.references = inside.iter().map(|block| block.id).collect();
+    files
+}
+
+fn my_files(fixture: &mut Fixture, inside: Vec<block_editor_beui::BlockInfo>) -> Uuid {
+    use block_editor_beui::BlockQuery;
+    let files = files_workspace(&fixture.host, &inside);
+    fixture.host.set_blocks(BlockQuery::Roots, vec![files]);
+    fixture.settle();
+    fixture
+        .host
+        .set_blocks(BlockQuery::References(MY_FILES), inside);
+    MY_FILES
 }
 
 fn editor() -> Fixture {

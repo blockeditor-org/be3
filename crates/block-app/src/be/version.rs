@@ -284,7 +284,7 @@ impl Versions {
             return Err("This repository already has history.".into());
         }
         let Some(node) = with_graph(context.shared, |graph| graph.get(root).cloned()) else {
-            return Err("That block is not in this workspace.".into());
+            return Err("That block is not in this organization.".into());
         };
         if node.content_type == Checkout::CONTENT_TYPE
             || node.content_type == Repository::CONTENT_TYPE
@@ -592,7 +592,7 @@ impl Versions {
     async fn fork(&mut self, context: &mut Context<'_>, repository: Uuid) -> Result<Uuid, String> {
         let held = read::<Repository>(context.peer, repository).await?.0;
         let node = with_graph(context.shared, |graph| graph.get(repository).cloned())
-            .ok_or("That repository is not in this workspace.")?;
+            .ok_or("That repository is not in this organization.")?;
         let heads: Vec<CommitId> = held.branches.values().copied().collect();
         let objects = self
             .reachable(context.peer, &heads, &HashSet::new())
@@ -1268,7 +1268,7 @@ async fn merge_content(
         .write(merge.content_type, &bytes)
         .map_err(|error| error.to_string())?;
     let references = super::references_for(merge.content_type)
-        .map(|references| references(&bytes, peer.workspace()))
+        .map(|references| references(&bytes, peer.organization()))
         .unwrap_or_default();
     let derived = super::derived_for(merge.content_type, &bytes);
     Ok((Some(manifest), references, derived, conflicted))

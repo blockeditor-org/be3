@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use block_editor_beui::BlockQuery;
-use block_editor_beui::be_block::FolderContent;
+use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{ContentProjection, Editor};
@@ -40,22 +40,59 @@ pub(crate) struct Entry {
     pub(crate) loaded: bool,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum Listing {
+    Folder(ContentProjection<FolderContent>),
+    Workspace(ContentProjection<WorkspaceContent>),
+}
+
+impl Listing {
+    pub(crate) fn of(editor: Editor) -> Self {
+        match editor.host().block_type() == Some(WorkspaceContent::CONTENT_TYPE) {
+            true => Self::Workspace(editor.block_content()),
+            false => Self::Folder(editor.block_content()),
+        }
+    }
+
+    fn blocks(self) -> ReadSignal<Vec<Uuid>> {
+        match self {
+            Self::Folder(index) => index.project(|index| index.root().blocks()),
+            Self::Workspace(index) => index.project(|index| index.root().blocks()),
+        }
+    }
+
+    fn add(self, block_id: Uuid) {
+        match self {
+            Self::Folder(index) => {
+                if let Some(edit) = index.read(|index| index.root().add(block_id)) {
+                    index.operate(edit);
+                }
+            }
+            Self::Workspace(index) => {
+                if let Some(edit) = index.read(|index| index.root().add(block_id)) {
+                    index.operate(edit);
+                }
+            }
+        }
+    }
+}
+
 pub(crate) struct Folder {
     entries: Memo<Vec<Entry>>,
-    index: ContentProjection<FolderContent>,
+    index: Listing,
 }
 
 impl Folder {
     pub(crate) fn watch(
         editor: Editor,
-        index: ContentProjection<FolderContent>,
+        index: Listing,
         sort: ReadSignal<FolderSort>,
         descending: ReadSignal<bool>,
     ) -> Self {
         let references = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
-        let referenced = index.project(|index| index.root().blocks());
+        let referenced = index.blocks();
         let entries = create_memo(move || {
             let metadata: HashMap<_, _> = references
                 .read()
@@ -109,9 +146,7 @@ impl Folder {
     }
 
     pub(crate) fn add(&self, block_id: Uuid) {
-        if let Some(edit) = self.index.read(|index| index.root().add(block_id)) {
-            self.index.operate(edit);
-        }
+        self.index.add(block_id);
     }
 }
 

@@ -5,7 +5,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("presenter@example.com").await;
-    let workspace = client.workspace("talks").await;
+    let organization = client.organization("talks").await;
     let author = Author::new(account);
 
     let deck = client.create_block(BlockParent::Root).await;
@@ -52,7 +52,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
     let token = client.token.clone();
     drop(client);
     let harness = harness.restart().await;
-    let mut client = harness.second_connection(&token, workspace).await;
+    let mut client = harness.second_connection(&token, organization).await;
     assert_eq!(
         client.read_block(deck).await.references,
         moved,

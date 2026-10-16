@@ -14,7 +14,7 @@ mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_commit_in_one_checkout_is_brought_into_another;
 mod a_conflicting_edit_keeps_every_side_until_one_is_chosen;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
-mod a_device_answers_pairing_for_a_workspace_it_is_not_showing;
+mod a_device_answers_pairing_for_an_organization_it_is_not_showing;
 mod a_device_seals_keys_only_to_the_recovery_key_it_trusts;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_fork_pulls_and_pushes_through_its_upstream;
@@ -25,12 +25,12 @@ mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
-mod an_invite_link_hands_the_workspace_key_to_the_invited_account;
+mod an_invite_link_hands_the_organization_key_to_the_invited_account;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
-mod two_peers_of_one_workspace_share_a_counter;
+mod two_peers_of_one_organization_share_a_counter;
 mod undo_steps_back_through_what_this_peer_did;
 
 const TEST_ORIGIN: u64 = 0;
@@ -48,7 +48,7 @@ pub(crate) struct Harness {
     url: String,
     account: Uuid,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
     content_key: [u8; 32],
     recovery: Option<[u8; 32]>,
     _one_stack: std::sync::MutexGuard<'static, ()>,
@@ -70,7 +70,7 @@ impl Harness {
             .enable_all()
             .build()
             .expect("a test runtime starts");
-        let (account, token, workspace) = runtime.block_on(async {
+        let (account, token, organization) = runtime.block_on(async {
             let session = crate::accounts::register(
                 managed.clone(),
                 "counter@example.com".to_owned(),
@@ -79,14 +79,14 @@ impl Harness {
             )
             .await
             .expect("the account registers");
-            let workspace = crate::accounts::create_workspace(
+            let organization = crate::accounts::create_organization(
                 managed,
                 session.token.clone(),
                 "Counters".to_owned(),
             )
             .await
-            .expect("the workspace is created");
-            (session.account, session.token, workspace.id)
+            .expect("the organization is created");
+            (session.account, session.token, organization.id)
         });
         Self {
             directory,
@@ -94,7 +94,7 @@ impl Harness {
             url,
             account,
             token,
-            workspace,
+            organization,
             content_key: *be_store::ContentKey::random().as_bytes(),
             recovery: None,
             _one_stack: one_stack,
@@ -128,7 +128,7 @@ impl Harness {
             server_url: self.url.clone(),
             token: self.token.clone(),
             account: self.account,
-            workspace: self.workspace,
+            organization: self.organization,
             content_key: self.content_key,
             other_keys: Vec::new(),
             recovery: self.recovery,
@@ -144,11 +144,11 @@ impl Harness {
                 be_store::ContentKey::from_bytes(config.content_key),
                 be_client::Credentials::Token(self.token.clone()),
             )
-            .workspace(Some(self.workspace)),
+            .organization(Some(self.organization)),
             be_store::MemoryStore::new(),
         )
         .await
-        .expect("a second peer joins the workspace");
+        .expect("a second peer joins the organization");
         std::sync::Arc::new(peer)
     }
 }

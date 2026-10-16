@@ -17,15 +17,16 @@ its name, or a database row, by its id such as BE-7K3Q2M.
 
 Commands:
   be ls [TARGET]                      List the blocks at the root, or a block's children
-  be whoami                           Say which account and workspace this is
+  be whoami                           Say which account and organization this is
   be help [TARGET]                    This, or the verbs a target takes
   be new-database NAME [--prefix BE] [--in TARGET]
                                       Make a database (and a list view of it)
   be pull-request EVENT-FILE          Move the rows a GitHub pull request names
   be upload FILE [--in TARGET] [--prefix BE]
-                                      Copy the blocks a download wrote into this workspace,
-                                      with new ids; --prefix renames a database's row ids
-                                      when another database here has its prefix
+                                      Copy the blocks a download wrote into this
+                                      organization, with new ids; --prefix renames a
+                                      database's row ids when another database here has
+                                      its prefix
 
 Any block:
   ls | info                           Its children, or where it is and who may change it
@@ -68,7 +69,7 @@ TEXT given as - is read from standard input. --json prints JSON.
 Environment:
   BE3_RECOVERY_PHRASE   The recovery phrase the app showed when it added this agent
   BE3_TOKEN             The agent's token
-  BE3_WORKSPACE         The workspace, when the account is in more than one
+  BE3_ORGANIZATION      The organization, when the account is in more than one
   BE3_SERVER            The server (default: https://blocks.pfg.pw)
   BE3_AUTHORIZATION     An Authorization header a gateway in front of the server wants
   BE3_CACHE             Where it keeps the objects it reads (default: ~/.cache/be3/be)";
@@ -215,10 +216,13 @@ async fn command<S: ObjectStore>(
         "whoami" => {
             let peer = tracker.peer();
             Ok(match json {
-                true => {
-                    json!({"account": peer.account(), "workspace": peer.workspace()}).to_string()
-                }
-                false => format!("account {}\nworkspace {}", peer.account(), peer.workspace()),
+                true => json!({"account": peer.account(), "organization": peer.organization()})
+                    .to_string(),
+                false => format!(
+                    "account {}\norganization {}",
+                    peer.account(),
+                    peer.organization()
+                ),
             })
         }
         "ls" => listing(tracker, None, json).await,
@@ -428,7 +432,7 @@ async fn block_verb<S: ObjectStore>(
                 count => format!(" and {} blocks inside it", count - 1),
             };
             print(format!(
-                "wrote {} ({}){inside} to {file}, {} bytes; `be upload {file}` copies it into a workspace",
+                "wrote {} ({}){inside} to {file}, {} bytes; `be upload {file}` copies it into an organization",
                 top.label(),
                 top.short,
                 bytes.len()

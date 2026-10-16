@@ -32,6 +32,6 @@ fn a_device_seals_keys_only_to_the_recovery_key_it_trusts() {
     assert_eq!(keys.recovery, Some(swapped));
     assert!(
         keys.sealed.is_empty(),
-        "the device sealed the workspace key to a recovery key it does not trust"
+        "the device sealed the organization key to a recovery key it does not trust"
     );
 }

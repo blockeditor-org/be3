@@ -11,17 +11,17 @@ fn pair_in_background(
     harness: &Harness,
     code: String,
 ) -> std::thread::JoinHandle<Result<crate::accounts::Paired, crate::accounts::AccountError>> {
-    let (url, token, workspace) = (
+    let (url, token, organization) = (
         harness.url.clone(),
         harness.token.clone(),
-        harness.workspace,
+        harness.organization,
     );
     std::thread::spawn(move || {
         let (_cancel, cancelled) = tokio::sync::oneshot::channel::<()>();
         runtime().block_on(crate::accounts::pair(
             url,
             token,
-            workspace,
+            organization,
             code,
             "test".to_owned(),
             Box::pin(async move {
@@ -55,12 +55,12 @@ fn a_new_device_gets_the_key_by_typing_its_code_on_an_open_one() {
         .expect("the keys load");
     let sealed = keys
         .sealed
-        .get(&harness.workspace)
-        .expect("the open device sealed the workspace key to the recovery phrase");
+        .get(&harness.organization)
+        .expect("the open device sealed the organization key to the recovery phrase");
     assert_eq!(
         phrase.secret().open(sealed).unwrap(),
         harness.content_key,
-        "the recovery phrase does not open the workspace key"
+        "the recovery phrase does not open the organization key"
     );
 
     let mistyped = pair_in_background(&harness, be_keys::pairing_code());

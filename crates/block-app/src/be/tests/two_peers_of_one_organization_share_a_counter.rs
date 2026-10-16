@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn two_peers_of_one_workspace_share_a_counter() {
+fn two_peers_of_one_organization_share_a_counter() {
     let harness = Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
@@ -17,7 +17,7 @@ fn two_peers_of_one_workspace_share_a_counter() {
         server_url: harness.url.clone(),
         token: harness.token.clone(),
         account: harness.account,
-        workspace: harness.workspace,
+        organization: harness.organization,
         content_key: harness.content_key,
         other_keys: Vec::new(),
         recovery: None,

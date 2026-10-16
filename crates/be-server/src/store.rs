@@ -11,8 +11,8 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, SealedKey, Workspace,
-    WorkspaceInvitation, WorkspaceRole,
+    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, Organization,
+    OrganizationInvitation, OrganizationKind, OrganizationRole, SealedKey,
 };
 use be_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
@@ -28,13 +28,13 @@ pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
 #[derive(Clone, Copy, Debug)]
 pub struct Identity {
     pub account: Uuid,
-    pub workspace: Uuid,
-    pub role: WorkspaceRole,
+    pub organization: Uuid,
+    pub role: OrganizationRole,
 }
 
 impl Identity {
     pub fn is_administrator(&self) -> bool {
-        self.role == WorkspaceRole::Administrator
+        self.role == OrganizationRole::Administrator
     }
 }
 
@@ -285,29 +285,29 @@ impl ServerStore {
         &self,
         account: Uuid,
         invitation: Uuid,
-        workspace: Uuid,
+        organization: Uuid,
         email: &str,
-        role: WorkspaceRole,
+        role: OrganizationRole,
         sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
-        if self.membership(account, workspace).await? != WorkspaceRole::Administrator {
+        if self.membership(account, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
-                "only a workspace administrator can invite people".into(),
+                "only an organization administrator can invite people".into(),
             ));
         }
         let email = normalize_email(email)?;
         let database = self.database.lock().await;
         database.execute(
-            "DELETE FROM invitations WHERE workspace_id = ?1 AND email = ?2",
-            params![workspace.to_string(), email],
+            "DELETE FROM invitations WHERE organization_id = ?1 AND email = ?2",
+            params![organization.to_string(), email],
         )?;
         let inserted = database.execute(
-            "INSERT OR IGNORE INTO invitations (id, workspace_id, email, role, invited_by, sealed)
+            "INSERT OR IGNORE INTO invitations (id, organization_id, email, role, invited_by, sealed)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 invitation.to_string(),
-                workspace.to_string(),
+                organization.to_string(),
                 email,
                 encode_role(role),
                 account.to_string(),
@@ -327,14 +327,14 @@ impl ServerStore {
         &self,
         account: Uuid,
         invitation: Uuid,
-    ) -> Result<WorkspaceInvitation, ServerError> {
+    ) -> Result<OrganizationInvitation, ServerError> {
         let email = self.profile(account).await?.email;
         let database = self.database.lock().await;
         let found = database
             .query_row(
-                "SELECT invitations.workspace_id, workspaces.name, invitations.role,
+                "SELECT invitations.organization_id, organizations.name, invitations.role,
                         invitations.invited_by, invitations.sealed
-                 FROM invitations JOIN workspaces ON workspaces.id = invitations.workspace_id
+                 FROM invitations JOIN organizations ON organizations.id = invitations.organization_id
                  WHERE invitations.id = ?1 AND invitations.email = ?2",
                 params![invitation.to_string(), email],
                 |row| {
@@ -348,23 +348,23 @@ impl ServerStore {
                 },
             )
             .optional()?;
-        let Some((workspace, workspace_name, role, invited_by, sealed)) = found else {
+        let Some((organization, organization_name, role, invited_by, sealed)) = found else {
             return Err(ServerError::Refused(
                 ErrorCode::InvitationNotFound,
                 "that invitation does not exist, or was sent to another email address".into(),
             ));
         };
-        let workspace = parse_uuid(&workspace)?;
-        if is_member(&database, account, workspace)? {
+        let organization = parse_uuid(&organization)?;
+        if is_member(&database, account, organization)? {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
-                "you are already a member of that workspace".into(),
+                "you are already a member of that organization".into(),
             ));
         }
-        Ok(WorkspaceInvitation {
+        Ok(OrganizationInvitation {
             id: invitation,
-            workspace,
-            workspace_name,
+            organization,
+            organization_name,
             email,
             role: decode_role(&role)?,
             invited_by: parse_uuid(&invited_by)?,
@@ -381,10 +381,10 @@ impl ServerStore {
         let database = self.database.lock().await;
         let transaction = database.unchecked_transaction()?;
         transaction.execute(
-            "INSERT OR IGNORE INTO memberships (workspace_id, account_id, role)
+            "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
              VALUES (?1, ?2, ?3)",
             params![
-                found.workspace.to_string(),
+                found.organization.to_string(),
                 account.to_string(),
                 encode_role(found.role)
             ],
@@ -403,60 +403,83 @@ impl ServerStore {
         Ok(())
     }
 
-    pub async fn list_workspaces(&self, account: Uuid) -> Result<Vec<Workspace>, ServerError> {
+    pub async fn list_organizations(
+        &self,
+        account: Uuid,
+    ) -> Result<Vec<Organization>, ServerError> {
         let database = self.database.lock().await;
         let mut statement = database.prepare(
-            "SELECT workspaces.id, workspaces.name, memberships.role FROM memberships
-             JOIN workspaces ON workspaces.id = memberships.workspace_id
+            "SELECT organizations.id, organizations.name, organizations.kind, memberships.role
+             FROM memberships
+             JOIN organizations ON organizations.id = memberships.organization_id
              WHERE memberships.account_id = ?1
-             ORDER BY workspaces.name",
+             ORDER BY organizations.kind = 'company', organizations.name",
         )?;
         let rows = statement.query_map([account.to_string()], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
             ))
         })?;
-        let mut workspaces = Vec::new();
+        let mut organizations = Vec::new();
         for row in rows {
-            let (id, name, role) = row?;
-            workspaces.push(Workspace {
+            let (id, name, kind, role) = row?;
+            organizations.push(Organization {
                 id: parse_uuid(&id)?,
                 name,
+                kind: decode_kind(&kind)?,
                 role: decode_role(&role)?,
             });
         }
-        Ok(workspaces)
+        Ok(organizations)
     }
 
-    pub async fn create_workspace(
+    pub async fn create_organization(
         &self,
         account: Uuid,
         name: &str,
-    ) -> Result<Workspace, ServerError> {
+    ) -> Result<Organization, ServerError> {
         let name = name.trim().to_owned();
         if name.is_empty() {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
-                "a workspace name is required".into(),
+                "an organization name is required".into(),
             ));
         }
         let id = Uuid::new_v4();
         let database = self.database.lock().await;
         database.execute(
-            "INSERT INTO workspaces (id, name, owner_id) VALUES (?1, ?2, ?3)",
+            "INSERT INTO organizations (id, name, owner_id) VALUES (?1, ?2, ?3)",
             params![id.to_string(), name, account.to_string()],
         )?;
         database.execute(
-            "INSERT INTO memberships (workspace_id, account_id, role) VALUES (?1, ?2, 'administrator')",
+            "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'administrator')",
             params![id.to_string(), account.to_string()],
         )?;
-        Ok(Workspace {
+        Ok(Organization {
             id,
             name,
-            role: WorkspaceRole::Administrator,
+            kind: OrganizationKind::Company,
+            role: OrganizationRole::Administrator,
         })
+    }
+
+    pub async fn personal_organization(&self) -> Result<Uuid, ServerError> {
+        let database = self.database.lock().await;
+        personal_organization(&database)
+    }
+
+    pub async fn join_personal_organization(&self, account: Uuid) -> Result<Uuid, ServerError> {
+        let database = self.database.lock().await;
+        let organization = personal_organization(&database)?;
+        database.execute(
+            "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
+             VALUES (?1, ?2, 'editor')",
+            params![organization.to_string(), account.to_string()],
+        )?;
+        Ok(organization)
     }
 
     pub async fn keys(
@@ -466,19 +489,19 @@ impl ServerStore {
         let database = self.database.lock().await;
         let recovery = recovery_key(&database, account)?;
         let mut statement = database.prepare(
-            "SELECT workspace_keys.workspace_id, workspace_keys.sealed FROM workspace_keys
-             JOIN memberships ON memberships.workspace_id = workspace_keys.workspace_id
-                AND memberships.account_id = workspace_keys.account_id
-             WHERE workspace_keys.account_id = ?1",
+            "SELECT organization_keys.organization_id, organization_keys.sealed FROM organization_keys
+             JOIN memberships ON memberships.organization_id = organization_keys.organization_id
+                AND memberships.account_id = organization_keys.account_id
+             WHERE organization_keys.account_id = ?1",
         )?;
         let rows = statement.query_map([account.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
         })?;
         let mut sealed = Vec::new();
         for row in rows {
-            let (workspace, key) = row?;
+            let (organization, key) = row?;
             sealed.push(SealedKey {
-                workspace: parse_uuid(&workspace)?,
+                organization: parse_uuid(&organization)?,
                 sealed: key,
             });
         }
@@ -492,21 +515,22 @@ impl ServerStore {
         sealed: Vec<SealedKey>,
     ) -> Result<(), ServerError> {
         let (_, held) = self.keys(account).await?;
-        if let Some(missing) = held
-            .iter()
-            .find(|held| !sealed.iter().any(|key| key.workspace == held.workspace))
-        {
+        if let Some(missing) = held.iter().find(|held| {
+            !sealed
+                .iter()
+                .any(|key| key.organization == held.organization)
+        }) {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
                 format!(
-                    "a new recovery key must seal every workspace key the old one did, and {} is missing",
-                    missing.workspace
+                    "a new recovery key must seal every organization key the old one did, and {} is missing",
+                    missing.organization
                 ),
             ));
         }
         let database = self.database.lock().await;
         for key in &sealed {
-            if !is_member(&database, account, key.workspace)? {
+            if !is_member(&database, account, key.organization)? {
                 return Err(not_a_member());
             }
         }
@@ -516,27 +540,27 @@ impl ServerStore {
             params![account.to_string(), public.to_vec()],
         )?;
         transaction.execute(
-            "DELETE FROM workspace_keys WHERE account_id = ?1",
+            "DELETE FROM organization_keys WHERE account_id = ?1",
             [account.to_string()],
         )?;
         for key in sealed {
             transaction.execute(
-                "INSERT INTO workspace_keys (workspace_id, account_id, sealed) VALUES (?1, ?2, ?3)",
-                params![key.workspace.to_string(), account.to_string(), key.sealed],
+                "INSERT INTO organization_keys (organization_id, account_id, sealed) VALUES (?1, ?2, ?3)",
+                params![key.organization.to_string(), account.to_string(), key.sealed],
             )?;
         }
         transaction.commit()?;
         Ok(())
     }
 
-    pub async fn put_workspace_key(
+    pub async fn put_organization_key(
         &self,
         account: Uuid,
-        workspace: Uuid,
+        organization: Uuid,
         sealed: Vec<u8>,
     ) -> Result<(), ServerError> {
         let database = self.database.lock().await;
-        if !is_member(&database, account, workspace)? {
+        if !is_member(&database, account, organization)? {
             return Err(not_a_member());
         }
         if recovery_key(&database, account)?.is_none() {
@@ -546,8 +570,8 @@ impl ServerStore {
             ));
         }
         database.execute(
-            "INSERT OR IGNORE INTO workspace_keys (workspace_id, account_id, sealed) VALUES (?1, ?2, ?3)",
-            params![workspace.to_string(), account.to_string(), sealed],
+            "INSERT OR IGNORE INTO organization_keys (organization_id, account_id, sealed) VALUES (?1, ?2, ?3)",
+            params![organization.to_string(), account.to_string(), sealed],
         )?;
         Ok(())
     }
@@ -555,15 +579,15 @@ impl ServerStore {
     pub async fn create_agent(
         &self,
         caller: Uuid,
-        workspace: Uuid,
+        organization: Uuid,
         name: &str,
         recovery: [u8; 32],
         sealed: Vec<u8>,
     ) -> Result<(Agent, String), ServerError> {
-        if self.membership(caller, workspace).await? != WorkspaceRole::Administrator {
+        if self.membership(caller, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
-                "only a workspace administrator can add an agent".into(),
+                "only an organization administrator can add an agent".into(),
             ));
         }
         let name = name.trim().to_owned();
@@ -582,19 +606,19 @@ impl ServerStore {
             params![account.to_string(), email, name],
         )?;
         transaction.execute(
-            "INSERT INTO agents (account_id, workspace_id, created_by) VALUES (?1, ?2, ?3)",
+            "INSERT INTO agents (account_id, organization_id, created_by) VALUES (?1, ?2, ?3)",
             params![
                 account.to_string(),
-                workspace.to_string(),
+                organization.to_string(),
                 caller.to_string()
             ],
         )?;
         transaction.execute(
-            "INSERT INTO memberships (workspace_id, account_id, role) VALUES (?1, ?2, ?3)",
+            "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, ?3)",
             params![
-                workspace.to_string(),
+                organization.to_string(),
                 account.to_string(),
-                encode_role(WorkspaceRole::Editor)
+                encode_role(OrganizationRole::Editor)
             ],
         )?;
         transaction.execute(
@@ -602,8 +626,8 @@ impl ServerStore {
             params![account.to_string(), recovery.to_vec()],
         )?;
         transaction.execute(
-            "INSERT INTO workspace_keys (workspace_id, account_id, sealed) VALUES (?1, ?2, ?3)",
-            params![workspace.to_string(), account.to_string(), sealed],
+            "INSERT INTO organization_keys (organization_id, account_id, sealed) VALUES (?1, ?2, ?3)",
+            params![organization.to_string(), account.to_string(), sealed],
         )?;
         let token = issue_token(&transaction, account)?;
         transaction.commit()?;
@@ -620,19 +644,19 @@ impl ServerStore {
     pub async fn list_agents(
         &self,
         caller: Uuid,
-        workspace: Uuid,
+        organization: Uuid,
     ) -> Result<Vec<Agent>, ServerError> {
         let database = self.database.lock().await;
-        if !is_member(&database, caller, workspace)? {
+        if !is_member(&database, caller, organization)? {
             return Err(not_a_member());
         }
         let mut statement = database.prepare(
             "SELECT accounts.id, accounts.display_name, accounts.email FROM agents
              JOIN accounts ON accounts.id = agents.account_id
-             WHERE agents.workspace_id = ?1
+             WHERE agents.organization_id = ?1
              ORDER BY accounts.display_name, accounts.id",
         )?;
-        let rows = statement.query_map([workspace.to_string()], |row| {
+        let rows = statement.query_map([organization.to_string()], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
@@ -654,25 +678,25 @@ impl ServerStore {
     pub async fn remove_agent(
         &self,
         caller: Uuid,
-        workspace: Uuid,
+        organization: Uuid,
         agent: Uuid,
     ) -> Result<(), ServerError> {
-        if self.membership(caller, workspace).await? != WorkspaceRole::Administrator {
+        if self.membership(caller, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
-                "only a workspace administrator can remove an agent".into(),
+                "only an organization administrator can remove an agent".into(),
             ));
         }
         let database = self.database.lock().await;
         let removed = database.execute(
             "DELETE FROM accounts WHERE id = ?1
-             AND id IN (SELECT account_id FROM agents WHERE workspace_id = ?2)",
-            params![agent.to_string(), workspace.to_string()],
+             AND id IN (SELECT account_id FROM agents WHERE organization_id = ?2)",
+            params![agent.to_string(), organization.to_string()],
         )?;
         if removed == 0 {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
-                "that account is not an agent of this workspace".into(),
+                "that account is not an agent of this organization".into(),
             ));
         }
         Ok(())
@@ -686,20 +710,20 @@ impl ServerStore {
     pub async fn membership(
         &self,
         account: Uuid,
-        workspace: Uuid,
-    ) -> Result<WorkspaceRole, ServerError> {
+        organization: Uuid,
+    ) -> Result<OrganizationRole, ServerError> {
         let database = self.database.lock().await;
         let role: Option<String> = database
             .query_row(
-                "SELECT role FROM memberships WHERE workspace_id = ?1 AND account_id = ?2",
-                params![workspace.to_string(), account.to_string()],
+                "SELECT role FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
+                params![organization.to_string(), account.to_string()],
                 |row| row.get(0),
             )
             .optional()?;
         let Some(role) = role else {
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
-                "that account is not a member of this workspace".into(),
+                "that account is not a member of this organization".into(),
             ));
         };
         decode_role(&role)
@@ -707,16 +731,16 @@ impl ServerStore {
 
     pub async fn add_member(
         &self,
-        workspace: Uuid,
+        organization: Uuid,
         account: Uuid,
-        role: WorkspaceRole,
+        role: OrganizationRole,
     ) -> Result<(), ServerError> {
         let database = self.database.lock().await;
         database.execute(
-            "INSERT OR REPLACE INTO memberships (workspace_id, account_id, role)
+            "INSERT OR REPLACE INTO memberships (organization_id, account_id, role)
              VALUES (?1, ?2, ?3)",
             params![
-                workspace.to_string(),
+                organization.to_string(),
                 account.to_string(),
                 encode_role(role)
             ],
@@ -836,18 +860,45 @@ pub fn parse_uuid(value: &str) -> Result<Uuid, ServerError> {
     Uuid::parse_str(value).map_err(|_| ServerError::Corrupt)
 }
 
-pub fn decode_role(value: &str) -> Result<WorkspaceRole, ServerError> {
+fn personal_organization(database: &Connection) -> Result<Uuid, ServerError> {
+    let found: Option<String> = database
+        .query_row(
+            "SELECT id FROM organizations WHERE kind = 'personal' ORDER BY id LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(id) = found {
+        return parse_uuid(&id);
+    }
+    let id = Uuid::new_v4();
+    database.execute(
+        "INSERT INTO organizations (id, name, owner_id, kind) VALUES (?1, 'Personal', NULL, 'personal')",
+        [id.to_string()],
+    )?;
+    Ok(id)
+}
+
+pub fn decode_kind(value: &str) -> Result<OrganizationKind, ServerError> {
     match value {
-        "administrator" => Ok(WorkspaceRole::Administrator),
-        "editor" => Ok(WorkspaceRole::Editor),
+        "company" => Ok(OrganizationKind::Company),
+        "personal" => Ok(OrganizationKind::Personal),
         _ => Err(ServerError::Corrupt),
     }
 }
 
-pub fn encode_role(role: WorkspaceRole) -> &'static str {
+pub fn decode_role(value: &str) -> Result<OrganizationRole, ServerError> {
+    match value {
+        "administrator" => Ok(OrganizationRole::Administrator),
+        "editor" => Ok(OrganizationRole::Editor),
+        _ => Err(ServerError::Corrupt),
+    }
+}
+
+pub fn encode_role(role: OrganizationRole) -> &'static str {
     match role {
-        WorkspaceRole::Administrator => "administrator",
-        WorkspaceRole::Editor => "editor",
+        OrganizationRole::Administrator => "administrator",
+        OrganizationRole::Editor => "editor",
     }
 }
 
@@ -922,18 +973,18 @@ pub struct AccessList {
 impl ServerStore {
     pub(crate) async fn with_graph<R>(
         &self,
-        workspace: Uuid,
+        organization: Uuid,
         action: impl FnOnce(&mut BlockGraph, &Connection) -> Result<R, ServerError>,
     ) -> Result<R, ServerError> {
         let database = self.database.lock().await;
         let mut graphs = self.graphs.lock().await;
-        let graph = match graphs.entry(workspace) {
+        let graph = match graphs.entry(organization) {
             Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(load_graph(&database, workspace)?),
+            Entry::Vacant(entry) => entry.insert(load_graph(&database, organization)?),
         };
         let outcome = action(graph, &database);
         if outcome.is_err() {
-            graphs.remove(&workspace);
+            graphs.remove(&organization);
         }
         outcome
     }
@@ -949,11 +1000,15 @@ impl ServerStore {
     }
 }
 
-fn is_member(connection: &Connection, account: Uuid, workspace: Uuid) -> Result<bool, ServerError> {
+fn is_member(
+    connection: &Connection,
+    account: Uuid,
+    organization: Uuid,
+) -> Result<bool, ServerError> {
     Ok(connection
         .query_row(
-            "SELECT 1 FROM memberships WHERE workspace_id = ?1 AND account_id = ?2",
-            params![workspace.to_string(), account.to_string()],
+            "SELECT 1 FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
+            params![organization.to_string(), account.to_string()],
             |_| Ok(()),
         )
         .optional()?
@@ -963,7 +1018,7 @@ fn is_member(connection: &Connection, account: Uuid, workspace: Uuid) -> Result<
 fn not_a_member() -> ServerError {
     ServerError::Refused(
         ErrorCode::PermissionDenied,
-        "that account is not a member of this workspace".into(),
+        "that account is not a member of this organization".into(),
     )
 }
 
@@ -985,16 +1040,16 @@ fn public_key(bytes: &[u8]) -> Result<[u8; 32], ServerError> {
 
 pub(crate) fn load_graph(
     connection: &Connection,
-    workspace: Uuid,
+    organization: Uuid,
 ) -> Result<BlockGraph, ServerError> {
     let mut graph = BlockGraph::new();
     let mut nodes = Vec::new();
     {
         let mut statement = connection.prepare(
             "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version FROM blocks
-             WHERE workspace_id = ?1",
+             WHERE organization_id = ?1",
         )?;
-        let rows = statement.query_map([workspace.to_string()], |row| {
+        let rows = statement.query_map([organization.to_string()], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
@@ -1035,10 +1090,10 @@ pub(crate) fn load_graph(
     }
     {
         let mut statement = connection.prepare(
-            "SELECT block_id, reference_id FROM block_edges WHERE workspace_id = ?1
+            "SELECT block_id, reference_id FROM block_edges WHERE organization_id = ?1
                  ORDER BY block_id, position, rowid",
         )?;
-        let rows = statement.query_map([workspace.to_string()], |row| {
+        let rows = statement.query_map([organization.to_string()], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
         let mut edges: BTreeMap<Uuid, Vec<Uuid>> = BTreeMap::new();
@@ -1055,9 +1110,9 @@ pub(crate) fn load_graph(
     }
     {
         let mut statement = connection.prepare(
-            "SELECT block_id, account_id, access FROM block_access WHERE workspace_id = ?1",
+            "SELECT block_id, account_id, access FROM block_access WHERE organization_id = ?1",
         )?;
-        let rows = statement.query_map([workspace.to_string()], |row| {
+        let rows = statement.query_map([organization.to_string()], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,

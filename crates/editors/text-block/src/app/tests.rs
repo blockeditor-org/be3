@@ -18,7 +18,7 @@ mod a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens;
 mod classifies_markdown_image;
 mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;
 mod code_is_painted_on_its_background;
-mod foreign_workspace_url_is_not_an_embed;
+mod foreign_organization_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;
 mod markdown_is_painted_with_its_styles;
@@ -68,7 +68,7 @@ fn peer_delete(editor: &mut BeuiTest<TextApp>, range: std::ops::Range<usize>) {
 }
 
 const BLOCK_ID: Uuid = Uuid::from_u128(0xe2b8_7b59_9c69_4d75_83fd_801b_2727_1388);
-const WORKSPACE_ID: Uuid = Uuid::from_u128(0x7a20_a314_e4aa_4ca7_b7ae_d68c_3249_0d9d);
+const ORGANIZATION_ID: Uuid = Uuid::from_u128(0x7a20_a314_e4aa_4ca7_b7ae_d68c_3249_0d9d);
 
 fn caret_at(editor: &mut BeuiTest<TextApp>, index: usize) {
     editor.click("text.surface");

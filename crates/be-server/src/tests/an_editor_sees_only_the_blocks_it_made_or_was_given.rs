@@ -19,7 +19,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
-    let workspace = owner.workspace("shared").await;
+    let organization = owner.organization("shared").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let inside = owner.create_block(BlockParent::Block(folder)).await;
     let private = owner.create_block(BlockParent::Root).await;
@@ -29,9 +29,9 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
         .send(|request| ClientMessage::Invite {
             request,
             invitation: Uuid::from_u128(1),
-            workspace,
+            organization,
             email: "guest@example.com".into(),
-            role: WorkspaceRole::Editor,
+            role: OrganizationRole::Editor,
             sealed: Vec::new(),
         })
         .await;
@@ -42,7 +42,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
             invitation: Uuid::from_u128(1),
         })
         .await;
-    guest.open(workspace).await;
+    guest.open(organization).await;
     assert!(listed(&mut guest).await.is_empty());
 
     let own = guest.create_block(BlockParent::Root).await;

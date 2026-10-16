@@ -468,7 +468,7 @@ pub struct EditorHost {
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
-    workspace: Rc<Cell<Uuid>>,
+    organization: Rc<Cell<Uuid>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1551,12 +1551,12 @@ impl EditorHost {
         self.account.get()
     }
 
-    pub fn set_workspace_id(&self, workspace: Uuid) {
-        self.workspace.set(workspace);
+    pub fn set_organization_id(&self, organization: Uuid) {
+        self.organization.set(organization);
     }
 
-    pub fn workspace_id(&self) -> Uuid {
-        self.workspace.get()
+    pub fn organization_id(&self) -> Uuid {
+        self.organization.get()
     }
 
     pub fn blocks(&self) -> crate::graph::Blocks {

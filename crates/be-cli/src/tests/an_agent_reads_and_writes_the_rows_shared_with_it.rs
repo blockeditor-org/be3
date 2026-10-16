@@ -19,13 +19,13 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
 
     let phrase = be_keys::RecoveryPhrase::generate();
     let public = phrase.secret().public();
-    let workspace = owner.peer().workspace();
+    let organization = owner.peer().organization();
     let response = owner
         .peer()
         .connection()
         .request(|request| ClientMessage::CreateAgent {
             request,
-            workspace,
+            organization,
             name: "Claude".into(),
             recovery: public.0,
             sealed: public.seal(&KEY),
@@ -43,7 +43,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
 
     let settings = Settings {
         server: harness.url.clone(),
-        workspace: None,
+        organization: None,
         token,
         phrase: phrase.to_string(),
         authorization: None,

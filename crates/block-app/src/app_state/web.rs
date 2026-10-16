@@ -7,7 +7,7 @@ const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
-const WORKSPACE_KEYS_KEY: &str = "block.workspace-keys";
+const ORGANIZATION_KEYS_KEY: &str = "block.organization-keys";
 const RECOVERY_KEYS_KEY: &str = "block.recovery-keys";
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -21,7 +21,7 @@ struct StoredRecovery {
 struct StoredKey {
     server: String,
     account: Uuid,
-    workspace: Uuid,
+    organization: Uuid,
     key: [u8; 32],
 }
 
@@ -79,7 +79,7 @@ impl AppStateStore {
         self.write(ACCOUNTS_KEY, &accounts)?;
         let mut keys = self.stored_keys()?;
         keys.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        self.write(WORKSPACE_KEYS_KEY, &keys)?;
+        self.write(ORGANIZATION_KEYS_KEY, &keys)?;
         let mut recovery = self.stored_recovery()?;
         recovery.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
         self.write(RECOVERY_KEYS_KEY, &recovery)?;
@@ -112,7 +112,7 @@ impl AppStateStore {
             CLIENT_ID_KEY,
             DISPLAY_SETTINGS_KEY,
             INPUT_SETTINGS_KEY,
-            WORKSPACE_KEYS_KEY,
+            ORGANIZATION_KEYS_KEY,
             RECOVERY_KEYS_KEY,
         ] {
             self.storage
@@ -127,10 +127,10 @@ impl AppStateStore {
         Ok(active.map(|active| (active.server, active.id)))
     }
 
-    pub fn set_last_workspace(
+    pub fn set_last_organization(
         &self,
         saved: &SavedAccount,
-        workspace_id: Option<Uuid>,
+        organization_id: Option<Uuid>,
     ) -> Result<(), AppStateError> {
         let mut accounts = self.accounts()?;
         let Some(account) = accounts
@@ -139,27 +139,27 @@ impl AppStateStore {
         else {
             return Ok(());
         };
-        account.last_workspace_id = workspace_id;
+        account.last_organization_id = organization_id;
         self.write(ACCOUNTS_KEY, &accounts)
     }
 
     fn stored_keys(&self) -> Result<Vec<StoredKey>, AppStateError> {
-        Ok(self.read(WORKSPACE_KEYS_KEY)?.unwrap_or_default())
+        Ok(self.read(ORGANIZATION_KEYS_KEY)?.unwrap_or_default())
     }
 
-    pub fn workspace_key(
+    pub fn organization_key(
         &self,
         saved: &SavedAccount,
-        workspace: Uuid,
+        organization: Uuid,
     ) -> Result<Option<[u8; 32]>, AppStateError> {
         Ok(self
-            .workspace_keys(saved)?
+            .organization_keys(saved)?
             .into_iter()
-            .find(|(stored, _)| *stored == workspace)
+            .find(|(stored, _)| *stored == organization)
             .map(|(_, key)| key))
     }
 
-    pub fn workspace_keys(
+    pub fn organization_keys(
         &self,
         saved: &SavedAccount,
     ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
@@ -167,29 +167,29 @@ impl AppStateStore {
             .stored_keys()?
             .into_iter()
             .filter(|stored| stored.server == saved.server.key() && stored.account == saved.id)
-            .map(|stored| (stored.workspace, stored.key))
+            .map(|stored| (stored.organization, stored.key))
             .collect())
     }
 
-    pub fn set_workspace_key(
+    pub fn set_organization_key(
         &self,
         saved: &SavedAccount,
-        workspace: Uuid,
+        organization: Uuid,
         key: [u8; 32],
     ) -> Result<(), AppStateError> {
         let mut keys = self.stored_keys()?;
         keys.retain(|stored| {
             stored.server != saved.server.key()
                 || stored.account != saved.id
-                || stored.workspace != workspace
+                || stored.organization != organization
         });
         keys.push(StoredKey {
             server: saved.server.key().to_owned(),
             account: saved.id,
-            workspace,
+            organization,
             key,
         });
-        self.write(WORKSPACE_KEYS_KEY, &keys)
+        self.write(ORGANIZATION_KEYS_KEY, &keys)
     }
 
     fn stored_recovery(&self) -> Result<Vec<StoredRecovery>, AppStateError> {

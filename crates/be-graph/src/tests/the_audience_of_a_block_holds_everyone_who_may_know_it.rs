@@ -9,14 +9,12 @@ fn the_audience_of_a_block_holds_everyone_who_may_know_it() {
             .collect();
         for block in graph.ids() {
             let audience = graph.audience(block);
-            for below in graph.subtree(block) {
-                for (account, map) in &maps {
-                    if map[&below].can_know_exists() {
-                        assert!(
-                            audience.contains(account),
-                            "{account} knows {below} below {block} but is not in its audience"
-                        );
-                    }
+            for (account, map) in &maps {
+                if map[&block].can_know_exists() {
+                    assert!(
+                        audience.contains(account),
+                        "{account} knows {block} but is not in its audience"
+                    );
                 }
             }
         }

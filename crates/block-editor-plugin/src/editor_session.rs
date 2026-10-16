@@ -150,8 +150,8 @@ impl EditorSession {
         self.host.set_account_id(account);
     }
 
-    pub(crate) fn set_workspace_id(&self, workspace: Uuid) {
-        self.host.set_workspace_id(workspace);
+    pub(crate) fn set_organization_id(&self, organization: Uuid) {
+        self.host.set_organization_id(organization);
     }
 
     pub(crate) fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {

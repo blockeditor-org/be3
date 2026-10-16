@@ -9,8 +9,8 @@ use std::{
 };
 
 use be_protocol::{
-    ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, WorkspaceRole, decode, encode, hello,
-    read_hello,
+    ClientMessage, ErrorCode, MAX_FRAME_BYTES, OrganizationRole, ServerMessage, decode, encode,
+    hello, read_hello,
 };
 use be_session::Claim;
 use futures_util::{
@@ -447,7 +447,7 @@ impl Connection {
         self.identity.ok_or_else(|| {
             ServerError::Refused(
                 ErrorCode::NotAuthenticated,
-                "open a workspace before using it".into(),
+                "open an organization before using it".into(),
             )
         })
     }
@@ -519,13 +519,20 @@ impl Connection {
             ClientMessage::Invite {
                 request,
                 invitation,
-                workspace,
+                organization,
                 email,
                 role,
                 sealed,
             } => {
                 self.store
-                    .invite(self.account()?, invitation, workspace, &email, role, sealed)
+                    .invite(
+                        self.account()?,
+                        invitation,
+                        organization,
+                        &email,
+                        role,
+                        sealed,
+                    )
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
@@ -545,38 +552,44 @@ impl Connection {
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::ListWorkspaces { request } => Ok(ServerMessage::Workspaces {
+            ClientMessage::ListOrganizations { request } => Ok(ServerMessage::Organizations {
                 request,
-                workspaces: self.store.list_workspaces(self.account()?).await?,
+                organizations: self.store.list_organizations(self.account()?).await?,
             }),
-            ClientMessage::CreateWorkspace { request, name } => {
-                let workspace = self.store.create_workspace(self.account()?, &name).await?;
-                Ok(ServerMessage::Workspaces {
+            ClientMessage::CreateOrganization { request, name } => {
+                let organization = self
+                    .store
+                    .create_organization(self.account()?, &name)
+                    .await?;
+                Ok(ServerMessage::Organizations {
                     request,
-                    workspaces: vec![workspace],
+                    organizations: vec![organization],
                 })
             }
-            ClientMessage::OpenWorkspace { request, workspace } => {
+            ClientMessage::OpenOrganization {
+                request,
+                organization,
+            } => {
                 let account = self.account()?;
-                let role = self.store.membership(account, workspace).await?;
+                let role = self.store.membership(account, organization).await?;
                 self.identity = Some(Identity {
                     account,
-                    workspace,
+                    organization,
                     role,
                 });
                 self.hub
-                    .join_workspace(
+                    .join_organization(
                         self.client,
                         Identity {
                             account,
-                            workspace,
+                            organization,
                             role,
                         },
                     )
                     .await;
-                Ok(ServerMessage::WorkspaceOpened {
+                Ok(ServerMessage::OrganizationOpened {
                     request,
-                    workspace,
+                    organization,
                     role,
                 })
             }
@@ -758,7 +771,7 @@ impl Connection {
                 for block in &collected.blocks {
                     self.hub
                         .announce(
-                            identity.workspace,
+                            identity.organization,
                             ServerMessage::BlockRemoved { block: *block },
                         )
                         .await;
@@ -909,26 +922,26 @@ impl Connection {
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::PutWorkspaceKey {
+            ClientMessage::PutOrganizationKey {
                 request,
-                workspace,
+                organization,
                 sealed,
             } => {
                 self.store
-                    .put_workspace_key(self.account()?, workspace, sealed)
+                    .put_organization_key(self.account()?, organization, sealed)
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::CreateAgent {
                 request,
-                workspace,
+                organization,
                 name,
                 recovery,
                 sealed,
             } => {
                 let (agent, token) = self
                     .store
-                    .create_agent(self.account()?, workspace, &name, recovery, sealed)
+                    .create_agent(self.account()?, organization, &name, recovery, sealed)
                     .await?;
                 Ok(ServerMessage::AgentCreated {
                     request,
@@ -936,31 +949,37 @@ impl Connection {
                     token,
                 })
             }
-            ClientMessage::ListAgents { request, workspace } => Ok(ServerMessage::Agents {
+            ClientMessage::ListAgents {
                 request,
-                agents: self.store.list_agents(self.account()?, workspace).await?,
+                organization,
+            } => Ok(ServerMessage::Agents {
+                request,
+                agents: self
+                    .store
+                    .list_agents(self.account()?, organization)
+                    .await?,
             }),
             ClientMessage::RemoveAgent {
                 request,
-                workspace,
+                organization,
                 account,
             } => {
                 self.store
-                    .remove_agent(self.account()?, workspace, account)
+                    .remove_agent(self.account()?, organization, account)
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::Pair {
                 request,
                 to,
-                workspace,
+                organization,
                 payload,
             } => {
                 let account = self.account()?;
-                self.store.membership(account, workspace).await?;
+                self.store.membership(account, organization).await?;
                 let message = ServerMessage::Paired {
                     from: self.client,
-                    workspace,
+                    organization,
                     payload,
                 };
                 let sent = self
@@ -987,17 +1006,17 @@ impl Connection {
     ) {
         let Ok(mut accounts) = self
             .store
-            .audience(identity.workspace, blocks.clone())
+            .audience(identity.organization, blocks.clone())
             .await
         else {
             return;
         };
         accounts.extend(before);
-        let members = self.hub.audience(identity.workspace, &accounts).await;
+        let members = self.hub.audience(identity.organization, &accounts).await;
         let identities = members.iter().map(|(_, member)| *member).collect();
         let Ok(views) = self
             .store
-            .graph_views(identity.workspace, identities, blocks, subtree)
+            .graph_views(identity.organization, identities, blocks, subtree)
             .await
         else {
             return;
@@ -1028,16 +1047,16 @@ pub async fn add_account(
     email: &str,
     display_name: &str,
     password: &str,
-    workspace: &str,
+    organization: &str,
 ) -> Result<(Uuid, Uuid), ServerError> {
     let store = ServerStore::open(data_dir.into())?;
     let (profile, _) = store.register(email, display_name, password).await?;
     let account = profile.account;
-    let workspace = store.create_workspace(account, workspace).await?;
+    let organization = store.create_organization(account, organization).await?;
     store
-        .add_member(workspace.id, account, WorkspaceRole::Administrator)
+        .add_member(organization.id, account, OrganizationRole::Administrator)
         .await?;
-    Ok((account, workspace.id))
+    Ok((account, organization.id))
 }
 
 #[cfg(test)]

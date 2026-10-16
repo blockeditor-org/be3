@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_protocol::{ServerMessage, WorkspaceRole};
+use be_protocol::{OrganizationRole, ServerMessage};
 use tokio::sync::{
     Mutex,
     mpsc::{Sender, error::TrySendError},
@@ -16,8 +16,8 @@ use uuid::Uuid;
 struct Joined {
     accounts: HashMap<u64, Uuid>,
     by_account: HashMap<Uuid, HashSet<u64>>,
-    workspaces: HashMap<u64, Identity>,
-    by_workspace: HashMap<Uuid, HashSet<u64>>,
+    organizations: HashMap<u64, Identity>,
+    by_organization: HashMap<Uuid, HashSet<u64>>,
     by_member: HashMap<(Uuid, Uuid), HashSet<u64>>,
     administrators: HashMap<Uuid, HashSet<u64>>,
     watchers: HashMap<Uuid, HashSet<u64>>,
@@ -38,18 +38,18 @@ impl Joined {
         if let Some(account) = self.accounts.remove(&client) {
             unindex(&mut self.by_account, account, client);
         }
-        self.leave_workspace(client);
+        self.leave_organization(client);
     }
 
-    fn leave_workspace(&mut self, client: u64) {
-        if let Some(identity) = self.workspaces.remove(&client) {
-            unindex(&mut self.by_workspace, identity.workspace, client);
+    fn leave_organization(&mut self, client: u64) {
+        if let Some(identity) = self.organizations.remove(&client) {
+            unindex(&mut self.by_organization, identity.organization, client);
             unindex(
                 &mut self.by_member,
-                (identity.workspace, identity.account),
+                (identity.organization, identity.account),
                 client,
             );
-            unindex(&mut self.administrators, identity.workspace, client);
+            unindex(&mut self.administrators, identity.organization, client);
         }
     }
 }
@@ -129,24 +129,24 @@ impl WatchHub {
         sent
     }
 
-    pub async fn join_workspace(&self, client: u64, identity: Identity) {
+    pub async fn join_organization(&self, client: u64, identity: Identity) {
         let mut joined = self.joined.lock().await;
-        joined.leave_workspace(client);
-        joined.workspaces.insert(client, identity);
+        joined.leave_organization(client);
+        joined.organizations.insert(client, identity);
         joined
-            .by_workspace
-            .entry(identity.workspace)
+            .by_organization
+            .entry(identity.organization)
             .or_default()
             .insert(client);
         joined
             .by_member
-            .entry((identity.workspace, identity.account))
+            .entry((identity.organization, identity.account))
             .or_default()
             .insert(client);
-        if identity.role == WorkspaceRole::Administrator {
+        if identity.role == OrganizationRole::Administrator {
             joined
                 .administrators
-                .entry(identity.workspace)
+                .entry(identity.organization)
                 .or_default()
                 .insert(client);
         }
@@ -154,13 +154,13 @@ impl WatchHub {
 
     pub async fn audience(
         &self,
-        workspace: Uuid,
+        organization: Uuid,
         accounts: &BTreeSet<Uuid>,
     ) -> Vec<(u64, Identity)> {
         let joined = self.joined.lock().await;
         let mut clients: BTreeSet<u64> = joined
             .administrators
-            .get(&workspace)
+            .get(&organization)
             .into_iter()
             .flatten()
             .copied()
@@ -169,7 +169,7 @@ impl WatchHub {
             clients.extend(
                 joined
                     .by_member
-                    .get(&(workspace, *account))
+                    .get(&(organization, *account))
                     .into_iter()
                     .flatten()
                     .copied(),
@@ -179,20 +179,20 @@ impl WatchHub {
             .into_iter()
             .filter_map(|client| {
                 joined
-                    .workspaces
+                    .organizations
                     .get(&client)
                     .map(|identity| (client, *identity))
             })
             .collect()
     }
 
-    pub async fn announce(&self, workspace: Uuid, message: ServerMessage) {
+    pub async fn announce(&self, organization: Uuid, message: ServerMessage) {
         let targets: Vec<u64> = self
             .joined
             .lock()
             .await
-            .by_workspace
-            .get(&workspace)
+            .by_organization
+            .get(&organization)
             .into_iter()
             .flatten()
             .copied()

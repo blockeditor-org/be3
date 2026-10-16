@@ -2,7 +2,7 @@
 
 The project's issues are meant to live in block-app, as databases: an Issues
 database whose rows are issues, with Relation columns to a Projects database and
-a Milestones database, kept in a workspace of their own. Agents read and change them with `be`, the command line tool in
+a Milestones database, kept in an organization of their own. Agents read and change them with `be`, the command line tool in
 `crates/be-cli`, and GitHub moves them as pull requests open and merge.
 
 ## Using it from an agent
@@ -18,19 +18,21 @@ passes them to `be` as the `BE3_*` variables:
 
 ```text
 server=https://blocks.pfg.pw
-workspace=<the tracker workspace, when the agent is in more than one>
+organization=<the tracker organization, when the agent is in more than one>
 token=<the agent's token>
-recovery_phrase=<opens the workspace key the server keeps sealed for the agent>
+recovery_phrase=<opens the organization key the server keeps sealed for the agent>
 authorization=<an Authorization header a gateway in front of the server wants, if any>
 ```
 
-`be` itself reads only the variables, never that file. A `be` built from the
+The script also accepts the line under its old name, `workspace=`, and sets
+`BE3_WORKSPACE` beside `BE3_ORGANIZATION`, since the pinned release may predate
+the rename. `be` itself reads only the variables, never that file. A `be` built from the
 checkout (`./scripts/buck run //crates/be-cli:native -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
 the real server refuses it. `BE3_SERVER` is `https://blocks.pfg.pw` unless
 set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
 environment's proxy refuses websockets; requests made together share one post.
-It keeps the objects it reads in `~/.cache/be3/be/WORKSPACE` (`BE3_CACHE`),
+It keeps the objects it reads in `~/.cache/be3/be/ORGANIZATION` (`BE3_CACHE`),
 still encrypted and named by their hash, so a later run reads only what
 changed.
 
@@ -56,7 +58,7 @@ be new-database Milestones --prefix MS --in a1f3
 be Issues import issues.csv             Linear's export, or any CSV
 be Issues download issues.block         a block and everything inside it, as one file
 be upload issues.block --in a1f3 --prefix CP
-                                        a copy of it, here or in another workspace
+                                        a copy of it, here or in another organization
 ```
 
 A target is a block, by the start of its id as `be ls` prints it, its full id
@@ -125,11 +127,11 @@ them in the handoff.
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
   these types only adds fields, variants and kinds (guides/frozen_formats.md).
 - **Agents.** An administrator adds one from the app menu (Agents). The app
-  makes a recovery phrase for it and seals the workspace key to it, the server
-  makes an editor account with no password and a token (`CreateAgent`), and
-  the dialog shows the token and phrase once. An agent sees only what is shared
-  with it, but the workspace key opens everything in the workspace, so keep the
-  tracker in a workspace of its own. Removing the agent deletes its account and
+  makes a recovery phrase for it and seals the organization key to it, the
+  server makes an editor account with no password and a token (`CreateAgent`),
+  and the dialog shows the token and phrase once. An agent sees only what is
+  shared with it, but the organization key opens everything in the
+  organization, so keep the tracker in an organization of its own. Removing the agent deletes its account and
   its tokens.
 - **Writes.** `be` opens the block, applies the same `Edit` the editor would
   and publishes against the head it read, retrying on the new head when the
@@ -145,7 +147,7 @@ them in the handoff.
   column's first closed option (Done if it has none). It reads the
   `BE3_TRACKER_TOKEN`, `BE3_TRACKER_RECOVERY_PHRASE` and (for a gateway)
   `BE3_TRACKER_AUTHORIZATION` secrets and the
-  `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to
+  `BE3_SERVER`, `BE3_WORKSPACE` (written as `workspace=`) and status variables, writes them to
   `external/.tracker-credentials` and runs `./scripts/be` from the default branch.
 - **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
   server it deploys and pins it in `scripts/internal/common.sh`.

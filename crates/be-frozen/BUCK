@@ -9,3 +9,6 @@ cargo_test(srcs = frozen_srcs)
 # Saves a new snapshot of a server's data:
 # `./scripts/buck run //crates/be-frozen:example-freeze -- $PWD/crates/be-frozen/src/snapshots NAME`.
 cargo_example("freeze")
+
+# Writes the `.block` fixture: `./scripts/buck run //crates/be-frozen:example-block-file -- $PWD/crates/be-frozen/src/fixtures/tracker.block`.
+cargo_example("block-file")

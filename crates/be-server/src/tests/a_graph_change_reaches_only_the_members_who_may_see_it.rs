@@ -4,7 +4,7 @@ use be_graph::Access;
 async fn join(
     harness: &Harness,
     owner: &mut TestClient,
-    workspace: Uuid,
+    organization: Uuid,
     email: &str,
     invitation: u128,
 ) -> (TestClient, Uuid) {
@@ -14,9 +14,9 @@ async fn join(
         .send(|request| ClientMessage::Invite {
             request,
             invitation: Uuid::from_u128(invitation),
-            workspace,
+            organization,
             email: email.into(),
-            role: WorkspaceRole::Editor,
+            role: OrganizationRole::Editor,
             sealed: Vec::new(),
         })
         .await;
@@ -27,7 +27,7 @@ async fn join(
             invitation: Uuid::from_u128(invitation),
         })
         .await;
-    member.open(workspace).await;
+    member.open(organization).await;
     (member, account)
 }
 
@@ -61,12 +61,19 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
-    let workspace = owner.workspace("shared").await;
+    let organization = owner.organization("shared").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let inside = owner.create_block(BlockParent::Block(folder)).await;
     let (mut viewer, account) =
-        join(&harness, &mut owner, workspace, "viewer@example.com", 1).await;
-    let (mut outsider, _) = join(&harness, &mut owner, workspace, "outsider@example.com", 2).await;
+        join(&harness, &mut owner, organization, "viewer@example.com", 1).await;
+    let (mut outsider, _) = join(
+        &harness,
+        &mut owner,
+        organization,
+        "outsider@example.com",
+        2,
+    )
+    .await;
 
     grant(&mut owner, folder, account, Access::View).await;
     let mut expected = vec![(folder, true), (inside, true)];

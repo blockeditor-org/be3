@@ -28,7 +28,7 @@ mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
-mod an_invited_account_joins_the_workspace_and_a_logout_ends_the_session;
+mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
@@ -39,13 +39,14 @@ mod metadata_travels_with_the_content_once_a_block_has_any;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
+mod one_personal_organization_is_made_on_demand_and_joined_as_an_editor;
+mod organization_keys_are_sealed_per_member_and_never_overwritten;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod pruning_history_keeps_pinned_commits;
 mod references_keep_the_order_their_block_lists_them_in;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
-mod workspace_keys_are_sealed_per_member_and_never_overwritten;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 
@@ -94,7 +95,7 @@ impl Harness {
         client
     }
 
-    async fn second_connection(&self, token: &str, workspace: Uuid) -> TestClient {
+    async fn second_connection(&self, token: &str, organization: Uuid) -> TestClient {
         let mut client = self.client().await;
         let response = client
             .send(|request| ClientMessage::Authenticate {
@@ -106,7 +107,7 @@ impl Harness {
             matches!(response, ServerMessage::Authenticated { .. }),
             "{response:?}"
         );
-        client.open(workspace).await;
+        client.open(organization).await;
         client
     }
 
@@ -242,27 +243,30 @@ impl TestClient {
         account
     }
 
-    async fn workspace(&mut self, name: &str) -> Uuid {
+    async fn organization(&mut self, name: &str) -> Uuid {
         let response = self
-            .send(|request| ClientMessage::CreateWorkspace {
+            .send(|request| ClientMessage::CreateOrganization {
                 request,
                 name: name.into(),
             })
             .await;
-        let ServerMessage::Workspaces { workspaces, .. } = response else {
-            panic!("workspace creation failed: {response:?}");
+        let ServerMessage::Organizations { organizations, .. } = response else {
+            panic!("organization creation failed: {response:?}");
         };
-        let workspace = workspaces[0].id;
-        self.open(workspace).await;
-        workspace
+        let organization = organizations[0].id;
+        self.open(organization).await;
+        organization
     }
 
-    async fn open(&mut self, workspace: Uuid) {
+    async fn open(&mut self, organization: Uuid) {
         let response = self
-            .send(|request| ClientMessage::OpenWorkspace { request, workspace })
+            .send(|request| ClientMessage::OpenOrganization {
+                request,
+                organization,
+            })
             .await;
         assert!(
-            matches!(response, ServerMessage::WorkspaceOpened { .. }),
+            matches!(response, ServerMessage::OrganizationOpened { .. }),
             "{response:?}"
         );
     }
