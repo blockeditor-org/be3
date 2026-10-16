@@ -47,7 +47,6 @@ pub fn key_center(keyboard: Rect, layer: Layer, value: Value) -> Option<beui_cor
     Some(layout.key_rect(keys_area(keyboard), at)?.center())
 }
 
-#[beui_macros::sample]
 #[component]
 pub fn SoftwareKeyboard() -> NodeId {
     view! {
@@ -146,10 +145,11 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
         (_, _, true) => TextColor::Default,
         _ => TextColor::Muted,
     });
-    let size = match center {
-        true => TextSize::Lg,
-        false => TextSize::Xs,
-    };
+    let size = create_memo(move || match (center, text.with(|text| text.chars().count() > 2)) {
+        (true, false) => TextSize::Lg,
+        (true, true) => TextSize::Sm,
+        (false, _) => TextSize::Xs,
+    });
     let padding = match center {
         true => Sides::ZERO,
         false => Sides::symmetric(4.0, 1.0),
@@ -166,7 +166,12 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
 #[component]
 fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
     let (group, set_group) = create_signal(0usize);
-    let shown = create_memo(move || emojis_in(group.get()));
+    let shown = create_memo(move || {
+        emojis_in(group.get())
+            .into_iter()
+            .filter(|emoji| drawn(emoji))
+            .collect::<Vec<_>>()
+    });
     let groups: Vec<usize> = (0..EMOJI_GROUPS.len()).collect();
     view! {
         <List spacing=0.0>
@@ -203,6 +208,15 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
             </List>
         </List>
     }
+}
+
+fn drawn(text: &str) -> bool {
+    layout_text(
+        text,
+        beui_core::font::FontId::proportional(TextSize::Xl.px()),
+        beui_core::font::TextLayout::DEFAULT,
+    )
+    .is_none_or(|galley| galley.glyphs().iter().all(|glyph| glyph.id.glyph != 0))
 }
 
 #[component]
