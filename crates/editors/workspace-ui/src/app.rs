@@ -78,7 +78,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
         <Frame @node_ref={&surface} fill=ColorRole::Background>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
                         <DockPane id="files">
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>

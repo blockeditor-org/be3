@@ -272,6 +272,7 @@ impl DockState {
         self.groups.clear();
         self.homes.clear();
         self.recent.clear();
+        self.history.clear();
         self.surfaces.retain(|surface| surface.id == main);
         let root = match &spec.main {
             Some(node) => self.build_spec(node, &|_| true),

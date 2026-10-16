@@ -22,7 +22,7 @@ fn a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced() 
                         });
                         let layout = DockingLayout::new();
                         view! {
-                            <styled::Docking layout mode home=1u64 focus=2u64>
+                            <styled::Docking layout mode focus=2u64>
                                 <DockSplit id="split">
                                     <DockPane id="left">
                                         <DockTab id=1u64 title="Tab 1">
