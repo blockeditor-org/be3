@@ -68,6 +68,12 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
         .await
         .unwrap(),
     );
+    let refused = run(&elsewhere, &format!("upload {file}"))
+        .await
+        .unwrap_err();
+    assert!(refused.contains("workspace"), "{refused}");
+    workspace(elsewhere.peer(), "Theirs").await;
+    elsewhere.invalidate().await;
     run(&elsewhere, &format!("upload {file}")).await.unwrap();
     let shown = run(&elsewhere, "Issues rows").await.unwrap();
     assert!(

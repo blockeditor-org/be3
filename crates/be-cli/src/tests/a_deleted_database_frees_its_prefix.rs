@@ -9,7 +9,7 @@ async fn a_deleted_database_frees_its_prefix() {
         .unwrap();
     let said = run(&tracker, "Issues delete").await.unwrap();
     assert!(said.starts_with("deleted Issues"), "{said}");
-    assert_eq!(run(&tracker, "ls").await.unwrap(), "nothing here");
+    assert_eq!(run(&tracker, "Tracker ls").await.unwrap(), "nothing here");
     let short = said
         .split(['(', ')'])
         .nth(1)

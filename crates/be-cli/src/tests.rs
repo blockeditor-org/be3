@@ -66,7 +66,7 @@ impl Harness {
     }
 
     async fn owner(&self) -> Peer<MemoryStore> {
-        Peer::connect(
+        let owner = Peer::connect(
             PeerConfig::new(
                 be_client::socket_url(&self.url),
                 be_keys::RecoveryPhrase::generate().secret(),
@@ -79,7 +79,9 @@ impl Harness {
             MemoryStore::new(),
         )
         .await
-        .unwrap()
+        .unwrap();
+        workspace(&owner, "Tracker").await;
+        owner
     }
 
     async fn stop(mut self) {
@@ -92,6 +94,19 @@ impl Harness {
         }
         let _ = std::fs::remove_dir_all(&self.directory);
     }
+}
+
+async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
+    let id = Uuid::now_v7();
+    peer.create_block(
+        id,
+        be_block::WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        &BlockMetadata::named(name),
+    )
+    .await
+    .unwrap();
+    id
 }
 
 struct Board {
@@ -206,7 +221,7 @@ fn set(field: &str, value: &str) -> Assignment {
     Assignment::parse(&format!("{field}={value}")).unwrap()
 }
 
-async fn run(tracker: &Tracker<MemoryStore>, line: &str) -> Result<String, String> {
+async fn run<S: be_store::ObjectStore>(tracker: &Tracker<S>, line: &str) -> Result<String, String> {
     let invocation: Invocation = cli::parse(
         line.split(' ').map(|word| word.replace('_', " ")).collect(),
         || Ok(String::new()),

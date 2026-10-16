@@ -16,15 +16,18 @@ TARGET is a block, by the start of its id (`be ls` prints it), its full id or
 its name, or a database row, by its id such as BE-7K3Q2M.
 
 Commands:
-  be ls [TARGET]                      List the blocks at the root, or a block's children
+  be ls [TARGET]                      List the workspaces and what is shared with this
+                                      account, or a block's children
+  be workspaces                       List the workspaces, and which this account may write in
   be whoami                           Say which account and organization this is
   be help [TARGET]                    This, or the verbs a target takes
   be new-database NAME [--prefix BE] [--in TARGET]
-                                      Make a database (and a list view of it)
+                                      Make a database (and a list view of it) in TARGET,
+                                      or in the one workspace this account may write in
   be pull-request EVENT-FILE          Move the rows a GitHub pull request names
   be upload FILE [--in TARGET] [--prefix BE]
-                                      Copy the blocks a download wrote into this
-                                      organization, with new ids; --prefix renames a
+                                      Copy the blocks a download wrote into TARGET (or,
+                                      as new-database, a workspace) with new ids; --prefix renames a
                                       database's row ids when another database here has
                                       its prefix
 
@@ -101,8 +104,9 @@ pub enum Outcome {
     },
 }
 
-const COMMANDS: [&str; 6] = [
+const COMMANDS: [&str; 7] = [
     "ls",
+    "workspaces",
     "whoami",
     "help",
     "new-database",
@@ -226,6 +230,42 @@ async fn command<S: ObjectStore>(
             })
         }
         "ls" => listing(tracker, None, json).await,
+        "workspaces" => {
+            let index = tracker.index().await?;
+            let workspaces = index.workspaces();
+            if json {
+                return Ok(Value::Array(
+                    workspaces
+                        .iter()
+                        .map(|entry| {
+                            let mut described = entry_json(entry);
+                            described["writable"] = Value::Bool(entry.access.can_edit());
+                            described
+                        })
+                        .collect(),
+                )
+                .to_string());
+            }
+            if workspaces.is_empty() {
+                return Ok("no workspaces; `be ls` lists what is shared with this account".into());
+            }
+            let width = workspaces
+                .iter()
+                .map(|entry| entry.short.len())
+                .max()
+                .unwrap_or(4);
+            Ok(workspaces
+                .iter()
+                .map(|entry| {
+                    let access = match entry.access.can_edit() {
+                        true => "may write",
+                        false => "may read",
+                    };
+                    format!("{:width$}  {:9}  {}", entry.short, access, entry.label())
+                })
+                .collect::<Vec<_>>()
+                .join("\n"))
+        }
         "new-database" => {
             let name = arguments
                 .first()
@@ -307,7 +347,9 @@ async fn within<S: ObjectStore>(
             Target::Block(entry) => Ok(BlockParent::Block(entry.id)),
             Target::Row { .. } => Err("--in takes a block, not a row".to_owned()),
         },
-        None => Ok(BlockParent::Root),
+        None => Ok(BlockParent::Block(
+            tracker.index().await?.default_parent()?.id,
+        )),
     }
 }
 
@@ -400,6 +442,9 @@ async fn block_verb<S: ObjectStore>(
         ("info", _, _) => {
             let index = tracker.index().await?;
             let parent = match entry.parent {
+                BlockParent::Block(parent) if index.is_hidden(parent) => {
+                    "a block this account cannot see (it was shared from there)".to_owned()
+                }
                 BlockParent::Block(parent) => index.get(parent).map_or_else(
                     || parent.to_string(),
                     |parent| format!("{} ({})", parent.label(), parent.short),

@@ -53,6 +53,12 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         .share(board.database, agent.account, Access::Edit, &public)
         .await
         .unwrap();
+    let agents = workspace(owner.peer(), "Agents").await;
+    owner
+        .peer()
+        .share(agents, agent.account, Access::Edit, &public)
+        .await
+        .unwrap();
 
     let settings = Settings {
         server: harness.url.clone(),
@@ -84,6 +90,22 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let read = owner.show(&made.id).await.unwrap();
     assert_eq!(read.title, "Found by the agent");
     assert_eq!(read.body.as_deref(), Some("Steps to reproduce."));
+
+    let top = run(&agent, "ls").await.unwrap();
+    assert!(
+        top.contains("Agents") && top.contains("Issues") && !top.contains("Tracker"),
+        "the agent sees the workspace and the database shared with it, and nothing else: {top}"
+    );
+    assert!(run(&agent, "workspaces").await.unwrap().ends_with("Agents"));
+    run(&agent, "new-database Notes --prefix NO").await.unwrap();
+    owner.invalidate().await;
+    let index = owner.index().await.unwrap();
+    let notes = index
+        .entries
+        .iter()
+        .find(|entry| entry.label() == "Notes" && entry.kind() == "database view")
+        .expect("the owner sees the database the agent made");
+    assert_eq!(notes.parent, BlockParent::Block(agents));
 
     let wrong = Settings {
         phrase: be_keys::RecoveryPhrase::generate().to_string(),
