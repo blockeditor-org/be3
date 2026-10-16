@@ -44,7 +44,6 @@ pub(crate) struct Row {
     pub(crate) can_edit: bool,
     pub(crate) can_delete: bool,
     pub(crate) can_leave: bool,
-    pub(crate) locked: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) inspection: Option<Inspection>,
 }
@@ -89,7 +88,6 @@ impl Row {
             can_edit: false,
             can_delete: false,
             can_leave: false,
-            locked: false,
             unlink: Err("Loading…"),
             inspection: None,
         }
@@ -686,7 +684,6 @@ pub(crate) fn describe(
         can_edit,
         can_delete,
         can_leave: false,
-        locked: reference.locked,
         unlink,
         inspection: Some(inspection),
     }

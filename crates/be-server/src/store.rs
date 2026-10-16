@@ -11,8 +11,8 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, Organization,
-    OrganizationInvitation, OrganizationKind, OrganizationRole,
+    AccessEntry, Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind,
+    OrganizationRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
@@ -1021,11 +1021,6 @@ impl From<GraphError> for ServerError {
             ),
         }
     }
-}
-
-pub struct BlockState {
-    pub summary: BlockSummary,
-    pub history: Vec<HistoryEntry>,
 }
 
 pub struct Collected {
