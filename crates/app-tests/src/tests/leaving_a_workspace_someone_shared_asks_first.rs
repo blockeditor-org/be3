@@ -1,0 +1,92 @@
+use super::a_contact_link_asks_before_connecting_two_accounts::confirm_phrase;
+use super::*;
+
+#[test]
+fn leaving_a_workspace_someone_shared_asks_first() {
+    let mut app = AppTest::start();
+    app.click("#file-tree.desktop-app-menu");
+    app.click("#app.menu.contacts");
+    app.click("#app.contacts.new-link");
+    app.wait("#app.contacts.link");
+    let link = app
+        .tree()
+        .lines()
+        .find_map(|line| {
+            let (_, value) = line.split_once("value=\"")?;
+            let value = value.split('"').next()?;
+            value.contains("#contact/").then(|| value.to_owned())
+        })
+        .expect("the dialog shows the link it made");
+    app.key("Escape");
+    app.pause(500);
+    app.gone("Dialog \"Contacts\"");
+
+    app.click("#file-tree.desktop-app-menu");
+    app.click("#app.menu.accounts");
+    app.click("Button \"Add account\"");
+    app.click("Tab \"Register\"");
+    for (field, value) in [
+        ("Email address", "ada@example.com"),
+        ("Display name", "Ada"),
+        ("Password", "correct horse battery"),
+    ] {
+        app.click(&format!("TextInput \"{field}\""));
+        app.type_text(value);
+    }
+    app.click("Button \"Register\"");
+    app.wait("Label value=\"Check that you saved them\"");
+    confirm_phrase(&mut app);
+    app.click("Button \"Personal\"");
+    app.click("#file-tree.desktop-app-menu");
+    app.click("#app.menu.contacts");
+    app.click("#app.contacts.paste");
+    app.type_text(&link);
+    app.click("#app.contacts.open");
+    app.click("#app.contacts.accept");
+    app.wait("Label value=\"dev@localhost\"");
+    app.key("Escape");
+    app.pause(500);
+    app.gone("Dialog \"Contacts\"");
+
+    app.click("#file-tree.new-workspace");
+    app.wait("Dialog \"Rename block\"");
+    app.key("ctrl+a");
+    app.type_text("Team");
+    app.click("#rename.submit");
+    app.wait("TreeItem \"Team\"");
+    app.run(&["click", "TreeItem \"Team\"", "right"]);
+    app.click("#file-tree.section.share");
+    app.click("#share.query");
+    app.type_text("dev");
+    app.click("Button \"Dev (dev@localhost)\"");
+    app.click("#share.add");
+    app.click("Button \"Refresh\"");
+    app.wait("Label value=\"dev@localhost\"");
+    app.click("Button \"Done\"");
+
+    app.click("#file-tree.desktop-app-menu");
+    app.click("#app.menu.accounts");
+    app.wait("Label value=\"dev@localhost\"");
+    let tree = app.tree();
+    let open = tree
+        .lines()
+        .skip_while(|line| !line.contains("Label value=\"dev@localhost\""))
+        .find(|line| line.contains("Button \"Open\""))
+        .and_then(|line| line.split(" at ").nth(1))
+        .and_then(|place| place.split(' ').next())
+        .expect("the accounts screen offers to open Dev's account")
+        .to_owned();
+    let (x, y) = open.split_once(',').expect("a place is X,Y");
+    let x: f32 = x.parse().unwrap();
+    let y: f32 = y.parse().unwrap();
+    app.run(&["click", &format!("{},{}", x + 10.0, y + 10.0)]);
+    app.wait("TreeItem \"Team\"");
+    app.run(&["click", "TreeItem \"Team\"", "right"]);
+    app.click("#file-tree.section.leave");
+    app.wait("Dialog \"Leave?\"");
+    app.crop("Dialog \"Leave?\"");
+    app.snapshot("leaving_a_workspace_someone_shared_asks_first");
+    app.click("Button \"Stay\"");
+    app.gone("Dialog \"Leave?\"");
+    app.close();
+}

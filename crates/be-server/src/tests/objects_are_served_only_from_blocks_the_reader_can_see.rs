@@ -20,6 +20,7 @@ async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid
             role: OrganizationRole::Editor,
             sealed: Vec::new(),
             code: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -29,6 +30,7 @@ async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid
             invitation: Uuid::from_u128(1),
             card: Vec::new(),
             contact: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     guest.open(organization).await;

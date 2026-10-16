@@ -6,9 +6,9 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_WORKSPACES;
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DELETE,
-    ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF, ICON_MORE_VERT,
-    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_SEARCH, ICON_SEARCH_OFF,
-    ICON_SHARE,
+    ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF, ICON_LOGOUT,
+    ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_SEARCH,
+    ICON_SEARCH_OFF, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -22,7 +22,7 @@ use super::rows::{
     Inspection, Placement, Row, RowKey, Tree as FileTree, describe, is_workspace, shared_with_me,
     workspaces,
 };
-use super::ui::{ExportAs, OpenWith, Picker, menu_action, new_workspace};
+use super::ui::{ExportAs, OpenWith, Picker, leavable, menu_action, new_workspace};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING: f32 = 8.0;
@@ -508,13 +508,14 @@ fn LevelRows(
             Level::Root | Level::Shared | Level::Deleted => Vec::new(),
         };
         let container = described_level.container().map(|crumb| crumb.id);
+        let entry = matches!(described_level, Level::Root | Level::Shared);
         Some(
             listed
                 .iter()
                 .map(|info| {
                     let mut key = path.clone();
                     key.push(info.id);
-                    describe(
+                    let mut row = describe(
                         &tree.blocks(),
                         types.as_ref(),
                         &block_types,
@@ -526,7 +527,9 @@ fn LevelRows(
                             expanded: false,
                         },
                         |id| id.to_string(),
-                    )
+                    );
+                    row.can_leave = entry && info.author != account;
+                    row
                 })
                 .collect::<Vec<Row>>(),
         )
@@ -791,6 +794,12 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
     });
     let unlinkable = off(|row| row.is_reference && row.unlink.is_ok());
     let undeletable = off(|row| row.can_delete);
+    let can_leave = leavable(editor, row);
+    let leave = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().leave_block(id);
+        }
+    };
     let uninspectable = off(|row| row.inspection.is_some());
     let delete_label = create_memo(
         move || match row.get().is_some_and(|row| row.is_reference) {
@@ -885,6 +894,15 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                     danger=true
                     separated=true
                 />
+                <Show condition={can_leave}>
+                    <MenuItem
+                        row_test_id={"file-tree.actions.leave".to_owned()}
+                        label="Leave"
+                        glyph={ICON_LOGOUT.to_owned()}
+                        danger=true
+                        on_click={leave}
+                    />
+                </Show>
             }}
             on_select={move |path: Vec<usize>| match path.as_slice() {
                 [0] => opening(),

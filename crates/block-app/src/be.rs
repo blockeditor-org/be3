@@ -680,6 +680,10 @@ pub(crate) fn remove_contact(account: Uuid) {
     send(Command::Contact(worker::ContactCommand::Remove(account)));
 }
 
+pub(crate) fn escrow_warning() -> Option<&'static str> {
+    with_shared(|shared| shared.escrow_warning).flatten()
+}
+
 pub(crate) fn status() -> Status {
     with_shared(|shared| Status {
         running: true,

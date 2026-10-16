@@ -51,7 +51,7 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     app.close();
 }
 
-fn confirm_phrase(app: &mut AppTest) {
+pub(super) fn confirm_phrase(app: &mut AppTest) {
     let tree = app.tree();
     let phrase = tree
         .lines()

@@ -123,17 +123,23 @@ fn wraps_of(
     key: Uuid,
 ) -> Result<Vec<WrappedKey>, ServerError> {
     let mut statement = connection.prepare_cached(
-        "SELECT wrapped_by, sealed FROM wrapped_keys WHERE organization_id = ?1 AND key_id = ?2",
+        "SELECT wrapped_by, sender, sealed FROM wrapped_keys
+         WHERE organization_id = ?1 AND key_id = ?2",
     )?;
     let rows = statement.query_map(params![organization.to_string(), key.to_string()], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Vec<u8>>(2)?,
+        ))
     })?;
     let mut wraps = Vec::new();
     for row in rows {
-        let (wrapped_by, sealed) = row?;
+        let (wrapped_by, sender, sealed) = row?;
         wraps.push(WrappedKey {
             key,
             wrapped_by: decode_wrapped_by(&wrapped_by)?,
+            sender: parse_uuid(&sender)?,
             sealed,
         });
     }
@@ -297,12 +303,14 @@ pub(crate) fn store_keys(
     }
     for wrap in &set.wrapped {
         connection.execute(
-            "INSERT OR IGNORE INTO wrapped_keys (organization_id, key_id, wrapped_by, sealed)
-             VALUES (?1, ?2, ?3, ?4)",
+            "INSERT OR IGNORE INTO wrapped_keys
+                (organization_id, key_id, wrapped_by, sender, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
                 organization.to_string(),
                 wrap.key.to_string(),
                 encode_wrapped_by(wrap.wrapped_by),
+                caller.to_string(),
                 wrap.sealed
             ],
         )?;
@@ -333,33 +341,75 @@ pub(crate) fn store_keys(
     Ok(())
 }
 
+pub(crate) fn escrow_chain(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Vec<EscrowKey>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT id, epoch, public, signing, signature FROM keys
+         WHERE organization_id = ?1 AND block_id = ?1 AND kind = 'escrow'
+         ORDER BY epoch",
+    )?;
+    let rows = statement.query_map([organization.to_string()], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, Vec<u8>>(2)?,
+            row.get::<_, Vec<u8>>(3)?,
+            row.get::<_, Vec<u8>>(4)?,
+        ))
+    })?;
+    let mut chain = Vec::new();
+    for row in rows {
+        let (id, epoch, public, signing, signature) = row?;
+        chain.push(EscrowKey {
+            id: parse_uuid(&id)?,
+            epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
+            public: public.try_into().map_err(|_| ServerError::Corrupt)?,
+            signing: signing.try_into().map_err(|_| ServerError::Corrupt)?,
+            signature,
+        });
+    }
+    Ok(chain)
+}
+
 pub(crate) fn current_escrow(
     connection: &Connection,
     organization: Uuid,
 ) -> Result<Option<EscrowKey>, ServerError> {
-    let row = connection
+    Ok(escrow_chain(connection, organization)?.pop())
+}
+
+pub(crate) fn pinned_escrow(
+    connection: &Connection,
+    account: Uuid,
+    organization: Uuid,
+) -> Result<Vec<u8>, ServerError> {
+    Ok(connection
         .query_row(
-            "SELECT id, epoch, public FROM keys
-             WHERE organization_id = ?1 AND block_id = ?1 AND kind = 'escrow'
-             ORDER BY epoch DESC LIMIT 1",
-            [organization.to_string()],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, i64>(1)?,
-                    row.get::<_, Vec<u8>>(2)?,
-                ))
-            },
+            "SELECT sealed FROM pinned_escrows WHERE account_id = ?1 AND organization_id = ?2",
+            params![account.to_string(), organization.to_string()],
+            |row| row.get(0),
         )
-        .optional()?;
-    row.map(|(id, epoch, public)| {
-        Ok(EscrowKey {
-            id: parse_uuid(&id)?,
-            epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
-            public: public.try_into().map_err(|_| ServerError::Corrupt)?,
-        })
-    })
-    .transpose()
+        .optional()?
+        .unwrap_or_default())
+}
+
+pub(crate) fn pin_escrow(
+    connection: &Connection,
+    account: Uuid,
+    organization: Uuid,
+    sealed: &[u8],
+) -> Result<(), ServerError> {
+    if sealed.is_empty() {
+        return Ok(());
+    }
+    connection.execute(
+        "INSERT OR REPLACE INTO pinned_escrows (account_id, organization_id, sealed)
+         VALUES (?1, ?2, ?3)",
+        params![account.to_string(), organization.to_string(), sealed],
+    )?;
+    Ok(())
 }
 
 pub(crate) fn organization_kind(
@@ -577,9 +627,10 @@ impl ServerStore {
         self.with_graph(identity.organization, move |graph, database| {
             let organization = identity.organization;
             let seen = visibility(identity);
-            let escrow = current_escrow(database, organization)?;
+            let escrows = escrow_chain(database, organization)?;
+            let escrow = escrows.last().map(|escrow| escrow.id);
             let mut work = KeyWork {
-                escrow,
+                escrows,
                 ..KeyWork::default()
             };
             let pending = pending_rotations(database, organization)?;
@@ -621,7 +672,7 @@ impl ServerStore {
                 if let Some(escrow) = escrow
                     && !wraps
                         .iter()
-                        .any(|wrap| wrap.wrapped_by == WrappedBy::Key(escrow.id))
+                        .any(|wrap| wrap.wrapped_by == WrappedBy::Key(escrow))
                 {
                     work.unescrowed.push(key);
                 }
@@ -629,14 +680,14 @@ impl ServerStore {
             if seen.administrator()
                 && let Some(escrow) = escrow
             {
-                let wraps = wraps_of(database, organization, escrow.id)?;
+                let wraps = wraps_of(database, organization, escrow)?;
                 for account in administrators(database, organization)? {
                     if !wraps
                         .iter()
                         .any(|wrap| wrap.wrapped_by == WrappedBy::Account(account))
                     {
                         work.unsealed.push(Unsealed {
-                            key: escrow.id,
+                            key: escrow,
                             account,
                         });
                     }
@@ -753,20 +804,26 @@ impl ServerStore {
                     "only an administrator of a company organization makes its escrow key".into(),
                 ));
             }
-            let previous = current_escrow(database, organization)?;
-            if previous.is_some_and(|previous| previous.epoch >= escrow.epoch) {
-                return Err(refused("a newer escrow key already exists"));
+            let next = current_escrow(database, organization)?.map_or(1, |previous| previous.epoch + 1);
+            if escrow.epoch != next {
+                return Err(refused(format!(
+                    "the next escrow key is epoch {next}, not {}",
+                    escrow.epoch
+                )));
             }
             let transaction = database.unchecked_transaction()?;
             transaction.execute(
-                "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created, public)
-                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5)",
+                "INSERT INTO keys
+                    (organization_id, id, block_id, kind, epoch, created, public, signing, signature)
+                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5, ?6, ?7)",
                 params![
                     organization.to_string(),
                     escrow.id.to_string(),
                     i64::try_from(escrow.epoch).map_err(|_| refused("that epoch is too large"))?,
                     now_milliseconds(),
-                    escrow.public.to_vec()
+                    escrow.public.to_vec(),
+                    escrow.signing.to_vec(),
+                    escrow.signature
                 ],
             )?;
             store_keys(
@@ -805,6 +862,11 @@ impl ServerStore {
         .await
     }
 
+    pub async fn pin_escrow(&self, identity: Identity, sealed: Vec<u8>) -> Result<(), ServerError> {
+        let database = self.database().lock().await;
+        pin_escrow(&database, identity.account, identity.organization, &sealed)
+    }
+
     pub async fn recovery_key(
         &self,
         account: Uuid,
@@ -834,7 +896,8 @@ impl ServerStore {
                 .with_graph(identity.organization, move |graph, database| {
                     let seen = visibility(identity);
                     let mut statement = database.prepare(
-                        "SELECT wrapped_keys.key_id, keys.block_id, wrapped_keys.sealed
+                        "SELECT wrapped_keys.key_id, keys.block_id, wrapped_keys.sender,
+                                wrapped_keys.sealed
                          FROM wrapped_keys JOIN keys
                             ON keys.organization_id = wrapped_keys.organization_id
                             AND keys.id = wrapped_keys.key_id
@@ -849,13 +912,14 @@ impl ServerStore {
                             Ok((
                                 row.get::<_, String>(0)?,
                                 row.get::<_, String>(1)?,
-                                row.get::<_, Vec<u8>>(2)?,
+                                row.get::<_, String>(2)?,
+                                row.get::<_, Vec<u8>>(3)?,
                             ))
                         },
                     )?;
                     let mut found = Vec::new();
                     for row in rows {
-                        let (key, block, bytes) = row?;
+                        let (key, block, sender, bytes) = row?;
                         let block = parse_uuid(&block)?;
                         if seen.can_view(graph, block)
                             || (block == identity.organization && seen.administrator())
@@ -863,6 +927,7 @@ impl ServerStore {
                             found.push(SealedKey {
                                 organization: identity.organization,
                                 key: parse_uuid(&key)?,
+                                sender: parse_uuid(&sender)?,
                                 sealed: bytes,
                             });
                         }
@@ -891,7 +956,17 @@ impl ServerStore {
             .iter()
             .map(|key| ((key.organization, key.key), key))
             .collect();
-        if let Some(missing) = held
+        let by = encode_wrapped_by(WrappedBy::Account(account));
+        let database = self.database().lock().await;
+        let mut needed = Vec::new();
+        for held in &held {
+            if held.sender == account
+                || crate::contacts::is_verified_contact(&database, account, held.sender)?
+            {
+                needed.push(held);
+            }
+        }
+        if let Some(missing) = needed
             .iter()
             .find(|held| !resealed.contains_key(&(held.organization, held.key)))
         {
@@ -913,8 +988,6 @@ impl ServerStore {
                 missing.id
             )));
         }
-        let by = encode_wrapped_by(WrappedBy::Account(account));
-        let database = self.database().lock().await;
         let transaction = database.unchecked_transaction()?;
         for held in &held_own {
             crate::contacts::reseal_own(
@@ -929,14 +1002,17 @@ impl ServerStore {
         )?;
         transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
         for held in &held {
-            let key = resealed[&(held.organization, held.key)];
+            let Some(key) = resealed.get(&(held.organization, held.key)) else {
+                continue;
+            };
             transaction.execute(
-                "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sealed)
-                 VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![
                     key.organization.to_string(),
                     key.key.to_string(),
                     by,
+                    account.to_string(),
                     key.sealed
                 ],
             )?;

@@ -18,6 +18,7 @@ mod a_follower_that_falls_behind_after_following_keeps_what_it_had;
 mod a_follower_that_falls_behind_catches_up;
 mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
 mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
+mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
 mod a_large_image_streams_without_downloading_all_of_it;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_to_edited_text_types_where_it_sees_the_caret;
@@ -29,6 +30,7 @@ mod a_second_follower_keeps_following_after_the_owner_leaves;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod an_administrator_reads_a_workspace_nobody_shared_with_them;
 mod an_edit_too_large_to_relay_is_saved_as_a_commit;
+mod an_escrow_key_the_server_puts_in_place_is_refused;
 mod an_idle_session_catches_up_with_a_publish_from_outside_it;
 mod an_image_round_trips_without_being_re_encoded;
 mod an_offline_edit_elsewhere_merges_cleanly;
@@ -118,6 +120,16 @@ impl Harness {
     }
 
     async fn member(&self, admin: &Peer<MemoryStore>, email: &str) -> Peer<MemoryStore> {
+        self.member_pinning(admin, email, admin.keys().escrow().as_ref())
+            .await
+    }
+
+    async fn member_pinning(
+        &self,
+        admin: &Peer<MemoryStore>,
+        email: &str,
+        escrow: Option<&be_protocol::EscrowKey>,
+    ) -> Peer<MemoryStore> {
         let own = self.owner(email).await;
         let card = crate::contacts::card(
             admin.account(),
@@ -132,6 +144,7 @@ impl Harness {
             admin.organization(),
             email.into(),
             be_protocol::OrganizationRole::Editor,
+            escrow,
         )
         .await
         .unwrap();
@@ -159,6 +172,10 @@ impl Harness {
         )
         .await
         .unwrap()
+    }
+
+    fn database(&self) -> rusqlite::Connection {
+        rusqlite::Connection::open(self.directory.join("metadata.sqlite")).unwrap()
     }
 
     async fn stop(mut self) {

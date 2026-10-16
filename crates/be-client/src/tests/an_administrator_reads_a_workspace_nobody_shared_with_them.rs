@@ -7,7 +7,7 @@ use be_protocol::OrganizationRole;
 async fn an_administrator_reads_a_workspace_nobody_shared_with_them() {
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
-    let first = admin.key_work().await.unwrap().escrow;
+    let first = admin.key_work().await.unwrap().escrows.last().cloned();
     assert!(first.is_some(), "a company organization has no escrow key");
     let member = harness.member(&admin, "member@example.com").await;
     let private = workspace(&member, "Private").await;
@@ -40,10 +40,19 @@ async fn an_administrator_reads_a_workspace_nobody_shared_with_them() {
     admin.tend().await.unwrap();
     let work = admin.key_work().await.unwrap();
     assert!(!work.escrow_rotation);
+    let latest = work.escrows.last().cloned().unwrap();
     assert!(
-        work.escrow.unwrap().epoch > first.unwrap().epoch,
+        latest.epoch > first.clone().unwrap().epoch,
         "demoting an administrator kept the escrow key"
     );
+    let rejoined = harness.second(&member).await;
+    assert_eq!(rejoined.keys().pinned(), Some(latest.clone()));
+    assert_eq!(
+        rejoined.keys().escrow(),
+        Some(latest),
+        "a member did not follow the escrow key from the one it pinned to the next"
+    );
+    assert_eq!(rejoined.keys().escrow_warning(), None);
     let demoted = harness.second(&deputy).await;
     assert!(demoted.summary(note).await.is_err());
     assert_eq!(text(&harness.second(&admin).await, note).await, "only mine");

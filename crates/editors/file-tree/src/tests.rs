@@ -17,6 +17,7 @@ mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
+mod leave_is_offered_on_a_phone_but_never_to_an_administrator;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
 mod the_desktop_files_toolbar_opens_the_app_menu;
@@ -35,6 +36,17 @@ impl Fixture {
     }
 
     fn choose(&mut self, block: Uuid, label: &str) {
+        self.open_menu(block);
+        let document = self.test.document();
+        let item = document
+            .root()
+            .and_then(|root| open_item(document, root, label, false))
+            .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
+        self.test.click_at(item);
+        self.settle();
+    }
+
+    fn open_menu(&mut self, block: Uuid) {
         let pos = self
             .test
             .rect_of(&format!("file-tree.{block}.row"))
@@ -53,13 +65,6 @@ impl Fixture {
             modifiers: Modifiers::NONE,
         }]);
         self.settle();
-        let document = self.test.document();
-        let item = document
-            .root()
-            .and_then(|root| open_item(document, root, label, false))
-            .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
-        self.test.click_at(item);
-        self.settle();
     }
 
     fn click_item(&mut self, label: &str) {
@@ -70,6 +75,14 @@ impl Fixture {
             .unwrap_or_else(|| panic!("an open menu offers {label}"));
         self.test.click_at(item);
         self.settle();
+    }
+
+    fn offers(&self, label: &str) -> bool {
+        let document = self.test.document();
+        document
+            .root()
+            .and_then(|root| open_item(document, root, label, false))
+            .is_some()
     }
 
     fn says(&self, words: &str) -> bool {

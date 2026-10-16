@@ -34,6 +34,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
             role: OrganizationRole::Editor,
             sealed: Vec::new(),
             code: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -43,6 +44,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
             invitation: Uuid::from_u128(1),
             card: Vec::new(),
             contact: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     guest.open(organization).await;

@@ -166,6 +166,7 @@ pub(crate) struct Shared {
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
     pub(crate) contacts: Vec<be_client::Contact>,
+    pub(crate) escrow_warning: Option<&'static str>,
     pub(crate) locked: std::collections::HashSet<Uuid>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
@@ -1100,7 +1101,13 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         Err(error) => record(shared, error),
     }
     match peer.refresh_contacts().await {
-        Ok(contacts) => shared.lock().unwrap().contacts = contacts,
+        Ok(contacts) => {
+            let changed = shared.lock().unwrap().contacts != contacts;
+            shared.lock().unwrap().contacts = contacts;
+            if changed {
+                load_graph(peer, shared).await;
+            }
+        }
         Err(error) => record(shared, error),
     }
     tend(peer, shared).await;
@@ -1111,6 +1118,11 @@ async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     if let Err(error) = peer.tend().await {
         record(shared, error);
     }
+    shared.lock().unwrap().escrow_warning = peer
+        .keys()
+        .escrow_warning()
+        .map(be_client::EscrowWarning::message);
+    crate::host::wake();
 }
 
 async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: MembersCommand) {

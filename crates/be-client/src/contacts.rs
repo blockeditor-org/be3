@@ -1,8 +1,8 @@
 use be_graph::Access;
-use be_keys::{CardRole, ContactCard, InviteCode, RecoveryPublic, RecoverySecret};
+use be_keys::{CardRole, ContactCard, InviteCode, Party, RecoveryPublic, RecoverySecret};
 use be_protocol::{
-    ClientMessage, ContactLink, ErrorCode, OrganizationInvitation, OrganizationRole, PendingGrant,
-    ServerMessage,
+    ClientMessage, ContactLink, ErrorCode, EscrowKey, OrganizationInvitation, OrganizationRole,
+    PendingGrant, ServerMessage,
 };
 use uuid::Uuid;
 
@@ -43,6 +43,42 @@ pub fn card(
         display_name: display_name.to_owned(),
         email: email.to_owned(),
     }
+}
+
+pub fn seal_pin(identity: &RecoverySecret, organization: Uuid, escrow: &EscrowKey) -> Vec<u8> {
+    identity.seal_pin(organization.into_bytes(), &escrow.encode())
+}
+
+pub fn open_pin(identity: &RecoverySecret, organization: Uuid, sealed: &[u8]) -> Option<EscrowKey> {
+    if sealed.is_empty() {
+        return None;
+    }
+    EscrowKey::decode(&identity.open_pin(organization.into_bytes(), sealed).ok()?)
+}
+
+pub async fn verified_escrow(
+    connection: &Connection,
+    identity: &RecoverySecret,
+    organization: Uuid,
+) -> Result<Option<EscrowKey>, ClientError> {
+    let ServerMessage::OrganizationOpened {
+        escrows, pinned, ..
+    } = connection
+        .request(|request| ClientMessage::OpenOrganization {
+            request,
+            organization,
+        })
+        .await?
+    else {
+        return Err(ClientError::Unexpected);
+    };
+    let pinned = open_pin(identity, organization, &pinned);
+    Ok(crate::keys::verify_escrow(
+        organization,
+        pinned.as_ref(),
+        &escrows,
+        |_| false,
+    ))
 }
 
 fn link_id(code: &InviteCode) -> Uuid {
@@ -92,7 +128,7 @@ pub async fn make_link(
         block: offer.block,
         access: offer.access,
         key: offer.key,
-        sealed: code.seal_grant(&offer.secret),
+        sealed: code.seal_grant(offer.key.into_bytes(), &offer.secret),
     });
     connection
         .request(|request| ClientMessage::CreateContactLink {
@@ -134,9 +170,16 @@ pub async fn accept_link(
 ) -> Result<ContactCard, ClientError> {
     let (link, card) = open_link(connection, code).await?;
     let key = match &link.grant {
-        Some(grant) => identity
-            .public()
-            .seal(&code.open_grant(&grant.sealed).map_err(|_| tampered())?),
+        Some(grant) => {
+            let secret = code
+                .open_grant(grant.key.into_bytes(), &grant.sealed)
+                .map_err(|_| tampered())?;
+            let mine = Party {
+                account: me.account,
+                public: identity.public(),
+            };
+            identity.seal_for(me.account, &mine, grant.key.as_bytes(), &secret)
+        }
         None => Vec::new(),
     };
     connection
@@ -225,8 +268,12 @@ pub async fn invite(
     organization: Uuid,
     email: String,
     role: OrganizationRole,
+    escrow: Option<&EscrowKey>,
 ) -> Result<InviteCode, ClientError> {
     let code = InviteCode::generate();
+    let escrow = escrow.map_or_else(Vec::new, |escrow| {
+        code.seal_escrow(organization.into_bytes(), &escrow.encode())
+    });
     connection
         .request(|request| ClientMessage::Invite {
             request,
@@ -236,6 +283,7 @@ pub async fn invite(
             role,
             sealed: me.seal(&code, CardRole::Owner),
             code: identity.seal_own(&code.to_bytes()),
+            escrow,
         })
         .await?;
     Ok(code)
@@ -269,12 +317,24 @@ pub async fn accept_invitation(
     code: &InviteCode,
 ) -> Result<OrganizationInvitation, ClientError> {
     let (invitation, card) = invitation(connection, code).await?;
+    let escrow = match invitation.escrow.is_empty() {
+        true => Vec::new(),
+        false => {
+            let opened = code
+                .open_escrow(invitation.organization.into_bytes(), &invitation.escrow)
+                .ok()
+                .and_then(|bytes| EscrowKey::decode(&bytes))
+                .ok_or_else(tampered)?;
+            seal_pin(identity, invitation.organization, &opened)
+        }
+    };
     connection
         .request(|request| ClientMessage::AcceptInvitation {
             request,
             invitation: invitation.id,
             card: me.seal(code, CardRole::Accepter),
             contact: card.seal_own(identity),
+            escrow,
         })
         .await?;
     Ok(invitation)

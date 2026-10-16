@@ -50,6 +50,24 @@ pub(crate) fn is_contact(
         .is_some())
 }
 
+pub(crate) fn is_verified_contact(
+    connection: &Connection,
+    account: Uuid,
+    contact: Uuid,
+) -> Result<bool, ServerError> {
+    Ok(connection
+        .prepare_cached(
+            "SELECT 1 FROM contacts
+             WHERE account_id = ?1 AND contact_id = ?2 AND length(sealed) > 0",
+        )?
+        .query_row(
+            params![account.to_string(), contact.to_string()],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some())
+}
+
 pub(crate) fn contacts_of(
     connection: &Connection,
     account: Uuid,
@@ -101,6 +119,10 @@ pub(crate) fn own_sealed(
             OwnKind::Link,
             "SELECT id, code FROM invitations WHERE invited_by = ?1 AND length(code) > 0",
         ),
+        (
+            OwnKind::Escrow,
+            "SELECT organization_id, sealed FROM pinned_escrows WHERE account_id = ?1",
+        ),
     ] {
         let mut statement = connection.prepare(query)?;
         let rows = statement.query_map([account.to_string()], |row| {
@@ -138,6 +160,12 @@ pub(crate) fn reseal_own(
             )?;
             connection.execute(
                 "UPDATE invitations SET code = ?3 WHERE invited_by = ?1 AND id = ?2",
+                params![account, id, resealed.sealed],
+            )?;
+        }
+        OwnKind::Escrow => {
+            connection.execute(
+                "UPDATE pinned_escrows SET sealed = ?3 WHERE account_id = ?1 AND organization_id = ?2",
                 params![account, id, resealed.sealed],
             )?;
         }
@@ -394,12 +422,13 @@ impl ServerStore {
                     if !key.is_empty() {
                         transaction.execute(
                             "INSERT OR REPLACE INTO wrapped_keys
-                                (organization_id, key_id, wrapped_by, sealed)
-                             VALUES (?1, ?2, ?3, ?4)",
+                                (organization_id, key_id, wrapped_by, sender, sealed)
+                             VALUES (?1, ?2, ?3, ?4, ?5)",
                             params![
                                 grant.organization.to_string(),
                                 grant.key.to_string(),
                                 encode_wrapped_by(WrappedBy::Account(caller)),
+                                caller.to_string(),
                                 key
                             ],
                         )?;

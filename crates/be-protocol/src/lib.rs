@@ -48,6 +48,8 @@ pub struct OrganizationInvitation {
     pub invited_by: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub escrow: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -93,6 +95,7 @@ pub struct ContactRow {
 pub enum OwnKind {
     Contact,
     Link,
+    Escrow,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -144,15 +147,42 @@ pub enum WrappedBy {
 pub struct WrappedKey {
     pub key: Uuid,
     pub wrapped_by: WrappedBy,
+    pub sender: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EscrowKey {
     pub id: Uuid,
     pub epoch: u64,
     pub public: [u8; 32],
+    pub signing: [u8; 32],
+    #[serde(with = "serde_bytes")]
+    pub signature: Vec<u8>,
+}
+
+impl EscrowKey {
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("an escrow key always encodes")
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        postcard::from_bytes(bytes).ok()
+    }
+
+    pub fn chained(&self, organization: Uuid, previous: Uuid) -> Vec<u8> {
+        [
+            b"be3.escrow.chain.v1".as_slice(),
+            organization.as_bytes(),
+            previous.as_bytes(),
+            self.id.as_bytes(),
+            &self.epoch.to_be_bytes(),
+            &self.public,
+            &self.signing,
+        ]
+        .concat()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -167,7 +197,7 @@ pub struct KeyWork {
     pub escrow_rotation: bool,
     pub unsealed: Vec<Unsealed>,
     pub unescrowed: Vec<Uuid>,
-    pub escrow: Option<EscrowKey>,
+    pub escrows: Vec<EscrowKey>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -297,6 +327,8 @@ pub enum ClientMessage {
         sealed: Vec<u8>,
         #[serde(with = "serde_bytes")]
         code: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        escrow: Vec<u8>,
     },
     GetInvitation {
         request: u64,
@@ -309,6 +341,8 @@ pub enum ClientMessage {
         card: Vec<u8>,
         #[serde(with = "serde_bytes")]
         contact: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        escrow: Vec<u8>,
     },
     CreateContactLink {
         request: u64,
@@ -518,6 +552,10 @@ pub enum ClientMessage {
         organization: Uuid,
         name: String,
         recovery: [u8; 32],
+        #[serde(with = "serde_bytes")]
+        contact: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        escrow: Vec<u8>,
     },
     ListAgents {
         request: u64,
@@ -540,6 +578,11 @@ pub enum ClientMessage {
         request: u64,
         escrow: EscrowKey,
         keys: KeySet,
+    },
+    PinEscrow {
+        request: u64,
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
     },
     ListMembers {
         request: u64,
@@ -566,6 +609,7 @@ pub struct Agent {
 pub struct SealedKey {
     pub organization: Uuid,
     pub key: Uuid,
+    pub sender: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
 }
@@ -628,6 +672,7 @@ impl ClientMessage {
             | Self::GetKeyWork { request }
             | Self::Rotate { request, .. }
             | Self::CreateEscrow { request, .. }
+            | Self::PinEscrow { request, .. }
             | Self::ListMembers { request }
             | Self::SetRole { request, .. }
             | Self::RemoveMember { request, .. } => *request,
@@ -673,7 +718,9 @@ pub enum ServerMessage {
         organization: Uuid,
         role: OrganizationRole,
         kind: OrganizationKind,
-        escrow: Option<EscrowKey>,
+        escrows: Vec<EscrowKey>,
+        #[serde(with = "serde_bytes")]
+        pinned: Vec<u8>,
     },
     Stored {
         request: u64,

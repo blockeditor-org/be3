@@ -172,6 +172,7 @@ pub(crate) struct StatusView {
     pub(crate) can_close: bool,
     pub(crate) company: bool,
     pub(crate) administrator: bool,
+    pub(crate) escrow_warning: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -297,6 +298,7 @@ pub(crate) struct AppView {
     pub(crate) about: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
+    pub(crate) leaving: bool,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,
@@ -353,6 +355,8 @@ pub(crate) enum UiCommand {
     OpenContactLink(String),
     AcceptContact,
     DeclineContact,
+    ConfirmLeave,
+    CancelLeave,
     RemoveContact(Uuid),
     ConfirmRemoveContact,
     CancelRemoveContact,

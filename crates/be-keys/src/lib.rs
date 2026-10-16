@@ -22,6 +22,9 @@ const OWN_INFO: &[u8] = b"be3.own.v1";
 const CARD_OWNER: &[u8] = b"be3.contact.owner.v1";
 const CARD_ACCEPTER: &[u8] = b"be3.contact.accepter.v1";
 const GRANT_INFO: &[u8] = b"be3.contact.grant.v1";
+const FROM_INFO: &[u8] = b"be3.from.v1";
+const ESCROW_SIGNING_INFO: &[u8] = b"be3.escrow.signing.v1";
+const ESCROW_PIN_INFO: &[u8] = b"be3.escrow.pin.v1";
 const INVITE_ENTROPY: usize = 25;
 const INVITE_LEN: usize = INVITE_ENTROPY * 8 / 5;
 const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -34,6 +37,7 @@ pub enum KeyError {
     Pairing,
     Invite,
     Card,
+    Sender,
 }
 
 impl fmt::Display for KeyError {
@@ -44,6 +48,7 @@ impl fmt::Display for KeyError {
             Self::Pairing => formatter.write_str("the code did not match"),
             Self::Invite => formatter.write_str("that is not an invite code"),
             Self::Card => formatter.write_str("the contact card did not open with this link"),
+            Self::Sender => formatter.write_str("the key was not sealed by the account it names"),
         }
     }
 }
@@ -185,7 +190,7 @@ impl RecoverySecret {
         expand(&self.0.to_bytes(), OWN_INFO, OWN_INFO)
     }
 
-    pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+    pub fn open_anonymous(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
         let (ephemeral, rest) = sealed.split_at_checked(32).ok_or(KeyError::Corrupt)?;
         let ephemeral: [u8; 32] = ephemeral.try_into().map_err(|_| KeyError::Corrupt)?;
         let shared = self.0.diffie_hellman(&PublicKey::from(ephemeral));
@@ -196,13 +201,87 @@ impl RecoverySecret {
         );
         open_with(&key, rest, KeyError::Corrupt)
     }
+
+    pub fn seal_for(&self, from: [u8; 16], to: &Party, context: &[u8], plain: &[u8]) -> Vec<u8> {
+        let ephemeral = StaticSecret::from(random::<32>());
+        let ephemeral_public = PublicKey::from(&ephemeral).to_bytes();
+        let recipient = PublicKey::from(to.public.0);
+        let key = from_key(
+            &ephemeral.diffie_hellman(&recipient).to_bytes(),
+            &self.0.diffie_hellman(&recipient).to_bytes(),
+            ephemeral_public,
+            &Party {
+                account: from,
+                public: self.public(),
+            },
+            to,
+            context,
+        );
+        let mut sealed = ephemeral_public.to_vec();
+        sealed.extend(seal_with(&key, plain));
+        sealed
+    }
+
+    pub fn open_from(
+        &self,
+        from: &Party,
+        to: [u8; 16],
+        context: &[u8],
+        sealed: &[u8],
+    ) -> Result<Vec<u8>, KeyError> {
+        let (ephemeral, rest) = sealed.split_at_checked(32).ok_or(KeyError::Sender)?;
+        let ephemeral: [u8; 32] = ephemeral.try_into().map_err(|_| KeyError::Sender)?;
+        let me = Party {
+            account: to,
+            public: self.public(),
+        };
+        let key = from_key(
+            &self
+                .0
+                .diffie_hellman(&PublicKey::from(ephemeral))
+                .to_bytes(),
+            &self
+                .0
+                .diffie_hellman(&PublicKey::from(from.public.0))
+                .to_bytes(),
+            ephemeral,
+            from,
+            &me,
+            context,
+        );
+        open_with(&key, rest, KeyError::Sender)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Party {
+    pub account: [u8; 16],
+    pub public: RecoveryPublic,
+}
+
+fn from_key(
+    ephemeral_shared: &[u8; 32],
+    static_shared: &[u8; 32],
+    ephemeral: [u8; 32],
+    from: &Party,
+    to: &Party,
+    context: &[u8],
+) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    Hkdf::<Sha256>::new(
+        Some(&[ephemeral, from.public.0, to.public.0].concat()),
+        &[ephemeral_shared.as_slice(), static_shared.as_slice()].concat(),
+    )
+    .expand_multi_info(&[FROM_INFO, &from.account, &to.account, context], &mut out)
+    .expect("32 bytes is a valid hkdf length");
+    out
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct RecoveryPublic(pub [u8; 32]);
 
 impl RecoveryPublic {
-    pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
+    pub fn seal_anonymous(&self, plain: &[u8]) -> Vec<u8> {
         let ephemeral = StaticSecret::from(random::<32>());
         let ephemeral_public = PublicKey::from(&ephemeral).to_bytes();
         let shared = ephemeral.diffie_hellman(&PublicKey::from(self.0));
@@ -289,12 +368,12 @@ impl InviteCode {
         open_with(&self.key(context), sealed, KeyError::Invite)
     }
 
-    pub fn seal_grant(&self, key: &[u8]) -> Vec<u8> {
-        self.seal(GRANT_INFO, key)
+    pub fn seal_grant(&self, id: [u8; 16], key: &[u8]) -> Vec<u8> {
+        self.seal(&[GRANT_INFO, &id].concat(), key)
     }
 
-    pub fn open_grant(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
-        self.open(GRANT_INFO, sealed)
+    pub fn open_grant(&self, id: [u8; 16], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+        self.open(&[GRANT_INFO, &id].concat(), sealed)
     }
 
     fn key(&self, context: &[u8]) -> [u8; 32] {
@@ -374,6 +453,88 @@ impl fmt::Display for InviteCode {
 impl fmt::Debug for InviteCode {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("InviteCode(..)")
+    }
+}
+
+#[derive(Clone)]
+pub struct EscrowSecret([u8; 32]);
+
+impl EscrowSecret {
+    pub fn generate() -> Self {
+        Self(random())
+    }
+
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn public(&self) -> RecoveryPublic {
+        RecoveryPublic(PublicKey::from(&StaticSecret::from(self.0)).to_bytes())
+    }
+
+    fn signing_key(&self) -> ed25519_dalek::SigningKey {
+        ed25519_dalek::SigningKey::from_bytes(&expand(
+            &self.0,
+            ESCROW_SIGNING_INFO,
+            ESCROW_SIGNING_INFO,
+        ))
+    }
+
+    pub fn signing(&self) -> [u8; 32] {
+        self.signing_key().verifying_key().to_bytes()
+    }
+
+    pub fn sign(&self, message: &[u8]) -> Vec<u8> {
+        use ed25519_dalek::Signer;
+        self.signing_key().sign(message).to_bytes().to_vec()
+    }
+
+    pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+        RecoverySecret::from_bytes(self.0).open_anonymous(sealed)
+    }
+}
+
+impl fmt::Debug for EscrowSecret {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("EscrowSecret(..)")
+    }
+}
+
+pub fn verify_signature(signing: &[u8; 32], message: &[u8], signature: &[u8]) -> bool {
+    let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(signing) else {
+        return false;
+    };
+    let Ok(signature) = ed25519_dalek::Signature::from_slice(signature) else {
+        return false;
+    };
+    key.verify_strict(message, &signature).is_ok()
+}
+
+impl InviteCode {
+    pub fn seal_escrow(&self, organization: [u8; 16], escrow: &[u8]) -> Vec<u8> {
+        self.seal(&[ESCROW_PIN_INFO, &organization].concat(), escrow)
+    }
+
+    pub fn open_escrow(&self, organization: [u8; 16], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+        self.open(&[ESCROW_PIN_INFO, &organization].concat(), sealed)
+    }
+}
+
+impl RecoverySecret {
+    pub fn seal_pin(&self, organization: [u8; 16], escrow: &[u8]) -> Vec<u8> {
+        self.seal_own(&[organization.as_slice(), escrow].concat())
+    }
+
+    pub fn open_pin(&self, organization: [u8; 16], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+        let plain = self.open_own(sealed)?;
+        match plain.split_at_checked(16) {
+            Some((named, escrow)) if named == organization => Ok(escrow.to_vec()),
+            _ => Err(KeyError::Corrupt),
+        }
     }
 }
 

@@ -13,6 +13,8 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
             organization,
             name: "Claude".into(),
             recovery: [7; 32],
+            contact: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     let ServerMessage::AgentCreated { agent, token, .. } = response else {

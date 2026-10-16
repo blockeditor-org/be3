@@ -298,6 +298,7 @@ impl ServerStore {
         role: OrganizationRole,
         sealed: Vec<u8>,
         code: Vec<u8>,
+        escrow: Vec<u8>,
     ) -> Result<(), ServerError> {
         if self.membership(account, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
@@ -313,8 +314,8 @@ impl ServerStore {
         )?;
         let inserted = database.execute(
             "INSERT OR IGNORE INTO invitations
-                (id, organization_id, email, role, invited_by, sealed, code)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                (id, organization_id, email, role, invited_by, sealed, code, escrow)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 invitation.to_string(),
                 organization.to_string(),
@@ -322,7 +323,8 @@ impl ServerStore {
                 encode_role(role),
                 account.to_string(),
                 sealed,
-                code
+                code,
+                escrow
             ],
         )?;
         if inserted == 0 {
@@ -344,7 +346,7 @@ impl ServerStore {
         let found = database
             .query_row(
                 "SELECT invitations.organization_id, organizations.name, invitations.role,
-                        invitations.invited_by, invitations.sealed
+                        invitations.invited_by, invitations.sealed, invitations.escrow
                  FROM invitations JOIN organizations ON organizations.id = invitations.organization_id
                  WHERE invitations.id = ?1 AND invitations.email = ?2",
                 params![invitation.to_string(), email],
@@ -355,11 +357,13 @@ impl ServerStore {
                         row.get::<_, String>(2)?,
                         row.get::<_, String>(3)?,
                         row.get::<_, Vec<u8>>(4)?,
+                        row.get::<_, Vec<u8>>(5)?,
                     ))
                 },
             )
             .optional()?;
-        let Some((organization, organization_name, role, invited_by, sealed)) = found else {
+        let Some((organization, organization_name, role, invited_by, sealed, escrow)) = found
+        else {
             return Err(ServerError::Refused(
                 ErrorCode::InvitationNotFound,
                 "that invitation does not exist, or was sent to another email address".into(),
@@ -380,6 +384,7 @@ impl ServerStore {
             role: decode_role(&role)?,
             invited_by: parse_uuid(&invited_by)?,
             sealed,
+            escrow,
         })
     }
 
@@ -389,6 +394,7 @@ impl ServerStore {
         invitation: Uuid,
         card: Vec<u8>,
         contact: Vec<u8>,
+        escrow: Vec<u8>,
     ) -> Result<Uuid, ServerError> {
         let found = self.invitation(account, invitation).await?;
         let database = self.database.lock().await;
@@ -411,6 +417,7 @@ impl ServerStore {
             ],
         )?;
         crate::contacts::befriend(&transaction, found.invited_by, &[], account, &contact)?;
+        crate::keys::pin_escrow(&transaction, account, found.organization, &escrow)?;
         transaction.execute(
             "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
              VALUES (?1, ?2, ?3)",
@@ -519,6 +526,8 @@ impl ServerStore {
         organization: Uuid,
         name: &str,
         recovery: [u8; 32],
+        contact: Vec<u8>,
+        escrow: Vec<u8>,
     ) -> Result<(Agent, String), ServerError> {
         if self.membership(caller, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
@@ -561,7 +570,8 @@ impl ServerStore {
             "INSERT INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
             params![account.to_string(), recovery.to_vec()],
         )?;
-        crate::contacts::befriend(&transaction, caller, &[], account, &[])?;
+        crate::contacts::befriend(&transaction, caller, &[], account, &contact)?;
+        crate::keys::pin_escrow(&transaction, account, organization, &escrow)?;
         let token = issue_token(&transaction, account)?;
         transaction.commit()?;
         Ok((
@@ -748,12 +758,14 @@ impl ServerStore {
 
     pub async fn opened(
         &self,
+        account: Uuid,
         organization: Uuid,
-    ) -> Result<(OrganizationKind, Option<be_protocol::EscrowKey>), ServerError> {
+    ) -> Result<(OrganizationKind, Vec<be_protocol::EscrowKey>, Vec<u8>), ServerError> {
         let database = self.database.lock().await;
         Ok((
             crate::keys::organization_kind(&database, organization)?,
-            crate::keys::current_escrow(&database, organization)?,
+            crate::keys::escrow_chain(&database, organization)?,
+            crate::keys::pinned_escrow(&database, account, organization)?,
         ))
     }
 

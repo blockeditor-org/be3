@@ -12,6 +12,13 @@ pub trait HostAction: Clone + Serialize + DeserializeOwned + 'static {
     const KEY: &'static str;
 }
 
+pub enum Administrator {}
+
+impl HostValue for Administrator {
+    const KEY: &'static str = "administrator";
+    type Value = bool;
+}
+
 pub enum LinkBase {}
 
 impl HostValue for LinkBase {

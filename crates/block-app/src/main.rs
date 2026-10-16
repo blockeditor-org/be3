@@ -469,6 +469,7 @@ struct BlockApp {
     programs: programs::Programs,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
+    leaving: Option<Uuid>,
     allow_close: bool,
     #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
@@ -710,6 +711,7 @@ impl BlockApp {
             programs: programs::Programs::default(),
             app_menu_open: false,
             pending_destructive_action: None,
+            leaving: None,
             allow_close: false,
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: PathBuf::new(),
@@ -2189,7 +2191,7 @@ impl BlockApp {
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            BlockCommand::Leave => be::leave(id),
+            BlockCommand::Leave => self.leaving = Some(id),
             BlockCommand::Rename => self.show_dialog(from, id, ShellDialog::Rename),
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
@@ -2425,6 +2427,12 @@ impl BlockApp {
             accounts::link_base(&self.server_url)
         };
         plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
+        plugin_host::publish::<block_plugin_api::Administrator>(
+            &self.organization.as_ref().is_some_and(|organization| {
+                organization.kind == be_protocol::OrganizationKind::Company
+                    && organization.role == OrganizationRole::Administrator
+            }),
+        );
         be::start(be::Config {
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),
@@ -2706,6 +2714,12 @@ impl BlockApp {
             }
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
+            UiCommand::ConfirmLeave => {
+                if let Some(block) = self.leaving.take() {
+                    be::leave(block);
+                }
+            }
+            UiCommand::CancelLeave => self.leaving = None,
             UiCommand::Debug(command) => debug::command(command),
             UiCommand::ShowPanel(panel) => self.show_panel(panel),
             UiCommand::ConfirmRecovery(words) => {
@@ -2870,6 +2884,7 @@ impl BlockApp {
                     organization.kind == be_protocol::OrganizationKind::Company
                         && organization.role == OrganizationRole::Administrator
                 }),
+                escrow_warning: be::escrow_warning().map(str::to_owned),
             },
             agents: self.agents_open.then(|| ui::AgentsView {
                 organization: organization_name.clone(),
@@ -2903,6 +2918,7 @@ impl BlockApp {
             about: self.about_open,
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
+            leaving: self.leaving.is_some(),
             presenting: self
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),

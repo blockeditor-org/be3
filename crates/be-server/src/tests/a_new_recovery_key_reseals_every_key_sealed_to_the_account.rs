@@ -36,6 +36,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
         vec![SealedKey {
             organization,
             key: workspace.scope,
+            sender: account,
             sealed: b"scope sealed to its author".to_vec(),
         }]
     );
@@ -81,6 +82,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
             sealed: vec![SealedKey {
                 organization,
                 key: workspace.scope,
+                sender: account,
                 sealed: b"resealed to the new phrase".to_vec(),
             }],
             own: Vec::new(),
@@ -94,6 +96,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
             vec![SealedKey {
                 organization,
                 key: workspace.scope,
+                sender: account,
                 sealed: b"resealed to the new phrase".to_vec(),
             }]
         )

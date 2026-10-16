@@ -24,11 +24,10 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn tend(&self) -> Result<(), ClientError> {
         let mut work = self.key_work().await?;
-        self.keys.set_escrow(work.escrow);
+        self.keys.set_escrows(work.escrows.clone());
         let mut failed = None;
-        if work.escrow_rotation
-            && let Err(error) = self.make_escrow().await
-        {
+        let escrow_rotation = work.escrow_rotation && self.keys.can_make_escrow();
+        if escrow_rotation && let Err(error) = self.make_escrow().await {
             failed.get_or_insert(error);
         }
         for root in &work.rotations {
@@ -36,13 +35,13 @@ impl<S: ObjectStore> Peer<S> {
                 failed.get_or_insert(error);
             }
         }
-        if work.escrow_rotation || !work.rotations.is_empty() {
+        if escrow_rotation || !work.rotations.is_empty() {
             work = self.key_work().await?;
-            self.keys.set_escrow(work.escrow);
+            self.keys.set_escrows(work.escrows.clone());
         }
         let mut keys = KeySet::default();
         for unsealed in &work.unsealed {
-            if !self.keys.has(unsealed.key) {
+            if !self.keys.trusted(unsealed.key) {
                 continue;
             }
             let Some(public) = self.keys.contact(unsealed.account) else {
@@ -52,7 +51,7 @@ impl<S: ObjectStore> Peer<S> {
                 .push(self.keys.seal_to(unsealed.key, unsealed.account, &public)?);
         }
         for key in &work.unescrowed {
-            if self.keys.has(*key)
+            if self.keys.trusted(*key)
                 && let Some(wrap) = self.keys.escrow_wrap(*key)?
             {
                 keys.wrapped.push(wrap);
@@ -61,7 +60,22 @@ impl<S: ObjectStore> Peer<S> {
         if let Err(error) = self.put_keys(keys).await {
             failed.get_or_insert(error);
         }
+        if let Err(error) = self.save_pin().await {
+            failed.get_or_insert(error);
+        }
         failed.map_or(Ok(()), Err)
+    }
+
+    pub(super) async fn save_pin(&self) -> Result<(), ClientError> {
+        let Some(escrow) = self.keys.unpinned() else {
+            return Ok(());
+        };
+        let sealed = crate::contacts::seal_pin(self.keys.identity(), self.organization, &escrow);
+        self.connection
+            .request(|request| ClientMessage::PinEscrow { request, sealed })
+            .await?;
+        self.keys.set_pinned(Some(escrow));
+        Ok(())
     }
 
     pub async fn rotate(&self, root: Uuid) -> Result<(), ClientError> {
@@ -113,7 +127,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             let under = current(&fresh, node.scope)?;
             for row in self.keys.keys_of(node.id, KeyKind::Data) {
-                if self.keys.has(row.id) {
+                if self.keys.trusted(row.id) {
                     keys.wrapped.push(self.keys.wrap(row.id, under)?);
                 }
             }
@@ -150,7 +164,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub(super) async fn make_escrow(&self) -> Result<(), ClientError> {
         self.refresh_keys(None).await?;
-        let (escrow, mut keys) = self.keys.mint_escrow(self.organization)?;
+        let (escrow, mut keys) = self.keys.mint_escrow()?;
         for member in self.members().await? {
             if member.role == OrganizationRole::Administrator
                 && member.account != self.account
@@ -160,9 +174,8 @@ impl<S: ObjectStore> Peer<S> {
                     .push(self.keys.seal_to(escrow.id, member.account, &public)?);
             }
         }
-        self.keys.set_escrow(Some(escrow));
         for row in self.keys.keys_of_kind(KeyKind::Scope) {
-            if self.keys.has(row.id)
+            if self.keys.trusted(row.id)
                 && let Some(wrap) = self.keys.escrow_wrap(row.id)?
             {
                 keys.wrapped.push(wrap);
@@ -171,12 +184,12 @@ impl<S: ObjectStore> Peer<S> {
         self.connection
             .request(|request| ClientMessage::CreateEscrow {
                 request,
-                escrow,
+                escrow: escrow.clone(),
                 keys: keys.clone(),
             })
             .await?;
         self.recorded(&keys);
-        Ok(())
+        self.save_pin().await
     }
 
     pub async fn refresh_contacts(&self) -> Result<Vec<crate::Contact>, ClientError> {
@@ -186,6 +199,9 @@ impl<S: ObjectStore> Peer<S> {
                 .iter()
                 .filter_map(|contact| Some((contact.account, contact.public?))),
         );
+        if self.keys.absorb(KeySet::default()) > 0 {
+            self.tried.lock().unwrap().clear();
+        }
         Ok(contacts)
     }
 

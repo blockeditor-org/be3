@@ -1,6 +1,6 @@
 use beui::NodeId;
 use beui::icons::{
-    ICON_BUG_REPORT, ICON_CHECK, ICON_CONTACTS, ICON_GROUP, ICON_INFO, ICON_KEY,
+    ICON_BUG_REPORT, ICON_CHECK, ICON_CONTACTS, ICON_GPP_MAYBE, ICON_GROUP, ICON_INFO, ICON_KEY,
     ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY,
     ICON_SWAP_HORIZ, ICON_SYNC, ICON_VIEW_QUILT,
 };
@@ -74,6 +74,8 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
     let can_close = create_memo(move || status.get().can_close);
     let company = create_memo(move || status.get().company);
     let administrator = create_memo(move || status.get().administrator);
+    let escrow_warning = create_memo(move || status.get().escrow_warning.unwrap_or_default());
+    let warned = create_memo(move || !escrow_warning.get().is_empty());
     view! {
         <ContextMenu
             disabled=true
@@ -86,6 +88,15 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     glyph={saved_glyph}
                     disabled=true
                 />
+                <Show condition={warned}>
+                    <MenuItem
+                        row_test_id={"app.menu.escrow-warning".to_owned()}
+                        label="Escrow key not verified"
+                        glyph={ICON_GPP_MAYBE.to_owned()}
+                        detail={escrow_warning}
+                        disabled=true
+                    />
+                </Show>
                 <MenuItem
                     row_test_id={"app.menu.contacts".to_owned()}
                     label="Contacts"

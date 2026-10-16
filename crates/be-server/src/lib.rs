@@ -529,6 +529,7 @@ impl Connection {
                 role,
                 sealed,
                 code,
+                escrow,
             } => {
                 self.store
                     .invite(
@@ -539,6 +540,7 @@ impl Connection {
                         role,
                         sealed,
                         code,
+                        escrow,
                     )
                     .await?;
                 Ok(ServerMessage::Ok { request })
@@ -555,11 +557,12 @@ impl Connection {
                 invitation,
                 card,
                 contact,
+                escrow,
             } => {
                 let account = self.account()?;
                 let inviter = self
                     .store
-                    .accept_invitation(account, invitation, card, contact)
+                    .accept_invitation(account, invitation, card, contact, escrow)
                     .await?;
                 self.contacts_changed(&[account, inviter]).await;
                 Ok(ServerMessage::Ok { request })
@@ -670,13 +673,14 @@ impl Connection {
                         },
                     )
                     .await;
-                let (kind, escrow) = self.store.opened(organization).await?;
+                let (kind, escrows, pinned) = self.store.opened(account, organization).await?;
                 Ok(ServerMessage::OrganizationOpened {
                     request,
                     organization,
                     role,
                     kind,
-                    escrow,
+                    escrows,
+                    pinned,
                 })
             }
 
@@ -1040,11 +1044,13 @@ impl Connection {
                 organization,
                 name,
                 recovery,
+                contact,
+                escrow,
             } => {
                 let account = self.account()?;
                 let (agent, token) = self
                     .store
-                    .create_agent(account, organization, &name, recovery)
+                    .create_agent(account, organization, &name, recovery, contact, escrow)
                     .await?;
                 self.contacts_changed(&[account]).await;
                 Ok(ServerMessage::AgentCreated {
@@ -1099,6 +1105,10 @@ impl Connection {
                 self.store
                     .create_escrow(self.identity()?, escrow, keys)
                     .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::PinEscrow { request, sealed } => {
+                self.store.pin_escrow(self.identity()?, sealed).await?;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListMembers { request } => Ok(ServerMessage::Members {

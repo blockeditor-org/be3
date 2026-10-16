@@ -1,4 +1,6 @@
-use be_keys::{RecoveryPhrase, RecoverySecret};
+use std::collections::HashMap;
+
+use be_keys::{ContactCard, Party, RecoveryPhrase, RecoverySecret};
 use uuid::Uuid;
 
 use crate::accounts::{self, AccountError, Keys};
@@ -141,26 +143,45 @@ impl KeyState {
         }
         let fresh = setup.phrase.secret();
         let public = fresh.public();
-        let (held, own) = self
+        let (account, held, own) = self
             .keys
             .as_ref()
-            .map(|keys| (keys.sealed.clone(), keys.own.clone()))
+            .map(|keys| (keys.account, keys.sealed.clone(), keys.own.clone()))
             .unwrap_or_default();
         let resealed = match (held.is_empty() && own.is_empty(), identity) {
             (true, _) => Ok((Vec::new(), Vec::new())),
             (false, None) => Err(()),
             (false, Some(identity)) => {
                 let old = RecoverySecret::from_bytes(identity);
-                let sealed = held
+                let senders = senders(account, &old, &own);
+                let mine = Party {
+                    account: account.into_bytes(),
+                    public,
+                };
+                let sealed = Ok(held
                     .into_iter()
-                    .map(|key| {
-                        let plain = old.open(&key.sealed).map_err(|_| ())?;
-                        Ok(be_protocol::SealedKey {
-                            sealed: public.seal(&plain),
+                    .filter_map(|key| {
+                        let sender = senders.get(&key.sender)?;
+                        let plain = old
+                            .open_from(
+                                sender,
+                                account.into_bytes(),
+                                key.key.as_bytes(),
+                                &key.sealed,
+                            )
+                            .ok()?;
+                        Some(be_protocol::SealedKey {
+                            sealed: fresh.seal_for(
+                                account.into_bytes(),
+                                &mine,
+                                key.key.as_bytes(),
+                                &plain,
+                            ),
+                            sender: account,
                             ..key
                         })
                     })
-                    .collect::<Result<Vec<_>, ()>>();
+                    .collect::<Vec<_>>());
                 let own = own
                     .into_iter()
                     .map(|held| {
@@ -311,4 +332,33 @@ impl KeyState {
             error: self.error.clone(),
         }
     }
+}
+
+fn senders(
+    account: Uuid,
+    old: &RecoverySecret,
+    own: &[be_protocol::OwnSealed],
+) -> HashMap<Uuid, Party> {
+    let mut senders: HashMap<Uuid, Party> = own
+        .iter()
+        .filter(|held| held.kind == be_protocol::OwnKind::Contact)
+        .filter_map(|held| {
+            let card = ContactCard::open_own(old, &held.sealed).ok()?;
+            (card.account == held.id.into_bytes()).then_some((
+                held.id,
+                Party {
+                    account: card.account,
+                    public: card.public,
+                },
+            ))
+        })
+        .collect();
+    senders.insert(
+        account,
+        Party {
+            account: account.into_bytes(),
+            public: old.public(),
+        },
+    );
+    senders
 }

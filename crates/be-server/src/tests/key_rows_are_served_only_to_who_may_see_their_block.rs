@@ -55,6 +55,7 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
             role: OrganizationRole::Editor,
             sealed: Vec::new(),
             code: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -64,6 +65,7 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
             invitation: Uuid::from_u128(1),
             card: Vec::new(),
             contact: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     guest.open(organization).await;

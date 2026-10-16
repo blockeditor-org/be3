@@ -14,7 +14,7 @@ mod transport;
 
 pub use connection::Connection;
 pub use contacts::{Contact, GrantOffer};
-pub use keys::KeyBook;
+pub use keys::{EscrowWarning, KeyBook};
 pub use live::{Conflict, Journaled, Live};
 pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
 

@@ -17,7 +17,7 @@ fn what_an_account_seals_for_itself_opens_only_with_its_secret() {
         Err(KeyError::Corrupt)
     );
     assert_eq!(
-        ContactCard::open_own(&mine, &mine.public().seal(&card.encode())),
+        ContactCard::open_own(&mine, &mine.public().seal_anonymous(&card.encode())),
         Err(KeyError::Corrupt),
         "anyone who knows the public key could seal a contact the owner would trust"
     );

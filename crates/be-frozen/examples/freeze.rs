@@ -194,6 +194,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         role: OrganizationRole::Editor,
         sealed: Vec::new(),
         code: Vec::new(),
+        escrow: Vec::new(),
     })
     .await?;
     request(&editor, |request| ClientMessage::AcceptInvitation {
@@ -201,6 +202,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         invitation,
         card: Vec::new(),
         contact: Vec::new(),
+        escrow: Vec::new(),
     })
     .await?;
     let editor_phrase = RecoveryPhrase::generate();
@@ -221,6 +223,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         role: OrganizationRole::Editor,
         sealed: Vec::new(),
         code: Vec::new(),
+        escrow: Vec::new(),
     })
     .await?;
 
@@ -235,6 +238,16 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         organization,
         name: scene::AGENT_NAME.into(),
         recovery: agent_public.0,
+        contact: be_client::contacts::card(
+            owner.account(),
+            owner.keys().identity(),
+            scene::OWNER_NAME,
+            scene::OWNER_EMAIL,
+        )
+        .seal_own(&agent_phrase.secret()),
+        escrow: owner.keys().escrow().map_or_else(Vec::new, |escrow| {
+            be_client::contacts::seal_pin(&agent_phrase.secret(), organization, &escrow)
+        }),
     })
     .await?
     else {

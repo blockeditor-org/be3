@@ -43,7 +43,8 @@ const SCHEMA: &str = "
         role            TEXT NOT NULL,
         invited_by      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         sealed          BLOB NOT NULL DEFAULT x'',
-        code            BLOB NOT NULL DEFAULT x''
+        code            BLOB NOT NULL DEFAULT x'',
+        escrow          BLOB NOT NULL DEFAULT x''
     );
 
     CREATE TABLE contact_links (
@@ -144,7 +145,16 @@ const SCHEMA: &str = "
         epoch           INTEGER NOT NULL,
         created         INTEGER NOT NULL,
         public          BLOB NOT NULL DEFAULT x'',
+        signing         BLOB NOT NULL DEFAULT x'',
+        signature       BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (organization_id, id)
+    );
+
+    CREATE TABLE pinned_escrows (
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        sealed          BLOB NOT NULL,
+        PRIMARY KEY (account_id, organization_id)
     );
 
     CREATE TABLE rotations (
@@ -160,6 +170,7 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         key_id          TEXT NOT NULL,
         wrapped_by      TEXT NOT NULL,
+        sender          TEXT NOT NULL,
         sealed          BLOB NOT NULL,
         PRIMARY KEY (organization_id, key_id, wrapped_by)
     );

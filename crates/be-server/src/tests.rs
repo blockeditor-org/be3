@@ -402,6 +402,7 @@ fn wrap(key: Uuid, wrapped_by: WrappedBy, sealed: &[u8]) -> WrappedKey {
     WrappedKey {
         key,
         wrapped_by,
+        sender: Uuid::nil(),
         sealed: sealed.to_vec(),
     }
 }

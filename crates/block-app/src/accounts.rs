@@ -208,6 +208,8 @@ pub(crate) async fn invite(
     role: be_protocol::OrganizationRole,
 ) -> Result<String, AccountError> {
     let connection = authenticated(&server_url, token).await?;
+    let escrow =
+        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
     let code = be_client::contacts::invite(
         &connection,
         &me.secret(),
@@ -215,6 +217,7 @@ pub(crate) async fn invite(
         organization,
         email,
         role,
+        escrow.as_ref(),
     )
     .await?;
     Ok(crate::invite_link::link(&link_base(&server_url), &code))
@@ -237,14 +240,21 @@ pub(crate) async fn create_agent(
     name: String,
 ) -> Result<AgentCredentials, AccountError> {
     let phrase = be_keys::RecoveryPhrase::generate();
-    let public = phrase.secret().public();
+    let secret = phrase.secret();
+    let public = secret.public();
     let connection = authenticated(&server_url, token).await?;
+    let escrow =
+        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
     let ServerMessage::AgentCreated { agent, token, .. } = connection
         .request(|request| ClientMessage::CreateAgent {
             request,
             organization,
             name,
             recovery: public.0,
+            contact: me.card().seal_own(&secret),
+            escrow: escrow.map_or_else(Vec::new, |escrow| {
+                be_client::contacts::seal_pin(&secret, organization, &escrow)
+            }),
         })
         .await?
     else {
@@ -309,13 +319,20 @@ pub(crate) async fn remove_agent(
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Keys {
+    pub(crate) account: Uuid,
     pub(crate) recovery: Option<be_keys::RecoveryPublic>,
     pub(crate) sealed: Vec<be_protocol::SealedKey>,
     pub(crate) own: Vec<be_protocol::OwnSealed>,
 }
 
 pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
+    let connection = Connection::connect(&socket_url(&server_url)).await?;
+    let ServerMessage::Authenticated { account, .. } = connection
+        .request(|request| ClientMessage::Authenticate { request, token })
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
     let ServerMessage::RecoveryKey {
         public,
         sealed,
@@ -328,6 +345,7 @@ pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, Acco
         return Err(ClientError::Unexpected.into());
     };
     Ok(Keys {
+        account,
         recovery: public.map(be_keys::RecoveryPublic),
         sealed,
         own,

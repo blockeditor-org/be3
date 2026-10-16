@@ -15,6 +15,7 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
     view! {
         <List spacing=0.0>
             <DiscardDialog view={view} />
+            <LeaveDialog view={view} />
             <InviteDialog view={view} />
             <AgentsDialog view={view} />
             <ContactsDialog view={view} />
@@ -628,6 +629,36 @@ fn AboutPanel() -> NodeId {
                 <Text style=TextStyle::CODE string={crate::build().to_owned()} />
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn LeaveDialog(view: AppViewStore) -> NodeId {
+    let leaving = view.leaving;
+    let open = create_memo(move || leaving.get());
+    view! {
+        <Dialog open={open} title="Leave?" on_dismiss={|| send(UiCommand::CancelLeave)}>
+            <List spacing=12.0>
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
+                    wrap=true
+                />
+                <List direction=Direction::Horizontal spacing=8.0>
+                    <Button
+                        label="Leave"
+                        variant=ButtonVariant::Primary
+                        @test_id={"app.leave.confirm"}
+                        on_click={|| send(UiCommand::ConfirmLeave)}
+                    />
+                    <Button
+                        label="Stay"
+                        variant=ButtonVariant::Secondary
+                        on_click={|| send(UiCommand::CancelLeave)}
+                    />
+                </List>
+            </List>
+        </Dialog>
     }
 }
 

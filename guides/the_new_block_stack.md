@@ -1087,9 +1087,24 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   scope's KEK, and a KEK is sealed to each account that may open it with that
   account's identity key (its recovery public key). A new root block's KEK is
   sealed to its author.
+- **Who sealed a key.** A key sealed to an account names its sender and is
+  sealed by it (`RecoverySecret::seal_for`/`open_from`: an ephemeral X25519
+  key and the sender's identity key both agree with the recipient's, and HKDF
+  binds both public keys, both account ids and the key's id). A device takes
+  such a key only from itself or a contact it verified (`KeyBook::contact`);
+  any other row, including one sealed to its public key by someone who only
+  knows it (the server), is ignored and nothing is said about it. A key the
+  device made, one sealed to it that way, or one wrapped under such a key is
+  *trusted* (`KeyBook::trusted`); a key opened only through the escrow key
+  (below) is not. A device reads with any key it holds but seals content,
+  wraps or seals a key, or hands a key over (`seal_to`, `wrap`, `escrow_wrap`,
+  `Peer::sealing_key`, `Peer::offer`) only with trusted ones, so a key the
+  server made up never protects anything new. A rotation by such a device
+  leaves the data keys it does not trust where they are, still readable under
+  the old scope key by whoever holds it.
 - **On the server.** `keys` (id, block, kind `data`, `scope` or `escrow`,
   epoch) and `wrapped_keys` (key, `wrapped_by`: a key id or `account:{uuid}`,
-  sealed). `GetKeys` serves the key rows of the blocks the account can view
+  the sender, which the server sets to the account storing the row, sealed). `GetKeys` serves the key rows of the blocks the account can view
   (all of them, or the named blocks and their ancestors) and the wrapped rows
   wrapped by its own account or by a key it is served; nothing for a block it no
   longer sees, and nothing sealed to another account. `PutKeys`, `CreateBlock`
@@ -1137,19 +1152,34 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   left cannot edit, or lacks a contact's key) waits in `rotations` until a
   client that may edit the block tends; grantees it could not seal to are
   listed as `unsealed` for any device that holds the key and the contact.
-- **Escrow** (company organizations). The escrow key is an X25519 pair whose
-  secret is a key row of kind `escrow` (its block is the organization id, its
-  public half in `keys.public`), sealed to each administrator. The first
+- **Escrow** (company organizations). The escrow key is a 32-byte secret
+  (`be_keys::EscrowSecret`) that is both an X25519 key and, through HKDF, an
+  Ed25519 signing key. It is a key row of kind `escrow` (its block is the
+  organization id; `keys.public`, `signing` and `signature` hold
+  `EscrowKey`), sealed to each administrator by another. The first
   administrator device to open the organization makes it (`CreateEscrow`),
-  `OrganizationOpened` hands every member the current one, and `mint_scope`
-  seals every new scope key to its public half too, so administrators open
-  every scope key and with them everything. Only administrators are served the
-  escrow rows. Promoting someone leaves the escrow key unsealed to them until
-  an administrator who has them as a contact tends; demoting or removing an
-  administrator records an escrow rotation, which an administrator does with
-  a new `CreateEscrow`: a new epoch sealed to the remaining administrators,
-  with every scope key it holds wrapped under it and the old escrow wraps of
-  those keys dropped.
+  and `mint_scope` seals every new scope key to its public half too, so
+  administrators open every scope key and with them everything. Only
+  administrators are served the escrow rows. Promoting someone leaves the
+  escrow key unsealed to them until an administrator who has them as a
+  contact tends; demoting or removing an administrator records an escrow
+  rotation, which an administrator holding the current escrow secret does
+  with a new `CreateEscrow`: the next epoch, signed by the current one over
+  `EscrowKey::chained` (organization, previous id, new id, epoch, both public
+  halves), sealed to the remaining administrators, with every scope key it
+  holds wrapped under it and the old escrow wraps of those keys dropped.
+- **Pinning the escrow key.** `OrganizationOpened` and `KeyWork` carry the
+  whole chain, which the server could make up, so a member wraps only under an
+  escrow key it pinned from somewhere the server cannot forge: its own (the
+  creator), the invitation (the inviter's verified key, sealed with the invite
+  code, `InviteCode::seal_escrow`), an agent's maker, or a secret it holds
+  because an administrator contact sealed it to it. From the pinned key it
+  follows the chain one signature at a time (`keys::verify_escrow`) and pins
+  the newest it verified (`PinEscrow`: sealed for itself, so every device of
+  the account has it; `OwnKind::Escrow` rows are resealed with a new phrase
+  like contacts). A newer key it cannot verify is not used: it keeps wrapping
+  under the last verified one, and the app menu shows the warning
+  (`KeyBook::escrow_warning`); with nothing pinned it escrows nothing.
 - **Identity.** Each account has a twelve-word recovery phrase, shown once and
   checked by typing three of its words. The phrase derives an X25519 key pair;
   the server stores only the public half (`SetRecoveryKey`, `GetRecoveryKey`),
@@ -1158,17 +1188,20 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   lacks it, or holds one the server's public key does not match, opens on the
   unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`): the phrase, or
   a pairing code. A new phrase (the organization menu's New recovery phrase)
-  must reseal every row sealed to the account, and everything the account
-  sealed for itself (contact rows and link codes, `OwnSealed`), which the
-  server checks, so only a device holding the old secret can make one; the
-  account's other devices then ask to be unlocked again.
+  must reseal every row sealed to the account by itself or a verified contact
+  (others are dropped), and everything the account sealed for itself (contact
+  rows, link codes and pinned escrow keys, `OwnSealed`), which the server
+  checks, so only a device holding the old secret can make one; the account's
+  other devices then ask to be unlocked again.
 - **Inviting.** Joining an organization takes an invite link, the only way in,
   and hands over no key: keys come with what is shared. The inviting device
   makes a random invite code (`be_keys::InviteCode`, 200 bits) and names the
   invitation by an id derived from it (`InviteCode::lookup`), so the link only
   needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The invitation
-  carries the inviter's contact card sealed with the code, and accepting it
-  sends the invitee's back, exactly like a contact link (below). The dialog shows
+  carries the inviter's contact card and the organization's escrow key as the
+  inviter verified it, both sealed with the code, and accepting it sends the
+  invitee's card back, exactly like a contact link (below), and pins the
+  escrow key. The dialog shows
   the link once. The invitee pastes it on the Organizations screen, or opens it
   in the web app, which takes it from the address bar on load and replaces it
   with `#`. The server never sees the part of the link after `#`.
@@ -1209,8 +1242,9 @@ public key it verified this way, never to one the server hands it.
   worker does it on connect and on `ContactsChanged`). Organization invites
   finish the same way: accepting one leaves a used link behind for the inviter.
 - **A pending grant.** A link may carry a block, an access level and that
-  block's own scope key sealed with the code (`Peer::offer` makes the block a
-  scope root first). Accepting it seals the key to the accepter, and the server
+  block's own scope key sealed with the code and bound to the key's id
+  (`Peer::offer` makes the block a scope root first). Accepting it has the
+  accepter seal the key for itself, and the server
   applies the grant and stores that wrap at once, so the share works while the
   maker is offline; when it finishes, it seals the scope again
   (`Peer::seal_share`), which also covers blocks made inside it meanwhile. The
@@ -1236,6 +1270,35 @@ public key it verified this way, never to one the server hands it.
   carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
   member and Agents show only in a company organization, and Members (list,
   change a role, remove, invite) only to its administrators.
+
+### What the server can and cannot do
+
+The server stores and relays everything, so it can withhold, delay, replay
+or delete rows, refuse requests, and see who shares with whom, block shapes,
+sizes and timing. It cannot read content or metadata, and it cannot choose a
+key a device will seal with:
+
+- every key sealed to an account is authenticated by its sender, and a device
+  takes it only from itself or a contact it verified through a link;
+- contact cards, link codes, pending grants and the escrow key in an
+  invitation are sealed with codes the server never sees;
+- a key wrapped under another key is AEAD under that key, and a device wraps
+  only under keys it trusts;
+- an escrow key is used only when pinned or signed down a chain from a pinned
+  one.
+
+What it still decides, and a device trusts it for:
+
+- which of the keys a device holds is a block's current data key and which
+  epoch is newest: a server working with someone who lost access, or with an
+  administrator who was demoted (who knows the old escrow signing key), can
+  keep a device writing under a key that person knows;
+- grants, membership and roles: a device seals a scope key to any verified
+  contact the server lists as granted on it (`unsealed`, rotations), and the
+  escrow secret to any verified contact it lists as an administrator;
+- which public key belongs to a non-contact (never used for sealing), and
+  the rows of keys opened only through escrow, which administrators read but
+  never write under.
 
 ### Presence
 

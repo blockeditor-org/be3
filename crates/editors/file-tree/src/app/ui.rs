@@ -12,7 +12,9 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
-use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout};
+use block_editor_beui::{
+    Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout,
+};
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter, formats};
@@ -408,7 +410,7 @@ fn TreeRow(
         );
     };
     let chose = menu_action(editor, picker, inspect, row);
-    let leavable = create_memo(move || row.get().is_some_and(|row| row.can_leave));
+    let leavable = leavable(editor, row);
     let leave = move || {
         if let Some(id) = row.get_untracked().and_then(|row| row.id) {
             editor.host().leave_block(id);
@@ -594,7 +596,7 @@ fn SectionRow(
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
-    let leavable = create_memo(move || row.get().is_some_and(|row| row.can_leave));
+    let leavable = leavable(editor, row);
     let leave = move || {
         if let Some(id) = row.get_untracked().and_then(|row| row.id) {
             editor.host().leave_block(id);
@@ -1050,4 +1052,9 @@ fn picker(editor: Editor, tree: FileTree) -> Picker {
         }
     });
     picker
+}
+
+pub(crate) fn leavable(editor: Editor, row: Memo<Option<Row>>) -> Memo<bool> {
+    let administrator = editor.host_value::<Administrator>();
+    create_memo(move || !administrator.get() && row.get().is_some_and(|row| row.can_leave))
 }

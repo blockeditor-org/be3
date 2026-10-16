@@ -19,6 +19,7 @@ async fn join(
             role: OrganizationRole::Editor,
             sealed: Vec::new(),
             code: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -28,6 +29,7 @@ async fn join(
             invitation: Uuid::from_u128(invitation),
             card: Vec::new(),
             contact: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     member.open(organization).await;

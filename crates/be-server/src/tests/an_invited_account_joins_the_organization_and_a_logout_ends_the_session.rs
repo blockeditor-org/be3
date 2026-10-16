@@ -29,6 +29,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             role: OrganizationRole::Editor,
             sealed: b"sealed to the invite code".to_vec(),
             code: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
@@ -47,6 +48,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
                 invitation,
                 card: Vec::new(),
                 contact: Vec::new(),
+                escrow: Vec::new(),
             })
             .await,
     ] {
@@ -77,6 +79,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             invitation,
             card: Vec::new(),
             contact: Vec::new(),
+            escrow: Vec::new(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");

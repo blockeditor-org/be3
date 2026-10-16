@@ -1,5 +1,7 @@
 use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
-use block_editor_beui::{AccessLevel, BlockCommand, BlockInfo, BlockParent, BlockQuery};
+use block_editor_beui::{
+    AccessLevel, Administrator, BlockCommand, BlockInfo, BlockParent, BlockQuery,
+};
 
 use super::*;
 
@@ -43,5 +45,14 @@ fn a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_
             .take_block_commands()
             .contains(&(team, BlockCommand::Leave)),
         "leaving a workspace someone shared asks the host to take this account off it"
+    );
+
+    fixture.test.set_host_value::<Administrator>(&true);
+    fixture.settle();
+    fixture.open_menu(team);
+    assert!(fixture.offers("Rename"), "the workspace's menu is open");
+    assert!(
+        !fixture.offers("Leave"),
+        "an administrator keeps every block whatever it leaves, so it is not offered"
     );
 }

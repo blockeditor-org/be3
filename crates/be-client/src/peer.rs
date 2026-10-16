@@ -163,7 +163,11 @@ impl<S: ObjectStore> Peer<S> {
             })
             .await?;
         let ServerMessage::OrganizationOpened {
-            role, kind, escrow, ..
+            role,
+            kind,
+            escrows,
+            pinned,
+            ..
         } = response
         else {
             return Err(ClientError::Unexpected);
@@ -196,23 +200,30 @@ impl<S: ObjectStore> Peer<S> {
             kind,
             heads: Mutex::new(HashMap::new()),
             resolver: Mutex::new(None),
-            keys: KeyBook::new(account, config.identity, ring),
+            keys: KeyBook::new(account, organization, config.identity, ring),
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
         };
-        peer.keys.set_escrow(escrow);
+        peer.keys.set_pinned(crate::contacts::open_pin(
+            peer.keys.identity(),
+            organization,
+            &pinned,
+        ));
+        let made = escrows.is_empty();
+        peer.keys.set_escrows(escrows);
         peer.keys.set_contacts(
             verified
                 .into_iter()
                 .filter_map(|contact| Some((contact.account, contact.public?))),
         );
         peer.refresh_keys(None).await?;
-        if escrow.is_none()
+        if made
             && kind == be_protocol::OrganizationKind::Company
             && role == OrganizationRole::Administrator
         {
             let _ = peer.make_escrow().await;
         }
+        peer.save_pin().await?;
         Ok(peer)
     }
 
@@ -239,6 +250,13 @@ impl<S: ObjectStore> Peer<S> {
         else {
             return Err(ClientError::Unexpected);
         };
+        let unknown = keys.wrapped.iter().any(|wrap| {
+            wrap.wrapped_by == WrappedBy::Account(self.account)
+                && self.keys.contact(wrap.sender).is_none()
+        });
+        if unknown {
+            self.refresh_contacts().await?;
+        }
         let opened = self.keys.absorb(keys);
         if opened > 0 {
             self.tried.lock().unwrap().clear();
@@ -298,10 +316,10 @@ impl<S: ObjectStore> Peer<S> {
                 summary.key.ok_or(ClientError::Locked(block))?
             }
         };
-        if !self.keys.has(key) {
+        if !self.keys.trusted(key) {
             self.refresh_keys(Some(vec![block])).await?;
         }
-        match self.keys.has(key) {
+        match self.keys.trusted(key) {
             true => Ok(key),
             false => Err(ClientError::Locked(key)),
         }
@@ -1095,9 +1113,8 @@ impl<S: ObjectStore> Peer<S> {
             .ok_or(ClientError::Locked(block))?;
         let secret = self
             .keys
-            .ring()
-            .get(key)
-            .ok_or(ClientError::Locked(block))?;
+            .trusted_plain(key)
+            .map_err(|_| ClientError::Locked(block))?;
         Ok(crate::GrantOffer {
             organization: self.organization,
             block,
@@ -1178,7 +1195,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             if !node.key.is_some_and(wrapped_under) {
                 for row in self.keys.keys_of(node.id, KeyKind::Data) {
-                    if self.keys.has(row.id) && !wrapped_under(row.id) {
+                    if self.keys.trusted(row.id) && !wrapped_under(row.id) {
                         keys.wrapped.push(self.keys.wrap(row.id, under)?);
                     }
                 }
