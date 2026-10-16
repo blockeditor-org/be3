@@ -10,6 +10,9 @@ fn a_sealed_key_opens_only_with_its_recovery_phrase() {
     assert_ne!(sealed, phrase.secret().public().seal(&key));
     assert_eq!(phrase.secret().open(&sealed).unwrap(), key);
     assert_eq!(other.secret().open(&sealed), Err(KeyError::Corrupt));
+    let kept = RecoverySecret::from_bytes(phrase.secret().to_bytes());
+    assert_eq!(kept.public(), phrase.secret().public());
+    assert_eq!(kept.open(&sealed).unwrap(), key);
 
     let mut flipped = sealed.clone();
     let last = flipped.len() - 1;

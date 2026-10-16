@@ -9,7 +9,6 @@ use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerC
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
-use be_store::ContentKey;
 use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
@@ -108,7 +107,6 @@ pub(super) enum Command {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PairingRequest {
     pub(crate) from: u64,
-    pub(crate) organization: Uuid,
     pub(crate) device: String,
     message: Vec<u8>,
 }
@@ -129,8 +127,8 @@ pub(crate) struct Shared {
     pub(crate) error: Option<String>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
-    pub(crate) other_keys: HashMap<Uuid, [u8; 32]>,
-    pub(crate) recovery: Option<[u8; 32]>,
+    pub(crate) trusted: HashMap<Uuid, [u8; 32]>,
+    pub(crate) locked: std::collections::HashSet<Uuid>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
@@ -774,9 +772,6 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
-    if let Err(error) = seal_own(&peer, shared).await {
-        record(shared, error);
-    }
     load_graph(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
@@ -837,6 +832,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             Woken::Event(event) => {
                 match event {
                     Some(ServerMessage::BlockChanged { block }) => {
+                        if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
+                            record(shared, error);
+                        }
                         let node = node_of(&peer, &block);
                         shared.lock().unwrap().graph.put(node);
                     }
@@ -846,12 +844,8 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     Some(ServerMessage::HeadChanged { block, head, .. }) => {
                         shared.lock().unwrap().graph.set_head(block, Some(head));
                     }
-                    Some(ServerMessage::Paired {
-                        from,
-                        organization,
-                        payload,
-                    }) => {
-                        asked_to_pair(&peer, shared, from, organization, &payload);
+                    Some(ServerMessage::Paired { from, payload }) => {
+                        asked_to_pair(shared, from, &payload);
                     }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
@@ -928,75 +922,16 @@ async fn wait(
     }
 }
 
-async fn seal_own(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> Result<(), ClientError> {
-    let (recovery, held) = {
-        let held = shared.lock().unwrap();
-        let Some(recovery) = held.recovery else {
-            return Ok(());
-        };
-        let keys: Vec<(Uuid, [u8; 32])> = held
-            .other_keys
-            .iter()
-            .map(|(organization, key)| (*organization, *key))
-            .collect();
-        (recovery, keys)
-    };
-    let ServerMessage::Keys {
-        recovery: current,
-        sealed,
-        ..
-    } = peer
-        .connection()
-        .request(|request| ClientMessage::GetKeys { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
-    if current != Some(recovery) {
-        return Ok(());
-    }
-    let own = (
-        peer.organization(),
-        *peer.commits().vault().key().as_bytes(),
-    );
-    for (organization, key) in std::iter::once(own).chain(held) {
-        if sealed
-            .iter()
-            .any(|sealed| sealed.organization == organization)
-        {
-            continue;
-        }
-        peer.connection()
-            .request(|request| ClientMessage::PutOrganizationKey {
-                request,
-                organization,
-                sealed: be_keys::RecoveryPublic(recovery).seal(&key),
-            })
-            .await?;
-    }
-    Ok(())
-}
-
-fn asked_to_pair(
-    peer: &Peer<Store>,
-    shared: &Arc<Mutex<Shared>>,
-    from: u64,
-    organization: Uuid,
-    payload: &[u8],
-) {
+fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
     let Ok(be_keys::PairingMessage::Request { message, device }) =
         be_keys::PairingMessage::decode(payload)
     else {
         return;
     };
     let mut held = shared.lock().unwrap();
-    if organization != peer.organization() && !held.other_keys.contains_key(&organization) {
-        return;
-    }
     held.pairing.retain(|request| request.from != from);
     held.pairing.push(PairingRequest {
         from,
-        organization,
         device,
         message,
     });
@@ -1025,34 +960,16 @@ async fn approve_pairing(
             "that is not a pairing code".to_owned(),
         ));
     };
-    let organization = request.organization;
-    let content_key = match organization == peer.organization() {
-        true => *peer.commits().vault().key().as_bytes(),
-        false => match shared.lock().unwrap().other_keys.get(&organization) {
-            Some(key) => *key,
-            None => return Ok(()),
-        },
-    };
-    let recovery = shared.lock().unwrap().recovery;
-    let (pairing, message) = be_keys::Pairing::start(&code, organization.as_bytes());
+    let (pairing, message) = be_keys::Pairing::start(&code, peer.account().as_bytes());
     let key = pairing
         .finish(&request.message)
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
-    let sealed = key.seal(&content_key);
-    let recovery = recovery
-        .map(|recovery| key.seal(&recovery))
-        .unwrap_or_default();
-    let payload = be_keys::PairingMessage::Reply {
-        message,
-        sealed,
-        recovery,
-    }
-    .encode();
+    let sealed = key.seal(&peer.keys().identity().to_bytes());
+    let payload = be_keys::PairingMessage::Reply { message, sealed }.encode();
     peer.connection()
         .request(|request| ClientMessage::Pair {
             request,
             to: Some(from),
-            organization,
             payload,
         })
         .await?;
@@ -1070,7 +987,10 @@ async fn rejoin(
         return;
     };
     let owned = !kind.frozen && shared.lock().unwrap().owned.contains(&block);
-    match (kind.join)(peer, block).await {
+    let joined = (kind.join)(peer, block).await;
+    set_locked(shared, block, matches!(joined, Err(ClientError::Locked(_))));
+    match joined {
+        Err(ClientError::Locked(_)) => {}
         Ok(mut session) => {
             set_unreadable(shared, block, None);
             if owned && reshaped(shared, block, kind) {
@@ -1115,6 +1035,20 @@ fn reset_notice() {
         "Some of this device's settings were saved by another build of Block, so they were reset."
             .to_owned(),
     );
+}
+
+fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool) {
+    let mut held = shared.lock().unwrap();
+    let changed = match locked {
+        true => held.locked.insert(block),
+        false => held.locked.remove(&block),
+    };
+    if changed {
+        held.stale_revision += 1;
+        held.touch(block);
+        drop(held);
+        crate::host::wake();
+    }
 }
 
 fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String>) {
@@ -1383,7 +1317,15 @@ async fn apply(
             account,
             access,
         } => {
-            if let Err(error) = peer.grant(block, account, access).await {
+            let trusted = shared.lock().unwrap().trusted.get(&account).copied();
+            let granted = match trusted {
+                Some(public) => {
+                    peer.share(block, account, access, &be_keys::RecoveryPublic(public))
+                        .await
+                }
+                None => peer.grant(block, account, access).await,
+            };
+            if let Err(error) = granted {
                 record(shared, error);
             }
             true
@@ -1452,6 +1394,9 @@ async fn apply(
 async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     match peer.list_blocks().await {
         Ok(blocks) => {
+            if let Err(error) = peer.learn(&blocks).await {
+                record(shared, error);
+            }
             let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
             let mut held = shared.lock().unwrap();
             held.graph.load(nodes);
@@ -1472,6 +1417,9 @@ async fn settled(
     }
     match reply {
         Ok(summary) => {
+            if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
+                record(shared, error);
+            }
             let node = node_of(peer, &summary);
             shared.lock().unwrap().graph.put(node);
             Ok(())
@@ -1486,6 +1434,9 @@ async fn settled(
 async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     match peer.summary(block).await {
         Ok(summary) => {
+            if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
+                record(shared, error);
+            }
             let node = node_of(peer, &summary);
             shared.lock().unwrap().graph.put(node);
         }
@@ -1495,7 +1446,10 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
 }
 
 pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
-    let metadata = peer.metadata(summary);
+    let metadata = match peer.metadata(summary) {
+        Err(ClientError::Locked(_)) => Ok(BlockMetadata::named("Locked")),
+        other => other,
+    };
     Node {
         id: summary.id,
         content_type: summary.content_type,
@@ -1630,7 +1584,7 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
     Peer::connect(
         PeerConfig::new(
             config.socket_url(),
-            ContentKey::from_bytes(config.content_key),
+            be_keys::RecoverySecret::from_bytes(config.identity),
             Credentials::Token(config.token.clone()),
         )
         .organization(Some(config.organization)),

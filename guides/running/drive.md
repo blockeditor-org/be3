@@ -8,7 +8,7 @@ see a change working in the real app. Start it with its `:dev` target:
     source ~/.cache/be3/dev/env
     drive tree
 
-`:dev` exists for block-app (signed in, with an organization called Dev open), beui-demo
+`:dev` exists for block-app (signed in, with the personal organization open on My files), beui-demo
 (`//crates/beui-demo:dev`, `~/.cache/be3/beui-demo/env`) and be-launcher
 (`//crates/be-launcher:dev`). Each builds the program, starts it with no window and returns
 once it has settled; running it again restarts it, which is how to pick up a rebuild. The

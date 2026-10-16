@@ -28,7 +28,6 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
             organization,
             name: "Claude".into(),
             recovery: public.0,
-            sealed: public.seal(&KEY),
         })
         .await
         .unwrap();
@@ -37,7 +36,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     };
     owner
         .peer()
-        .grant(board.database, agent.account, Access::Edit)
+        .share(board.database, agent.account, Access::Edit, &public)
         .await
         .unwrap();
 

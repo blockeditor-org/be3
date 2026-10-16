@@ -3,7 +3,7 @@ use be_protocol::{OrganizationKind, OrganizationRole};
 use super::*;
 
 #[tokio::test]
-async fn one_personal_organization_is_made_on_demand_and_joined_as_an_editor() {
+async fn registering_joins_the_one_personal_organization_as_an_editor() {
     let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
     let (account, company) = add_account(
         &directory,
@@ -21,9 +21,9 @@ async fn one_personal_organization_is_made_on_demand_and_joined_as_an_editor() {
     assert_eq!(store.personal_organization().await.unwrap(), personal);
     assert_eq!(
         store.join_personal_organization(account).await.unwrap(),
-        personal
+        personal,
+        "joining again is harmless"
     );
-    store.join_personal_organization(account).await.unwrap();
 
     let listed = store.list_organizations(account).await.unwrap();
     let kinds: Vec<(Uuid, OrganizationKind, OrganizationRole)> = listed

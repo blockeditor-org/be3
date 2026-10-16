@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use be_client::{ClientError, Connection, Credentials, Peer, PeerConfig, authorize, http_url};
 use be_protocol::{ClientMessage, ServerMessage};
-use be_store::{ContentKey, FileStore};
+use be_store::FileStore;
 use uuid::Uuid;
 
 pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
@@ -98,13 +98,12 @@ pub async fn connect(settings: &Settings) -> Result<Peer<FileStore>, String> {
         Some(organization) => organization,
         None => only_organization(&connection).await?,
     };
-    let key = organization_key(&connection, organization, &settings.phrase).await?;
+    let identity = identity(&connection, &settings.phrase).await?;
     Peer::signed_in(
         connection,
         account,
         token,
-        PeerConfig::new(url, ContentKey::from_bytes(key), settings.credentials())
-            .organization(Some(organization)),
+        PeerConfig::new(url, identity, settings.credentials()).organization(Some(organization)),
         FileStore::open(settings.cache.join(organization.simple().to_string())).map_err(
             |error| {
                 format!(
@@ -141,29 +140,25 @@ async fn only_organization(connection: &Connection) -> Result<Uuid, String> {
     }
 }
 
-async fn organization_key(
+async fn identity(
     connection: &Connection,
-    organization: Uuid,
     phrase: &str,
-) -> Result<[u8; 32], String> {
-    let ServerMessage::Keys { sealed, .. } = connection
-        .request(|request| ClientMessage::GetKeys { request })
+) -> Result<be_keys::RecoverySecret, String> {
+    let secret = be_keys::RecoveryPhrase::parse(phrase)
+        .map_err(|error| format!("BE3_RECOVERY_PHRASE: {error}"))?
+        .secret();
+    let ServerMessage::RecoveryKey { public, .. } = connection
+        .request(|request| ClientMessage::GetRecoveryKey { request })
         .await
         .map_err(explain)?
     else {
-        return Err("the server did not send the keys".to_owned());
+        return Err("the server did not send the account's recovery key".to_owned());
     };
-    let sealed = sealed
-        .into_iter()
-        .find(|key| key.organization == organization)
-        .ok_or("no organization key has been sealed for this account yet; open the organization in the app once so it can seal one")?;
-    let phrase = be_keys::RecoveryPhrase::parse(phrase).map_err(|error| error.to_string())?;
-    let key = phrase
-        .secret()
-        .open(&sealed.sealed)
-        .map_err(|error| error.to_string())?;
-    key.try_into()
-        .map_err(|_| "the organization key is not 32 bytes".to_owned())
+    match public {
+        Some(public) if public == secret.public().0 => Ok(secret),
+        Some(_) => Err("BE3_RECOVERY_PHRASE is not this account's recovery phrase".to_owned()),
+        None => Err("this account has no recovery phrase yet".to_owned()),
+    }
 }
 
 pub fn explain(error: ClientError) -> String {

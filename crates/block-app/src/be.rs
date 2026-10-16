@@ -30,9 +30,8 @@ pub(crate) struct Config {
     pub(crate) token: String,
     pub(crate) account: Uuid,
     pub(crate) organization: Uuid,
-    pub(crate) content_key: [u8; 32],
-    pub(crate) other_keys: Vec<(Uuid, [u8; 32])>,
-    pub(crate) recovery: Option<[u8; 32]>,
+    pub(crate) identity: [u8; 32],
+    pub(crate) trusted: Vec<(Uuid, [u8; 32])>,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
 }
@@ -304,6 +303,10 @@ pub(crate) enum Stale {
     Reshaped,
 }
 
+pub(crate) fn locked(block: Uuid) -> bool {
+    with_shared(|shared| shared.locked.contains(&block)).unwrap_or_default()
+}
+
 pub(crate) fn staleness(block: Uuid) -> Option<Stale> {
     let guard = stack().lock().unwrap();
     let stack = guard.as_ref()?;
@@ -403,8 +406,7 @@ pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
     let shared = Arc::new(Mutex::new(Shared {
-        other_keys: config.other_keys.iter().copied().collect(),
-        recovery: config.recovery,
+        trusted: config.trusted.iter().copied().collect(),
         ..Shared::default()
     }));
     let changed = Arc::new(Condvar::new());
@@ -632,6 +634,10 @@ pub(crate) fn approve_pairing(from: u64, code: String) {
 
 pub(crate) fn dismiss_pairing(from: u64) {
     send(Command::DismissPairing(from));
+}
+
+pub(crate) fn trust(account: Uuid, public: [u8; 32]) {
+    with_shared_mut(|shared| shared.trusted.insert(account, public));
 }
 
 pub(crate) fn status() -> Status {

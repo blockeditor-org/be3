@@ -12,13 +12,14 @@ else may still change freely.
   in `objects/ab/cdef…` named by the SHA-256 of its bytes.
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,
   and `objects/` laid out as on the server.
-- **What the objects hold**: chunks sealed with the organization key
-  (`ContentKey::seal`), commits and manifests (CBOR from `Vault::put_value`),
-  `BlockMetadata` (in a commit, and sealed on the block's row), organization
-  keys sealed to a recovery phrase (`be_keys`: the phrase's words and the
-  secret derived from them), and organization keys sealed to an invite code on
-  an invitation's row (`be_keys::InviteCode`: the code's text, the key derived
-  from it, and the invitation id derived from it).
+- **What the objects hold**: chunks, commits and manifests (CBOR from
+  `Vault::put_value`) and `BlockMetadata` (in a commit, and on the block's
+  row), each sealed with its block's data key in the tagged form
+  (`ContentKey::seal`: `be3K`, the key id, a nonce derived from the key and the
+  plaintext, the ciphertext); keys wrapped under other keys the same way, and
+  scope keys sealed to an account's identity key on `wrapped_keys` rows
+  (`be_keys::RecoveryPublic::seal`, opened by the secret a recovery phrase's
+  words derive).
 - **A block file** (`be_client::transfer`, version 1, what `be download` and
   the file tree's Export as write): plaintext ids, types, parents, encoded
   `BlockMetadata`, references and content bytes. It is how data moves from one
@@ -27,10 +28,10 @@ else may still change freely.
   `Database`, `DatabaseSchema` and `DatabaseView`, and their content type ids.
 
 The server's data, its backups and the sealed objects broke with the old ones
-on purpose when workspaces became organizations, and change again while keys
-move to blocks (a clean break agreed with the user: data moves across in block
-files). Until `crates/be-frozen` holds a snapshot of the new formats again,
-nothing checks them, so take one as soon as they settle.
+on purpose when workspaces became organizations and keys moved to blocks (a
+clean break agreed with the user: data moves across in block files), and grow
+again as contacts arrive. Until `crates/be-frozen` holds a snapshot of the new
+formats, nothing checks them, so take one as soon as they settle.
 
 Not frozen yet: every other block type, the network protocol (server and
 clients are upgraded together and refuse other builds), the local plugin API,

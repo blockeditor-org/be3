@@ -18,9 +18,8 @@ fn two_peers_of_one_organization_share_a_counter() {
         token: harness.token.clone(),
         account: harness.account,
         organization: harness.organization,
-        content_key: harness.content_key,
-        other_keys: Vec::new(),
-        recovery: None,
+        identity: harness.identity(),
+        trusted: Vec::new(),
         data_dir: elsewhere.clone(),
     });
     open(block, CounterContent::CONTENT_TYPE);

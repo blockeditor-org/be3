@@ -55,6 +55,7 @@ const SCHEMA: &str = "
         head            TEXT,
         metadata        BLOB NOT NULL DEFAULT x'',
         version         INTEGER NOT NULL DEFAULT 0,
+        key_id          TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (organization_id, id)
     );
 
@@ -110,12 +111,29 @@ const SCHEMA: &str = "
         public          BLOB NOT NULL
     );
 
-    CREATE TABLE organization_keys (
+    CREATE TABLE keys (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        sealed          BLOB NOT NULL,
-        PRIMARY KEY (organization_id, account_id)
+        id              TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        kind            TEXT NOT NULL,
+        epoch           INTEGER NOT NULL,
+        created         INTEGER NOT NULL,
+        PRIMARY KEY (organization_id, id)
     );
+
+    CREATE INDEX keys_block
+        ON keys (organization_id, block_id);
+
+    CREATE TABLE wrapped_keys (
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        key_id          TEXT NOT NULL,
+        wrapped_by      TEXT NOT NULL,
+        sealed          BLOB NOT NULL,
+        PRIMARY KEY (organization_id, key_id, wrapped_by)
+    );
+
+    CREATE INDEX wrapped_keys_by
+        ON wrapped_keys (wrapped_by);
 
     CREATE INDEX block_edges_reference
         ON block_edges (organization_id, reference_id);

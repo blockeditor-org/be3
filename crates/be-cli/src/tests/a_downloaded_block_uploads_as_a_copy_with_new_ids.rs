@@ -56,7 +56,7 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
         Peer::connect(
             PeerConfig::new(
                 be_client::socket_url(&harness.url),
-                ContentKey::from_bytes([3; 32]),
+                be_keys::RecoveryPhrase::generate().secret(),
                 Credentials::Register {
                     email: "other@example.com".into(),
                     display_name: "Other".into(),

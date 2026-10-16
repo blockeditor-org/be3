@@ -12,7 +12,7 @@ use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
     AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, Organization,
-    OrganizationInvitation, OrganizationKind, OrganizationRole, SealedKey,
+    OrganizationInvitation, OrganizationKind, OrganizationRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
@@ -117,11 +117,19 @@ impl ServerStore {
                 "that email is already registered".into(),
             ));
         }
-        database.execute(
+        let transaction = database.unchecked_transaction()?;
+        transaction.execute(
             "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)",
             params![account.to_string(), email, display_name, hash],
         )?;
-        let token = issue_token(&database, account)?;
+        let personal = personal_organization(&transaction)?;
+        transaction.execute(
+            "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
+             VALUES (?1, ?2, 'editor')",
+            params![personal.to_string(), account.to_string()],
+        )?;
+        let token = issue_token(&transaction, account)?;
+        transaction.commit()?;
         Ok((
             Profile {
                 account,
@@ -482,107 +490,12 @@ impl ServerStore {
         Ok(organization)
     }
 
-    pub async fn keys(
-        &self,
-        account: Uuid,
-    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>), ServerError> {
-        let database = self.database.lock().await;
-        let recovery = recovery_key(&database, account)?;
-        let mut statement = database.prepare(
-            "SELECT organization_keys.organization_id, organization_keys.sealed FROM organization_keys
-             JOIN memberships ON memberships.organization_id = organization_keys.organization_id
-                AND memberships.account_id = organization_keys.account_id
-             WHERE organization_keys.account_id = ?1",
-        )?;
-        let rows = statement.query_map([account.to_string()], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
-        })?;
-        let mut sealed = Vec::new();
-        for row in rows {
-            let (organization, key) = row?;
-            sealed.push(SealedKey {
-                organization: parse_uuid(&organization)?,
-                sealed: key,
-            });
-        }
-        Ok((recovery, sealed))
-    }
-
-    pub async fn set_recovery_key(
-        &self,
-        account: Uuid,
-        public: [u8; 32],
-        sealed: Vec<SealedKey>,
-    ) -> Result<(), ServerError> {
-        let (_, held) = self.keys(account).await?;
-        if let Some(missing) = held.iter().find(|held| {
-            !sealed
-                .iter()
-                .any(|key| key.organization == held.organization)
-        }) {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                format!(
-                    "a new recovery key must seal every organization key the old one did, and {} is missing",
-                    missing.organization
-                ),
-            ));
-        }
-        let database = self.database.lock().await;
-        for key in &sealed {
-            if !is_member(&database, account, key.organization)? {
-                return Err(not_a_member());
-            }
-        }
-        let transaction = database.unchecked_transaction()?;
-        transaction.execute(
-            "INSERT OR REPLACE INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
-            params![account.to_string(), public.to_vec()],
-        )?;
-        transaction.execute(
-            "DELETE FROM organization_keys WHERE account_id = ?1",
-            [account.to_string()],
-        )?;
-        for key in sealed {
-            transaction.execute(
-                "INSERT INTO organization_keys (organization_id, account_id, sealed) VALUES (?1, ?2, ?3)",
-                params![key.organization.to_string(), account.to_string(), key.sealed],
-            )?;
-        }
-        transaction.commit()?;
-        Ok(())
-    }
-
-    pub async fn put_organization_key(
-        &self,
-        account: Uuid,
-        organization: Uuid,
-        sealed: Vec<u8>,
-    ) -> Result<(), ServerError> {
-        let database = self.database.lock().await;
-        if !is_member(&database, account, organization)? {
-            return Err(not_a_member());
-        }
-        if recovery_key(&database, account)?.is_none() {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "this account has no recovery key to seal to".into(),
-            ));
-        }
-        database.execute(
-            "INSERT OR IGNORE INTO organization_keys (organization_id, account_id, sealed) VALUES (?1, ?2, ?3)",
-            params![organization.to_string(), account.to_string(), sealed],
-        )?;
-        Ok(())
-    }
-
     pub async fn create_agent(
         &self,
         caller: Uuid,
         organization: Uuid,
         name: &str,
         recovery: [u8; 32],
-        sealed: Vec<u8>,
     ) -> Result<(Agent, String), ServerError> {
         if self.membership(caller, organization).await? != OrganizationRole::Administrator {
             return Err(ServerError::Refused(
@@ -624,10 +537,6 @@ impl ServerStore {
         transaction.execute(
             "INSERT INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
             params![account.to_string(), recovery.to_vec()],
-        )?;
-        transaction.execute(
-            "INSERT INTO organization_keys (organization_id, account_id, sealed) VALUES (?1, ?2, ?3)",
-            params![organization.to_string(), account.to_string(), sealed],
         )?;
         let token = issue_token(&transaction, account)?;
         transaction.commit()?;
@@ -688,11 +597,19 @@ impl ServerStore {
             ));
         }
         let database = self.database.lock().await;
-        let removed = database.execute(
+        let transaction = database.unchecked_transaction()?;
+        let removed = transaction.execute(
             "DELETE FROM accounts WHERE id = ?1
              AND id IN (SELECT account_id FROM agents WHERE organization_id = ?2)",
             params![agent.to_string(), organization.to_string()],
         )?;
+        transaction.execute(
+            "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
+            [crate::keys::encode_wrapped_by(
+                be_protocol::WrappedBy::Account(agent),
+            )],
+        )?;
+        transaction.commit()?;
         if removed == 0 {
             return Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
@@ -995,6 +912,10 @@ impl ServerStore {
             .expect("object refs are never poisoned")
     }
 
+    pub(crate) fn database(&self) -> &Mutex<Connection> {
+        &self.database
+    }
+
     pub(crate) fn objects(&self) -> &FileStore {
         &self.objects
     }
@@ -1038,6 +959,21 @@ fn public_key(bytes: &[u8]) -> Result<[u8; 32], ServerError> {
     bytes.try_into().map_err(|_| ServerError::Corrupt)
 }
 
+pub(crate) fn recovery_key_of(
+    connection: &Connection,
+    account: Uuid,
+) -> Result<Option<[u8; 32]>, ServerError> {
+    recovery_key(connection, account)
+}
+
+pub(crate) fn is_member_of(
+    connection: &Connection,
+    account: Uuid,
+    organization: Uuid,
+) -> Result<bool, ServerError> {
+    is_member(connection, account, organization)
+}
+
 pub(crate) fn load_graph(
     connection: &Connection,
     organization: Uuid,
@@ -1046,8 +982,8 @@ pub(crate) fn load_graph(
     let mut nodes = Vec::new();
     {
         let mut statement = connection.prepare(
-            "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version FROM blocks
-             WHERE organization_id = ?1",
+            "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version, key_id
+             FROM blocks WHERE organization_id = ?1",
         )?;
         let rows = statement.query_map([organization.to_string()], |row| {
             Ok((
@@ -1059,13 +995,14 @@ pub(crate) fn load_graph(
                 row.get::<_, Option<String>>(5)?,
                 row.get::<_, Vec<u8>>(6)?,
                 row.get::<_, i64>(7)?,
+                row.get::<_, String>(8)?,
             ))
         })?;
         for row in rows {
             nodes.push(row?);
         }
     }
-    for (id, content_type, author, parent_kind, parent_id, head, metadata, version) in &nodes {
+    for (id, content_type, author, parent_kind, parent_id, head, metadata, version, key) in &nodes {
         let mut node = BlockNode::new(
             parse_uuid(content_type)?,
             parse_uuid(author)?,
@@ -1081,10 +1018,14 @@ pub(crate) fn load_graph(
             .transpose()?;
         node.metadata.clone_from(metadata);
         node.version = u64::try_from(*version).map_err(|_| ServerError::Corrupt)?;
+        node.key = match key.is_empty() {
+            true => None,
+            false => Some(parse_uuid(key)?),
+        };
         let _ = (parent_kind, parent_id);
         graph.insert(parse_uuid(id)?, node)?;
     }
-    for (id, _, _, parent_kind, parent_id, _, _, _) in &nodes {
+    for (id, _, _, parent_kind, parent_id, _, _, _, _) in &nodes {
         let parent = decode_parent(*parent_kind, parent_id.clone())?;
         graph.set_parent(parse_uuid(id)?, parent)?;
     }

@@ -76,10 +76,11 @@ Content-addressed, encrypted object storage.
   holds without being able to read it.
 - `chunker::split` is a gear-hash content-defined chunker. An edit in the middle
   of a large file re-uploads one chunk, and the chunks either side resynchronise.
-- `Vault::seal` derives its nonce from the key and the plaintext. That is
-  deliberate: it makes identical content deduplicate under one key, and share
-  nothing across keys. Do not replace it with a random nonce without replacing
-  the deduplication story too.
+- `Vault` seals with a key it is named by id from its `Keyring`, and opens by
+  the id the sealed bytes carry (see Keys). Sealing derives its nonce from the
+  key and the plaintext. That is deliberate: it makes identical content
+  deduplicate under one key, and share nothing across keys. Do not replace it
+  with a random nonce without replacing the deduplication story too.
 - `Manifest` is `{content_type, length, chunks}`. `Vault::read_range` and
   `chunks_in_range` are the streaming primitives.
 - `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous on purpose;
@@ -180,8 +181,8 @@ time, so notifications wait for the next post.
   `organization_id`): one block graph, its members and its administrators.
   Its `kind` is `company`, made with `CreateOrganization` by an administrator,
   or `personal`, the server's one organization everyone may share, which
-  `ServerStore::personal_organization` makes on demand and
-  `join_personal_organization` joins as an editor; nobody administers it.
+  `ServerStore::personal_organization` makes on demand; registering joins it
+  as an editor, and nobody administers it.
 - Access is computed per member (`Visibility` in `blocks.rs`). An organization
   administrator edits everything. Anyone else gets the best grant on the block
   or an ancestor (a grant that can view is inherited down), and `Edit` on what
@@ -223,8 +224,8 @@ time, so notifications wait for the next post.
   further failure.
   The server never reads `Authorization`, which is left to a gateway in front
   of it. An administrator's `CreateAgent` makes an agent: an
-  editor account with no password, its organization key sealed to a recovery key
-  the caller made for it, and a token, all answered once (guides/tracker.md).
+  editor account with no password, with the recovery public key the caller made
+  for it, and a token, answered once (guides/tracker.md).
 - An object is served only to a member who can view a block that holds it, by
   a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
   missing. A merge commit holds its extra parents' objects, so a `stash` that
@@ -635,7 +636,7 @@ does: `Harness` in `crates/block-app/src/be/tests.rs`.
 
 ## How the app hosts content
 
-The app is the peer, not the plugin. A plugin never sees the content key, the
+The app is the peer, not the plugin. A plugin never sees a key, the
 connection or the server; it is handed content and graph answers by the host,
 and hands back operations and graph commands.
 
@@ -713,8 +714,8 @@ them through its `name`, `thumbhash` and `artifact`, and set a defined key with
 at the image's size and paints the blurred placeholder until the image arrives.
 
 Metadata travels with content. Every commit carries the encoded metadata of the
-content it saves, and `Publish` carries it sealed with the content key
-(`Peer::seal_metadata`), so the server stores it in the same step that moves the
+content it saves, and `Publish` carries it sealed with the block's data key
+(see Keys), so the server stores it in the same step that moves the
 head and cannot keep metadata that belongs to a head it refused. A save takes
 `defined` from the head it builds on and recomputes `derived` from the content
 (`be_block::derived_metadata`: `BlockContent::name` and `BlockContent::describe`;
@@ -1046,52 +1047,82 @@ app's peer connects with `Credentials::Token` for the organization it opens.
 
 ### Keys
 
-Each organization has a random content key (`Config::content_key`) that seals its
-content, commits, block metadata and session traffic. The server never holds it
-in the clear. `crates/be-keys` holds the cryptography.
+Every block is sealed with keys of its own, wrapped by the keys of the scope it
+lies in, and the server holds only wrapped keys. `crates/be-keys` holds the
+account-level cryptography, `be_store::Keyring` the content keys, and
+`be_client::KeyBook` (each `Peer` has one) the rows and their unwrapping.
 
-- **On the device.** The app keeps each organization's key in its app state, per
-  account (`AppStateStore::organization_key`). An organization with no key there opens
-  on the unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`) instead of
-  starting the peer.
-- **Recovery.** Each account has a twelve-word recovery phrase, shown once and
-  checked by typing three of its words. The phrase derives an X25519 key pair,
-  and the server stores only the public half (`SetRecoveryKey`). Each member's
-  copy of an organization key is sealed to that public key (`PutOrganizationKey`,
-  which only seals for the caller's own account, and `GetKeys`), so a new
-  device opens an organization with the phrase alone. A new
-  phrase (the organization menu's New recovery phrase) has to reseal every key the
-  old one sealed, which the server checks, so it can only be made on a device
-  that holds all of them.
-- **Trusting a recovery key.** The server can lie about any account's recovery
-  key, so a device seals only to the public key it learned without the server:
-  from the phrase, when it made one or opened an organization with one, or from the
-  device that paired it (sealed in the pairing reply). The app keeps it per
-  account (`AppStateStore::recovery_key`). When the worker connects, it seals
-  every key the device holds that has no sealed copy yet, which covers a
-  organization made on this device, and only while the server's recovery key is
-  the trusted one. The server only ever inserts a sealed key, never replaces
-  one.
-- **Inviting.** Joining an organization takes an invite link, the only way in. The
-  inviting device makes a random invite code (`be_keys::InviteCode`, 200 bits),
-  seals the organization key under it (keyed by the organization id too), and names
-  the invitation by an id derived from the code (`InviteCode::lookup`), so the
-  link only needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The
-  dialog shows the link once, for the person to pass on outside the app. The
-  invitee pastes it on the Organizations screen, or opens it in the web app, which
-  takes it from the address bar on load and replaces it with `#`. The app reads
-  the invitation, asks to join, and then (`accounts::accept_invitation`) opens
-  the key with the code, accepts, and seals the key to its own trusted recovery
-  key. The server holds only the sealed copy and never sees the part of the
-  link after `#`. No device ever seals a key to another account's recovery
-  key, since the server could have chosen that key.
+- **Sealed bytes name their key.** Everything sealed for content - chunks,
+  commits, manifests, block metadata, session traffic, wrapped keys - is
+  `b"be3K"`, the 16-byte key id, a 12-byte nonce derived from the key and the
+  plaintext (so identical content under one key still deduplicates), then the
+  ChaCha20Poly1305 ciphertext. `Keyring::open` looks the id up; an unknown id is
+  `StoreError::MissingKey`, a missing tag `Corrupt`. Every `Vault` write names
+  the key it seals with.
+- **Data keys (DEKs).** Each block has its own: random, with a random id, made
+  when the block is created (`CreateBlock` carries it, and the server keeps the
+  block's current one in `blocks.key_id`, `BlockSummary::key`). A block keeps
+  every DEK it ever had (epochs), so its history stays readable.
+- **Scope keys (KEKs).** A scope root is a block at the root (a workspace,
+  settings), a detached block, or a block with grants of its own;
+  `BlockSummary::scope` is a block's nearest one (`BlockGraph::scope`). A DEK is
+  wrapped under its scope's current KEK, a scope root's KEK under its parent
+  scope's KEK, and a KEK is sealed to each account that may open it with that
+  account's identity key (its recovery public key). A new root block's KEK is
+  sealed to its author.
+- **On the server.** `keys` (id, block, kind `data`, `scope` or `escrow`,
+  epoch) and `wrapped_keys` (key, `wrapped_by`: a key id or `account:{uuid}`,
+  sealed). `GetKeys` serves the key rows of the blocks the account can view
+  (all of them, or the named blocks and their ancestors) and the wrapped rows
+  wrapped by its own account or by a key it is served; nothing for a block it no
+  longer sees, and nothing sealed to another account. `PutKeys`, `CreateBlock`
+  and `SetParent` store rows (`keys::store_keys`): only for blocks the caller
+  may edit (for a move, the moved subtree), never replacing a sealed row, and a
+  key wrapped under a new scope key loses its wraps under the old ones (escrow
+  aside). Collecting a block drops its keys.
+- **On the client.** `Peer::signed_in` loads every row it is served and unwraps
+  what it can (`KeyBook::absorb`: its own account's rows with the identity
+  secret, then key under key). A read that meets an unknown key fetches the rows
+  again once, and otherwise fails with `ClientError::Locked`; `Peer::learn`
+  fetches the rows of blocks that appear later (the worker calls it for every
+  summary it is told about). A write seals with `Peer::sealing_key`, the
+  block's current DEK.
+- **Moving** (`Peer::set_parent`) into another scope wraps the moved blocks'
+  DEKs, old epochs too, under the destination's KEK, gives each a fresh DEK,
+  and wraps any scope root inside it under that KEK, all in the `SetParent`
+  request. A move within a scope, or to Recently Deleted, changes no keys.
+  `Peer::share` grants and makes the block a scope root of its own (a KEK, its
+  subtree rewrapped under it) sealed to the grantee's identity key, which only a
+  key the device trusts may be: the app trusts only the agents it made
+  (`AppStateStore::trusted_keys`). A grant to anyone else leaves the block
+  visible but locked to them (the host shows it as locked) until contacts
+  exist.
+- **Identity.** Each account has a twelve-word recovery phrase, shown once and
+  checked by typing three of its words. The phrase derives an X25519 key pair;
+  the server stores only the public half (`SetRecoveryKey`, `GetRecoveryKey`),
+  and a `Peer` sets it from its secret when the account has none. A device keeps
+  the secret itself (`AppStateStore::identity`), and an account whose device
+  lacks it, or holds one the server's public key does not match, opens on the
+  unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`): the phrase, or
+  a pairing code. A new phrase (the organization menu's New recovery phrase)
+  must reseal every row sealed to the account, which the server checks, so only
+  a device holding the old secret can make one; the account's other devices
+  then ask to be unlocked again.
+- **Inviting.** Joining an organization takes an invite link, the only way in,
+  and hands over no key: keys come with what is shared. The inviting device
+  makes a random invite code (`be_keys::InviteCode`, 200 bits) and names the
+  invitation by an id derived from it (`InviteCode::lookup`), so the link only
+  needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The dialog shows
+  the link once. The invitee pastes it on the Organizations screen, or opens it
+  in the web app, which takes it from the address bar on load and replaces it
+  with `#`. The server never sees the part of the link after `#`.
 - **Adding a device.** The new device shows an eight-character code. The user
-  types it on a device that holds the key and has any organization of the account
-  open (the worker gets every key the device holds), and the two run SPAKE2
-  keyed by the code over the server's relay (`Pair`, delivered as `Paired` to
-  the account's other connections). The open device seals the key under the
-  agreed secret, so the server would have to guess the code to read or replace
-  it. It gets one guess, because a wrong code ends the request.
+  types it on a device of the same account that has any organization open, and
+  the two run SPAKE2 keyed by the code and the account id over the server's
+  relay (`Pair`, delivered as `Paired` to the account's other connections). The
+  open device seals the identity secret under the agreed key, so the server
+  would have to guess the code to read or replace it. It gets one guess,
+  because a wrong code ends the request.
 
 ### Presence
 
@@ -1153,7 +1184,10 @@ pixel art export regenerate this way.
   the repository block itself is collected. Freeing it wants the server to
   count holds per object, with a commit holding its parents and its tree.
 - An upstream is another repository in the same organization. Across organizations
-  the content keys differ, so a pull would have to reseal every object.
+  the keys differ, so a pull would have to reseal every object.
+- A snapshot tree reuses the manifests of the blocks it holds, sealed with their
+  own data keys, so reading a repository needs the keys of every block it took
+  a snapshot of.
 - Moving a block into or out of a checkout keeps the ids its content stores, so
   what they name changes with the scope it lands in.
 - Undo in the text editor lives in the editor, so it is gone when the editor
@@ -1180,9 +1214,14 @@ pixel art export regenerate this way.
   that wants.
 - Reconnecting rejoins from the server's head, so operations a session had not
   sealed when the socket dropped are gone.
-- An organization has one key for its whole life. Removing a member does not
-  rotate it, and sealed objects carry no key id to rotate by. Sharing a block
-  across organizations does not share a key of its own.
+- Keys reach only the account's own devices and the agents a device made.
+  Sharing with another account grants access but seals no key, so the block is
+  locked to them until contacts give devices identity keys they can trust, and
+  revoking a grant or removing a member rotates nothing yet. A company
+  organization has no escrow key.
+- A move into another scope lists the moved subtree one level at a time
+  (`ListChildren`), and the old data keys of a block this device cannot open
+  are not rewrapped, so that block's history stays closed to its new scope.
 - Sessions relay through the server. Direct peer connections are a latency
   optimisation on the same protocol and can come later.
 - The server learns the shape of the graph, object sizes and timings. It never

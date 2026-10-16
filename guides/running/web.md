@@ -10,8 +10,8 @@ quicker: guides/running/drive.md):
 The command builds the web bundle with every plugin and starts be-server and Caddy in front
 of it on http://127.0.0.1:8090. It then opens the page in a headless Chromium and returns
 once the app is up. The page is signed in to `dev@localhost` (password `dev-password`) on
-that be-server, with an organization called Dev open, so there is no account or organization
-to make first. The server's data and the browser's profile live in `~/.cache/be3/web-dev` and
+that be-server, with the personal organization open on My files, so there is no account or
+organization to make first. The server's data and the browser's profile live in `~/.cache/be3/web-dev` and
 survive restarts, so running the command again reopens the same organization, which is how to
 pick up a rebuild.
 - `-- --fresh` deletes the data first.
@@ -32,8 +32,8 @@ and its plugins' workers log to the console goes to `~/.cache/be3/web-dev/browse
 What the launcher opens is `http://127.0.0.1:8090/?dev-workspace&automation`; those
 two parameters work on any page serving the bundle:
 - `dev-workspace`: sign in to the page's own server as `dev@localhost`, registering it
-  unless it is registered already. Then open the last organization, or the first one, or a new
-  one called Dev.
+  unless it is registered already. Then open the last organization, or the first one (the
+  personal organization registering joins).
 - `automation`: answer `drive`'s commands through the bundle's `automate` export.
 
 ## Driving the page

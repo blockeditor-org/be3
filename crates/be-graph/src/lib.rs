@@ -40,6 +40,8 @@ pub struct BlockNode {
     pub grants: BTreeMap<Uuid, Access>,
     pub metadata: Vec<u8>,
     pub version: u64,
+    #[serde(default)]
+    pub key: Option<Uuid>,
 }
 
 impl BlockNode {
@@ -53,6 +55,7 @@ impl BlockNode {
             grants: BTreeMap::new(),
             metadata: Vec::new(),
             version: 0,
+            key: None,
         }
     }
 }
@@ -164,6 +167,25 @@ impl BlockGraph {
     pub fn set_metadata(&mut self, id: Uuid, metadata: Vec<u8>) -> Result<(), GraphError> {
         self.node_mut(id)?.metadata = metadata;
         Ok(())
+    }
+
+    pub fn set_key(&mut self, id: Uuid, key: Uuid) -> Result<(), GraphError> {
+        self.node_mut(id)?.key = Some(key);
+        Ok(())
+    }
+
+    pub fn is_scope_root(&self, id: Uuid) -> bool {
+        self.blocks.get(&id).is_some_and(|node| {
+            !matches!(node.parent, BlockParent::Block(_))
+                || node.grants.values().any(|level| level.can_view())
+        })
+    }
+
+    pub fn scope(&self, id: Uuid) -> Uuid {
+        std::iter::once(id)
+            .chain(self.ancestors(id))
+            .find(|block| self.is_scope_root(*block) || !self.blocks.contains_key(block))
+            .unwrap_or(id)
     }
 
     pub fn head(&self, id: Uuid) -> Option<CommitId> {

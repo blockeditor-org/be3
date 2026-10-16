@@ -9,11 +9,14 @@ pub mod vault;
 pub use chunker::{ChunkerConfig, split};
 pub use hash::Hash;
 pub use store::{FileStore, MemoryStore, ObjectStore};
-pub use vault::{ChunkRef, ContentKey, Manifest, Vault, decode_value, encode_value};
+pub use vault::{
+    ChunkRef, ContentKey, Keyring, Manifest, Vault, decode_value, encode_value, sealed_key,
+};
 
 #[derive(Debug)]
 pub enum StoreError {
     MissingObject(Hash),
+    MissingKey(uuid::Uuid),
     Corrupt,
     ChunkTooLarge,
     Encoding,
@@ -25,6 +28,7 @@ impl fmt::Display for StoreError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingObject(hash) => write!(formatter, "object {hash} is not in the store"),
+            Self::MissingKey(key) => write!(formatter, "key {key} is not on this keyring"),
             Self::Corrupt => formatter.write_str("stored bytes did not decrypt to valid content"),
             Self::ChunkTooLarge => formatter.write_str("a chunk exceeded the addressable length"),
             Self::Encoding => formatter.write_str("an object failed to encode or decode"),

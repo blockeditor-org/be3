@@ -7,7 +7,7 @@ use be_block::database_schema::{
 use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
-use be_store::{ContentKey, MemoryStore};
+use be_store::MemoryStore;
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -32,8 +32,6 @@ mod arguments_parse_into_commands;
 mod blocks_are_listed_and_found_by_short_id_or_name;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod two_databases_with_one_prefix_are_refused;
-
-const KEY: [u8; 32] = [9; 32];
 
 struct Harness {
     url: String,
@@ -71,7 +69,7 @@ impl Harness {
         Peer::connect(
             PeerConfig::new(
                 be_client::socket_url(&self.url),
-                ContentKey::from_bytes(KEY),
+                be_keys::RecoveryPhrase::generate().secret(),
                 Credentials::Register {
                     email: "owner@example.com".into(),
                     display_name: "Owner".into(),

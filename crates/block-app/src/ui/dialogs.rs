@@ -81,7 +81,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                 <Text style=TextStyle::CAPTION string={organization} />
                 <Text
                     style=TextStyle::CAPTION
-                    string="An agent is an account for a program, such as a coding agent, that reads and edits this organization through the be command line tool. It sees only the blocks you share with it."
+                    string="An agent is an account for a program, such as a coding agent, that reads and edits this organization through the be command line tool. It sees only the blocks you share with it, and only this device knows its key, so share them from here."
                     wrap=true
                 />
                 <Show condition={none}>
@@ -268,7 +268,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                             <Text
                                 style=TextStyle::PARAGRAPH
                                 @test_id={"app.invite.help"}
-                                string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It carries the organization's key, which the server never sees, so don't email it to the same address. It is shown only once."
+                                string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
                                 wrap=true
                             />
                             <TextInput

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -8,14 +8,15 @@ use be_commit::{
     Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds, plan_retention,
 };
 use be_graph::{Access, BlockParent};
+use be_keys::RecoverySecret;
 use be_protocol::{
-    AccessEntry, BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, OrganizationRole,
-    ServerMessage, SessionState,
+    AccessEntry, BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeySet,
+    OrganizationRole, ServerMessage, SessionState, WrappedBy,
 };
-use be_store::{ChunkerConfig, ContentKey, Hash, Manifest, ObjectStore, Vault};
+use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
 
-use crate::{ClientError, connection::Connection};
+use crate::{ClientError, connection::Connection, keys::KeyBook};
 
 #[derive(Clone)]
 pub enum Credentials {
@@ -56,7 +57,7 @@ impl Credentials {
 
 pub struct PeerConfig {
     pub url: String,
-    pub key: ContentKey,
+    pub identity: RecoverySecret,
     pub credentials: Credentials,
     pub organization: Option<Uuid>,
     pub organization_name: String,
@@ -64,10 +65,10 @@ pub struct PeerConfig {
 }
 
 impl PeerConfig {
-    pub fn new(url: impl Into<String>, key: ContentKey, credentials: Credentials) -> Self {
+    pub fn new(url: impl Into<String>, identity: RecoverySecret, credentials: Credentials) -> Self {
         Self {
             url: url.into(),
-            key,
+            identity,
             credentials,
             organization: None,
             organization_name: "Organization".into(),
@@ -111,6 +112,9 @@ pub struct Peer<S: ObjectStore> {
     role: OrganizationRole,
     heads: Mutex<HashMap<Uuid, CommitId>>,
     resolver: Mutex<Option<Resolver>>,
+    keys: KeyBook,
+    current: Mutex<HashMap<Uuid, Uuid>>,
+    tried: Mutex<HashSet<Uuid>>,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -158,16 +162,168 @@ impl<S: ObjectStore> Peer<S> {
         let ServerMessage::OrganizationOpened { role, .. } = response else {
             return Err(ClientError::Unexpected);
         };
-        Ok(Self {
+        let ServerMessage::RecoveryKey { public, .. } = connection
+            .request(|request| ClientMessage::GetRecoveryKey { request })
+            .await?
+        else {
+            return Err(ClientError::Unexpected);
+        };
+        if public.is_none() {
+            connection
+                .request(|request| ClientMessage::SetRecoveryKey {
+                    request,
+                    public: config.identity.public().0,
+                    sealed: Vec::new(),
+                })
+                .await?;
+        }
+        let ring = Keyring::new();
+        let peer = Self {
             connection,
-            commits: CommitStore::new(Vault::new(store, config.key).with_chunker(config.chunker)),
+            commits: CommitStore::new(Vault::new(store, ring.clone()).with_chunker(config.chunker)),
             token,
             account,
             organization,
             role,
             heads: Mutex::new(HashMap::new()),
             resolver: Mutex::new(None),
-        })
+            keys: KeyBook::new(account, config.identity, ring),
+            current: Mutex::new(HashMap::new()),
+            tried: Mutex::new(HashSet::new()),
+        };
+        peer.refresh_keys(None).await?;
+        Ok(peer)
+    }
+
+    pub fn keys(&self) -> &KeyBook {
+        &self.keys
+    }
+
+    pub async fn refresh_keys(&self, blocks: Option<Vec<Uuid>>) -> Result<usize, ClientError> {
+        let ServerMessage::Keys { keys, .. } = self
+            .connection
+            .request(|request| ClientMessage::GetKeys {
+                request,
+                blocks: blocks.clone(),
+            })
+            .await?
+        else {
+            return Err(ClientError::Unexpected);
+        };
+        let opened = self.keys.absorb(keys);
+        if opened > 0 {
+            self.tried.lock().unwrap().clear();
+        }
+        Ok(opened)
+    }
+
+    pub fn note(&self, summary: &BlockSummary) {
+        if let Some(key) = summary.key {
+            self.current.lock().unwrap().insert(summary.id, key);
+        }
+    }
+
+    pub async fn learn(&self, summaries: &[BlockSummary]) -> Result<(), ClientError> {
+        let mut wanted = Vec::new();
+        {
+            let mut tried = self.tried.lock().unwrap();
+            for summary in summaries {
+                self.note(summary);
+                if let Some(key) = summary.key
+                    && summary.access.can_view()
+                    && !self.keys.has(key)
+                    && tried.insert(key)
+                {
+                    wanted.push(summary.id);
+                }
+            }
+        }
+        if !wanted.is_empty() {
+            self.refresh_keys(Some(wanted)).await?;
+        }
+        Ok(())
+    }
+
+    async fn retrying<T>(
+        &self,
+        attempt: impl Fn() -> Result<T, ClientError>,
+    ) -> Result<T, ClientError> {
+        match attempt() {
+            Err(ClientError::Store(StoreError::MissingKey(key))) => {
+                if self.tried.lock().unwrap().insert(key) {
+                    self.refresh_keys(None).await?;
+                    return attempt().map_err(locked);
+                }
+                Err(ClientError::Locked(key))
+            }
+            outcome => outcome,
+        }
+    }
+
+    pub async fn sealing_key(&self, block: Uuid) -> Result<Uuid, ClientError> {
+        let known = self.current.lock().unwrap().get(&block).copied();
+        let key = match known {
+            Some(key) => key,
+            None => {
+                let summary = self.summary(block).await?;
+                summary.key.ok_or(ClientError::Locked(block))?
+            }
+        };
+        if !self.keys.has(key) {
+            self.refresh_keys(Some(vec![block])).await?;
+        }
+        match self.keys.has(key) {
+            true => Ok(key),
+            false => Err(ClientError::Locked(key)),
+        }
+    }
+
+    async fn scope_key(&self, scope: Uuid) -> Result<Uuid, ClientError> {
+        if let Some(key) = self.keys.scope_key(scope) {
+            return Ok(key);
+        }
+        self.refresh_keys(Some(vec![scope])).await?;
+        self.keys.scope_key(scope).ok_or(ClientError::Locked(scope))
+    }
+
+    async fn scope_key_under(&self, parent: Uuid) -> Result<Uuid, ClientError> {
+        let summary = self.summary(parent).await?;
+        self.note(&summary);
+        self.scope_key(summary.scope).await
+    }
+
+    async fn new_keys(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<(Uuid, KeySet), ClientError> {
+        let under = match parent {
+            BlockParent::Block(parent) => self.scope_key_under(parent).await?,
+            BlockParent::Root | BlockParent::Detached => {
+                let (scope, keys) = self.keys.mint_scope(block, None)?;
+                let (data, more) = self.keys.mint_data(block, scope)?;
+                let mut keys = keys;
+                keys.extend(more);
+                return Ok((data, keys));
+            }
+        };
+        Ok(self.keys.mint_data(block, under)?)
+    }
+
+    pub async fn read_manifest(&self, manifest: &Manifest) -> Result<Vec<u8>, ClientError> {
+        self.fetch(&manifest.chunk_hashes()).await?;
+        self.retrying(|| Ok(self.commits.vault().read(manifest)?))
+            .await
+    }
+
+    pub async fn write_content(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        data: &[u8],
+    ) -> Result<Manifest, ClientError> {
+        let key = self.sealing_key(block).await?;
+        Ok(self.commits.vault().write(key, content_type, data)?)
     }
 
     pub fn account(&self) -> Uuid {
@@ -223,7 +379,8 @@ impl<S: ObjectStore> Peer<S> {
         parent: BlockParent,
         metadata: &BlockMetadata,
     ) -> Result<BlockSummary, ClientError> {
-        let metadata = self.seal_metadata(metadata);
+        let (key, keys) = self.new_keys(block, parent).await?;
+        let metadata = self.commits.vault().seal(key, &metadata.encode())?;
         let response = self
             .connection
             .request(|request| ClientMessage::CreateBlock {
@@ -232,10 +389,16 @@ impl<S: ObjectStore> Peer<S> {
                 content_type,
                 parent,
                 metadata: metadata.clone(),
+                key,
+                keys: keys.clone(),
             })
             .await?;
         match response {
-            ServerMessage::Block { block, .. } => Ok(block),
+            ServerMessage::Block { block, .. } => {
+                self.recorded(&keys);
+                self.note(&block);
+                Ok(block)
+            }
             _ => Err(ClientError::Unexpected),
         }
     }
@@ -260,7 +423,7 @@ impl<S: ObjectStore> Peer<S> {
             let summary = self.summary(block).await?;
             let current = match summary.head {
                 Some(head) => self.metadata_of(head).await?,
-                None => self.metadata(&summary)?,
+                None => self.metadata_of_summary(&summary).await?,
             };
             let mut next = current.clone();
             edit(&mut next);
@@ -269,7 +432,7 @@ impl<S: ObjectStore> Peer<S> {
                 return Ok(summary);
             }
             let Some(head) = summary.head else {
-                let sealed = self.seal_metadata(&next);
+                let sealed = self.seal_metadata(block, &next).await?;
                 let response = self
                     .connection
                     .request(|request| ClientMessage::SetMetadata {
@@ -311,6 +474,13 @@ impl<S: ObjectStore> Peer<S> {
         )?)
     }
 
+    pub async fn metadata_of_summary(
+        &self,
+        summary: &BlockSummary,
+    ) -> Result<BlockMetadata, ClientError> {
+        self.retrying(|| self.open_metadata(summary)).await
+    }
+
     async fn metadata_at(
         &self,
         block: Uuid,
@@ -318,20 +488,29 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<BlockMetadata, ClientError> {
         match expected {
             Some(head) => self.metadata_of(head).await,
-            None => self.metadata(&self.summary(block).await?),
+            None => self.metadata_of_summary(&self.summary(block).await?).await,
         }
     }
 
     pub fn metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
+        self.open_metadata(summary).map_err(locked)
+    }
+
+    fn open_metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
         if summary.metadata.is_empty() {
             return Ok(BlockMetadata::default());
         }
-        let plain = self.unseal(&summary.metadata)?;
+        let plain = self.commits.vault().open(&summary.metadata)?;
         Ok(BlockMetadata::decode(&plain)?)
     }
 
-    fn seal_metadata(&self, metadata: &BlockMetadata) -> Vec<u8> {
-        self.commits.vault().seal(&metadata.encode())
+    async fn seal_metadata(
+        &self,
+        block: Uuid,
+        metadata: &BlockMetadata,
+    ) -> Result<Vec<u8>, ClientError> {
+        let key = self.sealing_key(block).await?;
+        Ok(self.commits.vault().seal(key, &metadata.encode())?)
     }
 
     pub async fn ensure<C: BlockContent>(
@@ -352,7 +531,10 @@ impl<S: ObjectStore> Peer<S> {
             .request(|request| ClientMessage::ReadBlock { request, block })
             .await?;
         match response {
-            ServerMessage::Block { block, .. } => Ok(block),
+            ServerMessage::Block { block, .. } => {
+                self.note(&block);
+                Ok(block)
+            }
             _ => Err(ClientError::Unexpected),
         }
     }
@@ -462,7 +644,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn load_commit(&self, commit: CommitId) -> Result<Commit, ClientError> {
         self.fetch(&[commit.hash()]).await?;
-        Ok(self.commits.get(commit)?)
+        self.retrying(|| Ok(self.commits.get(commit)?)).await
     }
 
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {
@@ -470,17 +652,14 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         let commit = self.load_commit(head).await?;
-        self.fetch(&commit.manifest.chunk_hashes()).await?;
+        let bytes = self.read_manifest(&commit.manifest).await?;
         self.remember(block, head);
-        Ok(Some(C::decode(
-            &self.commits.vault().read(&commit.manifest)?,
-        )?))
+        Ok(Some(C::decode(&bytes)?))
     }
 
     pub async fn open_commit<C: BlockContent>(&self, commit: CommitId) -> Result<C, ClientError> {
         let commit = self.load_commit(commit).await?;
-        self.fetch(&commit.manifest.chunk_hashes()).await?;
-        Ok(C::decode(&self.commits.vault().read(&commit.manifest)?)?)
+        Ok(C::decode(&self.read_manifest(&commit.manifest).await?)?)
     }
 
     pub async fn save<C: BlockContent>(
@@ -533,15 +712,16 @@ impl<S: ObjectStore> Peer<S> {
             .metadata_at(block, parent)
             .await?
             .with_derived(derived_metadata(content));
+        let key = self.sealing_key(block).await?;
         let manifest = self
             .commits
             .vault()
-            .write(C::CONTENT_TYPE, &content.encode())?;
+            .write(key, C::CONTENT_TYPE, &content.encode())?;
         let commit = Commit::new(manifest, self.account, now_milliseconds())
             .with_parent(parent)
             .with_references(references)
             .with_metadata(metadata.encode());
-        let id = self.commits.put(&commit)?;
+        let id = self.commits.put(key, &commit)?;
         let mut objects = vec![id.hash()];
         objects.extend(commit.manifest.chunk_hashes());
         self.push(&objects).await?;
@@ -581,9 +761,8 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<Saved, ClientError> {
         let references = self.resolve(block, content.references_in(self.organization()));
         let manifest = self
-            .commits
-            .vault()
-            .write(C::CONTENT_TYPE, &content.encode())?;
+            .write_content(block, C::CONTENT_TYPE, &content.encode())
+            .await?;
         let defined = match defined {
             Some(defined) => defined,
             None => self.metadata_at(block, expected).await?.defined,
@@ -644,18 +823,19 @@ impl<S: ObjectStore> Peer<S> {
         } else {
             be_commit::CommitKind::Autosave
         };
+        let key = self.sealing_key(block).await?;
         let commit = Commit::new(manifest.clone(), self.account, time)
             .with_parents(parents.clone())
             .with_kind(kind)
             .with_references(references.clone())
             .with_metadata(encoded);
-        let id = self.commits.put(&commit)?;
+        let id = self.commits.put(key, &commit)?;
 
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
         self.push(&objects).await?;
 
-        let sealed = self.seal_metadata(metadata);
+        let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         let response = self
             .connection
             .request(|request| ClientMessage::Publish {
@@ -775,7 +955,8 @@ impl<S: ObjectStore> Peer<S> {
             .map(|chunk| chunk.hash)
             .collect();
         self.fetch(&needed).await?;
-        Ok(self.commits.vault().read_range(manifest, offset, length)?)
+        self.retrying(|| Ok(self.commits.vault().read_range(manifest, offset, length)?))
+            .await
     }
 
     pub async fn history(&self, block: Uuid) -> Result<Vec<HistoryEntry>, ClientError> {
@@ -818,14 +999,116 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
+        let keys = match parent {
+            BlockParent::Detached => KeySet::default(),
+            BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent).await?,
+        };
         self.connection
             .request(|request| ClientMessage::SetParent {
                 request,
                 block,
                 parent,
+                keys: keys.clone(),
             })
             .await?;
+        self.recorded(&keys);
         Ok(())
+    }
+
+    fn recorded(&self, keys: &KeySet) {
+        self.keys.record(keys);
+        let mut current = self.current.lock().unwrap();
+        for row in keys.keys.iter().filter(|row| row.kind == KeyKind::Data) {
+            current.insert(row.block, row.id);
+        }
+    }
+
+    pub async fn share(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        public: &be_keys::RecoveryPublic,
+    ) -> Result<(), ClientError> {
+        self.grant(block, account, access).await?;
+        if !access.can_view() {
+            return Ok(());
+        }
+        let parent = self.summary(block).await?.parent;
+        let mut keys = self.rescope(block, parent).await?;
+        let scope = self
+            .keys
+            .scope_key(block)
+            .ok_or(ClientError::Locked(block))?;
+        keys.wrapped
+            .push(self.keys.seal_to(scope, account, public)?);
+        self.connection
+            .request(|request| ClientMessage::PutKeys {
+                request,
+                keys: keys.clone(),
+            })
+            .await?;
+        self.recorded(&keys);
+        Ok(())
+    }
+
+    async fn rescope(&self, block: Uuid, parent: BlockParent) -> Result<KeySet, ClientError> {
+        let moved = self.summary(block).await?;
+        let shared = moved.scope == block && matches!(moved.parent, BlockParent::Block(_));
+        let parent_scope = match parent {
+            BlockParent::Block(parent) => Some(self.scope_key_under(parent).await?),
+            BlockParent::Root | BlockParent::Detached => None,
+        };
+        let mut keys = KeySet::default();
+        let under = match (shared, parent_scope) {
+            (false, Some(under)) => under,
+            (_, parent_scope) => {
+                let own = match self.keys.scope_key(block) {
+                    Some(own) => own,
+                    None => {
+                        let (own, minted) = self.keys.mint_scope(block, parent_scope)?;
+                        keys.extend(minted);
+                        own
+                    }
+                };
+                if let Some(parent_scope) = parent_scope
+                    && !self
+                        .keys
+                        .wrapped_by(own)
+                        .contains(&WrappedBy::Key(parent_scope))
+                    && keys.keys.is_empty()
+                {
+                    keys.wrapped.push(self.keys.wrap(own, parent_scope)?);
+                }
+                own
+            }
+        };
+        let wrapped_under = |key: Uuid| self.keys.wrapped_by(key).contains(&WrappedBy::Key(under));
+        if moved.key.is_some_and(wrapped_under) {
+            return Ok(keys);
+        }
+        let mut pending = vec![moved];
+        while let Some(node) = pending.pop() {
+            if node.id != block && node.scope == node.id {
+                if let Some(nested) = self.keys.scope_key(node.id)
+                    && !wrapped_under(nested)
+                {
+                    keys.wrapped.push(self.keys.wrap(nested, under)?);
+                }
+                continue;
+            }
+            if !node.key.is_some_and(wrapped_under) {
+                for row in self.keys.keys_of(node.id, KeyKind::Data) {
+                    if self.keys.has(row.id) && !wrapped_under(row.id) {
+                        keys.wrapped.push(self.keys.wrap(row.id, under)?);
+                    }
+                }
+                let (_, fresh) = self.keys.mint_data(node.id, under)?;
+                keys.extend(fresh);
+            }
+            pending.extend(self.children(BlockParent::Block(node.id)).await?);
+        }
+        Ok(keys)
     }
 
     pub async fn children(&self, parent: BlockParent) -> Result<Vec<BlockSummary>, ClientError> {
@@ -960,7 +1243,8 @@ impl<S: ObjectStore> Peer<S> {
         to: Option<ClientId>,
         payload: &[u8],
     ) -> Result<(), ClientError> {
-        let sealed = self.commits.vault().seal(payload);
+        let key = self.sealing_key(block).await?;
+        let sealed = self.commits.vault().seal(key, payload)?;
         self.connection
             .request(|request| ClientMessage::Relay {
                 request,
@@ -972,8 +1256,16 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    pub fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
-        Ok(self.commits.vault().open(payload)?)
+    pub async fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.retrying(|| Ok(self.commits.vault().open(payload)?))
+            .await
+    }
+}
+
+fn locked(error: impl Into<ClientError>) -> ClientError {
+    match error.into() {
+        ClientError::Store(StoreError::MissingKey(key)) => ClientError::Locked(key),
+        other => other,
     }
 }
 

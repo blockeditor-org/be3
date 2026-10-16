@@ -674,6 +674,7 @@ dependencies = [
  "be-block",
  "be-commit",
  "be-graph",
+ "be-keys",
  "be-protocol",
  "be-server",
  "be-session",

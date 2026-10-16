@@ -18,7 +18,7 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
     assert!(state.participants.contains(&peer_id));
 
     let plaintext = b"insert \"the quick brown fox\" at 12";
-    let sealed = author.commits.vault().seal(plaintext);
+    let sealed = author.commits.vault().seal(KEY, plaintext).unwrap();
     assert!(
         !sealed
             .windows(plaintext.len())

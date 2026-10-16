@@ -5,12 +5,14 @@ use be_protocol::ErrorCode;
 use be_store::{Hash, StoreError};
 
 pub mod connection;
+pub mod keys;
 pub mod live;
 pub mod peer;
 pub mod transfer;
 mod transport;
 
 pub use connection::Connection;
+pub use keys::KeyBook;
 pub use live::{Conflict, Journaled, Live};
 pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
 
@@ -72,6 +74,7 @@ pub enum ClientError {
     Store(StoreError),
     Encoding(String),
     Contended,
+    Locked(uuid::Uuid),
     Unexpected,
     Incompatible { ours: String, theirs: String },
     NoBuild(String),
@@ -97,6 +100,9 @@ impl fmt::Display for ClientError {
             Self::Contended => {
                 formatter.write_str("someone else kept changing the block at the same time")
             }
+            Self::Locked(_) => formatter.write_str(
+                "this block is locked: its key has not been shared with this account yet",
+            ),
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
             Self::Incompatible { ours, theirs } => write!(
                 formatter,

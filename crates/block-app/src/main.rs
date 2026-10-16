@@ -471,7 +471,7 @@ struct BlockApp {
     inspector_requested: Option<bool>,
     dev_workspace: bool,
     keys: keys::KeyState,
-    organization_key: Option<[u8; 32]>,
+    identity: Option<[u8; 32]>,
     #[cfg(target_os = "linux")]
     desktop: Option<session::DesktopSession>,
     #[cfg(target_os = "linux")]
@@ -504,10 +504,10 @@ enum OrganizationOperation {
     Load,
     Create(String),
     LookUp(Uuid),
-    Join(be_keys::InviteCode, Option<be_keys::RecoveryPublic>),
-    Invite(Uuid, String, OrganizationRole, [u8; 32]),
+    Join(be_keys::InviteCode),
+    Invite(Uuid, String, OrganizationRole),
     ListAgents(Uuid),
-    CreateAgent(Uuid, String, [u8; 32]),
+    CreateAgent(Uuid, String),
     RemoveAgent(Uuid, Uuid),
 }
 
@@ -515,7 +515,7 @@ enum OrganizationResult {
     Loaded(Vec<Organization>, accounts::Keys),
     Created(Organization),
     Invitation(OrganizationInvitation),
-    Joined(Uuid, [u8; 32]),
+    Joined(Uuid),
     Invited(String),
     Agents(
         Option<Vec<be_protocol::Agent>>,
@@ -625,6 +625,10 @@ impl BlockApp {
             })
             .cloned();
         let signed_in = account.is_some();
+        let identity = match &account {
+            Some(account) => app_state.identity(account)?,
+            None => None,
+        };
         let account = account.unwrap_or_else(|| Account {
             server: ServerLocation::Local,
             id: Uuid::nil(),
@@ -706,7 +710,7 @@ impl BlockApp {
             inspector_requested: None,
             dev_workspace: false,
             keys: keys::KeyState::default(),
-            organization_key: None,
+            identity,
             #[cfg(target_os = "linux")]
             desktop: None,
             #[cfg(target_os = "linux")]
@@ -941,12 +945,8 @@ impl BlockApp {
         if !std::mem::take(&mut self.dev_workspace) || self.organization.is_some() {
             return;
         }
-        match self.organizations.first().cloned() {
-            Some(organization) => self.open_organization(organization),
-            None => {
-                self.begin_organization_request(OrganizationOperation::Create("Dev".to_owned()));
-                host::request_repaint();
-            }
+        if let Some(organization) = self.organizations.first().cloned() {
+            self.open_organization(organization);
         }
     }
 
@@ -1105,13 +1105,11 @@ impl BlockApp {
                         .await
                         .map(OrganizationResult::Invitation)
                 }
-                OrganizationOperation::Join(code, recovery) => {
-                    accounts::accept_invitation(url, token, code, recovery)
-                        .await
-                        .map(|(organization, key)| OrganizationResult::Joined(organization, key))
-                }
-                OrganizationOperation::Invite(organization, email, role, key) => {
-                    accounts::invite(url, token, organization, email, role, key)
+                OrganizationOperation::Join(code) => accounts::accept_invitation(url, token, code)
+                    .await
+                    .map(OrganizationResult::Joined),
+                OrganizationOperation::Invite(organization, email, role) => {
+                    accounts::invite(url, token, organization, email, role)
                         .await
                         .map(OrganizationResult::Invited)
                 }
@@ -1120,9 +1118,9 @@ impl BlockApp {
                         .await
                         .map(|agents| OrganizationResult::Agents(Some(agents), None))
                 }
-                OrganizationOperation::CreateAgent(organization, name, key) => {
+                OrganizationOperation::CreateAgent(organization, name) => {
                     let created =
-                        accounts::create_agent(url.clone(), token.clone(), organization, name, key)
+                        accounts::create_agent(url.clone(), token.clone(), organization, name)
                             .await?;
                     let agents = accounts::agents(url, token, organization).await.ok();
                     Ok(OrganizationResult::Agents(agents, Some(created)))
@@ -1156,13 +1154,15 @@ impl BlockApp {
                 self.keys.loaded(keys);
                 if self.keys.needs_recovery() {
                     if self.dev_workspace {
-                        let held = self.held_keys();
                         self.keys.skip_confirmation(
                             self.server_url.clone(),
                             self.account.token.clone(),
-                            held,
+                            self.identity,
                         );
                     }
+                    return;
+                }
+                if self.keys.needs_unlock(self.identity) {
                     return;
                 }
                 if self.joining.is_some() {
@@ -1183,14 +1183,6 @@ impl BlockApp {
             Ok(OrganizationResult::Created(organization)) => {
                 self.organizations.push(organization.clone());
                 self.organization_created += 1;
-                let key = *be_store::ContentKey::random().as_bytes();
-                if let Err(error) =
-                    self.app_state
-                        .set_organization_key(&self.account, organization.id, key)
-                {
-                    self.organization_error = Some(error.to_string());
-                    return;
-                }
                 self.open_organization(organization);
             }
             Ok(OrganizationResult::Invitation(invitation)) => {
@@ -1198,14 +1190,8 @@ impl BlockApp {
                     joining.invitation = Some(invitation);
                 }
             }
-            Ok(OrganizationResult::Joined(organization, key)) => {
+            Ok(OrganizationResult::Joined(organization)) => {
                 self.joining = None;
-                if let Err(error) =
-                    self.app_state
-                        .set_organization_key(&self.account, organization, key)
-                {
-                    self.organization_error = Some(error.to_string());
-                }
                 self.account.last_organization_id = Some(organization);
                 self.organizations_loaded = false;
                 self.organizations_load_failed = false;
@@ -1218,6 +1204,15 @@ impl BlockApp {
             Ok(OrganizationResult::Agents(agents, created)) => {
                 if let Some(agents) = agents {
                     self.agents = agents;
+                }
+                if let Some(created) = &created {
+                    if let Err(error) =
+                        self.app_state
+                            .trust(&self.account, created.account, created.public)
+                    {
+                        self.organization_error = Some(error.to_string());
+                    }
+                    be::trust(created.account, created.public);
                 }
                 if created.is_some() {
                     self.agent_created = created;
@@ -1345,16 +1340,6 @@ impl BlockApp {
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys.cancel_pairing();
-        self.organization_key = match self
-            .app_state
-            .organization_key(&self.account, organization.id)
-        {
-            Ok(key) => key,
-            Err(error) => {
-                self.organization_error = Some(error.to_string());
-                None
-            }
-        };
         self.organization = Some(organization.clone());
         self.account.last_organization_id = Some(organization.id);
         if let Some(saved) = self
@@ -1372,61 +1357,27 @@ impl BlockApp {
         }
     }
 
-    fn held_keys(&self) -> Vec<(Uuid, [u8; 32])> {
-        self.app_state
-            .organization_keys(&self.account)
-            .unwrap_or_default()
-    }
-
     fn poll_keys(&mut self) {
-        match self.keys.poll() {
-            Some(keys::KeyEvent::RecoverySaved(public)) => {
-                self.trust_recovery(public);
-                if self.organization.is_none() {
-                    self.organizations_loaded = false;
-                    self.organizations_load_failed = false;
-                    self.begin_organization_request(OrganizationOperation::Load);
-                }
+        let secret = match self.keys.poll() {
+            Some(keys::KeyEvent::RecoverySaved(secret) | keys::KeyEvent::Unlocked(secret)) => {
+                secret
             }
-            Some(keys::KeyEvent::Unlocked {
-                organization,
-                key,
-                recovery,
-            }) => {
-                if let Some(recovery) = recovery {
-                    self.trust_recovery(recovery);
-                }
-                self.unlocked(organization, key);
-            }
-            None => {}
-        }
-    }
-
-    fn trusted_recovery(&self) -> Option<be_keys::RecoveryPublic> {
-        self.app_state
-            .recovery_key(&self.account)
-            .ok()
-            .flatten()
-            .map(be_keys::RecoveryPublic)
-    }
-
-    fn trust_recovery(&mut self, public: be_keys::RecoveryPublic) {
-        if let Err(error) = self.app_state.set_recovery_key(&self.account, public.0) {
-            self.organization_error = Some(error.to_string());
-        }
-    }
-
-    fn unlocked(&mut self, organization: Uuid, key: [u8; 32]) {
-        if let Err(error) = self
-            .app_state
-            .set_organization_key(&self.account, organization, key)
-        {
+            None => return,
+        };
+        if let Err(error) = self.app_state.set_identity(&self.account, secret) {
             self.organization_error = Some(error.to_string());
             return;
         }
-        if self.organization.as_ref().map(|open| open.id) == Some(organization) {
-            self.organization_key = Some(key);
+        self.identity = Some(secret);
+        if self.organization.is_none() {
+            self.organizations_loaded = false;
+            self.organizations_load_failed = false;
+            self.begin_organization_request(OrganizationOperation::Load);
         }
+    }
+
+    fn locked(&self) -> bool {
+        self.identity.is_none() || self.keys.needs_unlock(self.identity)
     }
 
     fn load_organizations_if_needed(&mut self) {
@@ -1480,7 +1431,10 @@ impl BlockApp {
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys = keys::KeyState::default();
-        self.organization_key = None;
+        self.identity = self.app_state.identity(&account).unwrap_or_else(|error| {
+            self.organization_error = Some(error.to_string());
+            None
+        });
         self.account = account;
         self.server_url = server_url;
         self.signed_in = true;
@@ -2388,7 +2342,7 @@ impl BlockApp {
             performance::end_frame();
             return;
         }
-        if self.organization_key.is_none() {
+        if self.locked() {
             be::stop();
             if !self.organizations_loaded {
                 self.load_organizations_if_needed();
@@ -2427,7 +2381,7 @@ impl BlockApp {
         else {
             return;
         };
-        let Some(content_key) = self.organization_key else {
+        let Some(identity) = self.identity else {
             return;
         };
         if be::installed_for(self.account.id, organization) {
@@ -2444,13 +2398,11 @@ impl BlockApp {
             token: self.account.token.clone(),
             account: self.account.id,
             organization,
-            content_key,
-            other_keys: self
-                .held_keys()
-                .into_iter()
-                .filter(|(held, _)| *held != organization)
-                .collect(),
-            recovery: self.trusted_recovery().map(|public| public.0),
+            identity,
+            trusted: self
+                .app_state
+                .trusted_keys(&self.account)
+                .unwrap_or_default(),
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
@@ -2595,8 +2547,7 @@ impl BlockApp {
                     && joining.invitation.is_some()
                 {
                     let code = joining.link.code.clone();
-                    let recovery = self.trusted_recovery();
-                    self.begin_organization_request(OrganizationOperation::Join(code, recovery));
+                    self.begin_organization_request(OrganizationOperation::Join(code));
                 }
             }
             UiCommand::CancelJoin => self.joining = None,
@@ -2667,14 +2618,11 @@ impl BlockApp {
             UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
             UiCommand::SendInvite(email, role) => {
                 if let Some(organization) = &self.organization
-                    && let Some(key) = self.organization_key
                     && !email.trim().is_empty()
                 {
                     let id = organization.id;
                     self.invite_link = None;
-                    self.begin_organization_request(OrganizationOperation::Invite(
-                        id, email, role, key,
-                    ));
+                    self.begin_organization_request(OrganizationOperation::Invite(id, email, role));
                 }
             }
             UiCommand::CloseInvite => {
@@ -2694,13 +2642,11 @@ impl BlockApp {
                 self.agent_created = None;
             }
             UiCommand::CreateAgent(name) => {
-                if let (Some(organization), Some(key)) = (&self.organization, self.organization_key)
+                if let Some(organization) = &self.organization
                     && !name.trim().is_empty()
                 {
                     let id = organization.id;
-                    self.begin_organization_request(OrganizationOperation::CreateAgent(
-                        id, name, key,
-                    ));
+                    self.begin_organization_request(OrganizationOperation::CreateAgent(id, name));
                 }
             }
             UiCommand::RemoveAgent(account) => {
@@ -2716,37 +2662,30 @@ impl BlockApp {
             UiCommand::Debug(command) => debug::command(command),
             UiCommand::ShowPanel(panel) => self.show_panel(panel),
             UiCommand::ConfirmRecovery(words) => {
-                let held = self.held_keys();
                 self.keys.confirm_recovery(
                     &words,
                     self.server_url.clone(),
                     self.account.token.clone(),
-                    held,
+                    self.identity,
                 );
             }
             UiCommand::UnlockWithPhrase(phrase) => {
-                if let Some(organization) = self
-                    .organization
-                    .as_ref()
-                    .map(|organization| organization.id)
-                    && let Some((key, public)) = self.keys.unlock_with_phrase(organization, &phrase)
-                {
-                    self.trust_recovery(public);
-                    self.unlocked(organization, key);
+                if let Some(secret) = self.keys.unlock_with_phrase(&phrase) {
+                    if let Err(error) = self.app_state.set_identity(&self.account, secret) {
+                        self.organization_error = Some(error.to_string());
+                    }
+                    self.identity = Some(secret);
+                    if self.organization.is_none() {
+                        self.begin_organization_request(OrganizationOperation::Load);
+                    }
                 }
             }
             UiCommand::StartPairing => {
-                if let Some(organization) = self
-                    .organization
-                    .as_ref()
-                    .map(|organization| organization.id)
-                {
-                    self.keys.start_pairing(
-                        self.server_url.clone(),
-                        self.account.token.clone(),
-                        organization,
-                    );
-                }
+                self.keys.start_pairing(
+                    self.server_url.clone(),
+                    self.account.token.clone(),
+                    self.account.id,
+                );
             }
             UiCommand::CancelPairing => self.keys.cancel_pairing(),
             UiCommand::NewRecoveryPhrase => self.keys.replace_recovery(),
@@ -2761,9 +2700,10 @@ impl BlockApp {
             (Some(_), _, _) => ui::Screen::Error,
             (None, false, _) => ui::Screen::Accounts,
             (None, true, _) if self.keys.replacing() => ui::Screen::Recovery,
-            (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
+            (None, true, _) if self.keys.needs_recovery() => ui::Screen::Recovery,
+            (None, true, _) if self.keys.needs_unlock(self.identity) => ui::Screen::Unlock,
             (None, true, None) => ui::Screen::Organizations,
-            (None, true, Some(_)) if self.organization_key.is_none() => ui::Screen::Unlock,
+            (None, true, Some(_)) if self.identity.is_none() => ui::Screen::Unlock,
             (None, true, Some(_)) if self.choosing_session => ui::Screen::Sessions,
             (None, true, Some(_)) => ui::Screen::Organization,
         };
@@ -2806,23 +2746,13 @@ impl BlockApp {
             },
             account: ui::AccountRow::of(&self.account, true),
             recovery: self.keys.recovery_view(),
-            unlock: self
-                .organization
-                .as_ref()
-                .map(|organization| self.keys.unlock_view(organization.id, &organization.name))
-                .unwrap_or_default(),
+            unlock: self.keys.unlock_view(&self.account.name),
             pairing: match screen {
                 ui::Screen::Organization => be::pairing_requests()
                     .into_iter()
                     .map(|request| ui::PairingRow {
                         from: request.from,
                         device: request.device,
-                        organization: self
-                            .organizations
-                            .iter()
-                            .find(|organization| organization.id == request.organization)
-                            .map(|organization| organization.name.clone())
-                            .unwrap_or_else(|| "another organization".to_owned()),
                     })
                     .collect(),
                 _ => Vec::new(),

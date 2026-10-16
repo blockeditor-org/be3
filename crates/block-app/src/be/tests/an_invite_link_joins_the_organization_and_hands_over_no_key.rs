@@ -19,20 +19,11 @@ fn register(url: &str, email: &str) -> crate::accounts::Session {
 }
 
 #[test]
-fn an_invite_link_hands_the_organization_key_to_the_invited_account() {
+fn an_invite_link_joins_the_organization_and_hands_over_no_key() {
     let harness = Harness::start();
     let url = harness.url.clone();
     let guest = register(&url, "guest@example.com");
     let outsider = register(&url, "outsider@example.com");
-    let phrase = be_keys::RecoveryPhrase::generate();
-    runtime()
-        .block_on(crate::accounts::set_recovery_key(
-            url.clone(),
-            guest.token.clone(),
-            phrase.secret().public(),
-            Vec::new(),
-        ))
-        .expect("the guest saves a recovery phrase");
     let link = runtime()
         .block_on(crate::accounts::invite(
             url.clone(),
@@ -40,7 +31,6 @@ fn an_invite_link_hands_the_organization_key_to_the_invited_account() {
             harness.organization,
             "guest@example.com".to_owned(),
             be_protocol::OrganizationRole::Editor,
-            harness.content_key,
         ))
         .expect("the owner invites the guest");
     let parsed = crate::invite_link::InviteLink::parse(&link).expect("the link parses");
@@ -54,20 +44,13 @@ fn an_invite_link_hands_the_organization_key_to_the_invited_account() {
         ))
         .expect("the guest reads the invitation");
     assert_eq!(invitation.organization, harness.organization);
-    assert!(
-        !invitation
-            .sealed
-            .windows(harness.content_key.len())
-            .any(|window| window == harness.content_key),
-        "the invitation carries the organization key in the clear"
-    );
+    assert!(invitation.sealed.is_empty(), "the invitation carries a key");
 
     let join = |token: &str| {
         runtime().block_on(crate::accounts::accept_invitation(
             url.clone(),
             token.to_owned(),
             parsed.code.clone(),
-            Some(phrase.secret().public()),
         ))
     };
     assert!(
@@ -76,19 +59,22 @@ fn an_invite_link_hands_the_organization_key_to_the_invited_account() {
     );
     assert_eq!(
         join(&guest.token).expect("the guest joins with the link"),
-        (harness.organization, harness.content_key)
+        harness.organization
     );
     assert!(join(&guest.token).is_err(), "the link worked twice");
 
-    let keys = runtime()
-        .block_on(crate::accounts::keys(url, guest.token.clone()))
-        .expect("the guest's keys load");
-    assert_eq!(
-        phrase
-            .secret()
-            .open(&keys.sealed[&harness.organization])
-            .unwrap(),
-        harness.content_key,
-        "the guest did not seal the key to their own recovery phrase"
+    let organizations = runtime()
+        .block_on(crate::accounts::organizations(url, guest.token.clone()))
+        .expect("the guest's organizations load");
+    assert!(
+        organizations
+            .iter()
+            .any(|organization| organization.id == harness.organization)
+    );
+    assert!(
+        organizations
+            .iter()
+            .any(|organization| organization.kind == be_protocol::OrganizationKind::Personal),
+        "registering did not join the personal organization"
     );
 }

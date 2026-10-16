@@ -900,6 +900,7 @@ fn region_key(editors: &Editors, block: Uuid, preview: bool) -> Option<RegionKey
 enum Resolution {
     NoAccess,
     Missing,
+    Locked,
     Unsupported(Uuid),
     Stale(Uuid, crate::be::Stale),
     Ready { region: RegionKey, access: Access },
@@ -937,6 +938,9 @@ fn BlockFrameBody(
         let Some(handle) = editors.handle(block) else {
             return Resolution::Missing;
         };
+        if crate::be::locked(block) {
+            return Resolution::Locked;
+        }
         if let Some(stale) = crate::be::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
@@ -962,6 +966,16 @@ fn BlockFrameBody(
                         Resolution::Missing => view! {
                             <Frame />
                         },
+                        Resolution::Locked => {
+                            let item = HostItem::Notice {
+                                text: "Locked: its key has not been shared with you yet"
+                                    .to_owned(),
+                                spinner: false,
+                            };
+                            view! {
+                                <Notice item />
+                            }
+                        }
                         Resolution::Unsupported(block_type) => {
                             let item = HostItem::Unsupported { block, block_type };
                             view! {

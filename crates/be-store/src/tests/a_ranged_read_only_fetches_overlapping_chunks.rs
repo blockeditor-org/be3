@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn a_ranged_read_only_fetches_overlapping_chunks() {
     let store = CountingStore::default();
-    let vault = Vault::new(store.clone(), key(3)).with_chunker(ChunkerConfig::SMALL);
+    let vault = Vault::new(store.clone(), keys(3)).with_chunker(ChunkerConfig::SMALL);
     let data = pseudorandom(128 * 1024, 17);
-    let manifest = vault.write(CONTENT, &data).unwrap();
+    let manifest = vault.write(id(3), CONTENT, &data).unwrap();
     assert!(manifest.chunks.len() > 32);
 
     let before = store.reads();

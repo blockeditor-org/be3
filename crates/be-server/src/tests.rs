@@ -3,11 +3,11 @@ use std::{path::PathBuf, time::Duration};
 use be_commit::{Commit, CommitId, CommitStore};
 use be_graph::BlockParent;
 use be_protocol::{
-    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, ServerMessage, SessionState,
-    encode as encode_message,
+    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeyRow, KeySet, ServerMessage,
+    SessionState, WrappedBy, WrappedKey, encode as encode_message,
 };
 use be_session::{Resume, resume, takeover_needs_merge};
-use be_store::{ChunkerConfig, ContentKey, Hash, MemoryStore, ObjectStore, Vault};
+use be_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
 use futures_util::{SinkExt, StreamExt};
 use tokio::{net::TcpListener, sync::oneshot};
 use tokio_tungstenite::{
@@ -23,6 +23,7 @@ mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
+mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
@@ -35,20 +36,22 @@ mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod history_records_each_commits_parents;
+mod key_rows_are_served_only_to_who_may_see_their_block;
 mod metadata_travels_with_the_content_once_a_block_has_any;
+mod moving_a_block_drops_the_wraps_of_its_old_scope;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
-mod one_personal_organization_is_made_on_demand_and_joined_as_an_editor;
-mod organization_keys_are_sealed_per_member_and_never_overwritten;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod pruning_history_keeps_pinned_commits;
 mod references_keep_the_order_their_block_lists_them_in;
+mod registering_joins_the_one_personal_organization_as_an_editor;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
+const KEY: Uuid = Uuid::from_u128(0x006b_6579);
 
 const BUILD: &str = "a test build";
 
@@ -273,6 +276,16 @@ impl TestClient {
 
     async fn create_block(&mut self, parent: BlockParent) -> Uuid {
         let block = Uuid::new_v4();
+        let key = Uuid::new_v4();
+        let keys = KeySet {
+            keys: vec![row(key, block, KeyKind::Data)],
+            wrapped: Vec::new(),
+        };
+        self.create_keyed(block, parent, key, keys).await;
+        block
+    }
+
+    async fn create_keyed(&mut self, block: Uuid, parent: BlockParent, key: Uuid, keys: KeySet) {
         let response = self
             .send(|request| ClientMessage::CreateBlock {
                 request,
@@ -280,13 +293,24 @@ impl TestClient {
                 content_type: CONTENT,
                 parent,
                 metadata: Vec::new(),
+                key,
+                keys,
             })
             .await;
         assert!(
             matches!(response, ServerMessage::Block { .. }),
             "{response:?}"
         );
-        block
+    }
+
+    async fn keys(&mut self, blocks: Option<Vec<Uuid>>) -> KeySet {
+        let response = self
+            .send(|request| ClientMessage::GetKeys { request, blocks })
+            .await;
+        let ServerMessage::Keys { keys, .. } = response else {
+            panic!("reading keys failed: {response:?}");
+        };
+        keys
     }
 
     async fn upload(&mut self, store: &MemoryStore, hashes: &[Hash]) {
@@ -359,6 +383,66 @@ impl TestClient {
     }
 }
 
+fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {
+    KeyRow {
+        id,
+        block,
+        kind,
+        epoch: 1,
+    }
+}
+
+fn wrap(key: Uuid, wrapped_by: WrappedBy, sealed: &[u8]) -> WrappedKey {
+    WrappedKey {
+        key,
+        wrapped_by,
+        sealed: sealed.to_vec(),
+    }
+}
+
+struct Scoped {
+    block: Uuid,
+    data: Uuid,
+    scope: Uuid,
+}
+
+impl TestClient {
+    async fn scope_root(&mut self, account: Uuid, parent: BlockParent) -> Scoped {
+        let (block, data, scope) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let keys = KeySet {
+            keys: vec![
+                row(data, block, KeyKind::Data),
+                row(scope, block, KeyKind::Scope),
+            ],
+            wrapped: vec![
+                wrap(
+                    scope,
+                    WrappedBy::Account(account),
+                    b"scope sealed to its author",
+                ),
+                wrap(data, WrappedBy::Key(scope), b"data under the scope"),
+            ],
+        };
+        self.create_keyed(block, parent, data, keys).await;
+        Scoped { block, data, scope }
+    }
+
+    async fn inside(&mut self, scope: &Scoped) -> (Uuid, Uuid) {
+        let (block, data) = (Uuid::new_v4(), Uuid::new_v4());
+        let keys = KeySet {
+            keys: vec![row(data, block, KeyKind::Data)],
+            wrapped: vec![wrap(
+                data,
+                WrappedBy::Key(scope.scope),
+                b"data under the scope",
+            )],
+        };
+        self.create_keyed(block, BlockParent::Block(scope.block), data, keys)
+            .await;
+        (block, data)
+    }
+}
+
 struct Author {
     store: MemoryStore,
     commits: CommitStore<MemoryStore>,
@@ -370,8 +454,12 @@ impl Author {
         let store = MemoryStore::new();
         Self {
             commits: CommitStore::new(
-                Vault::new(store.clone(), ContentKey::from_bytes([5; 32]))
-                    .with_chunker(ChunkerConfig::SMALL),
+                Vault::new(store.clone(), {
+                    let keys = Keyring::new();
+                    keys.insert(KEY, ContentKey::from_bytes([5; 32]));
+                    keys
+                })
+                .with_chunker(ChunkerConfig::SMALL),
             ),
             store,
             account,
@@ -379,11 +467,14 @@ impl Author {
     }
 
     fn compose(&self, text: &[u8], time: i64, parent: Option<CommitId>) -> (CommitId, Vec<Hash>) {
-        let manifest = self.commits.vault().write(CONTENT, text).unwrap();
+        let manifest = self.commits.vault().write(KEY, CONTENT, text).unwrap();
         let chunks = manifest.chunk_hashes();
         let commit = self
             .commits
-            .put(&Commit::new(manifest, self.account, time).with_parent(parent))
+            .put(
+                KEY,
+                &Commit::new(manifest, self.account, time).with_parent(parent),
+            )
             .unwrap();
         (commit, chunks)
     }

@@ -64,7 +64,6 @@ pub(crate) enum Screen {
 pub(crate) struct PairingRow {
     pub(crate) from: u64,
     pub(crate) device: String,
-    pub(crate) organization: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

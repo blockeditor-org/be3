@@ -20,7 +20,7 @@ passes them to `be` as the `BE3_*` variables:
 server=https://blocks.pfg.pw
 organization=<the tracker organization, when the agent is in more than one>
 token=<the agent's token>
-recovery_phrase=<opens the organization key the server keeps sealed for the agent>
+recovery_phrase=<the agent's identity: opens the keys sealed to it>
 authorization=<an Authorization header a gateway in front of the server wants, if any>
 ```
 
@@ -127,12 +127,14 @@ them in the handoff.
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
   these types only adds fields, variants and kinds (guides/frozen_formats.md).
 - **Agents.** An administrator adds one from the app menu (Agents). The app
-  makes a recovery phrase for it and seals the organization key to it, the
+  makes a recovery phrase for it and keeps its public key as one it trusts, the
   server makes an editor account with no password and a token (`CreateAgent`),
-  and the dialog shows the token and phrase once. An agent sees only what is
-  shared with it, but the organization key opens everything in the
-  organization, so keep the tracker in an organization of its own. Removing the agent deletes its account and
-  its tokens.
+  and the dialog shows the token and phrase once. An agent sees and opens only
+  what is shared with it: sharing a block with it from the device that made it
+  (`Peer::share`) makes the block a scope of its own and seals that scope's key
+  to the agent (the stack guide's Keys), and `be` opens that key with the
+  phrase, refusing a phrase that is not the account's. Removing the agent
+  deletes its account, its tokens and what was sealed to it.
 - **Writes.** `be` opens the block, applies the same `Edit` the editor would
   and publishes against the head it read, retrying on the new head when the
   publish is rejected, so it never overwrites a save it did not see. An editor

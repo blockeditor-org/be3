@@ -26,6 +26,7 @@ async fn every_graph_change_advances_a_blocks_version() {
             request,
             block,
             parent: BlockParent::Block(folder),
+            keys: KeySet::default(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");

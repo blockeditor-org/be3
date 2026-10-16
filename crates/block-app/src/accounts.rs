@@ -176,8 +176,7 @@ pub(crate) async fn accept_invitation(
     server_url: String,
     token: String,
     code: be_keys::InviteCode,
-    recovery: Option<be_keys::RecoveryPublic>,
-) -> Result<(Uuid, [u8; 32]), AccountError> {
+) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let id = Uuid::from_bytes(code.lookup());
     let ServerMessage::Invitation { invitation, .. } = connection
@@ -189,31 +188,13 @@ pub(crate) async fn accept_invitation(
     else {
         return Err(ClientError::Unexpected.into());
     };
-    let organization = invitation.organization;
-    let key: [u8; 32] = code
-        .open(organization.as_bytes(), &invitation.sealed)
-        .ok()
-        .and_then(|key| key.try_into().ok())
-        .ok_or_else(|| AccountError {
-            message: "This invite link does not open its organization. Ask for a new one.".into(),
-            invalid_token: false,
-        })?;
     connection
         .request(|request| ClientMessage::AcceptInvitation {
             request,
             invitation: id,
         })
         .await?;
-    if let Some(recovery) = recovery {
-        connection
-            .request(|request| ClientMessage::PutOrganizationKey {
-                request,
-                organization,
-                sealed: recovery.seal(&key),
-            })
-            .await?;
-    }
-    Ok((organization, key))
+    Ok(invitation.organization)
 }
 
 pub(crate) async fn invite(
@@ -222,10 +203,8 @@ pub(crate) async fn invite(
     organization: Uuid,
     email: String,
     role: be_protocol::OrganizationRole,
-    content_key: [u8; 32],
 ) -> Result<String, AccountError> {
     let code = be_keys::InviteCode::generate();
-    let sealed = code.seal(organization.as_bytes(), &content_key);
     let connection = authenticated(&server_url, token).await?;
     connection
         .request(|request| ClientMessage::Invite {
@@ -234,7 +213,7 @@ pub(crate) async fn invite(
             organization,
             email,
             role,
-            sealed,
+            sealed: Vec::new(),
         })
         .await?;
     Ok(crate::invite_link::link(&link_base(&server_url), &code))
@@ -247,6 +226,8 @@ pub(crate) struct AgentCredentials {
     pub(crate) organization: Uuid,
     pub(crate) token: String,
     pub(crate) phrase: String,
+    pub(crate) account: Uuid,
+    pub(crate) public: [u8; 32],
 }
 
 pub(crate) async fn create_agent(
@@ -254,11 +235,9 @@ pub(crate) async fn create_agent(
     token: String,
     organization: Uuid,
     name: String,
-    key: [u8; 32],
 ) -> Result<AgentCredentials, AccountError> {
     let phrase = be_keys::RecoveryPhrase::generate();
     let public = phrase.secret().public();
-    let sealed = public.seal(&key);
     let connection = authenticated(&server_url, token).await?;
     let ServerMessage::AgentCreated { agent, token, .. } = connection
         .request(|request| ClientMessage::CreateAgent {
@@ -266,7 +245,6 @@ pub(crate) async fn create_agent(
             organization,
             name,
             recovery: public.0,
-            sealed,
         })
         .await?
     else {
@@ -278,6 +256,8 @@ pub(crate) async fn create_agent(
         organization,
         token,
         phrase: phrase.to_string(),
+        account: agent.account,
+        public: public.0,
     })
 }
 
@@ -319,25 +299,20 @@ pub(crate) async fn remove_agent(
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Keys {
     pub(crate) recovery: Option<be_keys::RecoveryPublic>,
-    pub(crate) sealed: std::collections::HashMap<Uuid, Vec<u8>>,
+    pub(crate) sealed: Vec<be_protocol::SealedKey>,
 }
 
 pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Keys {
-        recovery, sealed, ..
-    } = connection
-        .request(|request| ClientMessage::GetKeys { request })
+    let ServerMessage::RecoveryKey { public, sealed, .. } = connection
+        .request(|request| ClientMessage::GetRecoveryKey { request })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
     };
     Ok(Keys {
-        recovery: recovery.map(be_keys::RecoveryPublic),
-        sealed: sealed
-            .into_iter()
-            .map(|key| (key.organization, key.sealed))
-            .collect(),
+        recovery: public.map(be_keys::RecoveryPublic),
+        sealed,
     })
 }
 
@@ -358,47 +333,33 @@ pub(crate) async fn set_recovery_key(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Paired {
-    pub(crate) key: [u8; 32],
-    pub(crate) recovery: Option<[u8; 32]>,
-}
-
 pub(crate) async fn pair(
     server_url: String,
     token: String,
-    organization: Uuid,
+    account: Uuid,
     code: String,
     device: String,
     cancelled: futures_util::future::BoxFuture<'static, ()>,
-) -> Result<Paired, AccountError> {
+) -> Result<[u8; 32], AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let mut events = connection.subscribe();
-    let (pairing, message) = be_keys::Pairing::start(&code, organization.as_bytes());
+    let (pairing, message) = be_keys::Pairing::start(&code, account.as_bytes());
     let payload = be_keys::PairingMessage::Request { message, device }.encode();
     connection
         .request(|request| ClientMessage::Pair {
             request,
             to: None,
-            organization,
             payload,
         })
         .await?;
     let reply = async {
         loop {
             match events.recv().await {
-                Ok(ServerMessage::Paired {
-                    organization: answered,
-                    payload,
-                    ..
-                }) if answered == organization => {
-                    if let Ok(be_keys::PairingMessage::Reply {
-                        message,
-                        sealed,
-                        recovery,
-                    }) = be_keys::PairingMessage::decode(&payload)
+                Ok(ServerMessage::Paired { payload, .. }) => {
+                    if let Ok(be_keys::PairingMessage::Reply { message, sealed }) =
+                        be_keys::PairingMessage::decode(&payload)
                     {
-                        return Ok((message, sealed, recovery));
+                        return Ok((message, sealed));
                     }
                 }
                 Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
@@ -410,7 +371,7 @@ pub(crate) async fn pair(
             }
         }
     };
-    let (message, sealed, recovery) =
+    let (message, sealed) =
         match futures_util::future::select(std::pin::pin!(reply), cancelled).await {
             futures_util::future::Either::Left((reply, _)) => reply?,
             futures_util::future::Either::Right(_) => {
@@ -425,24 +386,10 @@ pub(crate) async fn pair(
         invalid_token: false,
     };
     let key = pairing.finish(&message).map_err(|_| wrong())?;
-    let content_key = key
-        .open(&sealed)
+    key.open(&sealed)
         .map_err(|_| wrong())?
         .try_into()
-        .map_err(|_| wrong())?;
-    let recovery = match recovery.is_empty() {
-        true => None,
-        false => Some(
-            key.open(&recovery)
-                .map_err(|_| wrong())?
-                .try_into()
-                .map_err(|_| wrong())?,
-        ),
-    };
-    Ok(Paired {
-        key: content_key,
-        recovery,
-    })
+        .map_err(|_| wrong())
 }
 
 pub(crate) fn authorize(saved: &[crate::app_state::SavedAccount]) {

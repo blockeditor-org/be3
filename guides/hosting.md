@@ -105,8 +105,8 @@ it. `be-server --help` describes what a backup holds and keeps.
   its backups. Turn on the zone's replication to a second region, and now and
   then copy the zone to a machine the VPS cannot reach.
 - Notes are end-to-end encrypted. A restored server serves them, but reading
-  them still needs the account's recovery phrase or a device that holds the
-  organization key.
+  them still needs the account's recovery phrase or a device the account has
+  unlocked.
 
 ## Restoring
 

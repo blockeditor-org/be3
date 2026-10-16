@@ -16,12 +16,12 @@ use be_client::{Connection, Credentials, Peer, PeerConfig};
 use be_frozen::scene;
 use be_graph::{Access, BlockParent};
 use be_keys::{InviteCode, RecoveryPhrase};
-use be_protocol::{ClientMessage, OrganizationRole, SealedKey, ServerMessage};
+use be_protocol::{ClientMessage, OrganizationRole, ServerMessage};
 use be_server::{
     ServerConfig,
     backup::{self, BackupKey, Directory},
 };
-use be_store::{ChunkerConfig, ContentKey, MemoryStore};
+use be_store::{ChunkerConfig, MemoryStore};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -29,7 +29,6 @@ const CLIENT: u64 = 0x6672_6f7a_656e;
 
 struct Written {
     organization: Uuid,
-    key: ContentKey,
     owner_token: String,
     owner_phrase: RecoveryPhrase,
     editor_phrase: RecoveryPhrase,
@@ -138,13 +137,13 @@ async fn serve_scene(data: &Path) -> Result<Written, String> {
 
 async fn write_scene(url: &str) -> Result<Written, String> {
     let socket = be_client::socket_url(url);
-    let key = ContentKey::random();
+    let owner_phrase = RecoveryPhrase::generate();
     let owner = Peer::connect(
         PeerConfig {
             organization_name: scene::ORGANIZATION.into(),
             ..PeerConfig::new(
                 &socket,
-                key,
+                owner_phrase.secret(),
                 Credentials::Register {
                     email: scene::OWNER_EMAIL.into(),
                     display_name: scene::OWNER_NAME.into(),
@@ -160,26 +159,16 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     let owner_token = owner.token().to_owned();
     let signed_in = |chunker| {
         Peer::connect(
-            PeerConfig::new(&socket, key, Credentials::Token(owner_token.clone()))
-                .organization(Some(organization))
-                .chunker(chunker),
+            PeerConfig::new(
+                &socket,
+                owner_phrase.secret(),
+                Credentials::Token(owner_token.clone()),
+            )
+            .organization(Some(organization))
+            .chunker(chunker),
             MemoryStore::new(),
         )
     };
-
-    let owner_phrase = RecoveryPhrase::generate();
-    let public = owner_phrase.secret().public();
-    request(owner.connection(), |request| {
-        ClientMessage::SetRecoveryKey {
-            request,
-            public: public.0,
-            sealed: vec![SealedKey {
-                organization,
-                sealed: public.seal(key.as_bytes()),
-            }],
-        }
-    })
-    .await?;
 
     let editor = Connection::connect(&socket).await.map_err(text)?;
     let ServerMessage::Authenticated {
@@ -203,7 +192,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         organization,
         email: scene::EDITOR_EMAIL.into(),
         role: OrganizationRole::Editor,
-        sealed: code.seal(organization.as_bytes(), key.as_bytes()),
+        sealed: Vec::new(),
     })
     .await?;
     request(&editor, |request| ClientMessage::AcceptInvitation {
@@ -219,12 +208,6 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         sealed: Vec::new(),
     })
     .await?;
-    request(&editor, |request| ClientMessage::PutOrganizationKey {
-        request,
-        organization,
-        sealed: editor_public.seal(key.as_bytes()),
-    })
-    .await?;
     let code = InviteCode::generate();
     request(owner.connection(), |request| ClientMessage::Invite {
         request,
@@ -232,7 +215,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         organization,
         email: scene::INVITED_EMAIL.into(),
         role: OrganizationRole::Editor,
-        sealed: code.seal(organization.as_bytes(), key.as_bytes()),
+        sealed: Vec::new(),
     })
     .await?;
 
@@ -247,7 +230,6 @@ async fn write_scene(url: &str) -> Result<Written, String> {
         organization,
         name: scene::AGENT_NAME.into(),
         recovery: agent_public.0,
-        sealed: agent_public.seal(key.as_bytes()),
     })
     .await?
     else {
@@ -433,7 +415,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     )
     .await?;
     owner
-        .grant(notes, agent.account, Access::Edit)
+        .share(notes, agent.account, Access::Edit, &agent_public)
         .await
         .map_err(text)?;
 
@@ -451,7 +433,6 @@ async fn write_scene(url: &str) -> Result<Written, String> {
 
     Ok(Written {
         organization,
-        key,
         owner_token,
         owner_phrase,
         editor_phrase,
@@ -539,7 +520,6 @@ fn source(name: &str, written: &Written, backup_key: &BackupKey) -> String {
         let _ = writeln!(out, "    {label}: \"{value}\",");
     };
     field("organization", &written.organization);
-    field("organization_key", &hex(written.key.as_bytes()));
     field("owner_token", &written.owner_token);
     field("owner_phrase", &written.owner_phrase);
     field("editor_phrase", &written.editor_phrase);
@@ -551,10 +531,6 @@ fn source(name: &str, written: &Written, backup_key: &BackupKey) -> String {
     }
     let _ = writeln!(out, "    files: include_bytes!(\"{name}.zip\"),\n}};");
     out
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn text(error: impl Display) -> String {

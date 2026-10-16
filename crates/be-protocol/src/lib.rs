@@ -62,6 +62,54 @@ pub struct BlockSummary {
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
     pub version: u64,
+    pub key: Option<Uuid>,
+    pub scope: Uuid,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum KeyKind {
+    Data,
+    Scope,
+    Escrow,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeyRow {
+    pub id: Uuid,
+    pub block: Uuid,
+    pub kind: KeyKind,
+    pub epoch: u64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum WrappedBy {
+    Key(Uuid),
+    Account(Uuid),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WrappedKey {
+    pub key: Uuid,
+    pub wrapped_by: WrappedBy,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeySet {
+    pub keys: Vec<KeyRow>,
+    pub wrapped: Vec<WrappedKey>,
+}
+
+impl KeySet {
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty() && self.wrapped.is_empty()
+    }
+
+    pub fn extend(&mut self, other: KeySet) {
+        self.keys.extend(other.keys);
+        self.wrapped.extend(other.wrapped);
+    }
 }
 
 pub type ClientId = u64;
@@ -109,6 +157,7 @@ pub enum ErrorCode {
     InvitationNotFound,
     LoginDisabled,
     BlockHasContent,
+    KeyMissing,
 }
 
 impl fmt::Display for ErrorCode {
@@ -193,6 +242,8 @@ pub enum ClientMessage {
         parent: BlockParent,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
+        key: Uuid,
+        keys: KeySet,
     },
     ListBlocks {
         request: u64,
@@ -229,6 +280,7 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
         parent: BlockParent,
+        keys: KeySet,
     },
     ListChildren {
         request: u64,
@@ -301,22 +353,23 @@ pub enum ClientMessage {
     },
     GetKeys {
         request: u64,
+        blocks: Option<Vec<Uuid>>,
+    },
+    PutKeys {
+        request: u64,
+        keys: KeySet,
+    },
+    GetRecoveryKey {
+        request: u64,
     },
     SetRecoveryKey {
         request: u64,
         public: [u8; 32],
         sealed: Vec<SealedKey>,
     },
-    PutOrganizationKey {
-        request: u64,
-        organization: Uuid,
-        #[serde(with = "serde_bytes")]
-        sealed: Vec<u8>,
-    },
     Pair {
         request: u64,
         to: Option<ClientId>,
-        organization: Uuid,
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
@@ -325,8 +378,6 @@ pub enum ClientMessage {
         organization: Uuid,
         name: String,
         recovery: [u8; 32],
-        #[serde(with = "serde_bytes")]
-        sealed: Vec<u8>,
     },
     ListAgents {
         request: u64,
@@ -349,6 +400,7 @@ pub struct Agent {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SealedKey {
     pub organization: Uuid,
+    pub key: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
 }
@@ -392,9 +444,10 @@ impl ClientMessage {
             | Self::ClaimOwnership { request, .. }
             | Self::Heartbeat { request, .. }
             | Self::Relay { request, .. }
-            | Self::GetKeys { request }
+            | Self::GetKeys { request, .. }
+            | Self::PutKeys { request, .. }
+            | Self::GetRecoveryKey { request }
             | Self::SetRecoveryKey { request, .. }
-            | Self::PutOrganizationKey { request, .. }
             | Self::Pair { request, .. }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }
@@ -515,12 +568,15 @@ pub enum ServerMessage {
     },
     Keys {
         request: u64,
-        recovery: Option<[u8; 32]>,
+        keys: KeySet,
+    },
+    RecoveryKey {
+        request: u64,
+        public: Option<[u8; 32]>,
         sealed: Vec<SealedKey>,
     },
     Paired {
         from: ClientId,
-        organization: Uuid,
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
@@ -556,6 +612,7 @@ impl ServerMessage {
             | Self::AccessList { request, .. }
             | Self::Session { request, .. }
             | Self::Keys { request, .. }
+            | Self::RecoveryKey { request, .. }
             | Self::AgentCreated { request, .. }
             | Self::Agents { request, .. } => Some(*request),
             Self::HeadChanged { .. }

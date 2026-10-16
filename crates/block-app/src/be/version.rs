@@ -127,9 +127,9 @@ impl Versions {
             return Ok(tree.clone());
         }
         let manifest = self.commit_of(peer, commit).await?.manifest;
-        peer.fetch(&manifest.chunk_hashes()).await.map_err(failed)?;
-        let tree =
-            Tree::read(peer.commits().vault(), &manifest).map_err(|error| error.to_string())?;
+        let tree: Tree =
+            be_store::decode_value(&peer.read_manifest(&manifest).await.map_err(failed)?)
+                .map_err(|error| error.to_string())?;
         self.trees.insert(commit, tree.clone());
         Ok(tree)
     }
@@ -234,13 +234,15 @@ impl Versions {
         if state.base.is_some() && working.tree == base {
             return Err("There is nothing to commit.".into());
         }
+        let key = context.peer.sealing_key(repository).await.map_err(failed)?;
         let vault = context.peer.commits().vault();
         let manifest = working
             .tree
-            .write(vault)
+            .write(vault, key)
             .map_err(|error| error.to_string())?;
         let commit = be_vcs::snapshot(
             context.peer.commits(),
+            key,
             manifest.clone(),
             state.base.into_iter().collect(),
             context.peer.account(),
@@ -439,7 +441,7 @@ impl Versions {
         let mut versions = Vec::new();
         for merge in std::mem::take(&mut plan.contents) {
             let (manifest, references, derived, conflicted) =
-                merge_content(context.peer, &merge).await?;
+                merge_content(context.peer, checkout, &merge).await?;
             if let Some(entry) = plan.tree.entries.get_mut(&merge.block) {
                 entry.content = manifest;
                 entry.references = references;
@@ -1235,20 +1237,13 @@ fn placement_order(tree: &Tree) -> Vec<Uuid> {
 
 async fn merge_content(
     peer: &Peer<Store>,
+    checkout: Uuid,
     merge: &be_vcs::ContentMerge,
 ) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
     let mut sides = Vec::new();
     for manifest in [&merge.base, &merge.ours, &merge.theirs] {
         sides.push(match manifest {
-            Some(manifest) => {
-                peer.fetch(&manifest.chunk_hashes()).await.map_err(failed)?;
-                Some(
-                    peer.commits()
-                        .vault()
-                        .read(manifest)
-                        .map_err(|error| error.to_string())?,
-                )
-            }
+            Some(manifest) => Some(peer.read_manifest(manifest).await.map_err(failed)?),
             None => None,
         });
     }
@@ -1263,10 +1258,9 @@ async fn merge_content(
         return Ok((merge.ours.clone(), Vec::new(), None, true));
     };
     let manifest = peer
-        .commits()
-        .vault()
-        .write(merge.content_type, &bytes)
-        .map_err(|error| error.to_string())?;
+        .write_content(checkout, merge.content_type, &bytes)
+        .await
+        .map_err(failed)?;
     let references = super::references_for(merge.content_type)
         .map(|references| references(&bytes, peer.organization()))
         .unwrap_or_default();
@@ -1286,17 +1280,7 @@ async fn version_block(
     let block = Uuid::now_v7();
     let mut metadata = BlockMetadata::named(name);
     if let Some(manifest) = &manifest {
-        context
-            .peer
-            .fetch(&manifest.chunk_hashes())
-            .await
-            .map_err(failed)?;
-        let bytes = context
-            .peer
-            .commits()
-            .vault()
-            .read(manifest)
-            .map_err(|error| error.to_string())?;
+        let bytes = context.peer.read_manifest(manifest).await.map_err(failed)?;
         metadata.derived = super::derived_for(content_type, &bytes).unwrap_or_default();
     }
     create(

@@ -7,22 +7,22 @@ const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
-const ORGANIZATION_KEYS_KEY: &str = "block.organization-keys";
-const RECOVERY_KEYS_KEY: &str = "block.recovery-keys";
+const IDENTITY_KEY: &str = "block.identity-secrets";
+const TRUSTED_KEY: &str = "block.trusted-keys";
 
 #[derive(serde::Deserialize, serde::Serialize)]
-struct StoredRecovery {
+struct StoredIdentity {
     server: String,
     account: Uuid,
-    public: [u8; 32],
+    secret: [u8; 32],
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
-struct StoredKey {
+struct StoredTrust {
     server: String,
     account: Uuid,
-    organization: Uuid,
-    key: [u8; 32],
+    trusted: Uuid,
+    public: [u8; 32],
 }
 
 pub struct AppStateStore {
@@ -77,12 +77,13 @@ impl AppStateStore {
         let mut accounts = self.accounts()?;
         accounts.retain(|account| account.server != saved.server || account.id != saved.id);
         self.write(ACCOUNTS_KEY, &accounts)?;
-        let mut keys = self.stored_keys()?;
-        keys.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        self.write(ORGANIZATION_KEYS_KEY, &keys)?;
-        let mut recovery = self.stored_recovery()?;
-        recovery.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        self.write(RECOVERY_KEYS_KEY, &recovery)?;
+        let mut identities = self.stored_identities()?;
+        identities
+            .retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        self.write(IDENTITY_KEY, &identities)?;
+        let mut trusted = self.stored_trust()?;
+        trusted.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        self.write(TRUSTED_KEY, &trusted)?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -112,8 +113,8 @@ impl AppStateStore {
             CLIENT_ID_KEY,
             DISPLAY_SETTINGS_KEY,
             INPUT_SETTINGS_KEY,
-            ORGANIZATION_KEYS_KEY,
-            RECOVERY_KEYS_KEY,
+            IDENTITY_KEY,
+            TRUSTED_KEY,
         ] {
             self.storage
                 .remove_item(key)
@@ -143,80 +144,69 @@ impl AppStateStore {
         self.write(ACCOUNTS_KEY, &accounts)
     }
 
-    fn stored_keys(&self) -> Result<Vec<StoredKey>, AppStateError> {
-        Ok(self.read(ORGANIZATION_KEYS_KEY)?.unwrap_or_default())
+    fn stored_identities(&self) -> Result<Vec<StoredIdentity>, AppStateError> {
+        Ok(self.read(IDENTITY_KEY)?.unwrap_or_default())
     }
 
-    pub fn organization_key(
+    pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
+        Ok(self
+            .stored_identities()?
+            .into_iter()
+            .find(|stored| stored.server == saved.server.key() && stored.account == saved.id)
+            .map(|stored| stored.secret))
+    }
+
+    pub fn set_identity(
         &self,
         saved: &SavedAccount,
-        organization: Uuid,
-    ) -> Result<Option<[u8; 32]>, AppStateError> {
-        Ok(self
-            .organization_keys(saved)?
-            .into_iter()
-            .find(|(stored, _)| *stored == organization)
-            .map(|(_, key)| key))
+        secret: [u8; 32],
+    ) -> Result<(), AppStateError> {
+        let mut identities = self.stored_identities()?;
+        identities
+            .retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        identities.push(StoredIdentity {
+            server: saved.server.key().to_owned(),
+            account: saved.id,
+            secret,
+        });
+        self.write(IDENTITY_KEY, &identities)
     }
 
-    pub fn organization_keys(
+    fn stored_trust(&self) -> Result<Vec<StoredTrust>, AppStateError> {
+        Ok(self.read(TRUSTED_KEY)?.unwrap_or_default())
+    }
+
+    pub fn trusted_keys(
         &self,
         saved: &SavedAccount,
     ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
         Ok(self
-            .stored_keys()?
+            .stored_trust()?
             .into_iter()
             .filter(|stored| stored.server == saved.server.key() && stored.account == saved.id)
-            .map(|stored| (stored.organization, stored.key))
+            .map(|stored| (stored.trusted, stored.public))
             .collect())
     }
 
-    pub fn set_organization_key(
+    pub fn trust(
         &self,
         saved: &SavedAccount,
-        organization: Uuid,
-        key: [u8; 32],
-    ) -> Result<(), AppStateError> {
-        let mut keys = self.stored_keys()?;
-        keys.retain(|stored| {
-            stored.server != saved.server.key()
-                || stored.account != saved.id
-                || stored.organization != organization
-        });
-        keys.push(StoredKey {
-            server: saved.server.key().to_owned(),
-            account: saved.id,
-            organization,
-            key,
-        });
-        self.write(ORGANIZATION_KEYS_KEY, &keys)
-    }
-
-    fn stored_recovery(&self) -> Result<Vec<StoredRecovery>, AppStateError> {
-        Ok(self.read(RECOVERY_KEYS_KEY)?.unwrap_or_default())
-    }
-
-    pub fn recovery_key(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
-        Ok(self
-            .stored_recovery()?
-            .into_iter()
-            .find(|stored| stored.server == saved.server.key() && stored.account == saved.id)
-            .map(|stored| stored.public))
-    }
-
-    pub fn set_recovery_key(
-        &self,
-        saved: &SavedAccount,
+        account: Uuid,
         public: [u8; 32],
     ) -> Result<(), AppStateError> {
-        let mut recovery = self.stored_recovery()?;
-        recovery.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
-        recovery.push(StoredRecovery {
+        let mut trusted = self.stored_trust()?;
+        trusted.retain(|stored| {
+            stored.server != saved.server.key()
+                || stored.account != saved.id
+                || stored.trusted != account
+        });
+        trusted.push(StoredTrust {
             server: saved.server.key().to_owned(),
             account: saved.id,
+            trusted: account,
             public,
         });
-        self.write(RECOVERY_KEYS_KEY, &recovery)
+        self.write(TRUSTED_KEY, &trusted)
     }
 
     pub fn client_id(&self) -> Result<Uuid, AppStateError> {

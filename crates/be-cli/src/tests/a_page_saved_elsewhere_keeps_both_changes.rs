@@ -7,6 +7,7 @@ async fn a_page_saved_elsewhere_keeps_both_changes() {
     let harness = Harness::start().await;
     let owner = harness.owner().await;
     let token = owner.token().to_owned();
+    let identity = owner.keys().identity().clone();
     let organization = owner.organization();
     let tracker = Tracker::new(owner);
     run(&tracker, "new-database Issues --prefix BE")
@@ -22,7 +23,7 @@ async fn a_page_saved_elsewhere_keeps_both_changes() {
     let editor = Peer::connect(
         PeerConfig::new(
             be_client::socket_url(&harness.url),
-            ContentKey::from_bytes(KEY),
+            identity,
             Credentials::Token(token),
         )
         .organization(Some(organization)),

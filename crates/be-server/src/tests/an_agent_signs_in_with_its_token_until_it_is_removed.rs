@@ -13,7 +13,6 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
             organization,
             name: "Claude".into(),
             recovery: [7; 32],
-            sealed: vec![1, 2, 3],
         })
         .await;
     let ServerMessage::AgentCreated { agent, token, .. } = response else {
@@ -33,16 +32,14 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     };
     assert_eq!(account, agent.account);
     bot.open(organization).await;
-    let response = bot.send(|request| ClientMessage::GetKeys { request }).await;
-    let ServerMessage::Keys {
-        recovery, sealed, ..
-    } = response
-    else {
-        panic!("reading keys failed: {response:?}");
+    let response = bot
+        .send(|request| ClientMessage::GetRecoveryKey { request })
+        .await;
+    let ServerMessage::RecoveryKey { public, sealed, .. } = response else {
+        panic!("reading the recovery key failed: {response:?}");
     };
-    assert_eq!(recovery, Some([7; 32]));
-    assert_eq!(sealed.len(), 1);
-    assert_eq!(sealed[0].sealed, [1, 2, 3]);
+    assert_eq!(public, Some([7; 32]));
+    assert!(sealed.is_empty());
 
     let response = owner
         .send(|request| ClientMessage::ListAgents {

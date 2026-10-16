@@ -35,6 +35,7 @@ use uuid::Uuid;
 pub mod backup;
 pub mod blocks;
 mod http;
+pub mod keys;
 pub mod schema;
 pub mod sessions;
 pub mod store;
@@ -636,11 +637,13 @@ impl Connection {
                 content_type,
                 parent,
                 metadata,
+                key,
+                keys,
             } => {
                 let identity = self.identity()?;
                 let block = self
                     .store
-                    .create_block(identity, block, content_type, parent, metadata)
+                    .create_block(identity, block, content_type, parent, metadata, key, keys)
                     .await?;
                 self.reannounce(identity, vec![block.id], false, BTreeSet::new())
                     .await;
@@ -723,9 +726,10 @@ impl Connection {
                 request,
                 block,
                 parent,
+                keys,
             } => {
                 let identity = self.identity()?;
-                let before = self.store.set_parent(identity, block, parent).await?;
+                let before = self.store.set_parent(identity, block, parent, keys).await?;
                 self.reannounce(identity, vec![block], true, before).await;
                 Ok(ServerMessage::Ok { request })
             }
@@ -904,11 +908,19 @@ impl Connection {
                 }
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::GetKeys { request } => {
-                let (recovery, sealed) = self.store.keys(self.account()?).await?;
-                Ok(ServerMessage::Keys {
+            ClientMessage::GetKeys { request, blocks } => Ok(ServerMessage::Keys {
+                request,
+                keys: self.store.get_keys(self.identity()?, blocks).await?,
+            }),
+            ClientMessage::PutKeys { request, keys } => {
+                self.store.put_keys(self.identity()?, keys).await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::GetRecoveryKey { request } => {
+                let (public, sealed) = self.store.recovery_key(self.account()?).await?;
+                Ok(ServerMessage::RecoveryKey {
                     request,
-                    recovery,
+                    public,
                     sealed,
                 })
             }
@@ -922,26 +934,15 @@ impl Connection {
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::PutOrganizationKey {
-                request,
-                organization,
-                sealed,
-            } => {
-                self.store
-                    .put_organization_key(self.account()?, organization, sealed)
-                    .await?;
-                Ok(ServerMessage::Ok { request })
-            }
             ClientMessage::CreateAgent {
                 request,
                 organization,
                 name,
                 recovery,
-                sealed,
             } => {
                 let (agent, token) = self
                     .store
-                    .create_agent(self.account()?, organization, &name, recovery, sealed)
+                    .create_agent(self.account()?, organization, &name, recovery)
                     .await?;
                 Ok(ServerMessage::AgentCreated {
                     request,
@@ -972,14 +973,11 @@ impl Connection {
             ClientMessage::Pair {
                 request,
                 to,
-                organization,
                 payload,
             } => {
                 let account = self.account()?;
-                self.store.membership(account, organization).await?;
                 let message = ServerMessage::Paired {
                     from: self.client,
-                    organization,
                     payload,
                 };
                 let sent = self

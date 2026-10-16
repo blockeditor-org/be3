@@ -1,6 +1,8 @@
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, ObjectRefs};
-use be_protocol::{AccessEntry, BlockSummary, ErrorCode, HistoryEntry, OrganizationRole};
+use be_protocol::{
+    AccessEntry, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, OrganizationRole,
+};
 use be_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet};
@@ -8,6 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     ServerError,
+    keys::{forget_block_keys, store_keys},
     store::{Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid},
 };
 
@@ -16,7 +19,7 @@ pub enum PublishOutcome {
     Rejected(Option<CommitId>),
 }
 
-struct Visibility {
+pub(crate) struct Visibility {
     account: Uuid,
     administrator: bool,
     visible: std::cell::OnceCell<BTreeMap<Uuid, Access>>,
@@ -39,8 +42,16 @@ impl Visibility {
         }
     }
 
-    fn can_view(&self, graph: &BlockGraph, block: Uuid) -> bool {
+    pub(crate) fn can_view(&self, graph: &BlockGraph, block: Uuid) -> bool {
         self.inherited(graph, block).can_view()
+    }
+
+    pub(crate) fn can_edit(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        self.inherited(graph, block).can_edit()
+    }
+
+    pub(crate) fn administrator(&self) -> bool {
+        self.administrator
     }
 
     fn access(&self, graph: &BlockGraph, block: Uuid) -> Access {
@@ -56,7 +67,7 @@ impl Visibility {
     }
 }
 
-fn visibility(identity: Identity) -> Visibility {
+pub(crate) fn visibility(identity: Identity) -> Visibility {
     Visibility::of(identity.account, identity.role)
 }
 
@@ -92,10 +103,13 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         references: node.references.clone(),
         metadata: node.metadata.clone(),
         version: node.version,
+        key: node.key,
+        scope: graph.scope(block),
     })
 }
 
 impl ServerStore {
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_block(
         &self,
         identity: Identity,
@@ -103,16 +117,29 @@ impl ServerStore {
         content_type: Uuid,
         parent: BlockParent,
         metadata: Vec<u8>,
+        key: Uuid,
+        keys: KeySet,
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             if let BlockParent::Block(target) = parent {
                 require_edit(graph, &visibility(identity), target)?;
             }
+            if !keys
+                .keys
+                .iter()
+                .any(|row| row.id == key && row.block == block && row.kind == KeyKind::Data)
+            {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a new block needs a data key of its own".into(),
+                ));
+            }
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
-            database.execute(
+            let transaction = database.unchecked_transaction()?;
+            transaction.execute(
                 "INSERT INTO blocks
                     (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)",
@@ -126,6 +153,14 @@ impl ServerStore {
                     metadata,
                 ],
             )?;
+            store_keys(
+                graph,
+                &transaction,
+                identity.organization,
+                &keys,
+                |_, owner| owner == block,
+            )?;
+            transaction.commit()?;
             summary(graph, identity, block).ok_or(ServerError::Corrupt)
         })
         .await
@@ -436,6 +471,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
         parent: BlockParent,
+        keys: KeySet,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
@@ -444,10 +480,21 @@ impl ServerStore {
                 require_edit(graph, &seen, target)?;
             }
             let before = graph.audience(block);
+            let transaction = database.unchecked_transaction()?;
+            store_keys(
+                graph,
+                &transaction,
+                identity.organization,
+                &keys,
+                |graph, owner| {
+                    (owner == block || graph.ancestors(owner).any(|above| above == block))
+                        && seen.can_view(graph, owner)
+                },
+            )?;
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
             let (kind, parent_id) = encode_parent(parent);
-            database.execute(
+            transaction.execute(
                 "UPDATE blocks SET parent_kind = ?3, parent_id = ?4, version = version + 1
                  WHERE organization_id = ?1 AND id = ?2",
                 params![
@@ -457,6 +504,7 @@ impl ServerStore {
                     parent_id
                 ],
             )?;
+            transaction.commit()?;
             Ok(before)
         })
         .await
@@ -554,7 +602,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.set_parent(identity, block, BlockParent::Detached)
+        self.set_parent(identity, block, BlockParent::Detached, KeySet::default())
             .await
     }
 
@@ -603,6 +651,7 @@ impl ServerStore {
                     "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
                     params![organization, block.to_string()],
                 )?;
+                forget_block_keys(&transaction, identity.organization, block)?;
                 graph.remove(block);
                 removed.push(block);
             }

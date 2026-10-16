@@ -5,7 +5,7 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     let harness = Harness::start().await;
     let mut laptop = harness.client().await;
     laptop.register("owner@example.com").await;
-    let organization = laptop.organization("notes").await;
+    laptop.organization("notes").await;
     let mut phone = harness.client().await;
     let response = phone
         .send(|request| ClientMessage::Authenticate {
@@ -16,46 +16,36 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     assert!(matches!(response, ServerMessage::Authenticated { .. }));
     let mut stranger = harness.member("stranger@example.com").await;
 
-    let refused = stranger
+    let unheard = stranger
         .send(|request| ClientMessage::Pair {
             request,
             to: None,
-            organization,
             payload: b"let me in".to_vec(),
         })
         .await;
-    assert!(
-        matches!(refused, ServerMessage::Failed { .. }),
-        "a non-member asked to pair: {refused:?}"
-    );
+    assert!(matches!(unheard, ServerMessage::Ok { .. }), "{unheard:?}");
 
     let response = phone
         .send(|request| ClientMessage::Pair {
             request,
             to: None,
-            organization,
             payload: b"request".to_vec(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
-    let ServerMessage::Paired {
-        from,
-        organization: asked,
-        payload,
-    } = laptop.notification().await
-    else {
+    let ServerMessage::Paired { from, payload } = laptop.notification().await else {
         panic!("the laptop never heard the request");
     };
     assert_eq!(
-        (asked, payload.as_slice()),
-        (organization, b"request".as_slice())
+        payload.as_slice(),
+        b"request".as_slice(),
+        "the laptop heard the stranger's request"
     );
 
     let response = laptop
         .send(|request| ClientMessage::Pair {
             request,
             to: Some(from),
-            organization,
             payload: b"reply".to_vec(),
         })
         .await;

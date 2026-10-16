@@ -84,6 +84,12 @@ pub struct RecoveryPhrase {
     entropy: [u8; PHRASE_ENTROPY],
 }
 
+impl fmt::Debug for RecoverySecret {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("RecoverySecret(..)")
+    }
+}
+
 impl RecoveryPhrase {
     pub fn generate() -> Self {
         Self { entropy: random() }
@@ -145,9 +151,18 @@ impl fmt::Debug for RecoveryPhrase {
     }
 }
 
+#[derive(Clone)]
 pub struct RecoverySecret(StaticSecret);
 
 impl RecoverySecret {
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(StaticSecret::from(bytes))
+    }
+
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+
     pub fn public(&self) -> RecoveryPublic {
         RecoveryPublic(PublicKey::from(&self.0).to_bytes())
     }
@@ -288,8 +303,6 @@ pub enum PairingMessage {
         message: Vec<u8>,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
-        #[serde(with = "serde_bytes")]
-        recovery: Vec<u8>,
     },
 }
 

@@ -39,6 +39,7 @@ async fn an_offline_edit_elsewhere_merges_cleanly() {
     let ours = offline
         .commits()
         .write(
+            offline.sealing_key(block).await.unwrap(),
             TextContent::CONTENT_TYPE,
             TextBlock::of(
                 base.replace("first paragraph", "first paragraph, expanded")

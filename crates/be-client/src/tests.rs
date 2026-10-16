@@ -3,12 +3,13 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use be_block::{BlockContent, ContentError, ImageContent, ImageHeader};
 use be_commit::{RetentionPolicy, retention::MINUTE};
 use be_graph::BlockParent;
-use be_store::{ChunkerConfig, ContentKey, MemoryStore};
+use be_store::{ChunkerConfig, MemoryStore};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use super::*;
 
+mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
 mod a_follower_keeps_its_unconfirmed_typing_through_a_reload;
 mod a_follower_replaces_an_image_and_the_owner_takes_it;
 mod a_follower_stops_saving_after_a_message_it_cannot_read;
@@ -40,6 +41,7 @@ mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod references_declared_by_content_reach_the_graph;
 mod the_journal_says_how_each_peer_saw_its_content_change;
 mod two_peers_converge_through_the_session_owner;
+mod two_peers_of_one_account_read_each_others_blocks;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 
 struct Harness {
@@ -82,7 +84,7 @@ impl Harness {
         Peer::connect(
             PeerConfig::new(
                 &self.url,
-                ContentKey::from_bytes([11; 32]),
+                identity(email),
                 Credentials::Register {
                     email: email.into(),
                     display_name: email.into(),
@@ -100,7 +102,7 @@ impl Harness {
         Peer::connect(
             PeerConfig::new(
                 &self.url,
-                ContentKey::from_bytes([11; 32]),
+                owner.keys().identity().clone(),
                 Credentials::Token(owner.token().to_owned()),
             )
             .organization(Some(owner.organization()))
@@ -121,6 +123,14 @@ impl Harness {
         }
         let _ = std::fs::remove_dir_all(&self.directory);
     }
+}
+
+fn identity(email: &str) -> be_keys::RecoverySecret {
+    let mut bytes = [7u8; 32];
+    for (index, byte) in email.bytes().enumerate() {
+        bytes[index % 32] = bytes[index % 32].wrapping_mul(31).wrapping_add(byte);
+    }
+    be_keys::RecoverySecret::from_bytes(bytes)
 }
 
 fn image(name: &str, bytes: usize, seed: u64) -> ImageContent {

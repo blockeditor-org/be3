@@ -5,7 +5,7 @@ use be_cli::{cli, tracker::Tracker};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_frozen::scene;
 use be_graph::BlockParent;
-use be_store::{ContentKey, MemoryStore};
+use be_store::MemoryStore;
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -54,7 +54,7 @@ async fn write(url: &str) -> Result<Vec<u8>, String> {
     let owner = Peer::connect(
         PeerConfig::new(
             be_client::socket_url(url),
-            ContentKey::random(),
+            be_keys::RecoveryPhrase::generate().secret(),
             Credentials::Register {
                 email: scene::OWNER_EMAIL.into(),
                 display_name: scene::OWNER_NAME.into(),

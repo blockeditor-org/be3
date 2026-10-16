@@ -64,7 +64,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
         match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => {
             let accounts =
-                "This removes every saved account and organization key on this device. You will need to sign in again, and unlock each organization with your recovery phrase or another device.";
+                "This removes every saved account and its key on this device. You will need to sign in again, and unlock each account with its recovery phrase or another device.";
             match unsaved.get() {
                 0 => accounts.to_owned(),
                 1 => format!("{accounts} One block has changes that have not reached the server yet, and they will be lost."),

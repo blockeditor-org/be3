@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use be_cli::tracker::Tracker;
 use be_client::{Credentials, Peer, PeerConfig};
-use be_store::{ContentKey, MemoryStore};
+use be_store::MemoryStore;
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 use uuid::Uuid;
 
@@ -45,7 +45,7 @@ impl Server {
             Peer::connect(
                 PeerConfig::new(
                     be_client::socket_url(&self.url),
-                    ContentKey::random(),
+                    be_keys::RecoveryPhrase::generate().secret(),
                     Credentials::Register {
                         email: scene::OWNER_EMAIL.into(),
                         display_name: scene::OWNER_NAME.into(),
