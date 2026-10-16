@@ -1,20 +1,21 @@
 use std::cell::Cell;
 
-use block_editor_beui::be_block::FILES_EDITOR;
+use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_FOLDER;
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than, use_dock_tab,
 };
+use block_editor_beui::root_settings::own_settings_blocks;
 use block_editor_beui::{
     ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, WindowTab,
-    Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, SETTINGS,
+    WindowTab, Workspace, WorkspaceDialogs,
 };
 
 const FILES_SHARE: f32 = 0.22;
@@ -78,11 +79,14 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
         <Frame @node_ref={&surface} fill=ColorRole::Background>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
                         <DockPane id="files">
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
                                 <FilesPanel workspace />
+                            </DockTab>
+                            <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
+                                <SettingsPanel workspace />
                             </DockTab>
                         </DockPane>
                         <DockPane
@@ -123,16 +127,40 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
 
 #[component]
 fn FilesPanel(workspace: Workspace) -> NodeId {
-    let phone = workspace.phone();
-    let top_bar = create_memo(move || match phone.get() {
-        true => TopBar::Phone,
-        false => TopBar::Hidden,
-    });
     let files = workspace.files();
     let target = create_memo(move || {
         files
             .get()
             .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
+    });
+    view! {
+        <SidePanel workspace target loading="Files are loading…" id="workspace.files" />
+    }
+}
+
+#[component]
+fn SettingsPanel(workspace: Workspace) -> NodeId {
+    let editor = workspace.editor();
+    let target = create_memo(move || {
+        let settings = own_settings_blocks(&editor)?.first().copied()?;
+        Some(ChildTarget::new(settings, SettingsContent::CONTENT_TYPE))
+    });
+    view! {
+        <SidePanel workspace target loading="Settings are loading…" id="workspace.settings" />
+    }
+}
+
+#[component]
+fn SidePanel(
+    workspace: Workspace,
+    target: Memo<Option<ChildTarget>>,
+    loading: &'static str,
+    id: &'static str,
+) -> NodeId {
+    let phone = workspace.phone();
+    let top_bar = create_memo(move || match phone.get() {
+        true => TopBar::Phone,
+        false => TopBar::Hidden,
     });
     let editor = workspace.editor();
     let tab = use_dock_tab();
@@ -146,10 +174,10 @@ fn FilesPanel(workspace: Workspace) -> NodeId {
                 own_frame=true
                 top_bar={top_bar}
                 on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
-                @test_id={"workspace.files"}
+                @test_id={id}
             >
                 {move |handle: ChildBlockHandle| view! {
-                    <PanelStatus state={handle.state} loading="Files are loading…" />
+                    <PanelStatus state={handle.state} loading={loading.to_owned()} />
                 }}
             </ChildBlock>
         </List>

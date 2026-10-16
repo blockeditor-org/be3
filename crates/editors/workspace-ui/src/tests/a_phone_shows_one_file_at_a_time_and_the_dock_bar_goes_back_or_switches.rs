@@ -51,12 +51,20 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     tap(&mut fixture, "dock.back");
     assert!(
         placed(&fixture, second).is_none(),
-        "back leaves the file for the list of files"
+        "back closes the file opened from another"
+    );
+    assert_eq!(
+        fixture.shown(),
+        vec![first],
+        "and shows the file it was opened from"
     );
 
     show(&mut fixture, second, None);
     tap(&mut fixture, "dock.switch");
-    assert!(fixture.test.shown("dock.switcher.home"));
+    assert!(
+        fixture.test.shown("dock.switcher.tab.1"),
+        "the list of files is one of the open tabs"
+    );
     fixture.test.settle();
     fixture
         .test
@@ -74,14 +82,14 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     assert_eq!(
         fixture.shown(),
         vec![second],
-        "closing the file on show moves to the one opened before it"
+        "closing the file on show moves to the one it was reached from"
     );
     assert_eq!(fixture.open_tabs(), 0, "a phone draws no tab bars");
     fixture.test.back();
     fixture.settle();
     fixture.test.settle();
     assert!(
-        !fixture.test.shown("dock.switcher.home"),
+        !fixture.test.shown("dock.switcher.tab.1"),
         "the back gesture closes the switcher"
     );
     assert_eq!(fixture.shown(), vec![second], "and leaves the file on show");

@@ -37,6 +37,7 @@ use super::window::{
 };
 
 pub const FILES: TabId = TabId::new(1);
+pub const SETTINGS: TabId = TabId::new(1 << 39);
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: f32 = 14.0;

@@ -33,6 +33,7 @@ pub fn Select(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = Extent::at_most(TRIGGER_MAX_WIDTH))] width: Prop<Extent>,
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
@@ -51,7 +52,7 @@ pub fn Select(
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
-                <SelectTrigger handle placeholder={placeholder} />
+                <SelectTrigger handle placeholder={placeholder} width={width} />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -65,7 +66,11 @@ pub fn Select(
 }
 
 #[component]
-fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> NodeId {
+fn SelectTrigger(
+    handle: SelectTriggerHandle,
+    placeholder: Memo<String>,
+    width: Prop<Extent>,
+) -> NodeId {
     let SelectTriggerHandle {
         label,
         hovered,
@@ -97,7 +102,7 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
     });
     view! {
         <Frame
-            width={Extent::at_most(TRIGGER_MAX_WIDTH)}
+            width={width}
             border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
             radius=Radius::Md
         >

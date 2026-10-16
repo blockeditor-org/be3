@@ -16,7 +16,7 @@ fn Docked() -> NodeId {
     });
     let layout = DockingLayout::new();
     view! {
-        <styled::Docking layout mode={mode} home=1u64 focus=2u64>
+        <styled::Docking layout mode={mode} focus=2u64>
             <DockPane id="tabs">
                 <ForEach keys={vec![1u64, 2]}>
                     {move |id: u64| view! {

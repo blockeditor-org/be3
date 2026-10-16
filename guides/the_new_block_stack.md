@@ -965,10 +965,13 @@ workspace it authored, marked with the `MY_FILES` metadata key
 The files pane (crates/editors/file-tree) shows a section per workspace the
 account can see (My files first, then by name; another account's My files is
 never listed), then Shared with me (`BlockQuery::Shared`, plus any root block
-that is not a workspace or a settings block), then Recently Deleted, then
-Settings: the account's own root `Settings` (and settings profile) blocks, which
-open in the settings editor and expand to their kinds, profiles and sessions;
-another account's are never listed. A
+that is not a system block), then Recently Deleted, then
+System: the account's own internal root blocks, the content types in
+`SYSTEM_TYPES` (today `Settings` and settings profiles), which open in their
+editors and expand to what they hold; another account's are never listed. It is
+there for debugging: settings are reached from the workspace's Settings tab,
+beside Files, which shows the account's `Settings` block in the settings editor,
+a list whose rows open each kind or profile in a tab of the editors pane. A
 section's header has its own menu (add, rename, share, delete, and leave on a
 workspace someone else made) and, where the account may edit the workspace, a
 "+" that adds a block into it, as a row's "+" adds into that row; the toolbar
@@ -977,7 +980,7 @@ opens the rename dialog. Every picker places a new block in a workspace, My
 files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
 or from its Move to menu. The phone layout has the same levels: the workspaces,
-then Shared with me, Recently deleted and Settings as rows of their own; its
+then Shared with me, Recently deleted and System as rows of their own; its
 New button shows only inside a workspace or folder the account may add to. The folder
 editor (crates/editors/workspace-index) opens a workspace too.
 
@@ -991,7 +994,12 @@ nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
 each made one before seeing the other's, both are read as one
 (`Settings::merged`, the lowest id winning a clash) and written through the
 lowest. The settings editor shows someone else's `Settings` or settings profile
-with a notice, and makes and changes nothing in it.
+with a notice, and makes and changes nothing in it. The editors of the kinds lay out
+their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
+card of rows per section, each a label and description beside its control,
+stacked once the row is narrow, and a section runs edge to edge once it is. A
+`modified` row has an accent bar at its edge and, given `on_reset`, a small
+Reset link after its label.
 
 Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:

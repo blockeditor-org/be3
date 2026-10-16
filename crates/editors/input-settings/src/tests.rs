@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::InputSettingsContent;
 use block_editor_beui::be_block::input_settings::InputDevice;
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::Key;
 use block_editor_beui::{EditorHost, HostInputDevice, InputDevices, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::app::InputSettingsApp;
 
 mod a_device_follows_its_default_until_it_is_overridden;
-mod choosing_a_remapper_makes_a_block_of_it_and_opens_it;
+mod a_narrow_page_stacks_each_control_under_its_label;
 mod every_pointer_reads_as_mixed_until_it_is_set;
 mod middle_click_paste_is_off_until_it_is_switched_on;
 mod resetting_a_layout_returns_it_to_the_default;

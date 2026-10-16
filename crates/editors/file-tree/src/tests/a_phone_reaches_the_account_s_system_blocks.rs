@@ -4,7 +4,7 @@ use block_editor_beui::{AccessLevel, BlockInfo, BlockParent};
 use super::*;
 
 #[test]
-fn a_phone_reaches_the_account_s_own_settings() {
+fn a_phone_reaches_the_account_s_system_blocks() {
     let mut fixture = phone();
     let (mine, theirs) = (Uuid::from_u128(3), Uuid::from_u128(4));
     let mut own = BlockInfo::new(mine, SettingsContent::CONTENT_TYPE, BlockParent::Root);
@@ -21,7 +21,7 @@ fn a_phone_reaches_the_account_s_own_settings() {
     fixture.settle();
     assert!(!fixture.test.shown(&format!("file-tree.{mine}.open")));
 
-    fixture.test.click("file-tree.settings");
+    fixture.test.click("file-tree.system");
     fixture.settle();
     assert!(fixture.test.shown(&format!("file-tree.{mine}.open")));
     assert!(
@@ -30,7 +30,7 @@ fn a_phone_reaches_the_account_s_own_settings() {
     );
     fixture
         .test
-        .snapshot("a_phone_reaches_the_account_s_own_settings");
+        .snapshot("a_phone_reaches_the_account_s_system_blocks");
 
     fixture.test.click(&format!("file-tree.{mine}.open"));
     fixture.settle();

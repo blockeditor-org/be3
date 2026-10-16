@@ -15,6 +15,7 @@ const ZOOM_MIN: f32 = 0.5;
 const ZOOM_MAX: f32 = 3.0;
 const ZOOM_MIDPOINT: f32 = 1.0;
 const TREE_HEIGHT: f32 = 240.0;
+const DEFAULT_VOLUME: f32 = 0.6;
 const NESTED_SCROLL_HEIGHT: f32 = 160.0;
 const NESTED_SCROLL_ROWS: usize = 30;
 const SWATCH_HEIGHT: f32 = 28.0;
@@ -2638,6 +2639,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Accordions" code={vec![Accordions::SOURCE]}>
                 <Accordions />
             </Sample>
+            <Sample title="Settings sections" code={vec![SettingsSections::SOURCE]}>
+                <SettingsSections />
+            </Sample>
             <Sample title="Separators and borders" code={vec![Separators::SOURCE]}>
                 <Separators />
             </Sample>
@@ -2767,6 +2771,66 @@ fn Accordions() -> NodeId {
                 </Accordion>
             </List>
         </Card>
+    }
+}
+
+#[sample]
+#[component]
+fn SettingsSections() -> NodeId {
+    let (sounds, set_sounds) = create_signal(true);
+    let (volume, set_volume) = create_signal(DEFAULT_VOLUME);
+    let (size, set_size) = create_signal(Some(1));
+    let volume_changed = create_memo(move || volume.get() != DEFAULT_VOLUME);
+    let size_changed = create_memo(move || size.get() != Some(1));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <SettingsSection
+                title="Sound"
+                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its reset brings back the default."
+            >
+                <SettingsRow
+                    label="Sounds"
+                    description="Play a sound when something finishes."
+                    compact=true
+                >
+                    <Switch label="Sounds" on={sounds} on_change={move |on| set_sounds.set(on)} />
+                </SettingsRow>
+                <SettingsRow
+                    label="Volume"
+                    separated=true
+                    modified={volume_changed}
+                    on_reset={move || set_volume.set(DEFAULT_VOLUME)}
+                >
+                    <Slider
+                        @sizing=ItemSize::Percent(100.0)
+                        value={volume}
+                        min=0.0
+                        max=1.0
+                        label="Volume"
+                        on_change={move |value| set_volume.set(value)}
+                    />
+                </SettingsRow>
+                <SettingsRow
+                    label="Text size"
+                    separated=true
+                    modified={size_changed}
+                    on_reset={move || set_size.set(Some(1))}
+                >
+                    <Select
+                        @sizing=ItemSize::Percent(100.0)
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ChoiceOption label="Small" />
+                            <ChoiceOption label="Medium" />
+                            <ChoiceOption label="Large" />
+                        }}
+                        selected={size}
+                        label="Text size"
+                        on_change={move |index| set_size.set(index)}
+                    />
+                </SettingsRow>
+            </SettingsSection>
+        </List>
     }
 }
 

@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn choosing_a_theme_stores_it() {
     let mut settings = Harness::new();
-    assert!(settings.says("Inherited (Dark)"));
+    assert!(settings.says("Default (Dark)"));
 
     settings.choose(1);
     assert_eq!(settings.content().root().theme, Some(Theme::Light));
