@@ -437,15 +437,6 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             .map(|(id, _)| id)
             .collect::<Vec<_>>()
     });
-    let invitation_keys = create_memo(move || {
-        workspaces
-            .get()
-            .invitations
-            .into_iter()
-            .map(|invitation| invitation.id)
-            .collect::<Vec<_>>()
-    });
-    let has_invitations = create_memo(move || !invitation_keys.get().is_empty());
     let empty = create_memo(move || keys.get().is_empty());
     let state = create_memo(move || workspaces.get().state);
     let error = create_memo(move || workspaces.get().error);
@@ -453,8 +444,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
     let account = create_memo(move || view.account.get());
     let name = create_memo(move || account.get().name);
     let rows = workspaces;
-    let invitations = workspaces;
-    let (reload_busy, row_busy) = (busy, busy);
+    let reload_busy = busy;
     view! {
         <Column>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -527,62 +517,103 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                     </Card>
                 }}
             </Show>
-            <Show condition={has_invitations}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                    <Text align=TextAlign::Center>
-                        <Icon glyph={ICON_GROUP_ADD.to_owned()} />
-                    </Text>
-                    <Text style=TextStyle::HEADING string="Invitations" />
-                </List>
-            </Show>
-            <ForEach keys={invitation_keys}>
-                {move |id: Uuid| {
-                    let invitations = invitations;
-                    let row = create_memo(move || {
-                        invitations
-                            .get()
-                            .invitations
-                            .into_iter()
-                            .find(|invitation| invitation.id == id)
-                    });
-                    let workspace = create_memo(move || {
-                        row.get().map(|row| row.workspace).unwrap_or_default()
-                    });
-                    let role = create_memo(move || {
-                        row.get()
-                            .map(|row| format!("Invited as {}", row.role))
-                            .unwrap_or_default()
-                    });
-                    let busy = row_busy;
-                    view! {
-                        <Card>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                                    <Text style=TextStyle::HEADING string={workspace} />
-                                    <Text style=TextStyle::CAPTION string={role} />
-                                </List>
-                                <Button
-                                    label="Accept"
-                                    variant=ButtonVariant::Primary
-                                    disabled={busy}
-                                    on_click={move || send(UiCommand::RespondInvitation(id, true))}
-                                />
-                                <Button
-                                    label="Decline"
-                                    variant=ButtonVariant::Secondary
-                                    disabled={busy}
-                                    on_click={move || send(UiCommand::RespondInvitation(id, false))}
-                                />
-                            </List>
-                        </Card>
-                    }
-                }}
-            </ForEach>
+            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                <Text align=TextAlign::Center>
+                    <Icon glyph={ICON_GROUP_ADD.to_owned()} />
+                </Text>
+                <Text style=TextStyle::HEADING string="Join a workspace" />
+            </List>
+            <JoinWorkspace view busy={busy} />
             <Text style=TextStyle::HEADING string="Create a workspace" />
             <CreateWorkspace busy={busy} created />
             <ErrorText text={error} />
             <ReauthDialog view />
         </Column>
+    }
+}
+
+#[component]
+fn JoinWorkspace(view: AppViewStore, busy: Memo<bool>) -> NodeId {
+    let joining = create_memo(move || view.workspaces.get().joining);
+    let asking = create_memo(move || joining.get().is_some());
+    let pasting = create_memo(move || !asking.get());
+    let title = create_memo(move || {
+        joining
+            .get()
+            .map(|row| format!("Join {} as {}?", row.workspace, row.role))
+            .unwrap_or_default()
+    });
+    let invited = create_memo(move || {
+        joining
+            .get()
+            .map(|row| format!("Invited as {}", row.email))
+            .unwrap_or_default()
+    });
+    let (link, set_link) = create_signal(String::new());
+    let cannot = create_memo(move || busy.get() || link.get().trim().is_empty());
+    let open = move || {
+        if !cannot.get_untracked() {
+            send(UiCommand::OpenInvite(link.get_untracked()));
+        }
+    };
+    let submit = open;
+    view! {
+        <List spacing=8.0 @test_id={"app.join"}>
+            <Show condition={asking}>
+                {move || view! {
+                    <Card>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                                <Text style=TextStyle::HEADING string={title} wrap=true />
+                                <Text style=TextStyle::CAPTION string={invited} />
+                            </List>
+                            <Button
+                                label="Cancel"
+                                variant=ButtonVariant::Secondary
+                                disabled={busy}
+                                on_click={|| send(UiCommand::CancelJoin)}
+                            />
+                            <Button
+                                label="Join"
+                                variant=ButtonVariant::Primary
+                                disabled={busy}
+                                @test_id={"app.join.confirm"}
+                                on_click={|| send(UiCommand::JoinInvited)}
+                            />
+                        </List>
+                    </Card>
+                }}
+            </Show>
+            <Show condition={pasting}>
+                {move || view! {
+                    <List spacing=8.0>
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="Paste the invite link someone sent you."
+                            wrap=true
+                        />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <TextInput
+                                @sizing=ItemSize::Percent(100.0)
+                                value={link}
+                                label="Invite link"
+                                placeholder="https://…/#invite/…"
+                                @test_id={"app.join.link"}
+                                on_change={move |value: String| set_link.set(value)}
+                                on_submit={move |_value: String| submit()}
+                            />
+                            <Button
+                                label="Open"
+                                variant=ButtonVariant::Secondary
+                                disabled={cannot}
+                                @test_id={"app.join.open"}
+                                on_click={open}
+                            />
+                        </List>
+                    </List>
+                }}
+            </Show>
+        </List>
     }
 }
 

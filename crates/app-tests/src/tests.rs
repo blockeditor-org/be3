@@ -6,11 +6,13 @@ mod a_checklist_on_a_canvas_works_in_place_and_zooms_with_it;
 mod a_new_beui_demo_opens_its_gallery_in_a_tab;
 mod a_new_text_block_opens_in_a_tab_beside_the_files;
 mod a_pixel_art_on_a_canvas_takes_the_frame_in_place_and_pans_with_it;
+mod an_invitation_shows_the_link_to_send_the_invited_person;
 mod closing_a_tab_shuts_its_editor_down;
 mod pressing_the_files_after_a_text_block_moves_the_focus_to_them;
 mod the_add_block_dialog_takes_presses_over_an_open_file;
 mod the_app_opens_its_files_and_closes_cleanly;
 mod the_desktop_shell_opens_and_closes_cleanly;
+mod the_workspaces_screen_takes_an_invite_link;
 
 fn add_root_block(app: &mut AppTest, label: &str) {
     app.click("#file-tree.add-root");

@@ -20,6 +20,7 @@ fn two_peers_of_one_workspace_share_a_counter() {
         workspace: harness.workspace,
         content_key: harness.content_key,
         other_keys: Vec::new(),
+        recovery: None,
         data_dir: elsewhere.clone(),
     });
     open(block, CounterContent::CONTENT_TYPE);

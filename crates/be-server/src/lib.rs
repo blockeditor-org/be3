@@ -517,28 +517,31 @@ impl Connection {
             }
             ClientMessage::Invite {
                 request,
+                invitation,
                 workspace,
                 email,
                 role,
+                sealed,
             } => {
                 self.store
-                    .invite(self.account()?, workspace, &email, role)
+                    .invite(self.account()?, invitation, workspace, &email, role, sealed)
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::ListInvitations { request } => Ok(ServerMessage::Invitations {
-                request,
-                invitations: self.store.list_invitations(self.account()?).await?,
-            }),
-            ClientMessage::RespondInvitation {
+            ClientMessage::GetInvitation {
                 request,
                 invitation,
-                accept,
+            } => Ok(ServerMessage::Invitation {
+                request,
+                invitation: self.store.invitation(self.account()?, invitation).await?,
+            }),
+            ClientMessage::AcceptInvitation {
+                request,
+                invitation,
             } => {
                 self.store
-                    .respond_invitation(self.account()?, invitation, accept)
+                    .accept_invitation(self.account()?, invitation)
                     .await?;
-                self.want_keys().await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListWorkspaces { request } => Ok(ServerMessage::Workspaces {
@@ -899,31 +902,17 @@ impl Connection {
                 self.store
                     .set_recovery_key(self.account()?, public, sealed)
                     .await?;
-                self.want_keys().await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::PutWorkspaceKey {
                 request,
                 workspace,
-                account,
                 sealed,
             } => {
                 self.store
-                    .put_workspace_key(self.account()?, workspace, account, sealed)
+                    .put_workspace_key(self.account()?, workspace, sealed)
                     .await?;
-                self.hub
-                    .send_account(
-                        account,
-                        self.client,
-                        None,
-                        &ServerMessage::KeySealed { workspace },
-                    )
-                    .await;
                 Ok(ServerMessage::Ok { request })
-            }
-            ClientMessage::ListMemberKeys { request, workspace } => {
-                let members = self.store.member_keys(self.account()?, workspace).await?;
-                Ok(ServerMessage::MemberKeys { request, members })
             }
             ClientMessage::CreateAgent {
                 request,
@@ -980,27 +969,6 @@ impl Connection {
                     ));
                 }
                 Ok(ServerMessage::Ok { request })
-            }
-        }
-    }
-
-    async fn want_keys(&self) {
-        let Ok(account) = self.account() else {
-            return;
-        };
-        let Ok(awaiting) = self.store.awaiting_keys(account).await else {
-            return;
-        };
-        for (workspace, members) in awaiting {
-            for member in members {
-                self.hub
-                    .send_account(
-                        member,
-                        self.client,
-                        None,
-                        &ServerMessage::KeyWanted { workspace },
-                    )
-                    .await;
             }
         }
     }

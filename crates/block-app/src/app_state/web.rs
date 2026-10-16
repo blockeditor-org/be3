@@ -8,6 +8,14 @@ const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
 const WORKSPACE_KEYS_KEY: &str = "block.workspace-keys";
+const RECOVERY_KEYS_KEY: &str = "block.recovery-keys";
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct StoredRecovery {
+    server: String,
+    account: Uuid,
+    public: [u8; 32],
+}
 
 #[derive(serde::Deserialize, serde::Serialize)]
 struct StoredKey {
@@ -72,6 +80,9 @@ impl AppStateStore {
         let mut keys = self.stored_keys()?;
         keys.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
         self.write(WORKSPACE_KEYS_KEY, &keys)?;
+        let mut recovery = self.stored_recovery()?;
+        recovery.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        self.write(RECOVERY_KEYS_KEY, &recovery)?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -102,6 +113,7 @@ impl AppStateStore {
             DISPLAY_SETTINGS_KEY,
             INPUT_SETTINGS_KEY,
             WORKSPACE_KEYS_KEY,
+            RECOVERY_KEYS_KEY,
         ] {
             self.storage
                 .remove_item(key)
@@ -178,6 +190,33 @@ impl AppStateStore {
             key,
         });
         self.write(WORKSPACE_KEYS_KEY, &keys)
+    }
+
+    fn stored_recovery(&self) -> Result<Vec<StoredRecovery>, AppStateError> {
+        Ok(self.read(RECOVERY_KEYS_KEY)?.unwrap_or_default())
+    }
+
+    pub fn recovery_key(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
+        Ok(self
+            .stored_recovery()?
+            .into_iter()
+            .find(|stored| stored.server == saved.server.key() && stored.account == saved.id)
+            .map(|stored| stored.public))
+    }
+
+    pub fn set_recovery_key(
+        &self,
+        saved: &SavedAccount,
+        public: [u8; 32],
+    ) -> Result<(), AppStateError> {
+        let mut recovery = self.stored_recovery()?;
+        recovery.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        recovery.push(StoredRecovery {
+            server: saved.server.key().to_owned(),
+            account: saved.id,
+            public,
+        });
+        self.write(RECOVERY_KEYS_KEY, &recovery)
     }
 
     pub fn client_id(&self) -> Result<Uuid, AppStateError> {

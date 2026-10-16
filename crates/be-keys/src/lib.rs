@@ -16,6 +16,10 @@ const PHRASE_ENTROPY: usize = 16;
 const RECOVERY_INFO: &[u8] = b"be3.recovery.v1";
 const SEAL_INFO: &[u8] = b"be3.seal.v1";
 const PAIRING_CONTEXT: &[u8] = b"be3.pairing.v1";
+const INVITE_INFO: &[u8] = b"be3.invite.v1";
+const INVITE_LOOKUP_INFO: &[u8] = b"be3.invite.lookup.v1";
+const INVITE_ENTROPY: usize = 25;
+const INVITE_LEN: usize = INVITE_ENTROPY * 8 / 5;
 const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 pub const CODE_LEN: usize = 8;
 
@@ -24,6 +28,7 @@ pub enum KeyError {
     Phrase,
     Corrupt,
     Pairing,
+    Invite,
 }
 
 impl fmt::Display for KeyError {
@@ -32,6 +37,7 @@ impl fmt::Display for KeyError {
             Self::Phrase => formatter.write_str("that is not a recovery phrase"),
             Self::Corrupt => formatter.write_str("the key did not open with this secret"),
             Self::Pairing => formatter.write_str("the code did not match"),
+            Self::Invite => formatter.write_str("that is not an invite code"),
         }
     }
 }
@@ -186,6 +192,10 @@ pub fn pairing_code() -> String {
 }
 
 pub fn normalize_code(input: &str) -> Option<String> {
+    normalize(input, CODE_LEN)
+}
+
+fn normalize(input: &str, len: usize) -> Option<String> {
     let code: String = input
         .chars()
         .filter(|character| character.is_ascii_alphanumeric())
@@ -195,8 +205,75 @@ pub fn normalize_code(input: &str) -> Option<String> {
             other => other,
         })
         .collect();
-    (code.len() == CODE_LEN && code.bytes().all(|byte| CODE_ALPHABET.contains(&byte)))
-        .then_some(code)
+    (code.len() == len && code.bytes().all(|byte| CODE_ALPHABET.contains(&byte))).then_some(code)
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub struct InviteCode([u8; INVITE_ENTROPY]);
+
+impl InviteCode {
+    pub fn generate() -> Self {
+        Self(random())
+    }
+
+    pub fn parse(input: &str) -> Result<Self, KeyError> {
+        let code = normalize(input, INVITE_LEN).ok_or(KeyError::Invite)?;
+        let mut entropy = [0u8; INVITE_ENTROPY];
+        for (index, byte) in code.bytes().enumerate() {
+            let value = CODE_ALPHABET
+                .iter()
+                .position(|letter| *letter == byte)
+                .ok_or(KeyError::Invite)?;
+            for bit in 0..5 {
+                if value & (0b10000 >> bit) != 0 {
+                    let at = index * 5 + bit;
+                    entropy[at / 8] |= 0x80 >> (at % 8);
+                }
+            }
+        }
+        Ok(Self(entropy))
+    }
+
+    pub fn lookup(&self) -> [u8; 16] {
+        let mut lookup = [0u8; 16];
+        lookup.copy_from_slice(&expand(&self.0, INVITE_LOOKUP_INFO, INVITE_LOOKUP_INFO)[..16]);
+        lookup
+    }
+
+    pub fn seal(&self, workspace: &[u8], plain: &[u8]) -> Vec<u8> {
+        seal_with(&self.key(workspace), plain)
+    }
+
+    pub fn open(&self, workspace: &[u8], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+        open_with(&self.key(workspace), sealed, KeyError::Invite)
+    }
+
+    fn key(&self, workspace: &[u8]) -> [u8; 32] {
+        expand(&self.0, workspace, INVITE_INFO)
+    }
+}
+
+impl fmt::Display for InviteCode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for index in 0..INVITE_LEN {
+            if index > 0 && index % 5 == 0 {
+                formatter.write_str("-")?;
+            }
+            let mut value = 0usize;
+            for bit in 0..5 {
+                let at = index * 5 + bit;
+                value = value << 1 | usize::from(self.0[at / 8] & (0x80 >> (at % 8)) != 0);
+            }
+            write!(formatter, "{}", CODE_ALPHABET[value] as char)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for InviteCode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("InviteCode(..)")
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -211,6 +288,8 @@ pub enum PairingMessage {
         message: Vec<u8>,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        recovery: Vec<u8>,
     },
 }
 

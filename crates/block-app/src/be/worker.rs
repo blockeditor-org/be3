@@ -130,6 +130,7 @@ pub(crate) struct Shared {
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
     pub(crate) other_keys: HashMap<Uuid, [u8; 32]>,
+    pub(crate) recovery: Option<[u8; 32]>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
@@ -773,11 +774,8 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
-    let held: Vec<Uuid> = std::iter::once(peer.workspace())
-        .chain(shared.lock().unwrap().other_keys.keys().copied())
-        .collect();
-    for workspace in held {
-        seal_for_members(&peer, shared, workspace).await;
+    if let Err(error) = seal_own(&peer, shared).await {
+        record(shared, error);
     }
     load_graph(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
@@ -855,9 +853,6 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     }) => {
                         asked_to_pair(&peer, shared, from, workspace, &payload);
                     }
-                    Some(ServerMessage::KeyWanted { workspace }) => {
-                        seal_for_members(&peer, shared, workspace).await;
-                    }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
                 }
@@ -933,42 +928,43 @@ async fn wait(
     }
 }
 
-async fn seal_for_members(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, workspace: Uuid) {
-    let key = match workspace == peer.workspace() {
-        true => *peer.commits().vault().key().as_bytes(),
-        false => match shared.lock().unwrap().other_keys.get(&workspace) {
-            Some(key) => *key,
-            None => return,
-        },
+async fn seal_own(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> Result<(), ClientError> {
+    let (recovery, held) = {
+        let held = shared.lock().unwrap();
+        let Some(recovery) = held.recovery else {
+            return Ok(());
+        };
+        let keys: Vec<(Uuid, [u8; 32])> = held
+            .other_keys
+            .iter()
+            .map(|(workspace, key)| (*workspace, *key))
+            .collect();
+        (recovery, keys)
     };
-    if let Err(error) = seal_to_members(peer, workspace, &key).await {
-        record(shared, error);
-    }
-}
-
-async fn seal_to_members(
-    peer: &Peer<Store>,
-    workspace: Uuid,
-    key: &[u8; 32],
-) -> Result<(), ClientError> {
-    let listed = peer
+    let ServerMessage::Keys {
+        recovery: current,
+        sealed,
+        ..
+    } = peer
         .connection()
-        .request(|request| ClientMessage::ListMemberKeys { request, workspace })
-        .await?;
-    let ServerMessage::MemberKeys { members, .. } = listed else {
+        .request(|request| ClientMessage::GetKeys { request })
+        .await?
+    else {
         return Err(ClientError::Unexpected);
     };
-    for member in members {
-        let Some(recovery) = member.recovery.filter(|_| !member.sealed) else {
+    if current != Some(recovery) {
+        return Ok(());
+    }
+    let own = (peer.workspace(), *peer.commits().vault().key().as_bytes());
+    for (workspace, key) in std::iter::once(own).chain(held) {
+        if sealed.iter().any(|sealed| sealed.workspace == workspace) {
             continue;
-        };
-        let sealed = be_keys::RecoveryPublic(recovery).seal(key);
+        }
         peer.connection()
             .request(|request| ClientMessage::PutWorkspaceKey {
                 request,
                 workspace,
-                account: member.account,
-                sealed,
+                sealed: be_keys::RecoveryPublic(recovery).seal(&key),
             })
             .await?;
     }
@@ -1031,12 +1027,21 @@ async fn approve_pairing(
             None => return Ok(()),
         },
     };
+    let recovery = shared.lock().unwrap().recovery;
     let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
     let key = pairing
         .finish(&request.message)
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
     let sealed = key.seal(&content_key);
-    let payload = be_keys::PairingMessage::Reply { message, sealed }.encode();
+    let recovery = recovery
+        .map(|recovery| key.seal(&recovery))
+        .unwrap_or_default();
+    let payload = be_keys::PairingMessage::Reply {
+        message,
+        sealed,
+        recovery,
+    }
+    .encode();
     peer.connection()
         .request(|request| ClientMessage::Pair {
             request,

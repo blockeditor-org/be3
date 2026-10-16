@@ -1,19 +1,18 @@
 use super::*;
 
-use be_protocol::{MemberKey, SealedKey};
+use be_protocol::SealedKey;
 
 #[tokio::test]
 async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
-    let owner_account = owner.register("owner@example.com").await;
+    owner.register("owner@example.com").await;
     let workspace = owner.workspace("notes").await;
 
     let refused = owner
         .send(|request| ClientMessage::PutWorkspaceKey {
             request,
             workspace,
-            account: owner_account,
             sealed: b"sealed for the owner".to_vec(),
         })
         .await;
@@ -35,7 +34,6 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
             .send(|request| ClientMessage::PutWorkspaceKey {
                 request,
                 workspace,
-                account: owner_account,
                 sealed: sealed.clone(),
             })
             .await;
@@ -61,39 +59,6 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
     );
 
     let mut guest = harness.member("guest@example.com").await;
-    let guest_account = guest
-        .send(|request| ClientMessage::ListWorkspaces { request })
-        .await;
-    assert!(matches!(guest_account, ServerMessage::Workspaces { .. }));
-    let refused = guest
-        .send(|request| ClientMessage::ListMemberKeys { request, workspace })
-        .await;
-    assert!(
-        matches!(refused, ServerMessage::Failed { .. }),
-        "an outsider listed a workspace's members: {refused:?}"
-    );
-
-    owner
-        .send(|request| ClientMessage::Invite {
-            request,
-            workspace,
-            email: "guest@example.com".into(),
-            role: WorkspaceRole::Editor,
-        })
-        .await;
-    let ServerMessage::Invitations { invitations, .. } = guest
-        .send(|request| ClientMessage::ListInvitations { request })
-        .await
-    else {
-        panic!("listing invitations failed");
-    };
-    guest
-        .send(|request| ClientMessage::RespondInvitation {
-            request,
-            invitation: invitations[0].id,
-            accept: true,
-        })
-        .await;
     guest
         .send(|request| ClientMessage::SetRecoveryKey {
             request,
@@ -101,36 +66,38 @@ async fn workspace_keys_are_sealed_per_member_and_never_overwritten() {
             sealed: Vec::new(),
         })
         .await;
-
-    let listed = owner
-        .send(|request| ClientMessage::ListMemberKeys { request, workspace })
-        .await;
-    let ServerMessage::MemberKeys { mut members, .. } = listed else {
-        panic!("listing member keys failed: {listed:?}");
-    };
-    members.sort_by_key(|member| member.recovery);
-    let guest_id = members[1].account;
-    assert_eq!(
-        members,
-        vec![
-            MemberKey {
-                account: owner_account,
-                recovery: Some([1; 32]),
-                sealed: true,
-            },
-            MemberKey {
-                account: guest_id,
-                recovery: Some([2; 32]),
-                sealed: false,
-            },
-        ]
-    );
-
-    let response = owner
+    let refused = guest
         .send(|request| ClientMessage::PutWorkspaceKey {
             request,
             workspace,
-            account: guest_id,
+            sealed: b"sealed by an outsider".to_vec(),
+        })
+        .await;
+    assert!(
+        matches!(refused, ServerMessage::Failed { .. }),
+        "an outsider stored a key for a workspace: {refused:?}"
+    );
+
+    owner
+        .send(|request| ClientMessage::Invite {
+            request,
+            invitation: Uuid::from_u128(1),
+            workspace,
+            email: "guest@example.com".into(),
+            role: WorkspaceRole::Editor,
+            sealed: Vec::new(),
+        })
+        .await;
+    guest
+        .send(|request| ClientMessage::AcceptInvitation {
+            request,
+            invitation: Uuid::from_u128(1),
+        })
+        .await;
+    let response = guest
+        .send(|request| ClientMessage::PutWorkspaceKey {
+            request,
+            workspace,
             sealed: b"sealed for the guest".to_vec(),
         })
         .await;

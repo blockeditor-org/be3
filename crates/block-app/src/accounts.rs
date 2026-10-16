@@ -126,7 +126,7 @@ pub(crate) async fn logout(server_url: String, token: String) -> Result<(), Acco
 pub(crate) async fn workspaces(
     server_url: String,
     token: String,
-) -> Result<(Vec<Workspace>, Vec<WorkspaceInvitation>), AccountError> {
+) -> Result<Vec<Workspace>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let ServerMessage::Workspaces { workspaces, .. } = connection
         .request(|request| ClientMessage::ListWorkspaces { request })
@@ -134,13 +134,7 @@ pub(crate) async fn workspaces(
     else {
         return Err(ClientError::Unexpected.into());
     };
-    let ServerMessage::Invitations { invitations, .. } = connection
-        .request(|request| ClientMessage::ListInvitations { request })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    Ok((workspaces, invitations))
+    Ok(workspaces)
 }
 
 pub(crate) async fn create_workspace(
@@ -160,21 +154,66 @@ pub(crate) async fn create_workspace(
     }
 }
 
-pub(crate) async fn respond_invitation(
+pub(crate) async fn invitation(
     server_url: String,
     token: String,
     invitation: Uuid,
-    accept: bool,
-) -> Result<(), AccountError> {
+) -> Result<WorkspaceInvitation, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    connection
-        .request(|request| ClientMessage::RespondInvitation {
+    let ServerMessage::Invitation { invitation, .. } = connection
+        .request(|request| ClientMessage::GetInvitation {
             request,
             invitation,
-            accept,
+        })
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
+    Ok(invitation)
+}
+
+pub(crate) async fn accept_invitation(
+    server_url: String,
+    token: String,
+    code: be_keys::InviteCode,
+    recovery: Option<be_keys::RecoveryPublic>,
+) -> Result<(Uuid, [u8; 32]), AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    let id = Uuid::from_bytes(code.lookup());
+    let ServerMessage::Invitation { invitation, .. } = connection
+        .request(|request| ClientMessage::GetInvitation {
+            request,
+            invitation: id,
+        })
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
+    let workspace = invitation.workspace;
+    let key: [u8; 32] = code
+        .open(workspace.as_bytes(), &invitation.sealed)
+        .ok()
+        .and_then(|key| key.try_into().ok())
+        .ok_or_else(|| AccountError {
+            message: "This invite link does not open its workspace. Ask for a new one.".into(),
+            invalid_token: false,
+        })?;
+    connection
+        .request(|request| ClientMessage::AcceptInvitation {
+            request,
+            invitation: id,
         })
         .await?;
-    Ok(())
+    if let Some(recovery) = recovery {
+        connection
+            .request(|request| ClientMessage::PutWorkspaceKey {
+                request,
+                workspace,
+                sealed: recovery.seal(&key),
+            })
+            .await?;
+    }
+    Ok((workspace, key))
 }
 
 pub(crate) async fn invite(
@@ -183,17 +222,22 @@ pub(crate) async fn invite(
     workspace: Uuid,
     email: String,
     role: be_protocol::WorkspaceRole,
-) -> Result<(), AccountError> {
+    content_key: [u8; 32],
+) -> Result<String, AccountError> {
+    let code = be_keys::InviteCode::generate();
+    let sealed = code.seal(workspace.as_bytes(), &content_key);
     let connection = authenticated(&server_url, token).await?;
     connection
         .request(|request| ClientMessage::Invite {
             request,
+            invitation: Uuid::from_bytes(code.lookup()),
             workspace,
             email,
             role,
+            sealed,
         })
         .await?;
-    Ok(())
+    Ok(crate::invite_link::link(&link_base(&server_url), &code))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -311,48 +355,10 @@ pub(crate) async fn set_recovery_key(
     Ok(())
 }
 
-pub(crate) async fn sealed_key(
-    server_url: String,
-    token: String,
-    workspace: Uuid,
-    cancelled: futures_util::future::BoxFuture<'static, ()>,
-) -> Result<Vec<u8>, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    let mut events = connection.subscribe();
-    let wait = async move {
-        loop {
-            let ServerMessage::Keys { sealed, .. } = connection
-                .request(|request| ClientMessage::GetKeys { request })
-                .await?
-            else {
-                return Err(ClientError::Unexpected.into());
-            };
-            if let Some(key) = sealed.into_iter().find(|key| key.workspace == workspace) {
-                return Ok(key.sealed);
-            }
-            loop {
-                match events.recv().await {
-                    Ok(ServerMessage::KeySealed { workspace: sealed }) if sealed == workspace => {
-                        break;
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => break,
-                    Ok(_) => {}
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        return Err(AccountError::from(ClientError::Disconnected(
-                            "the connection closed while waiting for the workspace key".into(),
-                        )));
-                    }
-                }
-            }
-        }
-    };
-    match futures_util::future::select(std::pin::pin!(wait), cancelled).await {
-        futures_util::future::Either::Left((sealed, _)) => sealed,
-        futures_util::future::Either::Right(_) => Err(AccountError {
-            message: "waiting for the workspace key was cancelled".into(),
-            invalid_token: false,
-        }),
-    }
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Paired {
+    pub(crate) key: [u8; 32],
+    pub(crate) recovery: Option<[u8; 32]>,
 }
 
 pub(crate) async fn pair(
@@ -362,7 +368,7 @@ pub(crate) async fn pair(
     code: String,
     device: String,
     cancelled: futures_util::future::BoxFuture<'static, ()>,
-) -> Result<[u8; 32], AccountError> {
+) -> Result<Paired, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let mut events = connection.subscribe();
     let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
@@ -383,10 +389,13 @@ pub(crate) async fn pair(
                     payload,
                     ..
                 }) if answered == workspace => {
-                    if let Ok(be_keys::PairingMessage::Reply { message, sealed }) =
-                        be_keys::PairingMessage::decode(&payload)
+                    if let Ok(be_keys::PairingMessage::Reply {
+                        message,
+                        sealed,
+                        recovery,
+                    }) = be_keys::PairingMessage::decode(&payload)
                     {
-                        return Ok((message, sealed));
+                        return Ok((message, sealed, recovery));
                     }
                 }
                 Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
@@ -398,7 +407,7 @@ pub(crate) async fn pair(
             }
         }
     };
-    let (message, sealed) =
+    let (message, sealed, recovery) =
         match futures_util::future::select(std::pin::pin!(reply), cancelled).await {
             futures_util::future::Either::Left((reply, _)) => reply?,
             futures_util::future::Either::Right(_) => {
@@ -408,17 +417,28 @@ pub(crate) async fn pair(
                 });
             }
         };
-    let key = pairing
-        .finish(&message)
-        .and_then(|key| key.open(&sealed))
-        .map_err(|_| AccountError {
-            message: "The code was typed wrong on the other device. Try again with a new code."
-                .into(),
-            invalid_token: false,
-        })?;
-    key.try_into().map_err(|_| AccountError {
-        message: "the other device sent a key of the wrong length".into(),
+    let wrong = || AccountError {
+        message: "The code was typed wrong on the other device. Try again with a new code.".into(),
         invalid_token: false,
+    };
+    let key = pairing.finish(&message).map_err(|_| wrong())?;
+    let content_key = key
+        .open(&sealed)
+        .map_err(|_| wrong())?
+        .try_into()
+        .map_err(|_| wrong())?;
+    let recovery = match recovery.is_empty() {
+        true => None,
+        false => Some(
+            key.open(&recovery)
+                .map_err(|_| wrong())?
+                .try_into()
+                .map_err(|_| wrong())?,
+        ),
+    };
+    Ok(Paired {
+        key: content_key,
+        recovery,
     })
 }
 

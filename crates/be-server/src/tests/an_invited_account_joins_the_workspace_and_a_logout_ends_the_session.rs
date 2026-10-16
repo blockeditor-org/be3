@@ -16,40 +16,72 @@ async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() 
         "{refused:?}"
     );
 
+    let invitation = Uuid::from_u128(7);
     let response = owner
         .send(|request| ClientMessage::Invite {
             request,
+            invitation,
             workspace,
             email: "guest@example.com".into(),
             role: WorkspaceRole::Editor,
+            sealed: b"sealed to the invite code".to_vec(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
 
-    let listed = guest
-        .send(|request| ClientMessage::ListInvitations { request })
+    let mut outsider = harness.member("outsider@example.com").await;
+    for refused in [
+        outsider
+            .send(|request| ClientMessage::GetInvitation {
+                request,
+                invitation,
+            })
+            .await,
+        outsider
+            .send(|request| ClientMessage::AcceptInvitation {
+                request,
+                invitation,
+            })
+            .await,
+    ] {
+        assert!(
+            matches!(refused, ServerMessage::Failed { .. }),
+            "an account with another email used the invitation: {refused:?}"
+        );
+    }
+
+    let fetched = guest
+        .send(|request| ClientMessage::GetInvitation {
+            request,
+            invitation,
+        })
         .await;
-    let ServerMessage::Invitations { invitations, .. } = listed else {
-        panic!("listing invitations failed: {listed:?}");
+    let ServerMessage::Invitation {
+        invitation: found, ..
+    } = fetched
+    else {
+        panic!("reading the invitation failed: {fetched:?}");
     };
-    assert_eq!(invitations.len(), 1);
-    assert_eq!(invitations[0].workspace_name, "shared");
+    assert_eq!(found.workspace_name, "shared");
+    assert_eq!(found.sealed, b"sealed to the invite code");
 
     let response = guest
-        .send(|request| ClientMessage::RespondInvitation {
+        .send(|request| ClientMessage::AcceptInvitation {
             request,
-            invitation: invitations[0].id,
-            accept: true,
+            invitation,
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
     guest.open(workspace).await;
-    let listed = guest
-        .send(|request| ClientMessage::ListInvitations { request })
+    let again = guest
+        .send(|request| ClientMessage::GetInvitation {
+            request,
+            invitation,
+        })
         .await;
     assert!(
-        matches!(&listed, ServerMessage::Invitations { invitations, .. } if invitations.is_empty()),
-        "{listed:?}"
+        matches!(again, ServerMessage::Failed { .. }),
+        "the invitation outlived its use: {again:?}"
     );
 
     let token = guest.token.clone();

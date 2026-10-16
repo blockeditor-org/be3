@@ -15,6 +15,7 @@ mod a_commit_in_one_checkout_is_brought_into_another;
 mod a_conflicting_edit_keeps_every_side_until_one_is_chosen;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_device_answers_pairing_for_a_workspace_it_is_not_showing;
+mod a_device_seals_keys_only_to_the_recovery_key_it_trusts;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_held_block_stays_open_when_its_editors_close;
@@ -24,7 +25,7 @@ mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
-mod an_invited_member_is_sent_the_key_by_a_member_who_is_online;
+mod an_invite_link_hands_the_workspace_key_to_the_invited_account;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
@@ -49,6 +50,7 @@ pub(crate) struct Harness {
     token: String,
     workspace: Uuid,
     content_key: [u8; 32],
+    recovery: Option<[u8; 32]>,
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -94,6 +96,7 @@ impl Harness {
             token,
             workspace,
             content_key: *be_store::ContentKey::random().as_bytes(),
+            recovery: None,
             _one_stack: one_stack,
         }
     }
@@ -128,6 +131,7 @@ impl Harness {
             workspace: self.workspace,
             content_key: self.content_key,
             other_keys: Vec::new(),
+            recovery: self.recovery,
             data_dir,
         }
     }
