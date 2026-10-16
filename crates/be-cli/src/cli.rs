@@ -248,7 +248,7 @@ async fn command<S: ObjectStore>(
                 .ok_or("usage: be upload FILE [--in TARGET] [--prefix BE]")?;
             let bytes =
                 std::fs::read(file).map_err(|error| format!("could not read {file}: {error}"))?;
-            let blocks = crate::transfer::decode(&bytes)?;
+            let blocks = be_client::transfer::decode(&bytes)?;
             let parent = within(tracker, invocation).await?;
             let uploaded = tracker
                 .upload(blocks, parent, invocation.options.prefix.as_deref())
@@ -419,8 +419,8 @@ async fn block_verb<S: ObjectStore>(
             let file = arguments
                 .first()
                 .cloned()
-                .unwrap_or_else(|| format!("{}.block", file_stem(&top.label())));
-            let bytes = crate::transfer::encode(&blocks);
+                .unwrap_or_else(|| be_client::transfer::file_name(&top.label()));
+            let bytes = be_client::transfer::encode(&blocks);
             write_private(&file, &bytes)
                 .map_err(|error| format!("could not write {file}: {error}"))?;
             let inside = match blocks.len() {
@@ -608,21 +608,6 @@ fn write_private(file: &str, bytes: &[u8]) -> std::io::Result<()> {
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
     options.open(file)?.write_all(bytes)
-}
-
-fn file_stem(name: &str) -> String {
-    let stem: String = name
-        .trim()
-        .chars()
-        .map(|character| match character {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '-',
-            character => character,
-        })
-        .collect();
-    match stem.is_empty() {
-        true => "block".to_owned(),
-        false => stem,
-    }
 }
 
 fn assignments(arguments: &[String]) -> Result<Vec<Assignment>, String> {

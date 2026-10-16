@@ -84,6 +84,7 @@ pub(crate) fn PluginRegion(
     #[prop(default = false)] passive: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
+    on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
     let instance = editor.instance;
@@ -399,6 +400,11 @@ pub(crate) fn PluginRegion(
                             hit_at={takes}
                             claim_at={claims}
                             on_press_outside={pressed_outside}
+                            on_focus_change={move |focused: bool| {
+                                if focused {
+                                    on_focus.call(());
+                                }
+                            }}
                         >
                             <Embed slot={slot} punch=false @node_ref={&anchor}>
                                 <Drawing draw={base} />

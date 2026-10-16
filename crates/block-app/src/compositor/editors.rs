@@ -478,7 +478,11 @@ struct TabContext {
 pub(crate) struct ChildReporter {
     view: Callback<ViewChange>,
     bar: Callback<BarAction>,
+    focus: Callback<()>,
 }
+
+#[derive(Clone, Copy)]
+struct FocusedWithin(Callback<()>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct ChildReports {
@@ -621,7 +625,11 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
 }
 
 #[component]
-fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
+fn TabFrame(
+    block: Uuid,
+    top_bar: Prop<TopBar>,
+    #[prop(default = ChildReporter::default())] reporter: ChildReporter,
+) -> NodeId {
     let editors = editors();
     let any = super::any();
     let stack = create_memo(move || {
@@ -675,6 +683,7 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
                 top_bar={top_bar}
                 embedded=false
                 passive=false
+                reporter
             />
             <ForEach keys={shown}>
                 {move |id: Uuid| {
@@ -1012,7 +1021,9 @@ fn BlockFrameView(
     let ChildReporter {
         view: on_view_change,
         bar: on_bar_action,
+        focus: on_focus,
     } = reporter;
+    provide_context(FocusedWithin(on_focus));
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, access));
     let plugin_id = store(region_editor.plugin_id().to_owned());
@@ -1246,6 +1257,7 @@ fn BlockFrameView(
                             view={editor_view}
                             zoom={placed_zoom}
                             passive={passive}
+                            on_focus
                             child_view
                         />
                     </Interactive>
@@ -1427,13 +1439,14 @@ fn HostedChild(
             .collect::<Vec<_>>()
     });
     let _ = rect;
+    let within = use_context::<FocusedWithin>().map_or_else(Callback::default, |within| within.0);
     view! {
         <Canvas>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
                     <ForEach keys={keys}>
                         {move |(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
-                            let reporter = reporter_for(parent, region, key);
+                            let reporter = reporter_for(parent, region, key, within);
                             match kind {
                                 Kind::Missing | Kind::Unavailable => view! {
                                     <Frame />
@@ -1475,7 +1488,7 @@ fn HostedChild(
                                         child.get().map_or(TopBar::Hidden, |child| child.top_bar)
                                     });
                                     view! {
-                                        <TabFrame block=id top_bar={top_bar} />
+                                        <TabFrame block=id top_bar={top_bar} reporter />
                                     }
                                 }
                                 Kind::FrameChild => {
@@ -1629,7 +1642,12 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
     }
 }
 
-fn reporter_for(parent: Uuid, region: EditorRegion, key: ChildId) -> ChildReporter {
+fn reporter_for(
+    parent: Uuid,
+    region: EditorRegion,
+    key: ChildId,
+    within: Callback<()>,
+) -> ChildReporter {
     let report_to = editors().handle(parent);
     let on_view_change = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
@@ -1642,7 +1660,7 @@ fn reporter_for(parent: Uuid, region: EditorRegion, key: ChildId) -> ChildReport
             );
         }))
     });
-    let on_bar_action = report_to.and_then(|parent| {
+    let on_bar_action = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
             plugin_host::report_child_bars(
@@ -1653,9 +1671,20 @@ fn reporter_for(parent: Uuid, region: EditorRegion, key: ChildId) -> ChildReport
             );
         }))
     });
+    let plugin_id = report_to
+        .as_ref()
+        .and_then(|parent| parent.plugin_id().map(str::to_owned));
+    let instance = report_to.map(|parent| parent.instance);
+    let on_focus = Callback::new(move |()| {
+        if let (Some(plugin_id), Some(instance)) = (&plugin_id, instance) {
+            plugin_host::report_child_focus(plugin_id, instance, region, key);
+        }
+        within.call(());
+    });
     ChildReporter {
         view: on_view_change.unwrap_or_default(),
         bar: on_bar_action.unwrap_or_default(),
+        focus: on_focus,
     }
 }
 

@@ -5,7 +5,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{TabId, dock_menu};
+use block_editor_beui::beui::unstyled::{TabId, dock_menu, use_dock_tab};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
@@ -210,6 +210,7 @@ fn BlockChild(
             })
         })
     });
+    let tab = use_dock_tab();
     view! {
         <ChildBlock
             editor={editor}
@@ -218,6 +219,7 @@ fn BlockChild(
             own_frame=true
             top_bar={top_bar}
             on_bar={on_bar}
+            on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
             @test_id={"workspace.block"}
         >
             {move |handle: ChildBlockHandle| {

@@ -200,7 +200,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn create<C: BlockContent>(&self, parent: BlockParent) -> Result<Uuid, ClientError> {
-        self.create_with_id::<C>(Uuid::new_v4(), parent).await
+        self.create_with_id::<C>(Uuid::now_v7(), parent).await
     }
 
     pub async fn create_with_id<C: BlockContent>(

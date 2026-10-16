@@ -828,6 +828,21 @@ pub(crate) fn report_child_bars(
     });
 }
 
+pub(crate) fn report_child_focus(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    child: block_plugin_api::ChildId,
+) {
+    with(plugin_id, |runtime| {
+        runtime.send(vec![Message::Editor(EditorMessage::ChildFocused {
+            instance,
+            region,
+            child,
+        })]);
+    });
+}
+
 pub(crate) fn report_children(
     plugin_id: &str,
     instance: EditorInstanceId,

@@ -95,6 +95,10 @@ pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
 }
 
+pub fn use_keyboard() -> ReadSignal<bool> {
+    with_document(|document| document.watch_keyboard())
+}
+
 pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     let focused = focused.into_prop();
     let visible = with_document(|document| document.watch_focus_visible());

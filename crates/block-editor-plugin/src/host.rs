@@ -10,11 +10,11 @@ use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
-    BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
-    ChildStatus, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostAction, HostPanel,
-    HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
-    ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
-    encode_host,
+    BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
+    ChildRect, ChildStatus, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostAction,
+    HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
+    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -445,6 +445,7 @@ pub struct EditorHost {
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
+    child_focuses: Rc<RefCell<HashSet<ChildId>>>,
     bar_actions: Rc<RefCell<Vec<BarAction>>>,
     menu: Rc<RefCell<Vec<MenuEntry>>>,
     menu_picks: Rc<RefCell<Vec<String>>>,
@@ -1177,6 +1178,32 @@ impl EditorHost {
         }
     }
 
+    pub fn export_block(&self, block_id: Uuid) -> u64 {
+        self.ask(HostRequest::ExportBlock(block_id.into_bytes()))
+    }
+
+    pub fn import_blocks(&self, parent: BlockParent) -> u64 {
+        self.ask(HostRequest::ImportBlocks(parent.encode()))
+    }
+
+    pub fn take_import(&self, request: u64) -> Option<Result<Option<(Uuid, Uuid)>, String>> {
+        let import = match self.take_reply(request)? {
+            HostReply::BlocksImported(import) => import,
+            reply => return self.mismatched(request, reply),
+        };
+        Some(match import {
+            BlockImport::Imported {
+                block_id,
+                block_type,
+            } => Ok(Some((
+                Uuid::from_bytes(block_id),
+                Uuid::from_bytes(block_type),
+            ))),
+            BlockImport::Cancelled => Ok(None),
+            BlockImport::Failed(error) => Err(error),
+        })
+    }
+
     pub fn pick_block(&self, filter: BlockFilter) -> u64 {
         self.ask(HostRequest::PickBlock(filter))
     }
@@ -1655,6 +1682,15 @@ impl EditorHost {
             .unwrap_or_default()
     }
 
+    pub fn take_child_focus(&self, child: ChildId) -> bool {
+        self.child_focuses.borrow_mut().remove(&child)
+    }
+
+    pub(crate) fn push_child_focus(&self, child: ChildId) {
+        self.child_focuses.borrow_mut().insert(child);
+        self.changed();
+    }
+
     pub(crate) fn push_child_bar_action(&self, child: ChildId, action: BarAction) {
         self.child_bars
             .borrow_mut()
@@ -1712,6 +1748,10 @@ pub struct FileSaver {
 impl FileSaver {
     pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
         self.request = Some(host.save_file(file));
+    }
+
+    pub fn export(&mut self, host: &EditorHost, block_id: Uuid) {
+        self.request = Some(host.export_block(block_id));
     }
 
     pub fn is_saving(&self) -> bool {

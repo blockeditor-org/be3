@@ -24,7 +24,7 @@ mod wasm;
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
     ANY_BLOCK_TYPE, AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioOutput,
-    AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick,
+    AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation, BlockPick,
     BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
     ChildPlacement, ChildStatus, ConflictSide, CreationProgress, CursorIcon, DataListing,
     DescribedAction, Description, Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId,

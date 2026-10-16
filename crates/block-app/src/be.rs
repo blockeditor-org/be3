@@ -564,7 +564,7 @@ pub(crate) fn redo(block: Uuid) {
 pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     let source = node(from)?;
     kind_of(source.content_type)?;
-    let to = Uuid::new_v4();
+    let to = Uuid::now_v7();
     let mut metadata = source.metadata.clone();
     metadata.remove(&be_block::ARTIFACT);
     let author = account().unwrap_or_default();
@@ -859,6 +859,101 @@ pub(crate) fn list_access(
         block,
         reply: Box::new(reply),
     });
+}
+
+type Exported = Result<(String, Vec<u8>), String>;
+
+pub(crate) fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static) {
+    let Some((name, blocks)) = with_shared(|shared| exported(&shared.graph, block)).flatten()
+    else {
+        reply(Err("This block is not loaded yet.".to_owned()));
+        return;
+    };
+    send(Command::Export {
+        blocks,
+        reply: Box::new(move |encoded| reply(encoded.map(|bytes| (name, bytes)))),
+    });
+}
+
+fn exported(graph: &Graph, block: Uuid) -> Option<(String, Vec<be_client::transfer::Saved>)> {
+    use be_block::BlockContent;
+    let picked = graph.get(block)?;
+    let top = match picked.parent.block().and_then(|parent| graph.get(parent)) {
+        Some(view)
+            if picked.content_type == be_block::DatabaseContent::CONTENT_TYPE
+                && view.content_type == be_block::DatabaseViewContent::CONTENT_TYPE =>
+        {
+            view
+        }
+        _ => picked,
+    };
+    let saved = |node: &Node, parent| be_client::transfer::Saved {
+        id: node.id,
+        block_type: node.content_type,
+        parent,
+        metadata: node.metadata.clone(),
+        references: node.references.clone(),
+        content: None,
+    };
+    let mut blocks = vec![saved(top, None)];
+    let mut next = 0;
+    while next < blocks.len() {
+        let parent = blocks[next].id;
+        for child in graph.query(Query::Children(parent)) {
+            if child.access.can_view() && blocks.iter().all(|held| held.id != child.id) {
+                blocks.push(saved(&child, Some(next)));
+            }
+        }
+        next += 1;
+    }
+    let name = top.metadata.name().unwrap_or_default();
+    Some((be_client::transfer::file_name(&name), blocks))
+}
+
+pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
+    let blocks = be_client::transfer::renumber(be_client::transfer::decode(bytes)?);
+    let taken: std::collections::HashSet<String> = query(Query::All)
+        .iter()
+        .filter_map(|node| node.metadata.get(&be_block::ROW_PREFIX))
+        .filter(|prefix| !prefix.trim().is_empty())
+        .collect();
+    let author = account().ok_or("Sign in to import blocks.")?;
+    let top = (blocks[0].id, blocks[0].block_type);
+    for mut block in blocks.iter().cloned() {
+        if let Some(prefix) = block.metadata.get(&be_block::ROW_PREFIX)
+            && taken.contains(&prefix)
+            && let Some(bytes) = &block.content
+            && let Ok(mut database) =
+                <be_block::DatabaseContent as be_block::BlockContent>::decode(bytes)
+        {
+            database.apply(&be_block::database::Database::set_prefix(String::new()));
+            let encoded = be_block::BlockContent::encode(&database);
+            block.metadata.derived = derived_for(block.block_type, &encoded).unwrap_or_default();
+            block.content = Some(encoded);
+        }
+        let placed = match block.parent {
+            Some(position) => be_graph::BlockParent::Block(blocks[position].id),
+            None => parent,
+        };
+        with_shared_mut(|shared| {
+            shared.graph.change(Node {
+                id: block.id,
+                content_type: block.block_type,
+                author,
+                parent: placed,
+                access: be_graph::Access::Edit,
+                references: block.references.clone(),
+                metadata: block.metadata.clone(),
+                head: None,
+                version: 0,
+            });
+        });
+        send(Command::Import {
+            block,
+            parent: placed,
+        });
+    }
+    Ok(top)
 }
 
 fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {

@@ -254,6 +254,7 @@ struct ChildRecord {
     report: Callback<ChildState>,
     view_change: Callback<ViewChange>,
     bar: Callback<BarAction>,
+    focus: Callback<()>,
     child: Cell<Option<ChildId>>,
     zone: u64,
 }
@@ -901,6 +902,7 @@ impl Editor {
         report: Callback<ChildState>,
         view_change: Callback<ViewChange>,
         bar: Callback<BarAction>,
+        focus: Callback<()>,
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let (state, set_state) = create_signal(ChildState::default());
@@ -923,6 +925,7 @@ impl Editor {
                 report,
                 view_change,
                 bar,
+                focus,
                 child: Cell::new(None),
                 zone: document_zone(),
             }),
@@ -1205,6 +1208,9 @@ impl Editor {
                 }
                 for action in state.host.take_child_bar_actions(child) {
                     record.bar.call(action);
+                }
+                if state.host.take_child_focus(child) {
+                    record.focus.call(());
                 }
             }
             let state = ChildState::of(&state.host, record.child.get());

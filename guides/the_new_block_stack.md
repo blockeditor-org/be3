@@ -812,6 +812,18 @@ editors' "replace" buttons and the pixel art export's regeneration all go this
 way. `content_file_creation::<C>` is the creation view that makes a block of a
 file type from the file the user picks.
 
+A block file (`be_client::transfer`, the file `be download` writes) carries a
+block and everything under it. A plugin asks the host for one with
+`HostRequest::ExportBlock`, answered like `SaveFile`: `be::export` reads the
+tree from the graph mirror (starting from the view when asked for a database
+inside one) and the worker fills in each block's bytes, from its open session or
+else its head, so it works for content types the app does not know.
+`HostRequest::ImportBlocks(parent)` has the host pick a file and `be::import`
+it: every block gets a new id, old ids in the content bytes and references are
+swapped for the new ones, a database whose row id prefix is taken here loses
+it, and each block is created and given its bytes as its first commit. The
+reply, `BlocksImported`, names the outermost block.
+
 ### Children, duplication and undo
 
 Moving a block into a container, deleting a child or replacing it with a copy

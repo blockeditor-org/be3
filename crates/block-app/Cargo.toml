@@ -70,7 +70,7 @@ serde_json = "1"
 # Only the synchronisation primitives are shared with the browser build; the
 # new block stack's worker gets its executor and its timer from be/ instead.
 tokio = { version = "1", features = ["sync"] }
-uuid = { version = "1", features = ["serde", "v4"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
 wasi-threads = { path = "../wasi-threads" }
 wgpu = { version = "29", default-features = false }
 
