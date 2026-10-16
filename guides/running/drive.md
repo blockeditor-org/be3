@@ -71,7 +71,7 @@ block-app (guides/testing_a_gui.md, 6).
         Slider "Load" value=0.8 at 291,476 size 771x20
 
 Coordinates are pixels from the window's corner. `offscreen` marks a node scrolled or clipped
-out of view and `focused` the one with keyboard focus. In block-app each plugin region is a
+out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each plugin region is a
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
 so dialogs, the file tree and every editor read like the host's own controls.
 

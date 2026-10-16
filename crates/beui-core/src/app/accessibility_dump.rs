@@ -211,6 +211,9 @@ impl AccessibilityDump {
             if node.is_disabled() {
                 text.push_str(" disabled");
             }
+            if node.is_selected() == Some(true) {
+                text.push_str(" selected");
+            }
             if self.focus == Some(id) {
                 text.push_str(" focused");
             }
