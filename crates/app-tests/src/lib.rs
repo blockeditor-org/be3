@@ -25,13 +25,26 @@ impl AppTest {
     }
 
     pub fn start_with(arguments: &[&str], ready: &str) -> Self {
+        let mut all = vec!["--dev-workspace"];
+        all.extend_from_slice(arguments);
+        Self::launch(&all, ready)
+    }
+
+    pub fn start_signed_out() -> Self {
+        Self::launch(&[], "Button \"Add account\"")
+    }
+
+    fn launch(arguments: &[&str], ready: &str) -> Self {
         let started = Instant::now();
         let program = std::env::var("BLOCK_APP")
             .expect("BLOCK_APP names the app to test; run these through ./scripts/buck test //crates/app-tests:test");
-        let mut all = vec!["--dev-workspace"];
-        all.extend_from_slice(arguments);
-        let app = Driven::start(&program, &all, SIZE, std::env::var("APP_LIBRARIES").ok())
-            .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
+        let app = Driven::start(
+            &program,
+            arguments,
+            SIZE,
+            std::env::var("APP_LIBRARIES").ok(),
+        )
+        .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
         let mut test = Self {
             app: Some(app),
             steps: Vec::new(),

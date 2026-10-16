@@ -106,7 +106,8 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         session::start_log();
     }
     panic_guard::install();
-    let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
+    let mut app = BlockApp::new(None, arguments.server_address.as_deref())
+        .map_err(|error| error.to_string())?;
     let options = run_options();
     if arguments.dev_workspace {
         app.open_dev_workspace(None);
@@ -225,7 +226,7 @@ fn android_main(app: beui::AndroidApp) {
     panic_guard::install();
     let storage_root = app.internal_data_path();
     let options = run_options();
-    let exit_code = match BlockApp::new(storage_root)
+    let exit_code = match BlockApp::new(storage_root, None)
         .map_err(|error| error.to_string())
         .and_then(|block_app| {
             beui::run_with(options, Shell::new(block_app)).map_err(|error| error.to_string())
@@ -586,7 +587,10 @@ enum CopyStage {
 
 impl BlockApp {
     #[cfg(not(target_arch = "wasm32"))]
-    fn new(storage_root: Option<PathBuf>) -> Result<Self, Box<dyn Error + Send + Sync>> {
+    fn new(
+        storage_root: Option<PathBuf>,
+        server_address: Option<&str>,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let data_dir = storage_root
             .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
@@ -594,7 +598,10 @@ impl BlockApp {
         forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
         plugin_host::cache_in(data_dir.join("plugin-cache"));
-        let embedded_server = platform::start_embedded_server(data_dir.join("server"))?;
+        let embedded_server = platform::start_embedded_server_at(
+            server_address.unwrap_or("127.0.0.1:0"),
+            data_dir.join("server"),
+        )?;
         let url = embedded_server.url.clone();
         let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
         let mut app = Self::with_state(app_state, url)?;
@@ -2910,7 +2917,11 @@ impl BlockApp {
     fn restart(&mut self) {
         be::flush();
         be::stop();
-        match Self::new(Some(self.data_dir.clone())) {
+        let address = self
+            .embedded_server
+            .take()
+            .and_then(|server| server.url.strip_prefix("http://").map(str::to_owned));
+        match Self::new(Some(self.data_dir.clone()), address.as_deref()) {
             Ok(mut fresh) => {
                 fresh.root_settings = RootSettings::new(self.root_settings.shell());
                 #[cfg(target_os = "linux")]
