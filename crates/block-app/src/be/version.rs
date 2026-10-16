@@ -294,7 +294,7 @@ impl Versions {
         if with_graph(context.shared, |graph| graph.scope_of(root)).is_some() {
             return Err("That block is already inside a checkout.".into());
         }
-        let checkout = Uuid::new_v4();
+        let checkout = Uuid::now_v7();
         let name = node
             .metadata
             .name()
@@ -333,7 +333,7 @@ impl Versions {
             graph.get(repository).map(|node| node.parent)
         })
         .unwrap_or(BlockParent::Root);
-        let checkout = Uuid::new_v4();
+        let checkout = Uuid::now_v7();
         create(
             context,
             checkout,
@@ -597,7 +597,7 @@ impl Versions {
         let objects = self
             .reachable(context.peer, &heads, &HashSet::new())
             .await?;
-        let fork = Uuid::new_v4();
+        let fork = Uuid::now_v7();
         let name = node
             .metadata
             .name()
@@ -1283,7 +1283,7 @@ async fn version_block(
     real: &HashMap<Uuid, Uuid>,
     name: String,
 ) -> Result<Option<Uuid>, String> {
-    let block = Uuid::new_v4();
+    let block = Uuid::now_v7();
     let mut metadata = BlockMetadata::named(name);
     if let Some(manifest) = &manifest {
         context

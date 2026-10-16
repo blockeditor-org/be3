@@ -564,7 +564,7 @@ pub(crate) fn redo(block: Uuid) {
 pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     let source = node(from)?;
     kind_of(source.content_type)?;
-    let to = Uuid::new_v4();
+    let to = Uuid::now_v7();
     let mut metadata = source.metadata.clone();
     metadata.remove(&be_block::ARTIFACT);
     let author = account().unwrap_or_default();

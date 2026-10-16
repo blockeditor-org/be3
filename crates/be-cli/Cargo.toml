@@ -20,7 +20,7 @@ build-id = { path = "../build-id" }
 block-ui = { path = "../block-ui" }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "v7"] }
 
 [dev-dependencies]
 be-server = { path = "../be-server" }
