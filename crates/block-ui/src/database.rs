@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use be_block::{
     database::{DatabaseColor, DatabaseRow, DatabaseValue, RowRef, short_id},
@@ -28,6 +28,7 @@ pub struct DatabaseBlockPickRequest {
 pub struct ValueLabels {
     pub blocks: HashMap<Uuid, BlockLabel>,
     pub rows: BTreeMap<RowRef, String>,
+    pub unreachable: BTreeSet<Uuid>,
 }
 
 impl ValueLabels {
@@ -36,6 +37,12 @@ impl ValueLabels {
     }
 
     pub fn row(&self, link: &RowRef) -> String {
+        if self.unreachable.contains(&link.database) {
+            return crate::Reach::NoAccess
+                .label()
+                .unwrap_or_default()
+                .to_owned();
+        }
         self.rows
             .get(link)
             .cloned()

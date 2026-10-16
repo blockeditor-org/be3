@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, PoisonError},
 };
 
 use be_block::{
@@ -127,9 +127,9 @@ impl Versions {
             return Ok(tree.clone());
         }
         let manifest = self.commit_of(peer, commit).await?.manifest;
-        peer.fetch(&manifest.chunk_hashes()).await.map_err(failed)?;
-        let tree =
-            Tree::read(peer.commits().vault(), &manifest).map_err(|error| error.to_string())?;
+        let tree: Tree =
+            be_store::decode_value(&peer.read_manifest(&manifest).await.map_err(failed)?)
+                .map_err(|error| error.to_string())?;
         self.trees.insert(commit, tree.clone());
         Ok(tree)
     }
@@ -234,13 +234,15 @@ impl Versions {
         if state.base.is_some() && working.tree == base {
             return Err("There is nothing to commit.".into());
         }
+        let key = context.peer.sealing_key(repository).await.map_err(failed)?;
         let vault = context.peer.commits().vault();
         let manifest = working
             .tree
-            .write(vault)
+            .write(vault, key)
             .map_err(|error| error.to_string())?;
         let commit = be_vcs::snapshot(
             context.peer.commits(),
+            key,
             manifest.clone(),
             state.base.into_iter().collect(),
             context.peer.account(),
@@ -284,7 +286,7 @@ impl Versions {
             return Err("This repository already has history.".into());
         }
         let Some(node) = with_graph(context.shared, |graph| graph.get(root).cloned()) else {
-            return Err("That block is not in this workspace.".into());
+            return Err("That block is not in this organization.".into());
         };
         if node.content_type == Checkout::CONTENT_TYPE
             || node.content_type == Repository::CONTENT_TYPE
@@ -303,7 +305,7 @@ impl Versions {
             context,
             checkout,
             Checkout::CONTENT_TYPE,
-            node.parent,
+            node.parent.ok_or_else(unplaced)?,
             BlockMetadata::named(name),
         )
         .await?;
@@ -330,7 +332,7 @@ impl Versions {
             .ok_or_else(|| format!("There is no branch named {branch}."))?;
         let tree = self.tree(context.peer, Some(head)).await?;
         let parent = with_graph(context.shared, |graph| {
-            graph.get(repository).map(|node| node.parent)
+            graph.get(repository).and_then(|node| node.parent)
         })
         .unwrap_or(BlockParent::Root);
         let checkout = Uuid::now_v7();
@@ -439,7 +441,7 @@ impl Versions {
         let mut versions = Vec::new();
         for merge in std::mem::take(&mut plan.contents) {
             let (manifest, references, derived, conflicted) =
-                merge_content(context.peer, &merge).await?;
+                merge_content(context.peer, checkout, &merge).await?;
             if let Some(entry) = plan.tree.entries.get_mut(&merge.block) {
                 entry.content = manifest;
                 entry.references = references;
@@ -592,7 +594,7 @@ impl Versions {
     async fn fork(&mut self, context: &mut Context<'_>, repository: Uuid) -> Result<Uuid, String> {
         let held = read::<Repository>(context.peer, repository).await?.0;
         let node = with_graph(context.shared, |graph| graph.get(repository).cloned())
-            .ok_or("That repository is not in this workspace.")?;
+            .ok_or("That repository is not in this organization.")?;
         let heads: Vec<CommitId> = held.branches.values().copied().collect();
         let objects = self
             .reachable(context.peer, &heads, &HashSet::new())
@@ -606,7 +608,7 @@ impl Versions {
             context,
             fork,
             Repository::CONTENT_TYPE,
-            node.parent,
+            node.parent.ok_or_else(unplaced)?,
             BlockMetadata::named(name),
         )
         .await?;
@@ -718,21 +720,28 @@ impl Versions {
     }
 
     pub(super) fn watch(shared: &Arc<Mutex<Shared>>, block: Uuid) {
-        shared.lock().unwrap().version_watch.insert(block);
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .version_watch
+            .insert(block);
     }
 
     pub(super) async fn refresh(&mut self, context: &mut Context<'_>) {
         let watched: Vec<Uuid> = context
             .shared
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .version_watch
             .iter()
             .copied()
             .collect();
         for block in watched {
             let signature = {
-                let held = context.shared.lock().unwrap();
+                let held = context
+                    .shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
                 let revision_of = |block: Option<Uuid>| {
                     block
                         .and_then(|block| held.blocks.get(&block))
@@ -750,7 +759,10 @@ impl Versions {
             }
             self.computed.insert(block, signature);
             let status = self.status(context, block).await;
-            let mut held = context.shared.lock().unwrap();
+            let mut held = context
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             let entry = held.versions.entry(block).or_default();
             let status = VersionStatus {
                 busy: entry.status.busy,
@@ -767,7 +779,10 @@ impl Versions {
 
     async fn status(&mut self, context: &mut Context<'_>, block: Uuid) -> VersionStatus {
         let (checkout, repository) = {
-            let held = context.shared.lock().unwrap();
+            let held = context
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             (
                 checkout_of(&held, block),
                 content_of::<Repository>(&held, block),
@@ -793,7 +808,10 @@ impl Versions {
         };
         self.follow(context, block, &state, repository_id).await;
         let repository = {
-            let held = context.shared.lock().unwrap();
+            let held = context
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             content_of::<Repository>(&held, repository_id)
         };
         let Ok(base) = self.tree(context.peer, state.base).await else {
@@ -893,7 +911,7 @@ fn content_of<R: Root + Model>(shared: &Shared, block: Uuid) -> Option<R> {
 }
 
 fn with_graph<T>(shared: &Arc<Mutex<Shared>>, read: impl FnOnce(&Graph) -> T) -> T {
-    read(&shared.lock().unwrap().graph)
+    read(&shared.lock().unwrap_or_else(PoisonError::into_inner).graph)
 }
 
 fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, base: &Tree) -> Vec<Scanned> {
@@ -911,7 +929,7 @@ fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, base: &Tree) -> Vec<Sca
                 true => None,
                 false => node
                     .parent
-                    .block()
+                    .and_then(BlockParent::block)
                     .map(|parent| graph.to_local(scope, parent)),
             };
             let clean = match node.head {
@@ -985,7 +1003,10 @@ fn clean_heads(working: &Working, tree: &Tree) -> BTreeMap<Uuid, CommitId> {
 
 async fn refresh_heads(context: &mut Context<'_>) -> Result<(), String> {
     let blocks = context.peer.list_blocks().await.map_err(failed)?;
-    let mut held = context.shared.lock().unwrap();
+    let mut held = context
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
     for block in blocks {
         held.graph.set_head(block.id, block.head);
     }
@@ -1052,10 +1073,14 @@ async fn settle(context: &mut Context<'_>, block: Uuid, head: CommitId) -> Resul
     context
         .shared
         .lock()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .graph
         .set_head(block, Some(head));
     Ok(())
+}
+
+fn unplaced() -> String {
+    "You cannot see where this block is.".to_owned()
 }
 
 async fn create(
@@ -1086,7 +1111,12 @@ async fn create(
         Err(error) => return Err(failed(error)),
     };
     let node = node_of(context.peer, &summary);
-    context.shared.lock().unwrap().graph.put(node);
+    context
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .graph
+        .put(node, summary.revision);
     Ok(())
 }
 
@@ -1102,7 +1132,12 @@ async fn set_parent(
         .map_err(failed)?;
     let summary = context.peer.summary(block).await.map_err(failed)?;
     let node = node_of(context.peer, &summary);
-    context.shared.lock().unwrap().graph.put(node);
+    context
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .graph
+        .put(node, summary.revision);
     Ok(())
 }
 
@@ -1120,7 +1155,12 @@ async fn publish(
             .await
             .map_err(failed)?;
         let node = node_of(context.peer, &summary);
-        context.shared.lock().unwrap().graph.put(node);
+        context
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .put(node, summary.revision);
         return Ok(summary.head);
     };
     let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
@@ -1144,7 +1184,12 @@ async fn publish(
                 settle(context, block, head).await?;
                 let summary = context.peer.summary(block).await.map_err(failed)?;
                 let node = node_of(context.peer, &summary);
-                context.shared.lock().unwrap().graph.put(node);
+                context
+                    .shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .put(node, summary.revision);
                 return Ok(Some(head));
             }
             Saved::Rejected { head } => expected = head,
@@ -1235,20 +1280,13 @@ fn placement_order(tree: &Tree) -> Vec<Uuid> {
 
 async fn merge_content(
     peer: &Peer<Store>,
+    checkout: Uuid,
     merge: &be_vcs::ContentMerge,
 ) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
     let mut sides = Vec::new();
     for manifest in [&merge.base, &merge.ours, &merge.theirs] {
         sides.push(match manifest {
-            Some(manifest) => {
-                peer.fetch(&manifest.chunk_hashes()).await.map_err(failed)?;
-                Some(
-                    peer.commits()
-                        .vault()
-                        .read(manifest)
-                        .map_err(|error| error.to_string())?,
-                )
-            }
+            Some(manifest) => Some(peer.read_manifest(manifest).await.map_err(failed)?),
             None => None,
         });
     }
@@ -1263,12 +1301,11 @@ async fn merge_content(
         return Ok((merge.ours.clone(), Vec::new(), None, true));
     };
     let manifest = peer
-        .commits()
-        .vault()
-        .write(merge.content_type, &bytes)
-        .map_err(|error| error.to_string())?;
+        .write_content(checkout, merge.content_type, &bytes)
+        .await
+        .map_err(failed)?;
     let references = super::references_for(merge.content_type)
-        .map(|references| references(&bytes, peer.workspace()))
+        .map(|references| references(&bytes, peer.organization()))
         .unwrap_or_default();
     let derived = super::derived_for(merge.content_type, &bytes);
     Ok((Some(manifest), references, derived, conflicted))
@@ -1286,17 +1323,7 @@ async fn version_block(
     let block = Uuid::now_v7();
     let mut metadata = BlockMetadata::named(name);
     if let Some(manifest) = &manifest {
-        context
-            .peer
-            .fetch(&manifest.chunk_hashes())
-            .await
-            .map_err(failed)?;
-        let bytes = context
-            .peer
-            .commits()
-            .vault()
-            .read(manifest)
-            .map_err(|error| error.to_string())?;
+        let bytes = context.peer.read_manifest(manifest).await.map_err(failed)?;
         metadata.derived = super::derived_for(content_type, &bytes).unwrap_or_default();
     }
     create(

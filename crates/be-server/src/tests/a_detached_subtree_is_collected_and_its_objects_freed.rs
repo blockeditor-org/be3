@@ -5,7 +5,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("gardener@example.com").await;
-    client.workspace("notes").await;
+    client.organization("notes").await;
     let author = Author::new(account);
 
     let folder = client.create_block(BlockParent::Root).await;

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap},
     error::Error,
     fmt,
 };
@@ -40,6 +40,8 @@ pub struct BlockNode {
     pub grants: BTreeMap<Uuid, Access>,
     pub metadata: Vec<u8>,
     pub version: u64,
+    #[serde(default)]
+    pub key: Option<Uuid>,
 }
 
 impl BlockNode {
@@ -53,6 +55,7 @@ impl BlockNode {
             grants: BTreeMap::new(),
             metadata: Vec::new(),
             version: 0,
+            key: None,
         }
     }
 }
@@ -80,6 +83,29 @@ impl Error for GraphError {}
 pub struct BlockGraph {
     blocks: BTreeMap<Uuid, BlockNode>,
     backrefs: BTreeMap<Uuid, BTreeSet<Uuid>>,
+    children: HashMap<BlockParent, BTreeSet<Uuid>>,
+    entries: HashMap<Uuid, BTreeSet<Uuid>>,
+    revision: u64,
+}
+
+fn level_below(node: &BlockNode, account: Uuid, parent: Access, parent_viewable: bool) -> Access {
+    if node.author == account && parent_viewable {
+        return Access::Edit;
+    }
+    let granted = node.grants.get(&account).copied().unwrap_or_default();
+    match parent.can_view() {
+        true => granted.max(parent),
+        false => granted,
+    }
+}
+
+fn unindex<K: Eq + std::hash::Hash>(index: &mut HashMap<K, BTreeSet<Uuid>>, key: K, id: Uuid) {
+    if let Some(set) = index.get_mut(&key) {
+        set.remove(&id);
+        if set.is_empty() {
+            index.remove(&key);
+        }
+    }
 }
 
 impl BlockGraph {
@@ -89,6 +115,14 @@ impl BlockGraph {
 
     pub fn len(&self) -> usize {
         self.blocks.len()
+    }
+
+    pub const fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    pub fn advance_to(&mut self, revision: u64) {
+        self.revision = self.revision.max(revision);
     }
 
     pub fn is_empty(&self) -> bool {
@@ -116,11 +150,15 @@ impl BlockGraph {
         {
             return Err(GraphError::NotFound(parent));
         }
-        let references = node.references.clone();
-        self.blocks.insert(id, node);
-        for reference in references {
-            self.backrefs.entry(reference).or_default().insert(id);
+        for reference in &node.references {
+            self.backrefs.entry(*reference).or_default().insert(id);
         }
+        self.children.entry(node.parent).or_default().insert(id);
+        self.entries.entry(node.author).or_default().insert(id);
+        for account in node.grants.keys() {
+            self.entries.entry(*account).or_default().insert(id);
+        }
+        self.blocks.insert(id, node);
         Ok(())
     }
 
@@ -140,6 +178,25 @@ impl BlockGraph {
         Ok(())
     }
 
+    pub fn set_key(&mut self, id: Uuid, key: Uuid) -> Result<(), GraphError> {
+        self.node_mut(id)?.key = Some(key);
+        Ok(())
+    }
+
+    pub fn is_scope_root(&self, id: Uuid) -> bool {
+        self.blocks.get(&id).is_some_and(|node| {
+            !matches!(node.parent, BlockParent::Block(_))
+                || node.grants.values().any(|level| level.can_view())
+        })
+    }
+
+    pub fn scope(&self, id: Uuid) -> Uuid {
+        std::iter::once(id)
+            .chain(self.ancestors(id))
+            .find(|block| self.is_scope_root(*block) || !self.blocks.contains_key(block))
+            .unwrap_or(id)
+    }
+
     pub fn head(&self, id: Uuid) -> Option<CommitId> {
         self.blocks.get(&id).and_then(|node| node.head)
     }
@@ -152,18 +209,13 @@ impl BlockGraph {
             if !self.blocks.contains_key(&target) {
                 return Err(GraphError::NotFound(target));
             }
-            let mut ancestor = Some(target);
-            while let Some(current) = ancestor {
-                if current == id {
-                    return Err(GraphError::ParentCycle);
-                }
-                ancestor = self
-                    .blocks
-                    .get(&current)
-                    .and_then(|node| node.parent.block());
+            if target == id || self.ancestors(target).any(|ancestor| ancestor == id) {
+                return Err(GraphError::ParentCycle);
             }
         }
-        self.node_mut(id)?.parent = parent;
+        let previous = std::mem::replace(&mut self.node_mut(id)?.parent, parent);
+        unindex(&mut self.children, previous, id);
+        self.children.entry(parent).or_default().insert(id);
         Ok(())
     }
 
@@ -206,50 +258,62 @@ impl BlockGraph {
     }
 
     pub fn children(&self, parent: BlockParent) -> Vec<Uuid> {
-        self.blocks
-            .iter()
-            .filter(|(_, node)| node.parent == parent)
-            .map(|(id, _)| *id)
-            .collect()
+        self.children
+            .get(&parent)
+            .map(|set| set.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
+    fn child_ids(&self, parent: Uuid) -> impl Iterator<Item = Uuid> + '_ {
+        self.children
+            .get(&BlockParent::Block(parent))
+            .into_iter()
+            .flatten()
+            .copied()
+    }
+
+    pub fn ancestors(&self, id: Uuid) -> impl Iterator<Item = Uuid> + '_ {
+        std::iter::successors(Some(id), |current| {
+            self.blocks
+                .get(current)
+                .and_then(|node| node.parent.block())
+        })
+        .skip(1)
     }
 
     pub fn is_live(&self, id: Uuid) -> bool {
         let mut current = id;
-        let mut steps = 0;
         while let Some(node) = self.blocks.get(&current) {
             match node.parent {
                 BlockParent::Root => return true,
                 BlockParent::Detached => return false,
                 BlockParent::Block(parent) => current = parent,
             }
-            steps += 1;
-            if steps > self.blocks.len() {
-                return false;
-            }
         }
         false
     }
 
     pub fn subtree(&self, root: Uuid) -> Vec<Uuid> {
-        let mut collected = Vec::new();
-        let mut queue = VecDeque::from([root]);
-        let mut seen = BTreeSet::new();
-        while let Some(id) = queue.pop_front() {
-            if !seen.insert(id) || !self.blocks.contains_key(&id) {
-                continue;
-            }
-            collected.push(id);
-            queue.extend(self.children(BlockParent::Block(id)));
+        if !self.blocks.contains_key(&root) {
+            return Vec::new();
+        }
+        let mut collected = vec![root];
+        let mut next = 0;
+        while let Some(id) = collected.get(next).copied() {
+            collected.extend(self.child_ids(id));
+            next += 1;
         }
         collected
     }
 
     pub fn detached(&self) -> Vec<Uuid> {
-        self.blocks
-            .keys()
-            .copied()
-            .filter(|id| !self.is_live(*id))
-            .collect()
+        let mut detached: Vec<Uuid> = self
+            .children(BlockParent::Detached)
+            .into_iter()
+            .flat_map(|root| self.subtree(root))
+            .collect();
+        detached.sort_unstable();
+        detached
     }
 
     pub fn remove(&mut self, id: Uuid) -> Option<BlockNode> {
@@ -262,11 +326,29 @@ impl BlockGraph {
                 }
             }
         }
-        self.backrefs.remove(&id);
-        for other in self.blocks.values_mut() {
-            other.references.retain(|reference| *reference != id);
-            if other.parent == BlockParent::Block(id) {
+        for referrer in self.backrefs.remove(&id).unwrap_or_default() {
+            if let Some(other) = self.blocks.get_mut(&referrer) {
+                other.references.retain(|reference| *reference != id);
+            }
+        }
+        unindex(&mut self.children, node.parent, id);
+        for child in self
+            .children
+            .remove(&BlockParent::Block(id))
+            .unwrap_or_default()
+        {
+            if let Some(other) = self.blocks.get_mut(&child) {
                 other.parent = BlockParent::Detached;
+            }
+            self.children
+                .entry(BlockParent::Detached)
+                .or_default()
+                .insert(child);
+        }
+        unindex(&mut self.entries, node.author, id);
+        for account in node.grants.keys() {
+            if *account != node.author {
+                unindex(&mut self.entries, *account, id);
             }
         }
         Some(node)
@@ -274,10 +356,15 @@ impl BlockGraph {
 
     pub fn grant(&mut self, id: Uuid, account: Uuid, access: Access) -> Result<(), GraphError> {
         let node = self.node_mut(id)?;
+        let author = node.author;
         if access == Access::None {
             node.grants.remove(&account);
+            if account != author {
+                unindex(&mut self.entries, account, id);
+            }
         } else {
             node.grants.insert(account, access);
+            self.entries.entry(account).or_default().insert(id);
         }
         Ok(())
     }
@@ -285,7 +372,6 @@ impl BlockGraph {
     pub fn access(&self, id: Uuid, account: Uuid) -> Access {
         let mut current = Some(id);
         let mut best = Access::None;
-        let mut steps = 0;
         while let Some(block) = current {
             let Some(node) = self.blocks.get(&block) else {
                 break;
@@ -295,82 +381,143 @@ impl BlockGraph {
                 return best;
             }
             current = node.parent.block();
-            steps += 1;
-            if steps > self.blocks.len() {
-                break;
-            }
         }
         best
     }
 
-    pub fn access_map(&self, account: Uuid) -> BTreeMap<Uuid, Access> {
-        let direct = |node: &BlockNode| {
-            let granted = node.grants.get(&account).copied().unwrap_or_default();
-            match node.author == account {
-                true => Access::Edit,
-                false => granted,
-            }
+    pub fn entry_points(&self, account: Uuid) -> Vec<Uuid> {
+        self.entries
+            .get(&account)
+            .map(|set| set.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn inherited(&self, id: Uuid, account: Uuid) -> Access {
+        let chain: Vec<&BlockNode> = std::iter::once(id)
+            .chain(self.ancestors(id))
+            .map_while(|block| self.blocks.get(&block))
+            .collect();
+        let Some(top) = chain.last() else {
+            return Access::None;
         };
-        let mut access: BTreeMap<Uuid, Access> = BTreeMap::new();
-        for (id, node) in &self.blocks {
-            let mut best = direct(node);
-            let mut seen = BTreeSet::from([*id]);
-            let mut current = node.parent.block();
-            while let Some(parent) = current {
-                if !seen.insert(parent) {
-                    break;
-                }
-                let Some(ancestor) = self.blocks.get(&parent) else {
-                    break;
-                };
-                let inherited = direct(ancestor);
-                if inherited.can_view() {
-                    best = best.max(inherited);
-                }
-                current = ancestor.parent.block();
-            }
-            access.insert(*id, best);
+        let mut above = Access::None;
+        let mut parent_viewable = matches!(top.parent, BlockParent::Root | BlockParent::Detached);
+        for node in chain.into_iter().rev() {
+            above = level_below(node, account, above, parent_viewable);
+            parent_viewable = above.can_view();
         }
-        let referenced: Vec<Uuid> = self
-            .blocks
+        above
+    }
+
+    pub fn effective_access(&self, id: Uuid, account: Uuid) -> Access {
+        let level = self.inherited(id, account);
+        if level.can_know_exists() {
+            return level;
+        }
+        if self.referenced_by_viewer(id, account) {
+            return Access::KnowExists;
+        }
+        Access::None
+    }
+
+    fn referenced_by_viewer(&self, id: Uuid, account: Uuid) -> bool {
+        let Some(node) = self.blocks.get(&id) else {
+            return false;
+        };
+        self.backrefs.get(&id).is_some_and(|referrers| {
+            referrers.iter().any(|referrer| {
+                node.parent != BlockParent::Block(*referrer)
+                    && self.inherited(*referrer, account).can_view()
+            })
+        })
+    }
+
+    pub fn visible(&self, account: Uuid) -> BTreeMap<Uuid, Access> {
+        let mut levels: BTreeMap<Uuid, Access> = BTreeMap::new();
+        fn raise(levels: &mut BTreeMap<Uuid, Access>, id: Uuid, level: Access) {
+            let current = levels.entry(id).or_default();
+            *current = (*current).max(level);
+        }
+        let mut roots = Vec::new();
+        for entry in self.entry_points(account) {
+            let Some(node) = self.blocks.get(&entry) else {
+                continue;
+            };
+            let parent = match node.parent {
+                BlockParent::Block(parent) => self.inherited(parent, account),
+                BlockParent::Root | BlockParent::Detached => Access::None,
+            };
+            if parent.can_view() {
+                continue;
+            }
+            let open = matches!(node.parent, BlockParent::Root | BlockParent::Detached);
+            let level = level_below(node, account, Access::None, open);
+            match level.can_view() {
+                true => roots.push((entry, level)),
+                false if level.can_know_exists() => raise(&mut levels, entry, level),
+                false => {}
+            }
+        }
+        let mut stack = roots;
+        while let Some((id, level)) = stack.pop() {
+            raise(&mut levels, id, level);
+            for child in self.child_ids(id) {
+                if let Some(node) = self.blocks.get(&child) {
+                    stack.push((child, level_below(node, account, level, true)));
+                }
+            }
+        }
+        let referenced: Vec<Uuid> = levels
             .iter()
-            .filter(|(id, _)| access[*id].can_view())
-            .flat_map(|(id, node)| {
-                node.references.iter().copied().filter(move |reference| {
+            .filter(|(_, level)| level.can_view())
+            .flat_map(|(id, _)| {
+                self.references(*id).into_iter().filter(move |reference| {
                     self.blocks
                         .get(reference)
-                        .is_some_and(|child| child.parent != BlockParent::Block(*id))
+                        .is_some_and(|target| target.parent != BlockParent::Block(*id))
                 })
             })
             .collect();
         for id in referenced {
-            if let Some(level) = access.get_mut(&id) {
-                *level = (*level).max(Access::KnowExists);
+            raise(&mut levels, id, Access::KnowExists);
+        }
+        levels
+    }
+
+    pub fn viewers(&self, id: Uuid) -> BTreeSet<Uuid> {
+        let mut viewers = BTreeSet::new();
+        for block in std::iter::once(id).chain(self.ancestors(id)) {
+            let Some(node) = self.blocks.get(&block) else {
+                break;
+            };
+            viewers.insert(node.author);
+            viewers.extend(
+                node.grants
+                    .iter()
+                    .filter(|(_, level)| level.can_view())
+                    .map(|(account, _)| *account),
+            );
+        }
+        viewers
+    }
+
+    pub fn audience(&self, id: Uuid) -> BTreeSet<Uuid> {
+        let Some(node) = self.blocks.get(&id) else {
+            return BTreeSet::new();
+        };
+        let mut audience = self.viewers(id);
+        audience.extend(
+            node.grants
+                .iter()
+                .filter(|(_, level)| level.can_know_exists())
+                .map(|(account, _)| *account),
+        );
+        for referrer in self.backrefs.get(&id).into_iter().flatten() {
+            if node.parent != BlockParent::Block(*referrer) {
+                audience.extend(self.viewers(*referrer));
             }
         }
-        let known: Vec<Uuid> = access
-            .iter()
-            .filter(|(_, level)| level.can_know_exists())
-            .map(|(id, _)| *id)
-            .collect();
-        for id in known {
-            let mut seen = BTreeSet::from([id]);
-            let mut current = self.blocks.get(&id).and_then(|node| node.parent.block());
-            while let Some(parent) = current {
-                if !seen.insert(parent) {
-                    break;
-                }
-                let Some(level) = access.get_mut(&parent) else {
-                    break;
-                };
-                *level = (*level).max(Access::KnowExists);
-                current = self
-                    .blocks
-                    .get(&parent)
-                    .and_then(|node| node.parent.block());
-            }
-        }
-        access
+        audience
     }
 
     fn node_mut(&mut self, id: Uuid) -> Result<&mut BlockNode, GraphError> {

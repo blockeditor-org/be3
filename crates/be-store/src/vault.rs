@@ -4,6 +4,10 @@ use chacha20poly1305::{
 };
 use rand::TryRngCore;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -14,6 +18,8 @@ use crate::{
 };
 
 pub const NONCE_LEN: usize = 12;
+pub const TAG: &[u8; 4] = b"be3K";
+const HEADER_LEN: usize = TAG.len() + 16;
 
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ContentKey([u8; 32]);
@@ -35,21 +41,23 @@ impl ContentKey {
         &self.0
     }
 
-    pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
+    pub fn seal(&self, id: Uuid, plain: &[u8]) -> Vec<u8> {
         let nonce_source = Hash::of_parts(&[self.as_bytes(), plain]);
         let nonce_bytes = &nonce_source.as_bytes()[..NONCE_LEN];
         let cipher = ChaCha20Poly1305::new(Key::from_slice(self.as_bytes()));
         let ciphertext = cipher
             .encrypt(Nonce::from_slice(nonce_bytes), plain)
             .expect("chacha20poly1305 never fails on a valid key and nonce");
-        let mut sealed = Vec::with_capacity(NONCE_LEN + ciphertext.len());
+        let mut sealed = Vec::with_capacity(HEADER_LEN + NONCE_LEN + ciphertext.len());
+        sealed.extend_from_slice(TAG);
+        sealed.extend_from_slice(id.as_bytes());
         sealed.extend_from_slice(nonce_bytes);
         sealed.extend_from_slice(&ciphertext);
         sealed
     }
 
-    pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, StoreError> {
-        let (nonce_bytes, ciphertext) = sealed
+    fn open_body(&self, body: &[u8]) -> Result<Vec<u8>, StoreError> {
+        let (nonce_bytes, ciphertext) = body
             .split_at_checked(NONCE_LEN)
             .ok_or(StoreError::Corrupt)?;
         let cipher = ChaCha20Poly1305::new(Key::from_slice(self.as_bytes()));
@@ -62,6 +70,75 @@ impl ContentKey {
 impl std::fmt::Debug for ContentKey {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("ContentKey(..)")
+    }
+}
+
+pub fn sealed_key(sealed: &[u8]) -> Result<Uuid, StoreError> {
+    let rest = sealed.strip_prefix(TAG).ok_or(StoreError::Corrupt)?;
+    let id: [u8; 16] = rest
+        .get(..16)
+        .and_then(|id| id.try_into().ok())
+        .ok_or(StoreError::Corrupt)?;
+    Ok(Uuid::from_bytes(id))
+}
+
+#[derive(Clone, Default)]
+pub struct Keyring {
+    keys: Arc<RwLock<HashMap<Uuid, ContentKey>>>,
+}
+
+impl Keyring {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn insert(&self, id: Uuid, key: ContentKey) {
+        self.keys
+            .write()
+            .expect("the keyring is never poisoned")
+            .insert(id, key);
+    }
+
+    pub fn get(&self, id: Uuid) -> Option<ContentKey> {
+        self.keys
+            .read()
+            .expect("the keyring is never poisoned")
+            .get(&id)
+            .copied()
+    }
+
+    pub fn contains(&self, id: Uuid) -> bool {
+        self.get(id).is_some()
+    }
+
+    pub fn len(&self) -> usize {
+        self.keys
+            .read()
+            .expect("the keyring is never poisoned")
+            .len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn seal(&self, key: Uuid, plain: &[u8]) -> Result<Vec<u8>, StoreError> {
+        Ok(self
+            .get(key)
+            .ok_or(StoreError::MissingKey(key))?
+            .seal(key, plain))
+    }
+
+    pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, StoreError> {
+        let id = sealed_key(sealed)?;
+        let key = self.get(id).ok_or(StoreError::MissingKey(id))?;
+        key.open_body(&sealed[HEADER_LEN..])
+    }
+}
+
+impl std::fmt::Debug for Keyring {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "Keyring({} keys)", self.len())
     }
 }
 
@@ -90,15 +167,15 @@ impl Manifest {
 
 pub struct Vault<S> {
     store: S,
-    key: ContentKey,
+    keys: Keyring,
     chunker: ChunkerConfig,
 }
 
 impl<S: ObjectStore> Vault<S> {
-    pub fn new(store: S, key: ContentKey) -> Self {
+    pub fn new(store: S, keys: Keyring) -> Self {
         Self {
             store,
-            key,
+            keys,
             chunker: ChunkerConfig::DEFAULT,
         }
     }
@@ -112,23 +189,29 @@ impl<S: ObjectStore> Vault<S> {
         &self.store
     }
 
-    pub fn key(&self) -> ContentKey {
-        self.key
+    pub fn keys(&self) -> &Keyring {
+        &self.keys
     }
 
-    pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
-        self.key.seal(plain)
+    pub fn seal(&self, key: Uuid, plain: &[u8]) -> Result<Vec<u8>, StoreError> {
+        self.keys.seal(key, plain)
     }
 
     pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, StoreError> {
-        self.key.open(sealed)
+        self.keys.open(sealed)
     }
 
-    pub fn write(&self, content_type: Uuid, data: &[u8]) -> Result<Manifest, StoreError> {
+    pub fn write(
+        &self,
+        key: Uuid,
+        content_type: Uuid,
+        data: &[u8],
+    ) -> Result<Manifest, StoreError> {
+        let sealing = self.keys.get(key).ok_or(StoreError::MissingKey(key))?;
         let mut chunks = Vec::new();
         for range in split(data, self.chunker) {
             let length = u32::try_from(range.len()).map_err(|_| StoreError::ChunkTooLarge)?;
-            let hash = self.store.put(&self.seal(&data[range]))?;
+            let hash = self.store.put(&sealing.seal(key, &data[range]))?;
             chunks.push(ChunkRef { hash, length });
         }
         Ok(Manifest {
@@ -214,8 +297,8 @@ impl<S: ObjectStore> Vault<S> {
         Ok(missing)
     }
 
-    pub fn put_value<T: Serialize>(&self, value: &T) -> Result<Hash, StoreError> {
-        self.store.put(&self.seal(&encode_value(value)?))
+    pub fn put_value<T: Serialize>(&self, key: Uuid, value: &T) -> Result<Hash, StoreError> {
+        self.store.put(&self.seal(key, &encode_value(value)?)?)
     }
 
     pub fn get_value<T: DeserializeOwned>(&self, hash: Hash) -> Result<T, StoreError> {

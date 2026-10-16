@@ -27,6 +27,9 @@ pub const ARTIFACT: MetaKey<ArtifactSource> =
 pub const LOCAL_ID: MetaKey<Uuid> =
     MetaKey::defined(0x6be3_6d65_7461_4c00_8a1e_6c6f_6361_0001, "local_id");
 
+pub const MY_FILES: MetaKey<bool> =
+    MetaKey::defined(0x6be3_6d65_7461_4d00_8a1e_6d79_6669_0001, "my_files");
+
 const DEFINED: &str = "defined";
 const DERIVED: &str = "derived";
 const UUID_TAG: u64 = 37;

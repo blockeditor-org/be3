@@ -1,12 +1,20 @@
 use be_keys::InviteCode;
-use uuid::Uuid;
 
-const MARKER: &str = "#invite/";
+const INVITE: &str = "#invite/";
+const CONTACT: &str = "#contact/";
 
 pub(crate) fn link(base: &str, code: &InviteCode) -> String {
+    format_link(base, INVITE, code)
+}
+
+pub(crate) fn contact_link(base: &str, code: &InviteCode) -> String {
+    format_link(base, CONTACT, code)
+}
+
+fn format_link(base: &str, marker: &str, code: &InviteCode) -> String {
     let base = base.split('#').next().unwrap_or_default();
     format!(
-        "{}/{MARKER}{}",
+        "{}/{marker}{}",
         base.trim_end_matches('/'),
         code.to_string().replace('-', "")
     )
@@ -20,8 +28,16 @@ pub(crate) struct InviteLink {
 
 impl InviteLink {
     pub(crate) fn parse(text: &str) -> Option<Self> {
+        Self::parse_marked(text, INVITE)
+    }
+
+    pub(crate) fn parse_contact(text: &str) -> Option<Self> {
+        Self::parse_marked(text, CONTACT)
+    }
+
+    fn parse_marked(text: &str, marker: &str) -> Option<Self> {
         let text = text.trim();
-        let (server, code) = match text.split_once(MARKER) {
+        let (server, code) = match text.split_once(marker) {
             Some((server, code)) => {
                 let server = server.trim_end_matches('/');
                 (
@@ -35,10 +51,6 @@ impl InviteLink {
             server,
             code: InviteCode::parse(code).ok()?,
         })
-    }
-
-    pub(crate) fn invitation(&self) -> Uuid {
-        Uuid::from_bytes(self.code.lookup())
     }
 
     pub(crate) fn is_for(&self, base: &str) -> bool {

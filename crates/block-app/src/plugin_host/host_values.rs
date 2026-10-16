@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
+use block_plugin_api::{
+    Administrator, Contacts, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows,
+    LinkBase, Message, WindowAction,
+};
 #[cfg(target_os = "linux")]
 use block_plugin_api::{
     Displays, InputDevices, Media, MediaRequest, NotificationReport, Notifications, Power,
     PowerAction, ProgramAction, Programs, RemapRequest, Remaps, ScreenLocked, Tray, TrayRequest,
-};
-use block_plugin_api::{
-    EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, LinkBase, Message,
-    WindowAction,
 };
 
 pub(super) const MAX_ACTIONS: usize = 64;
@@ -31,12 +31,16 @@ const VALUES: &[(&str, Access)] = &[
     (Programs::KEY, Access::Shell),
     (Tray::KEY, Access::Shell),
     (LinkBase::KEY, Access::Anyone),
+    (Administrator::KEY, Access::Anyone),
+    (Contacts::KEY, Access::Shell),
 ];
 
 #[cfg(not(target_os = "linux"))]
 const VALUES: &[(&str, Access)] = &[
     (HostWindows::KEY, Access::Shell),
     (LinkBase::KEY, Access::Anyone),
+    (Administrator::KEY, Access::Anyone),
+    (Contacts::KEY, Access::Shell),
 ];
 
 #[cfg(target_os = "linux")]

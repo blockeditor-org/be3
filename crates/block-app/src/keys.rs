@@ -1,4 +1,4 @@
-use be_keys::RecoveryPhrase;
+use be_keys::{RecoveryPhrase, RecoverySecret};
 use uuid::Uuid;
 
 use crate::accounts::{self, AccountError, Keys};
@@ -20,19 +20,14 @@ struct RecoverySetup {
 }
 
 struct PairingWait {
-    workspace: Uuid,
     code: String,
-    receiver: platform::RequestResult<Result<accounts::Paired, AccountError>>,
+    receiver: platform::RequestResult<Result<[u8; 32], AccountError>>,
     _cancel: tokio::sync::oneshot::Sender<()>,
 }
 
 pub(crate) enum KeyEvent {
-    RecoverySaved(be_keys::RecoveryPublic),
-    Unlocked {
-        workspace: Uuid,
-        key: [u8; 32],
-        recovery: Option<be_keys::RecoveryPublic>,
-    },
+    RecoverySaved([u8; 32]),
+    Unlocked([u8; 32]),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -46,8 +41,7 @@ pub(crate) struct RecoveryView {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct UnlockView {
-    pub(crate) workspace: String,
-    pub(crate) sealed: bool,
+    pub(crate) account: String,
     pub(crate) code: Option<String>,
     pub(crate) error: Option<String>,
 }
@@ -73,6 +67,13 @@ impl KeyState {
         self.keys
             .as_ref()
             .is_some_and(|keys| keys.recovery.is_none())
+    }
+
+    pub(crate) fn needs_unlock(&self, identity: Option<[u8; 32]>) -> bool {
+        let Some(recovery) = self.keys.as_ref().and_then(|keys| keys.recovery) else {
+            return false;
+        };
+        identity.is_none_or(|secret| RecoverySecret::from_bytes(secret).public() != recovery)
     }
 
     pub(crate) fn replacing(&self) -> bool {
@@ -102,7 +103,7 @@ impl KeyState {
         typed: &[String],
         server_url: String,
         token: String,
-        held: Vec<(Uuid, [u8; 32])>,
+        identity: Option<[u8; 32]>,
     ) {
         let Some(setup) = &self.setup else {
             return;
@@ -119,62 +120,73 @@ impl KeyState {
                 Some("Those words do not match the phrase. Check them and try again.".into());
             return;
         }
-        self.save_recovery(server_url, token, held);
+        self.save_recovery(server_url, token, identity);
     }
 
     pub(crate) fn skip_confirmation(
         &mut self,
         server_url: String,
         token: String,
-        held: Vec<(Uuid, [u8; 32])>,
+        identity: Option<[u8; 32]>,
     ) {
-        self.save_recovery(server_url, token, held);
+        self.save_recovery(server_url, token, identity);
     }
 
-    fn save_recovery(&mut self, server_url: String, token: String, held: Vec<(Uuid, [u8; 32])>) {
+    fn save_recovery(&mut self, server_url: String, token: String, identity: Option<[u8; 32]>) {
         let Some(setup) = &self.setup else {
             return;
         };
         if self.saving.is_some() {
             return;
         }
-        let public = setup.phrase.secret().public();
-        let sealed = held
-            .into_iter()
-            .map(|(workspace, key)| be_protocol::SealedKey {
-                workspace,
-                sealed: public.seal(&key),
-            })
-            .collect();
+        let fresh = setup.phrase.secret();
+        let public = fresh.public();
+        let (account, held, own) = self
+            .keys
+            .as_ref()
+            .map(|keys| (keys.account, keys.sealed.clone(), keys.own.clone()))
+            .unwrap_or_default();
+        let resealed = match (held.is_empty() && own.is_empty(), identity) {
+            (true, _) => Some(be_client::contacts::NewIdentity {
+                sealed: Vec::new(),
+                own: Vec::new(),
+                changes: Vec::new(),
+            }),
+            (false, None) => None,
+            (false, Some(identity)) => be_client::contacts::new_identity(
+                account,
+                &RecoverySecret::from_bytes(identity),
+                &fresh,
+                held,
+                own,
+            ),
+        };
+        let Some(resealed) = resealed else {
+            self.error = Some(
+                "This device cannot open what the old phrase sealed. Unlock this account with \
+                 the old phrase first, so the new one can seal it."
+                    .into(),
+            );
+            return;
+        };
         self.error = None;
         self.saving = Some(platform::spawn_request(accounts::set_recovery_key(
-            server_url, token, public, sealed,
+            server_url, token, public, resealed,
         )));
     }
 
-    pub(crate) fn unlock_with_phrase(
-        &mut self,
-        workspace: Uuid,
-        typed: &str,
-    ) -> Option<([u8; 32], be_keys::RecoveryPublic)> {
+    pub(crate) fn unlock_with_phrase(&mut self, typed: &str) -> Option<[u8; 32]> {
         let opened = (|| {
             let phrase = RecoveryPhrase::parse(typed).map_err(|error| error.to_string())?;
             let keys = self
                 .keys
                 .as_ref()
-                .ok_or("The workspace keys have not loaded yet.")?;
+                .ok_or("This account's keys have not loaded yet.")?;
             let secret = phrase.secret();
             if keys.recovery != Some(secret.public()) {
                 return Err("That is not this account's recovery phrase.".to_owned());
             }
-            let sealed = keys
-                .sealed
-                .get(&workspace)
-                .ok_or("No key for this workspace is sealed to your recovery phrase yet.")?;
-            let key = secret.open(sealed).map_err(|error| error.to_string())?;
-            let key =
-                <[u8; 32]>::try_from(key).map_err(|_| "The sealed key is corrupt.".to_owned())?;
-            Ok((key, secret.public()))
+            Ok(secret.to_bytes())
         })();
         match opened {
             Ok(opened) => {
@@ -188,13 +200,13 @@ impl KeyState {
         }
     }
 
-    pub(crate) fn start_pairing(&mut self, server_url: String, token: String, workspace: Uuid) {
+    pub(crate) fn start_pairing(&mut self, server_url: String, token: String, account: Uuid) {
         let code = be_keys::pairing_code();
         let (cancel, cancelled) = tokio::sync::oneshot::channel::<()>();
         let receiver = platform::spawn_request(accounts::pair(
             server_url,
             token,
-            workspace,
+            account,
             code.clone(),
             std::env::consts::OS.to_owned(),
             Box::pin(async move {
@@ -203,7 +215,6 @@ impl KeyState {
         ));
         self.error = None;
         self.pairing = Some(PairingWait {
-            workspace,
             code,
             receiver,
             _cancel: cancel,
@@ -223,14 +234,8 @@ impl KeyState {
                 Ok(()) => {
                     self.keys = None;
                     if let Some(setup) = self.setup.take() {
-                        return Some(KeyEvent::RecoverySaved(setup.phrase.secret().public()));
+                        return Some(KeyEvent::RecoverySaved(setup.phrase.secret().to_bytes()));
                     }
-                }
-                Err(error) if self.replacing() => {
-                    self.error = Some(format!(
-                        "{} Unlock every workspace on this device first, so the new phrase can seal its key.",
-                        error.message
-                    ));
                 }
                 Err(error) => self.error = Some(error.message),
             }
@@ -238,15 +243,19 @@ impl KeyState {
         if let Some(pairing) = &self.pairing
             && let Ok(result) = pairing.receiver.try_recv()
         {
-            let workspace = pairing.workspace;
             self.pairing = None;
             match result {
-                Ok(paired) => {
-                    return Some(KeyEvent::Unlocked {
-                        workspace,
-                        key: paired.key,
-                        recovery: paired.recovery.map(be_keys::RecoveryPublic),
-                    });
+                Ok(secret) => {
+                    let matches = self.keys.as_ref().and_then(|keys| keys.recovery)
+                        == Some(RecoverySecret::from_bytes(secret).public());
+                    if matches {
+                        return Some(KeyEvent::Unlocked(secret));
+                    }
+                    self.error = Some(
+                        "The other device handed over a key that is not this account's. Try \
+                         again from a device that is unlocked."
+                            .into(),
+                    );
                 }
                 Err(error) => self.error = Some(error.message),
             }
@@ -279,17 +288,12 @@ impl KeyState {
         }
     }
 
-    pub(crate) fn unlock_view(&self, workspace: Uuid, name: &str) -> UnlockView {
+    pub(crate) fn unlock_view(&self, account: &str) -> UnlockView {
         UnlockView {
-            workspace: name.to_owned(),
-            sealed: self
-                .keys
-                .as_ref()
-                .is_some_and(|keys| keys.sealed.contains_key(&workspace)),
+            account: account.to_owned(),
             code: self
                 .pairing
                 .as_ref()
-                .filter(|pairing| pairing.workspace == workspace)
                 .map(|pairing| format!("{}-{}", &pairing.code[..4], &pairing.code[4..])),
             error: self.error.clone(),
         }

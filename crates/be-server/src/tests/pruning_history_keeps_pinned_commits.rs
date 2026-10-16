@@ -5,7 +5,7 @@ async fn pruning_history_keeps_pinned_commits() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("keeper@example.com").await;
-    client.workspace("notes").await;
+    client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
 

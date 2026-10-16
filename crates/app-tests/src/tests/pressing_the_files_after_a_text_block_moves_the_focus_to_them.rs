@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn pressing_the_files_after_a_text_block_moves_the_focus_to_them() {
     let mut app = AppTest::start();
-    add_root_block(&mut app, "Text");
+    add_to_my_files(&mut app, "Text");
     app.wait("TreeItem \"Text\"");
     app.click("#text.surface");
     app.wait("MultilineTextInput focused");

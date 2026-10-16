@@ -9,6 +9,7 @@ use super::*;
 
 mod a_different_key_produces_different_objects;
 mod a_file_store_persists_objects_across_reopening;
+mod a_keyring_opens_by_the_id_sealed_bytes_carry;
 mod a_manifest_round_trips_through_the_vault;
 mod a_ranged_read_only_fetches_overlapping_chunks;
 mod a_truncated_object_reads_as_missing_and_a_put_repairs_it;
@@ -19,12 +20,18 @@ mod values_round_trip_as_objects;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7374_2d63_6f6e_7465_6e74_2d30_3031);
 
-fn key(seed: u8) -> ContentKey {
-    ContentKey::from_bytes([seed; 32])
+fn id(seed: u8) -> Uuid {
+    Uuid::from_u128(u128::from(seed))
+}
+
+fn keys(seed: u8) -> Keyring {
+    let keys = Keyring::new();
+    keys.insert(id(seed), ContentKey::from_bytes([seed; 32]));
+    keys
 }
 
 fn vault(seed: u8) -> Vault<MemoryStore> {
-    Vault::new(MemoryStore::new(), key(seed)).with_chunker(ChunkerConfig::SMALL)
+    Vault::new(MemoryStore::new(), keys(seed)).with_chunker(ChunkerConfig::SMALL)
 }
 
 fn pseudorandom(length: usize, seed: u64) -> Vec<u8> {

@@ -6,6 +6,7 @@ use crate::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
 fn block_commands_round_trip() {
     for command in [
         BlockCommand::Share,
+        BlockCommand::Leave,
         BlockCommand::Rename,
         BlockCommand::Unlink { container: [5; 16] },
         BlockCommand::Delete {

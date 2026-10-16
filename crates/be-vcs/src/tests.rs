@@ -1,5 +1,5 @@
 use be_block::BlockMetadata;
-use be_store::{ChunkerConfig, ContentKey, Manifest, MemoryStore, Vault};
+use be_store::{ChunkerConfig, ContentKey, Keyring, Manifest, MemoryStore, Vault};
 use uuid::Uuid;
 
 use super::*;
@@ -14,14 +14,19 @@ mod edits_to_different_blocks_merge_cleanly;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const ROOT: Uuid = Uuid::from_u128(1);
+const KEY: Uuid = Uuid::from_u128(0x6b65);
 
 fn vault() -> Vault<MemoryStore> {
-    Vault::new(MemoryStore::new(), ContentKey::from_bytes([3; 32]))
-        .with_chunker(ChunkerConfig::SMALL)
+    Vault::new(MemoryStore::new(), {
+        let keys = Keyring::new();
+        keys.insert(KEY, ContentKey::from_bytes([3; 32]));
+        keys
+    })
+    .with_chunker(ChunkerConfig::SMALL)
 }
 
 fn manifest(vault: &Vault<MemoryStore>, text: &str) -> Manifest {
-    vault.write(CONTENT, text.as_bytes()).unwrap()
+    vault.write(KEY, CONTENT, text.as_bytes()).unwrap()
 }
 
 fn entry(parent: Option<Uuid>, content: Manifest) -> Entry {

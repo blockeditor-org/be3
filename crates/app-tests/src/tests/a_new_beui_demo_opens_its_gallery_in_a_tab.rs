@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_new_beui_demo_opens_its_gallery_in_a_tab() {
     let mut app = AppTest::start();
-    app.click("#file-tree.add-root");
+    app.click(ADD_TO_MY_FILES);
     pick_tile(
         &mut app,
         "#picker.tile.62657569-2d64-656d-6f2d-626c6f636b31/main",

@@ -278,7 +278,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
                 }),
             glyph: label
                 .as_ref()
-                .and_then(|label| label.icon)
+                .and_then(block_editor_beui::label_glyph)
                 .map(str::to_owned),
             automatic: label.is_some_and(|label| label.automatic),
             placeholder: placeholder.get(),

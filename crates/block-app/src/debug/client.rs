@@ -4,9 +4,9 @@ pub(super) fn lines() -> Vec<Line> {
     let mut lines = Vec::new();
     let status = crate::be::status();
     push(&mut lines, LineStyle::Heading, 0, "Block Stack");
-    if let Some((account, workspace)) = crate::be::identity() {
+    if let Some((account, organization)) = crate::be::identity() {
         field(&mut lines, 1, "Account", account);
-        field(&mut lines, 1, "Workspace", workspace);
+        field(&mut lines, 1, "Organization", organization);
     }
     field(
         &mut lines,

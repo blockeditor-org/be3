@@ -7,18 +7,24 @@ use super::*;
 #[test]
 fn swiping_back_in_a_folder_shows_the_one_above_it() {
     let mut fixture = phone();
+    containers_hold_blocks(&mut fixture);
     let text_type = Uuid::from_u128(7);
     let folder = Uuid::from_u128(2);
     let notes = Uuid::from_u128(3);
     let inside = Uuid::from_u128(4);
-    let mut projects = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
+    let files = Uuid::from_u128(0x006d_7966_696c_6573);
+    let mut projects = BlockInfo::new(
+        folder,
+        FolderContent::CONTENT_TYPE,
+        BlockParent::Block(files),
+    );
     projects.set_intrinsic_name("Projects".to_owned());
     projects.references = vec![inside];
-    let mut listed = BlockInfo::new(notes, text_type, BlockParent::Root);
+    let mut listed = BlockInfo::new(notes, text_type, BlockParent::Block(files));
     listed.set_intrinsic_name("Notes".to_owned());
-    fixture
-        .host
-        .set_blocks(BlockQuery::Roots, vec![projects, listed]);
+    my_files(&mut fixture, vec![projects, listed]);
+    fixture.settle();
+    fixture.test.click(&format!("file-tree.{files}.open"));
     fixture.settle();
     fixture.test.click(&format!("file-tree.{folder}.open"));
     fixture.settle();
@@ -48,5 +54,5 @@ fn swiping_back_in_a_folder_shows_the_one_above_it() {
     fixture.test.step(vec![Event::Back(BackGesture::Invoked)]);
     fixture.test.settle();
     assert!(fixture.test.shown(&format!("file-tree.{notes}.open")));
-    assert!(!fixture.test.shown("file-tree.back"));
+    assert!(fixture.test.shown("file-tree.back"));
 }

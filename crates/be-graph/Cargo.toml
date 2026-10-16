@@ -12,3 +12,6 @@ uuid = { version = "1", features = ["serde", "v4"] }
 
 [lints]
 workspace = true
+
+[[example]]
+name = "access-bench"

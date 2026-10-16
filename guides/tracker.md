@@ -2,7 +2,8 @@
 
 The project's issues are meant to live in block-app, as databases: an Issues
 database whose rows are issues, with Relation columns to a Projects database and
-a Milestones database, kept in a workspace of their own. Agents read and change them with `be`, the command line tool in
+a Milestones database, kept in a workspace of a company organization and
+shared with the agents that work on them. Agents read and change them with `be`, the command line tool in
 `crates/be-cli`, and GitHub moves them as pull requests open and merge.
 
 ## Using it from an agent
@@ -18,19 +19,21 @@ passes them to `be` as the `BE3_*` variables:
 
 ```text
 server=https://blocks.pfg.pw
-workspace=<the tracker workspace, when the agent is in more than one>
+organization=<the tracker organization, when the agent is in more than one>
 token=<the agent's token>
-recovery_phrase=<opens the workspace key the server keeps sealed for the agent>
+recovery_phrase=<the agent's identity: opens the keys sealed to it>
 authorization=<an Authorization header a gateway in front of the server wants, if any>
 ```
 
-`be` itself reads only the variables, never that file. A `be` built from the
+The script also accepts the line under its old name, `workspace=`, and sets
+`BE3_WORKSPACE` beside `BE3_ORGANIZATION`, since the pinned release may predate
+the rename. `be` itself reads only the variables, never that file. A `be` built from the
 checkout (`./scripts/buck run //crates/be-cli:native -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
 the real server refuses it. `BE3_SERVER` is `https://blocks.pfg.pw` unless
 set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
 environment's proxy refuses websockets; requests made together share one post.
-It keeps the objects it reads in `~/.cache/be3/be/WORKSPACE` (`BE3_CACHE`),
+It keeps the objects it reads in `~/.cache/be3/be/ORGANIZATION` (`BE3_CACHE`),
 still encrypted and named by their hash, so a later run reads only what
 changed.
 
@@ -38,7 +41,8 @@ A command names a target and then a verb, and the verbs depend on
 what the target is:
 
 ```text
-be ls                                   the blocks at the root, each with a short id
+be ls                                   the workspaces and what is shared with this account, each with a short id
+be workspaces                           the workspaces, and which it may write in
 be a1f3 ls                              a block's children
 be Issues rows Status!=Done Project=Launch
 be BE-7K3Q2M                            a row: its fields and its page
@@ -52,14 +56,19 @@ be Issues schema                        columns; each choice with its colour, ic
 be Issues option Status Done closed=yes icon=done color=blue
 be Issues add-option Status Backlog default=yes first=yes
 be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
-be new-database Milestones --prefix MS --in a1f3
+be new-database Milestones --prefix MS  in the one workspace it may write in (or --in a1f3)
 be Issues import issues.csv             Linear's export, or any CSV
 be Issues download issues.block         a block and everything inside it, as one file
 be upload issues.block --in a1f3 --prefix CP
-                                        a copy of it, here or in another workspace
+                                        a copy of it, here or in another organization
+                                        (without --in, where new-database puts one)
 ```
 
-A target is a block, by the start of its id as `be ls` prints it, its full id
+`be ls` lists the workspaces the account can see, then each block shared with
+it whose parent it cannot see (the app's Shared with me), never a settings
+block. `new-database` and `upload` without `--in` go into the one workspace
+the account may write in, or, with none, the one shared folder it may; with
+several they ask for `--in`. A target is a block, by the start of its id as `be ls` prints it, its full id
 or (unless it is deleted) its name (a database view and the database inside it share a name, and the
 name means the database), or a row by its id. A row's id is its database's
 prefix and six characters made from the row's own id, so it never changes and
@@ -84,7 +93,7 @@ pane's Export as, Block file, and the block picker's Import tab. `upload` gives 
 ids for the new ones in the content bytes (as 16 raw bytes, hyphenated or
 simple hex) and references, so the copy points at its own children; ids of
 blocks outside the file are left as they were. A database whose prefix is
-taken where it lands needs `--prefix`. The file format is not frozen. An import's Title column is the title, Description the page, and every
+taken where it lands needs `--prefix`. The file format is frozen (guides/frozen_formats.md). An import's Title column is the title, Description the page, and every
 column named like a field sets it, adding the options an Enum column lacks and
 the rows a Relation column names that its database lacks.
 
@@ -124,13 +133,18 @@ them in the handoff.
   (`Root::FROZEN`): be-block's tests hold the format the first tracker build
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
   these types only adds fields, variants and kinds (guides/frozen_formats.md).
-- **Agents.** An administrator adds one from the app menu (Agents). The app
-  makes a recovery phrase for it and seals the workspace key to it, the server
-  makes an editor account with no password and a token (`CreateAgent`), and
-  the dialog shows the token and phrase once. An agent sees only what is shared
-  with it, but the workspace key opens everything in the workspace, so keep the
-  tracker in a workspace of its own. Removing the agent deletes its account and
-  its tokens.
+- **Agents.** An administrator adds one from the app menu (Agents, in a
+  company organization). The app makes a recovery phrase for it, the server
+  makes an editor account with no password and a token (`CreateAgent`) and
+  records the agent and its creator as contacts, and the app writes the agent's
+  public key into its contact row, so every device of the creator can share
+  with it; the dialog shows the token and phrase once. Share a workspace with
+  it to write in (the files pane's New workspace, then Share), which is where
+  `be` puts what it makes. An agent sees and opens
+  only what is shared with it: sharing a block with it (`Peer::share`) makes the block a scope of its own and seals that scope's key
+  to the agent (the stack guide's Keys), and `be` opens that key with the
+  phrase, refusing a phrase that is not the account's. Removing the agent
+  deletes its account, its tokens and what was sealed to it.
 - **Writes.** `be` opens the block, applies the same `Edit` the editor would
   and publishes against the head it read, retrying on the new head when the
   publish is rejected, so it never overwrites a save it did not see. An editor
@@ -145,7 +159,7 @@ them in the handoff.
   column's first closed option (Done if it has none). It reads the
   `BE3_TRACKER_TOKEN`, `BE3_TRACKER_RECOVERY_PHRASE` and (for a gateway)
   `BE3_TRACKER_AUTHORIZATION` secrets and the
-  `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to
+  `BE3_SERVER`, `BE3_WORKSPACE` (written as `workspace=`) and status variables, writes them to
   `external/.tracker-credentials` and runs `./scripts/be` from the default branch.
 - **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
   server it deploys and pins it in `scripts/internal/common.sh`.

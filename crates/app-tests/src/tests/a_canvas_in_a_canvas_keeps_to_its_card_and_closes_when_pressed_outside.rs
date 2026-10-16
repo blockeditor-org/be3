@@ -5,7 +5,7 @@ const SHAPE: &str = "GenericContainer #infinite-canvas.entity.";
 #[test]
 fn a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside() {
     let mut app = AppTest::start();
-    add_root_block(&mut app, "Canvas");
+    add_to_my_files(&mut app, "Canvas");
     let (x, y, width, height) = app.place("Pane \"Canvas\"");
     let full = format!("Pane \"Canvas\" at {x},{y} size {width}x{height}");
     add_to_canvas(&mut app, CANVAS_TILE);

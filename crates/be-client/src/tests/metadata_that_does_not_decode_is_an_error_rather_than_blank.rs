@@ -17,11 +17,18 @@ async fn metadata_that_does_not_decode_is_an_error_rather_than_blank() {
         .await
         .unwrap();
 
-    summary.metadata = phone.commits().vault().seal(&[0xff, 0xff, 0xff]);
-    assert!(phone.metadata(&summary).is_err());
+    summary.metadata = phone
+        .commits()
+        .vault()
+        .seal(summary.key.unwrap(), &[0xff, 0xff, 0xff])
+        .unwrap();
+    assert!(phone.metadata_of_summary(&summary).await.is_err());
 
     summary.metadata = Vec::new();
-    assert_eq!(phone.metadata(&summary).unwrap(), BlockMetadata::default());
+    assert_eq!(
+        phone.metadata_of_summary(&summary).await.unwrap(),
+        BlockMetadata::default()
+    );
 
     harness.stop().await;
 }

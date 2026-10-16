@@ -6,6 +6,7 @@ use uuid::Uuid;
 use super::*;
 use crate::platform;
 
+mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
@@ -14,23 +15,25 @@ mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_commit_in_one_checkout_is_brought_into_another;
 mod a_conflicting_edit_keeps_every_side_until_one_is_chosen;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
-mod a_device_answers_pairing_for_a_workspace_it_is_not_showing;
-mod a_device_seals_keys_only_to_the_recovery_key_it_trusts;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_held_block_stays_open_when_its_editors_close;
-mod a_new_device_gets_the_key_by_typing_its_code_on_an_open_one;
+mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
+mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
-mod an_invite_link_hands_the_workspace_key_to_the_invited_account;
+mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
-mod two_peers_of_one_workspace_share_a_counter;
+mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
+mod two_accounts_become_contacts_by_a_link_and_share_a_block;
+mod two_peers_of_one_organization_share_a_counter;
 mod undo_steps_back_through_what_this_peer_did;
 
 const TEST_ORIGIN: u64 = 0;
@@ -48,9 +51,8 @@ pub(crate) struct Harness {
     url: String,
     account: Uuid,
     token: String,
-    workspace: Uuid,
-    content_key: [u8; 32],
-    recovery: Option<[u8; 32]>,
+    organization: Uuid,
+    phrase: be_keys::RecoveryPhrase,
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -70,7 +72,7 @@ impl Harness {
             .enable_all()
             .build()
             .expect("a test runtime starts");
-        let (account, token, workspace) = runtime.block_on(async {
+        let (account, token, organization) = runtime.block_on(async {
             let session = crate::accounts::register(
                 managed.clone(),
                 "counter@example.com".to_owned(),
@@ -79,14 +81,14 @@ impl Harness {
             )
             .await
             .expect("the account registers");
-            let workspace = crate::accounts::create_workspace(
+            let organization = crate::accounts::create_organization(
                 managed,
                 session.token.clone(),
                 "Counters".to_owned(),
             )
             .await
-            .expect("the workspace is created");
-            (session.account, session.token, workspace.id)
+            .expect("the organization is created");
+            (session.account, session.token, organization.id)
         });
         Self {
             directory,
@@ -94,9 +96,8 @@ impl Harness {
             url,
             account,
             token,
-            workspace,
-            content_key: *be_store::ContentKey::random().as_bytes(),
-            recovery: None,
+            organization,
+            phrase: be_keys::RecoveryPhrase::generate(),
             _one_stack: one_stack,
         }
     }
@@ -128,12 +129,16 @@ impl Harness {
             server_url: self.url.clone(),
             token: self.token.clone(),
             account: self.account,
-            workspace: self.workspace,
-            content_key: self.content_key,
-            other_keys: Vec::new(),
-            recovery: self.recovery,
+            organization: self.organization,
+            identity: self.identity(),
+            display_name: "Counter".to_owned(),
+            email: "counter@example.com".to_owned(),
             data_dir,
         }
+    }
+
+    fn identity(&self) -> [u8; 32] {
+        self.phrase.secret().to_bytes()
     }
 
     async fn outside_peer(&self) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
@@ -141,14 +146,14 @@ impl Harness {
         let peer = be_client::Peer::connect(
             be_client::PeerConfig::new(
                 config.socket_url(),
-                be_store::ContentKey::from_bytes(config.content_key),
+                be_keys::RecoverySecret::from_bytes(config.identity),
                 be_client::Credentials::Token(self.token.clone()),
             )
-            .workspace(Some(self.workspace)),
+            .organization(Some(self.organization)),
             be_store::MemoryStore::new(),
         )
         .await
-        .expect("a second peer joins the workspace");
+        .expect("a second peer joins the organization");
         std::sync::Arc::new(peer)
     }
 }
@@ -291,7 +296,7 @@ fn start_versioning(text: &str) -> Versioned {
             && version_status(shared, repository).is_some_and(|status| !status.branches.is_empty())
     });
     let checkout = node(folder)
-        .and_then(|node| node.parent.block())
+        .and_then(|node| node.parent?.block())
         .expect("the folder moved into its checkout");
     Versioned {
         folder,
@@ -326,4 +331,129 @@ fn second_checkout(versioned: &Versioned) -> Uuid {
 
 fn copy_of(block: Uuid, checkout: Uuid) -> Uuid {
     be_block::version_control::masked(block, be_block::version_control::scope_mask(checkout))
+}
+
+fn runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a test runtime starts")
+}
+
+struct Someone {
+    session: crate::accounts::Session,
+    phrase: be_keys::RecoveryPhrase,
+}
+
+impl Someone {
+    fn register(url: &str, email: &str, name: &str) -> Self {
+        let session = runtime()
+            .block_on(crate::accounts::register(
+                url.to_owned(),
+                email.to_owned(),
+                name.to_owned(),
+                "correct horse battery".to_owned(),
+            ))
+            .expect("the account registers");
+        Self {
+            session,
+            phrase: be_keys::RecoveryPhrase::generate(),
+        }
+    }
+
+    fn me(&self) -> crate::accounts::Me {
+        crate::accounts::Me {
+            account: self.session.account,
+            identity: self.phrase.secret().to_bytes(),
+            display_name: self.session.display_name.clone(),
+            email: self.session.email.clone(),
+        }
+    }
+
+    async fn peer(
+        &self,
+        url: &str,
+        organization: Uuid,
+    ) -> std::sync::Arc<be_client::Peer<be_store::MemoryStore>> {
+        let peer = be_client::Peer::connect(
+            be_client::PeerConfig::new(
+                crate::accounts::socket_url(url),
+                self.phrase.secret(),
+                be_client::Credentials::Token(self.session.token.clone()),
+            )
+            .organization(Some(organization)),
+            be_store::MemoryStore::new(),
+        )
+        .await
+        .expect("the account opens the organization");
+        std::sync::Arc::new(peer)
+    }
+}
+
+impl Harness {
+    fn me(&self) -> crate::accounts::Me {
+        crate::accounts::Me {
+            account: self.account,
+            identity: self.identity(),
+            display_name: "Counter".to_owned(),
+            email: "counter@example.com".to_owned(),
+        }
+    }
+
+    fn personal(&self) -> Uuid {
+        runtime()
+            .block_on(crate::accounts::organizations(
+                self.url.clone(),
+                self.token.clone(),
+            ))
+            .expect("the organizations load")
+            .into_iter()
+            .find(|organization| organization.kind == be_protocol::OrganizationKind::Personal)
+            .expect("registering joined the personal organization")
+            .id
+    }
+
+    fn connect_personal(&self) -> Uuid {
+        let personal = self.personal();
+        start(Config {
+            organization: personal,
+            ..self.config(self.directory.join("personal"))
+        });
+        wait_until("loaded the graph", |shared| shared.graph.loaded);
+        personal
+    }
+}
+
+fn made_link(offer: Option<(Uuid, be_graph::Access)>) -> be_keys::InviteCode {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    make_contact_link(offer, move |made| {
+        let _ = sender.send(made);
+    });
+    let link = receiver
+        .recv_timeout(PATIENCE)
+        .expect("the worker answered")
+        .expect("the link was made");
+    crate::invite_link::InviteLink::parse_contact(&link)
+        .expect("the link parses")
+        .code
+}
+
+fn written(block: Uuid, text: &str) {
+    create(
+        block,
+        be_block::TextContent::CONTENT_TYPE,
+        be_graph::BlockParent::Root,
+        be_block::BlockMetadata::named("Plan"),
+        Some(be_block::TextBlock::of(text).encode()),
+    );
+    flush();
+}
+
+async fn read_text(peer: &be_client::Peer<be_store::MemoryStore>, block: Uuid) -> String {
+    let text = peer
+        .open::<be_block::TextContent>(block)
+        .await
+        .expect("the block opens with the keys it was given")
+        .expect("the block has content");
+    be_block::TextBlock::text(&text)
 }

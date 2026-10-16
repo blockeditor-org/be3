@@ -43,6 +43,7 @@ pub mod text;
 pub mod ui_settings;
 pub mod version_control;
 pub mod video;
+pub mod workspace;
 
 pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
@@ -72,7 +73,7 @@ pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
 pub use metadata::{
     ARTIFACT, ArtifactSource, BlockMetadata, Definition, Entries, INTRINSIC_NAME, LOCAL_ID,
-    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
+    MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
 };
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
@@ -94,6 +95,7 @@ pub use version_control::{
     RepositoryContent,
 };
 pub use video::{VideoContent, VideoProject};
+pub use workspace::{Workspace, WorkspaceContent};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {
@@ -129,8 +131,8 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         Vec::new()
     }
 
-    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
-        let _ = workspace;
+    fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
+        let _ = organization;
         self.references()
     }
 

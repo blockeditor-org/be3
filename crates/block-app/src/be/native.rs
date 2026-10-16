@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, PoisonError},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -39,7 +39,7 @@ pub(super) fn spawn(
             {
                 Ok(runtime) => runtime,
                 Err(error) => {
-                    shared.lock().unwrap().error =
+                    shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                         Some(format!("the new block stack cannot start: {error}"));
                     return;
                 }

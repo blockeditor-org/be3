@@ -582,6 +582,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -599,6 +600,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -608,6 +610,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -625,6 +628,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -634,6 +638,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -651,6 +656,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -660,6 +666,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -677,6 +684,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -686,6 +694,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -703,6 +712,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -712,6 +722,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -736,6 +747,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -753,6 +765,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -762,6 +775,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -779,6 +793,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -1182,6 +1197,10 @@ crates = {
         "edition": "2024",
         "examples": [
             {
+                "crate_root": "examples/block-file.rs",
+                "name": "block-file",
+            },
+            {
                 "crate_root": "examples/freeze.rs",
                 "name": "freeze",
             },
@@ -1197,6 +1216,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1238,6 +1275,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1279,6 +1334,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1320,6 +1393,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1361,6 +1452,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1402,6 +1511,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1443,6 +1570,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1487,7 +1632,12 @@ crates = {
     "crates/be-graph": {
         "binaries": [],
         "edition": "2024",
-        "examples": [],
+        "examples": [
+            {
+                "crate_root": "examples/access-bench.rs",
+                "name": "access-bench",
+            },
+        ],
         "library": {
             "crate": "be_graph",
             "crate_root": "src/lib.rs",
@@ -1503,7 +1653,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1516,7 +1676,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1529,7 +1699,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1542,7 +1722,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1555,7 +1745,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1581,7 +1781,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1594,7 +1804,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1619,6 +1839,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1638,6 +1859,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1657,6 +1879,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1676,6 +1899,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1695,6 +1919,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1714,6 +1939,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1733,6 +1959,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1752,6 +1979,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -2503,7 +2731,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -2557,7 +2787,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -2611,7 +2843,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -2665,7 +2899,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -2719,7 +2955,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -2773,7 +3011,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -2827,7 +3067,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
         },
@@ -23413,12 +23655,14 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23427,12 +23671,14 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23443,12 +23689,14 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.2.17",
                     ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23457,12 +23705,14 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23473,12 +23723,14 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.2.17",
                     ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23487,12 +23739,14 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23501,12 +23755,14 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23517,12 +23773,14 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.2.17",
                     ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -24938,6 +25196,259 @@ third_party = {
         "sha256": "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813",
         "size_bytes": 8244,
         "version": "1.0.5",
+    },
+    "ed25519-2.2.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Edwards Digital Signature Algorithm (EdDSA) over Curve25519 (as specified in RFC 8032)\nsupport library providing signature type definitions and PKCS#8 private key\ndecoding/encoding support\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/signatures/tree/master/ed25519",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "ed25519",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ed25519",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53",
+        "size_bytes": 17802,
+        "version": "2.2.3",
+    },
+    "ed25519-dalek-2.2.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "isis lovecruft <isis@patternsinthevoid.net>:Tony Arcieri <bascule@gmail.com>:Michael Rosenberg <michael@mrosenberg.pub>",
+            "CARGO_PKG_DESCRIPTION": "Fast and efficient ed25519 EdDSA key generations, signing, and verification in pure Rust.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/dalek-cryptography/curve25519-dalek",
+            "CARGO_PKG_LICENSE": "BSD-3-Clause",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dalek-cryptography/curve25519-dalek/tree/main/ed25519-dalek",
+            "CARGO_PKG_RUST_VERSION": "1.81",
+        },
+        "library": {
+            "crate": "ed25519_dalek",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ed25519-dalek",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9",
+        "size_bytes": 98034,
+        "version": "2.2.0",
     },
     "either-1.17.0": {
         "build_script": None,
@@ -48713,6 +49224,80 @@ third_party = {
         "sha256": "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b",
         "size_bytes": 21668,
         "version": "1.4.8",
+    },
+    "signature-2.2.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits for cryptographic signature algorithms (e.g. ECDSA, Ed25519)",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits/tree/master/signature",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "signature",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "signature",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de",
+        "size_bytes": 15531,
+        "version": "2.2.0",
     },
     "simd-adler32-0.3.9": {
         "build_script": None,

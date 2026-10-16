@@ -1,5 +1,5 @@
 use be_commit::{Commit, CommitId, CommitStore};
-use be_store::{ChunkerConfig, ContentKey, MemoryStore, Vault};
+use be_store::{ChunkerConfig, ContentKey, Keyring, MemoryStore, Vault};
 use uuid::Uuid;
 
 use super::*;
@@ -13,11 +13,16 @@ mod resuming_only_merges_when_history_actually_diverged;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const AUTHOR: Uuid = Uuid::from_u128(0xa170);
+const KEY: Uuid = Uuid::from_u128(0x6b65);
 
 fn commits() -> CommitStore<MemoryStore> {
     CommitStore::new(
-        Vault::new(MemoryStore::new(), ContentKey::from_bytes([3; 32]))
-            .with_chunker(ChunkerConfig::SMALL),
+        Vault::new(MemoryStore::new(), {
+            let keys = Keyring::new();
+            keys.insert(KEY, ContentKey::from_bytes([3; 32]));
+            keys
+        })
+        .with_chunker(ChunkerConfig::SMALL),
     )
 }
 
@@ -28,7 +33,15 @@ fn write(
     parent: Option<CommitId>,
 ) -> CommitId {
     commits
-        .write(CONTENT, text.as_bytes(), AUTHOR, time, parent, Vec::new())
+        .write(
+            KEY,
+            CONTENT,
+            text.as_bytes(),
+            AUTHOR,
+            time,
+            parent,
+            Vec::new(),
+        )
         .unwrap()
 }
 
@@ -38,8 +51,14 @@ fn merged(
     time: i64,
     parents: Vec<CommitId>,
 ) -> CommitId {
-    let manifest = commits.vault().write(CONTENT, text.as_bytes()).unwrap();
+    let manifest = commits
+        .vault()
+        .write(KEY, CONTENT, text.as_bytes())
+        .unwrap();
     commits
-        .put(&Commit::new(manifest, AUTHOR, time).with_parents(parents))
+        .put(
+            KEY,
+            &Commit::new(manifest, AUTHOR, time).with_parents(parents),
+        )
         .unwrap()
 }
