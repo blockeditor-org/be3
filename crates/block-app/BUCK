@@ -12,7 +12,12 @@ app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "src/**/*.p
 
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
+# be3.app_id, which ./scripts/deploy sets to Block, names where the app keeps
+# its data; without it, the app is BlockDev.
+app_id = read_config("be3", "app_id", "")
+
 cargo_library(
+    env = {"BE3_APP_ID": app_id} if app_id else {},
     rustc_flags = select({
         "DEFAULT": [],
         "root//buck/platforms:wasi_setting": wasi_app_flags,

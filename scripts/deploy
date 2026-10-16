@@ -180,7 +180,7 @@ if ! $help; then
     fi
 fi
 
-exec "$repository/scripts/buck" run -m release \
+exec "$repository/scripts/buck" run -m release -c be3.app_id=Block \
     -c "be3.deploy_downloads=$downloads" -c "be3.deploy_android=$android" \
     -c "be3.android_id=$android_id" -c "be3.android_label=$android_label" \
     //crates/local-tools:deploy -- --repository "$repository" ${arguments[@]+"${arguments[@]}"}
