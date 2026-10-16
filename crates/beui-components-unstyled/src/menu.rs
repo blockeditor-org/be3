@@ -28,16 +28,16 @@ pub struct MenuRowHandle {
 }
 
 pub struct MenuItem {
-    label: Memo<String>,
-    glyph: Memo<String>,
+    pub(crate) label: Memo<String>,
+    pub(crate) glyph: Memo<String>,
     detail: Memo<String>,
-    disabled: Memo<bool>,
+    pub(crate) disabled: Memo<bool>,
     danger: Memo<bool>,
     separated: Memo<bool>,
     test_id: Option<String>,
-    action: Option<Action>,
-    on_click: ClickCallback,
-    children: Run<MenuItem>,
+    pub(crate) action: Option<Action>,
+    pub(crate) on_click: ClickCallback,
+    pub(crate) children: Run<MenuItem>,
 }
 
 beui_view::value_child_type!(MenuItem);

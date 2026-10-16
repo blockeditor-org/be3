@@ -11,7 +11,7 @@ use beui_core::base::ItemSize;
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::document::Document;
-use beui_core::geometry::{Pos2, Vec2};
+use beui_core::geometry::{Pos2, Rect, Vec2};
 
 use crate::Prose;
 use crate::SyntaxColors;
@@ -20,6 +20,7 @@ use crate::TextAreaColors;
 use crate::TextAreaState;
 use crate::context_menu_menu;
 use crate::context_menu_open;
+use crate::context_menu_toolbar;
 use crate::menu_list_len;
 use crate::menu_list_row_button;
 use crate::menu_popup::MenuStyle;
@@ -164,8 +165,8 @@ pub fn TextInput(
     };
     let accessibility = crate::labelled_node(role, accessibility, label);
 
-    let opener = store(Cell::new(None::<Callback<Pos2>>));
-    let open_menu = move |at: Pos2| {
+    let opener = store(Cell::new(None::<Callback<Option<Rect>>>));
+    let open_menu = move |at: Option<Rect>| {
         if let Some(open) = opener.with(Cell::get) {
             open.call(at);
         }
@@ -197,7 +198,7 @@ pub fn TextInput(
                     false => ItemSize::Percent(100.0),
                 }}
             >
-                {move |open: Callback<Pos2>| {
+                {move |open: Callback<Option<Rect>>| {
                     opener.with(|opener| opener.set(Some(open)));
                     match content {
                         Some(build) => build.call(TextInputHandle {
@@ -241,7 +242,7 @@ pub fn TextInput(
             padding
             prose
             accessibility
-            on_menu={open_menu}
+            on_toolbar={open_menu}
             on_submit={move || on_submit.call(text_of(state))}
             on_focus_change={move |focused: bool| {
                 if focused && select_on_focus.peek() {
@@ -351,6 +352,11 @@ pub fn text_input_menu_row(
     }
     let list = context_menu_menu(document, menu);
     (index < menu_list_len(document, list)).then(|| menu_list_row_button(document, list, index))
+}
+
+pub fn text_input_toolbar(document: &Document, input_node: NodeId) -> Option<NodeId> {
+    let menu = input(document, input_node).menu.try_get()?;
+    context_menu_toolbar(document, menu)
 }
 
 pub fn text_input_handles(document: &Document, input_node: NodeId) -> Vec<Pos2> {

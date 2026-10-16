@@ -3,16 +3,17 @@ use beui_macros::{component, view};
 
 use crate::action_row::ActionRowFace;
 use crate::border::Separator;
+use crate::button::{ButtonFace, ButtonVariant};
 use crate::sheet::ModalSheet;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{SCROLL_FADE, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    MenuItem, MenuRowHandle, MenuSheetHandle, MenuStyle, ScrollbarStyle,
+    ButtonHandle, MenuItem, MenuRowHandle, MenuSheetHandle, MenuStyle, ScrollbarStyle,
 };
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::geometry::Pos2;
+use beui_core::geometry::{Pos2, Rect};
 use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -37,8 +38,11 @@ pub fn ContextMenu(
     #[prop(default = true)] open_at_focuses: bool,
     #[prop(default = false)] open_at_pointer: Prop<bool>,
     #[prop(default = false)] selection: bool,
+    #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
+    #[prop(default = true)] opens_on_hold: bool,
     on_close: ClickCallback,
     on_select: Callback<Vec<usize>>,
+    on_toolbar_close: ClickCallback,
 ) -> NodeId {
     view! {
         <unstyled::ContextMenu
@@ -50,8 +54,11 @@ pub fn ContextMenu(
             open_at_focuses
             open_at_pointer
             selection
+            toolbar_at
+            opens_on_hold
             on_close={on_close}
             on_select={on_select}
+            on_toolbar_close={on_toolbar_close}
         >
             {children}
         </unstyled::ContextMenu>
@@ -83,6 +90,41 @@ pub fn menu_style() -> MenuStyle {
             }
         },
     )
+    .with_toolbar(
+        |handle| {
+            view! {
+                <ToolbarButton handle />
+            }
+        },
+        |content| {
+            view! {
+                <ToolbarPanel>{content}</ToolbarPanel>
+            }
+        },
+    )
+}
+
+#[component]
+fn ToolbarButton(handle: ButtonHandle) -> NodeId {
+    let glyph = handle.glyph;
+    let icon_only = create_memo(move || !glyph.get().is_empty());
+    view! {
+        <ButtonFace handle variant=ButtonVariant::Ghost icon_only />
+    }
+}
+
+#[component]
+fn ToolbarPanel(children: Child) -> NodeId {
+    view! {
+        <Frame
+            fill=ColorRole::SurfaceRaised
+            border={Border::DEFAULT}
+            radius=Radius::Md
+            padding=MENU_PADDING
+        >
+            {children}
+        </Frame>
+    }
 }
 
 #[component]

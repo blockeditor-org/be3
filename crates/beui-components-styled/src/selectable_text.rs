@@ -5,7 +5,7 @@ use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{MenuItem, SelectableState, copy_selection, select_all};
 use beui_core::base::ItemSize;
-use beui_core::geometry::Pos2;
+use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -19,15 +19,14 @@ pub fn SelectableText(
     set_component_state(state);
     let color = create_memo(move || theme.accent_soft.get());
     let handle_color = create_memo(move || theme.accent.get());
-    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
-    let close_menu = set_menu_at;
+    let (toolbar_at, set_toolbar_at) = create_signal(None::<Rect>);
     view! {
         <ContextMenu
             child_size
-            open_at={menu_at}
-            open_at_focuses=false
             selection=true
-            on_close={move || close_menu.set(None)}
+            toolbar_at
+            opens_on_hold=false
+            on_toolbar_close={move || set_toolbar_at.set(None)}
             items={view! {
                 <MenuItem label="Copy" />
                 <MenuItem label="Select All" />
@@ -42,7 +41,7 @@ pub fn SelectableText(
                 state
                 color
                 handle_color
-                on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
+                on_toolbar={move |at: Option<Rect>| set_toolbar_at.set(at)}
             >
                 {children}
             </unstyled::Selectable>
