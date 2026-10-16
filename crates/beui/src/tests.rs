@@ -298,6 +298,7 @@ mod a_tap_intercepted_for_a_document_runs_its_tap_action;
 mod a_tap_on_a_sliders_track_moves_it_there;
 mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out;
 mod a_tap_outside_selectable_text_puts_its_toolbar_away;
+mod a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_test_id_reaches_the_accessibility_tree_as_its_author_id;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
@@ -811,6 +812,7 @@ pub(crate) struct Harness {
     context: Context,
     document: Document,
     viewport: Vec2,
+    typed: Vec<Event>,
 }
 
 impl Harness {
@@ -823,6 +825,7 @@ impl Harness {
             context,
             document,
             viewport: VIEWPORT,
+            typed: Vec::new(),
         }
     }
 
@@ -857,12 +860,17 @@ impl Harness {
             context,
             document,
             viewport,
+            typed,
         } = self;
-        let input = RawInput { events };
+        let mut held = std::mem::take(typed);
+        held.extend(events);
+        let input = RawInput { events: held };
         context.advance_clock(FRAME_INTERVAL);
-        context.run(input, |context| {
+        let mut output = context.run(input, |context| {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *viewport));
-        })
+        });
+        *typed = std::mem::take(&mut output.typed);
+        output
     }
 
     pub(crate) fn click(&mut self, pos: Pos2) {
@@ -2412,6 +2420,7 @@ impl App for Seeing {
             match request {
                 crate::PasteRequest::Asked => context.request_paste(),
                 crate::PasteRequest::Shortcut => context.paste_shortcut(),
+                crate::PasteRequest::Typed => context.request_typed_paste(),
             }
         }
     }

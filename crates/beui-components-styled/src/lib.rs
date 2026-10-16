@@ -39,6 +39,7 @@ pub mod selectable_text;
 pub mod sheet;
 pub mod shortcut;
 pub mod slider;
+pub mod software_keyboard;
 pub mod spinner;
 pub mod split_button;
 pub mod stack;
@@ -65,6 +66,7 @@ pub use beui_view::primitives::{
 };
 pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
+pub use software_keyboard::{SoftwareKeyboard, install_keyboard, keyboard_height};
 pub use calendar::Calendar;
 pub use card::Card;
 pub use checkbox::{Checkbox, checkbox_checked};

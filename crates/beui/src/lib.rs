@@ -105,12 +105,15 @@ pub mod reactive {
     pub fn build(f: impl FnOnce() -> NodeId) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
+        beui_components_styled::install_keyboard(&mut document);
         document
     }
 }
 
 pub fn context() -> Context {
-    Context::new(FreetypeFonts::default())
+    let context = Context::new(FreetypeFonts::default());
+    context.enable_keyboard();
+    context
 }
 
 pub fn system_fonts() -> FontLibrary {
@@ -121,7 +124,9 @@ pub fn system_fonts() -> FontLibrary {
 }
 
 pub fn system_context() -> Context {
-    Context::new(FreetypeFonts::new(system_fonts()))
+    let context = Context::new(FreetypeFonts::new(system_fonts()));
+    context.enable_keyboard();
+    context
 }
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]

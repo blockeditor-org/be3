@@ -11,6 +11,7 @@ pub struct WindowState {
     pub paste_kinds: Vec<PasteKind>,
     pub ime: Option<ImeArea>,
     pub typed: u64,
+    pub keyboard_toggles: u32,
 }
 
 impl WindowState {
@@ -36,6 +37,7 @@ struct Reported {
     fullscreen: std::cell::Cell<Option<bool>>,
     size: std::cell::Cell<Option<(u32, u32)>>,
     scale: std::cell::Cell<Option<f32>>,
+    keyboard: std::cell::Cell<Option<bool>>,
 }
 
 #[derive(Clone, Default)]
@@ -54,10 +56,19 @@ impl WindowReports {
         self.0.scale.set(Some(pixels_per_point));
     }
 
+    pub fn keyboard_attached(&self, attached: bool) {
+        self.0.keyboard.set(Some(attached));
+    }
+
+    pub(crate) fn take_keyboard(&self) -> Option<bool> {
+        self.0.keyboard.take()
+    }
+
     pub(crate) fn pending(&self) -> bool {
         self.0.fullscreen.get().is_some()
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
+            || self.0.keyboard.get().is_some()
     }
 
     pub(crate) fn take_fullscreen(&self) -> Option<bool> {

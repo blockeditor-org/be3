@@ -36,6 +36,7 @@ pub mod select;
 pub mod selectable;
 pub mod sheet;
 pub mod slider;
+pub mod software_keyboard;
 pub mod split_button;
 pub mod stack;
 pub mod text_area;
@@ -48,6 +49,7 @@ pub mod tree;
 pub mod typeahead;
 
 pub use accessibility::labelled_node;
+pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonHandle, button_active, button_focused};

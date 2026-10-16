@@ -1304,7 +1304,14 @@ impl Tools for InspectorTools {
                 };
                 input.only(|event| !inspector.is_some_and(|inspector| inspector.claims(event)))
             };
-            ctx.with_input(given, || document.show_screen(ctx, layout.content));
+            ctx.with_input(given, || {
+                beui_core::software_keyboard::show_with_keyboard(
+                    document,
+                    ctx,
+                    layout.content,
+                    |document, content| document.show_screen(ctx, content),
+                )
+            });
         } else {
             document.hide();
         }

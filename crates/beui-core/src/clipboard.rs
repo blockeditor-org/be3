@@ -25,6 +25,7 @@ impl Pasted {
 pub enum PasteRequest {
     Asked,
     Shortcut,
+    Typed,
 }
 
 pub struct PasteAnswer {
