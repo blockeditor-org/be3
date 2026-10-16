@@ -914,10 +914,10 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                             record(shared, error);
                         }
                         let node = node_of(&peer, &block);
-                        shared.lock().unwrap().graph.put(node);
+                        shared.lock().unwrap().graph.put(node, block.revision);
                     }
-                    Some(ServerMessage::BlockRemoved { block }) => {
-                        shared.lock().unwrap().graph.remove(block);
+                    Some(ServerMessage::BlockRemoved { block, revision }) => {
+                        shared.lock().unwrap().graph.remove(block, revision);
                     }
                     Some(ServerMessage::HeadChanged { block, head, .. }) => {
                         shared.lock().unwrap().graph.set_head(block, Some(head));
@@ -1645,9 +1645,10 @@ async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
             if let Err(error) = peer.learn(&blocks).await {
                 record(shared, error);
             }
+            let revision = blocks.iter().map(|block| block.revision).max();
             let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
             let mut held = shared.lock().unwrap();
-            held.graph.load(nodes);
+            held.graph.load(nodes, revision.unwrap_or_default());
             held.stale_revision += 1;
         }
         Err(error) => record(shared, error),
@@ -1669,7 +1670,7 @@ async fn settled(
                 record(shared, error);
             }
             let node = node_of(peer, &summary);
-            shared.lock().unwrap().graph.put(node);
+            shared.lock().unwrap().graph.put(node, summary.revision);
             Ok(())
         }
         Err(error) => {
@@ -1686,9 +1687,9 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
                 record(shared, error);
             }
             let node = node_of(peer, &summary);
-            shared.lock().unwrap().graph.put(node);
+            shared.lock().unwrap().graph.put(node, summary.revision);
         }
-        Err(ClientError::Refused(..)) => shared.lock().unwrap().graph.remove(block),
+        Err(ClientError::Refused(..)) => shared.lock().unwrap().graph.forget(block),
         Err(error) => record(shared, error),
     }
 }
@@ -1706,7 +1707,6 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         references: summary.references.clone(),
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
-        version: summary.version,
     }
 }
 

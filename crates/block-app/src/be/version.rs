@@ -1092,7 +1092,12 @@ async fn create(
         Err(error) => return Err(failed(error)),
     };
     let node = node_of(context.peer, &summary);
-    context.shared.lock().unwrap().graph.put(node);
+    context
+        .shared
+        .lock()
+        .unwrap()
+        .graph
+        .put(node, summary.revision);
     Ok(())
 }
 
@@ -1108,7 +1113,12 @@ async fn set_parent(
         .map_err(failed)?;
     let summary = context.peer.summary(block).await.map_err(failed)?;
     let node = node_of(context.peer, &summary);
-    context.shared.lock().unwrap().graph.put(node);
+    context
+        .shared
+        .lock()
+        .unwrap()
+        .graph
+        .put(node, summary.revision);
     Ok(())
 }
 
@@ -1126,7 +1136,12 @@ async fn publish(
             .await
             .map_err(failed)?;
         let node = node_of(context.peer, &summary);
-        context.shared.lock().unwrap().graph.put(node);
+        context
+            .shared
+            .lock()
+            .unwrap()
+            .graph
+            .put(node, summary.revision);
         return Ok(summary.head);
     };
     let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
@@ -1150,7 +1165,12 @@ async fn publish(
                 settle(context, block, head).await?;
                 let summary = context.peer.summary(block).await.map_err(failed)?;
                 let node = node_of(context.peer, &summary);
-                context.shared.lock().unwrap().graph.put(node);
+                context
+                    .shared
+                    .lock()
+                    .unwrap()
+                    .graph
+                    .put(node, summary.revision);
                 return Ok(Some(head));
             }
             Saved::Rejected { head } => expected = head,

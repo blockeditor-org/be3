@@ -128,6 +128,7 @@ pub struct BlockSummary {
     pub version: Option<u64>,
     pub key: Option<Uuid>,
     pub scope: Option<Uuid>,
+    pub revision: u64,
 }
 
 impl BlockSummary {
@@ -144,6 +145,7 @@ impl BlockSummary {
             version: None,
             key: None,
             scope: None,
+            revision: 0,
         }
     }
 }
@@ -815,6 +817,7 @@ pub enum ServerMessage {
     },
     BlockRemoved {
         block: Uuid,
+        revision: u64,
     },
     SessionChanged {
         block: Uuid,

@@ -49,6 +49,7 @@ pub struct ServerStore {
     database: Mutex<Connection>,
     objects: FileStore,
     graphs: Mutex<HashMap<Uuid, BlockGraph>>,
+    revision: std::sync::atomic::AtomicU64,
     object_refs: std::sync::Mutex<ObjectRefs>,
     hashing: tokio::sync::Semaphore,
     failures: std::sync::Mutex<HashMap<String, Failures>>,
@@ -75,6 +76,7 @@ impl ServerStore {
             database: Mutex::new(connection),
             objects: FileStore::open(root.join("objects"))?,
             graphs: Mutex::new(HashMap::new()),
+            revision: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
             hashing: tokio::sync::Semaphore::new(PASSWORD_CHECKS_AT_ONCE),
             failures: std::sync::Mutex::new(HashMap::new()),
@@ -1026,6 +1028,7 @@ impl From<GraphError> for ServerError {
 pub struct Collected {
     pub blocks: Vec<Uuid>,
     pub objects: usize,
+    pub revision: u64,
 }
 
 pub struct AccessList {
@@ -1044,6 +1047,11 @@ impl ServerStore {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(load_graph(&database, organization)?),
         };
+        let revision = self
+            .revision
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        graph.advance_to(revision);
         let outcome = action(graph, &database);
         if outcome.is_err() {
             graphs.remove(&organization);

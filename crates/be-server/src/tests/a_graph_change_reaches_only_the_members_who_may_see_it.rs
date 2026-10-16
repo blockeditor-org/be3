@@ -53,7 +53,7 @@ async fn changes(client: &mut TestClient, count: usize) -> Vec<(Uuid, bool)> {
     for _ in 0..count {
         seen.push(match client.graph_change().await {
             ServerMessage::BlockChanged { block } => (block.id, true),
-            ServerMessage::BlockRemoved { block } => (block, false),
+            ServerMessage::BlockRemoved { block, .. } => (block, false),
             other => panic!("{other:?}"),
         });
     }

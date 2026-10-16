@@ -59,8 +59,11 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
         Some(Access::View)
     );
     assert_eq!(
-        seen(linked),
-        Some(&BlockSummary::no_access(
+        seen(linked).map(|summary| BlockSummary {
+            revision: 0,
+            ..summary.clone()
+        }),
+        Some(BlockSummary::no_access(
             linked,
             TextContent::CONTENT_TYPE,
             Access::KnowExists

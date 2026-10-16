@@ -94,8 +94,12 @@ fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockS
 fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<BlockSummary> {
     let node = graph.get(block)?;
     let access = seen.access(graph, block);
+    let revision = graph.revision();
     if !access.can_view() {
-        return Some(BlockSummary::no_access(block, node.content_type, access));
+        return Some(BlockSummary {
+            revision,
+            ..BlockSummary::no_access(block, node.content_type, access)
+        });
     }
     Some(BlockSummary {
         id: block,
@@ -109,6 +113,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         version: Some(node.version),
         key: node.key,
         scope: Some(graph.scope(block)),
+        revision,
     })
 }
 
@@ -222,7 +227,7 @@ impl ServerStore {
         self.with_graph(organization, move |graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
-                match subtree && graph.contains(block) {
+                match subtree {
                     true => touched.extend(graph.subtree(block)),
                     false => touched.push(block),
                 }
@@ -232,8 +237,10 @@ impl ServerStore {
                 .flat_map(|block| graph.references(*block))
                 .collect();
             touched.extend(referenced);
+            touched.retain(|block| graph.contains(*block));
             touched.sort_unstable();
             touched.dedup();
+            let revision = graph.revision();
             Ok(members
                 .into_iter()
                 .map(|identity| {
@@ -244,7 +251,10 @@ impl ServerStore {
                             Some(found) if found.access.can_know_exists() => {
                                 be_protocol::ServerMessage::BlockChanged { block: found }
                             }
-                            _ => be_protocol::ServerMessage::BlockRemoved { block: *block },
+                            _ => be_protocol::ServerMessage::BlockRemoved {
+                                block: *block,
+                                revision,
+                            },
                         })
                         .collect()
                 })
@@ -678,6 +688,7 @@ impl ServerStore {
             Ok(Collected {
                 blocks: removed,
                 objects: freed.len(),
+                revision: graph.revision(),
             })
         })
         .await

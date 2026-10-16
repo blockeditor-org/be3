@@ -68,7 +68,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     );
     let removed = other.graph_change().await;
     assert!(
-        matches!(removed, ServerMessage::BlockRemoved { block } if block == child),
+        matches!(removed, ServerMessage::BlockRemoved { block, .. } if block == child),
         "{removed:?}"
     );
 

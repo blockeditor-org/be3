@@ -865,7 +865,10 @@ impl Connection {
                     self.hub
                         .announce(
                             identity.organization,
-                            ServerMessage::BlockRemoved { block: *block },
+                            ServerMessage::BlockRemoved {
+                                block: *block,
+                                revision: collected.revision,
+                            },
                         )
                         .await;
                 }

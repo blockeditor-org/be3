@@ -221,8 +221,17 @@ time, so notifications wait for the next post.
   (and every administrator) is sent the `BlockChanged` its own access lets it
   see, or a `BlockRemoved` when it no longer does. The blocks a changed block
   references, and those a publish stopped referencing, are announced with it,
-  since who may know they exist changed too. `WatchHub` indexes clients
+  since who may know they exist changed too; an id no block has (one linked
+  before it is made) is never announced. `WatchHub` indexes clients
   by organization and account, so this never scans every connection.
+- Every `BlockSummary` and `BlockRemoved` carries the `revision` it was read
+  at: `ServerStore::with_graph` advances one counter on each call, under the
+  lock every graph read and change takes, so a larger revision is always a
+  later view. Announcements and replies can reach a client out of order (a
+  reply overtakes the announcements queued before it, and two requests'
+  announcements interleave), and the revision is how the client puts them back
+  in order. The counter restarts with the server, which a client sees as a
+  reconnect and a reload.
 - Accounts live here. `Register` (refused unless the server runs with
   `--allow-registration`; the app's embedded server and the dev targets do),
   `Login` (refused unless the server runs with `--allow-login`, so a server
@@ -698,12 +707,13 @@ what it needs.
 The app keeps a mirror of the server's graph, as the account sees it, in
 `be/graph.rs`: a `Node` per block with its content type, author, parent, access,
 references, unsealed `BlockMetadata` and whether no key it holds opens it
-(`locked`). A block the account may only know exists has no author, parent or
-version, so `Roots`, `Detached`, `Shared` and `Children` never list it; it is
+(`locked`). A block the account may only know exists has no author or parent, so `Roots`, `Detached`, `Shared` and `Children` never list it; it is
 reached only through what references it, and is never `locked`. The worker loads it with
 `Peer::list_blocks` whenever it connects and keeps it current from the server's
 `BlockChanged` and `BlockRemoved` events, reloading it whole when it has fallen
-behind the event broadcast. `Query` (`Roots`, `Detached`, `Shared`,
+behind the event broadcast. It remembers the newest revision it has heard of
+each block (and, for the rest, that of its last load) and drops anything
+older, so an announcement the worker reads late never undoes a newer reply. `Query` (`Roots`, `Detached`, `Shared`,
 `Children`, `References`, `Backrefs`, `Parents`, `Block`) is how everything in
 the app asks it a question, and `be::graph_revision` says when to ask again.
 `Shared` is the account's entry points: blocks it can view whose parent it

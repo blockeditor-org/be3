@@ -19,7 +19,6 @@ pub(crate) struct Node {
     pub(crate) references: Vec<Uuid>,
     pub(crate) metadata: BlockMetadata,
     pub(crate) head: Option<CommitId>,
-    pub(crate) version: Option<u64>,
     pub(crate) locked: bool,
 }
 
@@ -47,12 +46,16 @@ pub(crate) struct Graph {
     pub(crate) loaded: bool,
     pub(crate) revision: u64,
     nodes: HashMap<Uuid, Node>,
+    heard: HashMap<Uuid, u64>,
+    floor: u64,
     pending: HashMap<Uuid, u32>,
     derived: HashMap<Uuid, Entries>,
 }
 
 impl Graph {
-    pub(crate) fn load(&mut self, nodes: Vec<Node>) {
+    pub(crate) fn load(&mut self, nodes: Vec<Node>, revision: u64) {
+        self.heard.clear();
+        self.floor = revision;
         let mut loaded: HashMap<Uuid, Node> =
             nodes.into_iter().map(|node| (node.id, node)).collect();
         for block in self.pending.keys() {
@@ -71,14 +74,25 @@ impl Graph {
         self.revision += 1;
     }
 
-    pub(crate) fn put(&mut self, node: Node) {
-        let stale = self
-            .nodes
-            .get(&node.id)
-            .is_some_and(|held| node.version.is_some() && held.version > node.version);
-        if !stale && !self.pending.contains_key(&node.id) {
+    pub(crate) fn put(&mut self, node: Node, revision: u64) {
+        if self.hear(node.id, revision) && !self.pending.contains_key(&node.id) {
             self.insert(node);
         }
+    }
+
+    pub(crate) fn remove(&mut self, block: Uuid, revision: u64) {
+        if self.hear(block, revision) {
+            self.forget(block);
+        }
+    }
+
+    fn hear(&mut self, block: Uuid, revision: u64) -> bool {
+        let newest = self.heard.get(&block).copied().unwrap_or(self.floor);
+        if revision < newest {
+            return false;
+        }
+        self.heard.insert(block, revision);
+        true
     }
 
     pub(crate) fn change(&mut self, node: Node) {
@@ -140,7 +154,7 @@ impl Graph {
         }
     }
 
-    pub(crate) fn remove(&mut self, block: Uuid) {
+    pub(crate) fn forget(&mut self, block: Uuid) {
         if self.nodes.remove(&block).is_some() {
             self.revision += 1;
         }
@@ -284,3 +298,6 @@ impl Graph {
         chain
     }
 }
+
+#[cfg(test)]
+mod tests;

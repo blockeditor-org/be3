@@ -85,6 +85,7 @@ pub struct BlockGraph {
     backrefs: BTreeMap<Uuid, BTreeSet<Uuid>>,
     children: HashMap<BlockParent, BTreeSet<Uuid>>,
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
+    revision: u64,
 }
 
 fn level_below(node: &BlockNode, account: Uuid, parent: Access, parent_viewable: bool) -> Access {
@@ -114,6 +115,14 @@ impl BlockGraph {
 
     pub fn len(&self) -> usize {
         self.blocks.len()
+    }
+
+    pub const fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    pub fn advance_to(&mut self, revision: u64) {
+        self.revision = self.revision.max(revision);
     }
 
     pub fn is_empty(&self) -> bool {

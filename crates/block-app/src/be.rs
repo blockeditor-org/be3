@@ -585,7 +585,6 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             references: source.references.clone(),
             metadata: metadata.clone(),
             head: None,
-            version: Some(0),
             locked: false,
         });
     });
@@ -857,7 +856,6 @@ pub(crate) fn create(
             references: Vec::new(),
             metadata: metadata.clone(),
             head: None,
-            version: Some(0),
             locked: false,
         });
     });
@@ -1037,7 +1035,6 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 references: block.references.clone(),
                 metadata: block.metadata.clone(),
                 head: None,
-                version: Some(0),
                 locked: false,
             });
         });
