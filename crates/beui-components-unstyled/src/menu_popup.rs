@@ -2,6 +2,7 @@ use beui_core::layer::Dismiss;
 
 use beui_macros::{component, view};
 
+use crate::button::ButtonHandle;
 use crate::menu::{MenuItem, MenuList, MenuRowHandle};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::node::NodeId;
@@ -20,6 +21,7 @@ struct MenuParts {
     row: RenderFn<MenuRowHandle>,
     panel: RenderFn<Child>,
     sheet: Option<(RenderFn<MenuRowHandle>, RenderFn<MenuSheetHandle>)>,
+    toolbar: Option<(RenderFn<ButtonHandle>, RenderFn<Child>)>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -34,6 +36,7 @@ impl MenuStyle {
             row: RenderFn::new(row),
             panel: RenderFn::new(panel),
             sheet: None,
+            toolbar: None,
         }))
     }
 
@@ -47,7 +50,26 @@ impl MenuStyle {
             row: dropdown_row,
             panel,
             sheet: Some((RenderFn::new(row), RenderFn::new(sheet))),
+            toolbar: self.toolbar(),
         }))
+    }
+
+    pub fn with_toolbar(
+        self,
+        button: impl Fn(ButtonHandle) -> NodeId + 'static,
+        panel: impl Fn(Child) -> NodeId + 'static,
+    ) -> Self {
+        let (row, menu_panel) = self.parts();
+        Self(Some(MenuParts {
+            row,
+            panel: menu_panel,
+            sheet: self.sheet(),
+            toolbar: Some((RenderFn::new(button), RenderFn::new(panel))),
+        }))
+    }
+
+    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle>, RenderFn<Child>)> {
+        self.0.as_ref().and_then(|parts| parts.toolbar)
     }
 
     pub fn is_some(&self) -> bool {

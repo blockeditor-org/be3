@@ -7,7 +7,7 @@ use crate::MenuItem;
 use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
 use beui_core::base::ItemSize;
-use beui_core::geometry::Pos2;
+use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -37,10 +37,16 @@ pub fn TextContextMenu(
     #[prop(default = false)] masked: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
-    #[prop(children)] content: Render<Callback<Pos2>>,
+    #[prop(children)] content: Render<Callback<Option<Rect>>>,
 ) -> NodeId {
-    let (open_at, set_open_at) = create_signal(None::<Pos2>);
+    let (requested, set_requested) = create_signal(None::<(Rect, u64)>);
     let cursors = state.cursors();
+    let toolbar_at = create_memo(move || {
+        requested
+            .get()
+            .filter(|(_, version)| *version == cursors.get())
+            .map(|(rect, _)| rect)
+    });
     let actions = create_memo(move || {
         cursors.get();
         let selected = state
@@ -60,20 +66,19 @@ pub fn TextContextMenu(
     let chosen = actions;
     let no_menu = !menu.is_some();
     let off = create_memo(move || no_menu || disabled.get());
-    let open = Callback::new(move |at: Pos2| {
-        if !off.get_untracked() {
-            set_open_at.set(Some(at));
-        }
+    let open = Callback::new(move |at: Option<Rect>| {
+        let at = at.filter(|_| !off.get_untracked());
+        set_requested.set(at.map(|rect| (rect, cursors.get_untracked())));
     });
     view! {
         <ContextMenu
             menu
             child_size
             disabled={off}
-            open_at
-            open_at_focuses=false
             selection=true
-            on_close={move || set_open_at.set(None)}
+            toolbar_at
+            opens_on_hold=false
+            on_toolbar_close={move || set_requested.set(None)}
             items={view! {
                 <ForEach keys={actions}>
                     {move |action: MenuAction| view! {
