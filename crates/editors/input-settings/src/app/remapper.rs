@@ -9,8 +9,6 @@ use uuid::Uuid;
 
 use super::ui::Settings;
 
-const ROW_SPACING: f32 = 8.0;
-
 #[component]
 pub(super) fn RemapperSetting(
     editor: Editor,
@@ -33,27 +31,29 @@ pub(super) fn RemapperSetting(
     });
     let chosen = create_memo(move || effective.get().remapper);
     let selected = create_memo(move || {
-        let index = chosen.get().and_then(|choice| {
+        chosen.get().and_then(|choice| {
             keys.with(|keys| keys.iter().position(|editor| *editor == choice.editor))
-        });
-        Some(index.map_or(0, |index| index + 1))
+        })
     });
-    let inherited = create_memo(move || root.get().remapper.is_none() && chosen.get().is_some());
-    let none_chosen = create_memo(move || chosen.get().is_none());
-    let choose = move |index: Option<usize>| {
-        let Some(index) = index else {
-            return;
+    let set_here = create_memo(move || root.get().remapper.is_some());
+    let none = create_memo(move || keys.with(Vec::is_empty));
+    let link_off = create_memo(move || none.get() || (read_only.get() && chosen.get().is_none()));
+    let detail = create_memo(move || {
+        let name = |editor: Uuid| {
+            remappers.with(|remappers| {
+                remappers
+                    .iter()
+                    .find(|(id, _)| *id == editor)
+                    .map(|(_, name)| name.clone())
+            })
         };
-        let Some(remapper) = index
-            .checked_sub(1)
-            .and_then(|index| keys.with_untracked(|keys| keys.get(index).copied()))
-        else {
-            settings.operate(InputSettings::set_remapper(None));
-            return;
-        };
-        if root.get_untracked().remapper.map(|choice| choice.editor) == Some(remapper) {
-            return;
+        match chosen.get() {
+            Some(choice) => format!("Edited with {}.", name(choice.editor).unwrap_or_default()),
+            None if none.get() => "No plugin here remaps input.".to_owned(),
+            None => "None yet: opening them makes them.".to_owned(),
         }
+    });
+    let create = move |remapper: Uuid| {
         let name = remappers.with_untracked(|remappers| {
             remappers
                 .iter()
@@ -66,33 +66,49 @@ pub(super) fn RemapperSetting(
             BlockParent::Block(editor.block_id()),
             name,
         );
-        settings.operate(InputSettings::set_remapper(Some(RemapperChoice {
+        let choice = RemapperChoice {
             block,
             editor: remapper,
-        })));
-        editor
-            .host()
-            .open_block_with(block, InputRemapper::CONTENT_TYPE, remapper);
+        };
+        settings.operate(InputSettings::set_remapper(Some(choice)));
+        choice
     };
-    let open = move || {
-        if let Some(choice) = chosen.get_untracked() {
-            editor
-                .host()
-                .open_block_with(choice.block, InputRemapper::CONTENT_TYPE, choice.editor);
+    let choose = move |index: Option<usize>| {
+        let Some(remapper) =
+            index.and_then(|index| keys.with_untracked(|keys| keys.get(index).copied()))
+        else {
+            return;
+        };
+        if chosen.get_untracked().map(|choice| choice.editor) != Some(remapper) {
+            create(remapper);
         }
     };
+    let open = move || {
+        let choice = match chosen.get_untracked() {
+            Some(choice) => choice,
+            None => match keys.with_untracked(|keys| keys.first().copied()) {
+                Some(remapper) if !read_only.get_untracked() => create(remapper),
+                _ => return,
+            },
+        };
+        editor
+            .host()
+            .open_block_with(choice.block, InputRemapper::CONTENT_TYPE, choice.editor);
+    };
     view! {
-        <List spacing=ROW_SPACING>
-            <Text style=TextStyle::HEADING string="Remaps" />
-            <Text
-                style=TextStyle::CAPTION
-                string="A plugin that remaps keys, buttons and wheel turns in a Linux session. Choosing one makes a block of its remaps to edit."
-                wrap=true
-            />
-            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+        <SettingsSection title="Remaps">
+            <SettingsRow
+                label="Remapper"
+                description="The plugin that changes keys, buttons and wheel turns in a Linux session."
+                modified={set_here}
+                locked={read_only}
+                reset_test_id={"input-settings.remapper.reset".to_owned()}
+                on_reset={move || settings.operate(InputSettings::set_remapper(None))}
+            >
                 <Select
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
                     options={view! {
-                        <ChoiceOption label="None" />
                         <ForEach keys={keys}>
                             {move |remapper: Uuid| {
                                 let label = create_memo(move || {
@@ -116,17 +132,15 @@ pub(super) fn RemapperSetting(
                     @test_id={"input-settings.remapper"}
                     on_change={choose}
                 />
-                <Button
-                    label="Open"
-                    variant=ButtonVariant::Secondary
-                    disabled={none_chosen}
-                    @test_id={"input-settings.remapper.open"}
-                    on_click={open}
-                />
-            </List>
-            <Show condition={inherited}>
-                <Text style=TextStyle::CAPTION string="Chosen in the settings for every device." />
-            </Show>
-        </List>
+            </SettingsRow>
+            <SettingsLink
+                label="Remaps"
+                description={detail}
+                separated=true
+                disabled={link_off}
+                @test_id={"input-settings.remaps"}
+                on_click={open}
+            />
+        </SettingsSection>
     }
 }

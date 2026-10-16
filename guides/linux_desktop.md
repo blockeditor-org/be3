@@ -258,9 +258,9 @@ plugin can edit by declaring an editor for that block type. Its content is an en
 without the plugin running: the plugin's id, the module's path in that plugin's data, and the config,
 bytes only the module reads. The input settings' `remapper` (`RemapperChoice`: the block and the
 editor that made it) picks one, in the shared input settings for every device or in a profile's for
-its devices, the profile's replacing the shared one. The input settings editor offers every editor of
-the `InputRemapper` type ("None" turns remapping off); choosing one makes a block of it and opens it
-with that editor.
+its devices, the profile's replacing the shared one. The input settings' Remaps section offers every
+editor of the `InputRemapper` type as the Remapper, and its Remaps link opens the chosen block with its
+editor in a tab, making it first (with the chosen remapper, else the first there is) when there is none.
 
 The remapper that ships is `editors/input-remaps`: its block's config is TOML text, stored exactly as
 written, comments and layout included, and its module is `crates/remap/module`, staged as its data
@@ -268,8 +268,12 @@ written, comments and layout included, and its module is `crates/remap/module`, 
 name the group and rule): rules apply in every window or only while a window whose executable, app id
 or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
 milliseconds or play a sequence of taps. Keys are named the way `be_remap::names` does (evdev's names,
-AutoHotkey's for the common ones, and `Key:CODE` or `Button:CODE` for any other). The editor stores
-the text when Apply is pressed and it reads.
+AutoHotkey's for the common ones, and `Key:CODE` or `Button:CODE` for any other). Its page has two
+tabs over the same text. Editor shows each group and rule as settings rows and changes the text through
+`be_remap::edit`, which reads an outline of it as written (so a name that does not read yet still shows)
+and edits it in place with `toml_edit`, so comments and layout outside what changed stay; each change is
+stored once the whole text reads, and a problem is shown until it does. TOML is the text itself, stored
+when Apply is pressed and it reads.
 
 A module exports `memory`, `be_remap_buffer` and `be_remap_handle`, and trades `be_remap::protocol`
 requests (start with the config, focus, input, timer) and replies in bincode; a start can answer with a

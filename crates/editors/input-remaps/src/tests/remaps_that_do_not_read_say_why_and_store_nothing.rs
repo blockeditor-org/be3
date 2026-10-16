@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn remaps_that_do_not_read_say_why_and_store_nothing() {
-    let mut editor = editor(RemapState::Off);
+    let mut editor = editor(RemapState::Off, None);
 
     apply(
         &mut editor,

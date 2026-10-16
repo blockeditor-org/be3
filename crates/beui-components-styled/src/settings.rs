@@ -1,4 +1,8 @@
-use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::text::{Icon, TextColor};
+use crate::theme::use_theme;
+use beui_core::color::Color32;
+use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_macros::{component, view};
 
 use crate::border::Separator;
@@ -228,5 +232,83 @@ pub fn SettingsRow(
                 </Frame>
             </List>
         </List>
+    }
+}
+
+#[component]
+pub fn SettingsLink(
+    label: Prop<String>,
+    #[prop(default = String::new())] description: Prop<String>,
+    #[prop(default = false)] separated: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    on_click: ClickCallback,
+) -> NodeId {
+    let separated = create_memo(move || separated.get());
+    let description = create_memo(move || description.get());
+    view! {
+        <List spacing=0.0>
+            <Show condition={separated}>
+                <Frame padding={Sides::horizontal(ROW_PADDING_HORIZONTAL)}>
+                    <Separator />
+                </Frame>
+            </Show>
+            <unstyled::Button
+                label
+                disabled
+                on_click={on_click}
+                content={move |handle| view! {
+                    <SettingsLinkFace handle description={description} />
+                }}
+            />
+        </List>
+    }
+}
+
+#[component]
+fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -> NodeId {
+    let unstyled::ButtonHandle {
+        hovered,
+        active,
+        focused,
+        disabled,
+        label,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let fill = create_memo(
+        move || match (disabled.get(), active.get(), hovered.get()) {
+            (true, _, _) => Color32::TRANSPARENT,
+            (false, true, _) => theme.pressed.get(),
+            (false, false, true) => theme.hover.get(),
+            (false, false, false) => Color32::TRANSPARENT,
+        },
+    );
+    let text_color = create_memo(move || match disabled.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
+    let described = create_memo(move || !description.get().is_empty());
+    view! {
+        <Frame
+            fill={ColorRole::custom(fill)}
+            border={focus_border(focused, Border::FOCUS)}
+            padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <List
+                    @sizing=ItemSize::Percent(100.0)
+                    justify=Justify::Center
+                    spacing=LABEL_SPACING
+                >
+                    <Text string={label} color={text_color} wrap=true />
+                    <Show condition={described}>
+                        <Text style=TextStyle::CAPTION string={description} wrap=true />
+                    </Show>
+                </List>
+                <Text color=TextColor::Muted>
+                    <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
+                </Text>
+            </List>
+        </Frame>
     }
 }

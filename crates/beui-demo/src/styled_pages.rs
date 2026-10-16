@@ -2829,6 +2829,12 @@ fn SettingsSections() -> NodeId {
                         on_change={move |index| set_size.set(index)}
                     />
                 </SettingsRow>
+                <SettingsLink
+                    label="Sound effects"
+                    description="A link row opens a page of its own."
+                    separated=true
+                    on_click={|| {}}
+                />
             </SettingsSection>
         </List>
     }

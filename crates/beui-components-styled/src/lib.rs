@@ -99,7 +99,7 @@ pub use scroll::Scroll;
 pub use scrollbar::Scrollbar;
 pub use select::{Select, select_open, select_selected};
 pub use selectable_text::SelectableText;
-pub use settings::{SettingsPage, SettingsRow, SettingsSection};
+pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
 pub use sheet::{ModalSheet, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::{Slider, slider_value};

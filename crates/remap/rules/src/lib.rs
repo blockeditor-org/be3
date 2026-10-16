@@ -1,3 +1,5 @@
+#[cfg(feature = "text")]
+pub mod edit;
 pub mod engine;
 pub mod names;
 pub mod protocol;

@@ -999,7 +999,9 @@ their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
 card of rows per section, each a label and description beside its control,
 stacked once the row is narrow, and a section runs edge to edge once it is. A
 `modified` row has an accent bar at its edge and, given `on_reset`, a small
-Reset link after its label.
+Reset link after its label. A `SettingsLink` is a row that opens a page of its own (a block,
+in a tab): its label and description, a chevron where a control would be, and the
+hover a button has.
 
 Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:

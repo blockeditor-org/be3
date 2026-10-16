@@ -1,36 +1,33 @@
-use std::cell::RefCell;
-use std::sync::Arc;
-
-use be_remap::text;
-use block_editor_beui::be_block::InputRemapper;
-use block_editor_beui::be_block::InputRemapperContent;
+use block_editor_beui::be_block::{InputRemapper, InputRemapperContent};
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::TextAreaState;
-use block_editor_beui::beui::{ItemSize, NodeId};
-use block_editor_beui::{Editor, RemapState, Remaps};
-use text_editor_core::{Document, TextBuffer, TextLanguage};
+use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::{ContentProjection, Editor, RemapState, Remaps};
 
+use super::gui::EditorTab;
+use super::raw::TomlTab;
 use super::{MODULE, PLUGIN};
 
-const PADDING: f32 = 20.0;
-const ROW_SPACING: f32 = 8.0;
-const TEXT_HEIGHT: f32 = 320.0;
-const EXAMPLE: &str = r#"[[group]]
-name = "Everywhere"
-rules = [
-  { on = "F20+WheelUp", send = "VolumeUp" },
-  { on = "Pause", send = "PlayPause" },
-]
+pub(super) type Remapper = ContentProjection<InputRemapperContent>;
 
-[[group]]
-name = "Celeste"
-window = { exe = "Celeste.exe" }
-rules = [
-  { on = "MouseLeft", send = "J" },
-  { on = "WheelUp", tap = "1", hold_ms = 20 },
-]
-"#;
+#[derive(Clone, Copy)]
+pub(super) struct Shared {
+    pub(super) remapper: Remapper,
+    pub(super) stored: ReadSignal<String>,
+    pub(super) read_only: Memo<bool>,
+}
+
+impl Shared {
+    pub(super) fn store(self, text: &str) {
+        if self.read_only.get_untracked() {
+            return;
+        }
+        let config = (!text.trim().is_empty()).then(|| text.as_bytes().to_vec());
+        self.remapper
+            .operate(InputRemapper::set(PLUGIN, MODULE, config));
+    }
+}
 
 #[component]
 pub fn InputRemapsView(editor: Editor) -> NodeId {
@@ -45,49 +42,18 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
             .map(|config| String::from_utf8_lossy(&config).into_owned())
             .unwrap_or_default()
     });
-    let initial = stored.get_untracked();
-    let buffer = TextBuffer::new(&initial);
-    buffer.set_language(TextLanguage::Toml);
-    let document = store(Arc::new(buffer));
-    let loaded = store(RefCell::new(initial));
-    let state =
-        TextAreaState::new(document.with(|document| Arc::clone(document) as Arc<dyn Document>));
-    let (error, set_error) = create_signal(None::<String>);
-    let reload = move |text: String| {
-        document.with(|document| replace(document, &text));
-        state.external_edit();
-        loaded.with(|loaded| *loaded.borrow_mut() = text);
-        set_error.set(None);
+    let shared = Shared {
+        remapper,
+        stored,
+        read_only,
     };
-    create_effect(move || {
-        let text = stored.get();
-        untrack(|| {
-            let unedited = loaded
-                .with(|loaded| document.with(|document| text_of(document) == *loaded.borrow()));
-            if unedited {
-                reload(text);
-            }
-        });
-    });
-    let apply = move || {
-        let typed = document.with(|document| text_of(document));
-        match text::parse(&typed) {
-            Ok(_) => {
-                let config = (!typed.trim().is_empty()).then(|| typed.clone().into_bytes());
-                remapper.operate(InputRemapper::set(PLUGIN, MODULE, config));
-                loaded.with(|loaded| *loaded.borrow_mut() = typed);
-                set_error.set(None);
-            }
-            Err(problem) => set_error.set(Some(problem)),
-        }
-    };
-    let revert = move || reload(stored.get_untracked());
-    let failed = create_memo(move || error.get().is_some());
-    let problem = create_memo(move || error.get().unwrap_or_default());
+    let (tab, set_tab) = create_signal(0usize);
+    let editing = create_memo(move || tab.get() == 0);
+    let raw = create_memo(move || tab.get() == 1);
     let status = create_memo(move || {
         match device.get() {
-            RemapState::Off => "No remaps run on this device.",
-            RemapState::On => "The remaps the input settings pick run on this device.",
+            RemapState::Off => "This device runs no remaps.",
+            RemapState::On => "This device runs the remaps its input settings pick.",
             RemapState::Stopped => {
                 "The remaps on this device stopped, and start again once they change."
             }
@@ -95,65 +61,34 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
         .to_owned()
     });
     view! {
-        <Frame fill=ColorRole::Background>
-            <Scroll>
-                <Frame padding=PADDING>
-                    <List spacing=ROW_SPACING>
-                        <Text style=TextStyle::HEADING string="Input remaps" />
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Keys, buttons and wheel turns to change in a Linux session, everywhere or in the windows a group names. They are written as TOML, as in the example shown while this is empty, and kept as written. The input settings pick which remaps a device runs."
-                            wrap=true
-                        />
-                        <TextArea
-                            @sizing=ItemSize::Fixed(TEXT_HEIGHT)
-                            @test_id={"input-remaps.text"}
-                            state={state}
-                            placeholder={EXAMPLE.to_owned()}
-                            emoji=false
-                        />
-                        <Show condition={failed}>
-                            <Text
-                                style={TextStyle::CAPTION.color(TextColor::Danger)}
-                                string={problem}
-                                wrap=true
-                            />
-                        </Show>
-                        <List direction=Direction::Horizontal spacing=ROW_SPACING>
-                            <Button
-                                label="Apply"
-                                variant=ButtonVariant::Primary
-                                disabled={read_only}
-                                @test_id={"input-remaps.apply"}
-                                on_click={apply}
-                            />
-                            <Button
-                                label="Revert"
-                                variant=ButtonVariant::Secondary
-                                @test_id={"input-remaps.revert"}
-                                on_click={revert}
-                            />
-                        </List>
-                        <Show condition={offered}>
-                            <Text style=TextStyle::CAPTION string={status} wrap=true />
-                        </Show>
-                    </List>
-                </Frame>
-            </Scroll>
-        </Frame>
+        <SettingsPage>
+            <SettingsSection
+                title="Input remaps"
+                description="Keys, buttons and wheel turns to change in a Linux session, in every program or in the ones a group names. They are kept as TOML text, comments and all, which both tabs edit."
+            >
+                <SettingsRow label="Edit as" compact=true>
+                    <Tabs
+                        options={view! {
+                            <ChoiceOption label="Editor" />
+                            <ChoiceOption label="TOML" />
+                        }}
+                        selected={tab}
+                        @test_id={"input-remaps.tabs"}
+                        on_change={move |index: usize| set_tab.set(index)}
+                    />
+                </SettingsRow>
+                <Show condition={offered}>
+                    <SettingsRow label="This device" separated=true>
+                        <Text style=TextStyle::CAPTION string={status} wrap=true />
+                    </SettingsRow>
+                </Show>
+            </SettingsSection>
+            <Show condition={editing}>
+                <EditorTab shared={shared} />
+            </Show>
+            <Show condition={raw}>
+                <TomlTab shared={shared} />
+            </Show>
+        </SettingsPage>
     }
-}
-
-fn text_of(document: &TextBuffer) -> String {
-    document
-        .read()
-        .map(|read| String::from_utf8_lossy(&read.slice(0..read.len())).into_owned())
-        .unwrap_or_default()
-}
-
-fn replace(document: &TextBuffer, text: &str) {
-    document.edit(Vec::new(), &mut |edit| {
-        let length = edit.document().len();
-        edit.replace(0, length, text.as_bytes());
-    });
 }

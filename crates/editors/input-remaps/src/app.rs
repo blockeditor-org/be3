@@ -4,6 +4,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 
+mod gui;
+mod raw;
 mod ui;
 
 use ui::InputRemapsView;

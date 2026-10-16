@@ -182,6 +182,7 @@ impl AppStateStore {
         self.read(REMAPPER_KEY)
     }
 
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub fn set_remapper(&self, content: Option<&[u8]>) -> Result<(), AppStateError> {
         self.write(REMAPPER_KEY, &content)
     }

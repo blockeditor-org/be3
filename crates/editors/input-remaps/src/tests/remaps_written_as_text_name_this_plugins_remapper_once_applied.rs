@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn remaps_written_as_text_name_this_plugins_remapper_once_applied() {
-    let mut editor = editor(RemapState::On);
+    let mut editor = editor(RemapState::On, None);
 
     let text = "# jump with the left button\n[[group]]\nname = \"Celeste\"\nwindow = { exe = \"Celeste.exe\" }\nrules = [{ on = \"LButton\", send = \"j\" }]\n";
     apply(&mut editor, text);
