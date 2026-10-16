@@ -1,11 +1,8 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
-    CanvasTextStyle, CanvasTextVerticalAlign, CanvasTextWeight,
+    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{
-    Color32, FontId, Image, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
-};
+use block_editor_beui::beui::{Color32, FontId, Image, Painter, Pos2, Rect, Vec2, pos2};
 
 use crate::geometry::*;
 
@@ -109,11 +106,7 @@ impl EntityPaint {
         match &self.entity.kind {
             CanvasEntityKind::Line => self.draw_line(painter, color, width),
             CanvasEntityKind::Rectangle => self.draw_rectangle(painter, color, width, opacity),
-            CanvasEntityKind::Text {
-                text,
-                text_style,
-                placeholder,
-            } => self.draw_text(painter, color, text, *text_style, placeholder),
+            CanvasEntityKind::Text { .. } => {}
             CanvasEntityKind::Pen { points } => self.draw_pen(painter, color, width, points),
             CanvasEntityKind::Block { .. } => self.draw_block(painter, color, opacity),
             CanvasEntityKind::DirectEditor { scale, .. } => {
@@ -182,51 +175,6 @@ impl EntityPaint {
             .map(|point| self.at(local_to_world(self.entity.transform, *point)))
             .collect();
         stroke(painter, &points, width, color);
-    }
-
-    fn draw_text(
-        &self,
-        painter: &Painter,
-        color: Color32,
-        text: &str,
-        text_style: CanvasTextStyle,
-        placeholder: &str,
-    ) {
-        let (shown, color) = match text.is_empty() {
-            true => (placeholder, with_opacity(color, 0.4)),
-            false => (text, color),
-        };
-        let painter = self.turned(painter);
-        let rect = self.box_rect();
-        let galley = painter.layout_text(
-            shown,
-            text_font(text_style, self.camera.scale),
-            text_layout(
-                text_style,
-                rect.width() - 2.0 * TEXT_INSET * self.camera.scale,
-            ),
-        );
-        let size = galley.size();
-        let inset = TEXT_INSET * self.camera.scale;
-        let x = match text_style.alignment {
-            CanvasTextAlign::Left => rect.left() + inset,
-            CanvasTextAlign::Center => rect.center().x - size.x / 2.0,
-            CanvasTextAlign::Right => rect.right() - inset - size.x,
-        };
-        let y = match text_style.vertical_alignment {
-            CanvasTextVerticalAlign::Top => rect.top() + inset,
-            CanvasTextVerticalAlign::Middle => rect.center().y - size.y / 2.0,
-            CanvasTextVerticalAlign::Bottom => rect.bottom() - inset - size.y,
-        };
-        let origin = pos2(x, y);
-        if text_style.weight == CanvasTextWeight::Bold {
-            painter.galley(
-                pos2(origin.x + 0.6 * self.camera.scale, origin.y),
-                galley.clone(),
-                color,
-            );
-        }
-        painter.galley(origin, galley, color);
     }
 
     fn fill_uncovered(&self, painter: &Painter, rect: Rect, opacity: f32) {
@@ -442,49 +390,6 @@ pub(crate) fn handle(painter: &Painter, at: Pos2, color: Color32) {
         pos2(at.x + HANDLE_RADIUS, at.y + HANDLE_RADIUS),
     );
     painter.rect_filled(rect, HANDLE_RADIUS, color);
-}
-
-fn text_font(text_style: CanvasTextStyle, scale: f32) -> FontId {
-    FontId::proportional((text_style.font_size * scale).clamp(4.0, 256.0))
-}
-
-fn text_layout(text_style: CanvasTextStyle, width: f32) -> TextLayout {
-    TextLayout {
-        wrap_width: match text_style.wrap {
-            true => width.max(1.0),
-            false => f32::INFINITY,
-        },
-        align: match text_style.alignment {
-            CanvasTextAlign::Left => TextAlign::Start,
-            CanvasTextAlign::Center => TextAlign::Center,
-            CanvasTextAlign::Right => TextAlign::End,
-        },
-        line_spacing: text_style.line_height.max(0.5),
-        ..TextLayout::DEFAULT
-    }
-}
-
-pub(crate) fn measure_text(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
-    let CanvasEntityKind::Text {
-        text,
-        text_style,
-        placeholder,
-    } = &entity.kind
-    else {
-        return None;
-    };
-    let shown = match text.is_empty() {
-        true => placeholder,
-        false => text,
-    };
-    let width = entity.transform.size.x * scale;
-    let galley = layout_text(
-        shown,
-        text_font(*text_style, scale),
-        text_layout(*text_style, width - 2.0 * TEXT_INSET * scale),
-    )?;
-    let size = galley.size();
-    Some(Vec2::new(size.x / scale, size.y / scale))
 }
 
 pub(crate) fn stroke(painter: &Painter, points: &[Pos2], width: f32, color: Color32) {

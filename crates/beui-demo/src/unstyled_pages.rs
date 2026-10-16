@@ -211,6 +211,9 @@ pub(crate) fn ValuesPage() -> NodeId {
             >
                 <UnderlinedInput />
             </Sample>
+            <Sample title="Prose text input" code={vec![ProseInput::SOURCE]}>
+                <ProseInput />
+            </Sample>
             <Sample
                 title="Number input"
                 code={vec![
@@ -309,6 +312,37 @@ fn UnderlinedInput() -> NodeId {
             </unstyled::TextInput>
             <Text string={submitted} color=TextColor::Muted />
         </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ProseInput() -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame height=120.0 border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
+            <unstyled::TextInput
+                value="A centered, bold title\nthat wraps inside its box"
+                placeholder="Title"
+                multiline=true
+                style={TextInputStyle {
+                    font_size: Prop::Static(20.0),
+                    color: theme.text.into_prop(),
+                    placeholder_color: theme.text_muted.into_prop(),
+                    selection_color: theme.accent_soft.into_prop(),
+                    caret_color: theme.accent.into_prop(),
+                    padding_horizontal: Prop::Static(8.0),
+                    prose: Prop::Static(Some(beui::unstyled::Prose {
+                        bold: true,
+                        align: TextAlign::Center,
+                        vertical_align: TextAlign::Center,
+                        line_padding: (4.0, 4.0),
+                        wrap: true,
+                    })),
+                    ..TextInputStyle::default()
+                }}
+            />
+        </Frame>
     }
 }
 

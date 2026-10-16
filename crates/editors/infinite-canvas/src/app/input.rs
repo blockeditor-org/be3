@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::geometry::*;
 
-use super::state::{CanvasCommand, CanvasState, Gesture, Tool};
+use super::state::{CanvasCommand, CanvasState, Gesture, TextEntry, Tool};
 
 impl CanvasState {
     pub(crate) fn cursor(&self) -> CursorIcon {
@@ -106,7 +106,7 @@ impl CanvasState {
                 && !entity.locked
             {
                 self.select(id, false);
-                self.edit_text(Some(id));
+                self.edit_text_at(id, TextEntry::At(press.pos));
                 self.begin_gesture(None);
                 return;
             }
@@ -218,7 +218,7 @@ impl CanvasState {
                 && matches!(entity.kind, CanvasEntityKind::Text { .. })
                 && self.selection.get_untracked().len() == 1
                 && self.selection.get_untracked().contains(&id);
-            self.note_retap(retap.then_some(id));
+            self.note_retap(retap.then_some((id, press.pos)));
             if press.modifiers.shift {
                 self.select(id, true);
                 self.begin_gesture(None);
@@ -366,10 +366,10 @@ impl CanvasState {
         let gesture = self.gesture.get_untracked();
         let retapped = self.take_retap();
         self.begin_gesture(None);
-        if let (Some(id), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
+        if let (Some((id, at)), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
             && start == current
         {
-            self.edit_text(Some(id));
+            self.edit_text_at(id, TextEntry::At(at));
             return;
         }
         if let Some(gesture) = gesture {

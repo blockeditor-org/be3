@@ -31,6 +31,7 @@ pub fn CanvasItem(
     width: Prop<f32>,
     height: Prop<f32>,
     #[prop(default = true)] clip: Prop<bool>,
+    #[prop(default = true)] pointer: Prop<bool>,
     children: Option<Child>,
 ) -> CanvasItem {
     let item = with_document(|document| {
@@ -47,6 +48,9 @@ pub fn CanvasItem(
     });
     create_effect(move || {
         with_document(|document| document.set_canvas_item_clip(item, clip.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_canvas_item_pointer(item, pointer.get()))
     });
     CanvasItem::new(item.id(), ())
 }

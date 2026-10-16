@@ -13,12 +13,13 @@ use text_editor_core::{
     markdown_checkbox_marker,
 };
 
+use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
 use super::rows::{
-    DOCUMENT_PADDING, RowInputs, RowOptions, TextWidget, build_row, line_range, line_starts,
+    DOCUMENT_PADDING, Prose, RowInputs, RowOptions, TextWidget, build_row, line_range, line_starts,
     rich_layout,
 };
 
@@ -337,6 +338,12 @@ impl TextAreaState {
             .collect()
     }
 
+    pub fn select(&self, range: Range<usize>) {
+        let (anchor, focus) =
+            self.with_core(|core| (core.position(range.start), core.position(range.end)));
+        self.execute(EditorCommand::SetSelection { anchor, focus });
+    }
+
     pub fn selection_contains(&self, byte: usize) -> bool {
         self.selection_ranges()
             .iter()
@@ -501,6 +508,7 @@ impl TextAreaState {
             body_size: super::rows::BODY_SIZE,
             mask: false,
             single_line: false,
+            prose: None,
         };
         let colors = TextAreaColors::DEFAULT;
         let starts = &snapshot.starts;
@@ -534,9 +542,8 @@ impl TextAreaState {
                 Some(measured) => *measured,
                 None => {
                     let row = build_row(&inputs, line, start, end, newline);
-                    let row_height = rich_layout(&row, options.body_size, options.padding(), wrap)?
-                        .size
-                        .y;
+                    let font = FontId::proportional(options.body_size);
+                    let row_height = rich_layout(&row, font, options.padding(), wrap)?.size.y;
                     (row_height, row.block.map_or(0.0, |(_, size)| size.y))
                 }
             };
@@ -548,6 +555,56 @@ impl TextAreaState {
         }
         *held = heights;
         Some(Vec2::new(width, height))
+    }
+
+    pub fn measure_prose(
+        &self,
+        font_size: f32,
+        prose: Prose,
+        placeholder: &str,
+        wrap_width: f32,
+    ) -> Option<Vec2> {
+        let inner = self.0.get();
+        let snapshot = inner.snapshot.borrow();
+        if !snapshot.loaded {
+            return None;
+        }
+        let options = RowOptions {
+            body_size: font_size,
+            mask: false,
+            single_line: false,
+            prose: Some(prose),
+        };
+        let colors = TextAreaColors::DEFAULT;
+        let font = FontId::proportional(font_size).bold(prose.bold);
+        let wrap = match prose.wrap {
+            true => wrap_width.max(1.0),
+            false => f32::INFINITY,
+        };
+        let starts = match snapshot.starts.is_empty() {
+            true => vec![0],
+            false => snapshot.starts.to_vec(),
+        };
+        let mut size = Vec2::ZERO;
+        for line in 0..starts.len() {
+            let (start, end, newline) = line_range(&snapshot.bytes, &starts, line)?;
+            let shown = (snapshot.bytes.is_empty() && !placeholder.is_empty() && line == 0)
+                .then_some(placeholder);
+            let inputs = RowInputs {
+                snapshot: &snapshot,
+                widgets: &[],
+                client_colors: &[],
+                composition: None,
+                colors: &colors,
+                options,
+                spacers: &[],
+                placeholder: shown,
+            };
+            let row = build_row(&inputs, line, start, end, newline);
+            let laid = rich_layout(&row, font, options.padding(), wrap)?.size;
+            size = Vec2::new(size.x.max(laid.x), size.y + laid.y);
+        }
+        Some(size)
     }
 
     pub fn find_open(&self) -> ReadSignal<bool> {

@@ -640,7 +640,14 @@ own focus and pointer handling. `TextInput` is that single-line mode over a
 plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
 fix to how text is edited lands in both. `multiline` makes it the multiline area
 instead, with `line_numbers` off, where Enter starts a new line and the field's
-chrome wraps the whole scrolling area rather than one line. A menu is never asked for as a dropdown
+chrome wraps the whole scrolling area rather than one line. `prose` (a `Prose`, on
+`TextArea` and on `TextInputStyle`) lays the multiline area out as plain text
+rather than a document: no whitespace markers and no document padding, with
+the weight, horizontal alignment, padding around each line, wrapping, and where
+the lines sit when they are shorter than the area that it names.
+`measure_prose` measures text exactly as such an area lays it out, so a caller
+can size a box to it; the infinite canvas draws its text entities this way, as
+the same field whether or not they are being edited. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an

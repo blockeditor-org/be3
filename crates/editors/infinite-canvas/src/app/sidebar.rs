@@ -1090,13 +1090,6 @@ fn TextOptions(state: CanvasState) -> NodeId {
             .collect::<Vec<_>>()
     });
     let shown = create_memo(move || !styles.with(Vec::is_empty));
-    let single = create_memo(move || {
-        let selected = state.selected_entities();
-        matches!(
-            selected.as_slice(),
-            [entity] if matches!(entity.kind, CanvasEntityKind::Text { .. })
-        )
-    });
     let font_size = create_memo(move || {
         common_value(styles.with(|styles| {
             styles
@@ -1172,9 +1165,6 @@ fn TextOptions(state: CanvasState) -> NodeId {
                     <List spacing=6.0>
                         <Separator />
                         <Text style=TextStyle::CAPTION string="Text" />
-                        <Show condition={single}>
-                            <TextContent state={state} />
-                        </Show>
                         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                             <Text style=TextStyle::CAPTION string="Font size" />
                             <NumberInput
@@ -1279,71 +1269,6 @@ fn TextOptions(state: CanvasState) -> NodeId {
                 }}
             </Show>
         </List>
-    }
-}
-
-#[component]
-fn TextContent(state: CanvasState) -> NodeId {
-    let entity = create_memo(move || state.selected_entities().pop());
-    let text = create_memo(move || match entity.get() {
-        Some(entity) => match entity.kind {
-            CanvasEntityKind::Text { text, .. } => text,
-            _ => String::new(),
-        },
-        None => String::new(),
-    });
-    let placeholder = create_memo(move || match entity.get() {
-        Some(entity) => match entity.kind {
-            CanvasEntityKind::Text { placeholder, .. } => placeholder,
-            _ => String::new(),
-        },
-        None => String::new(),
-    });
-    let locked = create_memo(move || entity.get().is_none_or(|entity| entity.locked));
-    let focused = create_memo(move || {
-        entity
-            .get()
-            .is_some_and(|entity| state.editing_text.get() == Some(entity.id))
-    });
-    let changed = move |typed: String| {
-        let Some(held) = entity.get_untracked() else {
-            return;
-        };
-        let CanvasEntityKind::Text {
-            text_style,
-            placeholder,
-            ..
-        } = held.kind.clone()
-        else {
-            return;
-        };
-        let mut updated = held.clone();
-        updated.kind = CanvasEntityKind::Text {
-            text: typed,
-            text_style,
-            placeholder,
-        };
-        let updated = state.fit_text(updated);
-        state.record_update(vec![held.clone()], vec![updated], true);
-    };
-    let left = move |has_focus: bool| {
-        if !has_focus {
-            state.edit_text(None);
-            state.finish_grouped_edit();
-        }
-    };
-    view! {
-        <TextInput
-            label="Text"
-            value={text}
-            placeholder={placeholder}
-            disabled={locked}
-            focused={focused}
-            multiline=true
-            @test_id={"infinite-canvas.text"}
-            on_change={changed}
-            on_focus_change={left}
-        />
     }
 }
 

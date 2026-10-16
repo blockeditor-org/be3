@@ -4,9 +4,9 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::text::TextNode;
+use beui_core::base::{Align, ItemSize};
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId, TextAlign};
 use beui_core::geometry::Vec2;
@@ -46,12 +46,27 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let list = cx.list;
     let keys = cx.visible;
     let top = create_memo(move || Some(cx.padding.get().y));
-    let bottom = create_memo(move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)));
+    let bottom = create_memo(move || match cx.prose.get() {
+        Some(_) => Some(cx.padding.get().y),
+        None => Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)),
+    });
+    let align = create_memo(move || match cx.prose.get() {
+        Some(prose) => Align2::new(
+            Align::Stretch,
+            match prose.vertical_align {
+                TextAlign::Start => Align::Start,
+                TextAlign::Center => Align::Center,
+                TextAlign::End => Align::End,
+            },
+        ),
+        None => Align2::STRETCH,
+    });
     let estimate = cx.row_estimate();
     view! {
         <Frame
             @node_ref=&canvas
             height={create_memo(move || Extent { min: fill.get(), ..Extent::INTRINSIC })}
+            align={align}
         >
             <List spacing=0.0>
                 <Frame height=top />
@@ -76,7 +91,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
         let size = cx.font_size.get();
         let body =
             galley("", FontId::proportional(size)).map_or(0.0, |galley| galley.line_height());
-        let laid = rich_layout(&row, size, (0.0, 0.0), f32::INFINITY)
+        let laid = rich_layout(&row, FontId::proportional(size), (0.0, 0.0), f32::INFINITY)
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
     });
@@ -336,6 +351,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 body_size: cx.font_size.get(),
                 mask: cx.masked.get(),
                 single_line: cx.single_line,
+                prose: cx.prose.get(),
             },
             client_colors: cx.client_colors.get(),
         };
@@ -407,10 +423,13 @@ fn RowText(
     });
     let keys = create_memo(move || piece_keys(&model.get(), layer));
     let cursors = row_cursors(cx, model, layer);
-    let padding = match cx.single_line {
-        true => (0.0, 0.0),
-        false => LINE_PADDING,
-    };
+    let padding = create_memo(move || match (cx.single_line, cx.prose.get()) {
+        (true, _) => (0.0, 0.0),
+        (false, Some(prose)) => prose.line_padding,
+        (false, None) => LINE_PADDING,
+    });
+    let wraps = create_memo(move || wrap && cx.prose.get().is_none_or(|prose| prose.wrap));
+    let align = create_memo(move || cx.prose.get().map(|prose| prose.align));
     let marks = create_memo(move || {
         if layer == Layer::Handles {
             return Vec::new();
@@ -489,7 +508,10 @@ fn RowText(
     });
     let anchored = create_memo(move || layer != Layer::Handles && anchor_at.get().is_some());
     let color = create_memo(move || cx.colors.get().syntax.markdown_plain_text);
-    let font = create_memo(move || FontId::proportional(cx.font_size.get()));
+    let font = create_memo(move || {
+        FontId::proportional(cx.font_size.get())
+            .bold(cx.prose.get().is_some_and(|prose| prose.bold))
+    });
     let item_model = model;
     let anchor = cx.anchor;
     let anchor_position = create_memo(move || anchor_at.get());
@@ -497,7 +519,9 @@ fn RowText(
     view! {
         <Text
             @node_ref=&node
-            wrap
+            wrap={wraps}
+            align={align}
+            vertical_align={Some(TextAlign::Start)}
             line_padding={padding}
             font={font}
             color={color}

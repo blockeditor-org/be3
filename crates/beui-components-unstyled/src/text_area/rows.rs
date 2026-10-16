@@ -7,7 +7,7 @@ use text_editor_core::{
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
-use beui_core::font::{FontId, Galley, TextLayout};
+use beui_core::font::{FontId, Galley, TextAlign, TextLayout};
 use beui_core::geometry::Vec2;
 use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::*;
@@ -55,18 +55,49 @@ pub struct Composition {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Prose {
+    pub bold: bool,
+    pub align: TextAlign,
+    pub vertical_align: TextAlign,
+    pub line_padding: (f32, f32),
+    pub wrap: bool,
+}
+
+impl Default for Prose {
+    fn default() -> Self {
+        Self {
+            bold: false,
+            align: TextAlign::Start,
+            vertical_align: TextAlign::Start,
+            line_padding: (0.0, 0.0),
+            wrap: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct RowOptions {
     pub body_size: f32,
     pub mask: bool,
     pub single_line: bool,
+    pub prose: Option<Prose>,
 }
 
 impl RowOptions {
     pub fn padding(&self) -> (f32, f32) {
-        match self.single_line {
-            true => (0.0, 0.0),
-            false => LINE_PADDING,
+        match (self.single_line, self.prose) {
+            (true, _) => (0.0, 0.0),
+            (false, Some(prose)) => prose.line_padding,
+            (false, None) => LINE_PADDING,
         }
+    }
+
+    fn bold(&self) -> bool {
+        self.prose.is_some_and(|prose| prose.bold)
+    }
+
+    fn invisibles(&self) -> bool {
+        !self.single_line && self.prose.is_none()
     }
 }
 
@@ -365,7 +396,8 @@ struct Builder<'a> {
 impl Builder<'_> {
     fn span_style(&self, style: SynHlStyle) -> SpanStyle {
         SpanStyle {
-            font: style_font(style, self.inputs.options.body_size),
+            font: style_font(style, self.inputs.options.body_size)
+                .bold(style.bold || self.inputs.options.bold()),
             color: self.inputs.colors.syntax.scope(style.color),
             underline: style.underline,
             strikethrough: style.strikethrough,
@@ -650,7 +682,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     let bytes = &snapshot.bytes;
     let highlight = snapshot.highlight();
     let options = inputs.options;
-    let invisibles = !options.single_line;
+    let invisibles = options.invisibles();
     let composition = inputs
         .composition
         .filter(|composition| composition.range.start < end && composition.range.end > start);
@@ -684,7 +716,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         fonts: Vec::new(),
     };
     let body = SpanStyle::new(
-        FontId::proportional(options.body_size),
+        FontId::proportional(options.body_size).bold(options.bold()),
         inputs
             .colors
             .syntax
@@ -876,14 +908,14 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
 
 pub fn rich_layout(
     row: &Row,
-    body_size: f32,
+    font: FontId,
     padding: (f32, f32),
     wrap_width: f32,
 ) -> Option<RichLayout> {
     let options = RichOptions {
         wrap_width,
         padding,
-        style: SpanStyle::new(FontId::proportional(body_size), Color32::WHITE),
+        style: SpanStyle::new(font, Color32::WHITE),
     };
     beui_view::reactive::rich_layout(&row.pieces(), options)
 }
@@ -980,7 +1012,7 @@ fn measure_table_row(
     let row = build_row(&row_inputs, line, start, end, newline);
     let measured = rich_layout(
         &row,
-        inputs.options.body_size,
+        FontId::proportional(inputs.options.body_size),
         (0.0, 0.0),
         inputs.wrap_width,
     )
