@@ -305,7 +305,7 @@ impl Versions {
             context,
             checkout,
             Checkout::CONTENT_TYPE,
-            node.parent,
+            node.parent.ok_or_else(unplaced)?,
             BlockMetadata::named(name),
         )
         .await?;
@@ -332,7 +332,7 @@ impl Versions {
             .ok_or_else(|| format!("There is no branch named {branch}."))?;
         let tree = self.tree(context.peer, Some(head)).await?;
         let parent = with_graph(context.shared, |graph| {
-            graph.get(repository).map(|node| node.parent)
+            graph.get(repository).and_then(|node| node.parent)
         })
         .unwrap_or(BlockParent::Root);
         let checkout = Uuid::now_v7();
@@ -608,7 +608,7 @@ impl Versions {
             context,
             fork,
             Repository::CONTENT_TYPE,
-            node.parent,
+            node.parent.ok_or_else(unplaced)?,
             BlockMetadata::named(name),
         )
         .await?;
@@ -913,7 +913,7 @@ fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, base: &Tree) -> Vec<Sca
                 true => None,
                 false => node
                     .parent
-                    .block()
+                    .and_then(BlockParent::block)
                     .map(|parent| graph.to_local(scope, parent)),
             };
             let clean = match node.head {
@@ -1058,6 +1058,10 @@ async fn settle(context: &mut Context<'_>, block: Uuid, head: CommitId) -> Resul
         .graph
         .set_head(block, Some(head));
     Ok(())
+}
+
+fn unplaced() -> String {
+    "You cannot see where this block is.".to_owned()
 }
 
 async fn create(

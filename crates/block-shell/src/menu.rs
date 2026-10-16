@@ -26,7 +26,7 @@ pub(crate) struct Permissions {
     pub(crate) delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) is_reference: bool,
-    pub(crate) source: BlockParent,
+    pub(crate) source: Option<BlockParent>,
 }
 
 pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
@@ -80,15 +80,16 @@ pub(crate) fn permissions(
     containing: Option<Uuid>,
 ) -> Permissions {
     let can_edit = workspace.can_edit(reference.id);
-    let source = containing.map_or(reference.parent, BlockParent::Block);
-    let is_reference = containing.is_some_and(|id| reference.parent != BlockParent::Block(id));
+    let source = containing.map(BlockParent::Block).or(reference.parent);
+    let is_reference =
+        containing.is_some_and(|id| reference.parent != Some(BlockParent::Block(id)));
     let types = workspace.types();
     Permissions {
         add: types.child_edits(reference.block_type).add && can_edit,
         edit: can_edit,
-        delete: source != BlockParent::Detached
-            && can_delete_from(workspace, source)
-            && (is_reference || can_edit),
+        delete: source.is_some_and(|source| {
+            source != BlockParent::Detached && can_delete_from(workspace, source)
+        }) && (is_reference || can_edit),
         unlink: unlink_permission(workspace, containing),
         is_reference,
         source,
@@ -106,11 +107,13 @@ pub(crate) fn apply(
         Action::Open => workspace.open(TabItem::new(reference.id, reference.block_type), None),
         Action::Picker => workspace.open_picker(reference.id),
         Action::MoveToMyFiles => {
-            if let Some(files) = workspace.my_files() {
+            if let Some(files) = workspace.my_files()
+                && let Some(source) = permissions.source
+            {
                 workspace.host().move_block(
                     reference.id,
                     reference.block_type,
-                    permissions.source,
+                    source,
                     files,
                     permissions.is_reference,
                 );
@@ -120,16 +123,20 @@ pub(crate) fn apply(
         Action::Rename => workspace.open_dialog(OpenDialog::Rename(reference.id)),
         Action::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
         Action::Unlink => {
-            if let BlockParent::Block(container) = permissions.source {
+            if let Some(BlockParent::Block(container)) = permissions.source {
                 workspace.host().unlink_block(reference.id, container);
             }
         }
-        Action::Delete => workspace.host().delete_block(
-            reference.id,
-            reference.block_type,
-            permissions.source,
-            permissions.is_reference,
-        ),
+        Action::Delete => {
+            if let Some(source) = permissions.source {
+                workspace.host().delete_block(
+                    reference.id,
+                    reference.block_type,
+                    source,
+                    permissions.is_reference,
+                );
+            }
+        }
     }
 }
 
@@ -174,15 +181,19 @@ pub(crate) fn ReferenceMenuItem(
         delete.get()
             || files.is_none()
             || rights.get().is_none_or(|rights| {
-                rights.4 == BlockParent::Root
-                    || rights.4 == files.map_or(rights.4, BlockParent::Block)
+                rights.4.is_none_or(|parent| {
+                    parent == BlockParent::Root
+                        || files.is_none_or(|files| parent == BlockParent::Block(files))
+                })
             })
     });
     let orphaned = create_memo(move || {
         edit.get()
-            || rights
-                .get()
-                .is_none_or(|rights| rights.4 == BlockParent::Detached)
+            || rights.get().is_none_or(|rights| {
+                rights
+                    .4
+                    .is_none_or(|parent| parent == BlockParent::Detached)
+            })
     });
     let delete_label = create_memo(move || match rights.get().is_some_and(|rights| rights.5) {
         true => "Remove link".to_owned(),

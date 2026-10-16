@@ -188,7 +188,11 @@ time, so notifications wait for the next post.
   or an ancestor (a grant that can view is inherited down), and `Edit` on what
   they authored when its parent is `Root` or `Detached` or they can view its
   parent, so a member taken off a workspace loses what they wrote inside it.
-  A block they can view references gives them `KnowExists` on it. Ancestors
+  A block they can view references gives them `KnowExists` on it, and on
+  nothing that block references in turn. Of a block they may only know exists
+  they are told its id, content type and access and nothing else
+  (`BlockSummary::no_access`: no author, parent, head, version, references,
+  metadata, key or scope), and are served none of its keys or objects. Ancestors
   are not shown: a block someone can see whose parent they cannot is an entry
   point, which the app lists under Shared with me. `SetAccess` grants, and only
   someone who may edit a block may grant on it; a grant above `None` must also
@@ -215,7 +219,9 @@ time, so notifications wait for the next post.
 - Graph announcements are per member too: when a block changes, each connected
   client whose account is in the block's audience before or after the change
   (and every administrator) is sent the `BlockChanged` its own access lets it
-  see, or a `BlockRemoved` when it no longer does. `WatchHub` indexes clients
+  see, or a `BlockRemoved` when it no longer does. The blocks a changed block
+  references, and those a publish stopped referencing, are announced with it,
+  since who may know they exist changed too. `WatchHub` indexes clients
   by organization and account, so this never scans every connection.
 - Accounts live here. `Register` (refused unless the server runs with
   `--allow-registration`; the app's embedded server and the dev targets do),
@@ -692,7 +698,9 @@ what it needs.
 The app keeps a mirror of the server's graph, as the account sees it, in
 `be/graph.rs`: a `Node` per block with its content type, author, parent, access,
 references, unsealed `BlockMetadata` and whether no key it holds opens it
-(`locked`). The worker loads it with
+(`locked`). A block the account may only know exists has no author, parent or
+version, so `Roots`, `Detached`, `Shared` and `Children` never list it; it is
+reached only through what references it, and is never `locked`. The worker loads it with
 `Peer::list_blocks` whenever it connects and keeps it current from the server's
 `BlockChanged` and `BlockRemoved` events, reloading it whole when it has fallen
 behind the event broadcast. `Query` (`Roots`, `Detached`, `Shared`,
@@ -813,9 +821,15 @@ blocks }` whenever the answer changes (`plugin_host/graph.rs`). A `BlockInfo`
 carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
 a block), name and whether it was named by hand, references, the account's
 access, the artifact source and whether it is `locked`: the account may view
-it but holds no key that opens it yet, so its metadata is empty. The files
-pane shows a locked block as "Locked" with a lock icon, and the frame says so
-in place of an editor. It changes the graph with
+it but holds no key that opens it yet, so its metadata is empty. A block the
+account may only know exists (`AccessLevel::KnowExists`) comes with no author
+or parent and nothing else but its type. `BlockInfo::reach` tells the two
+apart (`block_ui::Reach`: `Open`, `Locked`, `NoAccess`), `BlockInfo::label`
+names such a block "Locked" or "No access" in place of its name, and
+`block_editor_beui::label_glyph` gives either a lock icon, so every place that
+draws a referenced block from its label (text links and embeds, the files
+pane, database cells, canvas cards, pickers) shows it; a frame says so in
+place of an editor. It changes the graph with
 `CreateBlock { block_id, content_type, parent, name, artifact, content }`,
 `SetParent` and `SetName`, which the host takes only when the account may edit
 the block and the parent it names, and hands to `be::create`, `be::set_parent`
@@ -1310,7 +1324,9 @@ What it still decides, and a device trusts it for:
   escrow secret to any verified contact it lists as an administrator;
 - which public key belongs to a non-contact (never used for sealing), and
   the rows of keys opened only through escrow, which administrators read but
-  never write under.
+  never write under;
+- which blocks an account knows exist: it sends the id and type of a block
+  an account may view references, and could send those of any other.
 
 ### Presence
 

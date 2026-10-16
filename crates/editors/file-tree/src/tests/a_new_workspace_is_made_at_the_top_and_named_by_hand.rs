@@ -18,7 +18,7 @@ fn a_new_workspace_is_made_at_the_top_and_named_by_hand() {
         .filter(|id| {
             store.block(*id).is_some_and(|info| {
                 info.block_type == WorkspaceContent::CONTENT_TYPE
-                    && info.parent == BlockParent::Root
+                    && info.parent == Some(BlockParent::Root)
             })
         })
         .collect();

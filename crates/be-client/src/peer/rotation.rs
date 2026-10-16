@@ -89,16 +89,19 @@ impl<S: ObjectStore> Peer<S> {
         }
         self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
             .await?;
-        let outer = match top.scope == top.id {
+        let top_scope = super::scope_of(&top)?;
+        let outer = match top_scope == top.id {
             true => None,
-            false => Some(self.scope_key(top.scope).await?),
+            false => Some(self.scope_key(top_scope).await?),
         };
-        let above_top = match (top.scope == top.id, top.parent) {
+        let above_top = match (top_scope == top.id, super::parent_of(&top)?) {
             (true, BlockParent::Block(parent)) => Some(self.scope_key_under(parent).await?),
             _ => None,
         };
-        let scope_of: HashMap<Uuid, Uuid> =
-            walked.iter().map(|node| (node.id, node.scope)).collect();
+        let scope_of = walked
+            .iter()
+            .map(|node| Ok((node.id, super::scope_of(node)?)))
+            .collect::<Result<HashMap<Uuid, Uuid>, ClientError>>()?;
         let mut fresh: HashMap<Uuid, Uuid> = HashMap::new();
         let current = |fresh: &HashMap<Uuid, Uuid>, scope: Uuid| {
             fresh
@@ -109,8 +112,9 @@ impl<S: ObjectStore> Peer<S> {
         };
         let mut keys = KeySet::default();
         for node in &walked {
-            if node.scope == node.id {
-                let parent = match node.parent {
+            let node_scope = scope_of[&node.id];
+            if node_scope == node.id {
+                let parent = match super::parent_of(node)? {
                     BlockParent::Block(parent) => match scope_of.get(&parent) {
                         Some(scope) => Some(current(&fresh, *scope)?),
                         None => above_top,
@@ -125,7 +129,7 @@ impl<S: ObjectStore> Peer<S> {
                 }
                 fresh.insert(node.id, scope);
             }
-            let under = current(&fresh, node.scope)?;
+            let under = current(&fresh, node_scope)?;
             for row in self.keys.keys_of(node.id, KeyKind::Data) {
                 if self.keys.trusted(row.id) {
                     keys.wrapped.push(self.keys.wrap(row.id, under)?);
@@ -149,7 +153,7 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         node: &BlockSummary,
     ) -> Result<Vec<(Uuid, be_keys::RecoveryPublic)>, ClientError> {
-        let at_root = !matches!(node.parent, BlockParent::Block(_));
+        let at_root = !matches!(node.parent, Some(BlockParent::Block(_)));
         Ok(self
             .list_access(node.id)
             .await?

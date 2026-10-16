@@ -434,7 +434,7 @@ fn TreeRow(
         edit.get()
             || row
                 .get()
-                .is_some_and(|row| row.parent == BlockParent::Detached)
+                .is_some_and(|row| row.parent == Some(BlockParent::Detached))
     });
     let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
     let weight = create_memo(move || match row.get().is_some_and(|row| row.section) {

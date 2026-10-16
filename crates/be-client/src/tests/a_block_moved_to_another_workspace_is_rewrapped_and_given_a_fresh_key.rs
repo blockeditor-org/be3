@@ -31,7 +31,7 @@ async fn a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key()
         .unwrap();
     let before = phone.summary(note).await.unwrap();
     let old_key = before.key.unwrap();
-    assert_eq!(before.scope, mine);
+    assert_eq!(before.scope, Some(mine));
     let mine_scope = phone.keys().scope_key(mine).unwrap();
     let team_scope = phone.keys().scope_key(team).unwrap();
     assert_eq!(
@@ -44,7 +44,7 @@ async fn a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key()
         .await
         .unwrap();
     let after = phone.summary(note).await.unwrap();
-    assert_eq!(after.scope, team);
+    assert_eq!(after.scope, Some(team));
     let fresh = after.key.unwrap();
     assert_ne!(
         fresh, old_key,

@@ -23,7 +23,7 @@ fn a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them() {
         let info = store.block(view).expect("each view is a block");
         assert_eq!(
             info.parent,
-            BlockParent::Block(fixture.test.block_id().unwrap())
+            Some(BlockParent::Block(fixture.test.block_id().unwrap()))
         );
         let held = store.content::<EditorViewContent>(Some(view)).root();
         assert_eq!(held.content, content);

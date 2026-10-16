@@ -90,8 +90,8 @@ impl BlockQuery {
 pub struct BlockInfo {
     pub id: Uuid,
     pub block_type: Uuid,
-    pub author: Uuid,
-    pub parent: BlockParent,
+    pub author: Option<Uuid>,
+    pub parent: Option<BlockParent>,
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
@@ -103,8 +103,8 @@ impl BlockInfo {
         Self {
             id,
             block_type,
-            author: Uuid::nil(),
-            parent,
+            author: Some(Uuid::nil()),
+            parent: Some(parent),
             references: Vec::new(),
             access: AccessLevel::Edit,
             metadata: BlockMetadata::default(),
@@ -114,6 +114,18 @@ impl BlockInfo {
 
     pub fn name(&self) -> Option<String> {
         self.metadata.name()
+    }
+
+    pub fn no_access(&self) -> bool {
+        !self.access.can_view()
+    }
+
+    pub fn reach(&self) -> block_ui::Reach {
+        match (self.no_access(), self.locked) {
+            (true, _) => block_ui::Reach::NoAccess,
+            (false, true) => block_ui::Reach::Locked,
+            (false, false) => block_ui::Reach::Open,
+        }
     }
 
     pub fn set_name(&mut self, name: impl Into<String>) {
@@ -152,14 +164,15 @@ impl BlockInfo {
             self.name().as_deref(),
             self.named_by_hand(),
         )
+        .reached(self.reach())
     }
 
     pub fn encode(&self) -> block_plugin_api::BlockInfo {
         block_plugin_api::BlockInfo {
             block_id: self.id.into_bytes(),
             block_type: self.block_type.into_bytes(),
-            author: self.author.into_bytes(),
-            parent: self.parent.encode(),
+            author: self.author.map(Uuid::into_bytes),
+            parent: self.parent.map(BlockParent::encode),
             references: self.references.iter().map(|id| id.into_bytes()).collect(),
             access: self.access,
             metadata: block_plugin_api::BlockMetadata {
@@ -174,8 +187,8 @@ impl BlockInfo {
         Self {
             id: Uuid::from_bytes(info.block_id),
             block_type: Uuid::from_bytes(info.block_type),
-            author: Uuid::from_bytes(info.author),
-            parent: BlockParent::decode(info.parent),
+            author: info.author.map(Uuid::from_bytes),
+            parent: info.parent.map(BlockParent::decode),
             references: info.references.into_iter().map(Uuid::from_bytes).collect(),
             access: info.access,
             metadata: BlockMetadata {

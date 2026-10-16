@@ -13,13 +13,13 @@ use uuid::Uuid;
 pub(crate) struct Node {
     pub(crate) id: Uuid,
     pub(crate) content_type: Uuid,
-    pub(crate) author: Uuid,
-    pub(crate) parent: BlockParent,
+    pub(crate) author: Option<Uuid>,
+    pub(crate) parent: Option<BlockParent>,
     pub(crate) access: Access,
     pub(crate) references: Vec<Uuid>,
     pub(crate) metadata: BlockMetadata,
     pub(crate) head: Option<CommitId>,
-    pub(crate) version: u64,
+    pub(crate) version: Option<u64>,
     pub(crate) locked: bool,
 }
 
@@ -75,7 +75,7 @@ impl Graph {
         let stale = self
             .nodes
             .get(&node.id)
-            .is_some_and(|held| held.version > node.version);
+            .is_some_and(|held| node.version.is_some() && held.version > node.version);
         if !stale && !self.pending.contains_key(&node.id) {
             self.insert(node);
         }
@@ -185,7 +185,7 @@ impl Graph {
 
     pub(crate) fn scope_of(&self, block: Uuid) -> Option<Scope> {
         let mut seen = 0;
-        let mut current = self.nodes.get(&block)?.parent.block();
+        let mut current = self.nodes.get(&block)?.parent.and_then(BlockParent::block);
         while let Some(parent) = current {
             let node = self.nodes.get(&parent)?;
             if node.content_type == <be_block::Checkout as be_block::Root>::CONTENT_TYPE {
@@ -198,7 +198,7 @@ impl Graph {
             if seen > self.nodes.len() {
                 return None;
             }
-            current = node.parent.block();
+            current = node.parent.and_then(BlockParent::block);
         }
         None
     }
@@ -223,7 +223,7 @@ impl Graph {
     pub(crate) fn subtree(&self, root: Uuid) -> Vec<Uuid> {
         let mut children: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
         for node in self.nodes.values() {
-            if let BlockParent::Block(parent) = node.parent {
+            if let Some(BlockParent::Block(parent)) = node.parent {
                 children.entry(parent).or_default().push(node.id);
             }
         }
@@ -246,25 +246,30 @@ impl Graph {
     }
 
     fn entered_from_outside(&self, node: &Node) -> bool {
-        node.parent.block().is_some_and(|parent| {
-            !self
-                .nodes
-                .get(&parent)
-                .is_some_and(|above| above.access.can_view())
-        })
+        node.parent
+            .and_then(BlockParent::block)
+            .is_some_and(|parent| {
+                !self
+                    .nodes
+                    .get(&parent)
+                    .is_some_and(|above| above.access.can_view())
+            })
     }
 
     fn with_parent(&self, parent: BlockParent) -> Vec<Node> {
         self.nodes
             .values()
-            .filter(|node| node.parent == parent)
+            .filter(|node| node.parent == Some(parent))
             .cloned()
             .collect()
     }
 
     fn ancestors(&self, block: Uuid) -> Vec<Node> {
         let mut chain = Vec::new();
-        let mut current = self.nodes.get(&block).and_then(|node| node.parent.block());
+        let mut current = self
+            .nodes
+            .get(&block)
+            .and_then(|node| node.parent.and_then(BlockParent::block));
         while let Some(parent) = current {
             let Some(node) = self.nodes.get(&parent) else {
                 break;
@@ -273,7 +278,7 @@ impl Graph {
                 break;
             }
             chain.push(node.clone());
-            current = node.parent.block();
+            current = node.parent.and_then(BlockParent::block);
         }
         chain.reverse();
         chain

@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
+mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
 mod a_follower_keeps_its_unconfirmed_typing_through_a_reload;
 mod a_follower_replaces_an_image_and_the_owner_takes_it;

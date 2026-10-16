@@ -216,7 +216,9 @@ impl EditorMessage {
                 self::query(query, &mut existing);
                 for block in blocks {
                     existing(&mut block.block_id);
-                    location(&mut block.parent, &mut existing);
+                    if let Some(parent) = &mut block.parent {
+                        location(parent, &mut existing);
+                    }
                     block.references.iter_mut().for_each(&mut existing);
                 }
             }

@@ -120,7 +120,7 @@ impl Folder {
                         ),
                         glyph: label
                             .as_ref()
-                            .and_then(|label| label.icon)
+                            .and_then(block_editor_beui::label_glyph)
                             .map_or_else(String::new, str::to_owned),
                         automatic: label.as_ref().is_some_and(|label| label.automatic),
                         loaded: found.is_some(),

@@ -534,8 +534,8 @@ impl Workspace {
             .into_iter()
             .filter(|block| {
                 block.block_type == WorkspaceContent::CONTENT_TYPE
-                    && block.parent == BlockParent::Root
-                    && block.author == account
+                    && block.parent == Some(BlockParent::Root)
+                    && block.author == Some(account)
                     && block.metadata.get(&MY_FILES) == Some(true)
             })
             .map(|block| block.id)
@@ -892,7 +892,7 @@ impl Workspace {
 
     pub(crate) fn record_reference_types(&self, reference: &BlockInfo) {
         self.record_type(reference.id, reference.block_type);
-        if let BlockParent::Block(parent) = reference.parent
+        if let Some(BlockParent::Block(parent)) = reference.parent
             && let Some(parent) = self.blocks().info(parent)
         {
             self.record_type(parent.id, parent.block_type);
@@ -1089,7 +1089,8 @@ impl Workspace {
             true => BlockParent::Block(id),
             false => self
                 .info(id)
-                .map_or(BlockParent::Detached, |info| info.parent),
+                .and_then(|info| info.parent)
+                .unwrap_or(BlockParent::Detached),
         };
         self.create_in(parent);
     }
@@ -1193,7 +1194,9 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
     let icon = create_memo(move || {
         workspace
             .tab(tab)
-            .and_then(|item| workspace.label(item.id, item.block_type).icon)
+            .and_then(|item| {
+                block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
+            })
             .unwrap_or_default()
             .to_owned()
     });

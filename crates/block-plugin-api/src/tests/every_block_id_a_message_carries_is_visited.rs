@@ -11,8 +11,8 @@ fn every_block_id_a_message_carries_is_visited() {
             blocks: vec![BlockInfo {
                 block_id: [1; 16],
                 block_type: [9; 16],
-                author: [9; 16],
-                parent: BlockLocation::Block([1; 16]),
+                author: Some([9; 16]),
+                parent: Some(BlockLocation::Block([1; 16])),
                 references: vec![[1; 16]],
                 access: AccessLevel::Edit,
                 metadata: crate::BlockMetadata::default(),

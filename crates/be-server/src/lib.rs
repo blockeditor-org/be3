@@ -773,10 +773,10 @@ impl Connection {
                         references, metadata,
                     )
                     .await?;
-                if let PublishOutcome::Published(_, redescribed) = outcome
-                    && redescribed
-                {
-                    self.reannounce(identity, vec![block], false, BTreeSet::new())
+                if let PublishOutcome::Published(_, Some(unlinked)) = &outcome {
+                    let mut blocks = vec![block];
+                    blocks.extend(unlinked);
+                    self.reannounce(identity, blocks, false, BTreeSet::new())
                         .await;
                 }
                 Ok(match outcome {

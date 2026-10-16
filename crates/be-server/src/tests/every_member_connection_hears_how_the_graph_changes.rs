@@ -47,7 +47,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let detached = other.graph_change().await;
     assert!(
         matches!(&detached, ServerMessage::BlockChanged { block }
-            if block.id == child && block.parent == BlockParent::Detached),
+            if block.id == child && block.parent == Some(BlockParent::Detached)),
         "{detached:?}"
     );
 

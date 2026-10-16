@@ -579,13 +579,13 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
         shared.graph.change(Node {
             id: to,
             content_type: source.content_type,
-            author,
-            parent: be_graph::BlockParent::Detached,
+            author: Some(author),
+            parent: Some(be_graph::BlockParent::Detached),
             access: be_graph::Access::Edit,
             references: source.references.clone(),
             metadata: metadata.clone(),
             head: None,
-            version: 0,
+            version: Some(0),
             locked: false,
         });
     });
@@ -851,13 +851,13 @@ pub(crate) fn create(
         shared.graph.change(Node {
             id: block,
             content_type,
-            author,
-            parent,
+            author: Some(author),
+            parent: Some(parent),
             access: be_graph::Access::Edit,
             references: Vec::new(),
             metadata: metadata.clone(),
             head: None,
-            version: 0,
+            version: Some(0),
             locked: false,
         });
     });
@@ -871,7 +871,11 @@ pub(crate) fn create(
 }
 
 pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
-    with_shared_mut(|shared| shared.graph.update(block, |node| node.parent = parent));
+    with_shared_mut(|shared| {
+        shared
+            .graph
+            .update(block, |node| node.parent = Some(parent))
+    });
     send(Command::SetParent { block, parent });
 }
 
@@ -962,7 +966,11 @@ pub(crate) fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static)
 fn exported(graph: &Graph, block: Uuid) -> Option<(String, Vec<be_client::transfer::Saved>)> {
     use be_block::BlockContent;
     let picked = graph.get(block)?;
-    let top = match picked.parent.block().and_then(|parent| graph.get(parent)) {
+    let top = match picked
+        .parent
+        .and_then(be_graph::BlockParent::block)
+        .and_then(|parent| graph.get(parent))
+    {
         Some(view)
             if picked.content_type == be_block::DatabaseContent::CONTENT_TYPE
                 && view.content_type == be_block::DatabaseViewContent::CONTENT_TYPE =>
@@ -1023,13 +1031,13 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
             shared.graph.change(Node {
                 id: block.id,
                 content_type: block.block_type,
-                author,
-                parent: placed,
+                author: Some(author),
+                parent: Some(placed),
                 access: be_graph::Access::Edit,
                 references: block.references.clone(),
                 metadata: block.metadata.clone(),
                 head: None,
-                version: 0,
+                version: Some(0),
                 locked: false,
             });
         });

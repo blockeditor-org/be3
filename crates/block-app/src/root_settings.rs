@@ -121,7 +121,9 @@ impl RootSettings {
         }
         let mut owned: Vec<Uuid> = be::query(be::Query::Roots)
             .into_iter()
-            .filter(|node| node.content_type == Settings::CONTENT_TYPE && node.author == account)
+            .filter(|node| {
+                node.content_type == Settings::CONTENT_TYPE && node.author == Some(account)
+            })
             .map(|node| node.id)
             .collect();
         owned.sort_unstable();
@@ -161,7 +163,7 @@ impl RootSettings {
             .into_iter()
             .filter(|node| {
                 node.content_type == WorkspaceContent::CONTENT_TYPE
-                    && node.author == account
+                    && node.author == Some(account)
                     && node.metadata.get(&MY_FILES) == Some(true)
             })
             .map(|node| node.id)

@@ -1695,7 +1695,7 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
 
 pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
     let metadata = peer.metadata(summary);
-    let locked = matches!(metadata, Err(ClientError::Locked(_)));
+    let locked = summary.access.can_view() && matches!(metadata, Err(ClientError::Locked(_)));
     Node {
         locked,
         id: summary.id,

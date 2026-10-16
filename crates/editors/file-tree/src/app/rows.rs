@@ -2,14 +2,13 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::Editor;
 use block_editor_beui::be_block::{
     BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, ViewState, WorkspaceContent,
 };
-use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -40,7 +39,7 @@ pub(crate) struct Row {
     pub(crate) is_reference: bool,
     pub(crate) access: AccessLevel,
     pub(crate) dynamic_artifact: bool,
-    pub(crate) parent: BlockParent,
+    pub(crate) parent: Option<BlockParent>,
     pub(crate) can_add: bool,
     pub(crate) can_edit: bool,
     pub(crate) can_delete: bool,
@@ -85,7 +84,7 @@ impl Row {
             is_reference: false,
             access: AccessLevel::None,
             dynamic_artifact: false,
-            parent: BlockParent::Root,
+            parent: None,
             can_add: false,
             can_edit: false,
             can_delete: false,
@@ -135,7 +134,7 @@ fn is_settings(block_type: Uuid) -> bool {
 
 pub(crate) fn is_my_files(block: &BlockInfo, account: Uuid) -> bool {
     is_workspace(block.block_type)
-        && block.author == account
+        && block.author == Some(account)
         && block.metadata.get(&MY_FILES) == Some(true)
 }
 
@@ -147,7 +146,9 @@ pub(crate) fn workspaces(
     let mut found: Vec<(bool, String, BlockInfo)> = roots
         .into_iter()
         .filter(|block| is_workspace(block.block_type))
-        .filter(|block| block.metadata.get(&MY_FILES) != Some(true) || block.author == account)
+        .filter(|block| {
+            block.metadata.get(&MY_FILES) != Some(true) || block.author == Some(account)
+        })
         .map(|block| {
             let name = block.label(types).name.to_lowercase();
             (!is_my_files(&block, account), name, block)
@@ -500,7 +501,7 @@ impl Builder<'_> {
         row.section = true;
         row.expandable = true;
         row.expanded = open;
-        row.can_leave = section.author != self.account;
+        row.can_leave = section.author != Some(self.account);
         self.rows.push(row);
         if !open {
             return;
@@ -549,7 +550,7 @@ impl Builder<'_> {
         }
         for block in shared {
             let at = self.rows.len();
-            let leavable = block.author != self.account;
+            let leavable = block.author != Some(self.account);
             self.push(block, 1, None, &mut Vec::new());
             self.rows[at].can_leave = leavable;
         }
@@ -632,11 +633,11 @@ pub(crate) fn describe(
         container,
         expanded,
     } = placement;
-    let is_reference = container.is_some_and(|id| reference.parent != BlockParent::Block(id));
+    let is_reference = container.is_some_and(|id| reference.parent != Some(BlockParent::Block(id)));
     let source = container.map_or_else(
         || match reference.parent {
-            BlockParent::Detached => BlockParent::Detached,
-            BlockParent::Root | BlockParent::Block(_) => BlockParent::Root,
+            Some(BlockParent::Detached) => BlockParent::Detached,
+            Some(BlockParent::Root | BlockParent::Block(_)) | None => BlockParent::Root,
         },
         BlockParent::Block,
     );
@@ -655,13 +656,7 @@ pub(crate) fn describe(
     let unlink = unlink_permission(client, types, block_types, container);
     let expandable = !is_reference && !reference.references.is_empty();
     let label = reference.label(types);
-    let (name, glyph) = match reference.locked {
-        true => ("Locked".to_owned(), ICON_LOCK.to_owned()),
-        false => (
-            label.name.clone(),
-            label.icon.map(str::to_owned).unwrap_or_default(),
-        ),
-    };
+    let glyph = label_glyph(&label).unwrap_or_default().to_owned();
     let inspection = inspect(
         types,
         reference,
@@ -674,9 +669,9 @@ pub(crate) fn describe(
         key,
         id: Some(reference.id),
         block_type: reference.block_type,
-        label: name,
+        label: label.name.clone(),
         glyph,
-        automatic: label.automatic || reference.locked,
+        automatic: label.automatic,
         depth,
         section: false,
         expandable,
@@ -710,13 +705,14 @@ fn inspect(
         false => format!("{name} (automatic)"),
     };
     let parent = match block.parent {
-        BlockParent::Root => "Root".to_owned(),
-        BlockParent::Detached => "Recently Deleted".to_owned(),
-        BlockParent::Block(id) => described(id),
+        Some(BlockParent::Root) => "Root".to_owned(),
+        Some(BlockParent::Detached) => "Recently Deleted".to_owned(),
+        Some(BlockParent::Block(id)) => described(id),
+        None => "Unknown".to_owned(),
     };
-    let author = match block.author.is_nil() {
-        true => "Unknown".to_owned(),
-        false => block.author.to_string(),
+    let author = match block.author.filter(|author| !author.is_nil()) {
+        Some(author) => author.to_string(),
+        None => "Unknown".to_owned(),
     };
     let generated = block.artifact().map_or_else(
         || "No".to_owned(),

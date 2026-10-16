@@ -380,7 +380,7 @@ fn Recents(editor: Editor) -> NodeId {
         .map(|view| editor.watch_blocks(BlockQuery::Block(view)));
     let profile = create_memo(move || {
         let listed = view.as_ref()?.get()?;
-        listed.first()?.parent.block()
+        listed.first()?.parent?.block()
     });
     let own = editor.block_id();
     let recents = editor
@@ -528,7 +528,7 @@ fn LevelRows(
                         },
                         |id| id.to_string(),
                     );
-                    row.can_leave = entry && info.author != account;
+                    row.can_leave = entry && info.author != Some(account);
                     row
                 })
                 .collect::<Vec<Row>>(),

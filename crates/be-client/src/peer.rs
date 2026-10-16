@@ -337,7 +337,7 @@ impl<S: ObjectStore> Peer<S> {
     async fn scope_key_under(&self, parent: Uuid) -> Result<Uuid, ClientError> {
         let summary = self.summary(parent).await?;
         self.note(&summary);
-        self.scope_key(summary.scope).await
+        self.scope_key(scope_of(&summary)?).await
     }
 
     async fn new_keys(
@@ -1130,7 +1130,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn own_scope(&self, block: Uuid) -> Result<KeySet, ClientError> {
-        let parent = self.summary(block).await?.parent;
+        let parent = parent_of(&self.summary(block).await?)?;
         self.rescope(block, parent, true).await
     }
 
@@ -1155,7 +1155,8 @@ impl<S: ObjectStore> Peer<S> {
         own: bool,
     ) -> Result<KeySet, ClientError> {
         let moved = self.summary(block).await?;
-        let shared = own || (moved.scope == block && matches!(moved.parent, BlockParent::Block(_)));
+        let shared = own
+            || (moved.scope == Some(block) && matches!(moved.parent, Some(BlockParent::Block(_))));
         let parent_scope = match parent {
             BlockParent::Block(parent) => Some(self.scope_key_under(parent).await?),
             BlockParent::Root | BlockParent::Detached => None,
@@ -1190,7 +1191,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         let mut pending = vec![moved];
         while let Some(node) = pending.pop() {
-            if node.id != block && node.scope == node.id {
+            if node.id != block && node.scope == Some(node.id) {
                 if let Some(nested) = self.keys.scope_key(node.id)
                     && !wrapped_under(nested)
                 {
@@ -1361,6 +1362,21 @@ impl<S: ObjectStore> Peer<S> {
         self.retrying(|| Ok(self.commits.vault().open(payload)?))
             .await
     }
+}
+
+pub(crate) fn scope_of(summary: &BlockSummary) -> Result<Uuid, ClientError> {
+    summary.scope.ok_or_else(|| unseen(summary.id))
+}
+
+pub(crate) fn parent_of(summary: &BlockSummary) -> Result<BlockParent, ClientError> {
+    summary.parent.ok_or_else(|| unseen(summary.id))
+}
+
+fn unseen(block: Uuid) -> ClientError {
+    ClientError::Refused(
+        ErrorCode::PermissionDenied,
+        format!("block {block} is not readable by this account"),
+    )
 }
 
 fn locked(error: impl Into<ClientError>) -> ClientError {

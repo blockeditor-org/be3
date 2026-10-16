@@ -118,16 +118,34 @@ pub struct OwnSealed {
 pub struct BlockSummary {
     pub id: Uuid,
     pub content_type: Uuid,
-    pub author: Uuid,
-    pub parent: BlockParent,
-    pub head: Option<CommitId>,
     pub access: Access,
+    pub author: Option<Uuid>,
+    pub parent: Option<BlockParent>,
+    pub head: Option<CommitId>,
     pub references: Vec<Uuid>,
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
-    pub version: u64,
+    pub version: Option<u64>,
     pub key: Option<Uuid>,
-    pub scope: Uuid,
+    pub scope: Option<Uuid>,
+}
+
+impl BlockSummary {
+    pub fn no_access(id: Uuid, content_type: Uuid, access: Access) -> Self {
+        Self {
+            id,
+            content_type,
+            access,
+            author: None,
+            parent: None,
+            head: None,
+            references: Vec::new(),
+            metadata: Vec::new(),
+            version: None,
+            key: None,
+            scope: None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]

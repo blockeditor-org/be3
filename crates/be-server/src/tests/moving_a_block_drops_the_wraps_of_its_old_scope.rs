@@ -10,7 +10,7 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
     let to = owner.scope_root(account, BlockParent::Root).await;
     let (document, old_key) = owner.inside(&from).await;
     let (elsewhere, _) = owner.inside(&to).await;
-    assert_eq!(owner.read_block(document).await.scope, from.block);
+    assert_eq!(owner.read_block(document).await.scope, Some(from.block));
 
     let stray = owner
         .send(|request| ClientMessage::SetParent {
@@ -29,7 +29,7 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
     );
     assert_eq!(
         owner.read_block(document).await.parent,
-        BlockParent::Block(from.block)
+        Some(BlockParent::Block(from.block))
     );
 
     let fresh = Uuid::new_v4();
@@ -63,7 +63,7 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
     let moved = owner.read_block(document).await;
     assert_eq!(moved.key, Some(fresh));
-    assert_eq!(moved.scope, to.block);
+    assert_eq!(moved.scope, Some(to.block));
 
     let keys = owner.keys(None).await;
     let mut wraps: Vec<_> = keys

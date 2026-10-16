@@ -392,8 +392,8 @@ impl ContentStore {
                 let info = BlockInfo::decode(block_plugin_api::BlockInfo {
                     block_id: *block_id,
                     block_type: *content_type,
-                    author: Uuid::nil().into_bytes(),
-                    parent: *parent,
+                    author: Some(Uuid::nil().into_bytes()),
+                    parent: Some(*parent),
                     references: Vec::new(),
                     access: block_plugin_api::AccessLevel::Edit,
                     metadata: block_plugin_api::BlockMetadata {
@@ -420,7 +420,7 @@ impl ContentStore {
                     .graph
                     .get_mut(&Uuid::from_bytes(*block_id))
                 {
-                    info.parent = BlockParent::decode(*parent);
+                    info.parent = Some(BlockParent::decode(*parent));
                 }
             }
             EditorMessage::Define {
@@ -523,27 +523,30 @@ impl ContentStore {
             BlockQuery::All => nodes.clone(),
             BlockQuery::Roots => nodes
                 .iter()
-                .filter(|node| node.parent == BlockParent::Root)
+                .filter(|node| node.parent == Some(BlockParent::Root))
                 .cloned()
                 .collect(),
             BlockQuery::Shared => nodes
                 .iter()
                 .filter(|node| {
                     node.access.can_view()
-                        && node.parent.block().is_some_and(|parent| {
-                            !known(&parent).is_some_and(|above| above.access.can_view())
-                        })
+                        && node
+                            .parent
+                            .and_then(BlockParent::block)
+                            .is_some_and(|parent| {
+                                !known(&parent).is_some_and(|above| above.access.can_view())
+                            })
                 })
                 .cloned()
                 .collect(),
             BlockQuery::Detached => nodes
                 .iter()
-                .filter(|node| node.parent == BlockParent::Detached)
+                .filter(|node| node.parent == Some(BlockParent::Detached))
                 .cloned()
                 .collect(),
             BlockQuery::Children(parent) => nodes
                 .iter()
-                .filter(|node| node.parent == BlockParent::Block(parent))
+                .filter(|node| node.parent == Some(BlockParent::Block(parent)))
                 .cloned()
                 .collect(),
             BlockQuery::References(block) => {
@@ -556,7 +559,7 @@ impl ContentStore {
                 .collect(),
             BlockQuery::Parents(block) => {
                 let mut chain = Vec::new();
-                let mut current = known(&block).and_then(|node| node.parent.block());
+                let mut current = known(&block).and_then(|node| node.parent?.block());
                 while let Some(parent) = current {
                     let Some(node) = known(&parent) else {
                         break;
@@ -564,7 +567,7 @@ impl ContentStore {
                     if chain.iter().any(|seen: &BlockInfo| seen.id == parent) {
                         break;
                     }
-                    current = node.parent.block();
+                    current = node.parent.and_then(BlockParent::block);
                     chain.push(node);
                 }
                 chain.reverse();

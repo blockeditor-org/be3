@@ -17,7 +17,7 @@ fn the_files_are_shown_by_workspace_then_what_is_shared() {
     let files = workspace.id;
     let mut shared_space = BlockInfo::new(team, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
     shared_space.set_name("Team");
-    shared_space.author = Uuid::from_u128(9);
+    shared_space.author = Some(Uuid::from_u128(9));
     shared_space.access = AccessLevel::View;
     fixture
         .host
@@ -31,7 +31,7 @@ fn the_files_are_shown_by_workspace_then_what_is_shared() {
         .set_blocks(BlockQuery::References(team), Vec::new());
     let mut given = BlockInfo::new(plan, text_type, BlockParent::Block(elsewhere));
     given.set_intrinsic_name("Plan");
-    given.author = Uuid::from_u128(9);
+    given.author = Some(Uuid::from_u128(9));
     given.access = AccessLevel::View;
     fixture.host.set_blocks(BlockQuery::Shared, vec![given]);
     fixture.settle();

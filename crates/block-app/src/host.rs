@@ -276,6 +276,7 @@ pub(crate) enum HostItem {
     Notice {
         text: String,
         spinner: bool,
+        icon: Option<&'static str>,
     },
     Fallback {
         name: String,

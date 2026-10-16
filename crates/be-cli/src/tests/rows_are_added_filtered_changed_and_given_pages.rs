@@ -94,7 +94,7 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
     assert!(entry.value(board.status).is_some());
     let page = entry.page().unwrap();
     let summary = tracker.peer().summary(page).await.unwrap();
-    assert_eq!(summary.parent, BlockParent::Block(board.database));
+    assert_eq!(summary.parent, Some(BlockParent::Block(board.database)));
     assert_eq!(
         tracker
             .peer()
@@ -115,7 +115,7 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
     assert!(tracker.show(&made.id).await.is_err());
     assert_eq!(
         tracker.peer().summary(page).await.unwrap().parent,
-        BlockParent::Detached
+        Some(BlockParent::Detached)
     );
 
     harness.stop().await;

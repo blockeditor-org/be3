@@ -1391,8 +1391,8 @@ pub struct BlockMetadata {
 pub struct BlockInfo {
     pub block_id: [u8; 16],
     pub block_type: [u8; 16],
-    pub author: [u8; 16],
-    pub parent: BlockLocation,
+    pub author: Option<[u8; 16]>,
+    pub parent: Option<BlockLocation>,
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
     pub metadata: BlockMetadata,

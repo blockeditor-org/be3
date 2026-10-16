@@ -56,9 +56,10 @@ pub(crate) fn block(info: Option<&BlockInfo>, types: &dyn BlockTypes) -> Entry {
         return Entry::leaf("block", "loading");
     };
     let parent = match info.parent {
-        BlockParent::Root => "root".to_owned(),
-        BlockParent::Detached => "detached".to_owned(),
-        BlockParent::Block(parent) => parent.to_string(),
+        Some(BlockParent::Root) => "root".to_owned(),
+        Some(BlockParent::Detached) => "detached".to_owned(),
+        Some(BlockParent::Block(parent)) => parent.to_string(),
+        None => "unknown".to_owned(),
     };
     let references = info
         .references
@@ -69,7 +70,11 @@ pub(crate) fn block(info: Option<&BlockInfo>, types: &dyn BlockTypes) -> Entry {
     let mut children = vec![
         Entry::leaf("id", info.id.to_string()),
         Entry::leaf("type", type_name(types, info.block_type)),
-        Entry::leaf("author", info.author.to_string()),
+        Entry::leaf(
+            "author",
+            info.author
+                .map_or_else(|| "unknown".to_owned(), |author| author.to_string()),
+        ),
         Entry::leaf("parent", parent),
         Entry::leaf("name", info.name().unwrap_or_default()),
         Entry::leaf("named by hand", info.named_by_hand().to_string()),

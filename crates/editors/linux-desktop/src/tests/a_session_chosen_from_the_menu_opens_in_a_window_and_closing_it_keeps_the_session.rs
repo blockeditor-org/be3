@@ -36,7 +36,7 @@ fn a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_ses
             .test
             .store()
             .block(sessions[0])
-            .map(|info| info.parent),
+            .and_then(|info| info.parent),
         Some(BlockParent::Block(fixture.settings)),
         "closing the window keeps the session where it was"
     );

@@ -501,6 +501,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     let loading_item = create_memo(|| HostItem::Notice {
         text: "Loading plugin…".to_owned(),
         spinner: true,
+        icon: None,
     });
     view! {
         <Frame align=Align::Center>

@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::app::FileTreeApp;
 
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
+mod a_linked_block_it_cannot_see_shows_no_access_rather_than_locked;
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
 mod a_new_workspace_is_made_at_the_top_and_named_by_hand;
 mod a_phone_lists_what_is_shared_with_it;
@@ -110,7 +111,7 @@ fn files_workspace(
     use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
     use block_editor_beui::{BlockInfo, BlockParent};
     let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
-    files.author = host.account_id();
+    files.author = Some(host.account_id());
     files.set_name("My files");
     files
         .metadata

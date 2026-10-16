@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    Published(CommitId, bool),
+    Published(CommitId, Option<Vec<Uuid>>),
     Rejected(Option<CommitId>),
 }
 
@@ -93,18 +93,22 @@ fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockS
 
 fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<BlockSummary> {
     let node = graph.get(block)?;
+    let access = seen.access(graph, block);
+    if !access.can_view() {
+        return Some(BlockSummary::no_access(block, node.content_type, access));
+    }
     Some(BlockSummary {
         id: block,
         content_type: node.content_type,
-        author: node.author,
-        parent: node.parent,
+        access,
+        author: Some(node.author),
+        parent: Some(node.parent),
         head: node.head,
-        access: seen.access(graph, block),
         references: node.references.clone(),
         metadata: node.metadata.clone(),
-        version: node.version,
+        version: Some(node.version),
         key: node.key,
-        scope: graph.scope(block),
+        scope: Some(graph.scope(block)),
     })
 }
 
@@ -223,6 +227,11 @@ impl ServerStore {
                     false => touched.push(block),
                 }
             }
+            let referenced: Vec<Uuid> = touched
+                .iter()
+                .flat_map(|block| graph.references(*block))
+                .collect();
+            touched.extend(referenced);
             touched.sort_unstable();
             touched.dedup();
             Ok(members
@@ -312,16 +321,23 @@ impl ServerStore {
                 return Ok(PublishOutcome::Rejected(current));
             }
             if current == Some(commit) {
-                return Ok(PublishOutcome::Published(commit, false));
+                return Ok(PublishOutcome::Published(commit, None));
             }
             let mut references = references;
             let mut seen = std::collections::HashSet::new();
             references.retain(|reference| seen.insert(*reference));
-            let relinked = graph.references(block) != references;
-            let redescribed = relinked
+            let before = graph.references(block);
+            let relinked = before != references;
+            let redescribed = (relinked
                 || graph
                     .get(block)
-                    .is_some_and(|node| node.metadata != metadata);
+                    .is_some_and(|node| node.metadata != metadata))
+            .then(|| {
+                before
+                    .into_iter()
+                    .filter(|reference| !references.contains(reference))
+                    .collect()
+            });
             let transaction = database.unchecked_transaction()?;
             let organization = identity.organization.to_string();
             let existing: Option<i64> = transaction

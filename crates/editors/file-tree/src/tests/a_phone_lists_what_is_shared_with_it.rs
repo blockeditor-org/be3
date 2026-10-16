@@ -13,7 +13,7 @@ fn a_phone_lists_what_is_shared_with_it() {
         BlockParent::Block(Uuid::from_u128(6)),
     );
     given.set_intrinsic_name("Plan");
-    given.author = Uuid::from_u128(9);
+    given.author = Some(Uuid::from_u128(9));
     given.access = AccessLevel::View;
     fixture.host.set_blocks(BlockQuery::Shared, vec![given]);
     fixture.settle();

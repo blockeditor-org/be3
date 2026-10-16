@@ -11,6 +11,7 @@ use crate::app::TextApp;
 use crate::app::embeds::{image_embed_directive, parse_embeds};
 use crate::presence::TextCursor;
 
+mod a_link_to_a_block_you_cannot_see_reads_no_access_beside_one_you_can;
 mod a_peers_caret_and_selection_are_drawn_in_their_color;
 mod a_phone_formats_from_a_bar_above_the_keyboard;
 mod a_rewrite_refused_while_read_only_leaves_the_text_as_it_was;

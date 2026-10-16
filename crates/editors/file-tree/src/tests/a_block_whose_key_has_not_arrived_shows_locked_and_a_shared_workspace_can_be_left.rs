@@ -19,7 +19,7 @@ fn a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_
     let workspace = files_workspace(&fixture.host, &inside);
     let mut shared_space = BlockInfo::new(team, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
     shared_space.set_name("Team");
-    shared_space.author = Uuid::from_u128(9);
+    shared_space.author = Some(Uuid::from_u128(9));
     shared_space.access = AccessLevel::View;
     fixture
         .host

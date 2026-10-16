@@ -310,12 +310,15 @@ impl<S: ObjectStore> Tracker<S> {
         let summaries = self.peer.list_blocks().await.map_err(explain)?;
         self.peer.learn(&summaries).await.map_err(explain)?;
         for summary in summaries {
+            let Some(parent) = summary.parent else {
+                continue;
+            };
             let metadata = self.peer.metadata(&summary).unwrap_or_default();
             entries.push(Entry {
                 id: summary.id,
                 short: String::new(),
                 block_type: summary.content_type,
-                parent: summary.parent,
+                parent,
                 name: metadata.name(),
                 prefix: metadata.get(&be_block::ROW_PREFIX),
                 references: summary.references,

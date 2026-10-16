@@ -75,7 +75,7 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
     });
     for side in sides {
         assert_eq!(
-            node(side).map(|node| node.parent),
+            node(side).and_then(|node| node.parent),
             Some(be_graph::BlockParent::Detached)
         );
     }

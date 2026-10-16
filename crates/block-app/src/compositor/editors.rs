@@ -958,6 +958,7 @@ fn BlockFrameBody(
                             let item = HostItem::Notice {
                                 text: "No access".to_owned(),
                                 spinner: false,
+                                icon: Some(beui::icons::ICON_LOCK),
                             };
                             view! {
                                 <Notice item />
@@ -971,6 +972,7 @@ fn BlockFrameBody(
                                 text: "Locked: its key has not been shared with you yet"
                                     .to_owned(),
                                 spinner: false,
+                                icon: Some(beui::icons::ICON_LOCK),
                             };
                             view! {
                                 <Notice item />
