@@ -176,16 +176,25 @@ time, so notifications wait for the next post.
 - A publish writes one head update, the handful of edge rows the commit
   declares, and refcounts for chunks it actually introduced. It does not rewrite
   the workspace.
-- Access is computed per member (`Visibility` in `blocks.rs`, over
-  `BlockGraph::access_map`). A workspace administrator edits everything. Anyone
-  else gets `Edit` on what they authored and whatever they were granted, and
-  both are inherited down through parents; a block they can see references
-  gives them `KnowExists` on it, and so does being an ancestor of anything they
-  know of, so the path to a shared block is visible without its content.
-  `SetAccess` grants, and only someone who may edit a block may grant on it.
-- Graph announcements are per member too: when a block changes, every
-  connected member of the workspace is sent the `BlockChanged` their own access
-  lets them see, or a `BlockRemoved` when it no longer does.
+- Access is computed per member (`Visibility` in `blocks.rs`). A workspace
+  administrator edits everything. Anyone else gets `Edit` on what they
+  authored and whatever they were granted, and both are inherited down through
+  parents; a block they can see references gives them `KnowExists` on it, and
+  so does being an ancestor of anything they know of, so the path to a shared
+  block is visible without its content. `SetAccess` grants, and only someone
+  who may edit a block may grant on it.
+- Nothing that runs per request or per publish maps the whole graph.
+  `BlockGraph` indexes children by parent and blocks by the accounts that
+  authored them or hold a grant on them (their entry points).
+  `BlockGraph::inherited` walks up from one block, which answers every edit
+  and view check; `visible` walks down from an account's entry points to list
+  what it knows of; `audience` names the accounts that may know a block or
+  anything below it.
+- Graph announcements are per member too: when a block changes, each connected
+  client whose account is in the block's audience before or after the change
+  (and every administrator) is sent the `BlockChanged` its own access lets it
+  see, or a `BlockRemoved` when it no longer does. `WatchHub` indexes clients
+  by workspace and account, so this never scans every connection.
 - Accounts live here. `Register` (refused unless the server runs with
   `--allow-registration`; the app's embedded server and the dev targets do),
   `Login` (refused unless the server runs with `--allow-login`, so a server

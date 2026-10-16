@@ -1478,7 +1478,12 @@ crates = {
     "crates/be-graph": {
         "binaries": [],
         "edition": "2024",
-        "examples": [],
+        "examples": [
+            {
+                "crate_root": "examples/access-bench.rs",
+                "name": "access-bench",
+            },
+        ],
         "library": {
             "crate": "be_graph",
             "crate_root": "src/lib.rs",
@@ -1494,7 +1499,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1507,7 +1522,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1520,7 +1545,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1533,7 +1568,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1546,7 +1591,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1572,7 +1627,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1585,7 +1650,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],

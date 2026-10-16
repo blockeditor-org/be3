@@ -17,6 +17,8 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   keeps grow from empty every time. A long-lived document reuses the slots of the nodes
   it removed; don't chase the growth of those tables in a profile of the bench.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
+- `//crates/be-graph:example-access-bench` times the server's access queries (one block,
+  what one account sees, a block's audience) on an organization of 100,000 blocks.
 
 The target for opening a page is under 2 ms warm.
 

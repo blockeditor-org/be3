@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     error::Error,
     fmt, io,
     net::SocketAddr,
@@ -628,7 +629,8 @@ impl Connection {
                     .store
                     .create_block(identity, block, content_type, parent, metadata)
                     .await?;
-                self.reannounce(identity, vec![block.id], false).await;
+                self.reannounce(identity, vec![block.id], false, BTreeSet::new())
+                    .await;
                 Ok(ServerMessage::Block { request, block })
             }
             ClientMessage::ListBlocks { request } => Ok(ServerMessage::Blocks {
@@ -642,7 +644,8 @@ impl Connection {
             } => {
                 let identity = self.identity()?;
                 let block = self.store.set_metadata(identity, block, metadata).await?;
-                self.reannounce(identity, vec![block.id], false).await;
+                self.reannounce(identity, vec![block.id], false, BTreeSet::new())
+                    .await;
                 Ok(ServerMessage::Block { request, block })
             }
             ClientMessage::Publish {
@@ -668,7 +671,8 @@ impl Connection {
                 if let PublishOutcome::Published(_, redescribed) = outcome
                     && redescribed
                 {
-                    self.reannounce(identity, vec![block], false).await;
+                    self.reannounce(identity, vec![block], false, BTreeSet::new())
+                        .await;
                 }
                 Ok(match outcome {
                     PublishOutcome::Published(head, _) => {
@@ -708,8 +712,8 @@ impl Connection {
                 parent,
             } => {
                 let identity = self.identity()?;
-                self.store.set_parent(identity, block, parent).await?;
-                self.reannounce(identity, vec![block], true).await;
+                let before = self.store.set_parent(identity, block, parent).await?;
+                self.reannounce(identity, vec![block], true, before).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListChildren { request, parent } => Ok(ServerMessage::Blocks {
@@ -741,8 +745,8 @@ impl Connection {
             }
             ClientMessage::DeleteBlock { request, block } => {
                 let identity = self.identity()?;
-                self.store.delete_block(identity, block).await?;
-                self.reannounce(identity, vec![block], true).await;
+                let before = self.store.delete_block(identity, block).await?;
+                self.reannounce(identity, vec![block], true, before).await;
                 self.hub
                     .broadcast(block, self.client, ServerMessage::BlockDeleted { block })
                     .await;
@@ -772,10 +776,11 @@ impl Connection {
                 access,
             } => {
                 let identity = self.identity()?;
-                self.store
+                let before = self
+                    .store
                     .set_access(identity, block, account, access)
                     .await?;
-                self.reannounce(identity, vec![block], true).await;
+                self.reannounce(identity, vec![block], true, before).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListAccess { request, block } => Ok(ServerMessage::AccessList {
@@ -973,8 +978,22 @@ impl Connection {
         }
     }
 
-    async fn reannounce(&self, identity: Identity, blocks: Vec<Uuid>, subtree: bool) {
-        let members = self.hub.members(identity.workspace).await;
+    async fn reannounce(
+        &self,
+        identity: Identity,
+        blocks: Vec<Uuid>,
+        subtree: bool,
+        before: BTreeSet<Uuid>,
+    ) {
+        let Ok(mut accounts) = self
+            .store
+            .audience(identity.workspace, blocks.clone())
+            .await
+        else {
+            return;
+        };
+        accounts.extend(before);
+        let members = self.hub.audience(identity.workspace, &accounts).await;
         let identities = members.iter().map(|(_, member)| *member).collect();
         let Ok(views) = self
             .store
