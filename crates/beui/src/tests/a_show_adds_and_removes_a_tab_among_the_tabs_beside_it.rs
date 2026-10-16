@@ -34,7 +34,7 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
         "a hidden show puts no tab between the tabs written around it"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_extra.set(true));
+    set_extra.set(true);
     harness.frame(Vec::new());
 
     assert_eq!(

@@ -29,7 +29,7 @@ fn a_theme_provider_restyles_its_subtree_when_its_theme_changes() {
     assert_eq!(fills(&dark, Theme::DARK.accent), 1);
     assert_eq!(fills(&dark, Theme::EINK.accent), 0);
 
-    with_reactive_scope(harness.document_mut(), move || set_theme.set(Theme::EINK));
+    set_theme.set(Theme::EINK);
     let eink = harness.frame(vec![]);
     assert_eq!(fills(&eink, Theme::DARK.accent), 0);
     assert_eq!(fills(&eink, Theme::EINK.accent), 1);

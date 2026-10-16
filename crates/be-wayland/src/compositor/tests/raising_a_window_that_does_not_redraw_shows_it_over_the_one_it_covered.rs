@@ -106,11 +106,11 @@ impl Screen {
     }
 }
 
-fn stack(harness: &mut Harness, order: Vec<WindowId>) {
+fn stack(order: Vec<WindowId>) {
     let set = ORDER
         .with(|held| *held.borrow())
         .expect("the stack is shown");
-    with_reactive_scope(&mut harness.document, move || set.set(order));
+    set.set(order);
 }
 
 fn opened(harness: &mut Harness, screen: &mut Screen, color: [u8; 4]) -> (TestWindow, WindowId) {
@@ -145,15 +145,15 @@ fn raising_a_window_that_does_not_redraw_shows_it_over_the_one_it_covered() {
     });
     let mut screen = Screen::new(device, queue);
     let (_red, first) = opened(&mut harness, &mut screen, RED);
-    stack(&mut harness, vec![first]);
+    stack(vec![first]);
     screen.settle(&mut harness);
     let (_blue, second) = opened(&mut harness, &mut screen, BLUE);
-    stack(&mut harness, vec![first, second]);
+    stack(vec![first, second]);
     screen.settle(&mut harness);
     let middle = harness.window(first).center();
     assert_eq!(screen.at(middle), BLUE, "the later window is on top");
 
-    stack(&mut harness, vec![second, first]);
+    stack(vec![second, first]);
     screen.settle(&mut harness);
     assert_eq!(
         screen.at(middle),

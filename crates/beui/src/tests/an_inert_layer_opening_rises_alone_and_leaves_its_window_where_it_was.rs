@@ -75,7 +75,7 @@ fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
     let (start_below, start_above) = order(&harness);
     assert!(start_below < start_above, "the later window starts on top");
 
-    with_reactive_scope(harness.document_mut(), move || set_tip.set(true));
+    set_tip.set(true);
     harness.frame(Vec::new());
     let (now_below, now_above) = order(&harness);
     assert!(
@@ -88,7 +88,7 @@ fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
         "while the tooltip itself rises over the window it hangs in"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_menu.set(true));
+    set_menu.set(true);
     harness.frame(Vec::new());
     let (now_below, now_above) = order(&harness);
     assert!(

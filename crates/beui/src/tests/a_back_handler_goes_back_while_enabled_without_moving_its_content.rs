@@ -27,7 +27,7 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 0);
 
-    with_reactive_scope(harness.document_mut(), move || set_enabled.set(true));
+    set_enabled.set(true);
     assert!(harness.frame(Vec::new()).window.handles_back);
     let resting = harness.rect(page.get());
 

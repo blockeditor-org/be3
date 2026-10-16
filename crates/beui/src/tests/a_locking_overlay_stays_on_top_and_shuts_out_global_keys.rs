@@ -60,7 +60,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let popup = kind_of::<OverlayNode>(harness.document(), popup.get());
     let outside = harness.find("outside");
     let set = |harness: &mut Harness, signal: WriteSignal<bool>, value: bool| {
-        with_reactive_scope(harness.document_mut(), move || signal.set(value));
+        signal.set(value);
         harness.frame(Vec::new());
     };
 

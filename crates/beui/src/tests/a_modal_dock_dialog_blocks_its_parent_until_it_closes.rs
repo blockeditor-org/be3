@@ -16,9 +16,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     assert_eq!(harness.document().focused_node(), Some(field));
     set_pressed.update(|pressed| pressed.clear());
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || {
-        set_dialogs.set(vec![(10, 1, false)]);
-    });
+    set_dialogs.set(vec![(10, 1, false)]);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let dialog = harness.find("dialog.10.field");
@@ -45,9 +43,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     );
     set_pressed.update(|pressed| pressed.clear());
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || {
-        set_dialogs.set(vec![(10, 1, true)]);
-    });
+    set_dialogs.set(vec![(10, 1, true)]);
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().focused_node(),
@@ -95,7 +91,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         "keys reach the dialog, not the parent"
     );
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || set_dialogs.set(Vec::new()));
+    set_dialogs.set(Vec::new());
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

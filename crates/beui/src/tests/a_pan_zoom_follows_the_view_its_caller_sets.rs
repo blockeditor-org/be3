@@ -17,9 +17,7 @@ fn a_pan_zoom_follows_the_view_its_caller_sets() {
     harness.frame(Vec::new());
 
     let set_view = signal.get_untracked().expect("the view was not kept");
-    with_reactive_scope(harness.document_mut(), move || {
-        set_view.set(PanZoomView::new(pos2(50.0, 25.0), 2.0));
-    });
+    set_view.set(PanZoomView::new(pos2(50.0, 25.0), 2.0));
     harness.frame(Vec::new());
 
     assert_eq!(

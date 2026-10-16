@@ -32,13 +32,11 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || {
-        layout.show(&2);
-        layout.show(&1);
-    });
+    layout.show(&2);
+    layout.show(&1);
     harness.frame(Vec::new());
     harness.document_mut().focus_focusable(program.get());
-    with_reactive_scope(harness.document_mut(), move || layout.begin_switch(false));
+    layout.begin_switch(false);
     harness.frame(Vec::new());
     assert!(layout.switching());
     set_heard.set(Vec::new());

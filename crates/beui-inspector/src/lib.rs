@@ -634,7 +634,7 @@ impl Inspector {
         let compact = self.state().compact.get();
         if std::mem::replace(&mut self.shown_compact, compact) != compact {
             let set_compact = self.panel_compact;
-            with_reactive_scope(&mut self.document, || set_compact.set(compact));
+            set_compact.set(compact);
         }
         let document = &mut self.document;
         if panel.is_positive() {
@@ -798,7 +798,7 @@ impl Inspector {
             ..
         } = &mut self.toolbar;
         if let Some(simulation) = self.state.get().screen_simulation.get() {
-            with_reactive_scope(document, || set_screen.set(simulation));
+            set_screen.set(simulation);
         }
         let area = toolbar.union(content).scaled(scale.recip());
         ctx.scaled(scale, || {
@@ -821,7 +821,7 @@ impl Inspector {
             set_selected,
             ..
         } = &mut self.bar;
-        with_reactive_scope(document, || set_selected.set(selected));
+        set_selected.set(selected);
         ctx.scaled(scale, || {
             ctx.with_input(
                 |input| keyed(input, false),
@@ -885,31 +885,19 @@ impl Inspector {
             .renderer_info()
             .map(|info| info.rows)
             .unwrap_or_default();
-        let Self {
-            document,
-            set_keys,
-            set_entries,
-            set_summary,
-            set_performance,
-            set_renderer,
-            set_renderers,
-            set_selection,
-            ..
-        } = self;
-        with_reactive_scope(document, || {
-            set_keys.set(entries.iter().map(|entry| entry.key).collect());
-            set_entries.set(
-                entries
-                    .iter()
-                    .map(|entry| (entry.key, entry.clone()))
-                    .collect(),
-            );
-            set_summary.set(summary);
-            set_performance.set(performance);
-            set_renderer.set(renderer);
-            set_renderers.set(ctx.renderers());
-            set_selection.set(selection);
-        });
+        self.set_keys
+            .set(entries.iter().map(|entry| entry.key).collect());
+        self.set_entries.set(
+            entries
+                .iter()
+                .map(|entry| (entry.key, entry.clone()))
+                .collect(),
+        );
+        self.set_summary.set(summary);
+        self.set_performance.set(performance);
+        self.set_renderer.set(renderer);
+        self.set_renderers.set(ctx.renderers());
+        self.set_selection.set(selection);
         self.entries = entries;
     }
 

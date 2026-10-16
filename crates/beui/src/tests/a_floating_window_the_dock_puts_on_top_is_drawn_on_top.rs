@@ -67,7 +67,7 @@ fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     for program in [2, 3, 1] {
-        with_reactive_scope(harness.document_mut(), move || layout.show(&program));
+        layout.show(&program);
         harness.frame(Vec::new());
     }
     assert_eq!(
@@ -86,7 +86,7 @@ fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
         "the covered window keeps the focus"
     );
 
-    with_reactive_scope(harness.document_mut(), move || layout.show(&1));
+    layout.show(&1);
     harness.frame(Vec::new());
     assert_eq!(
         drawn_bottom_up(&harness),

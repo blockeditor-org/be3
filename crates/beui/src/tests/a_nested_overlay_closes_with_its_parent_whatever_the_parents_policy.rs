@@ -54,7 +54,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
         signal: WriteSignal<T>,
         value: T,
     ) {
-        with_reactive_scope(harness.document_mut(), move || signal.set(value));
+        signal.set(value);
         harness.frame(Vec::new());
     }
     assert!(harness.document().is_overlay_open(inner.id()));

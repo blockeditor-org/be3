@@ -48,17 +48,15 @@ fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
         "a layer that passes and traps nothing changes neither"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_traps.set(true));
+    set_traps.set(true);
     assert_eq!(
         tap(&mut harness),
         (true, true),
         "one that traps the focus wants the keyboard, and the fingers still tap the document"
     );
 
-    with_reactive_scope(harness.document_mut(), move || {
-        set_traps.set(false);
-        set_policy.set(LayerPolicy::BlocksAll);
-    });
+    set_traps.set(false);
+    set_policy.set(LayerPolicy::BlocksAll);
     assert_eq!(
         tap(&mut harness),
         (false, false),

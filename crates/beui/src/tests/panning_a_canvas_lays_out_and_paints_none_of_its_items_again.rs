@@ -25,9 +25,7 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
     harness.frame(Vec::new());
     let first = harness.frame(Vec::new()).shapes().len();
 
-    with_reactive_scope(harness.document_mut(), move || {
-        set_view.set(Some(CanvasView::new(pos2(25.0, 15.0), 1.0)))
-    });
+    set_view.set(Some(CanvasView::new(pos2(25.0, 15.0), 1.0)));
     let output = harness.frame(Vec::new());
     let work = harness.document().performance().latest.work;
     assert_eq!(

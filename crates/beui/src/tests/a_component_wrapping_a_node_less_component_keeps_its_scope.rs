@@ -31,7 +31,7 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
     }]);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_count.set(2));
+    set_count.set(2);
     harness.frame(Vec::new());
 
     let content = unstyled::context_menu_menu(harness.document(), menu.get());

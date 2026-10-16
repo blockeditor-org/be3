@@ -61,9 +61,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let docked = harness.rect(harness.find("content.2"));
     let over_bar = harness.center(harness.find("bar"));
 
-    with_reactive_scope(harness.document_mut(), move || {
-        layout.enter_fullscreen(&2, None)
-    });
+    layout.enter_fullscreen(&2, None);
     harness.settle();
     assert_eq!(layout.fullscreen(), Some(2));
     assert_eq!(
@@ -94,7 +92,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
         "and the wheel"
     );
 
-    with_reactive_scope(harness.document_mut(), move || layout.leave_fullscreen());
+    layout.leave_fullscreen();
     harness.settle();
     assert_eq!(layout.fullscreen(), None);
     assert_eq!(

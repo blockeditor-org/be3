@@ -200,6 +200,7 @@ impl Runner {
         renderers.provide(&mut setup);
         self.renderers = Some(renderers);
         self.waker = Some(setup.waker.clone());
+        self.context.set_waker(setup.waker.clone());
         if let Some(automation) = &self.automation {
             automation.inbox().set_waker(setup.waker.clone());
         }

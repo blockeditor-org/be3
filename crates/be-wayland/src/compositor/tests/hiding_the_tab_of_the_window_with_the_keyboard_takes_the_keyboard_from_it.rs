@@ -48,7 +48,7 @@ fn show(harness: &mut Harness, tab: u64) {
     let layout = LAYOUT
         .with(std::cell::Cell::get)
         .expect("the dock was built");
-    with_reactive_scope(&mut harness.document, move || layout.show(&tab));
+    layout.show(&tab);
     harness.settle();
 }
 

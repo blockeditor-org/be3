@@ -33,7 +33,7 @@ fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
     harness.frame(Vec::new());
     assert!(slot.placement().is_some());
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(false));
+    set_shown.set(false);
     harness.frame(Vec::new());
 
     assert!(

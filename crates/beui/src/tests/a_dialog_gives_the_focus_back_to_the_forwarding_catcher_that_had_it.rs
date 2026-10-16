@@ -40,7 +40,7 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
     harness.document_mut().focus_focusable(catcher.get());
     assert!(harness.document().focus_is_within(catcher.get()));
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    set_open.set(true);
     harness.frame(Vec::new());
     assert!(harness.document().focus_is_within(field.get()));
 

@@ -45,7 +45,7 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
         [tab],
         "only enabled intercepting actions name their chords, and never a chord that types"
     );
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    set_open.set(true);
     assert_eq!(
         harness.frame(Vec::new()).window.intercepted_keys,
         [tab, escape],

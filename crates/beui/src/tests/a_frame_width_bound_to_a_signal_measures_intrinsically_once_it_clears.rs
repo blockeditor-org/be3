@@ -28,7 +28,7 @@ fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
 
     assert_eq!(harness.rect(outer).width(), GIVEN_WIDTH);
 
-    with_reactive_scope(harness.document_mut(), move || set_width.set(None));
+    set_width.set(None);
     harness.frame(Vec::new());
 
     assert_eq!(

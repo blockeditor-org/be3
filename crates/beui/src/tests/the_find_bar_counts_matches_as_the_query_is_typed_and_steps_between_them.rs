@@ -21,9 +21,7 @@ fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.get_untracked().expect("the text area was built");
-    let status = |harness: &mut Harness| {
-        with_reactive_scope(harness.document_mut(), move || state.find_status())
-    };
+    let status = || state.find_status();
 
     harness.click(pos2(300.0, 16.0));
     harness.key(Key::F, Modifiers::CTRL);
@@ -32,14 +30,14 @@ fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        status(&mut harness).total,
+        status().total,
         3,
         "every match of what was typed is counted"
     );
 
     harness.type_text(" t");
     harness.frame(Vec::new());
-    let found = status(&mut harness);
+    let found = status();
     assert_eq!(found.total, 2, "the count follows the query as it grows");
     let first = found.current.expect("typing a query selects a match");
 
@@ -48,7 +46,7 @@ fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
     harness.click(at);
     harness.frame(Vec::new());
     assert_eq!(
-        status(&mut harness).current,
+        status().current,
         Some((first + 1) % 2),
         "next moves to the following match"
     );

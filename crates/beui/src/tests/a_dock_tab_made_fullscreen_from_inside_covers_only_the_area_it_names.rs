@@ -49,9 +49,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     );
     let bar = harness.rect(harness.find("bar"));
 
-    with_reactive_scope(harness.document_mut(), move || {
-        control.enter_fullscreen(Some(left))
-    });
+    control.enter_fullscreen(Some(left));
     harness.settle();
     assert!(control.fullscreen());
     assert_eq!(layout.fullscreen(), Some(1));
@@ -75,7 +73,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
         "inside it, nothing under the tab does"
     );
 
-    with_reactive_scope(harness.document_mut(), move || control.leave_fullscreen());
+    control.leave_fullscreen();
     harness.settle();
     assert!(!control.fullscreen());
     assert_eq!(layout.fullscreen(), None);

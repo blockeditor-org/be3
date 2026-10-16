@@ -72,17 +72,15 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
     let over_other = harness.center(harness.find("other"));
 
     let entering = layout;
-    with_reactive_scope(harness.document_mut(), move || {
-        entering.show(&1);
-        entering.enter_fullscreen(&1, None);
-    });
+    entering.show(&1);
+    entering.enter_fullscreen(&1, None);
     harness.settle();
     hover(&mut harness, over_other);
     assert!(program.get(), "the fullscreen tab covers the other window");
     assert!(!other.get());
 
     let switching = layout;
-    with_reactive_scope(harness.document_mut(), move || switching.show(&2));
+    switching.show(&2);
     harness.settle();
     hover(&mut harness, over_other);
     assert!(
@@ -91,7 +89,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
     );
 
     let back = layout;
-    with_reactive_scope(harness.document_mut(), move || back.show(&1));
+    back.show(&1);
     harness.settle();
     hover(&mut harness, over_other);
     assert_eq!(layout.focused(), Some(1));
@@ -101,7 +99,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
     );
 
     let switching = layout;
-    with_reactive_scope(harness.document_mut(), move || switching.show(&2));
+    switching.show(&2);
     harness.settle();
     assert_eq!(layout.focused(), Some(2));
     harness.click(pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y - 20.0));

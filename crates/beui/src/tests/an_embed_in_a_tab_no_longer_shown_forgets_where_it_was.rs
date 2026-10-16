@@ -37,9 +37,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     harness.frame(Vec::new());
     assert!(first.placement().is_some(), "the tab on show is placed");
 
-    with_reactive_scope(harness.document_mut(), move || {
-        layout.show(&2);
-    });
+    layout.show(&2);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 
@@ -49,9 +47,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
         "a tab hidden behind a group no longer claims the place it was shown at"
     );
 
-    with_reactive_scope(harness.document_mut(), move || {
-        layout.show(&1);
-    });
+    layout.show(&1);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 
@@ -61,9 +57,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     );
     assert!(second.placement().is_none());
 
-    with_reactive_scope(harness.document_mut(), move || {
-        inside.show(&2);
-    });
+    inside.show(&2);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

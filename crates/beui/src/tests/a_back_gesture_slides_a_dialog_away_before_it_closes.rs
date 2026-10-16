@@ -32,7 +32,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let mut harness = Harness::new(document);
     assert!(!harness.frame(Vec::new()).window.handles_back);
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    set_open.set(true);
     assert!(harness.frame(Vec::new()).window.handles_back);
     harness.frame(Vec::new());
     let resting = harness.rect(body.get());
@@ -86,7 +86,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     assert_eq!(dismissed.get_untracked(), 1);
     assert!(!harness.frame(Vec::new()).window.handles_back);
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    set_open.set(true);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

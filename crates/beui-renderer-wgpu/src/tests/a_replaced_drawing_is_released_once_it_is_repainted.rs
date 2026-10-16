@@ -55,13 +55,11 @@ fn a_replaced_drawing_is_released_once_it_is_repainted() {
 
     let second = Rc::new(Cell::new(false));
     let next = crate::drawing(Held(second.clone()));
-    with_reactive_scope(&mut document, || {
-        setter
-            .borrow()
-            .as_ref()
-            .expect("the document was built")
-            .set(Some(next));
-    });
+    setter
+        .borrow()
+        .as_ref()
+        .expect("the document was built")
+        .set(Some(next));
     for _ in 0..2 {
         target.draw_in(
             &context,
