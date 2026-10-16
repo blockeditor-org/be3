@@ -4,7 +4,7 @@ use block_editor_beui::{AccessLevel, BlockInfo, BlockParent, BlockQuery};
 use super::*;
 
 #[test]
-fn the_account_s_own_settings_are_reached_from_the_bottom_of_the_files() {
+fn the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files() {
     let mut fixture = editor();
     let (mine, theirs, profile) = (Uuid::from_u128(3), Uuid::from_u128(4), Uuid::from_u128(5));
     let mut own = BlockInfo::new(mine, SettingsContent::CONTENT_TYPE, BlockParent::Root);
@@ -28,15 +28,15 @@ fn the_account_s_own_settings_are_reached_from_the_bottom_of_the_files() {
 
     let top = |fixture: &Fixture, id: &str| fixture.test.rect_of(id).top();
     assert!(
-        top(&fixture, "file-tree.orphans.row") < top(&fixture, "file-tree.settings.row"),
-        "Settings sits at the bottom, below Recently Deleted"
+        top(&fixture, "file-tree.orphans.row") < top(&fixture, "file-tree.system.row"),
+        "System sits at the bottom, below Recently Deleted"
     );
     assert!(
         !fixture.test.shown(&format!("file-tree.{mine}.row")),
-        "the settings are folded away until asked for"
+        "the system blocks are folded away until asked for"
     );
 
-    fixture.test.click("file-tree.settings.chevron");
+    fixture.test.click("file-tree.system.chevron");
     fixture.settle();
     fixture.test.click(&format!("file-tree.{mine}.chevron"));
     fixture.settle();
@@ -55,7 +55,7 @@ fn the_account_s_own_settings_are_reached_from_the_bottom_of_the_files() {
     );
     fixture
         .test
-        .snapshot("the_account_s_own_settings_are_reached_from_the_bottom_of_the_files");
+        .snapshot("the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files");
 
     fixture.test.click(&format!("file-tree.{mine}.row"));
     fixture.settle();

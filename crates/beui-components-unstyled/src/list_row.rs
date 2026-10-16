@@ -9,6 +9,7 @@ use beui_view::reactive::*;
 #[component]
 pub fn ListRow(
     #[prop(default = false)] selected: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] activates: bool,
     #[prop(children)] content: Render<ButtonHandle>,
     on_click: ClickCallback,
@@ -24,6 +25,7 @@ pub fn ListRow(
     view! {
         <Button
             accessibility
+            disabled
             on_click={on_click}
             on_click_at={move |press: PointerPress| {
                 if press.clicks >= 2 {
