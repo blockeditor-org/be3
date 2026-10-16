@@ -7,6 +7,7 @@ use super::*;
 #[test]
 fn swiping_back_in_a_folder_shows_the_one_above_it() {
     let mut fixture = phone();
+    containers_hold_blocks(&mut fixture);
     let text_type = Uuid::from_u128(7);
     let folder = Uuid::from_u128(2);
     let notes = Uuid::from_u128(3);

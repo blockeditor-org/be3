@@ -95,18 +95,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.expand(focused.via.iter().rev().copied());
     };
     let app_menu = move || editor.host().show_app_menu(editor.block_id());
-    let add_root = move || {
-        let Some(files) = tree.my_files() else {
-            return;
-        };
-        picker.open(
-            editor,
-            Some(files),
-            [editor.block_id(), files]
-                .into_iter()
-                .collect::<HashSet<Uuid>>(),
-        );
-    };
     let new_workspace = move || new_workspace(editor);
     let picked = picker.error();
     let failure = create_memo(move || picked.get().or_else(|| exported.get()));
@@ -154,12 +142,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Toolbar shown={toolbar}>
-                    <IconButton
-                        glyph={ICON_ADD.to_owned()}
-                        label="Add a block to My files"
-                        @test_id={"file-tree.add-root"}
-                        on_click={add_root}
-                    />
                     <IconButton
                         glyph={ICON_WORKSPACES.to_owned()}
                         label="New workspace"
@@ -382,8 +364,9 @@ fn TreeRow(
     face: TreeRowFace<RowKey>,
 ) -> NodeId {
     let named = format!("{}.add", row_test_id(&face.key));
-    let hovered = face.hovered;
+    let (hovered, row_focused) = (face.hovered, face.focused);
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
+    let add_label = create_memo(move || format!("Add to {}", label.get()));
     let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let generated = create_memo(move || row.get().is_some_and(|row| row.dynamic_artifact));
@@ -582,7 +565,13 @@ fn TreeRow(
                     }}
                 </Show>
                 <Show condition={can_add}>
-                    <AddChild shown={hovered} named={named.clone()} on_click={add_child} />
+                    <AddChild
+                        hovered={hovered}
+                        row_focused={row_focused}
+                        label={add_label}
+                        named={named.clone()}
+                        on_click={add_child}
+                    />
                 </Show>
             </List>
         </ContextMenu>
@@ -597,11 +586,13 @@ fn SectionRow(
     face: TreeRowFace<RowKey>,
 ) -> NodeId {
     let named = format!("{}.add", row_test_id(&face.key));
-    let hovered = face.hovered;
+    let (hovered, row_focused) = (face.hovered, face.focused);
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
+    let add_label = create_memo(move || format!("Add to {}", label.get()));
     let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
+    let unaddable = create_memo(move || !can_add.get());
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
     let leavable = leavable(editor, row);
@@ -617,7 +608,9 @@ fn SectionRow(
         picker.open(
             editor,
             Some(id),
-            [id].into_iter().collect::<HashSet<Uuid>>(),
+            [editor.block_id(), id]
+                .into_iter()
+                .collect::<HashSet<Uuid>>(),
         );
     };
     let chose = move |path: Vec<usize>| {
@@ -628,9 +621,10 @@ fn SectionRow(
             return;
         };
         match path.as_slice() {
-            [0] => editor.host().rename_block(id),
-            [1] => editor.host().share_block(id),
-            [2] => editor
+            [0] => add_child(),
+            [1] => editor.host().rename_block(id),
+            [2] => editor.host().share_block(id),
+            [3] => editor
                 .host()
                 .delete_block(id, shown.block_type, shown.source, false),
             _ => {}
@@ -640,6 +634,12 @@ fn SectionRow(
         <ContextMenu
             child_size=ItemSize::Percent(100.0)
             items={view! {
+                <MenuItem
+                    label="Add"
+                    glyph={ICON_NOTE_ADD.to_owned()}
+                    disabled={unaddable}
+                    row_test_id={"file-tree.section.add".to_owned()}
+                />
                 <MenuItem
                     label="Rename"
                     glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
@@ -679,7 +679,13 @@ fn SectionRow(
                 </Show>
                 <Text @sizing=ItemSize::Percent(100.0) string={label} weight=Weight::Bold />
                 <Show condition={can_add}>
-                    <AddChild shown={hovered} named={named.clone()} on_click={add_child} />
+                    <AddChild
+                        hovered={hovered}
+                        row_focused={row_focused}
+                        label={add_label}
+                        named={named.clone()}
+                        on_click={add_child}
+                    />
                 </Show>
             </List>
         </ContextMenu>
@@ -804,40 +810,41 @@ pub(crate) fn ExportAs(
 
 #[component]
 fn AddChild(
-    shown: ReadSignal<bool>,
+    hovered: ReadSignal<bool>,
+    row_focused: ReadSignal<bool>,
+    label: Memo<String>,
     named: String,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
+    let (focused, set_focused) = create_signal(false);
+    let reachable = create_memo(move || row_focused.get() || focused.get());
+    let shown = create_memo(move || hovered.get() || reachable.get());
+    let accessibility = create_memo(move || {
+        let mut node = AccessNode::new(Role::Button);
+        node.set_label(label.get());
+        node
+    });
     view! {
         <Frame width=ADD_WIDTH>
             <List spacing=0.0>
-                <Show condition={shown}>
-                    {move || view! {
-                        <unstyled::Button
-                            @test_id={named.clone()}
-                            tab_stop=false
-                            capture_presses=true
-                            accessibility={add_child_accessibility()}
-                            on_click={on_click}
-                            content={move |button: ButtonHandle| view! {
-                                <AddChildFace handle={button} />
-                            }}
-                        />
+                <unstyled::Button
+                    @test_id={named}
+                    tab_stop={reachable}
+                    capture_presses=true
+                    accessibility={accessibility}
+                    on_focus_change={move |has_focus: bool| set_focused.set(has_focus)}
+                    on_click={on_click}
+                    content={move |button: ButtonHandle| view! {
+                        <AddChildFace handle={button} shown={shown} label={label} />
                     }}
-                </Show>
+                />
             </List>
         </Frame>
     }
 }
 
-fn add_child_accessibility() -> AccessNode {
-    let mut node = AccessNode::new(Role::Button);
-    node.set_label("Add a child");
-    node
-}
-
 #[component]
-fn AddChildFace(handle: ButtonHandle) -> NodeId {
+fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) -> NodeId {
     let ButtonHandle {
         hovered,
         active,
@@ -845,16 +852,17 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let color = create_memo(move || match hovered.get() || active.get() {
-        true => TextColor::Default,
-        false => TextColor::Muted,
+    let color = create_memo(move || match (shown.get(), hovered.get() || active.get()) {
+        (false, _) => TextColor::Custom(Color32::TRANSPARENT),
+        (true, true) => TextColor::Default,
+        (true, false) => TextColor::Muted,
     });
     let fill = create_memo(move || match active.get() {
         true => theme.pressed.get(),
         false => Color32::TRANSPARENT,
     });
     view! {
-        <Tooltip label="Add a child">
+        <Tooltip label={label}>
             <Frame
                 width=ADD_WIDTH
                 height=ADD_WIDTH

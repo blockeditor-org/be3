@@ -13,6 +13,7 @@ mod a_new_workspace_is_made_at_the_top_and_named_by_hand;
 mod a_phone_lists_what_is_shared_with_it;
 mod a_phone_reaches_the_account_s_own_settings;
 mod a_phone_walks_into_folders_and_opens_files;
+mod a_workspace_header_adds_into_that_workspace;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
@@ -131,6 +132,29 @@ fn my_files(fixture: &mut Fixture, inside: Vec<block_editor_beui::BlockInfo>) ->
         .host
         .set_blocks(BlockQuery::References(MY_FILES), inside);
     MY_FILES
+}
+
+fn containers_hold_blocks(fixture: &mut Fixture) {
+    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations};
+    let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
+        block_type: block_type.into_bytes(),
+        display_name: name.to_owned(),
+        icon_codepoint: String::new(),
+        children: ChildOperations {
+            add: true,
+            delete: true,
+            replace: true,
+        },
+    };
+    fixture.test.catalog(Catalog {
+        types: vec![
+            holding(WorkspaceContent::CONTENT_TYPE, "Workspace"),
+            holding(FolderContent::CONTENT_TYPE, "Folder"),
+        ],
+        templates: Vec::new(),
+        editors: Vec::new(),
+    });
 }
 
 fn editor() -> Fixture {

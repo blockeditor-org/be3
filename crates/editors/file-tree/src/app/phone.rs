@@ -120,35 +120,27 @@ pub(crate) fn PhoneFiles(
     let browsing = create_memo(move || !searching.get());
     let at_root = create_memo(move || browsing.get() && level.get() == Level::Root);
     let nested = create_memo(move || level.get() != Level::Root);
+    let addable = move |level: &Level| {
+        level
+            .container()
+            .filter(|crumb| {
+                editor.block_types().child_edits(crumb.block_type).add
+                    && tree.blocks().access(crumb.id).can_edit()
+            })
+            .map(|crumb| crumb.id)
+    };
+    let known = tree.rows();
     let can_create = create_memo(move || {
-        browsing.get()
-            && !matches!(
-                level.get(),
-                Level::Deleted | Level::Shared | Level::Settings
-            )
-            && !covered.get()
+        known.with(|_| ());
+        browsing.get() && level.with(|level| addable(level).is_some()) && !covered.get()
     });
     let page = NodeRef::new();
     let creating = move || {
-        let parent = level.with_untracked(|level| {
-            level
-                .container()
-                .filter(|crumb| {
-                    editor.block_types().child_edits(crumb.block_type).add
-                        && tree.blocks().access(crumb.id).can_edit()
-                })
-                .map(|crumb| crumb.id)
-                .or_else(|| match level {
-                    Level::Root => tree.my_files(),
-                    Level::Folder(_) | Level::Shared | Level::Deleted | Level::Settings => None,
-                })
-        });
-        let Some(parent) = parent else {
+        let Some(parent) = level.with_untracked(addable) else {
             return;
         };
-        let parent = Some(parent);
-        let excluded = parent.into_iter().collect::<HashSet<Uuid>>();
-        picker.open_placed(editor, parent, excluded);
+        let excluded = [parent].into_iter().collect::<HashSet<Uuid>>();
+        picker.open_placed(editor, Some(parent), excluded);
     };
     let rising = move || set_level.set(level.get_untracked().up());
     let menu = move || editor.host().show_app_menu(editor.block_id());

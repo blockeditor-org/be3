@@ -6,6 +6,7 @@ use super::*;
 #[test]
 fn a_phone_walks_into_folders_and_opens_files() {
     let mut fixture = phone();
+    containers_hold_blocks(&mut fixture);
     let text_type = Uuid::from_u128(7);
     let folder = Uuid::from_u128(2);
     let notes = Uuid::from_u128(3);
@@ -24,6 +25,10 @@ fn a_phone_walks_into_folders_and_opens_files() {
     fixture.settle();
     assert!(fixture.says("My files"));
     assert!(fixture.test.shown("file-tree.shared"));
+    assert!(
+        !fixture.test.shown("file-tree.new"),
+        "the top level lists workspaces, so a new file is made from inside one"
+    );
     fixture
         .test
         .snapshot("a_phone_lists_the_top_level_of_the_files");
@@ -31,6 +36,10 @@ fn a_phone_walks_into_folders_and_opens_files() {
     fixture.test.click(&format!("file-tree.{files}.open"));
     fixture.settle();
     assert!(fixture.says("Projects"));
+    assert!(
+        fixture.test.shown("file-tree.new"),
+        "a workspace the account may edit offers New"
+    );
 
     fixture.test.click(&format!("file-tree.{folder}.open"));
     fixture.settle();

@@ -18,8 +18,8 @@ mod the_desktop_shell_opens_and_closes_cleanly;
 mod the_members_dialog_lists_an_organizations_members_and_their_roles;
 mod the_organizations_screen_takes_an_invite_link;
 
-fn add_root_block(app: &mut AppTest, label: &str) {
-    app.click("#file-tree.add-root");
+fn add_to_my_files(app: &mut AppTest, label: &str) {
+    app.click(ADD_TO_MY_FILES);
     app.click(&format!("Label value=\"{label}\""));
     app.wait(&format!("Pane \"{label}\""));
 }
@@ -52,5 +52,7 @@ fn pick_tile(app: &mut AppTest, target: &str) {
     app.click(target);
     app.gone("Dialog \"Add block\"");
 }
+
+const ADD_TO_MY_FILES: &str = "Button \"Add to My files\"";
 
 const CANVAS_TILE: &str = "#picker.tile.696e6669-6e69-7465-2d63-616e76617301/main";

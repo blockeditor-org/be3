@@ -959,13 +959,16 @@ that is not a workspace or a settings block), then Recently Deleted, then
 Settings: the account's own root `Settings` (and settings profile) blocks, which
 open in the settings editor and expand to their kinds, profiles and sessions;
 another account's are never listed. A
-section's header has its own menu (rename, share, delete, and leave on a
-workspace someone else made), New workspace makes
-one at the root and opens the rename dialog, and the add button and every
-picker place a new block in a workspace, My files when nothing else is named.
+section's header has its own menu (add, rename, share, delete, and leave on a
+workspace someone else made) and, where the account may edit the workspace, a
+"+" that adds a block into it, as a row's "+" adds into that row; the toolbar
+has no add of its own, only New workspace, which makes one at the root and
+opens the rename dialog. Every picker places a new block in a workspace, My
+files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
 or from its Move to menu. The phone layout has the same levels: the workspaces,
-then Shared with me, Recently deleted and Settings as rows of their own. The folder
+then Shared with me, Recently deleted and Settings as rows of their own; its
+New button shows only inside a workspace or folder the account may add to. The folder
 editor (crates/editors/workspace-index) opens a workspace too.
 
 ### Settings, settings profiles and sessions

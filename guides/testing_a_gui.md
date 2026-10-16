@@ -294,7 +294,7 @@ directory of its own; drives it with the commands `drive` has (guides/running/dr
 the whole window, every plugin included; and fails unless the app exits cleanly when it closes.
 
     let mut app = AppTest::start();
-    add_root_block(&mut app, "Canvas");
+    add_to_my_files(&mut app, "Canvas");
     add_to_canvas(&mut app, "Checklist");
     app.crop("#workspace.block");
     app.record();
