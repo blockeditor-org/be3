@@ -164,6 +164,7 @@ pub struct DockSwitcherHandle {
     pub open: ReadSignal<bool>,
     pub close: ClickCallback,
     pub tabs: Memo<Vec<TabId>>,
+    pub fixed: Memo<Vec<TabId>>,
     pub card: Func<TabId, DockSwitcherCardHandle>,
 }
 
@@ -1595,11 +1596,31 @@ fn switcher_handle(
     switching: ReadSignal<bool>,
     set_switching: WriteSignal<bool>,
 ) -> DockSwitcherHandle {
+    let closable = dock.closable;
+    let state = dock.state;
+    let open = create_memo(move || {
+        tabs.with(|tabs| {
+            tabs.iter()
+                .copied()
+                .filter(|tab| closable.call(*tab))
+                .collect::<Vec<_>>()
+        })
+    });
+    let fixed = create_memo(move || {
+        state.with(|state| {
+            state
+                .all_tabs()
+                .into_iter()
+                .filter(|tab| !closable.call(*tab))
+                .collect::<Vec<_>>()
+        })
+    });
     let carded = dock;
     DockSwitcherHandle {
         open: switching,
         close: ClickCallback::new(move || set_switching.set(false)),
-        tabs,
+        tabs: open,
+        fixed,
         card: Func::new(move |tab: TabId| {
             let (titled, pictured, picked, closed) = (carded, carded, carded, carded);
             DockSwitcherCardHandle {

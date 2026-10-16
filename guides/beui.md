@@ -1389,8 +1389,10 @@ Tiled, `Docking` keeps its panes inset from its own edges.
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
-square counting the other open tabs, which opens a sheet of cards to show or
-close them, and a back button while `DockState::back` has somewhere to go, which
+square counting the other open tabs, which opens a sheet to show or close them
+(a card for each tab with a close button, from the one shown last, and below
+them a row for each tab without one, such as the workspace's Files and
+Settings, in layout order), and a back button while `DockState::back` has somewhere to go, which
 the back gesture also follows. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a

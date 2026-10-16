@@ -1,6 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
+use crate::action_row::ActionRow;
 use crate::border::Separator;
 use crate::button::ButtonVariant;
 use crate::dock::DockMenu;
@@ -153,9 +154,11 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         open,
         close,
         tabs,
+        fixed,
         card,
     } = handle;
-    let none = create_memo(move || tabs.with(|tabs| tabs.len() <= 1));
+    let none = create_memo(move || tabs.with(Vec::is_empty));
+    let rowed = create_memo(move || fixed.with(|fixed| !fixed.is_empty()));
     view! {
         <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
@@ -180,8 +183,38 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                         </Grid>
                     </List>
                 </Frame>
+                <Show condition={rowed}>
+                    <Frame padding=SHEET_PADDING>
+                        <List spacing=0.0>
+                            <ForEach keys={fixed}>
+                                {move |tab: TabId| view! {
+                                    <DockSwitcherRow handle={card.call(tab)} />
+                                }}
+                            </ForEach>
+                        </List>
+                    </Frame>
+                </Show>
             </List>
         </ModalSheet>
+    }
+}
+
+#[component]
+fn DockSwitcherRow(handle: DockSwitcherCardHandle) -> NodeId {
+    let DockSwitcherCardHandle {
+        tab,
+        title,
+        icon,
+        pick,
+        ..
+    } = handle;
+    view! {
+        <ActionRow
+            @test_id={format!("dock.switcher.tab.{}", tab.value())}
+            label={title}
+            glyph={icon}
+            on_click={pick}
+        />
     }
 }
 
