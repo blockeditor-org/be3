@@ -14,54 +14,22 @@ use crate::{
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
-pub struct Position {
-    left: Option<Pos>,
-    right: Option<Pos>,
-    fallback: usize,
-    end: bool,
-}
+pub struct Position(Pos);
 
 impl Position {
-    pub const END: Self = Self {
-        left: None,
-        right: None,
-        fallback: usize::MAX,
-        end: true,
-    };
-
     pub fn at(document: &dyn DocumentRead, index: usize) -> Self {
-        if index >= document.len() {
-            return Self::END;
-        }
-        Self {
-            left: index
-                .checked_sub(1)
-                .and_then(|previous| document.anchor(previous)),
-            right: document.anchor(index),
-            fallback: index,
-            end: false,
-        }
+        Self(
+            document
+                .anchor(index.min(document.len()))
+                .expect("every document boundary has an anchor"),
+        )
     }
 
     pub fn resolve(self, document: &dyn DocumentRead) -> usize {
-        if self.end {
-            return document.len();
-        }
-        self.right
-            .and_then(|anchor| document.anchor_index(anchor))
-            .or_else(|| {
-                self.left
-                    .and_then(|anchor| document.anchor_index(anchor))
-                    .map(|index| index + 1)
-            })
-            .or_else(|| {
-                [self.right, self.left]
-                    .into_iter()
-                    .flatten()
-                    .find_map(|anchor| document.deleted_anchor_index(anchor))
-            })
-            .unwrap_or(self.fallback)
-            .min(document.len())
+        document
+            .anchor_index(self.0)
+            .or_else(|| document.deleted_anchor_index(self.0))
+            .unwrap_or(document.len())
     }
 }
 
@@ -383,7 +351,7 @@ pub struct Core {
 
     collapse_state: Vec<Position>,
     section_shapes: std::cell::RefCell<Option<(u64, Arc<[SectionShape]>)>>,
-    composition: Option<(Position, Position)>,
+    composition: Option<(Position, Pos)>,
 }
 
 #[derive(Clone, Copy)]
@@ -423,10 +391,11 @@ impl Core {
     }
 
     pub fn position(&self, byte_index: usize) -> Position {
-        self.document
+        let read = self
+            .document
             .read()
-            .map(|read| Position::at(&*read, byte_index))
-            .unwrap_or(Position::END)
+            .expect("creating a position requires a readable document");
+        Position::at(&*read, byte_index)
     }
 
     pub fn position_index(&self, position: Position) -> Option<usize> {
@@ -594,9 +563,10 @@ impl Core {
     }
 
     pub fn cursor_stop(&self, byte_index: usize, stop: CursorLeftRightStop) -> Position {
-        let Some(read) = self.document.read() else {
-            return Position::END;
-        };
+        let read = self
+            .document
+            .read()
+            .expect("finding a cursor stop requires a readable document");
         let document = DocumentView::new(&*read);
         Position::at(
             &document,
@@ -667,7 +637,7 @@ impl Core {
 
     pub fn get_line_start(&self, position: Position) -> Position {
         let Some(read) = self.document.read() else {
-            return Position::END;
+            return position;
         };
         let document = DocumentView::new(&*read);
         Position::at(
@@ -678,7 +648,7 @@ impl Core {
 
     pub fn get_prev_line_start(&self, position: Position) -> Position {
         let Some(read) = self.document.read() else {
-            return Position::END;
+            return position;
         };
         let document = DocumentView::new(&*read);
         let current = line_start(document.bytes(), position.resolve(&document));
@@ -692,7 +662,7 @@ impl Core {
 
     pub fn get_next_line_start(&self, position: Position) -> Position {
         let Some(read) = self.document.read() else {
-            return Position::END;
+            return position;
         };
         let document = DocumentView::new(&*read);
         Position::at(
@@ -703,7 +673,7 @@ impl Core {
 
     pub fn get_this_line_end(&self, position: Position) -> Position {
         let Some(read) = self.document.read() else {
-            return Position::END;
+            return position;
         };
         let document = DocumentView::new(&*read);
         Position::at(
@@ -862,7 +832,7 @@ impl Core {
             } => self.replace_ranges(ranges, replacement),
             EditorCommand::SelectAll => {
                 let start = self.position(0);
-                self.select(Selection::range(start, Position::END));
+                self.select(Selection::range(start, self.position(usize::MAX)));
             }
             EditorCommand::InsertText(text) => self.insert_text(text),
             EditorCommand::Paste(text) => self.paste(text),
@@ -1678,9 +1648,10 @@ impl Core {
                 Some((start, end)) => {
                     Selection::range(Position::at(&document, start), Position::at(&document, end))
                 }
-                None if direction == SyntaxNodeDirection::Parent => {
-                    Selection::range(Position::at(&document, 0), Position::END)
-                }
+                None if direction == SyntaxNodeDirection::Parent => Selection::range(
+                    Position::at(&document, 0),
+                    Position::at(&document, document.len()),
+                ),
                 None => selection_start,
             };
             cursor.node_select_start = Some(selection_start);

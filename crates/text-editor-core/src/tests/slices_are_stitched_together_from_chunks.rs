@@ -26,7 +26,7 @@ struct ChunkedDocument {
 impl ChunkedDocument {
     fn new(bytes: impl AsRef<[u8]>, chunk: usize) -> Self {
         let bytes = bytes.as_ref().to_vec();
-        let anchors = (0..bytes.len())
+        let anchors = (0..=bytes.len())
             .map(|offset| Pos {
                 client: 0,
                 offset: offset as u64,
