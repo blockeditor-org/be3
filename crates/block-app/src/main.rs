@@ -331,6 +331,9 @@ impl beui::App for Shell {
                 self.document.set_theme(theme);
             }
         }
+        if let Some(scale) = self.app.scale.take() {
+            context.set_zoom_factor(scale);
+        }
         if let Some(open) = self.app.inspector_requested.take()
             && open
         {
@@ -453,6 +456,7 @@ struct BlockApp {
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Vec<(Uuid, u64)>>,
     theme: Option<be_block::Theme>,
+    scale: Option<f32>,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
     display_round: Option<u64>,
@@ -699,6 +703,7 @@ impl BlockApp {
             next_pick: 0,
             ui_settings: None,
             theme: None,
+            scale: None,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
             display_round: None,
@@ -2542,7 +2547,9 @@ impl BlockApp {
             return;
         };
         self.ui_settings = Some(revisions);
-        self.theme = Some(be_block::layered(contents).theme());
+        let settings = be_block::layered(contents);
+        self.theme = Some(settings.theme());
+        self.scale = Some(settings.scale());
     }
 
     fn command(&mut self, context: &beui::Context, command: UiCommand) {

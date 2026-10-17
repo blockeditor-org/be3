@@ -307,7 +307,7 @@ fn Kinds<C: Layer>(
         <List spacing=ROW_SPACING>
             <SettingRow
                 label="Appearance"
-                detail="Theme"
+                detail="Theme and scale"
                 glyph={ICON_PALETTE.to_owned()}
                 selected={showing(ui)}
                 disabled={blocked}

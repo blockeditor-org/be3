@@ -920,8 +920,9 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor: the theme in
-`sync_ui_settings` comes from the UI settings, and
+The app can read a block itself, not only through an editor: the theme and the
+scale in `sync_ui_settings` come from the UI settings (the scale is beui's zoom
+factor, multiplied into the screen's own pixels per point), and
 `sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'

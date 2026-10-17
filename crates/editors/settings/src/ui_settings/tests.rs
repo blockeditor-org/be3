@@ -11,6 +11,7 @@ use crate::ui_settings::UiSettingsApp;
 
 mod a_profile_shows_the_theme_it_inherits;
 mod choosing_a_default_editor_stores_it;
+mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
 
 struct Harness {
@@ -71,7 +72,11 @@ impl Harness {
     }
 
     fn choose(&mut self, index: usize) {
-        self.editor.click("ui-settings.theme");
+        self.choose_in("ui-settings.theme", index);
+    }
+
+    fn choose_in(&mut self, select: &str, index: usize) {
+        self.editor.click(select);
         self.run();
         self.editor.key_press(Key::Home);
         self.run();
