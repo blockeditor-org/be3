@@ -47,6 +47,7 @@ Do:
 Design principles:
 - Do not edit this list.
 - If a request seems to require violating one of these, confirm with the user using AskUserQuestion before going ahead.
+- If a request asks for a UI/UX feature that seems to violate standard conventions, use AskUserQuestion to confirm.
 - General:
   - Keep reading whatever a frozen format saved, forever (guides/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data.
   - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.
