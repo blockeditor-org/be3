@@ -140,7 +140,7 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
                 <Text style=TextStyle::CAPTION string="No networks found." />
             </Show>
             <Show condition={listing}>
-                <Scroll max_length=LIST_HEIGHT>
+                <Scroll max_length=LIST_HEIGHT bleed={Bleed::POPOVER.top(false)}>
                     <ForEach keys={ssids}>|ssid: String|
                         <NetworkRow
                             editor={editor}

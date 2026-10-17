@@ -20,7 +20,9 @@ fn an_unstyled_scroll_keeps_the_whole_width_for_its_content() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let children = harness.document().children(scroll.get());
+    let children = harness
+        .document()
+        .children(layers_of(harness.document(), scroll.get()));
     assert!(
         harness.document().children(children[1]).is_empty(),
         "an unstyled scroll built a scrollbar"

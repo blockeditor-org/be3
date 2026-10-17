@@ -55,7 +55,7 @@ fn tabbing_through_every_page_shows_each_focus_ring_whole() {
     cut.dedup();
     assert!(
         cut.is_empty(),
-        "{} focus ring(s) are cut off with their control in view; put the padding inside the scroll, around its content:\n  {}",
+        "{} focus ring(s) are cut off with their control in view; put the padding inside the scroll around its content, or give a scroll inside a padded surface `bleed`:\n  {}",
         cut.len(),
         cut.join("\n  ")
     );

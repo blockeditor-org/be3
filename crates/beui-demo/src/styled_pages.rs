@@ -2690,6 +2690,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="A scroll inside a scroll" code={vec![NestedScroll::SOURCE]}>
                 <NestedScroll />
             </Sample>
+            <Sample title="A scroll that bleeds into its card" code={vec![BleedingScroll::SOURCE]}>
+                <BleedingScroll />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -2911,6 +2914,26 @@ fn NestedScroll() -> NodeId {
                             keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
                         >|line: usize|
                             <Text string={format!("Line {line}")} />
+                        </ForEach>
+                    </List>
+                </Scroll>
+            </List>
+        </Card>
+    }
+}
+
+#[sample]
+#[component]
+fn BleedingScroll() -> NodeId {
+    view! {
+        <Card>
+            <List spacing=0.0>
+                <Scroll @sizing=ItemSize::Fixed(NESTED_SCROLL_HEIGHT) bleed=Bleed::CARD>
+                    <List spacing=8.0>
+                        <ForEach
+                            keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                        >|topic: usize|
+                            <Checkbox label={format!("Topic {topic}")} checked=false />
                         </ForEach>
                     </List>
                 </Scroll>

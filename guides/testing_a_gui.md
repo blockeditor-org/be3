@@ -203,7 +203,7 @@ way for the test to fail.
   focus ring) that a clip cuts while the frame itself shows whole. Each line names the node, its
   nearest ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the
   text, let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it, put the padding
-  inside a scroll around its content so a ring at its edge has room - rather than the test.
+  inside a scroll around its content, or give a scroll inside a padded surface `bleed`, so a ring at its edge has room - rather than the test.
   beui-demo's `tabbing_through_every_page_shows_each_focus_ring_whole` tabs through every
   catalog page and fails on any such ring, since a painting rarely has the focus showing.
 - ./scripts/buck run //crates/paint-snapshot:example-rasterize -- snapshots/<crate>.<name>.paint out.png

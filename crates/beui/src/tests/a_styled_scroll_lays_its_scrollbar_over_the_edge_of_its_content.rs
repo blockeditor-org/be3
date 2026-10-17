@@ -23,7 +23,9 @@ fn a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let children = harness.document().children(scroll.get());
+    let children = harness
+        .document()
+        .children(layers_of(harness.document(), scroll.get()));
     assert_eq!(children.len(), 2, "the scroll built something unexpected");
     let (whole, content) = (harness.rect(scroll.get()), harness.rect(children[0]));
     let bar = harness.rect(scrollbar_of(&harness, scroll.get()));

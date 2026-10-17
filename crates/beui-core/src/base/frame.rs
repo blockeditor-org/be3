@@ -92,6 +92,14 @@ pub struct Sides {
     pub bottom: f32,
 }
 
+impl std::ops::Neg for Sides {
+    type Output = Sides;
+
+    fn neg(self) -> Sides {
+        Sides::new(-self.left, -self.top, -self.right, -self.bottom)
+    }
+}
+
 impl Sides {
     pub const ZERO: Sides = Sides::all(0.0);
 
@@ -366,7 +374,7 @@ impl Element for FrameNode {
             }
             None => Vec2::ZERO,
         };
-        let padded = inner + padding;
+        let padded = (inner + padding).max(Vec2::ZERO);
         let size = grid.snap_vec(vec2(
             self.width.within(available.x, padded.x),
             self.height.within(available.y, padded.y),
