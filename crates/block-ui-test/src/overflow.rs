@@ -15,7 +15,7 @@ pub(crate) fn assert_fits(name: &str, mut found: Vec<String>) {
         return;
     }
     panic!(
-        "the painting {name} shows {} element(s) out of bounds, cut off where nothing scrolls to them or drawn outside their own box:\n  {}",
+        "the painting {name} shows {} element(s) out of bounds, cut off where nothing scrolls to them, drawn outside their own box, or with an outline cut while their box shows (give a ring room: padding inside the scroll, around its content):\n  {}",
         found.len(),
         found.join("\n  ")
     );
