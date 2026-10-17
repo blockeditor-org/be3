@@ -5791,6 +5791,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui:beui",
@@ -5802,6 +5803,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/block-ui-test:block-ui-test",
                 ],

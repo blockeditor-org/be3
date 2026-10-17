@@ -216,7 +216,6 @@ pub(crate) struct CursorStops {
 }
 
 impl CursorStops {
-    #[cfg(test)]
     pub(crate) fn new(soft_tab_width: usize) -> Self {
         Self {
             soft_tab_width,
@@ -1850,43 +1849,39 @@ impl Core {
                 return;
             }
         }
-        let anchor_left = to_boundary(
-            document.bytes(),
-            anchor,
-            LRDirection::Left,
-            drag.selection_mode.stop,
-            BoundaryMode::Select,
-            true,
-            self.cursor_stops(),
-        );
-        let focus_left = to_boundary(
-            document.bytes(),
-            focus,
-            LRDirection::Left,
-            drag.selection_mode.stop,
-            BoundaryMode::Select,
-            true,
-            self.cursor_stops(),
-        );
+        let bounds = |index| {
+            if drag.selection_mode.select && drag.selection_mode.stop == CursorLeftRightStop::Word {
+                return word_selection_bounds(document.bytes(), index, self.cursor_stops());
+            }
+            let left = to_boundary(
+                document.bytes(),
+                index,
+                LRDirection::Left,
+                drag.selection_mode.stop,
+                BoundaryMode::Select,
+                !(drag.selection_mode.select
+                    && drag.selection_mode.stop == CursorLeftRightStop::Line
+                    && index == document.len()
+                    && document.bytes().last().is_some_and(|byte| *byte != b'\n')),
+                self.cursor_stops(),
+            );
+            if !drag.selection_mode.select {
+                return (left, left);
+            }
+            let right = to_boundary(
+                document.bytes(),
+                index,
+                LRDirection::Right,
+                drag.selection_mode.stop,
+                BoundaryMode::Select,
+                false,
+                self.cursor_stops(),
+            );
+            (left, right)
+        };
+        let (anchor_left, anchor_right) = bounds(anchor);
+        let (focus_left, focus_right) = bounds(focus);
         let selection = if drag.selection_mode.select {
-            let anchor_right = to_boundary(
-                document.bytes(),
-                anchor,
-                LRDirection::Right,
-                drag.selection_mode.stop,
-                BoundaryMode::Select,
-                false,
-                self.cursor_stops(),
-            );
-            let focus_right = to_boundary(
-                document.bytes(),
-                focus,
-                LRDirection::Right,
-                drag.selection_mode.stop,
-                BoundaryMode::Select,
-                false,
-                self.cursor_stops(),
-            );
             let minimum = anchor_left
                 .min(anchor_right)
                 .min(focus_left)
@@ -2150,6 +2145,7 @@ enum BetweenCharsStop {
 
 #[derive(Clone, Copy)]
 enum BoundaryMode {
+    WordSelection,
     Direction,
     Select,
 }
@@ -2250,6 +2246,61 @@ fn surrounding_inline_code_markers(
         Some((before.len(), after.len()))
     } else {
         None
+    }
+}
+
+pub fn word_bounds(bytes: &[u8], index: usize) -> (usize, usize) {
+    word_selection_bounds(bytes, index, CursorStops::new(0))
+}
+
+fn character_at(bytes: &[u8], index: usize) -> Option<(char, usize)> {
+    let byte = *bytes.get(index)?;
+    let width = utf8_width(byte).max(1);
+    let character = bytes
+        .get(index..index + width)
+        .and_then(|slice| std::str::from_utf8(slice).ok())
+        .and_then(|text| text.chars().next());
+    Some((
+        character.unwrap_or('\u{fffd}'),
+        character.map_or(1, char::len_utf8),
+    ))
+}
+
+fn character_before(bytes: &[u8], index: usize) -> Option<char> {
+    (index.saturating_sub(4)..index).find_map(|start| {
+        let (character, width) = character_at(bytes, start)?;
+        (start + width == index).then_some(character)
+    })
+}
+
+fn word_selection_bounds(bytes: &[u8], index: usize, stops: CursorStops) -> (usize, usize) {
+    let index = index.min(bytes.len());
+    let before = character_before(bytes, index).is_some_and(|c| {
+        classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+    });
+    let after = character_at(bytes, index).is_some_and(|(c, _)| {
+        classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+    });
+    let boundary = |direction, may_stay| {
+        to_boundary(
+            bytes,
+            index,
+            direction,
+            CursorLeftRightStop::Word,
+            BoundaryMode::WordSelection,
+            may_stay,
+            stops,
+        )
+    };
+    if before || after {
+        (
+            boundary(LRDirection::Left, !before),
+            boundary(LRDirection::Right, !after),
+        )
+    } else if index < bytes.len() {
+        (index, boundary(LRDirection::Right, false))
+    } else {
+        (boundary(LRDirection::Left, false), index)
     }
 }
 
@@ -2517,10 +2568,26 @@ fn boundary_matches(
     mode: BoundaryMode,
     stops: CursorStops,
 ) -> bool {
+    if matches!(mode, BoundaryMode::WordSelection) {
+        if (stops.inside_atomic_unit)(bytes, index) {
+            return false;
+        }
+        if (index.saturating_sub(3)..index)
+            .any(|start| character_at(bytes, start).is_some_and(|(_, width)| start + width > index))
+        {
+            return false;
+        }
+        return !character_before(bytes, index).is_some_and(|c| {
+            classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+        }) || !character_at(bytes, index).is_some_and(|(c, _)| {
+            classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+        });
+    }
     let Some(marker) = has_stop(bytes, index, stop, stops) else {
         return false;
     };
     match mode {
+        BoundaryMode::WordSelection => unreachable!(),
         BoundaryMode::Select => !matches!(marker, BetweenCharsStop::RightOnly),
         BoundaryMode::Direction => match direction {
             LRDirection::Left => {
@@ -2571,13 +2638,13 @@ fn has_stop(
             is_grapheme_boundary(bytes, index).then_some(BetweenCharsStop::Both)
         }
         CursorLeftRightStop::Word => {
-            let left = ascii_classification(left);
-            let right = ascii_classification(right);
+            let left = classification(char::from(left), BoundaryMode::Direction);
+            let right = classification(char::from(right), BoundaryMode::Direction);
             if left == right {
                 None
-            } else if left == AsciiClassification::Whitespace {
+            } else if left == CharacterClassification::Whitespace {
                 Some(BetweenCharsStop::LeftOrSelect)
-            } else if right == AsciiClassification::Whitespace {
+            } else if right == CharacterClassification::Whitespace {
                 Some(BetweenCharsStop::RightOrSelect)
             } else {
                 Some(BetweenCharsStop::Both)
@@ -2630,22 +2697,26 @@ pub(crate) fn render_stops(
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum AsciiClassification {
+enum CharacterClassification {
     Whitespace,
     Symbols,
     Text,
     Unicode,
 }
 
-fn ascii_classification(byte: u8) -> AsciiClassification {
-    if byte.is_ascii_alphanumeric() || byte == b'_' {
-        AsciiClassification::Text
-    } else if byte.is_ascii_whitespace() {
-        AsciiClassification::Whitespace
-    } else if byte >= 0x80 {
-        AsciiClassification::Unicode
+fn classification(character: char, mode: BoundaryMode) -> CharacterClassification {
+    let selection = matches!(mode, BoundaryMode::WordSelection);
+    if character.is_ascii_alphanumeric()
+        || character == '_'
+        || selection && (character.is_alphanumeric() || character == '\'')
+    {
+        CharacterClassification::Text
+    } else if character.is_ascii_whitespace() || selection && character.is_whitespace() {
+        CharacterClassification::Whitespace
+    } else if !character.is_ascii() && !selection {
+        CharacterClassification::Unicode
     } else {
-        AsciiClassification::Symbols
+        CharacterClassification::Symbols
     }
 }
 
@@ -2678,17 +2749,9 @@ fn grapheme_boundaries(bytes: &[u8]) -> Vec<bool> {
     let mut index = 0;
     while index < bytes.len() {
         character_boundaries.push((decoded.len(), index));
-        let width = utf8_width(bytes[index]);
-        if width > 0
-            && index + width <= bytes.len()
-            && let Ok(value) = std::str::from_utf8(&bytes[index..index + width])
-        {
-            decoded.push_str(value);
-            index += width;
-            continue;
-        }
-        decoded.push('\u{fffd}');
-        index += 1;
+        let (character, width) = character_at(bytes, index).unwrap();
+        decoded.push(character);
+        index += width;
     }
     character_boundaries.push((decoded.len(), bytes.len()));
     let mut result = vec![false; bytes.len() + 1];

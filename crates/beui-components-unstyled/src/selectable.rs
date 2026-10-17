@@ -81,7 +81,8 @@ impl SelectableState {
 
     fn word_at(&self, document: &Document, pos: Pos2) -> Option<(Caret, Caret)> {
         let caret = self.caret_at(document, pos)?;
-        let (start, end) = word_bounds(document.text(caret.text), caret.index);
+        let (start, end) =
+            text_editor_core::word_bounds(document.text(caret.text).as_bytes(), caret.index);
         Some((
             Caret {
                 text: caret.text,
@@ -289,36 +290,6 @@ fn distance(rect: Rect, pos: Pos2) -> f32 {
     let x = (rect.left() - pos.x).max(pos.x - rect.right()).max(0.0);
     let y = (rect.top() - pos.y).max(pos.y - rect.bottom()).max(0.0);
     y * 1000.0 + x
-}
-
-fn word_bounds(text: &str, index: usize) -> (usize, usize) {
-    let index = index.min(text.len());
-    let word =
-        |character: char| character.is_alphanumeric() || character == '_' || character == '\'';
-    let after = text[index..].chars().next();
-    let before = text[..index].chars().next_back();
-    let at_word = after.is_some_and(word) || before.is_some_and(word);
-    if !at_word {
-        return match after {
-            Some(character) => (index, index + character.len_utf8()),
-            None => match before {
-                Some(character) => (index - character.len_utf8(), index),
-                None => (index, index),
-            },
-        };
-    }
-    let start = text[..index]
-        .char_indices()
-        .rev()
-        .take_while(|(_, character)| word(*character))
-        .last()
-        .map_or(index, |(at, _)| at);
-    let end = text[index..]
-        .char_indices()
-        .take_while(|(_, character)| word(*character))
-        .last()
-        .map_or(index, |(at, character)| index + at + character.len_utf8());
-    (start, end)
 }
 
 fn key(state: SelectableState, press: KeyPress) -> bool {
