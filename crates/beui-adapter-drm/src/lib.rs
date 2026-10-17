@@ -2,6 +2,8 @@ mod arrow;
 mod cursors;
 mod display;
 mod displays;
+mod epaper;
+mod escape;
 mod flips;
 mod gpu;
 mod input;
@@ -15,10 +17,12 @@ mod problems;
 mod recovery;
 mod runner;
 mod screen;
+mod swapchain;
 mod theme;
 mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
+pub use epaper::Epaper;
 pub use flips::{Flip, Flips};
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{

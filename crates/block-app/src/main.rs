@@ -791,6 +791,7 @@ impl BlockApp {
         }
         self.run_media();
         self.run_wifi();
+        display::run_epaper();
     }
 
     #[cfg(target_os = "linux")]

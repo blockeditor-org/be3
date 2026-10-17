@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
+use smithay::backend::allocator::Format;
 use smithay::backend::allocator::dmabuf::WeakDmabuf;
 use smithay::backend::allocator::gbm::{GbmAllocator, GbmBufferFlags, GbmDevice};
-use smithay::backend::allocator::{Format, Fourcc};
-use smithay::backend::drm::{DrmDevice, DrmDeviceFd, GbmBufferedSurface};
+use smithay::backend::drm::{DrmDevice, DrmDeviceFd};
 use smithay::backend::renderer::sync::{Fence, Interrupted, SyncPoint};
 use smithay::reexports::drm::control::{
     Device as _, Mode, ModeFlags, ModeTypeFlags, connector, crtc,
@@ -22,8 +22,12 @@ use crate::modes::{
     preferred_mode, refresh_millihertz,
 };
 use crate::pacing::{Lane, refresh_interval};
+use crate::swapchain::Swapchain;
 
-type Swapchain = GbmBufferedSurface<GbmAllocator<DrmDeviceFd>, ()>;
+pub struct Buffers {
+    pub gbm: GbmDevice<DrmDeviceFd>,
+    pub imported: bool,
+}
 
 enum State {
     Idle,
@@ -150,7 +154,7 @@ impl Fence for SyncFile {
 impl Output {
     pub fn new(
         drm: &mut DrmDevice,
-        gbm: &GbmDevice<DrmDeviceFd>,
+        buffers: &Buffers,
         gpu: &Gpu,
         connector: connector::Handle,
         info: &connector::Info,
@@ -182,22 +186,26 @@ impl Output {
         let surface = drm
             .create_surface(crtc, mode, &[connector])
             .map_err(|error| format!("the output could not be set up: {error}"))?;
-        let fencing = syncobj && !surface.is_legacy();
         let formats: Vec<Format> = gpu
             .vulkan()
             .map(|vulkan: &Vulkan| vulkan.formats(Usage::Render))
             .unwrap_or_default();
-        let allocator = GbmAllocator::new(
-            gbm.clone(),
-            GbmBufferFlags::RENDERING | GbmBufferFlags::SCANOUT,
-        );
-        let swapchain = GbmBufferedSurface::new(
-            surface,
-            allocator,
-            &[Fourcc::Xrgb8888, Fourcc::Argb8888],
-            formats,
-        )
-        .map_err(|error| format!("the output's buffers could not be allocated: {error}"))?;
+        let swapchain = match buffers.imported {
+            false => Swapchain::shared(
+                surface,
+                GbmAllocator::new(
+                    buffers.gbm.clone(),
+                    GbmBufferFlags::RENDERING | GbmBufferFlags::SCANOUT,
+                ),
+                formats,
+            )?,
+            true => Swapchain::imported(
+                surface,
+                GbmAllocator::new(buffers.gbm.clone(), GbmBufferFlags::RENDERING),
+                &formats,
+            )?,
+        };
+        let fencing = syncobj && !buffers.imported && !swapchain.is_legacy();
         Ok(Self {
             connector,
             crtc,
@@ -298,7 +306,7 @@ impl Output {
         if !self.blanked || self.dark || !matches!(self.state, State::Idle) {
             return;
         }
-        match self.swapchain.surface().clear() {
+        match self.swapchain.clear() {
             Ok(()) => self.dark = true,
             Err(error) if !self.darken_failed => {
                 self.darken_failed = true;
@@ -329,7 +337,7 @@ impl Output {
     }
 
     pub fn flipped(&mut self) -> bool {
-        let _ = self.swapchain.frame_submitted();
+        self.swapchain.frame_submitted();
         if !matches!(self.state, State::Flipping) {
             return false;
         }
@@ -373,7 +381,7 @@ impl Output {
     }
 
     fn queue(&mut self, sync: Option<SyncPoint>) {
-        match self.swapchain.queue_buffer(sync, None, ()) {
+        match self.swapchain.queue_buffer(sync) {
             Ok(()) => self.state = State::Flipping,
             Err(error) => {
                 self.state = State::Idle;
@@ -384,7 +392,7 @@ impl Output {
     }
 
     pub fn render(&mut self, gpu: &Gpu, frame: Frame<'_>) -> Result<(), String> {
-        let (dmabuf, _) = self
+        let dmabuf = self
             .swapchain
             .next_buffer()
             .map_err(|error| format!("no buffer is free to draw into: {error}"))?;

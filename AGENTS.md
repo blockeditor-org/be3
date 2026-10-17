@@ -16,6 +16,7 @@ Guides:
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
 - guides/plugin_sdk.md: the shared module every plugin is linked against, and how hosts link them
+- guides/pinenote.md: block-app's session on the PineNote: e-paper, a display device that cannot draw, building for it
 - guides/reactive.md: the reactive graph under beui
 - guides/running/drive.md: how to run and test any app; read this first
 - guides/running/native.md

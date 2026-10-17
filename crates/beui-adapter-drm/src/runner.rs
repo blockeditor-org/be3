@@ -18,7 +18,9 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{Keystroke, Runner, panic_message};
 use beui_core::window::WindowState;
 use smithay::backend::allocator::gbm::GbmDevice;
-use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime};
+use smithay::backend::drm::{
+    DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, NodeType,
+};
 use smithay::backend::input::Event as _;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
@@ -41,10 +43,12 @@ use smithay::reexports::input::{Device as InputDevice, DeviceCapability, Libinpu
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::{Clock, DeviceFd, Monotonic};
 
-use be_dmabuf::{adapter_for, open_device};
+use be_dmabuf::{Vulkan, adapter_for, open_device};
 
 use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{DisplayRenderer, Displays};
+use crate::epaper::{Epaper, Panel};
+use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{
@@ -52,7 +56,7 @@ use crate::input::{
 };
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
-use crate::output::{Output, connected, wait_for};
+use crate::output::{Buffers, Output, connected, wait_for};
 use crate::pacing::{Lane, Pacer, Wait};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
@@ -71,7 +75,10 @@ struct Session {
     handle: LoopHandle<'static, Session>,
     signal: LoopSignal,
     drm: DrmDevice,
-    gbm: GbmDevice<DrmDeviceFd>,
+    buffers: Buffers,
+    epaper: Option<(Panel, Epaper)>,
+    escape: Escape,
+    escape_timer: Option<RegistrationToken>,
     node: u64,
     libinput: Libinput,
     devices: Vec<InputDevice>,
@@ -135,7 +142,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let fd = DrmDeviceFd::new(DeviceFd::from(fd));
     let (drm, drm_events) = DrmDevice::new(fd.clone(), true)?;
     let node = drm.device_id();
-    let gbm = GbmDevice::new(fd)?;
+    let panel = Panel::find(&fd);
     handle.insert_source(drm_events, |event, metadata, session| match event {
         DrmEvent::VBlank(crtc) => session.flipped(crtc, metadata.as_ref()),
         DrmEvent::Error(error) => session
@@ -161,17 +168,24 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let lost = Arc::new(AtomicBool::new(false));
     let (device, queue) = open_gpu(node, &lost)?;
     let gpu = Rc::new(Gpu::new(device, queue, FORMAT));
+    let buffers = buffers(fd, node, &gpu)?;
     let displays = Rc::new(RefCell::new(Displays::new(
         gpu,
         SoftwareCursor::default(),
         scale(),
     )));
     let mut runner = Runner::new(launch);
-    let mut setup = Setup::new(waker);
+    let mut setup = Setup::new(waker.clone());
     setup.provide(control.clone());
     setup.provide(display_control.clone());
     let problems = Problems::default();
     setup.provide(problems.clone());
+    let epaper = panel.map(|panel| {
+        panel.take_over();
+        let control = Epaper::new(waker.clone());
+        setup.provide(control.clone());
+        (panel, control)
+    });
     let flips = displays.borrow().flips.clone();
     setup.provide(flips.clone());
     runner.start(
@@ -196,7 +210,10 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         handle: handle.clone(),
         signal: event_loop.get_signal(),
         drm,
-        gbm,
+        buffers,
+        epaper,
+        escape: Escape::default(),
+        escape_timer: None,
         node,
         libinput,
         devices: Vec::new(),
@@ -300,6 +317,37 @@ impl drm::Device for Probe<'_> {}
 
 impl ControlDevice for Probe<'_> {}
 
+fn buffers(display: DrmDeviceFd, node: u64, gpu: &Gpu) -> Result<Buffers, Box<dyn Error>> {
+    let render = gpu.vulkan().and_then(Vulkan::render_node);
+    let own = DrmNode::from_dev_id(node)
+        .ok()
+        .and_then(|node| node.node_with_type(NodeType::Render))
+        .and_then(Result::ok)
+        .map(|node| node.dev_id());
+    let Some(render) = render.filter(|render| own != Some(*render)) else {
+        return Ok(Buffers {
+            gbm: GbmDevice::new(display)?,
+            imported: false,
+        });
+    };
+    let path = DrmNode::from_dev_id(render)?
+        .dev_path()
+        .ok_or("the GPU's render node has no path")?;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .map_err(|error| format!("{} could not be opened: {error}", path.display()))?;
+    eprintln!(
+        "beui: the display device cannot draw, so {} draws for it",
+        path.display()
+    );
+    Ok(Buffers {
+        gbm: GbmDevice::new(DrmDeviceFd::new(DeviceFd::from(OwnedFd::from(file))))?,
+        imported: true,
+    })
+}
+
 fn scale() -> f32 {
     std::env::var("BEUI_SCALE")
         .ok()
@@ -336,7 +384,8 @@ impl Session {
             displays,
             devices,
             libinput,
-            gbm,
+            buffers,
+            epaper,
             drm,
             ..
         } = self;
@@ -346,7 +395,8 @@ impl Session {
         drop(devices);
         libinput.suspend();
         drop(libinput);
-        drop(gbm);
+        drop(buffers);
+        drop(epaper);
         drop(drm);
         finished
     }
@@ -363,8 +413,15 @@ impl Session {
             self.display_config = config;
             self.modes_pending = true;
         }
+        let refresh = self
+            .epaper
+            .as_ref()
+            .is_some_and(|(_, control)| control.take_refresh());
         if !self.recovery.active() {
             return;
+        }
+        if refresh && let Some((panel, _)) = &self.epaper {
+            panel.refresh();
         }
         if self.modes_pending {
             self.apply_modes();
@@ -641,7 +698,7 @@ impl Session {
             self.built += 1;
             match Output::new(
                 &mut self.drm,
-                &self.gbm,
+                &self.buffers,
                 &gpu,
                 handle,
                 &info,
@@ -877,6 +934,7 @@ impl Session {
                 self.push(delta);
             }
             InputEvent::TouchDown { event } => {
+                self.escape_touch(event.slot(), true);
                 let position = self.touch_position(&event);
                 self.touch(event.slot(), TouchPhase::Start, position);
             }
@@ -885,12 +943,38 @@ impl Session {
                 self.touch(event.slot(), TouchPhase::Move, position);
             }
             InputEvent::TouchUp { event } => {
+                self.escape_touch(event.slot(), false);
                 self.touch(event.slot(), TouchPhase::End, self.pointer());
             }
             InputEvent::TouchCancel { event } => {
+                self.escape_touch(event.slot(), false);
                 self.touch(event.slot(), TouchPhase::Cancel, self.pointer());
             }
             _ => {}
+        }
+    }
+
+    fn escape_touch(&mut self, slot: smithay::backend::input::TouchSlot, down: bool) {
+        match self.escape.touch(slot.into(), down) {
+            Some(true) => {
+                self.escape_timer = self
+                    .handle
+                    .insert_source(Timer::from_duration(ESCAPE_HOLD), |_, _, session| {
+                        eprintln!(
+                            "beui: {ESCAPE_FINGERS} fingers were held on the screen, so the session ends"
+                        );
+                        session.escape_timer = None;
+                        session.signal.stop();
+                        TimeoutAction::Drop
+                    })
+                    .ok();
+            }
+            Some(false) => {
+                if let Some(token) = self.escape_timer.take() {
+                    self.handle.remove(token);
+                }
+            }
+            None => {}
         }
     }
 
@@ -1055,6 +1139,10 @@ impl Card for Session {
         self.drm.pause();
         self.stop_repeat();
         self.stop_filter_timer();
+        self.escape = Escape::default();
+        if let Some(token) = self.escape_timer.take() {
+            self.handle.remove(token);
+        }
         if let Some(filter) = self.control.filter() {
             filter.borrow_mut().forget_held();
         }
@@ -1076,6 +1164,9 @@ impl Card for Session {
             self.problems.report(format!(
                 "The display device could not be taken back: {error}"
             ));
+        }
+        if let Some((panel, _)) = &self.epaper {
+            panel.take_over();
         }
         if let Some(keyboard) = Keyboard::new(&self.input) {
             if self.keyboard.modifiers() != Modifiers::NONE {

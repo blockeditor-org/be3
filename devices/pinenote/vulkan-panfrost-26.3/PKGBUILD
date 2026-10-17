@@ -1,0 +1,44 @@
+pkgname=vulkan-panfrost-26.3
+_tag=mesa-26.3.0-rc1
+pkgver=26.3.0rc1
+pkgrel=1
+pkgdesc="Mesa's Vulkan driver for Mali GPUs (panvk) from Mesa 26.3, whose Vulkan version wgpu accepts on the PineNote's Mali-G52"
+arch=(aarch64)
+url="https://www.mesa3d.org/"
+license=(MIT)
+depends=(expat libdrm libx11 libxcb libxshmfence systemd-libs vulkan-icd-loader wayland zstd)
+makedepends=(clang git glslang libclc libxrandr llvm meson python-mako python-packaging
+             python-ply python-yaml spirv-llvm-translator spirv-tools wayland-protocols)
+provides=(vulkan-driver "vulkan-panfrost=${pkgver}")
+conflicts=(vulkan-panfrost)
+source=("mesa::git+https://gitlab.freedesktop.org/mesa/mesa.git#tag=${_tag}"
+        panvk.sh)
+sha256sums=('SKIP'
+            'f1fed2fe57d9177b886f3cfa227f692496471c11305fd5d55a4da1a7c3ade08f')
+
+build() {
+  arch-meson mesa build \
+    -D b_ndebug=true \
+    -D platforms=x11,wayland \
+    -D gallium-drivers= \
+    -D vulkan-drivers=panfrost \
+    -D vulkan-layers= \
+    -D opengl=false \
+    -D gles1=disabled \
+    -D gles2=disabled \
+    -D egl=disabled \
+    -D gbm=disabled \
+    -D glx=disabled \
+    -D video-codecs= \
+    -D valgrind=disabled \
+    -D libunwind=disabled \
+    -D lmsensors=disabled \
+    -D build-tests=false
+  meson compile -C build
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+  install -Dm644 panvk.sh -t "$pkgdir/etc/profile.d"
+  install -Dm644 mesa/docs/license.rst -t "$pkgdir/usr/share/licenses/$pkgname"
+}

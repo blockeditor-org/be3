@@ -3,12 +3,12 @@ use std::time::Duration;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_WORKSPACES,
+    ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_REFRESH, ICON_WORKSPACES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Media, Power, Wifi, utc_offset};
+use block_editor_beui::{Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -71,6 +71,8 @@ pub(crate) fn DesktopBar(
     let launcher = move || launcher.show(true);
     let notified = notifications.offered;
     let powered = editor.host_offers::<Power>();
+    let epaper = editor.host_value::<Epaper>();
+    let refresh = move || editor.act(EpaperRequest::Refresh);
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
@@ -157,6 +159,15 @@ pub(crate) fn DesktopBar(
                     </Show>
                     <Show condition={notified}>
                         <NotificationsButton notifications />
+                    </Show>
+                    <Show condition={epaper}>
+                        <IconButton
+                            glyph={ICON_REFRESH.to_owned()}
+                            label="Refresh the screen"
+                            @test_id={"desktop.refresh"}
+                            press_focus=false
+                            on_click={refresh}
+                        />
                     </Show>
                     <IconButton
                         glyph={ICON_KEYBOARD.to_owned()}

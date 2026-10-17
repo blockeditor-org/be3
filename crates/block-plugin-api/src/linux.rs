@@ -193,6 +193,11 @@ pub enum WifiRequest {
     Disconnect,
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EpaperRequest {
+    Refresh,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostNotificationAction {
     pub key: String,
@@ -397,6 +402,13 @@ impl HostValue for Wifi {
     type Value = WifiStatus;
 }
 
+pub enum Epaper {}
+
+impl HostValue for Epaper {
+    const KEY: &'static str = "epaper";
+    type Value = bool;
+}
+
 pub enum Notifications {}
 
 impl HostValue for Notifications {
@@ -447,6 +459,10 @@ impl HostAction for MediaRequest {
 
 impl HostAction for WifiRequest {
     const KEY: &'static str = "wifi";
+}
+
+impl HostAction for EpaperRequest {
+    const KEY: &'static str = "epaper";
 }
 
 impl HostAction for NotificationReport {

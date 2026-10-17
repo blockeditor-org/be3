@@ -4,12 +4,12 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, EditorHost, HostImage, HostProgram,
-    HostWindow, HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels,
-    MediaRequest, NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
-    Notifications, OwnedEditor, PlayerCommand, Power, PowerAction, PowerAvailability,
-    ProgramAction, Programs, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
-    WindowAction, WindowOrigin,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, EditorHost, Epaper, EpaperRequest,
+    HostImage, HostProgram, HostWindow, HostWindowId, HostWindows, IncomingNotification, Media,
+    MediaLevel, MediaLevels, MediaRequest, NotificationInbox, NotificationReport,
+    NotificationRequest, NotificationSignal, Notifications, OwnedEditor, PlayerCommand, Power,
+    PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink, WifiNetwork,
+    WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
 };
 use block_plugin_api::Size;
 use block_shell::{KeptWindow, saved_windows};
@@ -56,6 +56,7 @@ mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
+mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
 mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
