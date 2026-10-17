@@ -23,6 +23,7 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Option<f32>,
+    #[prop(default = true)] tab_stop: bool,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
@@ -34,6 +35,7 @@ pub fn Scroll(
             reveal
             direction
             fit={fit || max_length.is_some()}
+            tab_stop
             focus_color={theme.accent}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
